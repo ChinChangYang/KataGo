@@ -54,7 +54,7 @@ struct ContentView: View {
             createMessageTask()
         }
         .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
-            processChange(newGameRecord: newGameRecord)
+            processChange(newSelectedGameRecord: newGameRecord)
         }
         .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
             processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
@@ -62,8 +62,8 @@ struct ContentView: View {
         }
     }
 
-    private func processChange(newGameRecord: GameRecord?) {
-        if let config = newGameRecord?.config {
+    private func processChange(newSelectedGameRecord: GameRecord?) {
+        if let config = newSelectedGameRecord?.config {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
@@ -73,6 +73,10 @@ struct ContentView: View {
             if (gobanState.analysisStatus == .run) {
                 gobanState.requestAnalysis(config: config)
             }
+        } else if newSelectedGameRecord == nil,
+                  let firstGameRecord = gameRecords.first {
+            // When the selected game is deleted, try selecting the first game.
+            navigationContext.selectedGameRecord = firstGameRecord
         }
     }
 
@@ -101,7 +105,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
             KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
-            if !gameRecords.isEmpty { navigationContext.selectedGameRecord = gameRecords[0] }
+            navigationContext.selectedGameRecord = gameRecords.first
             maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand("printsgf")
@@ -412,7 +416,10 @@ struct ContentView: View {
                 let lastMoveIndex = SgfHelper(sgf: sgfString).getLastMoveIndex() ?? -1
                 let currentIndex = lastMoveIndex + 1
                 if gameRecords.isEmpty {
-                    modelContext.insert(GameRecord(sgf: sgfString, currentIndex: currentIndex))
+                    // Automatically generate and select a new game when there are no games in the list
+                    let newGameRecord = GameRecord(sgf: sgfString, currentIndex: currentIndex)
+                    modelContext.insert(newGameRecord)
+                    navigationContext.selectedGameRecord = newGameRecord
                 } else if let gameRecord = navigationContext.selectedGameRecord {
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex

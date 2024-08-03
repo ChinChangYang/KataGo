@@ -91,7 +91,6 @@ struct TopToolbarView: View {
     @Binding var isBoardSizeChanged: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
-    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
 
     var body: some View {
         HStack {
@@ -129,10 +128,11 @@ struct TopToolbarView: View {
             }
 
             Button {
-                modelContext.insert(GameRecord(gameRecord: gameRecord))
-                navigationContext.selectedGameRecord = gameRecords.first
+                let newGameRecord = GameRecord(gameRecord: gameRecord)
+                modelContext.insert(newGameRecord)
+                navigationContext.selectedGameRecord = newGameRecord
             } label: {
-                Label("New game", systemImage: "plus")
+                Label("New game", systemImage: "plus.square")
                     .help("New game")
             }
         }
@@ -191,7 +191,6 @@ struct GobanView: View {
     @Environment(\.verticalSizeClass) var vSizeClass
     @Environment(NavigationContext.self) var navigationContext
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
 
     var body: some View {
         if isInitialized,
@@ -218,10 +217,11 @@ struct GobanView: View {
                     if isInitialized {
                         ToolbarItem {
                             Button {
-                                modelContext.insert(GameRecord())
-                                navigationContext.selectedGameRecord = gameRecords.first
+                                let newGameRecord = GameRecord()
+                                modelContext.insert(newGameRecord)
+                                navigationContext.selectedGameRecord = newGameRecord
                             } label: {
-                                Label("New game", systemImage: "plus")
+                                Label("New game", systemImage: "plus.square")
                                     .help("New game")
                             }
                         }

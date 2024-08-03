@@ -16,7 +16,7 @@ final class GameRecord {
     var name: String
     var lastModificationDate: Date?
 
-    init(sgf: String = "",
+    init(sgf: String = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])",
          currentIndex: Int = 0,
          config: Config = Config(),
          name: String = "Name",
@@ -32,7 +32,7 @@ final class GameRecord {
         self.init(sgf: gameRecord.sgf,
                   currentIndex: gameRecord.currentIndex,
                   config: Config(config: gameRecord.config),
-                  name: gameRecord.name)
+                  name: gameRecord.name + " (copy)")
     }
 
     func undo() {
