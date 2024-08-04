@@ -73,10 +73,6 @@ struct ContentView: View {
             if (gobanState.analysisStatus == .run) {
                 gobanState.requestAnalysis(config: config)
             }
-        } else if newSelectedGameRecord == nil,
-                  let firstGameRecord = gameRecords.first {
-            // When the selected game is deleted, try selecting the first game.
-            navigationContext.selectedGameRecord = firstGameRecord
         }
     }
 
