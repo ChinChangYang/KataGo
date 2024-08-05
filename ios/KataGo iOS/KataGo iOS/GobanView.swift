@@ -27,7 +27,7 @@ struct BoardView: View {
                 StoneView(dimensions: dimensions,
                           isClassicStoneStyle: config.isClassicStoneStyle())
 
-                if gobanState.analysisStatus != .clear {
+                if (gobanState.analysisStatus != .clear) && (isAnalysisForCurrentPlayer()) {
                     AnalysisView(config: config, dimensions: dimensions)
                 }
 
@@ -36,19 +36,15 @@ struct BoardView: View {
             }
             .onTapGesture() { location in
                 if let move = locationToMove(location: location, dimensions: dimensions) {
-                    if player.nextColorForPlayCommand == .black {
-                        KataGoHelper.sendCommand("play b \(move)")
-                        player.nextColorForPlayCommand = .white
-                    } else {
-                        KataGoHelper.sendCommand("play w \(move)")
-                        player.nextColorForPlayCommand = .black
-                    }
+                    KataGoHelper.sendCommand("play \(player.nextColorSymbolForPlayCommand) \(move)")
                 }
 
                 KataGoHelper.sendCommand("showboard")
                 KataGoHelper.sendCommand("printsgf")
 
-                if gobanState.analysisStatus != .clear {
+                player.toggleNextColorForPlayCommand()
+
+                if (gobanState.analysisStatus != .clear) && isAnalysisForCurrentPlayer() {
                     gobanState.requestAnalysis(config: config)
                 } else {
                     gobanState.requestingClearAnalysis = true
@@ -68,6 +64,12 @@ struct BoardView: View {
         .onDisappear() {
             KataGoHelper.sendCommand("stop")
         }
+    }
+
+    func isAnalysisForCurrentPlayer() -> Bool {
+        return (config.isAnalysisForBlack() && player.nextColorForPlayCommand == .black) ||
+        (config.isAnalysisForWhite() && player.nextColorForPlayCommand == .white) ||
+        (!config.isAnalysisForBlack() && !config.isAnalysisForWhite())
     }
 
     func locationToMove(location: CGPoint, dimensions: Dimensions) -> String? {

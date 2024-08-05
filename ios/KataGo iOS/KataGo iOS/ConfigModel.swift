@@ -24,6 +24,7 @@ final class Config {
     var showCoordinate: Bool = defaultShowCoordinate
     var humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful
     var humanSLProfile: String = defaultHumanSLProfile
+    var optionalAnalysisForWhom: Int? = 0
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -38,7 +39,8 @@ final class Config {
          stoneStyle: Int = defaultStoneStyle,
          showCoordinate: Bool = defaultShowCoordinate,
          humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
-         humanSLProfile: String = defaultHumanSLProfile) {
+         humanSLProfile: String = defaultHumanSLProfile,
+         optionalAnalysisForWhom: Int? = 0) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -53,6 +55,7 @@ final class Config {
         self.showCoordinate = showCoordinate
         self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
         self.humanSLProfile = humanSLProfile
+        self.optionalAnalysisForWhom = optionalAnalysisForWhom
     }
 
     convenience init(config: Config) {
@@ -70,7 +73,8 @@ final class Config {
             stoneStyle: config.stoneStyle,
             showCoordinate: config.showCoordinate,
             humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
-            humanSLProfile: config.humanSLProfile
+            humanSLProfile: config.humanSLProfile,
+            optionalAnalysisForWhom: config.optionalAnalysisForWhom
         )
     }
 }
@@ -169,4 +173,33 @@ extension Config {
 
 extension Config {
     static let defaultHumanSLProfile = "rank_9d"
+}
+
+extension Config {
+    static let defaultAnalysisForWhom = 0
+    static let analysisForBoth = "Both"
+    static let analysisForBlack = "Black"
+    static let analysisForWhite = "White"
+
+    static let analysisForWhoms = [analysisForBoth,
+                                   analysisForBlack,
+                                   analysisForWhite]
+
+    var analysisForWhom: Int {
+        get {
+            return optionalAnalysisForWhom ?? Config.defaultAnalysisForWhom
+        }
+
+        set(newAnalysisForWhom) {
+            optionalAnalysisForWhom = newAnalysisForWhom
+        }
+    }
+
+    func isAnalysisForBlack() -> Bool {
+        return Config.analysisForWhoms[analysisForWhom] == Config.analysisForBlack
+    }
+
+    func isAnalysisForWhite() -> Bool {
+        return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
+    }
 }

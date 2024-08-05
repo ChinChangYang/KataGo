@@ -38,6 +38,24 @@ class PlayerObject: ObservableObject {
     @Published var nextColorFromShowBoard = PlayerColor.black
 }
 
+extension PlayerObject {
+    func toggleNextColorForPlayCommand() {
+        if nextColorForPlayCommand == .black {
+            nextColorForPlayCommand = .white
+        } else {
+            nextColorForPlayCommand = .black
+        }
+    }
+
+    var nextColorSymbolForPlayCommand: String {
+        if nextColorForPlayCommand == .black {
+            return "b"
+        } else {
+            return "w"
+        }
+    }
+}
+
 struct AnalysisInfo {
     let visits: Int
     let winrate: Float

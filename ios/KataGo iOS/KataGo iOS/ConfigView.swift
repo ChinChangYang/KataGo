@@ -147,6 +147,7 @@ struct ConfigItems: View {
     @State var showCoordinate = Config.defaultShowCoordinate
     @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanSLProfile = Config.defaultHumanSLProfile
+    @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
     @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
@@ -204,6 +205,11 @@ struct ConfigItems: View {
                     .onChange(of: analysisInformation) { _, newValue in
                         config.analysisInformation = newValue
                     }
+
+                ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
+                    .onChange(of: analysisForWhom) { _, newValue in
+                        config.analysisForWhom = newValue
+                    }
             }
 
             Section("View") {
@@ -246,6 +252,7 @@ struct ConfigItems: View {
             showCoordinate = config.showCoordinate
             humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
             humanSLProfile = config.humanSLProfile
+            analysisForWhom = config.analysisForWhom
         }
     }
 }
