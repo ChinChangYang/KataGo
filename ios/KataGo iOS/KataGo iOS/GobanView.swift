@@ -156,23 +156,7 @@ struct GobanItems: View {
             } else if isConfigPresented {
                 ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
             } else {
-                if hSizeClass == .compact && vSizeClass == .regular {
-                    VStack {
-                        BoardView(config: gameRecord.config)
-                        HStack {
-                            ToolbarItems(gameRecord: gameRecord)
-                        }
-                        .padding()
-                    }
-                } else {
-                    HStack {
-                        BoardView(config: gameRecord.config)
-                        VStack {
-                            ToolbarItems(gameRecord: gameRecord)
-                        }
-                        .padding()
-                    }
-                }
+                BoardView(config: gameRecord.config)
             }
         }
         .toolbar {
@@ -181,6 +165,10 @@ struct GobanItems: View {
                                isCommandPresented: $isCommandPresented,
                                isConfigPresented: $isConfigPresented,
                                isBoardSizeChanged: $isBoardSizeChanged)
+            }
+
+            ToolbarItem(placement: .status) {
+                StatusToolbarItems(gameRecord: gameRecord)
             }
         }
     }

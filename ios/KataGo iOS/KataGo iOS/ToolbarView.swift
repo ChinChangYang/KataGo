@@ -8,62 +8,46 @@
 import SwiftUI
 import KataGoInterface
 
-struct ToolbarItems: View {
+struct StatusToolbarItems: View {
     @EnvironmentObject var player: PlayerObject
     @EnvironmentObject var gobanState: GobanState
     @EnvironmentObject var board: ObservableBoard
     var gameRecord: GameRecord
 
     var body: some View {
-        Group {
+        HStack {
             Button(action: passAction) {
                 Image(systemName: "hand.raised")
-                    .resizable()
             }
-            .padding()
 
             Button(action: backwardAction) {
                 Image(systemName: "backward.frame")
-                    .resizable()
             }
-            .padding()
 
             if gobanState.analysisStatus == .pause {
                 Button(action: startAnalysisAction) {
                     Image(systemName: "sparkle")
-                        .resizable()
                 }
-                .padding()
             } else if gobanState.analysisStatus == .run {
                 Button(action: stopAction) {
                     Image(systemName: "sparkle")
-                        .resizable()
                         .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 }
-                .padding()
             } else {
                 Button(action: pauseAnalysisAction) {
                     Image(systemName: "sparkle")
-                        .resizable()
                         .foregroundColor(.red)
                 }
-                .padding()
             }
 
             Button(action: forwardAction) {
                 Image(systemName: "forward.frame")
-                    .resizable()
             }
-            .padding()
 
             Button(action: clearBoardAction) {
                 Image(systemName: "clear")
-                    .resizable()
             }
-            .padding()
         }
-        .scaledToFit()
-        .frame(maxWidth: 60)
     }
 
     func passAction() {
