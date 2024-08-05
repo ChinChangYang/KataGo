@@ -63,6 +63,7 @@ struct BoardLineView: View {
                 .resizable()
                 .frame(width: dimensions.gobanWidth,
                        height: dimensions.gobanHeight)
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
         }
     }
 
