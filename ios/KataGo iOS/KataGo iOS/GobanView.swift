@@ -146,8 +146,6 @@ struct GobanItems: View {
     @State private var isCommandPresented = false
     @State private var isConfigPresented = false
     @State private var isBoardSizeChanged = false
-    @Environment(\.horizontalSizeClass) var hSizeClass
-    @Environment(\.verticalSizeClass) var vSizeClass
 
     var body: some View {
         Group {
@@ -177,30 +175,21 @@ struct GobanItems: View {
 struct GobanView: View {
     @Binding var isInitialized: Bool
     @Binding var isEditorPresented: Bool
-    @Environment(\.horizontalSizeClass) var hSizeClass
-    @Environment(\.verticalSizeClass) var vSizeClass
     @Environment(NavigationContext.self) var navigationContext
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         if isInitialized,
            let gameRecord = navigationContext.selectedGameRecord {
-            Text(gameRecord.name)
-                .font(.title)
-                .bold()
-                .onTapGesture {
-                    isEditorPresented = true
+            GobanItems(gameRecord: gameRecord)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text(gameRecord.name)
+                            .onTapGesture {
+                                isEditorPresented = true
+                            }
+                    }
                 }
-
-            if hSizeClass == .compact && vSizeClass == .regular {
-                VStack {
-                    GobanItems(gameRecord: gameRecord)
-                }
-            } else {
-                HStack {
-                    GobanItems(gameRecord: gameRecord)
-                }
-            }
         } else {
             ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                 .toolbar {
