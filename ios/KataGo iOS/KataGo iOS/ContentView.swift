@@ -419,6 +419,7 @@ struct ContentView: View {
                 } else if let gameRecord = navigationContext.selectedGameRecord {
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex
+                    gameRecord.lastModificationDate = Date.now
                 }
             }
         }
