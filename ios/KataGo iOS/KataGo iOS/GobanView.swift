@@ -88,40 +88,41 @@ struct BoardView: View {
 
 struct TopToolbarView: View {
     var gameRecord: GameRecord
-    @Binding var isCommandPresented: Bool
-    @Binding var isConfigPresented: Bool
     @Binding var isBoardSizeChanged: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
+    @Environment(GobanTab.self) var gobanTab
 
     var body: some View {
         HStack {
-            Button(action: {
+            Button {
                 withAnimation {
-                    isCommandPresented.toggle()
-                    isConfigPresented = false
+                    gobanTab.isCommandPresented.toggle()
+                    gobanTab.isConfigPresented = false
+                    gobanTab.isAddPresented = false
                 }
-            }) {
-                if isCommandPresented {
+            } label: {
+                if gobanTab.isCommandPresented {
                     Image(systemName: "doc.plaintext.fill")
                 } else {
                     Image(systemName: "doc.plaintext")
                 }
             }
 
-            Button(action: {
+            Button {
                 withAnimation {
-                    isCommandPresented = false
-                    isConfigPresented.toggle()
+                    gobanTab.isCommandPresented = false
+                    gobanTab.isConfigPresented.toggle()
+                    gobanTab.isAddPresented = false
                 }
-            }) {
-                if isConfigPresented {
+            } label: {
+                if gobanTab.isConfigPresented {
                     Image(systemName: "gearshape.fill")
                 } else {
                     Image(systemName: "gearshape")
                 }
             }
-            .onChange(of: isConfigPresented) { _, isConfigPresentedNow in
+            .onChange(of: gobanTab.isConfigPresented) { _, isConfigPresentedNow in
                 if !isConfigPresentedNow && (isBoardSizeChanged) {
                     KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
                     KataGoHelper.sendCommand("printsgf")
@@ -130,12 +131,19 @@ struct TopToolbarView: View {
             }
 
             Button {
-                let newGameRecord = GameRecord(gameRecord: gameRecord)
-                modelContext.insert(newGameRecord)
-                navigationContext.selectedGameRecord = newGameRecord
+                withAnimation {
+                    gobanTab.isCommandPresented = false
+                    gobanTab.isConfigPresented = false
+                    gobanTab.isAddPresented.toggle()
+                }
             } label: {
-                Label("New game", systemImage: "plus.square")
-                    .help("New game")
+                if gobanTab.isAddPresented {
+                    Label("New game", systemImage: "plus.square.fill")
+                        .help("New game")
+                } else {
+                    Label("New game", systemImage: "plus.square")
+                        .help("New game")
+                }
             }
         }
     }
@@ -143,16 +151,17 @@ struct TopToolbarView: View {
 
 struct GobanItems: View {
     var gameRecord: GameRecord
-    @State private var isCommandPresented = false
-    @State private var isConfigPresented = false
     @State private var isBoardSizeChanged = false
+    @Environment(GobanTab.self) var gobanTab
 
     var body: some View {
         Group {
-            if isCommandPresented {
+            if gobanTab.isCommandPresented {
                 CommandView(config: gameRecord.config)
-            } else if isConfigPresented {
+            } else if gobanTab.isConfigPresented {
                 ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
+            } else if gobanTab.isAddPresented {
+                AddGameView(gameRecord: gameRecord)
             } else {
                 BoardView(config: gameRecord.config)
             }
@@ -160,8 +169,6 @@ struct GobanItems: View {
         .toolbar {
             ToolbarItem {
                 TopToolbarView(gameRecord: gameRecord,
-                               isCommandPresented: $isCommandPresented,
-                               isConfigPresented: $isConfigPresented,
                                isBoardSizeChanged: $isBoardSizeChanged)
             }
 
@@ -172,40 +179,70 @@ struct GobanItems: View {
     }
 }
 
+struct UnselectedGameView: View {
+    @Binding var isInitialized: Bool
+    @Environment(GobanTab.self) var gobanTab
+
+    var body: some View {
+        if gobanTab.isAddPresented {
+            AddGameView(gameRecord: nil)
+        } else {
+            ContentUnavailableView("Select a game", systemImage: "sidebar.left")
+        }
+    }
+}
+
+@Observable
+class GobanTab {
+    var isCommandPresented = false
+    var isConfigPresented = false
+    var isAddPresented = false
+}
+
 struct GobanView: View {
     @Binding var isInitialized: Bool
     @Binding var isEditorPresented: Bool
+    @State private var gobanTab = GobanTab()
     @Environment(NavigationContext.self) var navigationContext
-    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        if isInitialized,
-           let gameRecord = navigationContext.selectedGameRecord {
-            GobanItems(gameRecord: gameRecord)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        Text(gameRecord.name)
-                            .onTapGesture {
-                                isEditorPresented = true
-                            }
+        Group {
+            if isInitialized,
+               let gameRecord = navigationContext.selectedGameRecord {
+                GobanItems(gameRecord: gameRecord)
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Text(gameRecord.name)
+                                .onTapGesture {
+                                    isEditorPresented = true
+                                }
+                        }
                     }
-                }
-        } else {
-            ContentUnavailableView("Select a game", systemImage: "sidebar.left")
-                .toolbar {
-                    if isInitialized {
-                        ToolbarItem {
-                            Button {
-                                let newGameRecord = GameRecord()
-                                modelContext.insert(newGameRecord)
-                                navigationContext.selectedGameRecord = newGameRecord
-                            } label: {
-                                Label("New game", systemImage: "plus.square")
-                                    .help("New game")
+            } else {
+                UnselectedGameView(isInitialized: $isInitialized)
+                    .toolbar {
+                        if isInitialized {
+                            ToolbarItem {
+                                Button {
+                                    withAnimation {
+                                        gobanTab.isCommandPresented = false
+                                        gobanTab.isConfigPresented = false
+                                        gobanTab.isAddPresented.toggle()
+                                    }
+                                } label: {
+                                    if gobanTab.isAddPresented {
+                                        Label("New game", systemImage: "plus.square.fill")
+                                            .help("New game")
+                                    } else {
+                                        Label("New game", systemImage: "plus.square")
+                                            .help("New game")
+                                    }
+                                }
                             }
                         }
                     }
-                }
+            }
         }
+        .environment(gobanTab)
     }
 }

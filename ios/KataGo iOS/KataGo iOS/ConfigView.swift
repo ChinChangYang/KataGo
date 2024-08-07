@@ -179,10 +179,25 @@ struct ConfigItems: View {
             }
 
             Section("Analysis") {
+                ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
+                    .onChange(of: analysisInformation) { _, newValue in
+                        config.analysisInformation = newValue
+                    }
+
+                ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
+                    .onChange(of: analysisForWhom) { _, newValue in
+                        config.analysisForWhom = newValue
+                    }
+
                 ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
                     .onChange(of: playoutDoublingAdvantage) { _, newValue in
                         config.playoutDoublingAdvantage = newValue
                         KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                    }
+
+                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                    .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
+                        config.hiddenAnalysisVisitRatio = newValue
                     }
 
                 ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
@@ -194,21 +209,6 @@ struct ConfigItems: View {
                 ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
                     .onChange(of: maxAnalysisMoves) { _, newValue in
                         config.maxAnalysisMoves = newValue
-                    }
-
-                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
-                    .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
-                        config.hiddenAnalysisVisitRatio = newValue
-                    }
-
-                ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
-                    .onChange(of: analysisInformation) { _, newValue in
-                        config.analysisInformation = newValue
-                    }
-
-                ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
-                    .onChange(of: analysisForWhom) { _, newValue in
-                        config.analysisForWhom = newValue
                     }
             }
 
