@@ -49,9 +49,9 @@ struct ContentView: View {
         .environment(gobanState)
         .environment(winrate)
         .environment(navigationContext)
-        .onAppear() {
+        .task {
             // Get messages from KataGo and append to the list of messages
-            createMessageTask()
+            await messageTask()
         }
         .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
             processChange(newSelectedGameRecord: newGameRecord)
@@ -89,50 +89,48 @@ struct ContentView: View {
         }
     }
 
-    /// Create message task
-    private func createMessageTask() {
-        Task {
-            let defaultConfig = Config()
-            messagesObject.messages.append(Message(text: "Initializing..."))
-            KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
-            KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
-            KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
-            // Disable friendly pass to avoid a memory shortage problem
-            KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
-            KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
-            KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
-            navigationContext.selectedGameRecord = gameRecords.first
-            maybeLoadSgf()
-            KataGoHelper.sendCommand("showboard")
-            KataGoHelper.sendCommand("printsgf")
-            gobanState.requestAnalysis(config: defaultConfig)
+    @MainActor
+    private func messageTask() async {
+        let defaultConfig = Config()
+        messagesObject.messages.append(Message(text: "Initializing..."))
+        KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
+        // Disable friendly pass to avoid a memory shortage problem
+        KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
+        KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
+        navigationContext.selectedGameRecord = gameRecords.first
+        maybeLoadSgf()
+        KataGoHelper.sendCommand("showboard")
+        KataGoHelper.sendCommand("printsgf")
+        gobanState.requestAnalysis(config: defaultConfig)
 
-            while true {
-                let line = await Task.detached {
-                    // Get a message line from KataGo
-                    return KataGoHelper.getMessageLine()
-                }.value
+        while true {
+            let line = await Task.detached {
+                // Get a message line from KataGo
+                return KataGoHelper.getMessageLine()
+            }.value
 
-                // Create a message with the line
-                let message = Message(text: line)
+            // Create a message with the line
+            let message = Message(text: line)
 
-                // Append the message to the list of messages
-                messagesObject.messages.append(message)
+            // Append the message to the list of messages
+            messagesObject.messages.append(message)
 
-                // Collect board information
-                maybeCollectBoard(message: line)
+            // Collect board information
+            maybeCollectBoard(message: line)
 
-                // Collect analysis information
-                maybeCollectAnalysis(message: line)
+            // Collect analysis information
+            maybeCollectAnalysis(message: line)
 
-                // Collect SGF information
-                maybeCollectSgf(message: line)
+            // Collect SGF information
+            maybeCollectSgf(message: line)
 
-                // Remove when there are too many messages
-                messagesObject.shrink()
+            // Remove when there are too many messages
+            messagesObject.shrink()
 
-                isInitialized = true
-            }
+            isInitialized = true
         }
     }
 
