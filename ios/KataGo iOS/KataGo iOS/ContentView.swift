@@ -10,17 +10,17 @@ import SwiftData
 import KataGoInterface
 
 struct ContentView: View {
-    @StateObject var stones = Stones()
-    @StateObject var messagesObject = MessagesObject()
-    @StateObject var board = ObservableBoard()
-    @StateObject var player = PlayerObject()
-    @StateObject var analysis = Analysis()
+    @State var stones = Stones()
+    @State var messagesObject = MessagesObject()
+    @State var board = ObservableBoard()
+    @State var player = PlayerObject()
+    @State var analysis = Analysis()
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
-    @StateObject var gobanState = GobanState()
-    @StateObject var winrate = Winrate()
+    @State var gobanState = GobanState()
+    @State var winrate = Winrate()
     @State private var navigationContext = NavigationContext()
     @State private var isEditorPresented = false
     @State private var isInitialized = false
@@ -41,13 +41,13 @@ struct ContentView: View {
             GobanView(isInitialized: $isInitialized,
                       isEditorPresented: $isEditorPresented)
         }
-        .environmentObject(stones)
-        .environmentObject(messagesObject)
-        .environmentObject(board)
-        .environmentObject(player)
-        .environmentObject(analysis)
-        .environmentObject(gobanState)
-        .environmentObject(winrate)
+        .environment(stones)
+        .environment(messagesObject)
+        .environment(board)
+        .environment(player)
+        .environment(analysis)
+        .environment(gobanState)
+        .environment(winrate)
         .environment(navigationContext)
         .onAppear() {
             // Get messages from KataGo and append to the list of messages

@@ -8,9 +8,10 @@
 import SwiftUI
 import KataGoInterface
 
-class ObservableBoard: ObservableObject {
-    @Published var width: CGFloat = 19
-    @Published var height: CGFloat = 19
+@Observable
+class ObservableBoard {
+    var width: CGFloat = 19
+    var height: CGFloat = 19
 }
 
 struct BoardPoint: Hashable, Comparable {
@@ -22,10 +23,11 @@ struct BoardPoint: Hashable, Comparable {
     }
 }
 
-class Stones: ObservableObject {
-    @Published var blackPoints: [BoardPoint] = []
-    @Published var whitePoints: [BoardPoint] = []
-    @Published var moveOrder: [Character: BoardPoint] = [:]
+@Observable
+class Stones {
+    var blackPoints: [BoardPoint] = []
+    var whitePoints: [BoardPoint] = []
+    var moveOrder: [Character: BoardPoint] = [:]
 }
 
 enum PlayerColor {
@@ -33,9 +35,10 @@ enum PlayerColor {
     case white
 }
 
-class PlayerObject: ObservableObject {
-    @Published var nextColorForPlayCommand = PlayerColor.black
-    @Published var nextColorFromShowBoard = PlayerColor.black
+@Observable
+class PlayerObject {
+    var nextColorForPlayCommand = PlayerColor.black
+    var nextColorFromShowBoard = PlayerColor.black
 }
 
 extension PlayerObject {
@@ -73,11 +76,12 @@ struct Ownership {
     }
 }
 
-class Analysis: ObservableObject {
-    @Published var nextColorForAnalysis = PlayerColor.white
-    @Published var info: [BoardPoint: AnalysisInfo] = [:]
-    @Published var rootInfo: AnalysisInfo?
-    @Published var ownership: [BoardPoint: Ownership] = [:]
+@Observable
+class Analysis {
+    var nextColorForAnalysis = PlayerColor.white
+    var info: [BoardPoint: AnalysisInfo] = [:]
+    var rootInfo: AnalysisInfo?
+    var ownership: [BoardPoint: Ownership] = [:]
 
     func clear() {
         info = [:]
@@ -155,10 +159,11 @@ struct Message: Identifiable, Equatable, Hashable {
     }
 }
 
-class MessagesObject: ObservableObject {
+@Observable
+class MessagesObject {
     static private let defaultMaxMessageLines = 1000
 
-    @Published var messages: [Message] = []
+    var messages: [Message] = []
 
     func shrink() {
         while messages.count > MessagesObject.defaultMaxMessageLines {
@@ -173,10 +178,11 @@ enum AnalysisStatus {
     case run
 }
 
-class GobanState: ObservableObject {
-    @Published var waitingForAnalysis = false
-    @Published var requestingClearAnalysis = false
-    @Published var analysisStatus = AnalysisStatus.run
+@Observable
+class GobanState {
+    var waitingForAnalysis = false
+    var requestingClearAnalysis = false
+    var analysisStatus = AnalysisStatus.run
 
     func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
@@ -184,8 +190,9 @@ class GobanState: ObservableObject {
     }
 }
 
-class Winrate: ObservableObject {
-    @Published var black: Float = 0.5
+@Observable
+class Winrate {
+    var black: Float = 0.5
 
     var white: Float {
         1 - black

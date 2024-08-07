@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct WinrateBarView: View {
-    @EnvironmentObject var winrate: Winrate
+    @Environment(Winrate.self) var winrate
     let dimensions: Dimensions
 
     var body: some View {
@@ -55,6 +55,6 @@ struct WinrateBarView: View {
             BoardLineView(dimensions: dimensions)
             WinrateBarView(dimensions: dimensions)
         }
-        .environmentObject(winrate)
+        .environment(winrate)
     }
 }

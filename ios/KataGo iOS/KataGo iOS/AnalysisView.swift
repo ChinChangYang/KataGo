@@ -9,8 +9,8 @@ import SwiftUI
 import KataGoInterface
 
 struct AnalysisView: View {
-    @EnvironmentObject var analysis: Analysis
-    @EnvironmentObject var gobanState: GobanState
+    @Environment(Analysis.self) var analysis
+    @Environment(GobanState.self) var gobanState
     var config: Config
     let dimensions: Dimensions
 

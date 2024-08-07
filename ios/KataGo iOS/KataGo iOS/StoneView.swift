@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct StoneView: View {
-    @EnvironmentObject var stones: Stones
+    @Environment(Stones.self) var stones
     let dimensions: Dimensions
     let isClassicStoneStyle: Bool
 
@@ -178,7 +178,7 @@ struct StoneView: View {
                                              height: 2),
                       isClassicStoneStyle: false)
         }
-        .environmentObject(stones)
+        .environment(stones)
         .onAppear() {
             stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
             stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
@@ -203,7 +203,7 @@ struct StoneView: View {
                                              height: 2),
                       isClassicStoneStyle: true)
         }
-        .environmentObject(stones)
+        .environment(stones)
         .onAppear() {
             stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
             stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]

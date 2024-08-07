@@ -9,7 +9,7 @@ import SwiftUI
 import KataGoInterface
 
 struct CommandView: View {
-    @EnvironmentObject var messagesObject: MessagesObject
+    @Environment(MessagesObject.self) var messagesObject
     @State private var command = ""
     var config: Config
 

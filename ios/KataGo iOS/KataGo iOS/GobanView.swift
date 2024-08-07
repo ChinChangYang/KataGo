@@ -10,9 +10,9 @@ import SwiftData
 import KataGoInterface
 
 struct BoardView: View {
-    @EnvironmentObject var board: ObservableBoard
-    @EnvironmentObject var player: PlayerObject
-    @EnvironmentObject var gobanState: GobanState
+    @Environment(ObservableBoard.self) var board
+    @Environment(PlayerObject.self) var player
+    @Environment(GobanState.self) var gobanState
     var config: Config
 
     var body: some View {
