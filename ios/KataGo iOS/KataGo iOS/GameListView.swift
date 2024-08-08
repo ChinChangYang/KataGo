@@ -14,11 +14,22 @@ struct GameListView: View {
     @Binding var selectedGameRecord: GameRecord?
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
+    @State var searchText = ""
+
+    var filteredGameRecords: [GameRecord] {
+        if searchText == "" {
+            return gameRecords
+        } else {
+            return gameRecords.filter { gameRecord in
+                gameRecord.name.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
 
     var body: some View {
         List(selection: $selectedGameRecord) {
             if isInitialized {
-                ForEach(gameRecords) { gameRecord in
+                ForEach(filteredGameRecords) { gameRecord in
                     NavigationLink(gameRecord.name, value: gameRecord)
                 }
                 .onDelete { indexSet in
@@ -39,5 +50,6 @@ struct GameListView: View {
         .sheet(isPresented: $isEditorPresented) {
             NameEditorView(gameRecord: selectedGameRecord)
         }
+        .searchable(text: $searchText)
     }
 }
