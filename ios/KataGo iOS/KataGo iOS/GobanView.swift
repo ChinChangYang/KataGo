@@ -163,7 +163,9 @@ struct TopToolbarView: View {
 struct GobanItems: View {
     var gameRecord: GameRecord
     @State private var isBoardSizeChanged = false
+    @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
 
     var body: some View {
         Group {
@@ -186,7 +188,11 @@ struct GobanItems: View {
             ToolbarItem {
                 TopToolbarView(gameRecord: gameRecord,
                                isBoardSizeChanged: $isBoardSizeChanged)
+                .id(toolbarUuid)
             }
+        }
+        .onChange(of: horizontalSizeClass) { _, _ in
+            toolbarUuid = UUID()
         }
     }
 }
@@ -212,6 +218,8 @@ struct GobanView: View {
     @Binding var isEditorPresented: Bool
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
+    @State var toolbarUuid = UUID()
 
     var body: some View {
         Group {
@@ -224,7 +232,11 @@ struct GobanView: View {
                                 .onTapGesture {
                                     isEditorPresented = true
                                 }
+                                .id(toolbarUuid)
                         }
+                    }
+                    .onChange(of: horizontalSizeClass) { _, _ in
+                        toolbarUuid = UUID()
                     }
             } else {
                 UnselectedGameView(isInitialized: $isInitialized)
