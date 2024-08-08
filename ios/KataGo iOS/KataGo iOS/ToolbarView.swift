@@ -25,16 +25,16 @@ struct StatusToolbarItems: View {
             }
 
             if gobanState.analysisStatus == .pause {
-                Button(action: startAnalysisAction) {
+                Button(action: stopAction) {
                     Image(systemName: "sparkle")
                 }
             } else if gobanState.analysisStatus == .run {
-                Button(action: stopAction) {
+                Button(action: pauseAnalysisAction) {
                     Image(systemName: "sparkle")
                         .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 }
             } else {
-                Button(action: pauseAnalysisAction) {
+                Button(action: startAnalysisAction) { 
                     Image(systemName: "sparkle")
                         .foregroundColor(.red)
                 }
