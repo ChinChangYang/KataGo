@@ -32,7 +32,8 @@ final class GameRecord {
         self.init(sgf: gameRecord.sgf,
                   currentIndex: gameRecord.currentIndex,
                   config: Config(config: gameRecord.config),
-                  name: gameRecord.name + " (copy)")
+                  name: gameRecord.name + " (copy)",
+                  lastModificationDate: Date.now)
     }
 
     func undo() {

@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var navigationContext = NavigationContext()
     @State private var isEditorPresented = false
     @State private var isInitialized = false
+    @State private var gobanTab = GobanTab()
 
     init() {
         // Start a thread to run KataGo GTP
@@ -49,6 +50,7 @@ struct ContentView: View {
         .environment(gobanState)
         .environment(winrate)
         .environment(navigationContext)
+        .environment(gobanTab)
         .task {
             // Get messages from KataGo and append to the list of messages
             await messageTask()
@@ -63,6 +65,9 @@ struct ContentView: View {
     }
 
     private func processChange(newSelectedGameRecord: GameRecord?) {
+        gobanTab.isConfigPresented = false
+        gobanTab.isCommandPresented = false
+        gobanTab.isInfoPresented = false
         if let config = newSelectedGameRecord?.config {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
@@ -136,24 +141,7 @@ struct ContentView: View {
 
     func maybeLoadSgf() {
         if let gameRecord = navigationContext.selectedGameRecord {
-            let sgf = gameRecord.sgf
-
-            let supportDirectory =
-            try? FileManager.default.url(for: .documentDirectory,
-                                         in: .userDomainMask,
-                                         appropriateFor: nil,
-                                         create: true)
-
-            if let supportDirectory {
-                let file = supportDirectory.appendingPathComponent("temp.sgf")
-                do {
-                    try sgf.write(to: file, atomically: false, encoding: .utf8)
-                    let path = file.path()
-                    KataGoHelper.sendCommand("loadsgf \(path)")
-                } catch {
-                    // Do nothing
-                }
-            }
+            KataGoHelper.loadSgf(gameRecord.sgf)
         }
     }
 
