@@ -148,6 +148,7 @@ struct ConfigItems: View {
     @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanSLProfile = Config.defaultHumanSLProfile
     @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
+    @State var showOwnership: Bool = Config.defaultShowOwnership
     @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
@@ -182,6 +183,11 @@ struct ConfigItems: View {
                 ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
                     .onChange(of: analysisInformation) { _, newValue in
                         config.analysisInformation = newValue
+                    }
+
+                ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
+                    .onChange(of: showOwnership) { _, newValue in
+                        config.showOwnership = newValue
                     }
 
                 ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
@@ -253,6 +259,7 @@ struct ConfigItems: View {
             humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
             humanSLProfile = config.humanSLProfile
             analysisForWhom = config.analysisForWhom
+            showOwnership = config.showOwnership
         }
     }
 }

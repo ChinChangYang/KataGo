@@ -25,6 +25,7 @@ final class Config {
     var humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful
     var humanSLProfile: String = defaultHumanSLProfile
     var optionalAnalysisForWhom: Int? = 0
+    var optionalShowOwnership: Bool? = true
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -40,7 +41,8 @@ final class Config {
          showCoordinate: Bool = defaultShowCoordinate,
          humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
          humanSLProfile: String = defaultHumanSLProfile,
-         optionalAnalysisForWhom: Int? = 0) {
+         optionalAnalysisForWhom: Int? = 0,
+         optionalShowOwnership: Bool? = true) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -56,6 +58,7 @@ final class Config {
         self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
         self.humanSLProfile = humanSLProfile
         self.optionalAnalysisForWhom = optionalAnalysisForWhom
+        self.optionalShowOwnership = optionalShowOwnership
     }
 
     convenience init(config: Config) {
@@ -74,7 +77,8 @@ final class Config {
             showCoordinate: config.showCoordinate,
             humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
             humanSLProfile: config.humanSLProfile,
-            optionalAnalysisForWhom: config.optionalAnalysisForWhom
+            optionalAnalysisForWhom: config.optionalAnalysisForWhom,
+            optionalShowOwnership: config.optionalShowOwnership
         )
     }
 }
@@ -201,5 +205,19 @@ extension Config {
 
     func isAnalysisForWhite() -> Bool {
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
+    }
+}
+
+extension Config {
+    static let defaultShowOwnership = true
+
+    var showOwnership: Bool {
+        get {
+            return optionalShowOwnership ?? Config.defaultShowOwnership
+        }
+
+        set(newShowOwnership) {
+            optionalShowOwnership = newShowOwnership
+        }
     }
 }

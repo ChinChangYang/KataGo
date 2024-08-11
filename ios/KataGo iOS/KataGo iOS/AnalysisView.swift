@@ -96,7 +96,11 @@ struct AnalysisView: View {
     var body: some View {
         Group {
             shadows
-            ownerships
+
+            if config.showOwnership {
+                ownerships
+            }
+
             moves
         }
         .onChange(of: config.maxAnalysisMoves) { _, _ in
