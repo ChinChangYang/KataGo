@@ -14,6 +14,10 @@ struct StatusToolbarItems: View {
     @Environment(ObservableBoard.self) var board
     var gameRecord: GameRecord
 
+    var config: Config {
+        return gameRecord.config
+    }
+
     var body: some View {
         HStack {
             Button(action: passAction) {
@@ -56,31 +60,23 @@ struct StatusToolbarItems: View {
         KataGoHelper.sendCommand(pass)
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        if gobanState.analysisStatus == .run {
-            let config = gameRecord.config
-            gobanState.requestAnalysis(config: config)
-        } else {
-            gobanState.requestingClearAnalysis = true
-        }
+        player.toggleNextColorForPlayCommand()
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func backwardAction() {
         gameRecord.undo()
         KataGoHelper.sendCommand("undo")
         KataGoHelper.sendCommand("showboard")
-        if gobanState.analysisStatus == .run {
-            let config = gameRecord.config
-            gobanState.requestAnalysis(config: config)
-        } else {
-            gobanState.analysisStatus = .clear
-            gobanState.requestingClearAnalysis = true
-        }
+        player.toggleNextColorForPlayCommand()
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func startAnalysisAction() {
         gobanState.analysisStatus = .run
-        let config = gameRecord.config
-        gobanState.requestAnalysis(config: config)
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func pauseAnalysisAction() {
@@ -101,31 +97,21 @@ struct StatusToolbarItems: View {
                 gameRecord.currentIndex = currentIndex + 1
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
-                player.nextColorForPlayCommand = (nextPlayer == "b") ? .white : .black
             }
         }
 
         KataGoHelper.sendCommand("showboard")
-        if gobanState.analysisStatus == .run {
-            let config = gameRecord.config
-            gobanState.requestAnalysis(config: config)
-        } else {
-            gobanState.analysisStatus = .clear
-            gobanState.requestingClearAnalysis = true
-        }
+        player.toggleNextColorForPlayCommand()
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func clearBoardAction() {
         gameRecord.currentIndex = 0
         KataGoHelper.sendCommand("clear_board")
         KataGoHelper.sendCommand("showboard")
-        if gobanState.analysisStatus == .run {
-            let config = gameRecord.config
-            gobanState.requestAnalysis(config: config)
-        } else {
-            gobanState.analysisStatus = .clear
-            gobanState.requestingClearAnalysis = true
-        }
+        gobanState.maybeRequestAnalysis(config: config)
+        gobanState.maybeRequestClearAnalysisData(config: config)
     }
 
     func locationToMove(location: Location) -> String? {

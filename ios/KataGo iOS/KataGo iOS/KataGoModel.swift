@@ -184,9 +184,37 @@ class GobanState {
     var requestingClearAnalysis = false
     var analysisStatus = AnalysisStatus.run
 
-    func requestAnalysis(config: Config) {
+    private func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
         waitingForAnalysis = true
+    }
+
+    func maybeRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) {
+        if (shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)) {
+            requestAnalysis(config: config)
+        }
+    }
+
+    func maybeRequestAnalysis(config: Config) {
+        return maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil)
+    }
+
+    func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
+        if let nextColorForPlayCommand {
+            return (analysisStatus != .clear) && config.isAnalysisForCurrentPlayer(nextColorForPlayCommand: nextColorForPlayCommand)
+        } else {
+            return (analysisStatus != .clear)
+        }
+    }
+
+    func maybeRequestClearAnalysisData(config: Config, nextColorForPlayCommand: PlayerColor?) {
+        if !shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand) {
+            requestingClearAnalysis = true
+        }
+    }
+
+    func maybeRequestClearAnalysisData(config: Config) {
+        maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: nil)
     }
 }
 

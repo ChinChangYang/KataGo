@@ -27,7 +27,7 @@ struct BoardView: View {
                 StoneView(dimensions: dimensions,
                           isClassicStoneStyle: config.isClassicStoneStyle())
 
-                if (gobanState.analysisStatus != .clear) && (isAnalysisForCurrentPlayer()) {
+                if (gobanState.analysisStatus != .clear) && config.isAnalysisForCurrentPlayer(nextColorForPlayCommand: player.nextColorForPlayCommand) {
                     AnalysisView(config: config, dimensions: dimensions)
                 }
 
@@ -43,12 +43,8 @@ struct BoardView: View {
                 KataGoHelper.sendCommand("printsgf")
 
                 player.toggleNextColorForPlayCommand()
-
-                if (gobanState.analysisStatus != .clear) && isAnalysisForCurrentPlayer() {
-                    gobanState.requestAnalysis(config: config)
-                } else {
-                    gobanState.requestingClearAnalysis = true
-                }
+                gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+                gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
             }
         }
         .onAppear() {
@@ -57,19 +53,14 @@ struct BoardView: View {
             KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
             KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
-            if (gobanState.analysisStatus == .run) {
-                gobanState.requestAnalysis(config: config)
-            }
+            gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        }
+        .onChange(of: config.maxAnalysisMoves) { _, _ in
+            gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
         }
         .onDisappear() {
             KataGoHelper.sendCommand("stop")
         }
-    }
-
-    func isAnalysisForCurrentPlayer() -> Bool {
-        return (config.isAnalysisForBlack() && player.nextColorForPlayCommand == .black) ||
-        (config.isAnalysisForWhite() && player.nextColorForPlayCommand == .white) ||
-        (!config.isAnalysisForBlack() && !config.isAnalysisForWhite())
     }
 
     func locationToMove(location: CGPoint, dimensions: Dimensions) -> String? {

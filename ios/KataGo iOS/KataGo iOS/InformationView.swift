@@ -47,9 +47,7 @@ struct InformationView: View {
                                 KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
                                 KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
                                 KataGoHelper.sendCommand("showboard")
-                                if (gobanState.analysisStatus == .run) {
-                                    gobanState.requestAnalysis(config: config)
-                                }
+                                gobanState.maybeRequestAnalysis(config: config)
                             }
                         }
                 }

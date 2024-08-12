@@ -103,11 +103,6 @@ struct AnalysisView: View {
 
             moves
         }
-        .onChange(of: config.maxAnalysisMoves) { _, _ in
-            if gobanState.analysisStatus == .run {
-                gobanState.requestAnalysis(config: config)
-            }
-        }
         .onAppear() {
             if gobanState.requestingClearAnalysis {
                 analysis.clear()

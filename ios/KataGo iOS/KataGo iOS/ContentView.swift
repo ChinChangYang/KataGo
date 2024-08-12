@@ -75,9 +75,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
             KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
-            if (gobanState.analysisStatus == .run) {
-                gobanState.requestAnalysis(config: config)
-            }
+            gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil)
         }
     }
 
@@ -109,7 +107,7 @@ struct ContentView: View {
         maybeLoadSgf()
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        gobanState.requestAnalysis(config: defaultConfig)
+        gobanState.maybeRequestAnalysis(config: defaultConfig)
 
         while true {
             let line = await Task.detached {

@@ -206,6 +206,12 @@ extension Config {
     func isAnalysisForWhite() -> Bool {
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
     }
+
+    func isAnalysisForCurrentPlayer(nextColorForPlayCommand: PlayerColor) -> Bool {
+        return (isAnalysisForBlack() && nextColorForPlayCommand == .black) ||
+        (isAnalysisForWhite() && nextColorForPlayCommand == .white) ||
+        (!isAnalysisForBlack() && !isAnalysisForWhite())
+    }
 }
 
 extension Config {
