@@ -19,7 +19,7 @@ final class GameRecord {
     init(sgf: String = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])",
          currentIndex: Int = 0,
          config: Config = Config(),
-         name: String = "Name",
+         name: String = "New Game",
          lastModificationDate: Date? = Date.now) {
         self.sgf = sgf
         self.currentIndex = currentIndex
