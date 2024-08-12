@@ -90,7 +90,6 @@ struct TopToolbarView: View {
                 withAnimation {
                     gobanTab.isCommandPresented.toggle()
                     gobanTab.isConfigPresented = false
-                    gobanTab.isInfoPresented = false
                 }
             } label: {
                 if gobanTab.isCommandPresented {
@@ -104,7 +103,6 @@ struct TopToolbarView: View {
                 withAnimation {
                     gobanTab.isCommandPresented = false
                     gobanTab.isConfigPresented.toggle()
-                    gobanTab.isInfoPresented = false
                 }
             } label: {
                 if gobanTab.isConfigPresented {
@@ -123,26 +121,11 @@ struct TopToolbarView: View {
 
             Button {
                 withAnimation {
-                    gobanTab.isCommandPresented = false
-                    gobanTab.isConfigPresented = false
-                    gobanTab.isInfoPresented.toggle()
-                }
-            } label: {
-                if gobanTab.isInfoPresented {
-                    Image(systemName: "info.circle.fill")
-                } else {
-                    Image(systemName: "info.circle")
-                }
-            }
-
-            Button {
-                withAnimation {
                     let newGameRecord = GameRecord(gameRecord: gameRecord)
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
                     gobanTab.isCommandPresented = false
                     gobanTab.isConfigPresented = false
-                    gobanTab.isInfoPresented = false
                 }
             } label: {
                 Image(systemName: "plus.square")
@@ -163,9 +146,7 @@ struct GobanItems: View {
             if gobanTab.isCommandPresented {
                 CommandView(config: gameRecord.config)
             } else if gobanTab.isConfigPresented {
-                ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
-            } else if gobanTab.isInfoPresented {
-                InformationView(gameRecord: gameRecord)
+                ConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
             } else {
                 BoardView(config: gameRecord.config)
                     .toolbar {
@@ -201,7 +182,6 @@ struct UnselectedGameView: View {
 class GobanTab {
     var isCommandPresented = false
     var isConfigPresented = false
-    var isInfoPresented = false
 }
 
 struct GobanView: View {

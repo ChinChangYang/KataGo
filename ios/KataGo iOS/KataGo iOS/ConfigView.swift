@@ -133,7 +133,9 @@ struct HumanStylePicker: View {
 }
 
 struct ConfigItems: View {
-    var config: Config
+    var gameRecord: GameRecord
+    @State var name: String = ""
+    @State var sgf: String = ""
     @State var boardWidth: Int = Config.defaultBoardWidth
     @State var boardHeight: Int = Config.defaultBoardHeight
     @State var rule: Int = Config.defaultRule
@@ -150,9 +152,49 @@ struct ConfigItems: View {
     @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
     @State var showOwnership: Bool = Config.defaultShowOwnership
     @Binding var isBoardSizeChanged: Bool
+    @Environment(\.modelContext) private var modelContext
+    @Environment(NavigationContext.self) var navigationContext
+    @Environment(GobanTab.self) var gobanTab
+    @Environment(GobanState.self) var gobanState
+
+    var config: Config {
+        gameRecord.config
+    }
 
     var body: some View {
         Form {
+            Section("Name") {
+                TextField("Enter your game name", text: $name)
+                    .onAppear {
+                        name = gameRecord.name
+                    }
+                    .onChange(of: name) { _, newValue in
+                        gameRecord.name = name
+                    }
+            }
+
+            Section("SGF") {
+                TextField("Paste your SGF text", text: $sgf, axis: .vertical)
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .onAppear {
+                        sgf = gameRecord.sgf
+                    }
+                    .onDisappear {
+                        if sgf != gameRecord.sgf {
+                            let config = gameRecord.config
+                            gameRecord.sgf = sgf
+                            KataGoHelper.loadSgf(sgf)
+                            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+                            KataGoHelper.sendCommand("showboard")
+                            gobanState.maybeRequestAnalysis(config: config)
+                        }
+                    }
+            }
+
             Section("Rule") {
                 ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                     .onChange(of: boardWidth) { _, newValue in
@@ -265,12 +307,13 @@ struct ConfigItems: View {
 }
 
 struct ConfigView: View {
-    var config: Config
+    var gameRecord: GameRecord
     @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
         VStack {
-            ConfigItems(config: config, isBoardSizeChanged: $isBoardSizeChanged)
+            ConfigItems(gameRecord: gameRecord,
+                        isBoardSizeChanged: $isBoardSizeChanged)
                 .padding()
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)

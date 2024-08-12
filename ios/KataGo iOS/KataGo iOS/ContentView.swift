@@ -67,7 +67,6 @@ struct ContentView: View {
     private func processChange(newSelectedGameRecord: GameRecord?) {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
-        gobanTab.isInfoPresented = false
         if let config = newSelectedGameRecord?.config {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
