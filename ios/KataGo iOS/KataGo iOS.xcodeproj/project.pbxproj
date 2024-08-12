@@ -215,6 +215,8 @@
 		E12A6F392C38BE120002DED0 /* KataGoCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */; };
 		E12A6F3B2C38C5EA0002DED0 /* KataGoHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */; };
 		E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13828622C5B8C3600670FD3 /* GameListView.swift */; };
+		E138288D2C6A431600670FD3 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E138288C2C6A431600670FD3 /* BoardView.swift */; };
+		E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E138288E2C6A436700670FD3 /* TopToolbarView.swift */; };
 		E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */; };
 		E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14753582C3A5A440066DE29 /* GameRecord.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
@@ -523,6 +525,8 @@
 		E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KataGoCpp.hpp; sourceTree = "<group>"; };
 		E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoHelper.swift; sourceTree = "<group>"; };
 		E13828622C5B8C3600670FD3 /* GameListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameListView.swift; sourceTree = "<group>"; };
+		E138288C2C6A431600670FD3 /* BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
+		E138288E2C6A436700670FD3 /* TopToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopToolbarView.swift; sourceTree = "<group>"; };
 		E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEditorView.swift; sourceTree = "<group>"; };
 		E14753582C3A5A440066DE29 /* GameRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecord.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
@@ -935,6 +939,8 @@
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 				E13828622C5B8C3600670FD3 /* GameListView.swift */,
+				E138288C2C6A431600670FD3 /* BoardView.swift */,
+				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1521,6 +1527,7 @@
 				E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */,
 				E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */,
 				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
+				E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
 				E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
@@ -1532,6 +1539,7 @@
 				E16BC8402C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
+				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
 				E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 			);
