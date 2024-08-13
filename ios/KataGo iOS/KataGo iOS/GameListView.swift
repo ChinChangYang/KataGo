@@ -39,13 +39,7 @@ struct GameListView: View {
                             selectedGameRecord = nil
                         }
 
-                        Task {
-                            // Execute the deletion of the game record on the main actor to prevent
-                            // race conditions caused by simultaneous access by other views.
-                            await MainActor.run {
-                                modelContext.delete(gameRecordToDelete)
-                            }
-                        }
+                        modelContext.safelyDelete(gameRecord: gameRecordToDelete)
                     }
                 }
             } else {

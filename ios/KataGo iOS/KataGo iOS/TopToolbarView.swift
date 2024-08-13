@@ -89,14 +89,7 @@ struct TopToolbarView: View {
                 Button(role: .destructive) {
                     let gameRecordToDelete = gameRecord
                     navigationContext.selectedGameRecord = nil
-
-                    Task {
-                        // Execute the deletion of the game record on the main actor to prevent
-                        // race conditions caused by simultaneous access by other views.
-                        await MainActor.run {
-                            modelContext.delete(gameRecordToDelete)
-                        }
-                    }
+                    modelContext.safelyDelete(gameRecord: gameRecordToDelete)
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }

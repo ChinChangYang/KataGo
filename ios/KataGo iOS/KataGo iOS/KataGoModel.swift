@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import KataGoInterface
 
 @Observable
@@ -270,6 +271,23 @@ struct Coordinate {
             self.y = y
         } else {
             return nil
+        }
+    }
+}
+
+extension ModelContext {
+    @MainActor
+    func safelyDelete(gameRecord: GameRecord) {
+        Task {
+            // Yield control to prevent potential race conditions caused by
+            // simultaneous access to the game record.
+            await Task.yield()
+
+            // Perform the deletion of the game record on the main actor to
+            // ensure thread safety.
+            await MainActor.run {
+                delete(gameRecord)
+            }
         }
     }
 }
