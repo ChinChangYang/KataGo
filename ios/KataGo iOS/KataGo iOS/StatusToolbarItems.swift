@@ -20,8 +20,8 @@ struct StatusToolbarItems: View {
 
     var body: some View {
         HStack {
-            Button(action: passAction) {
-                Image(systemName: "hand.raised")
+            Button(action: clearBoardAction) {
+                Image(systemName: "backward.end")
             }
 
             Button(action: backwardAction) {
@@ -48,8 +48,14 @@ struct StatusToolbarItems: View {
                 Image(systemName: "forward.frame")
             }
 
-            Button(action: clearBoardAction) {
-                Image(systemName: "clear")
+            Button(action: forwardEndAction) {
+                Image(systemName: "forward.end")
+            }
+
+            Spacer()
+
+            Button(action: passAction) {
+                Image(systemName: "hand.raised")
             }
         }
     }
@@ -97,11 +103,27 @@ struct StatusToolbarItems: View {
                 gameRecord.currentIndex = currentIndex + 1
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
+                player.toggleNextColorForPlayCommand()
             }
         }
 
         KataGoHelper.sendCommand("showboard")
-        player.toggleNextColorForPlayCommand()
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+    }
+
+    func forwardEndAction() {
+        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+        while let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex) {
+            if let move = locationToMove(location: nextMove.location) {
+                gameRecord.currentIndex = gameRecord.currentIndex + 1
+                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
+                player.toggleNextColorForPlayCommand()
+            }
+        }
+
+        KataGoHelper.sendCommand("showboard")
         gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
         gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
