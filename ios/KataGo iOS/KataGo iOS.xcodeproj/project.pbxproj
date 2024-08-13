@@ -239,7 +239,7 @@
 		E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */; };
-		E19D2E382AC97FA300C2A807 /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* ToolbarView.swift */; };
+		E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */; };
 		E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */; };
 		E1AFE0532C3C07E00061D724 /* SgfCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */; };
 		E1AFE0542C3C07E00061D724 /* SgfCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -551,7 +551,7 @@
 		E18F3F742A514B9700D335E1 /* default_model.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = default_model.bin.gz; sourceTree = "<group>"; };
 		E18F3F752A514B9700D335E1 /* default_gtp.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = default_gtp.cfg; sourceTree = "<group>"; };
 		E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModel.swift; sourceTree = "<group>"; };
-		E19D2E372AC97FA300C2A807 /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
+		E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusToolbarItems.swift; sourceTree = "<group>"; };
 		E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16.mlpackage; sourceTree = "<group>"; };
 		E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SgfCpp.cpp; sourceTree = "<group>"; };
 		E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = SgfCpp.hpp; sourceTree = "<group>"; };
@@ -934,7 +934,7 @@
 				E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */,
 				E1B63BE32AABDF3500094965 /* BoardLineView.swift */,
 				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
-				E19D2E372AC97FA300C2A807 /* ToolbarView.swift */,
+				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
 				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
@@ -1532,7 +1532,7 @@
 				E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
-				E19D2E382AC97FA300C2A807 /* ToolbarView.swift in Sources */,
+				E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */,
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
