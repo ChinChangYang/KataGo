@@ -97,7 +97,7 @@ struct TopToolbarView: View {
                 Image(systemName: "plus.square")
             }
         }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType]) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType, .text]) { result in
             switch result {
             case .success(let file):
                 let gotAccess = file.startAccessingSecurityScopedResource()
