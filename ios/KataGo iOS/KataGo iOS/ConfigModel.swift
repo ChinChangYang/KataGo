@@ -176,7 +176,7 @@ extension Config {
 }
 
 extension Config {
-    static let defaultHumanSLProfile = "rank_9d"
+    static let defaultHumanSLProfile = "preaz_9d"
 }
 
 extension Config {

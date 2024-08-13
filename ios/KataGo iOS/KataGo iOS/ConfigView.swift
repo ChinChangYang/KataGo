@@ -95,6 +95,7 @@ struct ConfigBoolItem: View {
 }
 
 struct HumanStylePicker: View {
+    let title: String
     @Binding var humanSLProfile: String
 
     var profiles: [String] {
@@ -124,7 +125,7 @@ struct HumanStylePicker: View {
     }
 
     var body: some View {
-        Picker("Profile", selection: $humanSLProfile) {
+        Picker(title, selection: $humanSLProfile) {
             ForEach(profiles, id: \.self) { profile in
                 Text(profile).tag(profile)
             }
@@ -237,12 +238,6 @@ struct ConfigItems: View {
                         config.analysisForWhom = newValue
                     }
 
-                ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
-                    .onChange(of: playoutDoublingAdvantage) { _, newValue in
-                        config.playoutDoublingAdvantage = newValue
-                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                    }
-
                 ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
                     .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
                         config.hiddenAnalysisVisitRatio = newValue
@@ -266,20 +261,26 @@ struct ConfigItems: View {
                         config.stoneStyle = stoneStyle
                     }
 
-                ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)
+                ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
                     .onChange(of: showCoordinate) { _, newValue in
                         config.showCoordinate = showCoordinate
                     }
             }
 
-            Section("Human Style") {
-                HumanStylePicker(humanSLProfile: $humanSLProfile)
+            Section("AI") {
+                ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 1/4, minValue: -3.0, maxValue: 3.0)
+                    .onChange(of: playoutDoublingAdvantage) { _, newValue in
+                        config.playoutDoublingAdvantage = newValue
+                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                    }
+
+                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
                     .onChange(of: humanSLProfile) { _, newValue in
                         config.humanSLProfile = newValue
                         KataGoHelper.sendCommand("kata-set-param humanSLProfile \(newValue)")
                     }
 
-                ConfigFloatItem(title: "Ratio", value: $humanSLRootExploreProbWeightful, step: 1/4, minValue: 0.0, maxValue: 1.0)
+                ConfigFloatItem(title: "Human ratio:", value: $humanSLRootExploreProbWeightful, step: 1/4, minValue: 0.0, maxValue: 1.0)
                     .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
                         config.humanSLRootExploreProbWeightful = newValue
                         KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
