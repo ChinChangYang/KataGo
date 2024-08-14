@@ -11,7 +11,6 @@ import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord
-    @State private var isBoardSizeChanged = false
     @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -21,7 +20,7 @@ struct GobanItems: View {
             if gobanTab.isCommandPresented {
                 CommandView(config: gameRecord.config)
             } else if gobanTab.isConfigPresented {
-                ConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
+                ConfigView(gameRecord: gameRecord)
             } else {
                 BoardView(config: gameRecord.config)
                     .toolbar {
@@ -33,9 +32,8 @@ struct GobanItems: View {
         }
         .toolbar {
             ToolbarItem {
-                TopToolbarView(gameRecord: gameRecord,
-                               isBoardSizeChanged: $isBoardSizeChanged)
-                .id(toolbarUuid)
+                TopToolbarView(gameRecord: gameRecord)
+                    .id(toolbarUuid)
             }
         }
         .onChange(of: horizontalSizeClass) { _, _ in

@@ -152,7 +152,7 @@ struct ConfigItems: View {
     @State var humanSLProfile = Config.defaultHumanSLProfile
     @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
     @State var showOwnership: Bool = Config.defaultShowOwnership
-    @Binding var isBoardSizeChanged: Bool
+    @State private var isBoardSizeChanged = false
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -182,7 +182,7 @@ struct ConfigItems: View {
                         sgf = gameRecord.sgf
                     }
                     .onDisappear {
-                        if sgf != gameRecord.sgf {
+                        if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
                             let config = gameRecord.config
                             gameRecord.sgf = sgf
                             KataGoHelper.loadSgf(sgf)
@@ -288,6 +288,7 @@ struct ConfigItems: View {
             }
         }
         .onAppear {
+            isBoardSizeChanged = false
             boardWidth = config.boardWidth
             boardHeight = config.boardHeight
             rule = config.rule
@@ -304,17 +305,24 @@ struct ConfigItems: View {
             analysisForWhom = config.analysisForWhom
             showOwnership = config.showOwnership
         }
+        .onDisappear {
+            if isBoardSizeChanged {
+                KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
+                KataGoHelper.sendCommand("showboard")
+                KataGoHelper.sendCommand("printsgf")
+                gobanState.maybeRequestAnalysis(config: config)
+                gobanState.maybeRequestClearAnalysisData(config: config)
+            }
+        }
     }
 }
 
 struct ConfigView: View {
     var gameRecord: GameRecord
-    @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
         VStack {
-            ConfigItems(gameRecord: gameRecord,
-                        isBoardSizeChanged: $isBoardSizeChanged)
+            ConfigItems(gameRecord: gameRecord)
                 .padding()
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)

@@ -12,7 +12,6 @@ import UniformTypeIdentifiers
 struct TopToolbarView: View {
     var gameRecord: GameRecord
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
-    @Binding var isBoardSizeChanged: Bool
     @State private var importing = false
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
@@ -43,13 +42,6 @@ struct TopToolbarView: View {
                     Image(systemName: "gearshape.fill")
                 } else {
                     Image(systemName: "gearshape")
-                }
-            }
-            .onChange(of: gobanTab.isConfigPresented) { _, isConfigPresentedNow in
-                if !isConfigPresentedNow && (isBoardSizeChanged) {
-                    KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
-                    KataGoHelper.sendCommand("printsgf")
-                    isBoardSizeChanged = false
                 }
             }
 
