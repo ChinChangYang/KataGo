@@ -74,7 +74,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
             KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
-            gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil)
+            gobanState.maybeRequestAnalysis(config: config)
         }
     }
 

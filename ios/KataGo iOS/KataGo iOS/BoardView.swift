@@ -36,13 +36,10 @@ struct BoardView: View {
             .onTapGesture() { location in
                 if let move = locationToMove(location: location, dimensions: dimensions) {
                     KataGoHelper.sendCommand("play \(player.nextColorSymbolForPlayCommand) \(move)")
-
                     KataGoHelper.sendCommand("showboard")
                     KataGoHelper.sendCommand("printsgf")
-
-                    player.toggleNextColorForPlayCommand()
-                    gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
-                    gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+                    gobanState.maybeRequestAnalysis(config: config)
+                    gobanState.maybeRequestClearAnalysisData(config: config)
                 }
             }
         }
@@ -52,7 +49,7 @@ struct BoardView: View {
             KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
             KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
-            gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+            gobanState.maybeRequestAnalysis(config: config)
         }
         .onChange(of: config.maxAnalysisMoves) { _, _ in
             gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
