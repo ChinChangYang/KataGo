@@ -42,15 +42,6 @@ struct GobanItems: View {
     }
 }
 
-struct UnselectedGameView: View {
-    @Binding var isInitialized: Bool
-    @Environment(GobanTab.self) var gobanTab
-
-    var body: some View {
-        ContentUnavailableView("Select a game", systemImage: "sidebar.left")
-    }
-}
-
 @Observable
 class GobanTab {
     var isCommandPresented = false
