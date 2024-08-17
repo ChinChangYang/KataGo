@@ -12,8 +12,8 @@ import KataGoInterface
 struct ContentView: View {
     @State var stones = Stones()
     @State var messagesObject = MessagesObject()
-    @State var board = ObservableBoard()
-    @State var player = PlayerObject()
+    @State var board = BoardSize()
+    @State var player = Turn()
     @State var analysis = Analysis()
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []

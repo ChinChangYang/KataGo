@@ -173,7 +173,7 @@ struct StoneView: View {
             .foregroundColor(.brown)
 
         GeometryReader { geometry in
-            StoneView(dimensions: Dimensions(geometry: geometry,
+            StoneView(dimensions: Dimensions(size: geometry.size,
                                              width: 2,
                                              height: 2),
                       isClassicStoneStyle: false)
@@ -198,7 +198,7 @@ struct StoneView: View {
             .foregroundColor(.brown)
 
         GeometryReader { geometry in
-            StoneView(dimensions: Dimensions(geometry: geometry,
+            StoneView(dimensions: Dimensions(size: geometry.size,
                                              width: 2,
                                              height: 2),
                       isClassicStoneStyle: true)

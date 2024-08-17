@@ -9,14 +9,14 @@ import SwiftUI
 import KataGoInterface
 
 struct BoardView: View {
-    @Environment(ObservableBoard.self) var board
-    @Environment(PlayerObject.self) var player
+    @Environment(BoardSize.self) var board
+    @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
     var config: Config
 
     var body: some View {
         GeometryReader { geometry in
-            let dimensions = Dimensions(geometry: geometry,
+            let dimensions = Dimensions(size: geometry.size,
                                         width: board.width,
                                         height: board.height,
                                         showCoordinate: config.showCoordinate)

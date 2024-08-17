@@ -129,7 +129,7 @@ struct BoardLineView: View {
 
 #Preview {
     GeometryReader { geometry in
-        let dimensions = Dimensions(geometry: geometry,
+        let dimensions = Dimensions(size: geometry.size,
                                     width: 9,
                                     height: 9,
                                     showCoordinate: true)
@@ -140,7 +140,7 @@ struct BoardLineView: View {
 
 #Preview {
     GeometryReader { geometry in
-        let dimensions = Dimensions(geometry: geometry,
+        let dimensions = Dimensions(size: geometry.size,
                                     width: 13,
                                     height: 13)
 
@@ -150,7 +150,7 @@ struct BoardLineView: View {
 
 #Preview {
     GeometryReader { geometry in
-        let dimensions = Dimensions(geometry: geometry,
+        let dimensions = Dimensions(size: geometry.size,
                                     width: 19,
                                     height: 19)
 
@@ -160,7 +160,7 @@ struct BoardLineView: View {
 
 #Preview {
     GeometryReader { geometry in
-        let dimensions = Dimensions(geometry: geometry,
+        let dimensions = Dimensions(size: geometry.size,
                                     width: 29,
                                     height: 29,
                                     showCoordinate: true)

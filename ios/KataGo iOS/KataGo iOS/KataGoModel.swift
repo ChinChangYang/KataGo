@@ -10,7 +10,7 @@ import SwiftData
 import KataGoInterface
 
 @Observable
-class ObservableBoard {
+class BoardSize {
     var width: CGFloat = 19
     var height: CGFloat = 19
 }
@@ -34,15 +34,23 @@ class Stones {
 enum PlayerColor {
     case black
     case white
+
+    var symbol: String {
+        if self == .black {
+            return "b"
+        } else {
+            return "w"
+        }
+    }
 }
 
 @Observable
-class PlayerObject {
+class Turn {
     var nextColorForPlayCommand = PlayerColor.black
     var nextColorFromShowBoard = PlayerColor.black
 }
 
-extension PlayerObject {
+extension Turn {
     func toggleNextColorForPlayCommand() {
         if nextColorForPlayCommand == .black {
             nextColorForPlayCommand = .white
@@ -52,11 +60,7 @@ extension PlayerObject {
     }
 
     var nextColorSymbolForPlayCommand: String {
-        if nextColorForPlayCommand == .black {
-            return "b"
-        } else {
-            return "w"
-        }
+        nextColorForPlayCommand.symbol
     }
 }
 
@@ -109,13 +113,13 @@ struct Dimensions {
     let gobanStartY: CGFloat
     let coordinate: Bool
 
-    init(geometry: GeometryProxy, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false) {
+    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false) {
         self.width = width
         self.height = height
         self.coordinate = coordinate
 
-        let totalWidth = geometry.size.width
-        let totalHeight = geometry.size.height
+        let totalWidth = size.width
+        let totalHeight = size.height
         let coordinateEntity: CGFloat = coordinate ? 1 : 0
         let gobanWidthEntity = width + coordinateEntity
         let gobanHeightEntiry = height + coordinateEntity

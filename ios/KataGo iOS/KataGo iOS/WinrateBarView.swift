@@ -48,7 +48,7 @@ struct WinrateBarView: View {
             .foregroundColor(.brown)
 
         GeometryReader { geometry in
-            let dimensions = Dimensions(geometry: geometry,
+            let dimensions = Dimensions(size: geometry.size,
                                         width: 2,
                                         height: 2,
                                         showCoordinate: false)

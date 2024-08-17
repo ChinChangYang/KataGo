@@ -9,9 +9,9 @@ import SwiftUI
 import KataGoInterface
 
 struct StatusToolbarItems: View {
-    @Environment(PlayerObject.self) var player
+    @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
-    @Environment(ObservableBoard.self) var board
+    @Environment(BoardSize.self) var board
     var gameRecord: GameRecord
 
     var config: Config {
