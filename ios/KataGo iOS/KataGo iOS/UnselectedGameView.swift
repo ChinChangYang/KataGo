@@ -44,7 +44,7 @@ struct UnselectedGameView: View {
                     }
                     .padding()
 
-                Image(uiImage: UIImage(named: "AppIcon") ?? UIImage())
+                Image(.loadingIcon)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: 512, maxHeight: 512)
