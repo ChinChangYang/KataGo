@@ -226,7 +226,6 @@
 		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
-		E16BC8402C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
 		E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
@@ -1540,7 +1539,6 @@
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
-				E16BC8402C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
