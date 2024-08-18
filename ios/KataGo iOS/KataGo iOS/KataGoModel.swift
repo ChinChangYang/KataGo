@@ -165,13 +165,13 @@ struct Message: Identifiable, Equatable, Hashable {
 }
 
 @Observable
-class MessagesObject {
-    static private let defaultMaxMessageLines = 1000
+class MessageList {
+    static let defaultMaxMessageLines = 1000
 
     var messages: [Message] = []
 
     func shrink() {
-        while messages.count > MessagesObject.defaultMaxMessageLines {
+        while messages.count > MessageList.defaultMaxMessageLines {
             messages.removeFirst()
         }
     }
@@ -271,27 +271,9 @@ struct Coordinate {
     init?(xLabel: String, yLabel: String) {
         if let x = Coordinate.xMap[xLabel.uppercased()],
            let y = Int(yLabel) {
-            self.x = x
-            self.y = y
+            self.init(x: x, y: y)
         } else {
             return nil
-        }
-    }
-}
-
-extension ModelContext {
-    @MainActor
-    func safelyDelete(gameRecord: GameRecord) {
-        Task {
-            // Yield control to prevent potential race conditions caused by
-            // simultaneous access to the game record.
-            await Task.yield()
-
-            // Perform the deletion of the game record on the main actor to
-            // ensure thread safety.
-            await MainActor.run {
-                delete(gameRecord)
-            }
         }
     }
 }

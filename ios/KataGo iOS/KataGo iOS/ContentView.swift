@@ -11,7 +11,7 @@ import KataGoInterface
 
 struct ContentView: View {
     @State var stones = Stones()
-    @State var messagesObject = MessagesObject()
+    @State var messagesObject = MessageList()
     @State var board = BoardSize()
     @State var player = Turn()
     @State var analysis = Analysis()

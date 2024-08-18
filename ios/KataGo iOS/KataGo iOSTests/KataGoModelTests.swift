@@ -77,4 +77,75 @@ struct KataGoModelTests {
         #expect(dimensions.gobanStartY == 0)
         #expect(dimensions.coordinate == false)
     }
+
+    @Test func initializeDimensionsWithCoordinate() async throws {
+        let size = CGSize(width: 0, height: 0)
+        let dimensions = Dimensions(size: size, width: 1, height: 1, showCoordinate: true)
+        #expect(dimensions.squareLength == 0)
+        #expect(dimensions.squareLengthDiv2 == 0)
+        #expect(dimensions.squareLengthDiv4 == 0)
+        #expect(dimensions.squareLengthDiv8 == 0)
+        #expect(dimensions.squareLengthDiv16 == 0)
+        #expect(dimensions.boardLineStartX == 0)
+        #expect(dimensions.boardLineStartY == 0)
+        #expect(dimensions.stoneLength == 0)
+        #expect(dimensions.width == 1)
+        #expect(dimensions.height == 1)
+        #expect(dimensions.gobanWidth == 0)
+        #expect(dimensions.gobanHeight == 0)
+        #expect(dimensions.boardLineBoundWidth == 0)
+        #expect(dimensions.boardLineBoundHeight == 0)
+        #expect(dimensions.gobanStartX == 0)
+        #expect(dimensions.gobanStartY == 0)
+        #expect(dimensions.coordinate == true)
+    }
+
+    @Test func shrinkMessageList() async throws {
+        let messageList = MessageList()
+        messageList.shrink()
+        #expect(messageList.messages.isEmpty)
+        for _ in 1...MessageList.defaultMaxMessageLines {
+            messageList.messages.append(Message(text: ""))
+        }
+
+        messageList.shrink()
+        #expect(messageList.messages.count == MessageList.defaultMaxMessageLines)
+
+        messageList.messages.append(Message(text: ""))
+        messageList.shrink()
+        #expect(messageList.messages.count == MessageList.defaultMaxMessageLines)
+    }
+
+    @Test func shouldRequestAnalysisForPlayer() async throws {
+        let gobanState = GobanState()
+        gobanState.analysisStatus = .run
+
+        #expect(gobanState.shouldRequestAnalysis(config: Config(), nextColorForPlayCommand: .black))
+    }
+
+    @Test func requestClearAnalysisData() async throws {
+        let gobanState = GobanState()
+        gobanState.analysisStatus = .clear
+        #expect(!gobanState.requestingClearAnalysis)
+        gobanState.maybeRequestClearAnalysisData(config: Config())
+        #expect(gobanState.requestingClearAnalysis)
+    }
+
+    @Test func getWhiteWinrate() async throws {
+        let winrate = Winrate()
+        winrate.black = 1/4
+        #expect(winrate.white == 3.0/4.0)
+    }
+
+    @Test func initializeCoordinate() async throws {
+        let invalidXLabel = Coordinate(xLabel: "I", yLabel: "1")
+        #expect(invalidXLabel == nil)
+        let invalidYLabel = Coordinate(xLabel: "A", yLabel: "A")
+        #expect(invalidYLabel == nil)
+        let validLabels = Coordinate(xLabel: "AD", yLabel: "28")
+        #expect(validLabels?.x == 28)
+        #expect(validLabels?.y == 28)
+        #expect(validLabels?.xLabel == "AD")
+        #expect(validLabels?.yLabel == "28")
+    }
 }
