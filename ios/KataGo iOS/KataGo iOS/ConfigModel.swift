@@ -143,11 +143,11 @@ extension Config {
                                        analysisInformationScore,
                                        analysisInformationAll]
 
-    func isAnalysisInformationWinrate() -> Bool {
+    var isAnalysisInformationWinrate: Bool {
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
     }
 
-    func isAnalysisInformationScore() -> Bool {
+    var isAnalysisInformationScore: Bool {
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
     }
 }
@@ -158,12 +158,12 @@ extension Config {
     static let stoneStyles = [fastStoneStyle, classicStoneStyle]
     static let defaultStoneStyle = 0
 
-    func isFastStoneStyle() -> Bool {
+    var isFastStoneStyle: Bool {
         return Config.stoneStyles[stoneStyle] == Config.fastStoneStyle
     }
 
-    func isClassicStoneStyle() -> Bool {
-        return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
+    var isClassicStoneStyle: Bool {
+        return !isFastStoneStyle
     }
 }
 
@@ -199,18 +199,18 @@ extension Config {
         }
     }
 
-    func isAnalysisForBlack() -> Bool {
+    private var isAnalysisForBlack: Bool {
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForBlack
     }
 
-    func isAnalysisForWhite() -> Bool {
+    private var isAnalysisForWhite: Bool {
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
     }
 
     func isAnalysisForCurrentPlayer(nextColorForPlayCommand: PlayerColor) -> Bool {
-        return (isAnalysisForBlack() && nextColorForPlayCommand == .black) ||
-        (isAnalysisForWhite() && nextColorForPlayCommand == .white) ||
-        (!isAnalysisForBlack() && !isAnalysisForWhite())
+        return (isAnalysisForBlack && nextColorForPlayCommand == .black) ||
+        (isAnalysisForWhite && nextColorForPlayCommand == .white) ||
+        (!isAnalysisForBlack && !isAnalysisForWhite)
     }
 }
 

@@ -73,9 +73,9 @@ struct AnalysisView: View {
                             }
                         }
                     if !isHidden {
-                        if config.isAnalysisInformationWinrate() {
+                        if config.isAnalysisInformationWinrate {
                             winrateText(info.winrate)
-                        } else if config.isAnalysisInformationScore() {
+                        } else if config.isAnalysisInformationScore {
                             scoreText(info.scoreLead)
                         } else {
                             VStack {

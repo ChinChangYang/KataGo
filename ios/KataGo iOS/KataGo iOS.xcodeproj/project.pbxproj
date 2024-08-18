@@ -247,6 +247,7 @@
 		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
+		E1BB32A72C721A8300690E67 /* ConfigModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */; };
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682722AA2B122001B4F44 /* WoodView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
@@ -562,6 +563,7 @@
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
+		E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModelTests.swift; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682722AA2B122001B4F44 /* WoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoodView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
@@ -1017,6 +1019,7 @@
 				E18F3E212A51466C00D335E1 /* KataGo_iOSTests.swift */,
 				E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */,
 				E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */,
+				E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -1560,6 +1563,7 @@
 				E18F3E222A51466C00D335E1 /* KataGo_iOSTests.swift in Sources */,
 				E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */,
 				E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */,
+				E1BB32A72C721A8300690E67 /* ConfigModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

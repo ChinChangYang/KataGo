@@ -24,7 +24,7 @@ struct BoardView: View {
                 BoardLineView(dimensions: dimensions)
 
                 StoneView(dimensions: dimensions,
-                          isClassicStoneStyle: config.isClassicStoneStyle())
+                          isClassicStoneStyle: config.isClassicStoneStyle)
 
                 if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
                     AnalysisView(config: config, dimensions: dimensions)
