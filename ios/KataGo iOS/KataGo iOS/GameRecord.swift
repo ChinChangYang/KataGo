@@ -10,16 +10,18 @@ import SwiftData
 
 @Model
 final class GameRecord {
+    static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
+    static let defaultName = "New Game"
     var sgf: String
     var currentIndex: Int
     var config: Config
     var name: String
     var lastModificationDate: Date?
 
-    init(sgf: String = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])",
+    init(sgf: String = defaultSgf,
          currentIndex: Int = 0,
          config: Config = Config(),
-         name: String = "New Game",
+         name: String = defaultName,
          lastModificationDate: Date? = Date.now) {
         self.sgf = sgf
         self.currentIndex = currentIndex
