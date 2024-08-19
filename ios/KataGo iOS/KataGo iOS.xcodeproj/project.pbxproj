@@ -232,7 +232,6 @@
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
 		E18F3E152A51466C00D335E1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E142A51466C00D335E1 /* Assets.xcassets */; };
 		E18F3E182A51466C00D335E1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E172A51466C00D335E1 /* Preview Assets.xcassets */; };
-		E18F3E222A51466C00D335E1 /* KataGo_iOSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E212A51466C00D335E1 /* KataGo_iOSTests.swift */; };
 		E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */; };
 		E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */; };
 		E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
@@ -249,6 +248,7 @@
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
 		E1BB32A72C721A8300690E67 /* ConfigModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */; };
 		E1BB32A92C72B73800690E67 /* GameRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A82C72B73800690E67 /* GameRecordTests.swift */; };
+		E1BB32AD2C730A2800690E67 /* AnalysisViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */; };
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682722AA2B122001B4F44 /* WoodView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
@@ -548,7 +548,6 @@
 		E18F3E142A51466C00D335E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E18F3E172A51466C00D335E1 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		E18F3E1D2A51466C00D335E1 /* KataGo iOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "KataGo iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E18F3E212A51466C00D335E1 /* KataGo_iOSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSTests.swift; sourceTree = "<group>"; };
 		E18F3E272A51466C00D335E1 /* KataGo iOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "KataGo iOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITests.swift; sourceTree = "<group>"; };
 		E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -566,6 +565,7 @@
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A82C72B73800690E67 /* GameRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecordTests.swift; sourceTree = "<group>"; };
+		E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisViewTests.swift; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682722AA2B122001B4F44 /* WoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoodView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
@@ -1018,7 +1018,6 @@
 		E18F3E202A51466C00D335E1 /* KataGo iOSTests */ = {
 			isa = PBXGroup;
 			children = (
-				E18F3E212A51466C00D335E1 /* KataGo_iOSTests.swift */,
 				E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */,
 				E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */,
 				E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */,
@@ -1032,6 +1031,7 @@
 			children = (
 				E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */,
 				E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */,
+				E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -1589,7 +1589,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E18F3E222A51466C00D335E1 /* KataGo_iOSTests.swift in Sources */,
 				E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */,
 				E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */,
 				E1BB32A92C72B73800690E67 /* GameRecordTests.swift in Sources */,
@@ -1603,6 +1602,7 @@
 			files = (
 				E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */,
 				E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */,
+				E1BB32AD2C730A2800690E67 /* AnalysisViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

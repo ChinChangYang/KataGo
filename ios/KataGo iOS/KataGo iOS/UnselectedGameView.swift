@@ -43,6 +43,7 @@ struct UnselectedGameView: View {
                         }
                     }
                     .padding()
+                    .accessibilityIdentifier("loadingText")
 
                 Image(.loadingIcon)
                     .resizable()
