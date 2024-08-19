@@ -1223,6 +1223,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo iOS" */;
 			buildPhases = (
+				E1BB32AE2C73448300690E67 /* Download Resources */,
 				E18F3E092A51466A00D335E1 /* Sources */,
 				E18F3E0A2A51466A00D335E1 /* Frameworks */,
 				E18F3E0B2A51466A00D335E1 /* Resources */,
@@ -1385,6 +1386,31 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		E1BB32AE2C73448300690E67 /* Download Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Download Resources";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"${SRCROOT}/Resources/default_model.bin.gz",
+				"${SRCROOT}/Resources/b18c384nbt-humanv0.bin.gz",
+				"${SRCROOT}/Resources/KataGoModel29x29fp16.mlpackage",
+				"${SRCROOT}/Resources/KataGoModel29x29fp16m1.mlpackage",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "wget https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz -o \"${TEMP_DIR}/default_model.bin.gz\"\ncp -f \"${TEMP_DIR}/default_model.bin.gz\" \"${SRCROOT}/Resources/default_model.bin.gz\"\nwget https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz -o \"${TEMP_DIR}/b18c384nbt-humanv0.bin.gz\"\ncp -f \"${TEMP_DIR}/b18c384nbt-humanv0.bin.gz\" \"${SRCROOT}/Resources/b18c384nbt-humanv0.bin.gz\"\nif [ -f \"${SRCROOT}/Resources/KataGoModel29x29fp16.mlpackage\" ]; then\n    rm -f \"${TEMP_DIR}/KataGoModel29x29fp16v14s9996604416.mlpackage.zip\"\n    cd \"${TEMP_DIR}\" && wget https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/KataGoModel29x29fp16v14s9996604416.mlpackage.zip\n    cd \"${TEMP_DIR}\" && unzip KataGoModel29x29fp16v14s9996604416.mlpackage.zip\n    mv \"${TEMP_DIR}/KataGoModel29x29fp16v14s9996604416.mlpackage\" \"${SRCROOT}/Resources/KataGoModel29x29fp16.mlpackage\"\nfi\nif [ -f \"${SRCROOT}/Resources/KataGoModel29x29fp16m1.mlpackage\" ]; then\n    rm -f \"${TEMP_DIR}/KataGoModel29x29fp16v15m1humanv0.mlpackage.zip\"\n    cd \"${TEMP_DIR}\" && wget https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/KataGoModel29x29fp16v15m1humanv0.mlpackage.zip; cd -\n    cd \"${TEMP_DIR}\" && unzip KataGoModel29x29fp16v15m1humanv0.mlpackage.zip; cd -\n    mv \"${TEMP_DIR}/KataGoModel29x29fp16v15m1humanv0.mlpackage\" \"${SRCROOT}/Resources/KataGoModel29x29fp16m1.mlpackage\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E11887DD2B0830C900637D44 /* Sources */ = {
@@ -2040,7 +2066,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = 4L5BJK5M8K;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
@@ -2058,7 +2084,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS.tw";
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -2076,7 +2102,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = 4L5BJK5M8K;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
@@ -2094,7 +2120,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 11.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS.tw";
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
