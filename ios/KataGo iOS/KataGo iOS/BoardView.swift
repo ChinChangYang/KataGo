@@ -38,8 +38,9 @@ struct BoardView: View {
                     KataGoHelper.sendCommand("play \(player.nextColorSymbolForPlayCommand) \(move)")
                     KataGoHelper.sendCommand("showboard")
                     KataGoHelper.sendCommand("printsgf")
-                    gobanState.maybeRequestAnalysis(config: config)
-                    gobanState.maybeRequestClearAnalysisData(config: config)
+                    player.toggleNextColorForPlayCommand()
+                    gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+                    gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
                 }
             }
         }
