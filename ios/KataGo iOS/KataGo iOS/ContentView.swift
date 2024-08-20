@@ -34,33 +34,40 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            GameListView(isInitialized: $isInitialized,
-                         isEditorPresented: $isEditorPresented,
-                         selectedGameRecord: $navigationContext.selectedGameRecord)
-        } detail: {
-            GobanView(isInitialized: $isInitialized,
-                      isEditorPresented: $isEditorPresented)
-        }
-        .environment(stones)
-        .environment(messagesObject)
-        .environment(board)
-        .environment(player)
-        .environment(analysis)
-        .environment(gobanState)
-        .environment(winrate)
-        .environment(navigationContext)
-        .environment(gobanTab)
-        .task {
-            // Get messages from KataGo and append to the list of messages
-            await messageTask()
-        }
-        .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
-            processChange(newSelectedGameRecord: newGameRecord)
-        }
-        .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
-            processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
-                          newWaitingForAnalysis: newWaitingForAnalysis)
+        if isInitialized {
+            NavigationSplitView {
+                GameListView(isInitialized: $isInitialized,
+                             isEditorPresented: $isEditorPresented,
+                             selectedGameRecord: $navigationContext.selectedGameRecord)
+            } detail: {
+                GobanView(isInitialized: $isInitialized,
+                          isEditorPresented: $isEditorPresented)
+            }
+            .environment(stones)
+            .environment(messagesObject)
+            .environment(board)
+            .environment(player)
+            .environment(analysis)
+            .environment(gobanState)
+            .environment(winrate)
+            .environment(navigationContext)
+            .environment(gobanTab)
+            .task {
+                // Get messages from KataGo and append to the list of messages
+                await messageTask()
+            }
+            .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
+                processChange(newSelectedGameRecord: newGameRecord)
+            }
+            .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
+                processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
+                              newWaitingForAnalysis: newWaitingForAnalysis)
+            }
+        } else {
+            UnselectedGameView()
+                .task {
+                    await initializationTask()
+                }
         }
     }
 
@@ -91,6 +98,51 @@ struct ContentView: View {
         }
     }
 
+    private func messagingLoop() async {
+        let line = await Task.detached {
+            // Get a message line from KataGo
+            return KataGoHelper.getMessageLine()
+        }.value
+
+        // Create a message with the line
+        let message = Message(text: line)
+
+        // Append the message to the list of messages
+        messagesObject.messages.append(message)
+
+        // Collect board information
+        maybeCollectBoard(message: line)
+
+        // Collect analysis information
+        maybeCollectAnalysis(message: line)
+
+        // Collect SGF information
+        maybeCollectSgf(message: line)
+
+        // Remove when there are too many messages
+        messagesObject.shrink()
+    }
+
+    @MainActor
+    private func initializationTask() async {
+        let defaultConfig = Config()
+        messagesObject.messages.append(Message(text: "Initializing..."))
+        KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
+        // Disable friendly pass to avoid a memory shortage problem
+        KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
+        KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
+        KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
+        navigationContext.selectedGameRecord = gameRecords.first
+        maybeLoadSgf()
+        KataGoHelper.sendCommand("showboard")
+        KataGoHelper.sendCommand("printsgf")
+        gobanState.maybeRequestAnalysis(config: defaultConfig)
+        await messagingLoop()
+        isInitialized = true
+    }
+
     @MainActor
     private func messageTask() async {
         let defaultConfig = Config()
@@ -109,30 +161,7 @@ struct ContentView: View {
         gobanState.maybeRequestAnalysis(config: defaultConfig)
 
         while true {
-            let line = await Task.detached {
-                // Get a message line from KataGo
-                return KataGoHelper.getMessageLine()
-            }.value
-
-            // Create a message with the line
-            let message = Message(text: line)
-
-            // Append the message to the list of messages
-            messagesObject.messages.append(message)
-
-            // Collect board information
-            maybeCollectBoard(message: line)
-
-            // Collect analysis information
-            maybeCollectAnalysis(message: line)
-
-            // Collect SGF information
-            maybeCollectSgf(message: line)
-
-            // Remove when there are too many messages
-            messagesObject.shrink()
-
-            isInitialized = true
+            await messagingLoop()
         }
     }
 

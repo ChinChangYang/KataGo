@@ -74,7 +74,7 @@ struct GobanView: View {
                         toolbarUuid = UUID()
                     }
             } else {
-                UnselectedGameView(isInitialized: $isInitialized)
+                ContentUnavailableView("Select a game", systemImage: "sidebar.left")
             }
         }
         .environment(gobanTab)
