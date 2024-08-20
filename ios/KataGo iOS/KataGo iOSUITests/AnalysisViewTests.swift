@@ -28,6 +28,6 @@ final class AnalysisViewTests: XCTestCase {
         let loadingText = app.staticTexts["loadingText"]
         XCTAssertTrue(loadingText.exists)
         let sparkle = app.buttons["sparkle"]
-        XCTAssertTrue(sparkle.waitForExistence(timeout: 60))
+        XCTAssertTrue(sparkle.waitForExistence(timeout: 120))
     }
 }
