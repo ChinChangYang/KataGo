@@ -566,6 +566,7 @@
 		E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A82C72B73800690E67 /* GameRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecordTests.swift; sourceTree = "<group>"; };
 		E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisViewTests.swift; sourceTree = "<group>"; };
+		E1BB32B02C736AF100690E67 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682722AA2B122001B4F44 /* WoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoodView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
@@ -969,6 +970,7 @@
 		E18F3E042A51466A00D335E1 = {
 			isa = PBXGroup;
 			children = (
+				E1BB32AF2C736ACB00690E67 /* ci_scripts */,
 				E18F3F792A514BA700D335E1 /* Resources */,
 				E18F3E0F2A51466A00D335E1 /* KataGo iOS */,
 				E18F3E202A51466C00D335E1 /* KataGo iOSTests */,
@@ -1054,6 +1056,14 @@
 				E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		E1BB32AF2C736ACB00690E67 /* ci_scripts */ = {
+			isa = PBXGroup;
+			children = (
+				E1BB32B02C736AF100690E67 /* ci_post_clone.sh */,
+			);
+			path = ci_scripts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
