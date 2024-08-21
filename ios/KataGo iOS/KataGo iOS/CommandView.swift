@@ -12,6 +12,7 @@ struct CommandView: View {
     @Environment(MessageList.self) var messagesObject
     @State private var command = ""
     var config: Config
+    @Environment(Turn.self) var player
 
     var body: some View {
         VStack {
@@ -54,8 +55,5 @@ struct CommandView: View {
             .padding()
         }
         .padding()
-        .onAppear() {
-            KataGoHelper.sendCommand("stop")
-        }
     }
 }

@@ -34,12 +34,15 @@ class Stones {
 enum PlayerColor {
     case black
     case white
+    case unknown
 
-    var symbol: String {
+    var symbol: String? {
         if self == .black {
             return "b"
-        } else {
+        } else if self == .white {
             return "w"
+        } else {
+            return nil
         }
     }
 }
@@ -59,7 +62,7 @@ extension Turn {
         }
     }
 
-    var nextColorSymbolForPlayCommand: String {
+    var nextColorSymbolForPlayCommand: String? {
         nextColorForPlayCommand.symbol
     }
 }
@@ -220,6 +223,18 @@ class GobanState {
 
     func maybeRequestClearAnalysisData(config: Config) {
         maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: nil)
+    }
+
+    func maybeSendAsymmetricHumanAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor) {
+        if !config.isEqualBlackWhiteHumanSettings {
+            if nextColorForPlayCommand == .black {
+                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+            } else if nextColorForPlayCommand == .white {
+                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanProfileForWhite)")
+                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
+            }
+        }
     }
 }
 

@@ -64,20 +64,16 @@ struct StatusToolbarItems: View {
         let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
         let pass = "play \(nextColor) pass"
         KataGoHelper.sendCommand(pass)
+        player.toggleNextColorForPlayCommand()
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        player.toggleNextColorForPlayCommand()
-        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
-        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func backwardAction() {
         gameRecord.undo()
         KataGoHelper.sendCommand("undo")
-        KataGoHelper.sendCommand("showboard")
         player.toggleNextColorForPlayCommand()
-        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
-        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        KataGoHelper.sendCommand("showboard")
     }
 
     func startAnalysisAction() {
@@ -130,10 +126,9 @@ struct StatusToolbarItems: View {
 
     func clearBoardAction() {
         gameRecord.currentIndex = 0
+        player.nextColorForPlayCommand = .unknown
         KataGoHelper.sendCommand("clear_board")
         KataGoHelper.sendCommand("showboard")
-        gobanState.maybeRequestAnalysis(config: config)
-        gobanState.maybeRequestClearAnalysisData(config: config)
     }
 
     func locationToMove(location: Location) -> String? {

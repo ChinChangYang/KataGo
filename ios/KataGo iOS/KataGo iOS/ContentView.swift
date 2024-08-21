@@ -74,14 +74,12 @@ struct ContentView: View {
     private func processChange(newSelectedGameRecord: GameRecord?) {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
+        player.nextColorForPlayCommand = .unknown
         if let config = newSelectedGameRecord?.config {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
-            gobanState.maybeRequestAnalysis(config: config)
         }
     }
 
@@ -138,7 +136,6 @@ struct ContentView: View {
         maybeLoadSgf()
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        gobanState.maybeRequestAnalysis(config: defaultConfig)
         await messagingLoop()
         isInitialized = true
     }
@@ -158,7 +155,6 @@ struct ContentView: View {
         maybeLoadSgf()
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        gobanState.maybeRequestAnalysis(config: defaultConfig)
 
         while true {
             await messagingLoop()

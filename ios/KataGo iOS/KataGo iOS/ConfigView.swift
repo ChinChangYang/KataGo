@@ -33,17 +33,32 @@ struct ConfigFloatItem: View {
     let step: Float
     let minValue: Float
     let maxValue: Float
+    let format: ValueFormat
 
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             Stepper(value: $value, in: minValue...maxValue, step: step) {
-                Text("\(value.formatted(.number))")
+                Text(formattedValue)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var formattedValue: String {
+        switch format {
+        case .number:
+            return value.formatted(.number)
+        case .percent:
+            return value.formatted(.percent)
+        }
+    }
+
+    enum ValueFormat {
+        case number
+        case percent
     }
 }
 
@@ -137,8 +152,8 @@ struct ConfigItems: View {
     var gameRecord: GameRecord
     @State var name: String = ""
     @State var sgf: String = ""
-    @State var boardWidth: Int = Config.defaultBoardWidth
-    @State var boardHeight: Int = Config.defaultBoardHeight
+    @State var boardWidth: Int = -1
+    @State var boardHeight: Int = -1
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
@@ -148,8 +163,10 @@ struct ConfigItems: View {
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var stoneStyle = Config.defaultStoneStyle
     @State var showCoordinate = Config.defaultShowCoordinate
-    @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanSLProfile = Config.defaultHumanSLProfile
+    @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
+    @State var humanProfileForWhite = Config.defaultHumanSLProfile
+    @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
     @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
     @State var showOwnership: Bool = Config.defaultShowOwnership
     @State private var isBoardSizeChanged = false
@@ -157,6 +174,7 @@ struct ConfigItems: View {
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
     @Environment(GobanState.self) var gobanState
+    @Environment(Turn.self) var player
 
     var config: Config {
         gameRecord.config
@@ -185,28 +203,30 @@ struct ConfigItems: View {
                         if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
                             let config = gameRecord.config
                             gameRecord.sgf = sgf
+                            player.nextColorForPlayCommand = .unknown
                             KataGoHelper.loadSgf(sgf)
                             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
                             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
                             KataGoHelper.sendCommand("showboard")
-                            gobanState.maybeRequestAnalysis(config: config)
                         }
                     }
             }
 
             Section("Rule") {
                 ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
-                    .onChange(of: boardWidth) { _, newValue in
+                    .onChange(of: boardWidth) { oldValue, newValue in
                         config.boardWidth = newValue
-                        isBoardSizeChanged = true
+                        if oldValue != -1 {
+                            isBoardSizeChanged = true
+                        }
                     }
 
                 ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
-                    .onChange(of: boardHeight) { _, newValue in
+                    .onChange(of: boardHeight) { oldValue, newValue in
                         config.boardHeight = newValue
-                        isBoardSizeChanged = true
+                        if oldValue != -1 {
+                            isBoardSizeChanged = true
+                        }
                     }
 
                 ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
@@ -215,7 +235,7 @@ struct ConfigItems: View {
                         KataGoHelper.sendCommand(config.getKataRuleCommand())
                     }
 
-                ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000)
+                ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
                     .onChange(of: komi) { _, newValue in
                         config.komi = newValue
                         KataGoHelper.sendCommand(config.getKataKomiCommand())
@@ -238,12 +258,12 @@ struct ConfigItems: View {
                         config.analysisForWhom = newValue
                     }
 
-                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
                     .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
                         config.hiddenAnalysisVisitRatio = newValue
                     }
 
-                ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
                     .onChange(of: analysisWideRootNoise) { _, newValue in
                         config.analysisWideRootNoise = newValue
                         KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
@@ -268,22 +288,55 @@ struct ConfigItems: View {
             }
 
             Section("AI") {
-                ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 1/4, minValue: -3.0, maxValue: 3.0)
+                ConfigFloatItem(title: "White advantage:",
+                                value: $playoutDoublingAdvantage,
+                                step: 1/4,
+                                minValue: -3.0,
+                                maxValue: 3.0,
+                                format: .percent)
                     .onChange(of: playoutDoublingAdvantage) { _, newValue in
                         config.playoutDoublingAdvantage = newValue
                         KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
                     }
+            }
 
+            Section("Black AI") {
                 HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
                     .onChange(of: humanSLProfile) { _, newValue in
                         config.humanSLProfile = newValue
-                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(newValue)")
                     }
 
-                ConfigFloatItem(title: "Human ratio:", value: $humanSLRootExploreProbWeightful, step: 1/4, minValue: 0.0, maxValue: 1.0)
+                ConfigFloatItem(title: "Humanness:",
+                                value: $humanSLRootExploreProbWeightful,
+                                step: 1/4,
+                                minValue: 0.0,
+                                maxValue: 1.0,
+                                format: .percent)
                     .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
                         config.humanSLRootExploreProbWeightful = newValue
-                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
+                    }
+            }
+
+            Section("White AI") {
+                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
+                    .onAppear {
+                        humanProfileForWhite = config.humanProfileForWhite
+                    }
+                    .onChange(of: humanProfileForWhite) { _, newValue in
+                        config.humanProfileForWhite = newValue
+                    }
+
+                ConfigFloatItem(title: "Humanness:",
+                                value: $humanRatioForWhite,
+                                step: 1/4,
+                                minValue: 0.0,
+                                maxValue: 1.0,
+                                format: .percent)
+                    .onAppear {
+                        humanRatioForWhite = config.humanRatioForWhite
+                    }
+                    .onChange(of: humanRatioForWhite) { _, newValue in
+                        config.humanRatioForWhite = newValue
                     }
             }
         }
@@ -307,11 +360,10 @@ struct ConfigItems: View {
         }
         .onDisappear {
             if isBoardSizeChanged {
+                player.nextColorForPlayCommand = .unknown
                 KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
                 KataGoHelper.sendCommand("showboard")
                 KataGoHelper.sendCommand("printsgf")
-                gobanState.maybeRequestAnalysis(config: config)
-                gobanState.maybeRequestClearAnalysisData(config: config)
             }
         }
     }
@@ -326,8 +378,5 @@ struct ConfigView: View {
                 .padding()
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .onAppear() {
-            KataGoHelper.sendCommand("stop")
-        }
     }
 }

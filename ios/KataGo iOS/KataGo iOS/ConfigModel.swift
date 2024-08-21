@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import KataGoInterface
 
 @Model
 final class Config {
@@ -26,6 +27,8 @@ final class Config {
     var humanSLProfile: String = defaultHumanSLProfile
     var optionalAnalysisForWhom: Int? = 0
     var optionalShowOwnership: Bool? = true
+    var optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful
+    var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -42,7 +45,9 @@ final class Config {
          humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
          humanSLProfile: String = defaultHumanSLProfile,
          optionalAnalysisForWhom: Int? = 0,
-         optionalShowOwnership: Bool? = true) {
+         optionalShowOwnership: Bool? = true,
+         optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful,
+         optionalHumanProfileForWhite: String? = defaultHumanSLProfile) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -59,6 +64,8 @@ final class Config {
         self.humanSLProfile = humanSLProfile
         self.optionalAnalysisForWhom = optionalAnalysisForWhom
         self.optionalShowOwnership = optionalShowOwnership
+        self.optionalHumanRatioForWhite = optionalHumanRatioForWhite
+        self.optionalHumanProfileForWhite = optionalHumanProfileForWhite
     }
 
     convenience init(config: Config) {
@@ -78,7 +85,9 @@ final class Config {
             humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
             humanSLProfile: config.humanSLProfile,
             optionalAnalysisForWhom: config.optionalAnalysisForWhom,
-            optionalShowOwnership: config.optionalShowOwnership
+            optionalShowOwnership: config.optionalShowOwnership,
+            optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
+            optionalHumanProfileForWhite: config.optionalHumanProfileForWhite
         )
     }
 }
@@ -208,9 +217,10 @@ extension Config {
     }
 
     func isAnalysisForCurrentPlayer(nextColorForPlayCommand: PlayerColor) -> Bool {
-        return (isAnalysisForBlack && nextColorForPlayCommand == .black) ||
-        (isAnalysisForWhite && nextColorForPlayCommand == .white) ||
-        (!isAnalysisForBlack && !isAnalysisForWhite)
+        return (nextColorForPlayCommand != .unknown) &&
+        ((isAnalysisForBlack && nextColorForPlayCommand == .black) ||
+         (isAnalysisForWhite && nextColorForPlayCommand == .white) ||
+         (!isAnalysisForBlack && !isAnalysisForWhite))
     }
 }
 
@@ -225,5 +235,31 @@ extension Config {
         set(newShowOwnership) {
             optionalShowOwnership = newShowOwnership
         }
+    }
+}
+
+extension Config {
+    var humanProfileForWhite: String {
+        get {
+            return optionalHumanProfileForWhite ?? Config.defaultHumanSLProfile
+        }
+
+        set(newHumanProfileForWhite) {
+            optionalHumanProfileForWhite = newHumanProfileForWhite
+        }
+    }
+
+    var humanRatioForWhite: Float {
+        get {
+            return optionalHumanRatioForWhite ?? Config.defaultHumanSLRootExploreProbWeightful
+        }
+
+        set(newHumanRatioForWhite) {
+            optionalHumanRatioForWhite = newHumanRatioForWhite
+        }
+    }
+
+    var isEqualBlackWhiteHumanSettings: Bool {
+        return (humanSLProfile == humanProfileForWhite) && (humanSLRootExploreProbWeightful == humanRatioForWhite)
     }
 }

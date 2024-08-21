@@ -34,26 +34,28 @@ struct BoardView: View {
                 WinrateBarView(dimensions: dimensions)
             }
             .onTapGesture() { location in
-                if let move = locationToMove(location: location, dimensions: dimensions) {
-                    KataGoHelper.sendCommand("play \(player.nextColorSymbolForPlayCommand) \(move)")
+                if let move = locationToMove(location: location, dimensions: dimensions),
+                   let turn = player.nextColorSymbolForPlayCommand {
+                    KataGoHelper.sendCommand("play \(turn) \(move)")
+                    player.toggleNextColorForPlayCommand()
                     KataGoHelper.sendCommand("showboard")
                     KataGoHelper.sendCommand("printsgf")
-                    player.toggleNextColorForPlayCommand()
-                    gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
-                    gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
                 }
             }
         }
         .onAppear() {
-            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+            player.nextColorForPlayCommand = .unknown
             KataGoHelper.sendCommand("showboard")
-            gobanState.maybeRequestAnalysis(config: config)
         }
         .onChange(of: config.maxAnalysisMoves) { _, _ in
             gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        }
+        .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
+            if oldValue != newValue {
+                gobanState.maybeSendAsymmetricHumanAnalysisCommands(config: config, nextColorForPlayCommand: newValue)
+                gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: newValue)
+                gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
+            }
         }
         .onDisappear() {
             KataGoHelper.sendCommand("stop")
