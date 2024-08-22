@@ -207,6 +207,7 @@ struct ConfigItems: View {
                             KataGoHelper.loadSgf(sgf)
                             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
                             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
                             KataGoHelper.sendCommand("showboard")
                         }
                     }
@@ -304,6 +305,9 @@ struct ConfigItems: View {
                 HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
                     .onChange(of: humanSLProfile) { _, newValue in
                         config.humanSLProfile = newValue
+                        if player.nextColorForPlayCommand != .white {
+                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                        }
                     }
 
                 ConfigFloatItem(title: "Humanness:",
@@ -312,9 +316,12 @@ struct ConfigItems: View {
                                 minValue: 0.0,
                                 maxValue: 1.0,
                                 format: .percent)
-                    .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
-                        config.humanSLRootExploreProbWeightful = newValue
+                .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
+                    config.humanSLRootExploreProbWeightful = newValue
+                    if player.nextColorForPlayCommand != .white {
+                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
+                }
             }
 
             Section("White AI") {
@@ -324,6 +331,9 @@ struct ConfigItems: View {
                     }
                     .onChange(of: humanProfileForWhite) { _, newValue in
                         config.humanProfileForWhite = newValue
+                        if player.nextColorForPlayCommand != .black {
+                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                        }
                     }
 
                 ConfigFloatItem(title: "Humanness:",
@@ -332,12 +342,15 @@ struct ConfigItems: View {
                                 minValue: 0.0,
                                 maxValue: 1.0,
                                 format: .percent)
-                    .onAppear {
-                        humanRatioForWhite = config.humanRatioForWhite
+                .onAppear {
+                    humanRatioForWhite = config.humanRatioForWhite
+                }
+                .onChange(of: humanRatioForWhite) { _, newValue in
+                    config.humanRatioForWhite = newValue
+                    if player.nextColorForPlayCommand != .black {
+                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
-                    .onChange(of: humanRatioForWhite) { _, newValue in
-                        config.humanRatioForWhite = newValue
-                    }
+                }
             }
         }
         .onAppear {

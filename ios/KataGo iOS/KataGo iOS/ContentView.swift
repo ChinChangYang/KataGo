@@ -79,6 +79,7 @@ struct ContentView: View {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
             KataGoHelper.sendCommand("showboard")
         }
     }
@@ -121,17 +122,21 @@ struct ContentView: View {
         messagesObject.shrink()
     }
 
-    @MainActor
-    private func initializationTask() async {
-        let defaultConfig = Config()
-        messagesObject.messages.append(Message(text: "Initializing..."))
-        KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
+    private func sendInitialCommands(config: Config) {
+        KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+        KataGoHelper.sendCommand(config.getKataRuleCommand())
+        KataGoHelper.sendCommand(config.getKataKomiCommand())
         // Disable friendly pass to avoid a memory shortage problem
         KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
-        KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
+        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+        gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+    }
+
+    @MainActor
+    private func initializationTask() async {
+        messagesObject.messages.append(Message(text: "Initializing..."))
+        sendInitialCommands(config: gameRecords.first?.config ?? Config())
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
         KataGoHelper.sendCommand("showboard")
@@ -142,20 +147,6 @@ struct ContentView: View {
 
     @MainActor
     private func messageTask() async {
-        let defaultConfig = Config()
-        messagesObject.messages.append(Message(text: "Initializing..."))
-        KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
-        // Disable friendly pass to avoid a memory shortage problem
-        KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
-        KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
-        KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
-        navigationContext.selectedGameRecord = gameRecords.first
-        maybeLoadSgf()
-        KataGoHelper.sendCommand("showboard")
-        KataGoHelper.sendCommand("printsgf")
-
         while true {
             await messagingLoop()
         }

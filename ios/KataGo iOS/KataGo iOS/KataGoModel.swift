@@ -236,6 +236,13 @@ class GobanState {
             }
         }
     }
+
+    func maybeSendSymmetricHumanAnalysisCommands(config: Config) {
+        if config.isEqualBlackWhiteHumanSettings {
+            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+        }
+    }
 }
 
 @Observable
