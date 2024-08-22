@@ -11,20 +11,23 @@ import KataGoInterface
 struct AnalysisView: View {
     @Environment(Analysis.self) var analysis
     @Environment(GobanState.self) var gobanState
+    @Environment(Stones.self) var stones
     var config: Config
     let dimensions: Dimensions
 
-    var shadows: some View {
-        let sortedInfoKeys = analysis.info.keys.sorted()
-
+    func shadows(blackSet: Set<BoardPoint>,
+                 whiteSet: Set<BoardPoint>,
+                 sortedInfoKeys: [BoardPoint]) -> some View {
         return ForEach(sortedInfoKeys, id: \.self) { point in
-            // Shadow
-            Circle()
-                .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
-                .blur(radius: dimensions.squareLength / 32)
-                .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+            if !blackSet.contains(point) && !whiteSet.contains(point) {
+                // Shadow
+                Circle()
+                    .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
+                    .blur(radius: dimensions.squareLength / 32)
+                    .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+            }
         }
     }
 
@@ -53,55 +56,62 @@ struct AnalysisView: View {
         }
     }
 
-    var moves: some View {
-        let maxVisits = computeMaxVisits()
-        let maxUtility = computeMaxUtilityLcb()
-        let sortedInfoKeys = analysis.info.keys.sorted()
+    func moves(blackSet: Set<BoardPoint>,
+               whiteSet: Set<BoardPoint>,
+               sortedInfoKeys: [BoardPoint]) -> some View {
+        let maxVisits = computeMaxVisits(sortedInfoKeys: sortedInfoKeys)
+        let maxUtility = computeMaxUtilityLcb(sortedInfoKeys: sortedInfoKeys)
 
         return ForEach(sortedInfoKeys, id: \.self) { point in
-            if let info = analysis.info[point] {
-                let isHidden = Float(info.visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
-                let color = computeColorByVisits(isHidden: isHidden, visits: info.visits, maxVisits: maxVisits)
+            if !blackSet.contains(point) && !whiteSet.contains(point) {
+                if let info = analysis.info[point] {
+                    let isHidden = Float(info.visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
+                    let color = computeColorByVisits(isHidden: isHidden, visits: info.visits, maxVisits: maxVisits)
 
-                ZStack {
-                    Circle()
-                        .foregroundColor(color)
-                        .overlay {
-                            if info.utilityLcb == maxUtility {
-                                Circle()
-                                    .stroke(.blue, lineWidth: dimensions.squareLengthDiv16)
+                    ZStack {
+                        Circle()
+                            .foregroundColor(color)
+                            .overlay {
+                                if info.utilityLcb == maxUtility {
+                                    Circle()
+                                        .stroke(.blue, lineWidth: dimensions.squareLengthDiv16)
+                                }
                             }
-                        }
-                    if !isHidden {
-                        if config.isAnalysisInformationWinrate {
-                            winrateText(info.winrate)
-                        } else if config.isAnalysisInformationScore {
-                            scoreText(info.scoreLead)
-                        } else {
-                            VStack {
+                        if !isHidden {
+                            if config.isAnalysisInformationWinrate {
                                 winrateText(info.winrate)
-                                visitsText(info.visits)
+                            } else if config.isAnalysisInformationScore {
                                 scoreText(info.scoreLead)
+                            } else {
+                                VStack {
+                                    winrateText(info.winrate)
+                                    visitsText(info.visits)
+                                    scoreText(info.scoreLead)
+                                }
                             }
                         }
                     }
+                    .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
                 }
-                .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
             }
         }
     }
 
     var body: some View {
         Group {
-            shadows
+            let blackSet = Set(stones.blackPoints)
+            let whiteSet = Set(stones.whitePoints)
+            let sortedInfoKeys = analysis.info.keys.sorted()
+
+            shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
 
             if config.showOwnership {
                 ownerships
             }
 
-            moves
+            moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
         }
         .onAppear() {
             if gobanState.requestingClearAnalysis {
@@ -176,28 +186,8 @@ struct AnalysisView: View {
         return baseColor.opacity(opacity)
     }
 
-    func computeMinMaxWinrate() -> (Float, Float) {
-        let points = analysis.info.keys.sorted()
-
-        let winrates = points.map { point in
-            analysis.info[point]?.winrate ?? 0.5
-        }
-
-        let minWinrate = winrates.reduce(1) {
-            min($0, $1)
-        }
-
-        let maxWinrate = winrates.reduce(0) {
-            max($0, $1)
-        }
-
-        return (minWinrate, maxWinrate)
-    }
-
-    func computeMaxUtilityLcb() -> Float {
-        let points = analysis.info.keys.sorted()
-
-        let utilityLcbs = points.map { point in
+    func computeMaxUtilityLcb(sortedInfoKeys: [BoardPoint]) -> Float {
+        let utilityLcbs = sortedInfoKeys.map { point in
             analysis.info[point]?.utilityLcb ?? 0
         }
 
@@ -208,10 +198,8 @@ struct AnalysisView: View {
         return maxUtilityLcb
     }
 
-    func computeMaxVisits() -> Int {
-        let points = analysis.info.keys.sorted()
-
-        let visits = points.map { point in
+    func computeMaxVisits(sortedInfoKeys: [BoardPoint]) -> Int {
+        let visits = sortedInfoKeys.map { point in
             analysis.info[point]?.visits ?? 0
         }
 
