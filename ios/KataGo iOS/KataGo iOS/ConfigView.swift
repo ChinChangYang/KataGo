@@ -192,27 +192,6 @@ struct ConfigItems: View {
                     }
             }
 
-            Section("SGF") {
-                TextField("Paste your SGF text", text: $sgf, axis: .vertical)
-                    .disableAutocorrection(true)
-                    .textInputAutocapitalization(.never)
-                    .onAppear {
-                        sgf = gameRecord.sgf
-                    }
-                    .onDisappear {
-                        if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
-                            let config = gameRecord.config
-                            gameRecord.sgf = sgf
-                            player.nextColorForPlayCommand = .unknown
-                            KataGoHelper.loadSgf(sgf)
-                            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
-                            KataGoHelper.sendCommand("showboard")
-                        }
-                    }
-            }
-
             Section("Rule") {
                 ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                     .onChange(of: boardWidth) { oldValue, newValue in
@@ -351,6 +330,27 @@ struct ConfigItems: View {
                         KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
                 }
+            }
+
+            Section("SGF") {
+                TextField("Paste your SGF text", text: $sgf, axis: .vertical)
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .onAppear {
+                        sgf = gameRecord.sgf
+                    }
+                    .onDisappear {
+                        if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
+                            let config = gameRecord.config
+                            gameRecord.sgf = sgf
+                            player.nextColorForPlayCommand = .unknown
+                            KataGoHelper.loadSgf(sgf)
+                            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+                            KataGoHelper.sendCommand("showboard")
+                        }
+                    }
             }
         }
         .onAppear {
