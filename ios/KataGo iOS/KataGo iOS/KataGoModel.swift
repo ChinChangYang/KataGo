@@ -29,6 +29,8 @@ class Stones {
     var blackPoints: [BoardPoint] = []
     var whitePoints: [BoardPoint] = []
     var moveOrder: [BoardPoint: Character] = [:]
+    var blackStonesCaptured: Int = 0
+    var whiteStonesCaptured: Int = 0
 }
 
 enum PlayerColor {
@@ -115,6 +117,8 @@ struct Dimensions {
     let gobanStartX: CGFloat
     let gobanStartY: CGFloat
     let coordinate: Bool
+    let capturedStonesWidth: CGFloat = 100
+    let capturedStonesHeight: CGFloat = 20
 
     init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false) {
         self.width = width

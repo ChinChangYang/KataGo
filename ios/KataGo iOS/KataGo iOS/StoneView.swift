@@ -14,6 +14,30 @@ struct StoneView: View {
 
     var body: some View {
         drawStones(dimensions: dimensions)
+        drawCapturedStones(color: .black,
+                           count: stones.blackStonesCaptured,
+                           xOffset: 0,
+                           dimensions: dimensions)
+        drawCapturedStones(color: .white,
+                           count: stones.whiteStonesCaptured,
+                           xOffset: 1,
+                           dimensions: dimensions)
+    }
+
+    private func drawCapturedStones(color: Color, count: Int, xOffset: CGFloat, dimensions: Dimensions) -> some View {
+        HStack {
+            Circle()
+                .foregroundColor(color)
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+            Text("x\(count)")
+                .contentTransition(.numericText())
+                .font(.system(size: 500, design: .monospaced))
+                .minimumScaleFactor(0.01)
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+        }
+        .frame(width: dimensions.capturedStonesWidth, height: dimensions.capturedStonesHeight)
+        .position(x: dimensions.gobanStartX + (1 + (6 * xOffset)) * dimensions.gobanWidth / 8,
+                  y: dimensions.gobanStartY - dimensions.capturedStonesHeight)
     }
 
     private func drawStoneBase(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {

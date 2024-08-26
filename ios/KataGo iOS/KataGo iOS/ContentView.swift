@@ -159,65 +159,108 @@ struct ContentView: View {
     }
 
     func maybeCollectBoard(message: String) {
-        if isShowingBoard {
-            if message.prefix("Next player".count) == "Next player" {
-                isShowingBoard = false
-                parseBoardPoints()
-
-                if message.prefix("Next player: Black".count) == "Next player: Black" {
-                    player.nextColorForPlayCommand = .black
-                    player.nextColorFromShowBoard = .black
-                } else {
-                    player.nextColorForPlayCommand = .white
-                    player.nextColorFromShowBoard = .white
-                }
-            } else {
-                boardText.append(message)
-            }
-        } else {
-            if message.prefix("= MoveNum".count) == "= MoveNum" {
+        // Check if the board is not currently being shown
+        guard isShowingBoard else {
+            // If the message indicates a new move number
+            if message.hasPrefix("= MoveNum") {
+                // Reset the board text for a new position
                 boardText = []
+                // Set the flag to showing the board
                 isShowingBoard = true
+            }
+            // Exit the function early
+            return
+        }
+
+        // If the message indicates which player's turn it is
+        if message.hasPrefix("Next player") {
+            // Parse the current board state
+            parseBoardPoints()
+
+            // Determine the next player color based on the message content
+            player.nextColorForPlayCommand = message.contains("Black") ? .black : .white
+            // Set the next player's color from showing board
+            player.nextColorFromShowBoard = player.nextColorForPlayCommand
+        }
+
+        // Append the current message to the board text
+        boardText.append(message)
+
+        // Check for captured black stones in the message
+        if let match = message.firstMatch(of: /B stones captured: (\d+)/),
+           let blackStonesCaptured = Int(match.1) {
+            withAnimation {
+                // Update the count of captured black stones
+                stones.blackStonesCaptured = blackStonesCaptured
+            }
+        }
+
+        // Check for the end of the board show with captured white stones
+        if message.hasPrefix("W stones captured") {
+            // Set the flag to stop showing the board
+            isShowingBoard = false
+            // Capture the count of white stones captured
+            if let match = message.firstMatch(of: /W stones captured: (\d+)/),
+               let whiteStonesCaptured = Int(match.1) {
+                withAnimation {
+                    // Update the count of captured white stones
+                    stones.whiteStonesCaptured = whiteStonesCaptured
+                }
             }
         }
     }
 
     func parseBoardPoints() {
+        // Arrays to store positions of black and white stones
         var blackStones: [BoardPoint] = []
         var whiteStones: [BoardPoint] = []
-
-        let height = CGFloat(boardText.count - 1)  // Subtracting 1 to exclude the header
-        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2)  // Drop the first 2 characters for the y-coordinate and divide by 2 because of spaces between cells
+        // Dictionary to keep track of the order of moves
         var moveOrder: [BoardPoint: Character] = [:]
 
-        // Start from index 1 to skip the header line
-        for (lineIndex, line) in boardText.enumerated() where lineIndex > 0 {
-            // Get y-coordinate from the beginning of the line, and subtract 1 to start from 0
+        // Calculate the height based on the number of lines in board text
+        let height = CGFloat(boardText.count - 1)
+        // Calculate the width based on the last line's character count
+        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2)
+
+        // Parse the board text to extract stone positions and moves
+        _ = boardText.dropFirst().enumerated().flatMap { (lineIndex, line) -> [(BoardPoint, Character?)] in
+            // Calculate the y-coordinate from line number
             let y = (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1
 
-            // Start parsing after the space that follows the y-coordinate
-            for (charIndex, char) in line.dropFirst(3).enumerated() where char == "X" || char == "O" || char.isNumber {
+            return line.dropFirst(3).enumerated().compactMap { (charIndex, char) -> (BoardPoint, Character)? in
+                // Calculate the x-coordinate from the character index
                 let xCoord = charIndex / 2
-                if char == "X" {
-                    blackStones.append(BoardPoint(x: xCoord, y: y))
-                } else if char == "O" {
-                    whiteStones.append(BoardPoint(x: xCoord, y: y))
-                } else {
-                    if char.isNumber {
-                        moveOrder[BoardPoint(x: xCoord, y: y)] = char
-                    }
+                // Create a point on the board
+                let point = BoardPoint(x: xCoord, y: y)
+
+                // Evaluate the character to determine stone color or move order
+                if char == "X" { // Black stone
+                    blackStones.append(point)
+                    return nil
+                } else if char == "O" { // White stone
+                    whiteStones.append(point)
+                    return nil
+                } else if char.isNumber { // Move number
+                    moveOrder[point] = char
+                    return nil
                 }
+                return nil // For any other character, return nil
             }
         }
 
+        // Assign the observable stones
         stones.blackPoints = blackStones
         stones.whitePoints = whiteStones
+        // Animate the change of move order
         withAnimation(.spring) {
             stones.moveOrder = moveOrder
         }
 
-        if (width != board.width) || (height != board.height) {
+        // Adjust the board dimensions if changed
+        if width != board.width || height != board.height {
+            // Clear previous analysis before resizing
             analysis.clear()
+            // Update board dimensions
             board.width = width
             board.height = height
         }
