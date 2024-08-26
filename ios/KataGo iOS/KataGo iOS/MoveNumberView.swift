@@ -17,12 +17,13 @@ struct MoveNumberView: View {
 
     private func drawMoveOrder(dimensions: Dimensions) -> some View {
         Group {
-            ForEach(stones.moveOrder.keys.sorted(), id: \.self) { key in
-                if let point = stones.moveOrder[key] {
+            ForEach(stones.moveOrder.keys.sorted(), id: \.self) { point in
+                if let order = stones.moveOrder[point] {
                     let color: Color = stones.blackPoints.contains { blackPoint in
                         point == blackPoint
                     } ? .white : .black
-                    Text(String(key))
+                    Text(String(order))
+                        .contentTransition(.numericText())
                         .foregroundStyle(color)
                         .font(.system(size: 500, design: .monospaced))
                         .minimumScaleFactor(0.01)
@@ -53,10 +54,10 @@ struct MoveNumberView: View {
         .onAppear() {
             stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
             stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
-            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
-                                "2": BoardPoint(x: 0, y: 1),
-                                "3": BoardPoint(x: 1, y: 1),
-                                "4": BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = [BoardPoint(x: 0, y: 0): "1",
+                                BoardPoint(x: 0, y: 1): "2",
+                                BoardPoint(x: 1, y: 1): "3",
+                                BoardPoint(x: 1, y: 0): "4"]
         }
     }
 }

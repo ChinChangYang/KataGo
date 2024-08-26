@@ -162,14 +162,8 @@ struct ContentView: View {
         if isShowingBoard {
             if message.prefix("Next player".count) == "Next player" {
                 isShowingBoard = false
-                var newBoardWidth: CGFloat
-                var newBoardHeight: CGFloat
-                (stones.blackPoints, stones.whitePoints, newBoardWidth, newBoardHeight, stones.moveOrder) = parseBoardPoints(board: boardText)
-                if (newBoardWidth != board.width) || (newBoardHeight != board.height) {
-                    analysis.clear()
-                }
-                board.width = newBoardWidth
-                board.height = newBoardHeight
+                parseBoardPoints()
+
                 if message.prefix("Next player: Black".count) == "Next player: Black" {
                     player.nextColorForPlayCommand = .black
                     player.nextColorFromShowBoard = .black
@@ -188,16 +182,16 @@ struct ContentView: View {
         }
     }
 
-    func parseBoardPoints(board: [String]) -> ([BoardPoint], [BoardPoint], CGFloat, CGFloat, [Character: BoardPoint]) {
+    func parseBoardPoints() {
         var blackStones: [BoardPoint] = []
         var whiteStones: [BoardPoint] = []
 
-        let height = CGFloat(board.count - 1)  // Subtracting 1 to exclude the header
-        let width = CGFloat((board.last?.dropFirst(2).count ?? 0) / 2)  // Drop the first 2 characters for the y-coordinate and divide by 2 because of spaces between cells
-        var moveOrder: [Character: BoardPoint] = [:]
+        let height = CGFloat(boardText.count - 1)  // Subtracting 1 to exclude the header
+        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2)  // Drop the first 2 characters for the y-coordinate and divide by 2 because of spaces between cells
+        var moveOrder: [BoardPoint: Character] = [:]
 
         // Start from index 1 to skip the header line
-        for (lineIndex, line) in board.enumerated() where lineIndex > 0 {
+        for (lineIndex, line) in boardText.enumerated() where lineIndex > 0 {
             // Get y-coordinate from the beginning of the line, and subtract 1 to start from 0
             let y = (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1
 
@@ -210,13 +204,23 @@ struct ContentView: View {
                     whiteStones.append(BoardPoint(x: xCoord, y: y))
                 } else {
                     if char.isNumber {
-                        moveOrder[char] = BoardPoint(x: xCoord, y: y)
+                        moveOrder[BoardPoint(x: xCoord, y: y)] = char
                     }
                 }
             }
         }
 
-        return (blackStones, whiteStones, width, height, moveOrder)
+        stones.blackPoints = blackStones
+        stones.whitePoints = whiteStones
+        withAnimation(.spring) {
+            stones.moveOrder = moveOrder
+        }
+
+        if (width != board.width) || (height != board.height) {
+            analysis.clear()
+            board.width = width
+            board.height = height
+        }
     }
 
     func getBlackWinrate() -> Float {

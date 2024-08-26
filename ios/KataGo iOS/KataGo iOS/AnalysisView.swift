@@ -123,6 +123,7 @@ struct AnalysisView: View {
 
     func winrateText(_ winrate: Float) -> some View {
         return Text(String(format: "%2.0f%%", (winrate * 100).rounded()))
+            .contentTransition(.numericText())
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
@@ -131,6 +132,7 @@ struct AnalysisView: View {
 
     func visitsText(_ visits: Int) -> some View {
         return Text(convertToSIUnits(visits))
+            .contentTransition(.numericText())
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .foregroundColor(.black)
@@ -140,6 +142,7 @@ struct AnalysisView: View {
         let text = String(format: "%+.0f", scoreLead.rounded())
 
         return Text(text)
+            .contentTransition(.numericText())
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .foregroundColor(.black)

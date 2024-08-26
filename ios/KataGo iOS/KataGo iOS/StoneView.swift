@@ -182,10 +182,10 @@ struct StoneView: View {
         .onAppear() {
             stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
             stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
-            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
-                                "2": BoardPoint(x: 0, y: 1),
-                                "3": BoardPoint(x: 1, y: 1),
-                                "4": BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = [BoardPoint(x: 0, y: 0): "1",
+                                BoardPoint(x: 0, y: 1): "2",
+                                BoardPoint(x: 1, y: 1): "3",
+                                BoardPoint(x: 1, y: 0): "4"]
         }
     }
 }
@@ -207,10 +207,10 @@ struct StoneView: View {
         .onAppear() {
             stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
             stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
-            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
-                                "2": BoardPoint(x: 0, y: 1),
-                                "3": BoardPoint(x: 1, y: 1),
-                                "4": BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = [BoardPoint(x: 0, y: 0): "1",
+                                BoardPoint(x: 0, y: 1): "2",
+                                BoardPoint(x: 1, y: 1): "3",
+                                BoardPoint(x: 1, y: 0): "4"]
         }
     }
 }
