@@ -245,6 +245,8 @@
 		E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */; };
 		E1B0ED8F2C7A1313009DDC25 /* macos_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED8E2C7A1313009DDC25 /* macos_gtp.cfg */; };
 		E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */; };
+		E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */; };
+		E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */; };
 		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
@@ -564,7 +566,8 @@
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
 		E1B0ED8E2C7A1313009DDC25 /* macos_gtp.cfg */ = {isa = PBXFileReference; lastKnownFileType = text; path = macos_gtp.cfg; sourceTree = "<group>"; };
 		E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusMenuView.swift; sourceTree = "<group>"; };
-		E1B0ED922C7E0C7F009DDC25 /* KataGo iOS Fast.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "KataGo iOS Fast.xctestplan"; sourceTree = "<group>"; };
+		E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FastTestPlan.xctestplan; sourceTree = "<group>"; };
+		E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FullTestPlan.xctestplan; sourceTree = "<group>"; };
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
@@ -1069,7 +1072,8 @@
 		E1B0ED942C7E0E31009DDC25 /* Test Plan */ = {
 			isa = PBXGroup;
 			children = (
-				E1B0ED922C7E0C7F009DDC25 /* KataGo iOS Fast.xctestplan */,
+				E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */,
+				E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */,
 			);
 			path = "Test Plan";
 			sourceTree = "<group>";
@@ -1389,11 +1393,13 @@
 				E1B0ED8F2C7A1313009DDC25 /* macos_gtp.cfg in Resources */,
 				E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */,
 				E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */,
+				E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */,
 				E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */,
 				E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */,
 				E18F3E182A51466C00D335E1 /* Preview Assets.xcassets in Resources */,
 				E18F3E152A51466C00D335E1 /* Assets.xcassets in Resources */,
 				E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */,
+				E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

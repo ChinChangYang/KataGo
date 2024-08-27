@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "AACADA68-1046-4319-9CBB-24E904B1A927",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:KataGo iOS.xcodeproj",
+        "identifier" : "E18F3E262A51466C00D335E1",
+        "name" : "KataGo iOSUITests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:KataGo iOS.xcodeproj",
+        "identifier" : "E18F3E1C2A51466C00D335E1",
+        "name" : "KataGo iOSTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -29,11 +29,11 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:KataGo iOS Fast.xctestplan"
+            reference = "container:KataGo iOS/Test Plan/FastTestPlan.xctestplan"
             default = "YES">
          </TestPlanReference>
          <TestPlanReference
-            reference = "container:../KataGo iOS Full.xctestplan">
+            reference = "container:KataGo iOS/Test Plan/FullTestPlan.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>
