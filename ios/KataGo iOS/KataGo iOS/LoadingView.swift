@@ -1,5 +1,5 @@
 //
-//  UnselectedGameView.swift
+//  LoadingView.swift
 //  KataGo iOS
 //
 //  Created by Chin-Chang Yang on 2024/8/15.
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @MainActor
-struct UnselectedGameView: View {
+struct LoadingView: View {
     @State var degreesRotating = 0.0
     @State var text = ""
     @State var textOffset = 0
@@ -55,7 +55,7 @@ struct UnselectedGameView: View {
                         }
                 }
                 .onTapGesture {
-                    if animationCount < UnselectedGameView.maxAnimationCount {
+                    if animationCount < LoadingView.maxAnimationCount {
                         degreesRotating = 0
                         withAnimation(.bouncy(duration: 1)
                             .speed(animationSpeed)) {

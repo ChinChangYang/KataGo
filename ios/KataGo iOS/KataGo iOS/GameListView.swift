@@ -15,6 +15,7 @@ struct GameListView: View {
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @State var searchText = ""
+    @Binding var importing: Bool
 
     var filteredGameRecords: [GameRecord] {
         if searchText == "" {
@@ -51,6 +52,13 @@ struct GameListView: View {
             NameEditorView(gameRecord: selectedGameRecord)
         }
         .searchable(text: $searchText)
+        .toolbar {
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                ToolbarItem {
+                    PlusMenuView(gameRecord: selectedGameRecord, importing: $importing)
+                }
+            }
+        }
     }
 }
 

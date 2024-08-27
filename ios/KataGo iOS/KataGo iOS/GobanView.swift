@@ -11,6 +11,7 @@ import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord
+    @Binding var importing: Bool
     @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -32,7 +33,7 @@ struct GobanItems: View {
         }
         .toolbar {
             ToolbarItem {
-                TopToolbarView(gameRecord: gameRecord)
+                TopToolbarView(gameRecord: gameRecord, importing: $importing)
                     .id(toolbarUuid)
             }
         }
@@ -51,6 +52,7 @@ class GobanTab {
 struct GobanView: View {
     @Binding var isInitialized: Bool
     @Binding var isEditorPresented: Bool
+    @Binding var importing: Bool
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -60,7 +62,7 @@ struct GobanView: View {
         Group {
             if isInitialized,
                let gameRecord = navigationContext.selectedGameRecord {
-                GobanItems(gameRecord: gameRecord)
+                GobanItems(gameRecord: gameRecord, importing: $importing)
                     .toolbar {
                         ToolbarItem(placement: .principal) {
                             Text(gameRecord.name)
@@ -75,6 +77,11 @@ struct GobanView: View {
                     }
             } else {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
+                    .toolbar {
+                        ToolbarItem {
+                            PlusMenuView(gameRecord: nil, importing: $importing)
+                        }
+                    }
             }
         }
         .environment(gobanTab)

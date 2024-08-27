@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import KataGoInterface
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State var stones = Stones()
@@ -25,6 +26,8 @@ struct ContentView: View {
     @State private var isEditorPresented = false
     @State private var isInitialized = false
     @State private var gobanTab = GobanTab()
+    @State var importing = false
+    let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     init() {
         // Start a thread to run KataGo GTP
@@ -38,10 +41,12 @@ struct ContentView: View {
             NavigationSplitView {
                 GameListView(isInitialized: $isInitialized,
                              isEditorPresented: $isEditorPresented,
-                             selectedGameRecord: $navigationContext.selectedGameRecord)
+                             selectedGameRecord: $navigationContext.selectedGameRecord,
+                             importing: $importing)
             } detail: {
                 GobanView(isInitialized: $isInitialized,
-                          isEditorPresented: $isEditorPresented)
+                          isEditorPresented: $isEditorPresented,
+                          importing: $importing)
             }
             .environment(stones)
             .environment(messagesObject)
@@ -63,8 +68,23 @@ struct ContentView: View {
                 processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
                               newWaitingForAnalysis: newWaitingForAnalysis)
             }
+            .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType, .text]) { result in
+                switch result {
+                case .success(let file):
+                    let gotAccess = file.startAccessingSecurityScopedResource()
+                    guard gotAccess else { return }
+                    if let fileContents = try? String(contentsOf: file) {
+                        let newGameRecord = GameRecord(sgf: fileContents)
+                        modelContext.insert(newGameRecord)
+                        navigationContext.selectedGameRecord = newGameRecord
+                        gobanTab.isCommandPresented = false
+                        gobanTab.isConfigPresented = false
+                    }
+                case .failure(_): break
+                }
+            }
         } else {
-            UnselectedGameView()
+            LoadingView()
                 .task {
                     await initializationTask()
                 }

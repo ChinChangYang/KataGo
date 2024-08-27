@@ -205,7 +205,7 @@
 		E11887F52B0831B100637D44 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
 		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E1240BB02C6D640200B4874F /* UnselectedGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1240BAF2C6D640200B4874F /* UnselectedGameView.swift */; };
+		E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1240BAF2C6D640200B4874F /* LoadingView.swift */; };
 		E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6E9E2C322E020002DED0 /* ConfigModel.swift */; };
 		E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6EA02C325E010002DED0 /* WinrateBarView.swift */; };
 		E12A6F192C37FE710002DED0 /* KataGoInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F182C37FE710002DED0 /* KataGoInterface.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -244,6 +244,7 @@
 		E1AFE0542C3C07E00061D724 /* SgfCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */; };
 		E1B0ED8F2C7A1313009DDC25 /* macos_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED8E2C7A1313009DDC25 /* macos_gtp.cfg */; };
+		E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */; };
 		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
@@ -521,7 +522,7 @@
 		E11887EE2B08310800637D44 /* metalbackend.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = metalbackend.swift; path = ../../../cpp/neuralnet/metalbackend.swift; sourceTree = "<group>"; };
 		E118EE902B081C3200637D44 /* katago.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = katago.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E118EF0C2B081D8500637D44 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
-		E1240BAF2C6D640200B4874F /* UnselectedGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnselectedGameView.swift; sourceTree = "<group>"; };
+		E1240BAF2C6D640200B4874F /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
 		E12A6E9E2C322E020002DED0 /* ConfigModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModel.swift; sourceTree = "<group>"; };
 		E12A6EA02C325E010002DED0 /* WinrateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinrateBarView.swift; sourceTree = "<group>"; };
 		E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "KataGo-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
@@ -562,6 +563,7 @@
 		E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = SgfCpp.hpp; sourceTree = "<group>"; };
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
 		E1B0ED8E2C7A1313009DDC25 /* macos_gtp.cfg */ = {isa = PBXFileReference; lastKnownFileType = text; path = macos_gtp.cfg; sourceTree = "<group>"; };
+		E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusMenuView.swift; sourceTree = "<group>"; };
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
@@ -953,7 +955,8 @@
 				E13828622C5B8C3600670FD3 /* GameListView.swift */,
 				E138288C2C6A431600670FD3 /* BoardView.swift */,
 				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
-				E1240BAF2C6D640200B4874F /* UnselectedGameView.swift */,
+				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
+				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1557,7 +1560,7 @@
 				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
 				E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
-				E1240BB02C6D640200B4874F /* UnselectedGameView.swift in Sources */,
+				E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */,
 				E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
@@ -1568,6 +1571,7 @@
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
+				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
 				E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 			);

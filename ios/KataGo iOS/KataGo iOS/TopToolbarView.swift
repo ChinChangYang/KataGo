@@ -7,12 +7,10 @@
 
 import SwiftUI
 import KataGoInterface
-import UniformTypeIdentifiers
 
 struct TopToolbarView: View {
     var gameRecord: GameRecord
-    let sgfType = UTType("ccy.KataGo-iOS.sgf")!
-    @State private var importing = false
+    @Binding var importing: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -45,64 +43,7 @@ struct TopToolbarView: View {
                 }
             }
 
-            Menu {
-                Button {
-                    withAnimation {
-                        let newGameRecord = GameRecord()
-                        modelContext.insert(newGameRecord)
-                        navigationContext.selectedGameRecord = newGameRecord
-                        gobanTab.isCommandPresented = false
-                        gobanTab.isConfigPresented = false
-                    }
-                } label: {
-                    Label("New Game", systemImage: "doc")
-                }
-
-                Button {
-                    withAnimation {
-                        let newGameRecord = GameRecord(gameRecord: gameRecord)
-                        modelContext.insert(newGameRecord)
-                        navigationContext.selectedGameRecord = newGameRecord
-                        gobanTab.isCommandPresented = false
-                        gobanTab.isConfigPresented = false
-                    }
-                } label: {
-                    Label("Clone", systemImage: "doc.on.doc")
-                }
-
-                Button {
-                    withAnimation {
-                        importing = true
-                    }
-                } label: {
-                    Label("Import", systemImage: "square.and.arrow.down")
-                }
-
-                Button(role: .destructive) {
-                    let gameRecordToDelete = gameRecord
-                    navigationContext.selectedGameRecord = nil
-                    modelContext.safelyDelete(gameRecord: gameRecordToDelete)
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "plus.square")
-            }
-        }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType, .text]) { result in
-            switch result {
-            case .success(let file):
-                let gotAccess = file.startAccessingSecurityScopedResource()
-                guard gotAccess else { return }
-                if let fileContents = try? String(contentsOf: file) {
-                    let newGameRecord = GameRecord(sgf: fileContents)
-                    modelContext.insert(newGameRecord)
-                    navigationContext.selectedGameRecord = newGameRecord
-                    gobanTab.isCommandPresented = false
-                    gobanTab.isConfigPresented = false
-                }
-            case .failure(_): break
-            }
+            PlusMenuView(gameRecord: gameRecord, importing: $importing)
         }
     }
 }
