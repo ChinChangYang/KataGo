@@ -564,6 +564,7 @@
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
 		E1B0ED8E2C7A1313009DDC25 /* macos_gtp.cfg */ = {isa = PBXFileReference; lastKnownFileType = text; path = macos_gtp.cfg; sourceTree = "<group>"; };
 		E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusMenuView.swift; sourceTree = "<group>"; };
+		E1B0ED922C7E0C7F009DDC25 /* KataGo iOS Fast.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "KataGo iOS Fast.xctestplan"; sourceTree = "<group>"; };
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
@@ -1004,6 +1005,7 @@
 		E18F3E0F2A51466A00D335E1 /* KataGo iOS */ = {
 			isa = PBXGroup;
 			children = (
+				E1B0ED942C7E0E31009DDC25 /* Test Plan */,
 				E16BC8252C47EB1D00EA3A1E /* Model */,
 				E16BC8242C47E9CF00EA3A1E /* View */,
 				E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */,
@@ -1062,6 +1064,14 @@
 				E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		E1B0ED942C7E0E31009DDC25 /* Test Plan */ = {
+			isa = PBXGroup;
+			children = (
+				E1B0ED922C7E0C7F009DDC25 /* KataGo iOS Fast.xctestplan */,
+			);
+			path = "Test Plan";
 			sourceTree = "<group>";
 		};
 		E1BB32AF2C736ACB00690E67 /* ci_scripts */ = {

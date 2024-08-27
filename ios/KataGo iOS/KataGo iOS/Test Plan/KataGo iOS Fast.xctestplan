@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "BB6A77B7-9301-4EA6-AC2B-D585CEE95EF0",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:KataGo iOS.xcodeproj",
+      "identifier" : "E18F3E0C2A51466A00D335E1",
+      "name" : "KataGo iOS"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:KataGo iOS.xcodeproj",
+        "identifier" : "E18F3E1C2A51466C00D335E1",
+        "name" : "KataGo iOSTests"
+      }
+    }
+  ],
+  "version" : 1
+}
