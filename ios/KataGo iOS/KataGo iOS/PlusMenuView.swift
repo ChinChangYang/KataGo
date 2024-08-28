@@ -28,8 +28,8 @@ struct PlusMenuView: View {
                 Label("New Game", systemImage: "doc")
             }
 
-            Button {
-                if let gameRecord {
+            if let gameRecord {
+                Button {
                     withAnimation {
                         let newGameRecord = GameRecord(gameRecord: gameRecord)
                         modelContext.insert(newGameRecord)
@@ -37,9 +37,9 @@ struct PlusMenuView: View {
                         gobanTab.isCommandPresented = false
                         gobanTab.isConfigPresented = false
                     }
+                } label: {
+                    Label("Clone", systemImage: "doc.on.doc")
                 }
-            } label: {
-                Label("Clone", systemImage: "doc.on.doc")
             }
 
             Button {
@@ -50,13 +50,13 @@ struct PlusMenuView: View {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
 
-            Button(role: .destructive) {
-                if let gameRecordToDelete = gameRecord {
+            if let gameRecordToDelete = gameRecord {
+                Button(role: .destructive) {
                     navigationContext.selectedGameRecord = nil
                     modelContext.safelyDelete(gameRecord: gameRecordToDelete)
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
-            } label: {
-                Label("Delete", systemImage: "trash")
             }
         } label: {
             Image(systemName: "plus.square")

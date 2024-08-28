@@ -53,7 +53,7 @@ struct GameListView: View {
         }
         .searchable(text: $searchText)
         .toolbar {
-            if UIDevice.current.userInterfaceIdiom == .phone {
+            if selectedGameRecord == nil {
                 ToolbarItem {
                     PlusMenuView(gameRecord: selectedGameRecord, importing: $importing)
                 }
