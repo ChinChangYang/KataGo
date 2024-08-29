@@ -32,7 +32,7 @@ public class CoreMLBackend {
         return "KataGoModel\(xLen)x\(yLen)fp\(precision)\(encoder)"
     }
 
-    let model: KataGoModel
+    var model: KataGoModel
     let xLen: Int
     let yLen: Int
     public let version: Int32
@@ -40,16 +40,18 @@ public class CoreMLBackend {
     let numGlobalFeatures: Int
     let numMetaFeatures: Int
     let metaEncoderVersion: Int
+    let modelName: String
 
     var spatialSize: Int {
         numSpatialFeatures * yLen * xLen
     }
 
-    init(model: MLModel, xLen: Int, yLen: Int, metaEncoderVersion: Int) {
+    init(model: MLModel, xLen: Int, yLen: Int, metaEncoderVersion: Int, modelName: String) {
         self.model = KataGoModel(model: model)
         self.xLen = xLen
         self.yLen = yLen
         self.metaEncoderVersion = metaEncoderVersion
+        self.modelName = modelName
 
         // The model version must be at least 8.
         self.version = model.version
@@ -115,8 +117,8 @@ public class CoreMLBackend {
 
             let inputBatch = KataGoModelInputBatch(inputArray: inputArray)
             let options = MLPredictionOptions()
-            let outputBatch = try! model.prediction(from: inputBatch, options: options)
 
+            let outputBatch = safelyPredict(from: inputBatch, options: options)!
             assert(outputBatch.count == batchSize)
 
             outputBatch.outputArray.enumerated().forEach { index, output in
@@ -148,6 +150,37 @@ public class CoreMLBackend {
             }
         }
     }
+
+    func safelyPredict(from inputBatch: KataGoModelInputBatch,
+                       options: MLPredictionOptions) -> KataGoModelOutputBatch? {
+        if let prediction = try? model.prediction(from: inputBatch, options: options) {
+            return prediction
+        }
+
+        let computeUnits = model.model.configuration.computeUnits
+
+        for mustCompile in [false, true] {
+            if let prediction = compileAndPredict(with: computeUnits, from: inputBatch, options: options, mustCompile: mustCompile) {
+                return prediction
+            }
+        }
+
+        return nil
+    }
+
+    private func compileAndPredict(with computeUnits: MLComputeUnits,
+                                   from inputBatch: KataGoModelInputBatch,
+                                   options: MLPredictionOptions,
+                                   mustCompile: Bool) -> KataGoModelOutputBatch? {
+        if let mlmodel = KataGoModel.compileBundleMLModel(modelName: modelName, computeUnits: computeUnits, mustCompile: mustCompile) {
+            model = KataGoModel(model: mlmodel)
+            if let outputBatch = try? model.prediction(from: inputBatch, options: options) {
+                return outputBatch
+            }
+        }
+
+        return nil
+    }
 }
 
 public func maybeCreateCoreMLBackend(condition: Bool = true,
@@ -162,15 +195,18 @@ public func maybeCreateCoreMLBackend(condition: Bool = true,
     // Get the model name.
     let modelName = CoreMLBackend.getModelName(xLen: xLen, yLen: yLen, useFP16: useFP16, metaEncoderVersion: metaEncoderVersion)
 
+    // Specify compute units.
+    let computeUnits: MLComputeUnits = useCpuAndNeuralEngine ? .cpuAndNeuralEngine : .all
+
     // Compile the model in Bundle.
-    let mlmodel = KataGoModel.compileBundleMLModel(modelName: modelName, useCpuAndNeuralEngine: useCpuAndNeuralEngine)
+    let mlmodel = KataGoModel.compileBundleMLModel(modelName: modelName, computeUnits: computeUnits)
 
     if let mlmodel {
         printError("CoreML backend \(serverThreadIdx): \(xLen)x\(yLen) useFP16 \(useFP16) metaEncoderVersion \(metaEncoderVersion) useCpuAndNeuralEngine \(useCpuAndNeuralEngine)");
         printError("CoreML backend \(serverThreadIdx): \(mlmodel.metaDescription)");
 
         // The CoreMLBackend object is created.
-        return CoreMLBackend(model: mlmodel, xLen: xLen, yLen: yLen, metaEncoderVersion: metaEncoderVersion)
+        return CoreMLBackend(model: mlmodel, xLen: xLen, yLen: yLen, metaEncoderVersion: metaEncoderVersion, modelName: modelName)
     } else {
         printError("Unable to compile bundle MLModel from model: \(modelName)")
         return nil
