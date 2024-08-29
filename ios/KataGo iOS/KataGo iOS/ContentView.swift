@@ -208,7 +208,8 @@ struct ContentView: View {
 
         // Check for captured black stones in the message
         if let match = message.firstMatch(of: /B stones captured: (\d+)/),
-           let blackStonesCaptured = Int(match.1) {
+           let blackStonesCaptured = Int(match.1),
+           stones.blackStonesCaptured != blackStonesCaptured {
             withAnimation {
                 // Update the count of captured black stones
                 stones.blackStonesCaptured = blackStonesCaptured
@@ -221,7 +222,8 @@ struct ContentView: View {
             isShowingBoard = false
             // Capture the count of white stones captured
             if let match = message.firstMatch(of: /W stones captured: (\d+)/),
-               let whiteStonesCaptured = Int(match.1) {
+               let whiteStonesCaptured = Int(match.1),
+               stones.whiteStonesCaptured != whiteStonesCaptured {
                 withAnimation {
                     // Update the count of captured white stones
                     stones.whiteStonesCaptured = whiteStonesCaptured

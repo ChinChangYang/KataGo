@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E10C8BA72C8032AA00477A7B /* PlayGoStone.m4a in Resources */ = {isa = PBXBuildFile; fileRef = E10C8BA62C8032AA00477A7B /* PlayGoStone.m4a */; };
+		E10C8BAB2C80B07200477A7B /* Capture1GoStone.m4a in Resources */ = {isa = PBXBuildFile; fileRef = E10C8BAA2C80B07200477A7B /* Capture1GoStone.m4a */; };
+		E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10C8BAC2C80BECE00477A7B /* AudioModel.swift */; };
 		E1183E662B081DAA00637D44 /* main.h in Headers */ = {isa = PBXBuildFile; fileRef = E118EF0C2B081D8500637D44 /* main.h */; };
 		E118802E2B081E3900637D44 /* sgf.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CA2B081DA700637D44 /* sgf.h */; };
 		E118802F2B081E3900637D44 /* trainingwrite.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CB2B081DA700637D44 /* trainingwrite.h */; };
@@ -330,6 +333,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E10C8BA62C8032AA00477A7B /* PlayGoStone.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = PlayGoStone.m4a; sourceTree = "<group>"; };
+		E10C8BAA2C80B07200477A7B /* Capture1GoStone.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = Capture1GoStone.m4a; sourceTree = "<group>"; };
+		E10C8BAC2C80BECE00477A7B /* AudioModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioModel.swift; sourceTree = "<group>"; };
 		E11836CA2B081DA700637D44 /* sgf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sgf.h; sourceTree = "<group>"; };
 		E11836CB2B081DA700637D44 /* trainingwrite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = trainingwrite.h; sourceTree = "<group>"; };
 		E11836CC2B081DA700637D44 /* homedata.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = homedata.h; sourceTree = "<group>"; };
@@ -972,6 +978,7 @@
 				E12A6E9E2C322E020002DED0 /* ConfigModel.swift */,
 				E14753582C3A5A440066DE29 /* GameRecord.swift */,
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
+				E10C8BAC2C80BECE00477A7B /* AudioModel.swift */,
 			);
 			name = Model;
 			sourceTree = "<group>";
@@ -1059,6 +1066,8 @@
 		E18F3F792A514BA700D335E1 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				E10C8BAA2C80B07200477A7B /* Capture1GoStone.m4a */,
+				E10C8BA62C8032AA00477A7B /* PlayGoStone.m4a */,
 				E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */,
 				E18F3F752A514B9700D335E1 /* default_gtp.cfg */,
 				E18F3F742A514B9700D335E1 /* default_model.bin.gz */,
@@ -1393,9 +1402,11 @@
 				E1B0ED8F2C7A1313009DDC25 /* macos_gtp.cfg in Resources */,
 				E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */,
 				E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */,
+				E10C8BA72C8032AA00477A7B /* PlayGoStone.m4a in Resources */,
 				E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */,
 				E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */,
 				E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */,
+				E10C8BAB2C80B07200477A7B /* Capture1GoStone.m4a in Resources */,
 				E18F3E182A51466C00D335E1 /* Preview Assets.xcassets in Resources */,
 				E18F3E152A51466C00D335E1 /* Assets.xcassets in Resources */,
 				E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */,
@@ -1581,6 +1592,7 @@
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
 				E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */,
+				E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */,
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,

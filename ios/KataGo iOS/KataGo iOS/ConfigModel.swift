@@ -29,6 +29,7 @@ final class Config {
     var optionalShowOwnership: Bool? = true
     var optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful
     var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
+    var optionalSoundEffect: Bool? = true
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -47,7 +48,8 @@ final class Config {
          optionalAnalysisForWhom: Int? = 0,
          optionalShowOwnership: Bool? = true,
          optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful,
-         optionalHumanProfileForWhite: String? = defaultHumanSLProfile) {
+         optionalHumanProfileForWhite: String? = defaultHumanSLProfile,
+         optionalSoundEffect: Bool? = true) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -66,6 +68,7 @@ final class Config {
         self.optionalShowOwnership = optionalShowOwnership
         self.optionalHumanRatioForWhite = optionalHumanRatioForWhite
         self.optionalHumanProfileForWhite = optionalHumanProfileForWhite
+        self.optionalSoundEffect = optionalSoundEffect
     }
 
     convenience init(config: Config) {
@@ -87,7 +90,8 @@ final class Config {
             optionalAnalysisForWhom: config.optionalAnalysisForWhom,
             optionalShowOwnership: config.optionalShowOwnership,
             optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
-            optionalHumanProfileForWhite: config.optionalHumanProfileForWhite
+            optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
+            optionalSoundEffect: config.optionalSoundEffect
         )
     }
 }
@@ -261,5 +265,19 @@ extension Config {
 
     var isEqualBlackWhiteHumanSettings: Bool {
         return (humanSLProfile == humanProfileForWhite) && (humanSLRootExploreProbWeightful == humanRatioForWhite)
+    }
+}
+
+extension Config {
+    static let defaultSoundEffect = true
+
+    var soundEffect: Bool {
+        get {
+            return optionalSoundEffect ?? Config.defaultSoundEffect
+        }
+
+        set(newSoundEffect) {
+            optionalSoundEffect = newSoundEffect
+        }
     }
 }

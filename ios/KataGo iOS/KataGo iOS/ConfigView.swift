@@ -170,6 +170,7 @@ struct ConfigItems: View {
     @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
     @State var showOwnership: Bool = Config.defaultShowOwnership
     @State private var isBoardSizeChanged = false
+    @State var soundEffect: Bool = Config.defaultSoundEffect
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -264,6 +265,16 @@ struct ConfigItems: View {
                 ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
                     .onChange(of: showCoordinate) { _, newValue in
                         config.showCoordinate = showCoordinate
+                    }
+            }
+
+            Section("Sound") {
+                ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
+                    .onAppear {
+                        soundEffect = config.soundEffect
+                    }
+                    .onChange(of: soundEffect) { _, newValue in
+                        config.soundEffect = soundEffect
                     }
             }
 

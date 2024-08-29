@@ -7,11 +7,14 @@
 
 import SwiftUI
 import KataGoInterface
+import AVKit
 
 struct BoardView: View {
+    @State var audioModel = AudioModel()
     @Environment(BoardSize.self) var board
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
+    @Environment(Stones.self) var stones
     var config: Config
 
     var body: some View {
@@ -34,12 +37,16 @@ struct BoardView: View {
                 WinrateBarView(dimensions: dimensions)
             }
             .onTapGesture() { location in
-                if let move = locationToMove(location: location, dimensions: dimensions),
-                   let turn = player.nextColorSymbolForPlayCommand {
+                if let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
+                   let point = coordinate.point,
+                   let move = coordinate.move,
+                   let turn = player.nextColorSymbolForPlayCommand,
+                   !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
                     KataGoHelper.sendCommand("play \(turn) \(move)")
                     player.toggleNextColorForPlayCommand()
                     KataGoHelper.sendCommand("showboard")
                     KataGoHelper.sendCommand("printsgf")
+                    audioModel.playPlaySound(soundEffect: config.soundEffect)
                 }
             }
         }
@@ -57,12 +64,22 @@ struct BoardView: View {
                 gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
             }
         }
+        .onChange(of: stones.blackStonesCaptured) { oldValue, newValue in
+            if oldValue < newValue {
+                audioModel.playCaptureSound(soundEffect: config.soundEffect)
+            }
+        }
+        .onChange(of: stones.whiteStonesCaptured) { oldValue, newValue in
+            if oldValue < newValue {
+                audioModel.playCaptureSound(soundEffect: config.soundEffect)
+            }
+        }
         .onDisappear() {
             KataGoHelper.sendCommand("stop")
         }
     }
 
-    func locationToMove(location: CGPoint, dimensions: Dimensions) -> String? {
+    func locationToCoordinate(location: CGPoint, dimensions: Dimensions) -> Coordinate? {
         let calculateCoordinate = { (point: CGFloat, margin: CGFloat, length: CGFloat) -> Int in
             return Int(round((point - margin) / length))
         }
@@ -72,7 +89,7 @@ struct BoardView: View {
 
         guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
 
-        return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
+        return Coordinate(x: x, y: y)
     }
 }
 

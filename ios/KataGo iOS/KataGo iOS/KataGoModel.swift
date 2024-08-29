@@ -270,6 +270,18 @@ struct Coordinate {
         return String(y)
     }
 
+    var move: String? {
+        if let xLabel {
+            return "\(xLabel)\(yLabel)"
+        } else {
+            return nil
+        }
+    }
+
+    var point: BoardPoint? {
+        BoardPoint(x: x, y: y - 1)
+    }
+
     // Mapping letters A-AD (without I) to numbers 0-28
     static let xMap: [String: Int] = [
         "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,

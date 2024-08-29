@@ -7,8 +7,10 @@
 
 import SwiftUI
 import KataGoInterface
+import AVKit
 
 struct StatusToolbarItems: View {
+    @State var audioModel = AudioModel()
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
     @Environment(BoardSize.self) var board
@@ -100,6 +102,7 @@ struct StatusToolbarItems: View {
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
                 player.toggleNextColorForPlayCommand()
+                audioModel.playPlaySound(soundEffect: config.soundEffect)
             }
         }
 
