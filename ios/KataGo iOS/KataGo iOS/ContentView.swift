@@ -31,9 +31,13 @@ struct ContentView: View {
 
     init() {
         // Start a thread to run KataGo GTP
-        Thread {
+        let katagoThread = Thread {
             KataGoHelper.runGtp()
-        }.start()
+        }
+
+        // Expand the stack size to resolve a stack overflow problem
+        katagoThread.stackSize = 4096 * 256
+        katagoThread.start()
     }
 
     var body: some View {
