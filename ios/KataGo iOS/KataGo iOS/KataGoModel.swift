@@ -117,8 +117,9 @@ struct Dimensions {
     let gobanStartX: CGFloat
     let gobanStartY: CGFloat
     let coordinate: Bool
-    let capturedStonesWidth: CGFloat = 100
+    let capturedStonesWidth: CGFloat = 80
     let capturedStonesHeight: CGFloat = 20
+    let capturedStonesStartY: CGFloat
 
     init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false) {
         self.width = width
@@ -131,7 +132,7 @@ struct Dimensions {
         let gobanWidthEntity = width + coordinateEntity
         let gobanHeightEntiry = height + coordinateEntity
         let squareWidth = totalWidth / (gobanWidthEntity + 1)
-        let squareHeight = totalHeight / (gobanHeightEntiry + 1)
+        let squareHeight = max(0, totalHeight - capturedStonesHeight) / (gobanHeightEntiry + 1)
         squareLength = min(squareWidth, squareHeight)
         squareLengthDiv2 = squareLength / 2
         squareLengthDiv4 = squareLength / 4
@@ -142,12 +143,17 @@ struct Dimensions {
         gobanWidth = (gobanWidthEntity * squareLength) + gobanPadding
         gobanHeight = (gobanHeightEntiry * squareLength) + gobanPadding
         gobanStartX = (totalWidth - gobanWidth) / 2
-        gobanStartY = (totalHeight - gobanHeight) / 2
+        gobanStartY = max(capturedStonesHeight, (totalHeight - gobanHeight) / 2)
         boardLineBoundWidth = (width - 1) * squareLength
         boardLineBoundHeight = (height - 1) * squareLength
         let coordinateLength = coordinateEntity * squareLength
         boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
-        boardLineStartY = (totalHeight - boardLineBoundHeight + coordinateLength) / 2
+        boardLineStartY = max(capturedStonesHeight + (squareLength + coordinateLength) / 2, (totalHeight - boardLineBoundHeight + coordinateLength) / 2)
+        capturedStonesStartY = gobanStartY - capturedStonesHeight
+    }
+
+    func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {
+        gobanStartX + (gobanWidth / 2) + ((-3 + (6 * xOffset)) * max(gobanWidth / 2, capturedStonesWidth) / 4)
     }
 }
 

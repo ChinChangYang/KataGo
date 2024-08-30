@@ -64,6 +64,8 @@ struct BoardLineView: View {
                 .frame(width: dimensions.gobanWidth,
                        height: dimensions.gobanHeight)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
+                .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
+                          y: dimensions.gobanStartY + (dimensions.gobanHeight / 2))
         }
     }
 

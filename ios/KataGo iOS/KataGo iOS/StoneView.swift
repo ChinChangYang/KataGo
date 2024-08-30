@@ -36,8 +36,8 @@ struct StoneView: View {
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
         }
         .frame(width: dimensions.capturedStonesWidth, height: dimensions.capturedStonesHeight)
-        .position(x: dimensions.gobanStartX + (1 + (6 * xOffset)) * dimensions.gobanWidth / 8,
-                  y: dimensions.gobanStartY - dimensions.capturedStonesHeight)
+        .position(x: dimensions.getCapturedStoneStartX(xOffset: xOffset),
+                  y: dimensions.capturedStonesStartY)
     }
 
     private func drawStoneBase(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
