@@ -90,8 +90,10 @@ struct ContentView: View {
             let gotAccess = file.startAccessingSecurityScopedResource()
             guard gotAccess else { return }
             // Attempt to read the contents of the file
-            if let fileContents = try? String(contentsOf: file) {
-                let newGameRecord = GameRecord(sgf: fileContents)
+            if let fileContents = try? String(contentsOf: file),
+               let lastMoveIndex = SgfHelper(sgf: fileContents).getLastMoveIndex() {
+                let currentIndex = lastMoveIndex + 1
+                let newGameRecord = GameRecord(sgf: fileContents, currentIndex: currentIndex)
                 modelContext.insert(newGameRecord) // Insert new game record into the model
                 navigationContext.selectedGameRecord = newGameRecord // Update the selected game record
                 gobanTab.isCommandPresented = false // Dismiss command interface
