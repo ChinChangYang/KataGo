@@ -65,7 +65,7 @@ struct KataGoModelTests {
         #expect(dimensions.squareLengthDiv8 == 0)
         #expect(dimensions.squareLengthDiv16 == 0)
         #expect(dimensions.boardLineStartX == 0)
-        #expect(dimensions.boardLineStartY == 0)
+        #expect(dimensions.boardLineStartY == dimensions.capturedStonesHeight)
         #expect(dimensions.stoneLength == 0)
         #expect(dimensions.width == 1)
         #expect(dimensions.height == 1)
@@ -74,7 +74,7 @@ struct KataGoModelTests {
         #expect(dimensions.boardLineBoundWidth == 0)
         #expect(dimensions.boardLineBoundHeight == 0)
         #expect(dimensions.gobanStartX == 0)
-        #expect(dimensions.gobanStartY == 0)
+        #expect(dimensions.gobanStartY == dimensions.capturedStonesHeight)
         #expect(dimensions.coordinate == false)
     }
 
@@ -87,7 +87,7 @@ struct KataGoModelTests {
         #expect(dimensions.squareLengthDiv8 == 0)
         #expect(dimensions.squareLengthDiv16 == 0)
         #expect(dimensions.boardLineStartX == 0)
-        #expect(dimensions.boardLineStartY == 0)
+        #expect(dimensions.boardLineStartY == dimensions.capturedStonesHeight)
         #expect(dimensions.stoneLength == 0)
         #expect(dimensions.width == 1)
         #expect(dimensions.height == 1)
@@ -96,7 +96,7 @@ struct KataGoModelTests {
         #expect(dimensions.boardLineBoundWidth == 0)
         #expect(dimensions.boardLineBoundHeight == 0)
         #expect(dimensions.gobanStartX == 0)
-        #expect(dimensions.gobanStartY == 0)
+        #expect(dimensions.gobanStartY == dimensions.capturedStonesHeight)
         #expect(dimensions.coordinate == true)
     }
 
@@ -142,7 +142,7 @@ struct KataGoModelTests {
         #expect(invalidXLabel == nil)
         let invalidYLabel = Coordinate(xLabel: "A", yLabel: "A")
         #expect(invalidYLabel == nil)
-        let validLabels = Coordinate(xLabel: "AD", yLabel: "28")
+        let validLabels = Coordinate(xLabel: "AD", yLabel: "28", width: 29, height: 29)
         #expect(validLabels?.x == 28)
         #expect(validLabels?.y == 28)
         #expect(validLabels?.xLabel == "AD")

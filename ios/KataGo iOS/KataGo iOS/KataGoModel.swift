@@ -329,6 +329,10 @@ struct Coordinate {
         self.height = height
     }
 
+    init?(xLabel: String, yLabel: String) {
+        self.init(xLabel: xLabel, yLabel: yLabel, width: 19, height: 19)
+    }
+
     init?(xLabel: String, yLabel: String, width: Int, height: Int) {
         if let x = Coordinate.xMap[xLabel.uppercased()],
            let y = Int(yLabel) {
