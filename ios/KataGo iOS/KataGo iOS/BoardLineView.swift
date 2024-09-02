@@ -10,12 +10,14 @@ import SwiftUI
 struct BoardLineView: View {
     let dimensions: Dimensions
     let texture = WoodImage.createTexture()
+    @Environment(BoardSize.self) var board
 
     var body: some View {
         ZStack {
             drawBoardBackground(texture: texture, dimensions: dimensions)
             drawLines(dimensions: dimensions)
             drawStarPoints(dimensions: dimensions)
+            drawPassArea(texture: texture, dimensions: dimensions)
 
             if dimensions.coordinate {
                 drawCoordinate(dimensions: dimensions)
@@ -66,6 +68,27 @@ struct BoardLineView: View {
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
                 .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
                           y: dimensions.gobanStartY + (dimensions.gobanHeight / 2))
+        }
+    }
+
+    private func drawPassArea(texture: UIImage, dimensions: Dimensions) -> some View {
+        Group {
+            let passPoint = BoardPoint.pass(width: Int(board.width), height: Int(board.height))
+
+            Image(uiImage: texture)
+                .resizable()
+                .frame(width: dimensions.squareLength,
+                       height: dimensions.squareLength)
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
+                .position(x: dimensions.boardLineStartX + CGFloat(passPoint.x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
+
+            Text("Pass")
+                .font(.system(size: 500, design: .monospaced))
+                .minimumScaleFactor(0.01)
+                .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                .position(x: dimensions.boardLineStartX + CGFloat(passPoint.x - 1) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
         }
     }
 

@@ -53,22 +53,7 @@ struct StatusToolbarItems: View {
             Button(action: forwardEndAction) {
                 Image(systemName: "forward.end")
             }
-
-            Spacer()
-
-            Button(action: passAction) {
-                Image(systemName: "hand.raised")
-            }
         }
-    }
-
-    func passAction() {
-        let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
-        let pass = "play \(nextColor) pass"
-        KataGoHelper.sendCommand(pass)
-        player.toggleNextColorForPlayCommand()
-        KataGoHelper.sendCommand("showboard")
-        KataGoHelper.sendCommand("printsgf")
     }
 
     func backwardAction() {

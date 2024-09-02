@@ -87,9 +87,7 @@ struct BoardView: View {
         let y = calculateCoordinate(location.y, dimensions.boardLineStartY, dimensions.squareLength) + 1
         let x = calculateCoordinate(location.x, dimensions.boardLineStartX, dimensions.squareLength)
 
-        guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
-
-        return Coordinate(x: x, y: y)
+        return Coordinate(x: x, y: y, width: Int(board.width), height: Int(board.height))
     }
 }
 

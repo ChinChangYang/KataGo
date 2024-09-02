@@ -19,6 +19,14 @@ struct BoardPoint: Hashable, Comparable {
     let x: Int
     let y: Int
 
+    func isPass(width: Int, height: Int) -> Bool {
+        self == BoardPoint.pass(width: width, height: height)
+    }
+
+    static func pass(width: Int, height: Int) -> BoardPoint {
+        return BoardPoint(x: width - 1, y: height + 1)
+    }
+
     static func < (lhs: BoardPoint, rhs: BoardPoint) -> Bool {
         return (lhs.y, lhs.x) < (rhs.y, rhs.x)
     }
@@ -130,9 +138,10 @@ struct Dimensions {
         let totalHeight = size.height
         let coordinateEntity: CGFloat = coordinate ? 1 : 0
         let gobanWidthEntity = width + coordinateEntity
-        let gobanHeightEntiry = height + coordinateEntity
+        let gobanHeightEntity = height + coordinateEntity
+        let passHeightEntity = 1.5
         let squareWidth = totalWidth / (gobanWidthEntity + 1)
-        let squareHeight = max(0, totalHeight - capturedStonesHeight) / (gobanHeightEntiry + 1)
+        let squareHeight = max(0, totalHeight) / (gobanHeightEntity + passHeightEntity + 1)
         squareLength = min(squareWidth, squareHeight)
         squareLengthDiv2 = squareLength / 2
         squareLengthDiv4 = squareLength / 4
@@ -141,14 +150,15 @@ struct Dimensions {
         let gobanPadding = squareLength / 2
         stoneLength = squareLength * 0.95
         gobanWidth = (gobanWidthEntity * squareLength) + gobanPadding
-        gobanHeight = (gobanHeightEntiry * squareLength) + gobanPadding
+        gobanHeight = (gobanHeightEntity * squareLength) + gobanPadding
         gobanStartX = (totalWidth - gobanWidth) / 2
-        gobanStartY = max(capturedStonesHeight, (totalHeight - gobanHeight) / 2)
+        let passHeight = passHeightEntity * squareLength
+        gobanStartY = max(capturedStonesHeight, (totalHeight - passHeight - gobanHeight) / 2)
         boardLineBoundWidth = (width - 1) * squareLength
         boardLineBoundHeight = (height - 1) * squareLength
         let coordinateLength = coordinateEntity * squareLength
         boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
-        boardLineStartY = max(capturedStonesHeight + (squareLength + coordinateLength) / 2, (totalHeight - boardLineBoundHeight + coordinateLength) / 2)
+        boardLineStartY = max(capturedStonesHeight + (squareLength + coordinateLength) / 2, (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2)
         capturedStonesStartY = gobanStartY - capturedStonesHeight
     }
 
@@ -267,6 +277,8 @@ class Winrate {
 struct Coordinate {
     let x: Int
     let y: Int
+    let width: Int
+    let height: Int
 
     var xLabel: String? {
         return Coordinate.xLabelMap[x]
@@ -277,7 +289,9 @@ struct Coordinate {
     }
 
     var move: String? {
-        if let xLabel {
+        if let point, point.isPass(width: width, height: height) {
+            return "pass"
+        } else if let xLabel {
             return "\(xLabel)\(yLabel)"
         } else {
             return nil
@@ -307,15 +321,18 @@ struct Coordinate {
         25: "AA", 26: "AB", 27: "AC", 28: "AD"
     ]
 
-    init(x: Int, y: Int) {
+    init?(x: Int, y: Int, width: Int, height: Int) {
+        guard ((1...height).contains(y) && (0..<width).contains(x)) || BoardPoint(x: x, y: y - 1).isPass(width: width, height: height) else { return nil }
         self.x = x
         self.y = y
+        self.width = width
+        self.height = height
     }
 
-    init?(xLabel: String, yLabel: String) {
+    init?(xLabel: String, yLabel: String, width: Int, height: Int) {
         if let x = Coordinate.xMap[xLabel.uppercased()],
            let y = Int(yLabel) {
-            self.init(x: x, y: y)
+            self.init(x: x, y: y, width: width, height: height)
         } else {
             return nil
         }

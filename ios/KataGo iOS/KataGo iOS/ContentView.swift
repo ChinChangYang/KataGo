@@ -73,25 +73,31 @@ struct ContentView: View {
                               newWaitingForAnalysis: newWaitingForAnalysis)
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType, .text]) { result in
-                switch result {
-                case .success(let file):
-                    let gotAccess = file.startAccessingSecurityScopedResource()
-                    guard gotAccess else { return }
-                    if let fileContents = try? String(contentsOf: file) {
-                        let newGameRecord = GameRecord(sgf: fileContents)
-                        modelContext.insert(newGameRecord)
-                        navigationContext.selectedGameRecord = newGameRecord
-                        gobanTab.isCommandPresented = false
-                        gobanTab.isConfigPresented = false
-                    }
-                case .failure(_): break
-                }
+                importFile(result: result)
             }
         } else {
             LoadingView()
                 .task {
                     await initializationTask()
                 }
+        }
+    }
+
+    // Handles file import from the document picker
+    private func importFile(result: Result<URL, any Error>) {
+        switch result {
+        case .success(let file):
+            let gotAccess = file.startAccessingSecurityScopedResource()
+            guard gotAccess else { return }
+            // Attempt to read the contents of the file
+            if let fileContents = try? String(contentsOf: file) {
+                let newGameRecord = GameRecord(sgf: fileContents)
+                modelContext.insert(newGameRecord) // Insert new game record into the model
+                navigationContext.selectedGameRecord = newGameRecord // Update the selected game record
+                gobanTab.isCommandPresented = false // Dismiss command interface
+                gobanTab.isConfigPresented = false // Dismiss configuration interface
+            }
+        case .failure(_): break // Handle failure (no action needed)
         }
     }
 
@@ -236,59 +242,73 @@ struct ContentView: View {
         }
     }
 
+    // Parses the board text to extract and classify positions of stones and moves
     func parseBoardPoints() {
-        // Arrays to store positions of black and white stones
-        var blackStones: [BoardPoint] = []
-        var whiteStones: [BoardPoint] = []
-        // Dictionary to keep track of the order of moves
-        var moveOrder: [BoardPoint: Character] = [:]
+        var blackStones: [BoardPoint] = [] // Stores positions of black stones
+        var whiteStones: [BoardPoint] = [] // Stores positions of white stones
+        var moveOrder: [BoardPoint: Character] = [:] // Tracks the order of moves
 
-        // Calculate the height based on the number of lines in board text
-        let height = CGFloat(boardText.count - 1)
-        // Calculate the width based on the last line's character count
-        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2)
+        let (height, width) = calculateBoardDimensions() // Get current board dimensions
 
-        // Parse the board text to extract stone positions and moves
-        _ = boardText.dropFirst().enumerated().flatMap { (lineIndex, line) -> [(BoardPoint, Character?)] in
-            // Calculate the y-coordinate from line number
-            let y = (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1
+        // Process each line of the board text to extract stone positions and moves
+        _ = boardText.dropFirst().enumerated().flatMap { (lineIndex, line) in
+            let y = calculateYCoordinate(from: line) // Calculate the y-coordinate from the line
+            return parseLine(line, y: y, blackStones: &blackStones, whiteStones: &whiteStones, moveOrder: &moveOrder)
+        }
+        
+        updateStones(blackStones, whiteStones, moveOrder) // Update the state of stones on the board
+        adjustBoardDimensionsIfNeeded(width: width, height: height) // Adjust dimensions if they change
+    }
 
-            return line.dropFirst(3).enumerated().compactMap { (charIndex, char) -> (BoardPoint, Character)? in
-                // Calculate the x-coordinate from the character index
-                let xCoord = charIndex / 2
-                // Create a point on the board
-                let point = BoardPoint(x: xCoord, y: y)
+    // Calculates the board dimensions based on the text representation
+    private func calculateBoardDimensions() -> (CGFloat, CGFloat) {
+        let height = CGFloat(boardText.count - 1) // Height is based on the number of lines in board text
+        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2) // Width based on the character count of the last line
+        return (height, width) // Return the dimensions as a tuple
+    }
 
-                // Evaluate the character to determine stone color or move order
-                if char == "X" { // Black stone
-                    blackStones.append(point)
-                    return nil
-                } else if char == "O" { // White stone
-                    whiteStones.append(point)
-                    return nil
-                } else if char.isNumber { // Move number
-                    moveOrder[point] = char
-                    return nil
-                }
-                return nil // For any other character, return nil
+    // Calculates the y-coordinate for a given line of text
+    private func calculateYCoordinate(from line: String) -> Int {
+        return (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1 // Extract and adjust y-coordinate
+    }
+
+    // Parses a single line of board text and updates stone positions and move order
+    private func parseLine(_ line: String, y: Int, blackStones: inout [BoardPoint], whiteStones: inout [BoardPoint], moveOrder: inout [BoardPoint: Character]) -> [(BoardPoint, Character?)] {
+        return line.dropFirst(3).enumerated().compactMap { (charIndex, char) -> (BoardPoint, Character)? in
+            let xCoord = charIndex / 2 // Calculate the x-coordinate from character index
+            let point = BoardPoint(x: xCoord, y: y) // Create point for the board
+
+            // Classify the character as black stone, white stone, or move number
+            if char == "X" {
+                blackStones.append(point) // Add black stone position
+                return nil
+            } else if char == "O" {
+                whiteStones.append(point) // Add white stone position
+                return nil
+            } else if char.isNumber {
+                moveOrder[point] = char // Track move number
+                return nil
             }
+            return nil // Ignore any other character
         }
+    }
 
-        // Assign the observable stones
-        stones.blackPoints = blackStones
-        stones.whitePoints = whiteStones
-        // Animate the change of move order
+    // Updates the stones displayed on the board and triggers animation
+    private func updateStones(_ blackStones: [BoardPoint], _ whiteStones: [BoardPoint], _ moveOrder: [BoardPoint: Character]) {
+        stones.blackPoints = blackStones // Update black stone positions
+        stones.whitePoints = whiteStones // Update white stone positions
         withAnimation(.spring) {
-            stones.moveOrder = moveOrder
+            stones.moveOrder = moveOrder // Animate the change of move order using spring animation
         }
+    }
 
-        // Adjust the board dimensions if changed
+    // Adjusts the board dimensions if they differ from the current settings
+    private func adjustBoardDimensionsIfNeeded(width: CGFloat, height: CGFloat) {
+        // Check if the new dimensions differ from the current dimensions
         if width != board.width || height != board.height {
-            // Clear previous analysis before resizing
-            analysis.clear()
-            // Update board dimensions
-            board.width = width
-            board.height = height
+            analysis.clear() // Clear previous analysis data to reset
+            board.width = width // Update the board's width
+            board.height = height // Update the board's height
         }
     }
 
@@ -353,7 +373,9 @@ struct ContentView: View {
         let pattern = /([^\d\W]+)(\d+)/
         if let match = move.firstMatch(of: pattern),
            let coordinate = Coordinate(xLabel: String(match.1),
-                                       yLabel: String(match.2)) {
+                                       yLabel: String(match.2),
+                                       width: Int(board.width),
+                                       height: Int(board.height)) {
             // Subtract 1 from y to make it 0-indexed
             return BoardPoint(x: coordinate.x, y: coordinate.y - 1)
         } else {
@@ -361,16 +383,23 @@ struct ContentView: View {
         }
     }
 
+    // Matches a move pattern in the provided data line, returning the corresponding BoardPoint if found
     func matchMovePattern(dataLine: String) -> BoardPoint? {
-        let pattern = /move (\w+\d+)/
-        if let match = dataLine.firstMatch(of: pattern) {
-            let move = String(match.1)
-            if let point = moveToPoint(move: move) {
-                return point
+        let movePattern = /move (\w+\d+)/ // Regular expression to match standard moves
+        let passPattern = /move pass/ // Regular expression to match "pass" moves
+        
+        // Search for a standard move pattern in the data line
+        if let match = dataLine.firstMatch(of: movePattern) {
+            let move = String(match.1) // Extract the move string
+            if let point = moveToPoint(move: move) { // Translate the move into a BoardPoint
+                return point // Return the corresponding BoardPoint
             }
+        // Check if the data line indicates a "pass" move
+        } else if dataLine.firstMatch(of: passPattern) != nil {
+            return BoardPoint.pass(width: Int(board.width), height: Int(board.height)) // Return a pass move
         }
 
-        return nil
+        return nil // Return nil if no valid move pattern is matched
     }
 
     func matchVisitsPattern(dataLine: String) -> Int? {
