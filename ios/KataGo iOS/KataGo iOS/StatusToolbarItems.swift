@@ -22,7 +22,7 @@ struct StatusToolbarItems: View {
 
     var body: some View {
         HStack {
-            Button(action: clearBoardAction) {
+            Button(action: backwardEndAction) {
                 Image(systemName: "backward.end")
             }
 
@@ -112,10 +112,14 @@ struct StatusToolbarItems: View {
         gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    func clearBoardAction() {
-        gameRecord.currentIndex = 0
-        player.nextColorForPlayCommand = .unknown
-        KataGoHelper.sendCommand("clear_board")
+    func backwardEndAction() {
+        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+        while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
+            gameRecord.undo()
+            KataGoHelper.sendCommand("undo")
+            player.toggleNextColorForPlayCommand()
+        }
+
         KataGoHelper.sendCommand("showboard")
     }
 

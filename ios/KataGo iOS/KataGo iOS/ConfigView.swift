@@ -360,6 +360,7 @@ struct ConfigItems: View {
                             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
                             gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
                             KataGoHelper.sendCommand("showboard")
+                            KataGoHelper.sendCommand("printsgf")
                         }
                     }
             }
