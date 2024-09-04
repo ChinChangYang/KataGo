@@ -121,6 +121,8 @@ struct StatusToolbarItems: View {
         }
 
         KataGoHelper.sendCommand("showboard")
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
     func locationToMove(location: Location) -> String? {
