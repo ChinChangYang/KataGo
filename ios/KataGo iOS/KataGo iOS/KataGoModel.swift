@@ -158,7 +158,7 @@ struct Dimensions {
         boardLineBoundHeight = (height - 1) * squareLength
         let coordinateLength = coordinateEntity * squareLength
         boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
-        boardLineStartY = (gobanStartY == capturedStonesHeight) ? capturedStonesHeight + (coordinateLength + squareLength + gobanPadding) / 2 : (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2
+        boardLineStartY = (gobanStartY == capturedStonesHeight) ? (capturedStonesHeight + coordinateLength + (squareLength + gobanPadding) / 2) : (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2
         capturedStonesStartY = gobanStartY - capturedStonesHeight
     }
 
