@@ -12,6 +12,7 @@ struct AnalysisView: View {
     @Environment(Analysis.self) var analysis
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
+    @Environment(Turn.self) var player
     var config: Config
     let dimensions: Dimensions
 
@@ -100,23 +101,25 @@ struct AnalysisView: View {
     }
 
     var body: some View {
-        Group {
-            let blackSet = Set(stones.blackPoints)
-            let whiteSet = Set(stones.whitePoints)
-            let sortedInfoKeys = analysis.info.keys.sorted()
-
-            shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
-
-            if config.showOwnership {
-                ownerships
+        if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
+            Group {
+                let blackSet = Set(stones.blackPoints)
+                let whiteSet = Set(stones.whitePoints)
+                let sortedInfoKeys = analysis.info.keys.sorted()
+                
+                shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
+                
+                if config.showOwnership {
+                    ownerships
+                }
+                
+                moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
             }
-
-            moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
-        }
-        .onAppear() {
-            if gobanState.requestingClearAnalysis {
-                analysis.clear()
-                gobanState.requestingClearAnalysis = false
+            .onAppear() {
+                if gobanState.requestingClearAnalysis {
+                    analysis.clear()
+                    gobanState.requestingClearAnalysis = false
+                }
             }
         }
     }

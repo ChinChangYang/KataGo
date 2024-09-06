@@ -34,6 +34,7 @@ struct StatusToolbarItems: View {
                 Button(action: stopAction) {
                     Image(systemName: "sparkle")
                 }
+                .contentTransition(.symbolEffect(.replace))
             } else if gobanState.analysisStatus == .run {
                 Button(action: pauseAnalysisAction) {
                     Image(systemName: "sparkle")
@@ -41,7 +42,7 @@ struct StatusToolbarItems: View {
                 }
             } else {
                 Button(action: startAnalysisAction) { 
-                    Image(systemName: "sparkle")
+                    Image("custom.sparkle.slash")
                         .foregroundColor(.red)
                 }
             }
@@ -74,7 +75,9 @@ struct StatusToolbarItems: View {
     }
 
     func stopAction() {
-        gobanState.analysisStatus = .clear
+        withAnimation {
+            gobanState.analysisStatus = .clear
+        }
         KataGoHelper.sendCommand("stop")
     }
 

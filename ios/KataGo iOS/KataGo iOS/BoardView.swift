@@ -29,10 +29,7 @@ struct BoardView: View {
                 StoneView(dimensions: dimensions,
                           isClassicStoneStyle: config.isClassicStoneStyle)
 
-                if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
-                    AnalysisView(config: config, dimensions: dimensions)
-                }
-
+                AnalysisView(config: config, dimensions: dimensions)
                 MoveNumberView(dimensions: dimensions)
                 WinrateBarView(dimensions: dimensions)
             }
