@@ -16,6 +16,7 @@ struct BoardView: View {
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
     var gameRecord: GameRecord
+    @FocusState<Bool>.Binding var commentIsFocused: Bool
 
     var config: Config {
         gameRecord.config
@@ -38,7 +39,8 @@ struct BoardView: View {
                     MoveNumberView(dimensions: dimensions)
                     WinrateBarView(dimensions: dimensions)
                 }
-                .onTapGesture() { location in
+                .onTapGesture { location in
+                    commentIsFocused = false
                     if let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
                        let move = coordinate.move,
@@ -53,7 +55,7 @@ struct BoardView: View {
                     }
                 }
             }
-            .onAppear() {
+            .onAppear {
                 player.nextColorForPlayCommand = .unknown
                 KataGoHelper.sendCommand("showboard")
             }
@@ -77,7 +79,7 @@ struct BoardView: View {
                     audioModel.playCaptureSound(soundEffect: config.soundEffect)
                 }
             }
-            .onDisappear() {
+            .onDisappear {
                 KataGoHelper.sendCommand("stop")
             }
         }
