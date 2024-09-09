@@ -25,11 +25,12 @@ final class Config {
     var showCoordinate: Bool = defaultShowCoordinate
     var humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful
     var humanSLProfile: String = defaultHumanSLProfile
-    var optionalAnalysisForWhom: Int? = 0
-    var optionalShowOwnership: Bool? = true
+    var optionalAnalysisForWhom: Int? = defaultAnalysisForWhom
+    var optionalShowOwnership: Bool? = defaultShowOwnership
     var optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful
     var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
-    var optionalSoundEffect: Bool? = true
+    var optionalSoundEffect: Bool? = defaultSoundEffect
+    var optionalShowComments: Bool? = defaultShowComments
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -45,11 +46,12 @@ final class Config {
          showCoordinate: Bool = defaultShowCoordinate,
          humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
          humanSLProfile: String = defaultHumanSLProfile,
-         optionalAnalysisForWhom: Int? = 0,
-         optionalShowOwnership: Bool? = true,
+         optionalAnalysisForWhom: Int? = defaultAnalysisForWhom,
+         optionalShowOwnership: Bool? = defaultShowOwnership,
          optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful,
          optionalHumanProfileForWhite: String? = defaultHumanSLProfile,
-         optionalSoundEffect: Bool? = true) {
+         optionalSoundEffect: Bool? = defaultSoundEffect,
+         optionalShowComments: Bool? = defaultShowComments) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -69,6 +71,7 @@ final class Config {
         self.optionalHumanRatioForWhite = optionalHumanRatioForWhite
         self.optionalHumanProfileForWhite = optionalHumanProfileForWhite
         self.optionalSoundEffect = optionalSoundEffect
+        self.optionalShowComments = optionalShowComments
     }
 
     convenience init(config: Config) {
@@ -91,7 +94,8 @@ final class Config {
             optionalShowOwnership: config.optionalShowOwnership,
             optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
             optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
-            optionalSoundEffect: config.optionalSoundEffect
+            optionalSoundEffect: config.optionalSoundEffect,
+            optionalShowComments: config.optionalShowComments
         )
     }
 }
@@ -278,6 +282,20 @@ extension Config {
 
         set(newSoundEffect) {
             optionalSoundEffect = newSoundEffect
+        }
+    }
+}
+
+extension Config {
+    static let defaultShowComments = false
+
+    var showComments: Bool {
+        get {
+            return optionalShowComments ?? Config.defaultShowComments
+        }
+
+        set(newShowComments) {
+            optionalShowComments = newShowComments
         }
     }
 }

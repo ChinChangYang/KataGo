@@ -23,12 +23,15 @@ struct GobanItems: View {
             } else if gobanTab.isConfigPresented {
                 ConfigView(gameRecord: gameRecord)
             } else {
-                BoardView(config: gameRecord.config)
-                    .toolbar {
-                        ToolbarItem(placement: .status) {
-                            StatusToolbarItems(gameRecord: gameRecord)
-                        }
+                VStack {
+                    CommentView(gameRecord: gameRecord)
+                    BoardView(gameRecord: gameRecord)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .status) {
+                        StatusToolbarItems(gameRecord: gameRecord)
                     }
+                }
             }
         }
         .toolbar {

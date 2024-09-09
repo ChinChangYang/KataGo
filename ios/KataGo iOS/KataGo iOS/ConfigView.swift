@@ -148,29 +148,312 @@ struct HumanStylePicker: View {
     }
 }
 
-struct ConfigItems: View {
+struct NameConfigView: View {
     var gameRecord: GameRecord
     @State var name: String = ""
-    @State var sgf: String = ""
+
+    var body: some View {
+        Section("Name") {
+            TextField("Enter your game name", text: $name)
+                .onAppear {
+                    name = gameRecord.name
+                }
+                .onChange(of: name) { _, newValue in
+                    gameRecord.name = name
+                }
+        }
+    }
+}
+
+struct RuleConfigView: View {
+    var config: Config
+    @Binding var isBoardSizeChanged: Bool
     @State var boardWidth: Int = -1
     @State var boardHeight: Int = -1
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
-    @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
+
+    var body: some View {
+        Section("Rule") {
+            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
+                .onAppear {
+                    boardWidth = config.boardWidth
+                }
+                .onChange(of: boardWidth) { oldValue, newValue in
+                    config.boardWidth = newValue
+                    if oldValue != -1 {
+                        isBoardSizeChanged = true
+                    }
+                }
+
+            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
+                .onAppear {
+                    boardHeight = config.boardHeight
+                }
+                .onChange(of: boardHeight) { oldValue, newValue in
+                    config.boardHeight = newValue
+                    if oldValue != -1 {
+                        isBoardSizeChanged = true
+                    }
+                }
+
+            ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
+                .onAppear {
+                    rule = config.rule
+                }
+                .onChange(of: rule) { _, newValue in
+                    config.rule = newValue
+                    KataGoHelper.sendCommand(config.getKataRuleCommand())
+                }
+
+            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
+                .onAppear {
+                    komi = config.komi
+                }
+                .onChange(of: komi) { _, newValue in
+                    config.komi = newValue
+                    KataGoHelper.sendCommand(config.getKataKomiCommand())
+                }
+        }
+    }
+}
+
+struct AnalysisConfigView: View {
+    var config: Config
+    @State var analysisInformation: Int = Config.defaultAnalysisInformation
+    @State var showOwnership: Bool = Config.defaultShowOwnership
+    @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
+    @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
-    @State var analysisInformation: Int = Config.defaultAnalysisInformation
-    @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
+
+    var body: some View {
+        Section("Analysis") {
+            ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
+                .onAppear {
+                    analysisInformation = config.analysisInformation
+                }
+                .onChange(of: analysisInformation) { _, newValue in
+                    config.analysisInformation = newValue
+                }
+
+            ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
+                .onAppear {
+                    showOwnership = config.showOwnership
+                }
+                .onChange(of: showOwnership) { _, newValue in
+                    config.showOwnership = newValue
+                }
+
+            ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
+                .onAppear {
+                    analysisForWhom = config.analysisForWhom
+                }
+                .onChange(of: analysisForWhom) { _, newValue in
+                    config.analysisForWhom = newValue
+                }
+
+            ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
+                .onAppear {
+                    hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
+                }
+                .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
+                    config.hiddenAnalysisVisitRatio = newValue
+                }
+
+            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
+                .onAppear {
+                    analysisWideRootNoise = config.analysisWideRootNoise
+                }
+                .onChange(of: analysisWideRootNoise) { _, newValue in
+                    config.analysisWideRootNoise = newValue
+                    KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                }
+
+            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
+                .onAppear {
+                    maxAnalysisMoves = config.maxAnalysisMoves
+                }
+                .onChange(of: maxAnalysisMoves) { _, newValue in
+                    config.maxAnalysisMoves = newValue
+                }
+        }
+    }
+}
+
+struct ViewConfigView: View {
+    var config: Config
     @State var stoneStyle = Config.defaultStoneStyle
     @State var showCoordinate = Config.defaultShowCoordinate
+    @State var showComments = Config.defaultShowComments
+
+    var body: some View {
+        Section("View") {
+            ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
+                .onAppear {
+                    stoneStyle = config.stoneStyle
+                }
+                .onChange(of: stoneStyle) { _, newValue in
+                    config.stoneStyle = stoneStyle
+                }
+
+            ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
+                .onAppear {
+                    showCoordinate = config.showCoordinate
+                }
+                .onChange(of: showCoordinate) { _, newValue in
+                    config.showCoordinate = showCoordinate
+                }
+
+            ConfigBoolItem(title: "Show comments:", value: $showComments)
+                .onAppear {
+                    showComments = config.showComments
+                }
+                .onChange(of: showComments) { _, newValue in
+                    config.showComments = showComments
+                }
+        }
+    }
+}
+
+struct SoundConfigView: View {
+    var config: Config
+    @State var soundEffect: Bool = Config.defaultSoundEffect
+
+    var body: some View {
+        Section("Sound") {
+            ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
+                .onAppear {
+                    soundEffect = config.soundEffect
+                }
+                .onChange(of: soundEffect) { _, newValue in
+                    config.soundEffect = soundEffect
+                }
+        }
+    }
+}
+
+struct AIConfigView: View {
+    var config: Config
+    @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
     @State var humanSLProfile = Config.defaultHumanSLProfile
     @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
     @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
-    @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
-    @State var showOwnership: Bool = Config.defaultShowOwnership
+    @Environment(Turn.self) var player
+
+    var body: some View {
+        Section("AI") {
+            ConfigFloatItem(title: "White advantage:",
+                            value: $playoutDoublingAdvantage,
+                            step: 1/4,
+                            minValue: -3.0,
+                            maxValue: 3.0,
+                            format: .percent)
+            .onAppear {
+                playoutDoublingAdvantage = config.playoutDoublingAdvantage
+            }
+            .onChange(of: playoutDoublingAdvantage) { _, newValue in
+                config.playoutDoublingAdvantage = newValue
+                KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+            }
+        }
+
+        Section("Black AI") {
+            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
+                .onAppear {
+                    humanSLProfile = config.humanSLProfile
+                }
+                .onChange(of: humanSLProfile) { _, newValue in
+                    config.humanSLProfile = newValue
+                    if player.nextColorForPlayCommand != .white {
+                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                    }
+                }
+
+            ConfigFloatItem(title: "Humanness:",
+                            value: $humanSLRootExploreProbWeightful,
+                            step: 1/4,
+                            minValue: 0.0,
+                            maxValue: 1.0,
+                            format: .percent)
+            .onAppear {
+                humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
+            }
+            .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
+                config.humanSLRootExploreProbWeightful = newValue
+                if player.nextColorForPlayCommand != .white {
+                    KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
+                }
+            }
+        }
+
+        Section("White AI") {
+            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
+                .onAppear {
+                    humanProfileForWhite = config.humanProfileForWhite
+                }
+                .onChange(of: humanProfileForWhite) { _, newValue in
+                    config.humanProfileForWhite = newValue
+                    if player.nextColorForPlayCommand != .black {
+                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                    }
+                }
+
+            ConfigFloatItem(title: "Humanness:",
+                            value: $humanRatioForWhite,
+                            step: 1/4,
+                            minValue: 0.0,
+                            maxValue: 1.0,
+                            format: .percent)
+            .onAppear {
+                humanRatioForWhite = config.humanRatioForWhite
+            }
+            .onChange(of: humanRatioForWhite) { _, newValue in
+                config.humanRatioForWhite = newValue
+                if player.nextColorForPlayCommand != .black {
+                    KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
+                }
+            }
+        }
+    }
+}
+
+struct SgfConfigView: View {
+    var gameRecord: GameRecord
+    @Binding var isBoardSizeChanged: Bool
+    @State var sgf: String = ""
+    @Environment(Turn.self) var player
+    @Environment(GobanState.self) var gobanState
+
+    var body: some View {
+        Section("SGF") {
+            TextField("Paste your SGF text", text: $sgf, axis: .vertical)
+                .disableAutocorrection(true)
+                .textInputAutocapitalization(.never)
+                .onAppear {
+                    sgf = gameRecord.sgf
+                }
+                .onDisappear {
+                    if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
+                        let config = gameRecord.config
+                        gameRecord.sgf = sgf
+                        player.nextColorForPlayCommand = .unknown
+                        KataGoHelper.loadSgf(sgf)
+                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                        gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+                        KataGoHelper.sendCommand("showboard")
+                        KataGoHelper.sendCommand("printsgf")
+                    }
+                }
+        }
+    }
+}
+
+struct ConfigItems: View {
+    var gameRecord: GameRecord
     @State private var isBoardSizeChanged = false
-    @State var soundEffect: Bool = Config.defaultSoundEffect
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -183,205 +466,16 @@ struct ConfigItems: View {
 
     var body: some View {
         Form {
-            Section("Name") {
-                TextField("Enter your game name", text: $name)
-                    .onAppear {
-                        name = gameRecord.name
-                    }
-                    .onChange(of: name) { _, newValue in
-                        gameRecord.name = name
-                    }
-            }
-
-            Section("Rule") {
-                ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
-                    .onChange(of: boardWidth) { oldValue, newValue in
-                        config.boardWidth = newValue
-                        if oldValue != -1 {
-                            isBoardSizeChanged = true
-                        }
-                    }
-
-                ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
-                    .onChange(of: boardHeight) { oldValue, newValue in
-                        config.boardHeight = newValue
-                        if oldValue != -1 {
-                            isBoardSizeChanged = true
-                        }
-                    }
-
-                ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
-                    .onChange(of: rule) { _, newValue in
-                        config.rule = newValue
-                        KataGoHelper.sendCommand(config.getKataRuleCommand())
-                    }
-
-                ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
-                    .onChange(of: komi) { _, newValue in
-                        config.komi = newValue
-                        KataGoHelper.sendCommand(config.getKataKomiCommand())
-                    }
-            }
-
-            Section("Analysis") {
-                ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
-                    .onChange(of: analysisInformation) { _, newValue in
-                        config.analysisInformation = newValue
-                    }
-
-                ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
-                    .onChange(of: showOwnership) { _, newValue in
-                        config.showOwnership = newValue
-                    }
-
-                ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
-                    .onChange(of: analysisForWhom) { _, newValue in
-                        config.analysisForWhom = newValue
-                    }
-
-                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                    .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
-                        config.hiddenAnalysisVisitRatio = newValue
-                    }
-
-                ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                    .onChange(of: analysisWideRootNoise) { _, newValue in
-                        config.analysisWideRootNoise = newValue
-                        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                    }
-
-                ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
-                    .onChange(of: maxAnalysisMoves) { _, newValue in
-                        config.maxAnalysisMoves = newValue
-                    }
-            }
-
-            Section("View") {
-                ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
-                    .onChange(of: stoneStyle) { _, newValue in
-                        config.stoneStyle = stoneStyle
-                    }
-
-                ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
-                    .onChange(of: showCoordinate) { _, newValue in
-                        config.showCoordinate = showCoordinate
-                    }
-            }
-
-            Section("Sound") {
-                ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
-                    .onAppear {
-                        soundEffect = config.soundEffect
-                    }
-                    .onChange(of: soundEffect) { _, newValue in
-                        config.soundEffect = soundEffect
-                    }
-            }
-
-            Section("AI") {
-                ConfigFloatItem(title: "White advantage:",
-                                value: $playoutDoublingAdvantage,
-                                step: 1/4,
-                                minValue: -3.0,
-                                maxValue: 3.0,
-                                format: .percent)
-                    .onChange(of: playoutDoublingAdvantage) { _, newValue in
-                        config.playoutDoublingAdvantage = newValue
-                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                    }
-            }
-
-            Section("Black AI") {
-                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
-                    .onChange(of: humanSLProfile) { _, newValue in
-                        config.humanSLProfile = newValue
-                        if player.nextColorForPlayCommand != .white {
-                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                        }
-                    }
-
-                ConfigFloatItem(title: "Humanness:",
-                                value: $humanSLRootExploreProbWeightful,
-                                step: 1/4,
-                                minValue: 0.0,
-                                maxValue: 1.0,
-                                format: .percent)
-                .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
-                    config.humanSLRootExploreProbWeightful = newValue
-                    if player.nextColorForPlayCommand != .white {
-                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
-                    }
-                }
-            }
-
-            Section("White AI") {
-                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
-                    .onAppear {
-                        humanProfileForWhite = config.humanProfileForWhite
-                    }
-                    .onChange(of: humanProfileForWhite) { _, newValue in
-                        config.humanProfileForWhite = newValue
-                        if player.nextColorForPlayCommand != .black {
-                            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                        }
-                    }
-
-                ConfigFloatItem(title: "Humanness:",
-                                value: $humanRatioForWhite,
-                                step: 1/4,
-                                minValue: 0.0,
-                                maxValue: 1.0,
-                                format: .percent)
-                .onAppear {
-                    humanRatioForWhite = config.humanRatioForWhite
-                }
-                .onChange(of: humanRatioForWhite) { _, newValue in
-                    config.humanRatioForWhite = newValue
-                    if player.nextColorForPlayCommand != .black {
-                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
-                    }
-                }
-            }
-
-            Section("SGF") {
-                TextField("Paste your SGF text", text: $sgf, axis: .vertical)
-                    .disableAutocorrection(true)
-                    .textInputAutocapitalization(.never)
-                    .onAppear {
-                        sgf = gameRecord.sgf
-                    }
-                    .onDisappear {
-                        if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
-                            let config = gameRecord.config
-                            gameRecord.sgf = sgf
-                            player.nextColorForPlayCommand = .unknown
-                            KataGoHelper.loadSgf(sgf)
-                            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
-                            KataGoHelper.sendCommand("showboard")
-                            KataGoHelper.sendCommand("printsgf")
-                        }
-                    }
-            }
+            NameConfigView(gameRecord: gameRecord)
+            RuleConfigView(config: config, isBoardSizeChanged: $isBoardSizeChanged)
+            AnalysisConfigView(config: config)
+            ViewConfigView(config: config)
+            SoundConfigView(config: config)
+            AIConfigView(config: config)
+            SgfConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
         }
         .onAppear {
             isBoardSizeChanged = false
-            boardWidth = config.boardWidth
-            boardHeight = config.boardHeight
-            rule = config.rule
-            komi = config.komi
-            playoutDoublingAdvantage = config.playoutDoublingAdvantage
-            analysisWideRootNoise = config.analysisWideRootNoise
-            maxAnalysisMoves = config.maxAnalysisMoves
-            analysisInformation = config.analysisInformation
-            hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
-            stoneStyle = config.stoneStyle
-            showCoordinate = config.showCoordinate
-            humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
-            humanSLProfile = config.humanSLProfile
-            analysisForWhom = config.analysisForWhom
-            showOwnership = config.showOwnership
         }
         .onDisappear {
             if isBoardSizeChanged {

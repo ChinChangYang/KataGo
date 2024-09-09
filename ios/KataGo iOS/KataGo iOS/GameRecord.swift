@@ -17,17 +17,20 @@ final class GameRecord {
     var config: Config
     var name: String
     var lastModificationDate: Date?
+    var comments: [Int: String]?
 
     init(sgf: String = defaultSgf,
          currentIndex: Int = 0,
          config: Config = Config(),
          name: String = defaultName,
-         lastModificationDate: Date? = Date.now) {
+         lastModificationDate: Date? = Date.now,
+         comments: [Int: String]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
         self.name = name
         self.lastModificationDate = lastModificationDate
+        self.comments = comments
     }
 
     convenience init(gameRecord: GameRecord) {
@@ -35,12 +38,18 @@ final class GameRecord {
                   currentIndex: gameRecord.currentIndex,
                   config: Config(config: gameRecord.config),
                   name: gameRecord.name + " (copy)",
-                  lastModificationDate: Date.now)
+                  lastModificationDate: Date.now,
+                  comments: gameRecord.comments)
     }
 
     func undo() {
         if (currentIndex > 0) {
             currentIndex = currentIndex - 1
         }
+    }
+
+    func clearComments(after index: Int) {
+        guard let comments = comments else { return }
+        self.comments = comments.filter { $0.key <= index }
     }
 }
