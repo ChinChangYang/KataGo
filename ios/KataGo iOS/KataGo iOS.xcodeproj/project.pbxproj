@@ -2127,7 +2127,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
