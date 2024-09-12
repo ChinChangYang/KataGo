@@ -67,18 +67,19 @@ struct GobanView: View {
                                 .id(toolbarUuid)
                         }
                     }
-                    .onChange(of: horizontalSizeClass) { _, _ in
-                        toolbarUuid = UUID()
-                    }
             } else {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                     .toolbar {
                         ToolbarItem {
                             PlusMenuView(gameRecord: nil, importing: $importing)
+                                .id(toolbarUuid)
                         }
                     }
             }
         }
         .environment(gobanTab)
+        .onChange(of: horizontalSizeClass) { _, _ in
+            toolbarUuid = UUID()
+        }
     }
 }
