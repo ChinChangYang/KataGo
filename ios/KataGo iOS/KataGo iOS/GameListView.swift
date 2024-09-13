@@ -16,8 +16,6 @@ struct GameListView: View {
     @Environment(\.modelContext) private var modelContext
     @State var searchText = ""
     @Binding var importing: Bool
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
-    @State var toolbarUuid = UUID()
 
     var filteredGameRecords: [GameRecord] {
         if searchText == "" {
@@ -54,17 +52,6 @@ struct GameListView: View {
             NameEditorView(gameRecord: selectedGameRecord)
         }
         .searchable(text: $searchText)
-        .toolbar {
-            if selectedGameRecord == nil {
-                ToolbarItem {
-                    PlusMenuView(gameRecord: selectedGameRecord, importing: $importing)
-                        .id(toolbarUuid)
-                }
-            }
-        }
-        .onChange(of: horizontalSizeClass) { _, _ in
-            toolbarUuid = UUID()
-        }
     }
 }
 

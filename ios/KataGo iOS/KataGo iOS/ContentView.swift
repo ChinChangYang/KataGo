@@ -27,6 +27,8 @@ struct ContentView: View {
     @State private var isInitialized = false
     @State private var gobanTab = GobanTab()
     @State var importing = false
+    @State var toolbarUuid = UUID()
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     init() {
@@ -47,6 +49,15 @@ struct ContentView: View {
                              isEditorPresented: $isEditorPresented,
                              selectedGameRecord: $navigationContext.selectedGameRecord,
                              importing: $importing)
+                .toolbar {
+                    ToolbarItem {
+                        PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
+                            .id(toolbarUuid)
+                    }
+                }
+                .onChange(of: horizontalSizeClass) { _, _ in
+                    toolbarUuid = UUID()
+                }
             } detail: {
                 GobanView(isInitialized: $isInitialized,
                           isEditorPresented: $isEditorPresented,
