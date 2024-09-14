@@ -18,6 +18,7 @@ final class GameRecord {
     var name: String
     var lastModificationDate: Date?
     var comments: [Int: String]?
+    var uuid: UUID? = UUID()
 
     init(sgf: String = defaultSgf,
          currentIndex: Int = 0,

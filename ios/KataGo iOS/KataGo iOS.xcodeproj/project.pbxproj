@@ -227,6 +227,7 @@
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
+		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
 		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
@@ -253,6 +254,8 @@
 		E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */; };
 		E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */; };
 		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
+		E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
+		E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
 		E1BB32A72C721A8300690E67 /* ConfigModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */; };
@@ -550,6 +553,7 @@
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
 		E16BC8362C4CB28900EA3A1E /* misc.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = misc.swift; path = ../../../cpp/neuralnet/misc.swift; sourceTree = "<group>"; };
 		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
@@ -579,6 +583,8 @@
 		E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FastTestPlan.xctestplan; sourceTree = "<group>"; };
 		E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FullTestPlan.xctestplan; sourceTree = "<group>"; };
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
+		E1B675252C95B42C0043E527 /* GameEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEntity.swift; sourceTree = "<group>"; };
+		E1B675272C95C1430043E527 /* GetGameInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetGameInfo.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModelTests.swift; sourceTree = "<group>"; };
@@ -951,6 +957,16 @@
 			path = KataGoInterface;
 			sourceTree = "<group>";
 		};
+		E15F54832C943FC200A698D0 /* AppIntents */ = {
+			isa = PBXGroup;
+			children = (
+				E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */,
+				E1B675252C95B42C0043E527 /* GameEntity.swift */,
+				E1B675272C95C1430043E527 /* GetGameInfo.swift */,
+			);
+			path = AppIntents;
+			sourceTree = "<group>";
+		};
 		E16BC8242C47E9CF00EA3A1E /* View */ = {
 			isa = PBXGroup;
 			children = (
@@ -1021,6 +1037,7 @@
 		E18F3E0F2A51466A00D335E1 /* KataGo iOS */ = {
 			isa = PBXGroup;
 			children = (
+				E15F54832C943FC200A698D0 /* AppIntents */,
 				E1B0ED942C7E0E31009DDC25 /* Test Plan */,
 				E16BC8252C47EB1D00EA3A1E /* Model */,
 				E16BC8242C47E9CF00EA3A1E /* View */,
@@ -1591,6 +1608,7 @@
 				E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */,
 				E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */,
 				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
+				E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */,
 				E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
 				E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */,
@@ -1598,6 +1616,7 @@
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
 				E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */,
+				E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */,
 				E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */,
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
@@ -1609,6 +1628,7 @@
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
 				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
 				E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */,
+				E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
