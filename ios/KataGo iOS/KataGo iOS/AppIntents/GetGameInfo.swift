@@ -9,7 +9,7 @@ import AppIntents
 import Foundation
 
 struct GetGameInfo: AppIntent {
-    static let title: LocalizedStringResource = "Get Game Information"
+    static let title: LocalizedStringResource = "Get Computer Go Game Information"
     static let description = IntentDescription("Provides complete details on a game.",
                                                categoryName: "Discover")
 
@@ -21,7 +21,7 @@ struct GetGameInfo: AppIntent {
     var game: GameEntity
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let comments = game.comments.joined(separator: " ")
-        return .result(dialog: IntentDialog("The game is named \(game.name). \(comments)"))
+        let comments = game.comments.joined(separator: ". ")
+        return .result(dialog: IntentDialog("\(game.name). \(comments)"))
     }
 }
