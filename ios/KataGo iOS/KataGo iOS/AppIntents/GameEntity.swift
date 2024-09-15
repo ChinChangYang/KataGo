@@ -10,16 +10,17 @@ import SwiftData
 
 @MainActor
 struct GameEntityQuery: EntityQuery {
-    private func createFetchDescriptor() -> FetchDescriptor<GameRecord> {
-        let descriptor = FetchDescriptor<GameRecord>(
+    private func createFetchDescriptor(fetchLimit: Int?) -> FetchDescriptor<GameRecord> {
+        var descriptor = FetchDescriptor<GameRecord>(
             sortBy: [.init(\.lastModificationDate, order: .reverse)]
         )
+        descriptor.fetchLimit = fetchLimit
         return descriptor
     }
 
-    private func fetchGameRecords(container: ModelContainer) throws -> [GameRecord] {
+    private func fetchGameRecords(container: ModelContainer, fetchLimit: Int? = nil) throws -> [GameRecord] {
         let context = container.mainContext
-        let descriptor = createFetchDescriptor()
+        let descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
         return try context.fetch(descriptor)
     }
 
@@ -38,10 +39,25 @@ struct GameEntityQuery: EntityQuery {
 
     func suggestedEntities() async throws -> [GameEntity] {
         let container = try ModelContainer(for: GameRecord.self)
-        let gameRecords = try fetchGameRecords(container: container)
+        let gameRecords = try fetchGameRecords(container: container, fetchLimit: 3)
         return gameRecords.compactMap { GameEntity(gameRecord: $0) }
     }
 }
+
+extension GameEntityQuery: EntityStringQuery {
+    func entities(matching string: String) async throws -> [GameEntity] {
+        let container = try ModelContainer(for: GameRecord.self)
+        let gameRecords = try fetchGameRecords(container: container)
+        return gameRecords.compactMap { gameRecord in
+            if gameRecord.name.localizedCaseInsensitiveContains(string) {
+                return GameEntity(gameRecord: gameRecord)
+            } else {
+                return nil
+            }
+        }
+    }
+}
+
 
 struct GameEntity: AppEntity {
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
@@ -55,18 +71,18 @@ struct GameEntity: AppEntity {
     @Property(title: "Name")
     var name: String
 
-    @Property(title: "Comment")
-    var comment: String
+    @Property(title: "Comments")
+    var comments: [String]
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)",
-                              subtitle: "\(comment)",
+                              subtitle: "\(comments.first ?? "")",
                               image: DisplayRepresentation.Image(named: "LoadingIcon"))
     }
 
     init(gameRecord: GameRecord) {
         self.id = gameRecord.uuid ?? UUID()
         self.name = gameRecord.name
-        self.comment = gameRecord.comments?[0] ?? ""
+        self.comments = gameRecord.comments?.keys.sorted().compactMap { gameRecord.comments?[$0] } ?? []
     }
 }

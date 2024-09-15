@@ -5,7 +5,6 @@
 //  Created by Chin-Chang Yang on 2024/9/14.
 //
 
-
 import AppIntents
 import Foundation
 
@@ -22,6 +21,7 @@ struct GetGameInfo: AppIntent {
     var game: GameEntity
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        return .result(dialog: IntentDialog("The game is named \(game.name). \(game.comment)"))
+        let comments = game.comments.joined(separator: " ")
+        return .result(dialog: IntentDialog("The game is named \(game.name). \(comments)"))
     }
 }
