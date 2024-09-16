@@ -14,12 +14,16 @@ struct GameEntityQuery: EntityQuery {
         let container = try ModelContainer(for: GameRecord.self)
         let gameRecords = try GameRecord.fetchGameRecords(container: container)
         return gameRecords.compactMap { gameRecord in
-            if let uuid = gameRecord.uuid,
-               identifiers.contains(uuid) {
-                return GameEntity(gameRecord: gameRecord)
-            } else {
+            guard let uuid = gameRecord.uuid else {
+                gameRecord.uuid = UUID()
                 return nil
             }
+
+            if identifiers.contains(uuid) {
+                return GameEntity(gameRecord: gameRecord)
+            }
+
+            return nil
         }
     }
 
@@ -35,15 +39,19 @@ extension GameEntityQuery: EntityStringQuery {
         let container = try ModelContainer(for: GameRecord.self)
         let gameRecords = try GameRecord.fetchGameRecords(container: container)
         return gameRecords.compactMap { gameRecord in
-            if gameRecord.name.localizedCaseInsensitiveContains(string) {
-                return GameEntity(gameRecord: gameRecord)
-            } else {
+            guard gameRecord.uuid != nil else {
+                gameRecord.uuid = UUID()
                 return nil
             }
+
+            if gameRecord.name.localizedCaseInsensitiveContains(string) {
+                return GameEntity(gameRecord: gameRecord)
+            }
+
+            return nil
         }
     }
 }
-
 
 struct GameEntity: AppEntity {
     static var typeDisplayRepresentation: TypeDisplayRepresentation {

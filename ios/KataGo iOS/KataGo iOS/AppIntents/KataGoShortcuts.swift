@@ -16,9 +16,13 @@ class KataGoShortcuts: AppShortcutsProvider {
         AppShortcut(intent: GetGameInfo(),
                     phrases: [
                         "Get \(\.$game) information with \(.applicationName)",
-                        "Get information on \(\.$game) with \(.applicationName)"
+                        "Get information on \(\.$game) with \(.applicationName)",
+                        "Show \(\.$game) details using \(.applicationName)",
+                        "Find out about \(\.$game) with \(.applicationName)",
+                        "Check \(\.$game) info using \(.applicationName)",
+                        "Tell me about \(\.$game) with \(.applicationName)"
                     ],
-                    shortTitle: "Get Information",
+                    shortTitle: "Get Go Game Information",
                     systemImageName: "swirl.circle.righthalf.filled",
                     parameterPresentation: ParameterPresentation(
                         for: \.$game,
@@ -31,10 +35,14 @@ class KataGoShortcuts: AppShortcutsProvider {
 
         AppShortcut(intent: GetLatestGameInfo(),
                     phrases: [
-                        "Get the latest game information with \(.applicationName)",
-                        "Get information on the latest game with \(.applicationName)"
+                        "Get the latest go game information with \(.applicationName)",
+                        "Get information on the latest go game with \(.applicationName)",
+                        "Show the most recent go game details with \(.applicationName)",
+                        "Find the latest go game info using \(.applicationName)",
+                        "What's the latest go game with \(.applicationName)?",
+                        "Tell me the latest go game info with \(.applicationName)"
                     ],
-                    shortTitle: "Get Latest Information",
+                    shortTitle: "Get Latest Go Game",
                     systemImageName: "swirl.circle.righthalf.filled"
         )
     }

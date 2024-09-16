@@ -10,7 +10,7 @@ import Foundation
 import SwiftData
 
 struct GetGameInfo: AppIntent {
-    static let title: LocalizedStringResource = "Get Computer Go Game Information"
+    static let title: LocalizedStringResource = "Get Go Game Information"
     static let description = IntentDescription("Provides complete details on a game.",
                                                categoryName: "Discover")
 
@@ -28,7 +28,7 @@ struct GetGameInfo: AppIntent {
 }
 
 struct GetLatestGameInfo: AppIntent {
-    static let title: LocalizedStringResource = "Get Latest Computer Go Game Information"
+    static let title: LocalizedStringResource = "Get Latest Go Game Information"
     static let description = IntentDescription("Provides complete details on the latest game.",
                                                categoryName: "Discover")
 
