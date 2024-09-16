@@ -13,18 +13,29 @@ class KataGoShortcuts: AppShortcutsProvider {
     static let shortcutTileColor = ShortcutTileColor.yellow
 
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(intent: GetGameInfo(), phrases: [
-            "Get \(\.$game) information with \(.applicationName)",
-            "Get information on \(\.$game) with \(.applicationName)"
-        ],
-        shortTitle: "Get Information",
-        systemImageName: "swirl.circle.righthalf.filled",
-        parameterPresentation: ParameterPresentation(
-            for: \.$game,
-            summary: Summary("Get \(\.$game) information"),
-            optionsCollections: {
-                OptionsCollection(GameEntityQuery(), title: "Go Games", systemImageName: "swirl.circle.righthalf.filled")
-            }
-        ))
+        AppShortcut(intent: GetGameInfo(),
+                    phrases: [
+                        "Get \(\.$game) information with \(.applicationName)",
+                        "Get information on \(\.$game) with \(.applicationName)"
+                    ],
+                    shortTitle: "Get Information",
+                    systemImageName: "swirl.circle.righthalf.filled",
+                    parameterPresentation: ParameterPresentation(
+                        for: \.$game,
+                        summary: Summary("Get \(\.$game) information"),
+                        optionsCollections: {
+                            OptionsCollection(GameEntityQuery(), title: "Go Games", systemImageName: "swirl.circle.righthalf.filled")
+                        }
+                    )
+        )
+
+        AppShortcut(intent: GetLatestGameInfo(),
+                    phrases: [
+                        "Get the latest game information with \(.applicationName)",
+                        "Get information on the latest game with \(.applicationName)"
+                    ],
+                    shortTitle: "Get Latest Information",
+                    systemImageName: "swirl.circle.righthalf.filled"
+        )
     }
 }

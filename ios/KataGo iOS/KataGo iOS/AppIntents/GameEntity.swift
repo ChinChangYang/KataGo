@@ -10,23 +10,9 @@ import SwiftData
 
 @MainActor
 struct GameEntityQuery: EntityQuery {
-    private func createFetchDescriptor(fetchLimit: Int?) -> FetchDescriptor<GameRecord> {
-        var descriptor = FetchDescriptor<GameRecord>(
-            sortBy: [.init(\.lastModificationDate, order: .reverse)]
-        )
-        descriptor.fetchLimit = fetchLimit
-        return descriptor
-    }
-
-    private func fetchGameRecords(container: ModelContainer, fetchLimit: Int? = nil) throws -> [GameRecord] {
-        let context = container.mainContext
-        let descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
-        return try context.fetch(descriptor)
-    }
-
     func entities(for identifiers: [GameEntity.ID]) async throws -> [GameEntity] {
         let container = try ModelContainer(for: GameRecord.self)
-        let gameRecords = try fetchGameRecords(container: container)
+        let gameRecords = try GameRecord.fetchGameRecords(container: container)
         return gameRecords.compactMap { gameRecord in
             if let uuid = gameRecord.uuid,
                identifiers.contains(uuid) {
@@ -39,7 +25,7 @@ struct GameEntityQuery: EntityQuery {
 
     func suggestedEntities() async throws -> [GameEntity] {
         let container = try ModelContainer(for: GameRecord.self)
-        let gameRecords = try fetchGameRecords(container: container, fetchLimit: 3)
+        let gameRecords = try GameRecord.fetchGameRecords(container: container, fetchLimit: 3)
         return gameRecords.compactMap { GameEntity(gameRecord: $0) }
     }
 }
@@ -47,7 +33,7 @@ struct GameEntityQuery: EntityQuery {
 extension GameEntityQuery: EntityStringQuery {
     func entities(matching string: String) async throws -> [GameEntity] {
         let container = try ModelContainer(for: GameRecord.self)
-        let gameRecords = try fetchGameRecords(container: container)
+        let gameRecords = try GameRecord.fetchGameRecords(container: container)
         return gameRecords.compactMap { gameRecord in
             if gameRecord.name.localizedCaseInsensitiveContains(string) {
                 return GameEntity(gameRecord: gameRecord)

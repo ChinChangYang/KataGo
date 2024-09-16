@@ -9,6 +9,10 @@ import SwiftUI
 
 @main
 struct KataGo_iOSApp: App {
+    init() {
+        KataGoShortcuts.updateAppShortcutParameters()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

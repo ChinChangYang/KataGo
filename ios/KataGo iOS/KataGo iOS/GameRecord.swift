@@ -53,4 +53,19 @@ final class GameRecord {
         guard let comments = comments else { return }
         self.comments = comments.filter { $0.key <= index }
     }
+
+    class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
+        var descriptor = FetchDescriptor<GameRecord>(
+            sortBy: [.init(\.lastModificationDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = fetchLimit
+        return descriptor
+    }
+
+    @MainActor
+    class func fetchGameRecords(container: ModelContainer, fetchLimit: Int? = nil) throws -> [GameRecord] {
+        let context = container.mainContext
+        let descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
+        return try context.fetch(descriptor)
+    }
 }
