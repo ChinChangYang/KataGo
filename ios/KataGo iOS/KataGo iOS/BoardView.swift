@@ -64,7 +64,7 @@ struct BoardView: View {
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
-                    gobanState.maybeSendAsymmetricHumanAnalysisCommands(config: config, nextColorForPlayCommand: newValue)
+                    maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newValue)
                     gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: newValue)
                     gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
                 }
@@ -81,6 +81,18 @@ struct BoardView: View {
             }
             .onDisappear {
                 KataGoHelper.sendCommand("stop")
+            }
+        }
+    }
+
+    func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor) {
+        if !config.isEqualBlackWhiteHumanSettings {
+            if nextColorForPlayCommand == .black {
+                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+            } else if nextColorForPlayCommand == .white {
+                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanProfileForWhite)")
+                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
             }
         }
     }

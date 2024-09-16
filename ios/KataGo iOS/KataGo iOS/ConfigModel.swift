@@ -128,6 +128,15 @@ extension Config {
     func getKataAnalysisWideRootNoiseCommand() -> String {
         return "kata-set-param analysisWideRootNoise \(analysisWideRootNoise)"
     }
+
+    func getSymmetricHumanAnalysisCommands() -> [String] {
+        if isEqualBlackWhiteHumanSettings {
+            return ["kata-set-param humanSLProfile \(humanSLProfile)",
+                    "kata-set-param humanSLRootExploreProbWeightful \(humanSLRootExploreProbWeightful)"]
+        } else {
+            return []
+        }
+    }
 }
 
 extension Config {
@@ -146,6 +155,10 @@ extension Config {
     static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
 
     func getKataRuleCommand() -> String {
+        guard (0..<Config.rules.count).contains(rule) else {
+            return "kata-set-rules \(Config.rules[Config.defaultRule])"
+        }
+
         return "kata-set-rules \(Config.rules[rule])"
     }
 }
@@ -161,10 +174,12 @@ extension Config {
                                        analysisInformationAll]
 
     var isAnalysisInformationWinrate: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
     }
 
     var isAnalysisInformationScore: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
     }
 }
@@ -176,11 +191,13 @@ extension Config {
     static let defaultStoneStyle = 0
 
     var isFastStoneStyle: Bool {
+        guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
         return Config.stoneStyles[stoneStyle] == Config.fastStoneStyle
     }
 
     var isClassicStoneStyle: Bool {
-        return !isFastStoneStyle
+        guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
+        return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
     }
 }
 
@@ -217,10 +234,12 @@ extension Config {
     }
 
     private var isAnalysisForBlack: Bool {
+        guard (0..<Config.analysisForWhoms.count).contains(analysisForWhom) else { return false }
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForBlack
     }
 
     private var isAnalysisForWhite: Bool {
+        guard (0..<Config.analysisForWhoms.count).contains(analysisForWhom) else { return false }
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
     }
 

@@ -103,6 +103,7 @@ class Analysis {
 
     func clear() {
         info = [:]
+        rootInfo = nil
         ownership = [:]
     }
 }
@@ -243,25 +244,6 @@ class GobanState {
 
     func maybeRequestClearAnalysisData(config: Config) {
         maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: nil)
-    }
-
-    func maybeSendAsymmetricHumanAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor) {
-        if !config.isEqualBlackWhiteHumanSettings {
-            if nextColorForPlayCommand == .black {
-                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
-            } else if nextColorForPlayCommand == .white {
-                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanProfileForWhite)")
-                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
-            }
-        }
-    }
-
-    func maybeSendSymmetricHumanAnalysisCommands(config: Config) {
-        if config.isEqualBlackWhiteHumanSettings {
-            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
-        }
     }
 }
 

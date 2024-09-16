@@ -137,7 +137,7 @@ struct ContentView: View {
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+            KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand("printsgf")
         }
@@ -189,7 +189,7 @@ struct ContentView: View {
         KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
         KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
         KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-        gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+        KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
     }
 
     @MainActor

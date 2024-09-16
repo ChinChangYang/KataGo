@@ -442,7 +442,7 @@ struct SgfConfigView: View {
                         KataGoHelper.loadSgf(sgf)
                         KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
                         KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                        gobanState.maybeSendSymmetricHumanAnalysisCommands(config: config)
+                        KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
                         KataGoHelper.sendCommand("showboard")
                         KataGoHelper.sendCommand("printsgf")
                     }

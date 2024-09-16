@@ -47,6 +47,12 @@ public class KataGoHelper {
         KataGoSendCommand(std.string(command))
     }
 
+    public class func sendCommands(_ commands: [String]) {
+        for command in commands {
+            KataGoHelper.sendCommand(command)
+        }
+    }
+
     public class func loadSgf(_ sgf: String) {
         let supportDirectory =
         try? FileManager.default.url(for: .documentDirectory,
