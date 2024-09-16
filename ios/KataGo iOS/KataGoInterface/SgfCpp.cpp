@@ -6,7 +6,7 @@
 //
 
 #include "SgfCpp.hpp"
-#include "../../../cpp/dataio/sgf.h"
+#include "sgf.h"
 
 LocCpp::LocCpp() {
     this->x = -1;
@@ -58,11 +58,73 @@ PlayerCpp MoveCpp::getPlayer() const {
     return player;
 }
 
-SgfCpp::SgfCpp(const string& str) {
+SgfCpp::SgfCpp(const string& str) : sgf(nullptr), xSize(0), ySize(0) {
     try {
-        sgf = CompactSgf::parse(str);
+        sgf = Sgf::parse(str);
+        if (sgf != NULL) {
+            auto size = ((Sgf*)sgf)->getXYSize();
+            xSize = size.x;
+            ySize = size.y;
+            traverseSgf(sgf);
+        }
     } catch (...) {
-        // Do nothing
+        sgf = NULL;
+    }
+}
+
+void SgfCpp::traverseSgf(const void* sgf) {
+    // Clear any existing moves and comments
+    moves.clear();
+    comments.clear();
+    // Start the traversal
+    traverseSgfHelper(sgf);
+}
+
+static const int COORD_MAX = 128;
+
+void SgfCpp::traverseSgfHelper(const void* sgf) {
+    // Iterate over the nodes in this sgf
+    for (size_t i = 0; i < ((Sgf*)sgf)->nodes.size(); ++i) {
+        const SgfNode* node = ((Sgf*)sgf)->nodes[i];
+
+        // Extract move if present
+        if (node->move.pla != C_EMPTY) {
+            LocCpp locCpp;
+            if ((node->move.x == COORD_MAX && node->move.y == COORD_MAX) ||
+                (node->move.x == 19 && node->move.y == 19 && (xSize <= 19 || ySize <= 19))) {
+                locCpp = LocCpp(); // Pass move
+            } else {
+                int x = node->move.x;
+                int y = node->move.y;
+                locCpp = LocCpp(x, y);
+            }
+            PlayerCpp playerCpp = (node->move.pla == P_BLACK) ? PlayerCpp::black : PlayerCpp::white;
+            MoveCpp moveCpp(locCpp, playerCpp);
+            moves.push_back(moveCpp);
+        }
+
+        // Extract comment
+        string comment = "";
+        if (node->hasProperty("C")) {
+            comment = node->getSingleProperty("C");
+        }
+        comments.push_back(comment);
+    }
+
+    // Find the child with the maximum depth
+    const Sgf* maxChild = nullptr;
+    int64_t maxDepth = 0;
+    for (const auto& child : ((Sgf*)sgf)->children) {
+        int64_t childDepth = child->depth();
+        if (childDepth > maxDepth) {
+            maxDepth = childDepth;
+            maxChild = child;
+        }
+    }
+
+    // Recurse into the child with the maximum depth
+    if (maxChild != nullptr) {
+        traverseSgfHelper(maxChild);
     }
 }
 
@@ -71,42 +133,35 @@ bool SgfCpp::getValid() const {
 }
 
 int SgfCpp::getXSize() const {
-    return getValid() ? ((CompactSgf *) sgf)->xSize : 0;
+    return xSize;
 }
 
 int SgfCpp::getYSize() const {
-    return getValid() ? ((CompactSgf *) sgf)->ySize : 0;
+    return ySize;
 }
 
 unsigned long SgfCpp::getMovesSize() const {
-    return getValid() ? ((CompactSgf *) sgf)->moves.size() : 0;
+    return moves.size();
 }
 
-bool SgfCpp::isValidIndex(const int index) const {
-    return (index >= 0) && (index < getMovesSize());
+bool SgfCpp::isValidMoveIndex(const int index) const {
+    return (index >= 0) && (index < moves.size());
+}
+
+bool SgfCpp::isValidCommentIndex(const int index) const {
+    return (index >= 0) && (index <= moves.size());
 }
 
 MoveCpp SgfCpp::getMoveAt(const int index) const {
-    if (isValidIndex(index)) {
-        auto xSize = getXSize();
-        auto& moves = ((CompactSgf *) sgf)->moves;
-        auto move = moves[index];
-
-        auto initializeLocCpp = [&](const Move& move) {
-            if (move.loc == Board::PASS_LOC) {
-                return LocCpp();
-            } else {
-                auto x = Location::getX(move.loc, xSize);
-                auto y = Location::getY(move.loc, xSize);
-                return LocCpp(x, y);
-            }
-        };
-
-        auto locCpp = initializeLocCpp(move);
-        auto player = (move.pla == P_BLACK) ? PlayerCpp::black : PlayerCpp::white;
-        auto moveCpp = MoveCpp(locCpp, player);
-        return moveCpp;
+    if (isValidMoveIndex(index)) {
+        return moves[index];
     }
+    return MoveCpp(LocCpp(), PlayerCpp::black);
+}
 
-    return MoveCpp(LocCpp(0, 0), PlayerCpp::black);
+string SgfCpp::getCommentAt(const int index) const {
+    if (isValidCommentIndex(index)) {
+        return comments[index];
+    }
+    return "";
 }

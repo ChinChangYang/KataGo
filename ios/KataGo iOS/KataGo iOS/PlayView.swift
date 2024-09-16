@@ -15,6 +15,7 @@ struct PlayView: View {
         VStack {
             CommentView(gameRecord: gameRecord)
                 .focused($commentIsFocused)
+                .padding()
 
             ZStack {
                 BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)

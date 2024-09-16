@@ -10,6 +10,7 @@
 
 #include <swift/bridging>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -51,10 +52,18 @@ public:
     int getXSize() const SWIFT_COMPUTED_PROPERTY;
     int getYSize() const SWIFT_COMPUTED_PROPERTY;
     unsigned long getMovesSize() const SWIFT_COMPUTED_PROPERTY;
-    bool isValidIndex(const int index) const;
+    bool isValidMoveIndex(const int index) const;
+    bool isValidCommentIndex(const int index) const;
     MoveCpp getMoveAt(const int index) const;
+    string getCommentAt(const int index) const;
 private:
-    void * sgf;
+    void* sgf;
+    int xSize;
+    int ySize;
+    vector<MoveCpp> moves;
+    vector<string> comments;
+    void traverseSgf(const void* sgf);
+    void traverseSgfHelper(const void* sgf);
 };
 
 #endif /* SgfCpp_hpp */

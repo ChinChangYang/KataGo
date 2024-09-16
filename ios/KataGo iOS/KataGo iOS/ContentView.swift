@@ -96,22 +96,37 @@ struct ContentView: View {
 
     // Handles file import from the document picker
     private func importFile(result: Result<URL, any Error>) {
-        switch result {
-        case .success(let file):
-            let gotAccess = file.startAccessingSecurityScopedResource()
-            guard gotAccess else { return }
-            // Attempt to read the contents of the file
-            if let fileContents = try? String(contentsOf: file),
-               let lastMoveIndex = SgfHelper(sgf: fileContents).getLastMoveIndex() {
-                let currentIndex = lastMoveIndex + 1
-                let newGameRecord = GameRecord(sgf: fileContents, currentIndex: currentIndex)
-                modelContext.insert(newGameRecord) // Insert new game record into the model
-                navigationContext.selectedGameRecord = newGameRecord // Update the selected game record
-                gobanTab.isCommandPresented = false // Dismiss command interface
-                gobanTab.isConfigPresented = false // Dismiss configuration interface
-            }
-        case .failure(_): break // Handle failure (no action needed)
-        }
+        // Ensure the result is a successful file URL and start accessing its security-scoped resource
+        guard case .success(let file) = result, file.startAccessingSecurityScopedResource() else { return }
+
+        // Attempt to read the contents of the file into a string; exit if reading fails
+        guard let fileContents = try? String(contentsOf: file) else { return }
+
+        // Initialize the SGF helper with the file contents
+        let sgfHelper = SgfHelper(sgf: fileContents)
+
+        // Get the index of the last move in the SGF file; exit if no valid moves are found
+        guard let lastMoveIndex = sgfHelper.getLastMoveIndex() else { return }
+
+        // Create a dictionary of comments for each move by filtering and mapping non-empty comments
+        let comments = (0...lastMoveIndex + 1)
+            .compactMap { index in sgfHelper.getComment(at: index).flatMap { !$0.isEmpty ? (index, $0) : nil } }
+            .reduce(into: [:]) { $0[$1.0] = $1.1 }
+
+        // Create a new game record with the SGF content, the current move index, and the comments
+        let newGameRecord = GameRecord(sgf: fileContents, currentIndex: lastMoveIndex + 1, comments: comments)
+
+        // Insert the new game record into the model context
+        modelContext.insert(newGameRecord)
+
+        // Update the selected game record in the navigation context
+        navigationContext.selectedGameRecord = newGameRecord
+
+        // Dismiss the command interface
+        gobanTab.isCommandPresented = false
+
+        // Dismiss the configuration interface
+        gobanTab.isConfigPresented = false
     }
 
     private func processChange(newSelectedGameRecord: GameRecord?) {

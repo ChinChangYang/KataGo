@@ -48,12 +48,17 @@ public class SgfHelper {
     }
 
     public func getMove(at index: Int) -> Move? {
-        guard sgfCpp.isValidIndex(Int32(index)) else { return nil }
+        guard sgfCpp.isValidMoveIndex(Int32(index)) else { return nil }
         let moveCpp = sgfCpp.getMoveAt(Int32(index))
         let location = moveCpp.pass ? Location() : Location(x: Int(moveCpp.x), y: Int(moveCpp.y))
         let player: Player = (moveCpp.player == PlayerCpp.black) ? .black : .white
-        let move = Move(location: location, player: player)
-        return move
+        return Move(location: location, player: player)
+    }
+
+    public func getComment(at index: Int) -> String? {
+        guard sgfCpp.isValidCommentIndex(Int32(index)) else { return nil }
+        let commentCpp = sgfCpp.getCommentAt(Int32(index))
+        return String(commentCpp)
     }
 
     public func getLastMoveIndex() -> Int? {

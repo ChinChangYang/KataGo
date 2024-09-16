@@ -16,7 +16,6 @@ struct CommentView: View {
             ScrollViewReader { _ in
                 ScrollView(.vertical) {
                     TextField("Add your comment", text: $comment, axis: .vertical)
-                        .padding(.horizontal)
                         .onAppear {
                             if gameRecord.comments == nil {
                                 gameRecord.comments = [:]
