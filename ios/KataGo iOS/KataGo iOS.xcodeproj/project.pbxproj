@@ -2134,6 +2134,7 @@
 					../../cpp/external,
 				);
 				INFOPLIST_FILE = "KataGo-iOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -2169,6 +2170,7 @@
 					../../cpp/external,
 				);
 				INFOPLIST_FILE = "KataGo-iOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
