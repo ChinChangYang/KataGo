@@ -137,7 +137,7 @@ struct ConfigModelTests {
     // 3. Command Methods Tests
     @Test func testKataAnalyzeCommand() async throws {
         let config = Config()
-        #expect(config.getKataAnalyzeCommand() == "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) rootInfo true ownership true ownershipStdev true")
+        #expect(config.getKataAnalyzeCommand() == "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) ownership true ownershipStdev true")
     }
 
     @Test func testGetKataAnalyzeCommandWithCustomInterval() async throws {
@@ -145,14 +145,14 @@ struct ConfigModelTests {
         config.analysisInterval = 30
         config.maxAnalysisMoves = 60
         let command = config.getKataAnalyzeCommand(analysisInterval: 30)
-        #expect(command == "kata-analyze interval 30 maxmoves 60 rootInfo true ownership true ownershipStdev true")
+        #expect(command == "kata-analyze interval 30 maxmoves 60 ownership true ownershipStdev true")
     }
 
     @Test func testGetKataFastAnalyzeCommand() async throws {
         let config = Config()
         config.maxAnalysisMoves = 70
         let command = config.getKataFastAnalyzeCommand()
-        #expect(command == "kata-analyze interval 10 maxmoves 70 rootInfo true ownership true ownershipStdev true")
+        #expect(command == "kata-analyze interval 10 maxmoves 70 ownership true ownershipStdev true")
     }
 
     @Test func testGetKataBoardSizeCommand() async throws {
@@ -411,7 +411,7 @@ struct ConfigModelTests {
 
     @Test func kataAnalyzeCommand() async throws {
         let config = Config()
-        let defaultCommand = "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) rootInfo true ownership true ownershipStdev true"
+        let defaultCommand = "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) ownership true ownershipStdev true"
         #expect(config.getKataAnalyzeCommand() == config.getKataAnalyzeCommand(analysisInterval: Config.defaultAnalysisInterval))
         #expect(config.getKataAnalyzeCommand() == defaultCommand)
     }

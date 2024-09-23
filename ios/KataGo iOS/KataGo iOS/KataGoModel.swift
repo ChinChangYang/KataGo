@@ -98,12 +98,16 @@ struct Ownership {
 class Analysis {
     var nextColorForAnalysis = PlayerColor.white
     var info: [BoardPoint: AnalysisInfo] = [:]
-    var rootInfo: AnalysisInfo?
     var ownership: [BoardPoint: Ownership] = [:]
+
+    // Get maximum winrate in the analysis info
+    var maxWinrate: Float? {
+        let winrates = info.values.map(\.winrate)
+        return winrates.max()
+    }
 
     func clear() {
         info = [:]
-        rootInfo = nil
         ownership = [:]
     }
 }

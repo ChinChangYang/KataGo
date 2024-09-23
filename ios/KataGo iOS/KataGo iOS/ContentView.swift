@@ -342,13 +342,9 @@ struct ContentView: View {
     }
 
     func getBlackWinrate() -> Float {
-        if let rootInfo = analysis.rootInfo {
-            let winrate = rootInfo.winrate
-            let blackWinrate = (analysis.nextColorForAnalysis == .black) ? winrate : (1 - winrate)
-            return blackWinrate
-        } else {
-            return 0.5
-        }
+        guard let maxWinrate = analysis.maxWinrate else { return 0.5 }
+        let blackWinrate = (analysis.nextColorForAnalysis == .black) ? maxWinrate : (1 - maxWinrate)
+        return blackWinrate
     }
 
     func maybeCollectAnalysis(message: String) {
@@ -367,10 +363,7 @@ struct ContentView: View {
                 }
 
                 if let lastData = splitData.last {
-                    let lastDataString = String(lastData)
-
-                    analysis.rootInfo = extractRootInfo(message: lastDataString)
-                    analysis.ownership = extractOwnership(message: lastDataString)
+                    analysis.ownership = extractOwnership(message: String(lastData))
                 }
 
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
@@ -379,23 +372,6 @@ struct ContentView: View {
 
             gobanState.waitingForAnalysis = false
         }
-    }
-
-    func extractRootInfo(message: String) -> AnalysisInfo? {
-        let pattern = /rootInfo visits (\d+) utility ([-\d.eE]+) winrate ([-\d.eE]+) scoreMean ([-\d.eE]+)/
-        if let match = message.firstMatch(of: pattern) {
-            if let visits = Int(match.1),
-               let utility = Float(match.2),
-               let winrate = Float(match.3),
-               let scoreMean = Float(match.4) {
-                return AnalysisInfo(visits: visits,
-                                    winrate: winrate,
-                                    scoreLead: scoreMean,
-                                    utilityLcb: utility)
-            }
-        }
-
-        return nil
     }
 
     func moveToPoint(move: String) -> BoardPoint? {

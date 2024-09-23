@@ -163,8 +163,8 @@ struct KataGoModelTests {
         let analysis = Analysis()
         #expect(analysis.nextColorForAnalysis == .white)
         #expect(analysis.info.isEmpty)
-        #expect(analysis.rootInfo == nil)
         #expect(analysis.ownership.isEmpty)
+        #expect(analysis.maxWinrate == nil)
     }
 
     @Test func testAnalysisCustomInitialization() async throws {
@@ -175,13 +175,12 @@ struct KataGoModelTests {
 
         analysis.nextColorForAnalysis = .black
         analysis.info[point] = info
-        analysis.rootInfo = info
         analysis.ownership[point] = ownership
 
         #expect(analysis.nextColorForAnalysis == .black)
         #expect(analysis.info[point]?.visits == 200)
-        #expect(analysis.rootInfo?.winrate == 0.65)
         #expect(analysis.ownership[point]?.mean == 0.7)
+        #expect(analysis.maxWinrate == 0.65)
     }
 
     @Test func testAnalysisClear() async throws {
@@ -192,17 +191,16 @@ struct KataGoModelTests {
 
         analysis.info[point] = info
         analysis.ownership[point] = ownership
-        analysis.rootInfo = info
 
         #expect(!analysis.info.isEmpty)
         #expect(!analysis.ownership.isEmpty)
-        #expect(analysis.rootInfo != nil)
+        #expect(analysis.maxWinrate != nil)
 
         analysis.clear()
 
         #expect(analysis.info.isEmpty)
         #expect(analysis.ownership.isEmpty)
-        #expect(analysis.rootInfo == nil)
+        #expect(analysis.maxWinrate == nil)
     }
 
     // MARK: - Dimensions Tests
