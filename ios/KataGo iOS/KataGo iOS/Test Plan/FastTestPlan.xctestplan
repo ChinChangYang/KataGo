@@ -14,9 +14,9 @@
   "testTargets" : [
     {
       "target" : {
-        "containerPath" : "container:KataGo iOS.xcodeproj",
+        "containerPath" : "container:KataGo Anytime.xcodeproj",
         "identifier" : "E18F3E1C2A51466C00D335E1",
-        "name" : "KataGo iOSTests"
+        "name" : "KataGo AnytimeTests"
       }
     }
   ],
