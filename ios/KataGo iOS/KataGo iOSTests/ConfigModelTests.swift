@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import KataGo_iOS
+@testable import KataGo_Anytime
 
 struct ConfigModelTests {
 
@@ -193,8 +193,8 @@ struct ConfigModelTests {
     @Test func testAnalysisInformationComputedProperties() async throws {
         let config = Config()
 
-        // Default is "Winrate" (index 0)
-        #expect(config.isAnalysisInformationWinrate == true)
+        // Default is "All" (index 2)
+        #expect(config.isAnalysisInformationWinrate == false)
         #expect(config.isAnalysisInformationScore == false)
 
         // Set to "Score" (assuming index 1)
@@ -418,11 +418,11 @@ struct ConfigModelTests {
 
     @Test func analysisInformation() async throws {
         let config = Config()
+        #expect(config.isAnalysisInformationWinrate == false)
+        #expect(config.isAnalysisInformationScore == false)
+        config.analysisInformation = 0
         #expect(config.isAnalysisInformationWinrate == true)
         #expect(config.isAnalysisInformationScore == false)
-        config.analysisInformation = 1
-        #expect(config.isAnalysisInformationWinrate == false)
-        #expect(config.isAnalysisInformationScore == true)
     }
 
     @Test func stoneStyle() async throws {

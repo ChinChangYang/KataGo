@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import KataGo_iOS
+@testable import KataGo_Anytime
 
 struct NavigationContextTests {
 

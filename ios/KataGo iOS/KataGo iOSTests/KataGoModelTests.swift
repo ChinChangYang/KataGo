@@ -7,7 +7,7 @@
 
 import Testing
 import CoreGraphics
-@testable import KataGo_iOS
+@testable import KataGo_Anytime
 
 struct KataGoModelTests {
 
