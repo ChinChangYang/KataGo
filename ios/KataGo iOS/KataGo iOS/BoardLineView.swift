@@ -74,7 +74,7 @@ struct BoardLineView: View {
         Group {
             let passPoint = BoardPoint.pass(width: Int(board.width), height: Int(board.height))
 
-                Image("Wood")
+            Image("Wood")
                 .resizable()
                 .frame(width: dimensions.squareLength,
                        height: dimensions.squareLength)
@@ -86,6 +86,7 @@ struct BoardLineView: View {
                 .font(.system(size: 500, design: .monospaced))
                 .minimumScaleFactor(0.01)
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
                 .position(x: dimensions.boardLineStartX + CGFloat(passPoint.x - 1) * dimensions.squareLength,
                           y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
         }

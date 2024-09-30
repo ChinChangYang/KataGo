@@ -61,6 +61,7 @@ struct GobanView: View {
                     .toolbar {
                         ToolbarItem(placement: .principal) {
                             Text(gameRecord.name)
+                                .bold()
                                 .onTapGesture {
                                     isEditorPresented = true
                                 }
