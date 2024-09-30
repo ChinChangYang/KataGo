@@ -24,6 +24,9 @@ struct BoardView: View {
 
     var body: some View {
         VStack {
+#if os(macOS)
+            Spacer(minLength: 20)
+#endif
             GeometryReader { geometry in
                 let dimensions = Dimensions(size: geometry.size,
                                             width: board.width,

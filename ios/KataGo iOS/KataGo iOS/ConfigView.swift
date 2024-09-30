@@ -17,10 +17,14 @@ struct ConfigIntItem: View {
     var body: some View {
         HStack {
             Text(title)
+#if !os(macOS)
             Spacer()
+#endif
             Stepper(value: $value, in: minValue...maxValue) {
                 Text("\(value)")
+#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+#endif
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,10 +42,14 @@ struct ConfigFloatItem: View {
     var body: some View {
         HStack {
             Text(title)
+#if !os(macOS)
             Spacer()
+#endif
             Stepper(value: $value, in: minValue...maxValue, step: step) {
                 Text(formattedValue)
+#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+#endif
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -70,10 +78,14 @@ struct ConfigTextItem: View {
     var body: some View {
         HStack {
             Text(title)
+#if !os(macOS)
             Spacer()
+#endif
             Stepper {
                 Text(texts[value])
+#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+#endif
             } onIncrement: {
                 value = ((value + 1) < texts.count) ? (value + 1) : 0
             } onDecrement: {
@@ -95,10 +107,14 @@ struct ConfigBoolItem: View {
     var body: some View {
         HStack {
             Text(title)
+#if !os(macOS)
             Spacer()
+#endif
             Stepper {
                 Text(label)
+#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+#endif
             } onIncrement: {
                 value.toggle()
             } onDecrement: {

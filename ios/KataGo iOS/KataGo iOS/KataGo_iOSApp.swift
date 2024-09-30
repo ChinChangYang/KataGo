@@ -13,10 +13,19 @@ struct KataGo_iOSApp: App {
         KataGoShortcuts.updateAppShortcutParameters()
     }
 
-    var body: some Scene {
+    var scene: some Scene {
+#if os(macOS)
+        Window("KataGo Anytime", id: "KataGo Anytime") {
+            ContentView()
+        }
+#else
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: GameRecord.self)
+#endif
+    }
+
+    var body: some Scene {
+        scene.modelContainer(for: GameRecord.self)
     }
 }
