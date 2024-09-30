@@ -558,7 +558,7 @@
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
 		E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16m1.mlpackage; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
-		E18F3E0D2A51466A00D335E1 /* KataGo iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
 		E18F3E122A51466A00D335E1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E18F3E142A51466C00D335E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -1020,7 +1020,7 @@
 		E18F3E0E2A51466A00D335E1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E18F3E0D2A51466A00D335E1 /* KataGo iOS.app */,
+				E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */,
 				E18F3E1D2A51466C00D335E1 /* KataGo iOSTests.xctest */,
 				E18F3E272A51466C00D335E1 /* KataGo iOSUITests.xctest */,
 				E118EE902B081C3200637D44 /* katago.framework */,
@@ -1277,9 +1277,9 @@
 			productReference = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */;
 			productType = "com.apple.product-type.framework";
 		};
-		E18F3E0C2A51466A00D335E1 /* KataGo iOS */ = {
+		E18F3E0C2A51466A00D335E1 /* KataGo Anytime */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo iOS" */;
+			buildConfigurationList = E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo Anytime" */;
 			buildPhases = (
 				E18F3E092A51466A00D335E1 /* Sources */,
 				E18F3E0A2A51466A00D335E1 /* Frameworks */,
@@ -1293,9 +1293,9 @@
 				E11887E62B0830C900637D44 /* PBXTargetDependency */,
 				E12A6F1B2C37FE710002DED0 /* PBXTargetDependency */,
 			);
-			name = "KataGo iOS";
+			name = "KataGo Anytime";
 			productName = "KataGo iOS";
-			productReference = E18F3E0D2A51466A00D335E1 /* KataGo iOS.app */;
+			productReference = E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */;
 			productType = "com.apple.product-type.application";
 		};
 		E18F3E1C2A51466C00D335E1 /* KataGo iOSTests */ = {
@@ -1382,7 +1382,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E18F3E0C2A51466A00D335E1 /* KataGo iOS */,
+				E18F3E0C2A51466A00D335E1 /* KataGo Anytime */,
 				E18F3E1C2A51466C00D335E1 /* KataGo iOSTests */,
 				E18F3E262A51466C00D335E1 /* KataGo iOSUITests */,
 				E118EE8F2B081C3200637D44 /* katago */,
@@ -1679,12 +1679,12 @@
 		};
 		E18F3E1F2A51466C00D335E1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = E18F3E0C2A51466A00D335E1 /* KataGo iOS */;
+			target = E18F3E0C2A51466A00D335E1 /* KataGo Anytime */;
 			targetProxy = E18F3E1E2A51466C00D335E1 /* PBXContainerItemProxy */;
 		};
 		E18F3E292A51466C00D335E1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = E18F3E0C2A51466A00D335E1 /* KataGo iOS */;
+			target = E18F3E0C2A51466A00D335E1 /* KataGo Anytime */;
 			targetProxy = E18F3E282A51466C00D335E1 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -2307,7 +2307,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo iOS" */ = {
+		E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo Anytime" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E18F3E322A51466C00D335E1 /* Debug */,
