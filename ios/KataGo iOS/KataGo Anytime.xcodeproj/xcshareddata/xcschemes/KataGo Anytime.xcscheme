@@ -17,7 +17,7 @@
                BlueprintIdentifier = "E18F3E0C2A51466A00D335E1"
                BuildableName = "KataGo Anytime.app"
                BlueprintName = "KataGo Anytime"
-               ReferencedContainer = "container:KataGo iOS.xcodeproj">
+               ReferencedContainer = "container:KataGo Anytime.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -43,9 +43,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E18F3E1C2A51466C00D335E1"
-               BuildableName = "KataGo iOSTests.xctest"
-               BlueprintName = "KataGo iOSTests"
-               ReferencedContainer = "container:KataGo iOS.xcodeproj">
+               BuildableName = "KataGo AnytimeTests.xctest"
+               BlueprintName = "KataGo AnytimeTests"
+               ReferencedContainer = "container:KataGo Anytime.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -54,9 +54,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E18F3E262A51466C00D335E1"
-               BuildableName = "KataGo iOSUITests.xctest"
-               BlueprintName = "KataGo iOSUITests"
-               ReferencedContainer = "container:KataGo iOS.xcodeproj">
+               BuildableName = "KataGo AnytimeUITests.xctest"
+               BlueprintName = "KataGo AnytimeUITests"
+               ReferencedContainer = "container:KataGo Anytime.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -78,7 +78,7 @@
             BlueprintIdentifier = "E18F3E0C2A51466A00D335E1"
             BuildableName = "KataGo Anytime.app"
             BlueprintName = "KataGo Anytime"
-            ReferencedContainer = "container:KataGo iOS.xcodeproj">
+            ReferencedContainer = "container:KataGo Anytime.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -95,7 +95,7 @@
             BlueprintIdentifier = "E18F3E0C2A51466A00D335E1"
             BuildableName = "KataGo Anytime.app"
             BlueprintName = "KataGo Anytime"
-            ReferencedContainer = "container:KataGo iOS.xcodeproj">
+            ReferencedContainer = "container:KataGo Anytime.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
