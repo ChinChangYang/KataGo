@@ -9,15 +9,14 @@ import SwiftUI
 
 struct BoardLineView: View {
     let dimensions: Dimensions
-    let texture = WoodImage.createTexture()
     @Environment(BoardSize.self) var board
 
     var body: some View {
         ZStack {
-            drawBoardBackground(texture: texture, dimensions: dimensions)
+            drawBoardBackground(dimensions: dimensions)
             drawLines(dimensions: dimensions)
             drawStarPoints(dimensions: dimensions)
-            drawPassArea(texture: texture, dimensions: dimensions)
+            drawPassArea(dimensions: dimensions)
 
             if dimensions.coordinate {
                 drawCoordinate(dimensions: dimensions)
@@ -59,9 +58,9 @@ struct BoardLineView: View {
                       y: dimensions.boardLineStartY + (CGFloat(i) * dimensions.squareLength))
     }
 
-    private func drawBoardBackground(texture: UIImage, dimensions: Dimensions) -> some View {
+    private func drawBoardBackground(dimensions: Dimensions) -> some View {
         Group {
-            Image(uiImage: texture)
+            Image("Wood")
                 .resizable()
                 .frame(width: dimensions.gobanWidth,
                        height: dimensions.gobanHeight)
@@ -71,11 +70,11 @@ struct BoardLineView: View {
         }
     }
 
-    private func drawPassArea(texture: UIImage, dimensions: Dimensions) -> some View {
+    private func drawPassArea(dimensions: Dimensions) -> some View {
         Group {
             let passPoint = BoardPoint.pass(width: Int(board.width), height: Int(board.height))
 
-            Image(uiImage: texture)
+                Image("Wood")
                 .resizable()
                 .frame(width: dimensions.squareLength,
                        height: dimensions.squareLength)

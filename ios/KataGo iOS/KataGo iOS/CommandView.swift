@@ -38,7 +38,9 @@ struct CommandView: View {
             HStack {
                 TextField("Enter your GTP command (list_commands)", text: $command)
                     .disableAutocorrection(true)
+#if !os(macOS)
                     .textInputAutocapitalization(.never)
+#endif
                     .onSubmit {
                         messagesObject.messages.append(Message(text: command))
                         KataGoHelper.sendCommand(command)

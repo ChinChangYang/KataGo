@@ -100,7 +100,7 @@ struct ContentView: View {
         guard case .success(let file) = result, file.startAccessingSecurityScopedResource() else { return }
 
         // Attempt to read the contents of the file into a string; exit if reading fails
-        guard let fileContents = try? String(contentsOf: file) else { return }
+        guard let fileContents = try? String(contentsOf: file, encoding: .utf8) else { return }
 
         // Initialize the SGF helper with the file contents
         let sgfHelper = SgfHelper(sgf: fileContents)

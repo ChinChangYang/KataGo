@@ -430,7 +430,9 @@ struct SgfConfigView: View {
         Section("SGF") {
             TextField("Paste your SGF text", text: $sgf, axis: .vertical)
                 .disableAutocorrection(true)
+#if !os(macOS)
                 .textInputAutocapitalization(.never)
+#endif
                 .onAppear {
                     sgf = gameRecord.sgf
                 }

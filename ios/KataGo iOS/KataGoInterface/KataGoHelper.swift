@@ -9,10 +9,6 @@ import Foundation
 
 public class KataGoHelper {
 
-    private class var configName: String {
-        ProcessInfo.processInfo.isiOSAppOnMac ? "macos_gtp" : "default_gtp"
-    }
-
     public class func runGtp() {
         let mainBundle = Bundle.main
         let modelName = "default_model"
@@ -27,6 +23,7 @@ public class KataGoHelper {
         let humanModelPath = mainBundle.path(forResource: humanModelName,
                                              ofType: humanModelExt)
 
+        let configName = "default_gtp"
         let configExt = "cfg"
 
         let configPath = mainBundle.path(forResource: configName,
