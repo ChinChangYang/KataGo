@@ -31,9 +31,10 @@ struct BoardView: View {
                 let dimensions = Dimensions(size: geometry.size,
                                             width: board.width,
                                             height: board.height,
-                                            showCoordinate: config.showCoordinate)
+                                            showCoordinate: config.showCoordinate,
+                                            showPass: config.showPass)
                 ZStack {
-                    BoardLineView(dimensions: dimensions)
+                    BoardLineView(dimensions: dimensions, showPass: config.showPass)
 
                     StoneView(dimensions: dimensions,
                               isClassicStoneStyle: config.isClassicStoneStyle)

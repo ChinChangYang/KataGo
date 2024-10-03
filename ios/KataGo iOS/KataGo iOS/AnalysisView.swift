@@ -16,11 +16,17 @@ struct AnalysisView: View {
     var config: Config
     let dimensions: Dimensions
 
+    private func isValidPointToShow(blackSet: Set<BoardPoint>,
+                                    whiteSet: Set<BoardPoint>,
+                                    point: BoardPoint) -> Bool {
+        return !blackSet.contains(point) && !whiteSet.contains(point) && (!point.isPass(width: Int(dimensions.width), height: Int(dimensions.height)) || config.showPass)
+    }
+
     func shadows(blackSet: Set<BoardPoint>,
                  whiteSet: Set<BoardPoint>,
                  sortedInfoKeys: [BoardPoint]) -> some View {
         return ForEach(sortedInfoKeys, id: \.self) { point in
-            if !blackSet.contains(point) && !whiteSet.contains(point) {
+            if isValidPointToShow(blackSet: blackSet, whiteSet: whiteSet, point: point) {
                 // Shadow
                 Circle()
                     .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
@@ -64,7 +70,7 @@ struct AnalysisView: View {
         let maxUtility = computeMaxUtilityLcb(sortedInfoKeys: sortedInfoKeys)
 
         return ForEach(sortedInfoKeys, id: \.self) { point in
-            if !blackSet.contains(point) && !whiteSet.contains(point) {
+            if isValidPointToShow(blackSet: blackSet, whiteSet: whiteSet, point: point) {
                 if let info = analysis.info[point] {
                     let isHidden = Float(info.visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
                     let color = computeColorByVisits(isHidden: isHidden, visits: info.visits, maxVisits: maxVisits)

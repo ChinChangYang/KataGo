@@ -134,7 +134,7 @@ struct Dimensions {
     let capturedStonesHeight: CGFloat = 20
     let capturedStonesStartY: CGFloat
 
-    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false) {
+    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false, showPass: Bool = false) {
         self.width = width
         self.height = height
         self.coordinate = coordinate
@@ -144,7 +144,7 @@ struct Dimensions {
         let coordinateEntity: CGFloat = coordinate ? 1 : 0
         let gobanWidthEntity = width + coordinateEntity
         let gobanHeightEntity = height + coordinateEntity
-        let passHeightEntity = 1.5
+        let passHeightEntity = showPass ? 1.5 : 0
         let squareWidth = totalWidth / (gobanWidthEntity + 1)
         let squareHeight = max(0, totalHeight - capturedStonesHeight) / (gobanHeightEntity + passHeightEntity + 1)
         squareLength = min(squareWidth, squareHeight)

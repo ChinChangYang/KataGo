@@ -9,6 +9,7 @@ import SwiftUI
 
 struct BoardLineView: View {
     let dimensions: Dimensions
+    let showPass: Bool
     @Environment(BoardSize.self) var board
 
     var body: some View {
@@ -16,7 +17,10 @@ struct BoardLineView: View {
             drawBoardBackground(dimensions: dimensions)
             drawLines(dimensions: dimensions)
             drawStarPoints(dimensions: dimensions)
-            drawPassArea(dimensions: dimensions)
+
+            if showPass {
+                drawPassArea(dimensions: dimensions)
+            }
 
             if dimensions.coordinate {
                 drawCoordinate(dimensions: dimensions)
@@ -159,7 +163,7 @@ struct BoardLineView: View {
                                     height: 9,
                                     showCoordinate: true)
 
-        BoardLineView(dimensions: dimensions)
+        BoardLineView(dimensions: dimensions, showPass: true)
     }
 }
 
@@ -169,7 +173,7 @@ struct BoardLineView: View {
                                     width: 13,
                                     height: 13)
 
-        BoardLineView(dimensions: dimensions)
+        BoardLineView(dimensions: dimensions, showPass: true)
     }
 }
 
@@ -179,7 +183,7 @@ struct BoardLineView: View {
                                     width: 19,
                                     height: 19)
 
-        BoardLineView(dimensions: dimensions)
+        BoardLineView(dimensions: dimensions, showPass: true)
     }
 }
 
@@ -190,6 +194,6 @@ struct BoardLineView: View {
                                     height: 29,
                                     showCoordinate: true)
 
-        BoardLineView(dimensions: dimensions)
+        BoardLineView(dimensions: dimensions, showPass: true)
     }
 }

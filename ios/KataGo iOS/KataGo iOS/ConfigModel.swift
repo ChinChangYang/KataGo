@@ -31,6 +31,7 @@ final class Config {
     var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
     var optionalSoundEffect: Bool? = defaultSoundEffect
     var optionalShowComments: Bool? = defaultShowComments
+    var optionalShowPass: Bool? = defaultShowPass
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -51,7 +52,8 @@ final class Config {
          optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful,
          optionalHumanProfileForWhite: String? = defaultHumanSLProfile,
          optionalSoundEffect: Bool? = defaultSoundEffect,
-         optionalShowComments: Bool? = defaultShowComments) {
+         optionalShowComments: Bool? = defaultShowComments,
+         optionalShowPass: Bool? = defaultShowPass) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -72,6 +74,7 @@ final class Config {
         self.optionalHumanProfileForWhite = optionalHumanProfileForWhite
         self.optionalSoundEffect = optionalSoundEffect
         self.optionalShowComments = optionalShowComments
+        self.optionalShowPass = optionalShowPass
     }
 
     convenience init(config: Config) {
@@ -95,7 +98,8 @@ final class Config {
             optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
             optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
             optionalSoundEffect: config.optionalSoundEffect,
-            optionalShowComments: config.optionalShowComments
+            optionalShowComments: config.optionalShowComments,
+            optionalShowPass: config.optionalShowPass
         )
     }
 }
@@ -315,6 +319,20 @@ extension Config {
 
         set(newShowComments) {
             optionalShowComments = newShowComments
+        }
+    }
+}
+
+extension Config {
+    static let defaultShowPass = true
+
+    var showPass: Bool {
+        get {
+            return optionalShowPass ?? Config.defaultShowPass
+        }
+        
+        set(newShowPass) {
+            optionalShowPass = newShowPass
         }
     }
 }

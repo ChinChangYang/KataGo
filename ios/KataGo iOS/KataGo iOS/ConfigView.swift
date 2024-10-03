@@ -302,6 +302,7 @@ struct ViewConfigView: View {
     @State var stoneStyle = Config.defaultStoneStyle
     @State var showCoordinate = Config.defaultShowCoordinate
     @State var showComments = Config.defaultShowComments
+    @State var showPass = Config.defaultShowPass
 
     var body: some View {
         Section("View") {
@@ -327,6 +328,14 @@ struct ViewConfigView: View {
                 }
                 .onChange(of: showComments) { _, newValue in
                     config.showComments = showComments
+                }
+
+            ConfigBoolItem(title: "Show pass:", value: $showPass)
+                .onAppear {
+                    showPass = config.showPass
+                }
+                .onChange(of: showPass) { _, newValue in
+                    config.showPass = showPass
                 }
         }
     }
