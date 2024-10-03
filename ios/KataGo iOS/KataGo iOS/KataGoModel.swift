@@ -134,7 +134,7 @@ struct Dimensions {
     let capturedStonesHeight: CGFloat = 20
     let capturedStonesStartY: CGFloat
 
-    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false, showPass: Bool = false) {
+    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false, showPass: Bool = true) {
         self.width = width
         self.height = height
         self.coordinate = coordinate
