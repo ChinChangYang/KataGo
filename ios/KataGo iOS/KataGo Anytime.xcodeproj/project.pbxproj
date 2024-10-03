@@ -967,24 +967,24 @@
 		E16BC8242C47E9CF00EA3A1E /* View */ = {
 			isa = PBXGroup;
 			children = (
-				E18F3E122A51466A00D335E1 /* ContentView.swift */,
-				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
-				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
-				E1D7D3AC2AA897C000556DFB /* StoneView.swift */,
 				E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */,
 				E1B63BE32AABDF3500094965 /* BoardLineView.swift */,
-				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
-				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
-				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
-				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
-				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
-				E13828622C5B8C3600670FD3 /* GameListView.swift */,
 				E138288C2C6A431600670FD3 /* BoardView.swift */,
-				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
-				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
-				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
+				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
 				E14FBF812C8E8C5D00C702BE /* CommentView.swift */,
+				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
+				E18F3E122A51466A00D335E1 /* ContentView.swift */,
+				E13828622C5B8C3600670FD3 /* GameListView.swift */,
+				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
+				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
+				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
+				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
+				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
+				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
+				E1D7D3AC2AA897C000556DFB /* StoneView.swift */,
+				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
+				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
