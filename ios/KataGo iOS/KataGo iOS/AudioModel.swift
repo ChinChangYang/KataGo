@@ -15,6 +15,11 @@ class AudioModel {
     var playSoundPlayer: AVAudioPlayer?
     var captureSoundPlayer: AVAudioPlayer?
 
+    init() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .duckOthers)
+        try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
     func playPlaySound(soundEffect: Bool) {
         if let playSoundPath = AudioModel.playSoundPath, soundEffect {
             let playSoundUrl = URL(fileURLWithPath: playSoundPath)
