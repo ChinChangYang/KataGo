@@ -13,6 +13,7 @@ struct ConfigIntItem: View {
     @Binding var value: Int
     let minValue: Int
     let maxValue: Int
+    var step: Int = 1
 
     var body: some View {
         HStack {
@@ -20,7 +21,7 @@ struct ConfigIntItem: View {
 #if !os(macOS)
             Spacer()
 #endif
-            Stepper(value: $value, in: minValue...maxValue) {
+            Stepper(value: $value, in: minValue...maxValue, step: step) {
                 Text("\(value)")
 #if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -242,6 +243,7 @@ struct AnalysisConfigView: View {
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
+    @State var analysisInterval: Int = Config.defaultAnalysisInterval
 
     var body: some View {
         Section("Analysis") {
@@ -292,6 +294,14 @@ struct AnalysisConfigView: View {
                 }
                 .onChange(of: maxAnalysisMoves) { _, newValue in
                     config.maxAnalysisMoves = newValue
+                }
+
+            ConfigIntItem(title: "Analysis interval:", value: $analysisInterval, minValue: 10, maxValue: 300, step: 10)
+                .onAppear {
+                    analysisInterval = config.analysisInterval
+                }
+                .onChange(of: analysisInterval) { _, newValue in
+                    config.analysisInterval = newValue
                 }
         }
     }
