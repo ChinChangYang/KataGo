@@ -53,7 +53,7 @@ struct BoardView: View {
                         gameRecord.clearComments(after: gameRecord.currentIndex)
                         KataGoHelper.sendCommand("play \(turn) \(move)")
                         player.toggleNextColorForPlayCommand()
-                        KataGoHelper.sendCommand("showboard")
+                        gobanState.sendShowBoardCommand()
                         KataGoHelper.sendCommand("printsgf")
                         audioModel.playPlaySound(soundEffect: config.soundEffect)
                     }
@@ -61,7 +61,7 @@ struct BoardView: View {
             }
             .onAppear {
                 player.nextColorForPlayCommand = .unknown
-                KataGoHelper.sendCommand("showboard")
+                gobanState.sendShowBoardCommand()
             }
             .onChange(of: config.maxAnalysisMoves) { _, _ in
                 gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)

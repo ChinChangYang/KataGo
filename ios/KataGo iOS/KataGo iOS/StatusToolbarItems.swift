@@ -61,7 +61,7 @@ struct StatusToolbarItems: View {
         gameRecord.undo()
         KataGoHelper.sendCommand("undo")
         player.toggleNextColorForPlayCommand()
-        KataGoHelper.sendCommand("showboard")
+        gobanState.sendShowBoardCommand()
     }
 
     func startAnalysisAction() {
@@ -94,7 +94,7 @@ struct StatusToolbarItems: View {
             }
         }
 
-        KataGoHelper.sendCommand("showboard")
+        gobanState.sendShowBoardCommand()
         gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
         gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
@@ -110,7 +110,7 @@ struct StatusToolbarItems: View {
             }
         }
 
-        KataGoHelper.sendCommand("showboard")
+        gobanState.sendShowBoardCommand()
         gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
         gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
@@ -123,7 +123,7 @@ struct StatusToolbarItems: View {
             player.toggleNextColorForPlayCommand()
         }
 
-        KataGoHelper.sendCommand("showboard")
+        gobanState.sendShowBoardCommand()
         gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
         gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
     }

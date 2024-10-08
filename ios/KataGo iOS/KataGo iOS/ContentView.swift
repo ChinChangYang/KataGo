@@ -138,7 +138,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
-            KataGoHelper.sendCommand("showboard")
+            gobanState.sendShowBoardCommand()
             KataGoHelper.sendCommand("printsgf")
         }
     }
@@ -169,10 +169,10 @@ struct ContentView: View {
         messagesObject.messages.append(message)
 
         // Collect board information
-        maybeCollectBoard(message: line)
+        await maybeCollectBoard(message: line)
 
         // Collect analysis information
-        maybeCollectAnalysis(message: line)
+        await maybeCollectAnalysis(message: line)
 
         // Collect SGF information
         maybeCollectSgf(message: line)
@@ -198,7 +198,7 @@ struct ContentView: View {
         sendInitialCommands(config: gameRecords.first?.config ?? Config())
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
-        KataGoHelper.sendCommand("showboard")
+        gobanState.sendShowBoardCommand()
         KataGoHelper.sendCommand("printsgf")
         await messagingLoop()
         isInitialized = true
@@ -217,11 +217,11 @@ struct ContentView: View {
         }
     }
 
-    func maybeCollectBoard(message: String) {
+    func maybeCollectBoard(message: String) async {
         // Check if the board is not currently being shown
         guard isShowingBoard else {
             // If the message indicates a new move number
-            if message.hasPrefix("= MoveNum") {
+            if gobanState.consumeShowBoardResponse(response: message) {
                 // Reset the board text for a new position
                 boardText = []
                 // Set the flag to showing the board
@@ -234,7 +234,7 @@ struct ContentView: View {
         // If the message indicates which player's turn it is
         if message.hasPrefix("Next player") {
             // Parse the current board state
-            parseBoardPoints()
+            await parseBoardPoints(boardText: boardText)
 
             // Determine the next player color based on the message content
             player.nextColorForPlayCommand = message.contains("Black") ? .black : .white
@@ -271,26 +271,31 @@ struct ContentView: View {
         }
     }
 
-    // Parses the board text to extract and classify positions of stones and moves
-    func parseBoardPoints() {
+    func parseStones(boardText: [String]) async -> (width: CGFloat, height: CGFloat, blackStones: [BoardPoint], whiteStones: [BoardPoint], moveOrder: [BoardPoint: Character]) {
+        let (height, width) = calculateBoardDimensions(boardText: boardText) // Get current board dimensions
         var blackStones: [BoardPoint] = [] // Stores positions of black stones
         var whiteStones: [BoardPoint] = [] // Stores positions of white stones
         var moveOrder: [BoardPoint: Character] = [:] // Tracks the order of moves
 
-        let (height, width) = calculateBoardDimensions() // Get current board dimensions
-
         // Process each line of the board text to extract stone positions and moves
-        _ = boardText.dropFirst().enumerated().flatMap { (lineIndex, line) in
+        for (_, line) in boardText.dropFirst().enumerated() {
             let y = calculateYCoordinate(from: line) // Calculate the y-coordinate from the line
-            return parseLine(line, y: y, blackStones: &blackStones, whiteStones: &whiteStones, moveOrder: &moveOrder)
+            parseLine(line, y: y, blackStones: &blackStones, whiteStones: &whiteStones, moveOrder: &moveOrder)
         }
-        
+
+        return (width, height, blackStones, whiteStones, moveOrder)
+    }
+
+    // Parses the board text to extract and classify positions of stones and moves
+    func parseBoardPoints(boardText: [String]) async {
+        let (width, height, blackStones, whiteStones, moveOrder) = await parseStones(boardText: boardText)
+
         updateStones(blackStones, whiteStones, moveOrder) // Update the state of stones on the board
         adjustBoardDimensionsIfNeeded(width: width, height: height) // Adjust dimensions if they change
     }
 
     // Calculates the board dimensions based on the text representation
-    private func calculateBoardDimensions() -> (CGFloat, CGFloat) {
+    private func calculateBoardDimensions(boardText: [String]) -> (CGFloat, CGFloat) {
         let height = CGFloat(boardText.count - 1) // Height is based on the number of lines in board text
         let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2) // Width based on the character count of the last line
         return (height, width) // Return the dimensions as a tuple
@@ -302,23 +307,19 @@ struct ContentView: View {
     }
 
     // Parses a single line of board text and updates stone positions and move order
-    private func parseLine(_ line: String, y: Int, blackStones: inout [BoardPoint], whiteStones: inout [BoardPoint], moveOrder: inout [BoardPoint: Character]) -> [(BoardPoint, Character?)] {
-        return line.dropFirst(3).enumerated().compactMap { (charIndex, char) -> (BoardPoint, Character)? in
+    private func parseLine(_ line: String, y: Int, blackStones: inout [BoardPoint], whiteStones: inout [BoardPoint], moveOrder: inout [BoardPoint: Character]) {
+        for (charIndex, char) in line.dropFirst(3).enumerated() {
             let xCoord = charIndex / 2 // Calculate the x-coordinate from character index
             let point = BoardPoint(x: xCoord, y: y) // Create point for the board
 
             // Classify the character as black stone, white stone, or move number
             if char == "X" {
                 blackStones.append(point) // Add black stone position
-                return nil
             } else if char == "O" {
                 whiteStones.append(point) // Add white stone position
-                return nil
             } else if char.isNumber {
                 moveOrder[point] = char // Track move number
-                return nil
             }
-            return nil // Ignore any other character
         }
     }
 
@@ -347,22 +348,27 @@ struct ContentView: View {
         return blackWinrate
     }
 
-    func maybeCollectAnalysis(message: String) {
+    func collectAnalysisInfo(message: String) async -> ([[BoardPoint: AnalysisInfo]], String.SubSequence?) {
+        let splitData = message.split(separator: "info")
+        let analysisInfo = splitData.compactMap {
+            extractAnalysisInfo(dataLine: String($0))
+        }
+
+        return (analysisInfo, splitData.last)
+    }
+
+    func maybeCollectAnalysis(message: String) async {
         if message.starts(with: /info/) {
-            let splitData = message.split(separator: "info")
+            let (analysisInfo, lastData) = await collectAnalysisInfo(message: message)
 
             withAnimation {
-                let analysisInfo = splitData.map {
-                    extractAnalysisInfo(dataLine: String($0))
-                }
-
                 analysis.info = analysisInfo.reduce([:]) {
-                    $0.merging($1 ?? [:]) { (current, _) in
+                    $0.merging($1) { (current, _) in
                         current
                     }
                 }
 
-                if let lastData = splitData.last {
+                if let lastData {
                     analysis.ownership = extractOwnership(message: String(lastData))
                 }
 

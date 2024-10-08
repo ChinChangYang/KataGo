@@ -216,6 +216,21 @@ class GobanState {
     var waitingForAnalysis = false
     var requestingClearAnalysis = false
     var analysisStatus = AnalysisStatus.run
+    var showBoardCount: Int = 0
+
+    func sendShowBoardCommand() {
+        KataGoHelper.sendCommand("showboard")
+        showBoardCount = showBoardCount + 1
+    }
+
+    func consumeShowBoardResponse(response: String) -> Bool {
+        if response.hasPrefix("= MoveNum") {
+            showBoardCount = showBoardCount - 1
+            return showBoardCount == 0
+        } else {
+            return false
+        }
+    }
 
     private func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())

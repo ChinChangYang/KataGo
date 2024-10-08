@@ -470,7 +470,7 @@ struct SgfConfigView: View {
                         KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
                         KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
                         KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
-                        KataGoHelper.sendCommand("showboard")
+                        gobanState.sendShowBoardCommand()
                         KataGoHelper.sendCommand("printsgf")
                     }
                 }
@@ -508,7 +508,7 @@ struct ConfigItems: View {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
                 KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
-                KataGoHelper.sendCommand("showboard")
+                gobanState.sendShowBoardCommand()
                 KataGoHelper.sendCommand("printsgf")
             }
         }
