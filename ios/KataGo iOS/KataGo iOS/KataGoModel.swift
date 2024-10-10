@@ -84,16 +84,6 @@ struct AnalysisInfo {
     let utilityLcb: Float
 }
 
-struct Ownership {
-    let mean: Float
-    let stdev: Float?
-
-    init(mean: Float, stdev: Float?) {
-        self.mean = mean
-        self.stdev = stdev
-    }
-}
-
 struct OwnershipUnit: Identifiable {
     let point: BoardPoint
     let whiteness: Float

@@ -145,16 +145,15 @@ struct KataGoModelTests {
         #expect(analysisInfo.utilityLcb == 0.3)
     }
 
-    // MARK: - Ownership Tests
+    // MARK: - OwnershipUnit Tests
 
-    @Test func testOwnershipInitialization() async throws {
-        let ownership = Ownership(mean: 0.6, stdev: 0.05)
-        #expect(ownership.mean == 0.6)
-        #expect(ownership.stdev == 0.05)
-
-        let ownershipWithoutStdev = Ownership(mean: 0.4, stdev: nil)
-        #expect(ownershipWithoutStdev.mean == 0.4)
-        #expect(ownershipWithoutStdev.stdev == nil)
+    @Test func testOwnershipUnitInitialization() async throws {
+        let point = BoardPoint(x: 0, y: 0)
+        let ownershipUnit = OwnershipUnit(point: point, whiteness: 0.6, scale: 0.5, opacity: 0.4)
+        #expect(ownershipUnit.point == point)
+        #expect(ownershipUnit.whiteness == 0.6)
+        #expect(ownershipUnit.scale == 0.5)
+        #expect(ownershipUnit.opacity == 0.4)
     }
 
     // MARK: - Analysis Tests
@@ -163,7 +162,7 @@ struct KataGoModelTests {
         let analysis = Analysis()
         #expect(analysis.nextColorForAnalysis == .white)
         #expect(analysis.info.isEmpty)
-        #expect(analysis.ownership.isEmpty)
+        #expect(analysis.ownershipUnits.isEmpty)
         #expect(analysis.maxWinrate == nil)
     }
 
@@ -171,15 +170,15 @@ struct KataGoModelTests {
         let analysis = Analysis()
         let point = BoardPoint(x: 4, y: 4)
         let info = AnalysisInfo(visits: 200, winrate: 0.65, scoreLead: 15.0, utilityLcb: 0.4)
-        let ownership = Ownership(mean: 0.7, stdev: 0.02)
+        let ownershipUnit = OwnershipUnit(point: point, whiteness: 0.7, scale: 0.02, opacity: 0.5)
 
         analysis.nextColorForAnalysis = .black
         analysis.info[point] = info
-        analysis.ownership[point] = ownership
+        analysis.ownershipUnits.append(ownershipUnit)
 
         #expect(analysis.nextColorForAnalysis == .black)
         #expect(analysis.info[point]?.visits == 200)
-        #expect(analysis.ownership[point]?.mean == 0.7)
+        #expect(analysis.ownershipUnits.first?.whiteness == 0.7)
         #expect(analysis.maxWinrate == 0.65)
     }
 
@@ -187,19 +186,19 @@ struct KataGoModelTests {
         let analysis = Analysis()
         let point = BoardPoint(x: 4, y: 4)
         let info = AnalysisInfo(visits: 200, winrate: 0.65, scoreLead: 15.0, utilityLcb: 0.4)
-        let ownership = Ownership(mean: 0.7, stdev: 0.02)
+        let ownershipUnit = OwnershipUnit(point: point, whiteness: 0.7, scale: 0.02, opacity: 0.5)
 
         analysis.info[point] = info
-        analysis.ownership[point] = ownership
+        analysis.ownershipUnits.append(ownershipUnit)
 
         #expect(!analysis.info.isEmpty)
-        #expect(!analysis.ownership.isEmpty)
+        #expect(!analysis.ownershipUnits.isEmpty)
         #expect(analysis.maxWinrate != nil)
 
         analysis.clear()
 
         #expect(analysis.info.isEmpty)
-        #expect(analysis.ownership.isEmpty)
+        #expect(analysis.ownershipUnits.isEmpty)
         #expect(analysis.maxWinrate == nil)
     }
 

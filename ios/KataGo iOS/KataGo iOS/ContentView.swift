@@ -534,25 +534,6 @@ struct ContentView: View {
         return []
     }
 
-    func extractOwnership(message: String) -> [BoardPoint: Ownership] {
-        let mean = extractOwnershipMean(message: message)
-        let stdev = extractOwnershipStdev(message: message)
-        if !mean.isEmpty && !stdev.isEmpty {
-            var dictionary: [BoardPoint: Ownership] = [:]
-            var i = 0
-            for y in stride(from:Int(board.height - 1), through: 0, by: -1) {
-                for x in 0..<Int(board.width) {
-                    let point = BoardPoint(x: x, y: y)
-                    dictionary[point] = Ownership(mean: mean[i], stdev: stdev[i])
-                    i = i + 1
-                }
-            }
-            return dictionary
-        }
-
-        return [:]
-    }
-
     func maybeCollectSgf(message: String) {
         let sgfPrefix = "= (;FF[4]GM[1]"
         if message.hasPrefix(sgfPrefix) {
