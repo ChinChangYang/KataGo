@@ -94,11 +94,22 @@ struct Ownership {
     }
 }
 
+struct OwnershipUnit: Identifiable {
+    let point: BoardPoint
+    let whiteness: Float
+    let scale: Float
+    let opacity: Float
+
+    var id: Int {
+        point.hashValue
+    }
+}
+
 @Observable
 class Analysis {
     var nextColorForAnalysis = PlayerColor.white
     var info: [BoardPoint: AnalysisInfo] = [:]
-    var ownership: [BoardPoint: Ownership] = [:]
+    var ownershipUnits: [OwnershipUnit] = []
 
     // Get maximum winrate in the analysis info
     var maxWinrate: Float? {
@@ -108,7 +119,7 @@ class Analysis {
 
     func clear() {
         info = [:]
-        ownership = [:]
+        ownershipUnits = []
     }
 }
 

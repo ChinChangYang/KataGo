@@ -357,9 +357,49 @@ struct ContentView: View {
         return (analysisInfo, splitData.last)
     }
 
+    func computeDefiniteness(_ whiteness: Float) -> Float {
+        return Swift.abs(whiteness - 0.5) * 2
+    }
+
+    func computeOpacity(scale x: Float) -> Float {
+        let a = 100.0
+        let b = 0.25
+        let opacity = Float(0.8 / (1.0 + exp(-a * (Double(x) - b))))
+        return opacity
+    }
+
+    func extractOwnershipUnits(lastData: String.SubSequence?, nextColorFromShowBoard: PlayerColor, width: Int, height: Int) async -> [OwnershipUnit] {
+        guard let lastData else { return [] }
+        let message = String(lastData)
+        let mean = extractOwnershipMean(message: message)
+        let stdev = extractOwnershipStdev(message: message)
+        guard !mean.isEmpty && !stdev.isEmpty else { return [] }
+        var ownershipUnits: [OwnershipUnit] = []
+        var i = 0
+
+        for y in stride(from:(height - 1), through: 0, by: -1) {
+            for x in 0..<width {
+                let point = BoardPoint(x: x, y: y)
+                let whiteness = (nextColorFromShowBoard == .white) ? ((mean[i]) + 1) / 2 : (-mean[i] + 1) / 2
+                let definiteness = computeDefiniteness(whiteness)
+                // Show a black or white square if definiteness is high and stdev is low
+                // Show nothing if definiteness is low and stdev is low
+                // Show a square with linear gradient of black and white if definiteness is low and stdev is high
+                let scale = max(definiteness, stdev[i]) * 0.7
+                let opacity = computeOpacity(scale: scale)
+                ownershipUnits.append(OwnershipUnit(point: point, whiteness: whiteness, scale: scale, opacity: opacity))
+                i = i + 1
+            }
+        }
+
+        return ownershipUnits
+    }
+
     func maybeCollectAnalysis(message: String) async {
         if message.starts(with: /info/) {
             let (analysisInfo, lastData) = await collectAnalysisInfo(message: message)
+
+            let ownershipUnits = await extractOwnershipUnits(lastData: lastData, nextColorFromShowBoard: player.nextColorFromShowBoard, width: Int(board.width), height: Int(board.height))
 
             withAnimation {
                 analysis.info = analysisInfo.reduce([:]) {
@@ -368,10 +408,7 @@ struct ContentView: View {
                     }
                 }
 
-                if let lastData {
-                    analysis.ownership = extractOwnership(message: String(lastData))
-                }
-
+                analysis.ownershipUnits = ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
                 winrate.black = getBlackWinrate()
             }

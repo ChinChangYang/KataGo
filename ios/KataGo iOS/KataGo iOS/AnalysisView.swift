@@ -38,27 +38,14 @@ struct AnalysisView: View {
         }
     }
 
-    func computeDefiniteness(_ whiteness: Double) -> Double {
-        return Swift.abs(whiteness - 0.5) * 2
-    }
-
     var ownerships: some View {
-        let sortedOwnershipKeys = analysis.ownership.keys.sorted()
-
-        return ForEach(sortedOwnershipKeys, id: \.self) { point in
-            if let ownership = analysis.ownership[point] {
-                let whiteness = (analysis.nextColorForAnalysis == .white) ? (Double(ownership.mean) + 1) / 2 : (Double(-ownership.mean) + 1) / 2
-                let definiteness = computeDefiniteness(whiteness)
-                // Show a black or white square if definiteness is high and stdev is low
-                // Show nothing if definiteness is low and stdev is low
-                // Show a square with linear gradient of black and white if definiteness is low and stdev is high
-                let scale = max(CGFloat(definiteness), CGFloat(ownership.stdev ?? 0)) * 0.7
-
+        return ForEach(analysis.ownershipUnits) { unit in
+            if unit.opacity > 0.1 {
                 Rectangle()
-                    .foregroundColor(Color(hue: 0, saturation: 0, brightness: whiteness).opacity(0.8))
-                    .frame(width: dimensions.squareLength * scale, height: dimensions.squareLength * scale)
-                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+                    .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
+                    .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
+                    .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + CGFloat(unit.point.y) * dimensions.squareLength)
             }
         }
     }
