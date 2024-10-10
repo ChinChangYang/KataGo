@@ -97,30 +97,20 @@ struct BoardLineView: View {
     }
 
     private func drawLines(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(0..<Int(dimensions.height), id: \.self) { i in
-                horizontalLine(i: i, dimensions: dimensions)
-            }
-            ForEach(0..<Int(dimensions.width), id: \.self) { i in
-                verticalLine(i: i, dimensions: dimensions)
-            }
-        }
-    }
-
-    private func horizontalLine(i: Int, dimensions: Dimensions) -> some View {
         Path { path in
-            let y = dimensions.boardLineStartY + CGFloat(i) * dimensions.squareLength
-            path.move(to: CGPoint(x: dimensions.boardLineStartX, y: y))
-            path.addLine(to: CGPoint(x: dimensions.boardLineStartX + dimensions.boardLineBoundWidth, y: y))
-        }
-        .stroke(Color.black)
-    }
+            // Draw horizontal lines
+            for i in 0..<Int(dimensions.height) {
+                let y = dimensions.boardLineStartY + CGFloat(i) * dimensions.squareLength
+                path.move(to: CGPoint(x: dimensions.boardLineStartX, y: y))
+                path.addLine(to: CGPoint(x: dimensions.boardLineStartX + dimensions.boardLineBoundWidth, y: y))
+            }
 
-    private func verticalLine(i: Int, dimensions: Dimensions) -> some View {
-        Path { path in
-            let x = dimensions.boardLineStartX + CGFloat(i) * dimensions.squareLength
-            path.move(to: CGPoint(x: x, y: dimensions.boardLineStartY))
-            path.addLine(to: CGPoint(x: x, y: dimensions.boardLineStartY + dimensions.boardLineBoundHeight))
+            // Draw vertical lines
+            for i in 0..<Int(dimensions.width) {
+                let x = dimensions.boardLineStartX + CGFloat(i) * dimensions.squareLength
+                path.move(to: CGPoint(x: x, y: dimensions.boardLineStartY))
+                path.addLine(to: CGPoint(x: x, y: dimensions.boardLineStartY + dimensions.boardLineBoundHeight))
+            }
         }
         .stroke(Color.black)
     }
