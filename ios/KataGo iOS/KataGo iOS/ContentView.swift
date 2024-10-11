@@ -106,15 +106,15 @@ struct ContentView: View {
         let sgfHelper = SgfHelper(sgf: fileContents)
 
         // Get the index of the last move in the SGF file; exit if no valid moves are found
-        guard let lastMoveIndex = sgfHelper.getLastMoveIndex() else { return }
+        guard let moveSize = sgfHelper.moveSize else { return }
 
         // Create a dictionary of comments for each move by filtering and mapping non-empty comments
-        let comments = (0...lastMoveIndex + 1)
+        let comments = (0...moveSize)
             .compactMap { index in sgfHelper.getComment(at: index).flatMap { !$0.isEmpty ? (index, $0) : nil } }
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
         // Create a new game record with the SGF content, the current move index, and the comments
-        let newGameRecord = GameRecord(sgf: fileContents, currentIndex: lastMoveIndex + 1, comments: comments)
+        let newGameRecord = GameRecord(sgf: fileContents, currentIndex: moveSize, comments: comments)
 
         // Insert the new game record into the model context
         modelContext.insert(newGameRecord)
@@ -133,13 +133,14 @@ struct ContentView: View {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
-        if let config = newSelectedGameRecord?.config {
+        if let newSelectedGameRecord {
+            let config = newSelectedGameRecord.config
+            newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
             gobanState.sendShowBoardCommand()
-            KataGoHelper.sendCommand("printsgf")
         }
     }
 
@@ -539,8 +540,7 @@ struct ContentView: View {
         if message.hasPrefix(sgfPrefix) {
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
-                let lastMoveIndex = SgfHelper(sgf: sgfString).getLastMoveIndex() ?? -1
-                let currentIndex = lastMoveIndex + 1
+                let currentIndex = SgfHelper(sgf: sgfString).moveSize ?? 0
                 if gameRecords.isEmpty {
                     // Automatically generate and select a new game when there are no games in the list
                     let newGameRecord = GameRecord(sgf: sgfString, currentIndex: currentIndex)

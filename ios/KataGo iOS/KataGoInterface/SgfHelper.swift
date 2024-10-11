@@ -61,7 +61,8 @@ public class SgfHelper {
         return String(commentCpp)
     }
 
-    public func getLastMoveIndex() -> Int? {
-        return ((sgfCpp.valid) && (sgfCpp.movesSize > 0)) ? Int(sgfCpp.movesSize - 1) : nil
+    public var moveSize: Int? {
+        guard ((sgfCpp.valid) && (sgfCpp.movesSize > 0)) else { return nil }
+        return Int(sgfCpp.movesSize)
     }
 }
