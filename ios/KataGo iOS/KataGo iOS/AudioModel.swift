@@ -16,8 +16,10 @@ class AudioModel {
     var captureSoundPlayer: AVAudioPlayer?
 
     init() {
+#if !os(macOS)
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: .duckOthers)
         try? AVAudioSession.sharedInstance().setActive(true)
+#endif
     }
 
     func playPlaySound(soundEffect: Bool) {
