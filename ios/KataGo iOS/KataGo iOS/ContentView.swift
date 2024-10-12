@@ -397,6 +397,7 @@ struct ContentView: View {
     }
 
     func maybeCollectAnalysis(message: String) async {
+        guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
             let (analysisInfo, lastData) = await collectAnalysisInfo(message: message)
 
