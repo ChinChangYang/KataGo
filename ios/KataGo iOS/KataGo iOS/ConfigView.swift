@@ -313,6 +313,7 @@ struct ViewConfigView: View {
     @State var showCoordinate = Config.defaultShowCoordinate
     @State var showComments = Config.defaultShowComments
     @State var showPass = Config.defaultShowPass
+    @State var verticalFlip = Config.defaultVerticalFlip
 
     var body: some View {
         Section("View") {
@@ -346,6 +347,14 @@ struct ViewConfigView: View {
                 }
                 .onChange(of: showPass) { _, newValue in
                     config.showPass = showPass
+                }
+
+            ConfigBoolItem(title: "Vertical flip:", value: $verticalFlip)
+                .onAppear {
+                    verticalFlip = config.verticalFlip
+                }
+                .onChange(of: verticalFlip) { _, newValue in
+                    config.verticalFlip = verticalFlip
                 }
         }
     }

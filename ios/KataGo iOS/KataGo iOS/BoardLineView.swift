@@ -10,6 +10,7 @@ import SwiftUI
 struct BoardLineView: View {
     let dimensions: Dimensions
     let showPass: Bool
+    let verticalFlip: Bool
     @Environment(BoardSize.self) var board
 
     var body: some View {
@@ -59,7 +60,7 @@ struct BoardLineView: View {
             .bold()
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(x: dimensions.boardLineStartX - dimensions.squareLength,
-                      y: dimensions.boardLineStartY + (CGFloat(i) * dimensions.squareLength))
+                      y: dimensions.boardLineStartY + (BoardPoint.getPositionY(y: i, height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength))
     }
 
     private func drawBoardBackground(dimensions: Dimensions) -> some View {
@@ -153,7 +154,7 @@ struct BoardLineView: View {
                                     height: 9,
                                     showCoordinate: true)
 
-        BoardLineView(dimensions: dimensions, showPass: true)
+        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
     }
 }
 
@@ -163,7 +164,7 @@ struct BoardLineView: View {
                                     width: 13,
                                     height: 13)
 
-        BoardLineView(dimensions: dimensions, showPass: true)
+        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
     }
 }
 
@@ -173,7 +174,7 @@ struct BoardLineView: View {
                                     width: 19,
                                     height: 19)
 
-        BoardLineView(dimensions: dimensions, showPass: true)
+        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
     }
 }
 
@@ -184,6 +185,6 @@ struct BoardLineView: View {
                                     height: 29,
                                     showCoordinate: true)
 
-        BoardLineView(dimensions: dimensions, showPass: true)
+        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
     }
 }

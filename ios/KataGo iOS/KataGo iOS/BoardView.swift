@@ -34,13 +34,16 @@ struct BoardView: View {
                                             showCoordinate: config.showCoordinate,
                                             showPass: config.showPass)
                 ZStack {
-                    BoardLineView(dimensions: dimensions, showPass: config.showPass)
+                    BoardLineView(dimensions: dimensions,
+                                  showPass: config.showPass,
+                                  verticalFlip: config.verticalFlip)
 
                     StoneView(dimensions: dimensions,
-                              isClassicStoneStyle: config.isClassicStoneStyle)
+                              isClassicStoneStyle: config.isClassicStoneStyle,
+                              verticalFlip: config.verticalFlip)
 
                     AnalysisView(config: config, dimensions: dimensions)
-                    MoveNumberView(dimensions: dimensions)
+                    MoveNumberView(dimensions: dimensions, verticalFlip: config.verticalFlip)
                     WinrateBarView(dimensions: dimensions)
                 }
                 .onTapGesture { location in
@@ -102,14 +105,15 @@ struct BoardView: View {
     }
 
     func locationToCoordinate(location: CGPoint, dimensions: Dimensions) -> Coordinate? {
-        let calculateCoordinate = { (point: CGFloat, margin: CGFloat, length: CGFloat) -> Int in
+        // Function to calculate the board coordinate based on the provided point, margin, and square length
+        func calculateCoordinate(from point: CGFloat, margin: CGFloat, length: CGFloat) -> Int {
             return Int(round((point - margin) / length))
         }
 
-        let y = calculateCoordinate(location.y, dimensions.boardLineStartY, dimensions.squareLength) + 1
-        let x = calculateCoordinate(location.x, dimensions.boardLineStartX, dimensions.squareLength)
-
-        return Coordinate(x: x, y: y, width: Int(board.width), height: Int(board.height))
+        let boardY = calculateCoordinate(from: location.y, margin: dimensions.boardLineStartY, length: dimensions.squareLength) + 1
+        let boardX = calculateCoordinate(from: location.x, margin: dimensions.boardLineStartX, length: dimensions.squareLength)
+        let adjustedY = config.verticalFlip ? boardY : (Int(board.height) - boardY + 1)
+        return Coordinate(x: boardX, y: adjustedY, width: Int(board.width), height: Int(board.height))
     }
 }
 

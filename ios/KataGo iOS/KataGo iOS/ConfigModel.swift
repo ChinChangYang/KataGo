@@ -32,6 +32,7 @@ final class Config {
     var optionalSoundEffect: Bool? = defaultSoundEffect
     var optionalShowComments: Bool? = defaultShowComments
     var optionalShowPass: Bool? = defaultShowPass
+    var optionalVerticalFlip: Bool? = defaultVerticalFlip
 
     init(boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
@@ -53,7 +54,8 @@ final class Config {
          optionalHumanProfileForWhite: String? = defaultHumanSLProfile,
          optionalSoundEffect: Bool? = defaultSoundEffect,
          optionalShowComments: Bool? = defaultShowComments,
-         optionalShowPass: Bool? = defaultShowPass) {
+         optionalShowPass: Bool? = defaultShowPass,
+         optionalVerticalFlip: Bool? = defaultVerticalFlip) {
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -75,6 +77,7 @@ final class Config {
         self.optionalSoundEffect = optionalSoundEffect
         self.optionalShowComments = optionalShowComments
         self.optionalShowPass = optionalShowPass
+        self.optionalVerticalFlip = optionalVerticalFlip
     }
 
     convenience init(config: Config) {
@@ -99,7 +102,8 @@ final class Config {
             optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
             optionalSoundEffect: config.optionalSoundEffect,
             optionalShowComments: config.optionalShowComments,
-            optionalShowPass: config.optionalShowPass
+            optionalShowPass: config.optionalShowPass,
+            optionalVerticalFlip: config.optionalVerticalFlip
         )
     }
 }
@@ -333,6 +337,20 @@ extension Config {
         
         set(newShowPass) {
             optionalShowPass = newShowPass
+        }
+    }
+}
+
+extension Config {
+    static let defaultVerticalFlip = false
+
+    var verticalFlip: Bool {
+        get {
+            return optionalVerticalFlip ?? Config.defaultVerticalFlip
+        }
+        
+        set(newVerticalFlip) {
+            optionalVerticalFlip = newVerticalFlip
         }
     }
 }

@@ -10,6 +10,7 @@ import SwiftUI
 struct MoveNumberView: View {
     @Environment(Stones.self) var stones
     let dimensions: Dimensions
+    let verticalFlip: Bool
 
     var body: some View {
         drawMoveOrder(dimensions: dimensions)
@@ -30,7 +31,7 @@ struct MoveNumberView: View {
                         .bold()
                         .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                         .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                                  y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+                                  y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength)
                 }
             }
         }
@@ -48,7 +49,7 @@ struct MoveNumberView: View {
             let dimensions = Dimensions(size: geometry.size,
                                         width: 2,
                                         height: 2)
-            MoveNumberView(dimensions: dimensions)
+            MoveNumberView(dimensions: dimensions, verticalFlip: false)
         }
         .environment(stones)
         .onAppear() {

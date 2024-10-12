@@ -33,7 +33,7 @@ struct AnalysisView: View {
                     .blur(radius: dimensions.squareLength / 32)
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
             }
         }
     }
@@ -45,7 +45,7 @@ struct AnalysisView: View {
                     .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
                     .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
                     .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + CGFloat(unit.point.y) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
             }
         }
     }
@@ -87,7 +87,7 @@ struct AnalysisView: View {
                     }
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
                 }
             }
         }

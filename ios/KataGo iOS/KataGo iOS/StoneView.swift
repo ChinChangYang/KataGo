@@ -11,6 +11,7 @@ struct StoneView: View {
     @Environment(Stones.self) var stones
     let dimensions: Dimensions
     let isClassicStoneStyle: Bool
+    let verticalFlip: Bool
 
     var body: some View {
         drawStones(dimensions: dimensions)
@@ -40,22 +41,22 @@ struct StoneView: View {
                   y: dimensions.capturedStonesStartY)
     }
 
-    private func drawStoneBase(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawStoneBase(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Circle()
             .foregroundColor(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                      y: dimensions.boardLineStartY + y * dimensions.squareLength)
     }
 
-    private func drawLightEffect(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawLightEffect(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Circle()
             .fill(RadialGradient(gradient: Gradient(colors: [stoneColor, Color.white, Color.white]), center: .center, startRadius: dimensions.squareLengthDiv4, endRadius: 0))
             .offset(x: -dimensions.squareLengthDiv8, y: -dimensions.squareLengthDiv8)
             .padding(dimensions.squareLengthDiv4)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                      y: dimensions.boardLineStartY + y * dimensions.squareLength)
             .overlay {
                 // Mask some light
                 Circle()
@@ -63,11 +64,11 @@ struct StoneView: View {
                     .blur(radius: dimensions.squareLengthDiv16)
                     .frame(width: dimensions.squareLengthDiv2, height: dimensions.squareLengthDiv2)
                     .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + y * dimensions.squareLength)
             }
     }
 
-    private func drawBlackStone(x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawBlackStone(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
 
         ZStack {
             // Black stone
@@ -81,12 +82,12 @@ struct StoneView: View {
     private func drawBlackStones(dimensions: Dimensions) -> some View {
         Group {
             ForEach(stones.blackPoints, id: \.self) { point in
-                drawBlackStone(x: point.x, y: point.y, dimensions: dimensions)
+                drawBlackStone(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
             }
         }
     }
 
-    private func drawWhiteStone(x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawWhiteStone(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
 
         ZStack {
             // Make a white stone darker than light
@@ -103,19 +104,19 @@ struct StoneView: View {
     private func drawWhiteStones(dimensions: Dimensions) -> some View {
         Group {
             ForEach(stones.whitePoints, id: \.self) { point in
-                drawWhiteStone(x: point.x, y: point.y, dimensions: dimensions)
+                drawWhiteStone(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
             }
         }
     }
 
-    private func drawShadow(x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawShadow(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Group {
             // Shifted shadow
             Circle()
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
                 .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
                 .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                          y: dimensions.boardLineStartY + y * dimensions.squareLength)
 
             // Centered shadow
             Circle()
@@ -123,18 +124,18 @@ struct StoneView: View {
                 .blur(radius: dimensions.squareLengthDiv16)
                 .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
                 .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                          y: dimensions.boardLineStartY + y * dimensions.squareLength)
         }
     }
 
     private func drawShadows(dimensions: Dimensions) -> some View {
         Group {
             ForEach(stones.blackPoints, id: \.self) { point in
-                drawShadow(x: point.x, y: point.y, dimensions: dimensions)
+                drawShadow(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
             }
 
             ForEach(stones.whitePoints, id: \.self) { point in
-                drawShadow(x: point.x, y: point.y, dimensions: dimensions)
+                drawShadow(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
             }
         }
     }
@@ -162,7 +163,7 @@ struct StoneView: View {
             ForEach(stones.blackPoints, id: \.self) { point in
                 drawFastStoneBase(stoneColor: .black,
                                   x: point.x,
-                                  y: point.y,
+                                  y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip),
                                   dimensions: dimensions)
             }
         }
@@ -173,18 +174,18 @@ struct StoneView: View {
             ForEach(stones.whitePoints, id: \.self) { point in
                 drawFastStoneBase(stoneColor: Color(white: 0.9),
                                   x: point.x,
-                                  y: point.y,
+                                  y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip),
                                   dimensions: dimensions)
             }
         }
     }
 
-    private func drawFastStoneBase(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
+    private func drawFastStoneBase(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Circle()
             .foregroundColor(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
+                      y: dimensions.boardLineStartY + y * dimensions.squareLength)
             .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
     }
 }
@@ -200,7 +201,8 @@ struct StoneView: View {
             StoneView(dimensions: Dimensions(size: geometry.size,
                                              width: 2,
                                              height: 2),
-                      isClassicStoneStyle: false)
+                      isClassicStoneStyle: false,
+                      verticalFlip: false)
         }
         .environment(stones)
         .onAppear() {
@@ -225,7 +227,8 @@ struct StoneView: View {
             StoneView(dimensions: Dimensions(size: geometry.size,
                                              width: 2,
                                              height: 2),
-                      isClassicStoneStyle: true)
+                      isClassicStoneStyle: true,
+                      verticalFlip: false)
         }
         .environment(stones)
         .onAppear() {

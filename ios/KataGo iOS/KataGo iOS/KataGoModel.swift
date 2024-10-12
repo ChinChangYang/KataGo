@@ -32,6 +32,16 @@ struct BoardPoint: Hashable, Comparable {
     }
 }
 
+extension BoardPoint {
+    static func getPositionY(y: Int, height: CGFloat, verticalFlip: Bool) -> CGFloat {
+        return verticalFlip ? CGFloat(y) : (height - CGFloat(y) - 1)
+    }
+
+    func getPositionY(height: CGFloat, verticalFlip: Bool) -> CGFloat {
+        return BoardPoint.getPositionY(y: y, height: height, verticalFlip: verticalFlip)
+    }
+}
+
 @Observable
 class Stones {
     var blackPoints: [BoardPoint] = []

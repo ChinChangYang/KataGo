@@ -52,7 +52,7 @@ struct WinrateBarView: View {
                                         width: 2,
                                         height: 2,
                                         showCoordinate: false)
-            BoardLineView(dimensions: dimensions, showPass: true)
+            BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
             WinrateBarView(dimensions: dimensions)
         }
         .environment(winrate)
