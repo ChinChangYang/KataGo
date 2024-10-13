@@ -23,8 +23,12 @@ struct BoardPoint: Hashable, Comparable {
         self == BoardPoint.pass(width: width, height: height)
     }
 
+    static func passY(height: Int) -> Int {
+        return height + 1
+    }
+
     static func pass(width: Int, height: Int) -> BoardPoint {
-        return BoardPoint(x: width - 1, y: height + 1)
+        return BoardPoint(x: width - 1, y: passY(height: height))
     }
 
     static func < (lhs: BoardPoint, rhs: BoardPoint) -> Bool {
@@ -37,8 +41,15 @@ extension BoardPoint {
         return verticalFlip ? CGFloat(y) : (height - CGFloat(y) - 1)
     }
 
+    // This function calculates the vertical position (Y-coordinate) for a given board point.
+    // It takes into account the height of the board and whether the board is flipped vertically.
+    // The pass area is always located at the bottom of the board, regardless of the vertical orientation.
+    // If the board is flipped and the current point represents a pass, we adjust the vertical flip condition accordingly.
     func getPositionY(height: CGFloat, verticalFlip: Bool) -> CGFloat {
-        return BoardPoint.getPositionY(y: y, height: height, verticalFlip: verticalFlip)
+        // Determine if the vertical flip condition should account for the pass area
+        let verticalFlipWithPass = verticalFlip || (y == BoardPoint.passY(height: Int(height)))
+        // Compute and return the Y-coordinate based on the current board point, height, and adjusted vertical flip state
+        return BoardPoint.getPositionY(y: y, height: height, verticalFlip: verticalFlipWithPass)
     }
 }
 
