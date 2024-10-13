@@ -112,8 +112,10 @@ struct BoardView: View {
 
         let boardY = calculateCoordinate(from: location.y, margin: dimensions.boardLineStartY, length: dimensions.squareLength) + 1
         let boardX = calculateCoordinate(from: location.x, margin: dimensions.boardLineStartX, length: dimensions.squareLength)
-        let adjustedY = config.verticalFlip ? boardY : (Int(board.height) - boardY + 1)
-        return Coordinate(x: boardX, y: adjustedY, width: Int(board.width), height: Int(board.height))
+        let height = Int(board.height)
+        let verticalFlipWithPass = config.verticalFlip || ((boardY - 1) == BoardPoint.passY(height: height))
+        let adjustedY = verticalFlipWithPass ? boardY : (height - boardY + 1)
+        return Coordinate(x: boardX, y: adjustedY, width: Int(board.width), height: height)
     }
 }
 
