@@ -343,10 +343,11 @@ extension Config {
 
 extension Config {
     static let defaultVerticalFlip = false
+    static let compatibleVerticalFlip = true
 
     var verticalFlip: Bool {
         get {
-            return optionalVerticalFlip ?? Config.defaultVerticalFlip
+            return optionalVerticalFlip ?? Config.compatibleVerticalFlip
         }
         
         set(newVerticalFlip) {
