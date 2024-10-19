@@ -17,7 +17,7 @@ struct StatusToolbarItems: View {
     var gameRecord: GameRecord
 
     var config: Config {
-        return gameRecord.config
+        return gameRecord.concreteConfig
     }
 
     var body: some View {

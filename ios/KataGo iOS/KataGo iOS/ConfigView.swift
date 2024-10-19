@@ -482,7 +482,7 @@ struct SgfConfigView: View {
                 }
                 .onDisappear {
                     if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
-                        let config = gameRecord.config
+                        let config = gameRecord.concreteConfig
                         gameRecord.sgf = sgf
                         player.nextColorForPlayCommand = .unknown
                         KataGoHelper.loadSgf(sgf)
@@ -507,7 +507,7 @@ struct ConfigItems: View {
     @Environment(Turn.self) var player
 
     var config: Config {
-        gameRecord.config
+        gameRecord.concreteConfig
     }
 
     var body: some View {
@@ -526,7 +526,7 @@ struct ConfigItems: View {
         .onDisappear {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
-                KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
+                KataGoHelper.sendCommand(gameRecord.concreteConfig.getKataBoardSizeCommand())
                 gobanState.sendShowBoardCommand()
                 KataGoHelper.sendCommand("printsgf")
             }

@@ -19,7 +19,7 @@ struct BoardView: View {
     @FocusState<Bool>.Binding var commentIsFocused: Bool
 
     var config: Config {
-        gameRecord.config
+        gameRecord.concreteConfig
     }
 
     var body: some View {

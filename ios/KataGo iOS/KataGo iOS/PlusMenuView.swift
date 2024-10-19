@@ -18,7 +18,7 @@ struct PlusMenuView: View {
         Menu {
             Button {
                 withAnimation {
-                    let newGameRecord = GameRecord()
+                    let newGameRecord = GameRecord.createGameRecord()
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
                     gobanTab.isCommandPresented = false
@@ -31,7 +31,7 @@ struct PlusMenuView: View {
             if let gameRecord {
                 Button {
                     withAnimation {
-                        let newGameRecord = GameRecord(gameRecord: gameRecord)
+                        let newGameRecord = gameRecord.clone()
                         modelContext.insert(newGameRecord)
                         navigationContext.selectedGameRecord = newGameRecord
                         gobanTab.isCommandPresented = false

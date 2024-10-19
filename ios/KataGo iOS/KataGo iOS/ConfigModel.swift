@@ -11,6 +11,9 @@ import KataGoInterface
 
 @Model
 final class Config {
+    // The iCloud servers don’t guarantee atomic processing of relationship changes,
+    // so CloudKit requires all relationships to be optional.
+    var gameRecord: GameRecord?
     var boardWidth: Int = defaultBoardWidth
     var boardHeight: Int = defaultBoardHeight
     var rule: Int = defaultRule
@@ -34,7 +37,8 @@ final class Config {
     var optionalShowPass: Bool? = defaultShowPass
     var optionalVerticalFlip: Bool? = defaultVerticalFlip
 
-    init(boardWidth: Int = defaultBoardWidth,
+    init(gameRecord: GameRecord? = nil,
+         boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
          rule: Int = defaultRule,
          komi: Float = defaultKomi,
@@ -56,6 +60,7 @@ final class Config {
          optionalShowComments: Bool? = defaultShowComments,
          optionalShowPass: Bool? = defaultShowPass,
          optionalVerticalFlip: Bool? = defaultVerticalFlip) {
+        self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.rule = rule
@@ -80,31 +85,36 @@ final class Config {
         self.optionalVerticalFlip = optionalVerticalFlip
     }
 
-    convenience init(config: Config) {
-        self.init(
-            boardWidth: config.boardWidth,
-            boardHeight: config.boardHeight,
-            rule: config.rule,
-            komi: config.komi,
-            playoutDoublingAdvantage: config.playoutDoublingAdvantage,
-            analysisWideRootNoise: config.analysisWideRootNoise,
-            maxAnalysisMoves: config.maxAnalysisMoves,
-            analysisInterval: config.analysisInterval,
-            analysisInformation: config.analysisInformation,
-            hiddenAnalysisVisitRatio: config.hiddenAnalysisVisitRatio,
-            stoneStyle: config.stoneStyle,
-            showCoordinate: config.showCoordinate,
-            humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
-            humanSLProfile: config.humanSLProfile,
-            optionalAnalysisForWhom: config.optionalAnalysisForWhom,
-            optionalShowOwnership: config.optionalShowOwnership,
-            optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
-            optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
-            optionalSoundEffect: config.optionalSoundEffect,
-            optionalShowComments: config.optionalShowComments,
-            optionalShowPass: config.optionalShowPass,
-            optionalVerticalFlip: config.optionalVerticalFlip
-        )
+    convenience init(config: Config?) {
+        assert(config != nil)
+        if let config = config {
+            self.init(
+                gameRecord: config.gameRecord,
+                boardWidth: config.boardWidth,
+                boardHeight: config.boardHeight,
+                rule: config.rule,
+                komi: config.komi,
+                playoutDoublingAdvantage: config.playoutDoublingAdvantage,
+                analysisWideRootNoise: config.analysisWideRootNoise,
+                maxAnalysisMoves: config.maxAnalysisMoves,
+                analysisInterval: config.analysisInterval,
+                analysisInformation: config.analysisInformation,
+                hiddenAnalysisVisitRatio: config.hiddenAnalysisVisitRatio,
+                stoneStyle: config.stoneStyle,
+                showCoordinate: config.showCoordinate,
+                humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
+                humanSLProfile: config.humanSLProfile,
+                optionalAnalysisForWhom: config.optionalAnalysisForWhom,
+                optionalShowOwnership: config.optionalShowOwnership,
+                optionalHumanRatioForWhite: config.optionalHumanRatioForWhite,
+                optionalHumanProfileForWhite: config.optionalHumanProfileForWhite,
+                optionalSoundEffect: config.optionalSoundEffect,
+                optionalShowComments: config.optionalShowComments,
+                optionalShowPass: config.optionalShowPass,
+                optionalVerticalFlip: config.optionalVerticalFlip)
+        } else {
+            self.init()
+        }
     }
 }
 

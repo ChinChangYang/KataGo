@@ -12,7 +12,7 @@ struct CommentView: View {
     @State var comment = ""
 
     var body: some View {
-        if gameRecord.config.showComments {
+        if gameRecord.concreteConfig.showComments {
             ScrollViewReader { _ in
                 ScrollView(.vertical) {
                     TextField("Add your comment", text: $comment, axis: .vertical)

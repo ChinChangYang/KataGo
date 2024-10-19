@@ -12,17 +12,33 @@ import SwiftData
 final class GameRecord {
     static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
     static let defaultName = "New Game"
-    var sgf: String
-    var currentIndex: Int
-    var config: Config
-    var name: String
+    var sgf: String = defaultSgf
+    var currentIndex: Int = 0
+    // The iCloud servers don’t guarantee atomic processing of relationship changes,
+    // so CloudKit requires all relationships to be optional.
+    @Relationship(deleteRule: .cascade) var config: Config?
+    var name: String = defaultName
     var lastModificationDate: Date?
     var comments: [Int: String]?
     var uuid: UUID? = UUID()
 
+    var concreteConfig: Config {
+        // A config must not be nil in any case.
+        // If it is not the case, there is a bug in the GameRecord initialization function.
+        // Anyway, it will create a default config for this case, but the config is probably wrong.
+        assert(self.config != nil)
+        if let config {
+            return config
+        } else {
+            let newConfig = Config(gameRecord: self)
+            self.config = newConfig
+            return newConfig
+        }
+    }
+
     init(sgf: String = defaultSgf,
          currentIndex: Int = 0,
-         config: Config = Config(),
+         config: Config,
          name: String = defaultName,
          lastModificationDate: Date? = Date.now,
          comments: [Int: String]? = [:]) {
@@ -34,13 +50,16 @@ final class GameRecord {
         self.comments = comments
     }
 
-    convenience init(gameRecord: GameRecord) {
-        self.init(sgf: gameRecord.sgf,
-                  currentIndex: gameRecord.currentIndex,
-                  config: Config(config: gameRecord.config),
-                  name: gameRecord.name + " (copy)",
-                  lastModificationDate: Date.now,
-                  comments: gameRecord.comments)
+    func clone() -> GameRecord {
+        let newConfig = Config(config: self.config)
+        let newGameRecord = GameRecord(sgf: self.sgf,
+                                       currentIndex: self.currentIndex,
+                                       config: newConfig,
+                                       name: self.name + " (copy)",
+                                       lastModificationDate: Date.now,
+                                       comments: self.comments)
+        newConfig.gameRecord = newGameRecord
+        return newGameRecord
     }
 
     func undo() {
@@ -67,5 +86,14 @@ final class GameRecord {
         let context = container.mainContext
         let descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
         return try context.fetch(descriptor)
+    }
+
+    class func createGameRecord(sgf: String = defaultSgf,
+                                currentIndex: Int = 0,
+                                comments: [Int: String]? = [:]) -> GameRecord {
+        let config = Config()
+        let gameRecord = GameRecord(sgf: sgf, currentIndex: currentIndex, config: config, comments: comments)
+        config.gameRecord = gameRecord
+        return gameRecord
     }
 }

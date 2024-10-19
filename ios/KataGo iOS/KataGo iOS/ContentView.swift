@@ -114,7 +114,7 @@ struct ContentView: View {
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
         // Create a new game record with the SGF content, the current move index, and the comments
-        let newGameRecord = GameRecord(sgf: fileContents, currentIndex: moveSize, comments: comments)
+        let newGameRecord = GameRecord.createGameRecord(sgf: fileContents, currentIndex: moveSize, comments: comments)
 
         // Insert the new game record into the model context
         modelContext.insert(newGameRecord)
@@ -134,7 +134,7 @@ struct ContentView: View {
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
         if let newSelectedGameRecord {
-            let config = newSelectedGameRecord.config
+            let config = newSelectedGameRecord.concreteConfig
             newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
             maybeLoadSgf()
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
@@ -182,7 +182,9 @@ struct ContentView: View {
         messagesObject.shrink()
     }
 
-    private func sendInitialCommands(config: Config) {
+    private func sendInitialCommands(config: Config?) {
+        // If a config is not available, initialize KataGo with a default config.
+        let config = config ?? Config()
         KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
         KataGoHelper.sendCommand(config.getKataRuleCommand())
         KataGoHelper.sendCommand(config.getKataKomiCommand())
@@ -196,7 +198,7 @@ struct ContentView: View {
     @MainActor
     private func initializationTask() async {
         messagesObject.messages.append(Message(text: "Initializing..."))
-        sendInitialCommands(config: gameRecords.first?.config ?? Config())
+        sendInitialCommands(config: gameRecords.first?.concreteConfig)
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
         gobanState.sendShowBoardCommand()
@@ -544,7 +546,7 @@ struct ContentView: View {
                 let currentIndex = SgfHelper(sgf: sgfString).moveSize ?? 0
                 if gameRecords.isEmpty {
                     // Automatically generate and select a new game when there are no games in the list
-                    let newGameRecord = GameRecord(sgf: sgfString, currentIndex: currentIndex)
+                    let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
                 } else if let gameRecord = navigationContext.selectedGameRecord {

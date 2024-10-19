@@ -19,7 +19,7 @@ struct GobanItems: View {
     var body: some View {
         Group {
             if gobanTab.isCommandPresented {
-                CommandView(config: gameRecord.config)
+                CommandView(config: gameRecord.concreteConfig)
             } else if gobanTab.isConfigPresented {
                 ConfigView(gameRecord: gameRecord)
             } else {
