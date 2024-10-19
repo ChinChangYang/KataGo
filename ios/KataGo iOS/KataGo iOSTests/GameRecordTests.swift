@@ -11,11 +11,11 @@ import Testing
 struct GameRecordTests {
 
     @Test func undoGameRecord() async throws {
-        let gameRecord = GameRecord(currentIndex: 1)
+        let gameRecord = GameRecord.createGameRecord(currentIndex: 1)
         #expect(gameRecord.sgf == GameRecord.defaultSgf)
         #expect(gameRecord.currentIndex == 1)
         #expect(gameRecord.name == GameRecord.defaultName)
-        let copy = GameRecord(gameRecord: gameRecord)
+        let copy = gameRecord.clone()
         #expect(gameRecord.sgf == copy.sgf)
         #expect(gameRecord.currentIndex == copy.currentIndex)
         #expect(gameRecord.config !== copy.config)
@@ -29,25 +29,25 @@ struct GameRecordTests {
     }
 
     @Test func testClearComments_noComments() async throws {
-        let gameRecord = GameRecord(comments: nil)
+        let gameRecord = GameRecord.createGameRecord(comments: nil)
         gameRecord.clearComments(after: 0)
         #expect(gameRecord.comments == nil)
     }
 
     @Test func testClearComments_emptyComments() async throws {
-        let gameRecord = GameRecord(comments: [:])
+        let gameRecord = GameRecord.createGameRecord(comments: [:])
         gameRecord.clearComments(after: 0)
         #expect(gameRecord.comments?.isEmpty == true)
     }
 
     @Test func testClearComments_allCommentsCleared() async throws {
-        let gameRecord = GameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
+        let gameRecord = GameRecord.createGameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
         gameRecord.clearComments(after: 0)
         #expect(gameRecord.comments?.isEmpty == true)
     }
 
     @Test func testClearComments_someCommentsRemain() async throws {
-        let gameRecord = GameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
+        let gameRecord = GameRecord.createGameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
         gameRecord.clearComments(after: 2)
         #expect(gameRecord.comments?.count == 2)
         #expect(gameRecord.comments?[1] == "Comment 1")
@@ -56,7 +56,7 @@ struct GameRecordTests {
     }
 
     @Test func testClearComments_noCommentsCleared() async throws {
-        let gameRecord = GameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
+        let gameRecord = GameRecord.createGameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
         gameRecord.clearComments(after: 3)
         #expect(gameRecord.comments?.count == 3)
         #expect(gameRecord.comments?[1] == "Comment 1")
@@ -65,7 +65,7 @@ struct GameRecordTests {
     }
 
     @Test func testClearComments_withNegativeIndex() async throws {
-        let gameRecord = GameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
+        let gameRecord = GameRecord.createGameRecord(comments: [1: "Comment 1", 2: "Comment 2", 3: "Comment 3"])
         gameRecord.clearComments(after: -1)
         #expect(gameRecord.comments?.isEmpty == true)
     }
