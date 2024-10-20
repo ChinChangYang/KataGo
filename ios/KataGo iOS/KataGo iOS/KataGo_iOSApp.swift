@@ -45,6 +45,7 @@ struct KataGo_iOSApp: App {
             let container = try ModelContainer(for: GameRecord.self)
             let context = container.mainContext
             try context.delete(model: GameRecord.self)
+            try context.delete(model: Config.self)
         }
     }
 
