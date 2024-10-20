@@ -18,7 +18,7 @@ struct KataGo_iOSApp: App {
 
         #if false
             initializeCloutKitDevSchema(
-                containerIdentifier: "iCloud.chinchangyang.KataGo-iOS.tw.v1")
+                containerIdentifier: "iCloud.chinchangyang.KataGo-iOS.tw")
         #endif
 
         KataGoShortcuts.updateAppShortcutParameters()
