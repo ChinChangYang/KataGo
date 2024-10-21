@@ -29,6 +29,7 @@ struct ContentView: View {
     @State var importing = false
     @State var toolbarUuid = UUID()
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
+    @Environment(\.scenePhase) var scenePhase
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     init() {
@@ -85,6 +86,9 @@ struct ContentView: View {
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [sgfType, .text]) { result in
                 importFile(result: result)
+            }
+            .onChange(of: scenePhase) { _, newScenePhase in
+                processChange(newScenePhase: newScenePhase)
             }
         } else {
             LoadingView()
@@ -154,6 +158,12 @@ struct ContentView: View {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
+        }
+    }
+
+    private func processChange(newScenePhase: ScenePhase) {
+        if newScenePhase == .background {
+            KataGoHelper.sendCommand("stop")
         }
     }
 
