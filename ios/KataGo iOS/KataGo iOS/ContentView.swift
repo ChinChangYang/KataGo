@@ -32,17 +32,6 @@ struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
-    init() {
-        // Start a thread to run KataGo GTP
-        let katagoThread = Thread {
-            KataGoHelper.runGtp()
-        }
-
-        // Expand the stack size to resolve a stack overflow problem
-        katagoThread.stackSize = 4096 * 256
-        katagoThread.start()
-    }
-
     var body: some View {
         if isInitialized {
             NavigationSplitView {

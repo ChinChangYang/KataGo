@@ -8,6 +8,7 @@
 import CoreData
 import SwiftData
 import SwiftUI
+import KataGoInterface
 
 @main
 struct KataGo_iOSApp: App {
@@ -22,6 +23,7 @@ struct KataGo_iOSApp: App {
         #endif
 
         KataGoShortcuts.updateAppShortcutParameters()
+        startKataGoThread()
     }
 
     var scene: some Scene {
@@ -83,5 +85,16 @@ struct KataGo_iOSApp: App {
                 }
             }
         }
+    }
+
+    private func startKataGoThread() {
+        // Start a thread to run KataGo GTP
+        let katagoThread = Thread {
+            KataGoHelper.runGtp()
+        }
+
+        // Expand the stack size to resolve a stack overflow problem
+        katagoThread.stackSize = 4096 * 256
+        katagoThread.start()
     }
 }
