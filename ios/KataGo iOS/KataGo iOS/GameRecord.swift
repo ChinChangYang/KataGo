@@ -90,9 +90,14 @@ final class GameRecord {
 
     class func createGameRecord(sgf: String = defaultSgf,
                                 currentIndex: Int = 0,
+                                name: String = defaultName,
                                 comments: [Int: String]? = [:]) -> GameRecord {
         let config = Config()
-        let gameRecord = GameRecord(sgf: sgf, currentIndex: currentIndex, config: config, comments: comments)
+        let gameRecord = GameRecord(sgf: sgf,
+                                    currentIndex: currentIndex,
+                                    config: config,
+                                    name: name,
+                                    comments: comments)
         config.gameRecord = gameRecord
         return gameRecord
     }

@@ -92,6 +92,9 @@ struct ContentView: View {
         // Ensure the result is a successful file URL and start accessing its security-scoped resource
         guard case .success(let file) = result, file.startAccessingSecurityScopedResource() else { return }
 
+        // Get the name
+        let name = file.deletingPathExtension().lastPathComponent
+
         // Attempt to read the contents of the file into a string; exit if reading fails
         guard let fileContents = try? String(contentsOf: file, encoding: .utf8) else { return }
 
@@ -106,8 +109,11 @@ struct ContentView: View {
             .compactMap { index in sgfHelper.getComment(at: index).flatMap { !$0.isEmpty ? (index, $0) : nil } }
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
-        // Create a new game record with the SGF content, the current move index, and the comments
-        let newGameRecord = GameRecord.createGameRecord(sgf: fileContents, currentIndex: moveSize, comments: comments)
+        // Create a new game record with the SGF content, the current move index, the name, and the comments
+        let newGameRecord = GameRecord.createGameRecord(sgf: fileContents,
+                                                        currentIndex: moveSize,
+                                                        name: name,
+                                                        comments: comments)
 
         // Insert the new game record into the model context
         modelContext.insert(newGameRecord)
