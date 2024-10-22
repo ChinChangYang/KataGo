@@ -89,7 +89,6 @@ final class Config {
         assert(config != nil)
         if let config = config {
             self.init(
-                gameRecord: config.gameRecord,
                 boardWidth: config.boardWidth,
                 boardHeight: config.boardHeight,
                 rule: config.rule,
