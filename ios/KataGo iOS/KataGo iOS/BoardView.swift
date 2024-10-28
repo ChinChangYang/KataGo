@@ -87,7 +87,7 @@ struct BoardView: View {
                 }
             }
             .onDisappear {
-                KataGoHelper.sendCommand("stop")
+                gobanState.maybePauseAnalysis()
             }
         }
     }

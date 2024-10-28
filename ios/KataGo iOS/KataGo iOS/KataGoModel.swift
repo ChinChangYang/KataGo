@@ -286,6 +286,13 @@ class GobanState {
     func maybeRequestClearAnalysisData(config: Config) {
         maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: nil)
     }
+
+    func maybePauseAnalysis() {
+        if analysisStatus == .run {
+            analysisStatus = .pause
+            waitingForAnalysis = true
+        }
+    }
 }
 
 @Observable

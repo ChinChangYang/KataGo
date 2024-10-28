@@ -158,7 +158,7 @@ struct ContentView: View {
 
     private func processChange(newScenePhase: ScenePhase) {
         if newScenePhase == .background {
-            KataGoHelper.sendCommand("stop")
+            gobanState.maybePauseAnalysis()
         }
     }
 

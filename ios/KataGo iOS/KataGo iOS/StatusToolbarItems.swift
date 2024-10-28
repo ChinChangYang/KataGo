@@ -70,8 +70,7 @@ struct StatusToolbarItems: View {
     }
 
     func pauseAnalysisAction() {
-        gobanState.analysisStatus = .pause
-        KataGoHelper.sendCommand("stop")
+        gobanState.maybePauseAnalysis()
     }
 
     func stopAction() {
