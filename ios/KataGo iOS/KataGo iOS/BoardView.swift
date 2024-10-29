@@ -15,6 +15,7 @@ struct BoardView: View {
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
+    @Environment(MessageList.self) var messageList
     var gameRecord: GameRecord
     @FocusState<Bool>.Binding var commentIsFocused: Bool
 
@@ -54,25 +55,29 @@ struct BoardView: View {
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
                         gameRecord.clearComments(after: gameRecord.currentIndex)
-                        KataGoHelper.sendCommand("play \(turn) \(move)")
+                        messageList.appendAndSend(command: "play \(turn) \(move)")
                         player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand()
-                        KataGoHelper.sendCommand("printsgf")
+                        gobanState.sendShowBoardCommand(messageList: messageList)
+                        messageList.appendAndSend(command: "printsgf")
                         audioModel.playPlaySound(soundEffect: config.soundEffect)
                     }
                 }
             }
             .onAppear {
                 player.nextColorForPlayCommand = .unknown
-                gobanState.sendShowBoardCommand()
+                gobanState.sendShowBoardCommand(messageList: messageList)
             }
             .onChange(of: config.maxAnalysisMoves) { _, _ in
-                gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+                gobanState.maybeRequestAnalysis(config: config,
+                                                nextColorForPlayCommand: player.nextColorForPlayCommand,
+                                                messageList: messageList)
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
                     maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newValue)
-                    gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: newValue)
+                    gobanState.maybeRequestAnalysis(config: config,
+                                                    nextColorForPlayCommand: newValue,
+                                                    messageList: messageList)
                     gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
                 }
             }
@@ -95,11 +100,11 @@ struct BoardView: View {
     func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor) {
         if !config.isEqualBlackWhiteHumanSettings {
             if nextColorForPlayCommand == .black {
-                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+                messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
+                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             } else if nextColorForPlayCommand == .white {
-                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanProfileForWhite)")
-                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
+                messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanProfileForWhite)")
+                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
             }
         }
     }

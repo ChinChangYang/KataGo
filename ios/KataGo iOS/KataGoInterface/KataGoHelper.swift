@@ -43,29 +43,4 @@ public class KataGoHelper {
     public class func sendCommand(_ command: String) {
         KataGoSendCommand(std.string(command))
     }
-
-    public class func sendCommands(_ commands: [String]) {
-        for command in commands {
-            KataGoHelper.sendCommand(command)
-        }
-    }
-
-    public class func loadSgf(_ sgf: String) {
-        let supportDirectory =
-        try? FileManager.default.url(for: .documentDirectory,
-                                     in: .userDomainMask,
-                                     appropriateFor: nil,
-                                     create: true)
-
-        if let supportDirectory {
-            let file = supportDirectory.appendingPathComponent("temp.sgf")
-            do {
-                try sgf.write(to: file, atomically: false, encoding: .utf8)
-                let path = file.path()
-                KataGoHelper.sendCommand("loadsgf \(path)")
-            } catch {
-                // Do nothing
-            }
-        }
-    }
 }

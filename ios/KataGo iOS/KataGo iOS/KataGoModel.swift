@@ -225,6 +225,37 @@ class MessageList {
             messages.removeFirst()
         }
     }
+
+    private func append(command: String) {
+        messages.append(Message(text: "> \(command)"))
+    }
+
+    func appendAndSend(command: String) {
+        append(command: command)
+        KataGoHelper.sendCommand(command)
+    }
+
+    func appendAndSend(commands: [String]) {
+        commands.forEach(appendAndSend)
+    }
+
+    func maybeLoadSgf(sgf: String) {
+        let supportDirectory = try? FileManager.default.url(for: .documentDirectory,
+                                                            in: .userDomainMask,
+                                                            appropriateFor: nil,
+                                                            create: true)
+
+        if let supportDirectory {
+            let file = supportDirectory.appendingPathComponent("temp.sgf")
+            do {
+                try sgf.write(to: file, atomically: false, encoding: .utf8)
+                let path = file.path()
+                appendAndSend(command: "loadsgf \(path)")
+            } catch {
+                // Do nothing
+            }
+        }
+    }
 }
 
 enum AnalysisStatus {
@@ -240,8 +271,8 @@ class GobanState {
     var analysisStatus = AnalysisStatus.run
     var showBoardCount: Int = 0
 
-    func sendShowBoardCommand() {
-        KataGoHelper.sendCommand("showboard")
+    func sendShowBoardCommand(messageList: MessageList) {
+        messageList.appendAndSend(command: "showboard")
         showBoardCount = showBoardCount + 1
     }
 
@@ -254,19 +285,19 @@ class GobanState {
         }
     }
 
-    private func requestAnalysis(config: Config) {
-        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+    private func requestAnalysis(config: Config, messageList: MessageList) {
+        messageList.appendAndSend(command: config.getKataFastAnalyzeCommand())
         waitingForAnalysis = true
     }
 
-    func maybeRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) {
+    func maybeRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?, messageList: MessageList) {
         if (shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)) {
-            requestAnalysis(config: config)
+            requestAnalysis(config: config, messageList: messageList)
         }
     }
 
-    func maybeRequestAnalysis(config: Config) {
-        return maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil)
+    func maybeRequestAnalysis(config: Config, messageList: MessageList) {
+        return maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil, messageList: messageList)
     }
 
     func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {

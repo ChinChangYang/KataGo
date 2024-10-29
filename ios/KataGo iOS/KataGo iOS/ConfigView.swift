@@ -189,6 +189,7 @@ struct RuleConfigView: View {
     @State var boardHeight: Int = -1
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
+    @Environment(MessageList.self) var messageList
 
     var body: some View {
         Section("Rule") {
@@ -220,7 +221,7 @@ struct RuleConfigView: View {
                 }
                 .onChange(of: rule) { _, newValue in
                     config.rule = newValue
-                    KataGoHelper.sendCommand(config.getKataRuleCommand())
+                    messageList.appendAndSend(command: config.getKataRuleCommand())
                 }
 
             ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
@@ -229,7 +230,7 @@ struct RuleConfigView: View {
                 }
                 .onChange(of: komi) { _, newValue in
                     config.komi = newValue
-                    KataGoHelper.sendCommand(config.getKataKomiCommand())
+                    messageList.appendAndSend(command: config.getKataKomiCommand())
                 }
         }
     }
@@ -244,6 +245,7 @@ struct AnalysisConfigView: View {
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
+    @Environment(MessageList.self) var messageList
 
     var body: some View {
         Section("Analysis") {
@@ -285,7 +287,7 @@ struct AnalysisConfigView: View {
                 }
                 .onChange(of: analysisWideRootNoise) { _, newValue in
                     config.analysisWideRootNoise = newValue
-                    KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                    messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
                 }
 
             ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
@@ -385,6 +387,7 @@ struct AIConfigView: View {
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
     @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
     @Environment(Turn.self) var player
+    @Environment(MessageList.self) var messageList
 
     var body: some View {
         Section("AI") {
@@ -399,7 +402,7 @@ struct AIConfigView: View {
             }
             .onChange(of: playoutDoublingAdvantage) { _, newValue in
                 config.playoutDoublingAdvantage = newValue
-                KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
             }
         }
 
@@ -411,7 +414,7 @@ struct AIConfigView: View {
                 .onChange(of: humanSLProfile) { _, newValue in
                     config.humanSLProfile = newValue
                     if player.nextColorForPlayCommand != .white {
-                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                        messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
                     }
                 }
 
@@ -427,7 +430,7 @@ struct AIConfigView: View {
             .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
                 config.humanSLRootExploreProbWeightful = newValue
                 if player.nextColorForPlayCommand != .white {
-                    KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
+                    messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                 }
             }
         }
@@ -440,7 +443,7 @@ struct AIConfigView: View {
                 .onChange(of: humanProfileForWhite) { _, newValue in
                     config.humanProfileForWhite = newValue
                     if player.nextColorForPlayCommand != .black {
-                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                        messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
                     }
                 }
 
@@ -456,7 +459,7 @@ struct AIConfigView: View {
             .onChange(of: humanRatioForWhite) { _, newValue in
                 config.humanRatioForWhite = newValue
                 if player.nextColorForPlayCommand != .black {
-                    KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
+                    messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                 }
             }
         }
@@ -469,6 +472,7 @@ struct SgfConfigView: View {
     @State var sgf: String = ""
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
+    @Environment(MessageList.self) var messageList
 
     var body: some View {
         Section("SGF") {
@@ -485,12 +489,12 @@ struct SgfConfigView: View {
                         let config = gameRecord.concreteConfig
                         gameRecord.sgf = sgf
                         player.nextColorForPlayCommand = .unknown
-                        KataGoHelper.loadSgf(sgf)
-                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                        KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
-                        gobanState.sendShowBoardCommand()
-                        KataGoHelper.sendCommand("printsgf")
+                        messageList.maybeLoadSgf(sgf: sgf)
+                        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+                        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+                        gobanState.sendShowBoardCommand(messageList: messageList)
+                        messageList.appendAndSend(command: "printsgf")
                     }
                 }
         }
@@ -505,6 +509,7 @@ struct ConfigItems: View {
     @Environment(GobanTab.self) var gobanTab
     @Environment(GobanState.self) var gobanState
     @Environment(Turn.self) var player
+    @Environment(MessageList.self) var messageList
 
     var config: Config {
         gameRecord.concreteConfig
@@ -526,9 +531,9 @@ struct ConfigItems: View {
         .onDisappear {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
-                KataGoHelper.sendCommand(gameRecord.concreteConfig.getKataBoardSizeCommand())
-                gobanState.sendShowBoardCommand()
-                KataGoHelper.sendCommand("printsgf")
+                messageList.appendAndSend(command: gameRecord.concreteConfig.getKataBoardSizeCommand())
+                gobanState.sendShowBoardCommand(messageList: messageList)
+                messageList.appendAndSend(command: "printsgf")
             }
         }
     }

@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State var stones = Stones()
-    @State var messagesObject = MessageList()
+    @State var messageList = MessageList()
     @State var board = BoardSize()
     @State var player = Turn()
     @State var analysis = Analysis()
@@ -54,7 +54,7 @@ struct ContentView: View {
                           importing: $importing)
             }
             .environment(stones)
-            .environment(messagesObject)
+            .environment(messageList)
             .environment(board)
             .environment(player)
             .environment(analysis)
@@ -136,10 +136,10 @@ struct ContentView: View {
             let config = newSelectedGameRecord.concreteConfig
             newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
             maybeLoadSgf()
-            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
-            gobanState.sendShowBoardCommand()
+            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+            gobanState.sendShowBoardCommand(messageList: messageList)
         }
     }
 
@@ -147,10 +147,10 @@ struct ContentView: View {
                                newWaitingForAnalysis waitingForAnalysis: Bool) {
         if (waitedForAnalysis && !waitingForAnalysis) {
             if gobanState.analysisStatus == .pause {
-                KataGoHelper.sendCommand("stop")
+                messageList.appendAndSend(command: "stop")
             } else {
                 if let config = navigationContext.selectedGameRecord?.config {
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                    messageList.appendAndSend(command: config.getKataAnalyzeCommand())
                 }
             }
         }
@@ -172,7 +172,7 @@ struct ContentView: View {
         let message = Message(text: line)
 
         // Append the message to the list of messages
-        messagesObject.messages.append(message)
+        messageList.messages.append(message)
 
         // Collect board information
         await maybeCollectBoard(message: line)
@@ -184,30 +184,30 @@ struct ContentView: View {
         maybeCollectSgf(message: line)
 
         // Remove when there are too many messages
-        messagesObject.shrink()
+        messageList.shrink()
     }
 
     private func sendInitialCommands(config: Config?) {
         // If a config is not available, initialize KataGo with a default config.
         let config = config ?? Config()
-        KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
-        KataGoHelper.sendCommand(config.getKataRuleCommand())
-        KataGoHelper.sendCommand(config.getKataKomiCommand())
+        messageList.appendAndSend(command: config.getKataBoardSizeCommand())
+        messageList.appendAndSend(command: config.getKataRuleCommand())
+        messageList.appendAndSend(command: config.getKataKomiCommand())
         // Disable friendly pass to avoid a memory shortage problem
-        KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
-        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-        KataGoHelper.sendCommands(config.getSymmetricHumanAnalysisCommands())
+        messageList.appendAndSend(command: "kata-set-rule friendlyPassOk false")
+        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
     }
 
     @MainActor
     private func initializationTask() async {
-        messagesObject.messages.append(Message(text: "Initializing..."))
+        messageList.messages.append(Message(text: "Initializing..."))
         sendInitialCommands(config: gameRecords.first?.concreteConfig)
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
-        gobanState.sendShowBoardCommand()
-        KataGoHelper.sendCommand("printsgf")
+        gobanState.sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
         await messagingLoop()
         isInitialized = true
     }
@@ -221,7 +221,7 @@ struct ContentView: View {
 
     func maybeLoadSgf() {
         if let gameRecord = navigationContext.selectedGameRecord {
-            KataGoHelper.loadSgf(gameRecord.sgf)
+            messageList.maybeLoadSgf(sgf: gameRecord.sgf)
         }
     }
 

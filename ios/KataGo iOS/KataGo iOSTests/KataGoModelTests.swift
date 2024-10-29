@@ -420,7 +420,7 @@ struct KataGoModelTests {
         let gobanState = GobanState()
         let config = Config()
         gobanState.analysisStatus = .run
-        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black)
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black, messageList: MessageList())
         #expect(gobanState.waitingForAnalysis == true)
     }
 
@@ -428,7 +428,7 @@ struct KataGoModelTests {
         let gobanState = GobanState()
         let config = Config()
         gobanState.analysisStatus = .clear
-        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black)
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black, messageList: MessageList())
         #expect(gobanState.waitingForAnalysis == false)
     }
 
@@ -528,7 +528,7 @@ struct KataGoModelTests {
         let config = Config()
         gobanState.analysisStatus = .run
 
-        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black)
+        gobanState.maybeRequestAnalysis(config: config, nextColorForPlayCommand: .black, messageList: MessageList())
         #expect(gobanState.waitingForAnalysis == true)
     }
 
@@ -537,7 +537,7 @@ struct KataGoModelTests {
         let config = Config()
         gobanState.analysisStatus = .run
 
-        gobanState.maybeRequestAnalysis(config: config)
+        gobanState.maybeRequestAnalysis(config: config, messageList: MessageList())
         #expect(gobanState.waitingForAnalysis == true)
     }
 

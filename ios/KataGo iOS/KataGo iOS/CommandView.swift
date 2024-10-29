@@ -9,7 +9,7 @@ import SwiftUI
 import KataGoInterface
 
 struct CommandView: View {
-    @Environment(MessageList.self) var messagesObject
+    @Environment(MessageList.self) var messageList
     @State private var command = ""
     var config: Config
     @Environment(Turn.self) var player
@@ -20,7 +20,7 @@ struct CommandView: View {
                 ScrollView(.vertical) {
                     // Vertically show each KataGo message
                     LazyVStack {
-                        ForEach(messagesObject.messages) { message in
+                        ForEach(messageList.messages) { message in
                             Text(message.text)
                                 .font(.body.monospaced())
                                 .id(message.id)
@@ -28,9 +28,8 @@ struct CommandView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .onChange(of: messagesObject.messages) { _, newValue in
-                        // Scroll to the last message
-                        scrollView.scrollTo(newValue.last?.id)
+                    .onAppear {
+                        scrollView.scrollTo(messageList.messages.last?.id)
                     }
                 }
             }
@@ -42,13 +41,11 @@ struct CommandView: View {
                     .textInputAutocapitalization(.never)
 #endif
                     .onSubmit {
-                        messagesObject.messages.append(Message(text: command))
-                        KataGoHelper.sendCommand(command)
+                        messageList.appendAndSend(command: command)
                         command = ""
                     }
                 Button(action: {
-                    messagesObject.messages.append(Message(text: command))
-                    KataGoHelper.sendCommand(command)
+                    messageList.appendAndSend(command: command)
                     command = ""
                 }) {
                     Image(systemName: "paperplane")
