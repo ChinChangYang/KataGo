@@ -136,6 +136,8 @@ struct ContentView: View {
             let config = newSelectedGameRecord.concreteConfig
             newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
             maybeLoadSgf()
+            messageList.appendAndSend(command: config.getKataRuleCommand())
+            messageList.appendAndSend(command: config.getKataKomiCommand())
             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
             messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
             messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())

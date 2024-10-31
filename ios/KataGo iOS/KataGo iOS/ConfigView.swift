@@ -490,6 +490,8 @@ struct SgfConfigView: View {
                         gameRecord.sgf = sgf
                         player.nextColorForPlayCommand = .unknown
                         messageList.maybeLoadSgf(sgf: sgf)
+                        messageList.appendAndSend(command: config.getKataRuleCommand())
+                        messageList.appendAndSend(command: config.getKataKomiCommand())
                         messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
                         messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
                         messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
