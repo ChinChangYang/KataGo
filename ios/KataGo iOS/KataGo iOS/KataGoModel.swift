@@ -155,14 +155,17 @@ struct Dimensions {
     let capturedStonesWidth: CGFloat = 80
     let capturedStonesHeight: CGFloat = 20
     let capturedStonesStartY: CGFloat
+    let totalWidth: CGFloat
+    let totalHeight: CGFloat
+    let drawHeight: CGFloat
 
     init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false, showPass: Bool = true) {
         self.width = width
         self.height = height
         self.coordinate = coordinate
 
-        let totalWidth = size.width
-        let totalHeight = size.height
+        totalWidth = size.width
+        totalHeight = size.height
         let coordinateEntity: CGFloat = coordinate ? 1 : 0
         let gobanWidthEntity = width + coordinateEntity
         let gobanHeightEntity = height + coordinateEntity
@@ -187,6 +190,7 @@ struct Dimensions {
         boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
         boardLineStartY = (gobanStartY == capturedStonesHeight) ? (capturedStonesHeight + coordinateLength + (squareLength + gobanPadding) / 2) : (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2
         capturedStonesStartY = gobanStartY - capturedStonesHeight
+        drawHeight = gobanHeight + capturedStonesHeight + (passHeight * 2)
     }
 
     func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {

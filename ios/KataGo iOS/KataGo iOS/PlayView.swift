@@ -9,22 +9,64 @@ import SwiftUI
 
 struct PlayView: View {
     var gameRecord: GameRecord
+    @Environment(BoardSize.self) var board
     @FocusState var commentIsFocused: Bool
 
-    var body: some View {
-        VStack {
-            CommentView(gameRecord: gameRecord)
-                .focused($commentIsFocused)
-                .padding()
+    var config: Config { gameRecord.concreteConfig }
 
-            ZStack {
+    var boardOptionalCommentView: some View {
+        Group {
+            if config.showComments {
+                // Show comment and board views
+                GeometryReader { geometry in
+                    let dimensions = Dimensions(size: geometry.size,
+                                                width: board.width,
+                                                height: board.height,
+                                                showCoordinate: config.showCoordinate,
+                                                showPass: config.showPass)
+
+                    commentBoardView(for: dimensions)
+                }
+            } else {
+                // Only show the board view
                 BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .status) {
-                StatusToolbarItems(gameRecord: gameRecord)
+    }
+
+    private func commentBoardView(for dimensions: Dimensions) -> some View {
+        // Determine horizontal layout if horizontal space is greater than vertical space
+        let isHorizontalLayout = dimensions.gobanStartX > dimensions.capturedStonesStartY
+
+        let commentView = CommentView(gameRecord: gameRecord)
+            .padding()
+            .focused($commentIsFocused)
+            .frame(width: isHorizontalLayout ? max(dimensions.totalWidth - dimensions.gobanWidth, 200) : nil,
+                   height: isHorizontalLayout ? nil : max(dimensions.totalHeight - dimensions.drawHeight, 100))
+
+        let boardView = BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+
+        return Group {
+            if isHorizontalLayout {
+                HStack {
+                    commentView
+                    boardView
+                }
+            } else {
+                VStack {
+                    commentView
+                    boardView
+                }
             }
         }
+    }
+
+    var body: some View {
+        boardOptionalCommentView
+            .toolbar {
+                ToolbarItem(placement: .status) {
+                    StatusToolbarItems(gameRecord: gameRecord)
+                }
+            }
     }
 }
