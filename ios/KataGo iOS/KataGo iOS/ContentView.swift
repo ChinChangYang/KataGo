@@ -134,8 +134,13 @@ struct ContentView: View {
         player.nextColorForPlayCommand = .unknown
         if let newSelectedGameRecord {
             let config = newSelectedGameRecord.concreteConfig
+            let currentIndex = newSelectedGameRecord.currentIndex
             newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
             maybeLoadSgf()
+            while newSelectedGameRecord.currentIndex > currentIndex {
+                newSelectedGameRecord.undo()
+                messageList.appendAndSend(command: "undo")
+            }
             messageList.appendAndSend(command: config.getKataRuleCommand())
             messageList.appendAndSend(command: config.getKataKomiCommand())
             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
