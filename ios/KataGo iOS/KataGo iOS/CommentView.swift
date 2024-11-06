@@ -10,12 +10,23 @@ import SwiftUI
 struct CommentView: View {
     var gameRecord: GameRecord
     @State var comment = ""
+    @Environment(\.editMode) private var editMode
+
+    var textArea: some View {
+        Group {
+            if editMode?.wrappedValue.isEditing == true {
+                TextField("Add your comment", text: $comment, axis: .vertical)
+            } else {
+                Text(comment)
+            }
+        }
+    }
 
     var body: some View {
         if gameRecord.concreteConfig.showComments {
             ScrollViewReader { _ in
                 ScrollView(.vertical) {
-                    TextField("Add your comment", text: $comment, axis: .vertical)
+                    textArea
                         .onAppear {
                             if gameRecord.comments == nil {
                                 gameRecord.comments = [:]

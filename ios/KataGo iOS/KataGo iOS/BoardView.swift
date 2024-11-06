@@ -16,6 +16,8 @@ struct BoardView: View {
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
+    @Environment(BranchState.self) var branchState
+    @Environment(\.editMode) private var editMode
     var gameRecord: GameRecord
     @FocusState<Bool>.Binding var commentIsFocused: Bool
 
@@ -54,7 +56,12 @@ struct BoardView: View {
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
-                        gameRecord.clearComments(after: gameRecord.currentIndex)
+                        if editMode?.wrappedValue.isEditing == true {
+                            gameRecord.clearComments(after: gameRecord.currentIndex)
+                        } else if !branchState.isActive {
+                            branchState.sgf = gameRecord.sgf
+                            branchState.currentIndex = gameRecord.currentIndex
+                        }
                         messageList.appendAndSend(command: "play \(turn) \(move)")
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)

@@ -30,6 +30,7 @@ struct ContentView: View {
     @State var toolbarUuid = UUID()
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
+    @State var branchState = BranchState()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     var body: some View {
@@ -62,6 +63,7 @@ struct ContentView: View {
             .environment(winrate)
             .environment(navigationContext)
             .environment(gobanTab)
+            .environment(branchState)
             .task {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
@@ -78,6 +80,10 @@ struct ContentView: View {
             }
             .onChange(of: scenePhase) { _, newScenePhase in
                 processChange(newScenePhase: newScenePhase)
+            }
+            .onChange(of: branchState.sgf) { oldBranchStateSgf, newBranchStateSgf in
+                processChange(oldBranchStateSgf: oldBranchStateSgf,
+                              newBranchStateSgf: newBranchStateSgf)
             }
         } else {
             LoadingView()
@@ -169,6 +175,12 @@ struct ContentView: View {
         }
     }
 
+    private func processChange(oldBranchStateSgf: String, newBranchStateSgf: String) {
+        if oldBranchStateSgf != "" && newBranchStateSgf == "" {
+            processChange(newSelectedGameRecord: navigationContext.selectedGameRecord)
+        }
+    }
+
     private func messagingLoop() async {
         let line = await Task.detached {
             // Get a message line from KataGo
@@ -227,7 +239,9 @@ struct ContentView: View {
     }
 
     func maybeLoadSgf() {
-        if let gameRecord = navigationContext.selectedGameRecord {
+        if branchState.isActive {
+            messageList.maybeLoadSgf(sgf: branchState.sgf)
+        } else if let gameRecord = navigationContext.selectedGameRecord {
             messageList.maybeLoadSgf(sgf: gameRecord.sgf)
         }
     }
@@ -561,6 +575,9 @@ struct ContentView: View {
                     let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
+                } else if branchState.isActive {
+                    branchState.sgf = sgfString
+                    branchState.currentIndex = currentIndex
                 } else if let gameRecord = navigationContext.selectedGameRecord {
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex

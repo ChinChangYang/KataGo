@@ -15,6 +15,7 @@ struct StatusToolbarItems: View {
     @Environment(GobanState.self) var gobanState
     @Environment(BoardSize.self) var board
     @Environment(MessageList.self) var messageList
+    @Environment(BranchState.self) var branchState
     var gameRecord: GameRecord
 
     var config: Config {
@@ -23,6 +24,12 @@ struct StatusToolbarItems: View {
 
     var body: some View {
         HStack {
+            if branchState.isActive {
+                Button(action: returnAction) {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                }
+            }
+
             Button(action: backwardEndAction) {
                 Image(systemName: "backward.end")
             }
@@ -58,8 +65,16 @@ struct StatusToolbarItems: View {
         }
     }
 
+    func returnAction() {
+        branchState.deactivate()
+    }
+
     func backwardAction() {
-        gameRecord.undo()
+        if branchState.isActive {
+            branchState.undo()
+        } else {
+            gameRecord.undo()
+        }
         messageList.appendAndSend(command: "undo")
         player.toggleNextColorForPlayCommand()
         gobanState.sendShowBoardCommand(messageList: messageList)
@@ -84,11 +99,15 @@ struct StatusToolbarItems: View {
     }
 
     func forwardAction() {
-        let currentIndex = gameRecord.currentIndex
-        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+        let currentIndex = branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex
+        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
         if let nextMove = sgfHelper.getMove(at: currentIndex) {
             if let move = locationToMove(location: nextMove.location) {
-                gameRecord.currentIndex = currentIndex + 1
+                if branchState.isActive {
+                    branchState.currentIndex = currentIndex + 1
+                } else {
+                    gameRecord.currentIndex = currentIndex + 1
+                }
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
                 player.toggleNextColorForPlayCommand()
@@ -104,10 +123,14 @@ struct StatusToolbarItems: View {
     }
 
     func forwardEndAction() {
-        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-        while let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex) {
+        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
+        while let nextMove = sgfHelper.getMove(at: branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) {
             if let move = locationToMove(location: nextMove.location) {
-                gameRecord.currentIndex = gameRecord.currentIndex + 1
+                if branchState.isActive {
+                    branchState.currentIndex = branchState.currentIndex + 1
+                } else {
+                    gameRecord.currentIndex = gameRecord.currentIndex + 1
+                }
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
                 player.toggleNextColorForPlayCommand()
@@ -122,9 +145,13 @@ struct StatusToolbarItems: View {
     }
 
     func backwardEndAction() {
-        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-        while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
-            gameRecord.undo()
+        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
+        while sgfHelper.getMove(at: (branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) - 1) != nil {
+            if branchState.isActive {
+                branchState.undo()
+            } else {
+                gameRecord.undo()
+            }
             messageList.appendAndSend(command: "undo")
             player.toggleNextColorForPlayCommand()
         }

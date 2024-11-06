@@ -269,6 +269,35 @@ enum AnalysisStatus {
 }
 
 @Observable
+class BranchState {
+    static let inActiveSgf = ""
+    static let inActiveCurrentIndex = -1
+    var sgf: String
+    var currentIndex: Int
+
+    var isActive: Bool {
+        return (sgf != BranchState.inActiveSgf) && (currentIndex > BranchState.inActiveCurrentIndex)
+    }
+
+    init(sgf: String = BranchState.inActiveSgf,
+         currentIndex: Int = BranchState.inActiveCurrentIndex) {
+        self.sgf = sgf
+        self.currentIndex = currentIndex
+    }
+
+    func deactivate() {
+        sgf = BranchState.inActiveSgf
+        currentIndex = BranchState.inActiveCurrentIndex
+    }
+
+    func undo() {
+        if (currentIndex > 0) {
+            currentIndex = currentIndex - 1
+        }
+    }
+}
+
+@Observable
 class GobanState {
     var waitingForAnalysis = false
     var requestingClearAnalysis = false
