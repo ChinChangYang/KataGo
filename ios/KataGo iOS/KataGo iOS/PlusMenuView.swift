@@ -24,7 +24,6 @@ struct PlusMenuView: View {
                     navigationContext.selectedGameRecord = newGameRecord
                     gobanTab.isCommandPresented = false
                     gobanTab.isConfigPresented = false
-                    gobanState.isEditing = true
                 }
             } label: {
                 Label("New Game", systemImage: "doc")

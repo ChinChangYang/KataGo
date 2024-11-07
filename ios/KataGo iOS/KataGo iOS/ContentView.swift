@@ -139,8 +139,12 @@ struct ContentView: View {
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
         branchState.deactivate()
-        gobanState.isEditing = false
         if let newSelectedGameRecord {
+            if newSelectedGameRecord.sgf == GameRecord.defaultSgf {
+                gobanState.isEditing = true
+            } else {
+                gobanState.isEditing = false
+            }
             let config = newSelectedGameRecord.concreteConfig
             let currentIndex = newSelectedGameRecord.currentIndex
             newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
