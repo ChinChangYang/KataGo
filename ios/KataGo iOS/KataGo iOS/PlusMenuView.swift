@@ -13,7 +13,8 @@ struct PlusMenuView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
-    
+    @Environment(GobanState.self) var gobanState
+
     var body: some View {
         Menu {
             Button {
@@ -23,6 +24,7 @@ struct PlusMenuView: View {
                     navigationContext.selectedGameRecord = newGameRecord
                     gobanTab.isCommandPresented = false
                     gobanTab.isConfigPresented = false
+                    gobanState.isEditing = true
                 }
             } label: {
                 Label("New Game", systemImage: "doc")

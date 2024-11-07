@@ -14,11 +14,12 @@ struct TopToolbarView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
-    @Environment(\.editMode) private var editMode
+    @Environment(BranchState.self) var branchState
+    @Environment(GobanState.self) var gobanState
 
     var body: some View {
         HStack {
-            if editMode?.wrappedValue.isEditing == true {
+            if !gobanTab.isConfigPresented {
                 Button {
                     withAnimation {
                         gobanTab.isCommandPresented.toggle()
@@ -31,23 +32,48 @@ struct TopToolbarView: View {
                         Image(systemName: "doc.plaintext")
                     }
                 }
-
-                Button {
-                    withAnimation {
-                        gobanTab.isCommandPresented = false
-                        gobanTab.isConfigPresented.toggle()
-                    }
-                } label: {
-                    if gobanTab.isConfigPresented {
-                        Image(systemName: "gearshape.fill")
-                    } else {
-                        Image(systemName: "gearshape")
-                    }
-                }
             }
 
-            PlusMenuView(gameRecord: gameRecord, importing: $importing)
-            EditButton()
+            if !branchState.isActive {
+                if gobanState.isEditing && !gobanTab.isCommandPresented {
+                    Button {
+                        withAnimation {
+                            gobanTab.isCommandPresented = false
+                            gobanTab.isConfigPresented.toggle()
+                        }
+                    } label: {
+                        if gobanTab.isConfigPresented {
+                            Image(systemName: "gearshape.fill")
+                        } else {
+                            Image(systemName: "gearshape")
+                        }
+                    }
+                }
+                
+                if !gobanTab.isCommandPresented && !gobanTab.isConfigPresented && !gobanState.isEditing {
+                    PlusMenuView(gameRecord: gameRecord, importing: $importing)
+                }
+                
+                if !gobanTab.isCommandPresented && !gobanTab.isConfigPresented {
+                    Button {
+                        gobanState.isEditing.toggle()
+                    } label: {
+                        if gobanState.isEditing {
+                            Text("Done")
+                                .bold()
+                        } else {
+                            Text("Edit")
+                                .bold()
+                        }
+                    }
+                }
+            } else {
+                Button {
+                    branchState.deactivate()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                }
+            }
         }
     }
 }

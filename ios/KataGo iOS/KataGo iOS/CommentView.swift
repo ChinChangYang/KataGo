@@ -10,11 +10,11 @@ import SwiftUI
 struct CommentView: View {
     var gameRecord: GameRecord
     @State var comment = ""
-    @Environment(\.editMode) private var editMode
+    @Environment(GobanState.self) var gobanState
 
     var textArea: some View {
         Group {
-            if editMode?.wrappedValue.isEditing == true {
+            if gobanState.isEditing {
                 TextField("Add your comment", text: $comment, axis: .vertical)
             } else {
                 Text(comment)

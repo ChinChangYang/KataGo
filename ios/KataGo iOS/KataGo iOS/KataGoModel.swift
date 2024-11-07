@@ -268,26 +268,40 @@ enum AnalysisStatus {
     case run
 }
 
+extension String {
+    static let inActiveSgf = ""
+
+    var isActiveSgf: Bool {
+        return self != .inActiveSgf
+    }
+}
+
+extension Int {
+    static let inActiveCurrentIndex = -1
+
+    var isActiveSgfIndex: Bool {
+        return self > .inActiveCurrentIndex
+    }
+}
+
 @Observable
 class BranchState {
-    static let inActiveSgf = ""
-    static let inActiveCurrentIndex = -1
     var sgf: String
     var currentIndex: Int
 
     var isActive: Bool {
-        return (sgf != BranchState.inActiveSgf) && (currentIndex > BranchState.inActiveCurrentIndex)
+        return (sgf.isActiveSgf) && (currentIndex.isActiveSgfIndex)
     }
 
-    init(sgf: String = BranchState.inActiveSgf,
-         currentIndex: Int = BranchState.inActiveCurrentIndex) {
+    init(sgf: String = .inActiveSgf,
+         currentIndex: Int = .inActiveCurrentIndex) {
         self.sgf = sgf
         self.currentIndex = currentIndex
     }
 
     func deactivate() {
-        sgf = BranchState.inActiveSgf
-        currentIndex = BranchState.inActiveCurrentIndex
+        sgf = .inActiveSgf
+        currentIndex = .inActiveCurrentIndex
     }
 
     func undo() {
@@ -303,6 +317,7 @@ class GobanState {
     var requestingClearAnalysis = false
     var analysisStatus = AnalysisStatus.run
     var showBoardCount: Int = 0
+    var isEditing = false
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")

@@ -138,6 +138,8 @@ struct ContentView: View {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
+        branchState.deactivate()
+        gobanState.isEditing = false
         if let newSelectedGameRecord {
             let config = newSelectedGameRecord.concreteConfig
             let currentIndex = newSelectedGameRecord.currentIndex
@@ -176,7 +178,8 @@ struct ContentView: View {
     }
 
     private func processChange(oldBranchStateSgf: String, newBranchStateSgf: String) {
-        if oldBranchStateSgf != "" && newBranchStateSgf == "" {
+        if (oldBranchStateSgf.isActiveSgf) &&
+            (!newBranchStateSgf.isActiveSgf) {
             processChange(newSelectedGameRecord: navigationContext.selectedGameRecord)
         }
     }
@@ -575,6 +578,7 @@ struct ContentView: View {
                     let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
+                    gobanState.isEditing = true
                 } else if branchState.isActive {
                     branchState.sgf = sgfString
                     branchState.currentIndex = currentIndex

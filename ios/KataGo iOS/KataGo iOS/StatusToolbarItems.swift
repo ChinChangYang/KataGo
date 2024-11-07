@@ -24,12 +24,6 @@ struct StatusToolbarItems: View {
 
     var body: some View {
         HStack {
-            if branchState.isActive {
-                Button(action: returnAction) {
-                    Image(systemName: "arrow.uturn.backward.circle")
-                }
-            }
-
             Button(action: backwardEndAction) {
                 Image(systemName: "backward.end")
             }
@@ -63,10 +57,6 @@ struct StatusToolbarItems: View {
                 Image(systemName: "forward.end")
             }
         }
-    }
-
-    func returnAction() {
-        branchState.deactivate()
     }
 
     func backwardAction() {
