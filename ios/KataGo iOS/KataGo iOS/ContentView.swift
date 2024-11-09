@@ -217,6 +217,7 @@ struct ContentView: View {
 
     private func processChange(newScenePhase: ScenePhase) {
         if newScenePhase == .background {
+            createThumbnail(for: navigationContext.selectedGameRecord)
             gobanState.maybePauseAnalysis()
         }
     }
