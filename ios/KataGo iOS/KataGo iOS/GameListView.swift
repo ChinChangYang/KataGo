@@ -29,22 +29,20 @@ struct GameListView: View {
 
     var body: some View {
         List(selection: $selectedGameRecord) {
-            if isInitialized {
-                ForEach(filteredGameRecords) { gameRecord in
-                    NavigationLink(gameRecord.name, value: gameRecord)
+            ForEach(filteredGameRecords) { gameRecord in
+                NavigationLink(value: gameRecord) {
+                    GameLinkView(gameRecord: gameRecord)
                 }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        let gameRecordToDelete = gameRecords[index]
-                        if selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
-                            selectedGameRecord = nil
-                        }
-
-                        modelContext.safelyDelete(gameRecord: gameRecordToDelete)
+            }
+            .onDelete { indexSet in
+                for index in indexSet {
+                    let gameRecordToDelete = gameRecords[index]
+                    if selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
+                        selectedGameRecord = nil
                     }
+
+                    modelContext.safelyDelete(gameRecord: gameRecordToDelete)
                 }
-            } else {
-                Text("Initializing...")
             }
         }
         .navigationTitle("Games")

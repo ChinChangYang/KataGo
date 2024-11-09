@@ -262,6 +262,7 @@
 		E1BB32AD2C730A2800690E67 /* AnalysisViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */; };
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
+		E1C6D0C72CDF0E38002C1921 /* GameLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */; };
 		E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AC2AA897C000556DFB /* StoneView.swift */; };
 		E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */; };
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
@@ -590,6 +591,7 @@
 		E1BB32B02C736AF100690E67 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
+		E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLinkView.swift; sourceTree = "<group>"; };
 		E1CF18DD2CAA0D7D009F0154 /* KataGo iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KataGo iOS.entitlements"; sourceTree = "<group>"; };
 		E1D7D3AC2AA897C000556DFB /* StoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoneView.swift; sourceTree = "<group>"; };
 		E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
@@ -974,6 +976,7 @@
 				E14FBF812C8E8C5D00C702BE /* CommentView.swift */,
 				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
 				E18F3E122A51466A00D335E1 /* ContentView.swift */,
+				E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */,
 				E13828622C5B8C3600670FD3 /* GameListView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
@@ -1609,6 +1612,7 @@
 				E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */,
 				E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
+				E1C6D0C72CDF0E38002C1921 /* GameLinkView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
 				E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */,
 				E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */,
