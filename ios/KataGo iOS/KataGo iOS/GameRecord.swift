@@ -21,6 +21,7 @@ final class GameRecord {
     var lastModificationDate: Date?
     var comments: [Int: String]?
     var uuid: UUID? = UUID()
+    var thumbnail: Data?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -41,13 +42,15 @@ final class GameRecord {
          config: Config,
          name: String = defaultName,
          lastModificationDate: Date? = Date.now,
-         comments: [Int: String]? = [:]) {
+         comments: [Int: String]? = [:],
+         thumbnail: Data? = nil) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
         self.name = name
         self.lastModificationDate = lastModificationDate
         self.comments = comments
+        self.thumbnail = thumbnail
     }
 
     func clone() -> GameRecord {
@@ -57,7 +60,8 @@ final class GameRecord {
                                        config: newConfig,
                                        name: self.name + " (copy)",
                                        lastModificationDate: Date.now,
-                                       comments: self.comments)
+                                       comments: self.comments,
+                                       thumbnail: self.thumbnail)
         newConfig.gameRecord = newGameRecord
         return newGameRecord
     }
@@ -91,13 +95,15 @@ final class GameRecord {
     class func createGameRecord(sgf: String = defaultSgf,
                                 currentIndex: Int = 0,
                                 name: String = defaultName,
-                                comments: [Int: String]? = [:]) -> GameRecord {
+                                comments: [Int: String]? = [:],
+                                thumbnail: Data? = nil) -> GameRecord {
         let config = Config()
         let gameRecord = GameRecord(sgf: sgf,
                                     currentIndex: currentIndex,
                                     config: config,
                                     name: name,
-                                    comments: comments)
+                                    comments: comments,
+                                    thumbnail: thumbnail)
         config.gameRecord = gameRecord
         return gameRecord
     }

@@ -12,14 +12,23 @@ struct GameLinkView: View {
     let gameRecord: GameRecord
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(gameRecord.name)
-                .font(.headline)
-            HStack {
-                Text(gameRecord.lastModificationDate?.shortened() ?? "")
-                Text(gameRecord.comments?[0] ?? "")
-                    .foregroundStyle(.secondary)
+        HStack {
+            VStack(alignment: .leading) {
+                Text(gameRecord.name)
+                    .font(.headline)
                     .lineLimit(1)
+                HStack {
+                    Text(gameRecord.lastModificationDate?.shortened() ?? "")
+                    Text(gameRecord.comments?[0] ?? "")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            if let thumbnail = gameRecord.thumbnail,
+               let uiImage = UIImage(data: thumbnail) {
+                Spacer()
+                Image(uiImage: uiImage)
             }
         }
     }

@@ -68,7 +68,8 @@ struct ContentView: View {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
             }
-            .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
+            .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
+                createThumbnail(for: oldGameRecord)
                 processChange(newSelectedGameRecord: newGameRecord)
             }
             .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
@@ -90,6 +91,45 @@ struct ContentView: View {
                 .task {
                     await initializationTask()
                 }
+        }
+    }
+
+    func createThumbnail(for gameRecord: GameRecord?) {
+        if let gameRecord {
+            let maxBoardLength = max(board.width + 1, board.height + 1)
+            let maxCGLength: CGFloat = 64
+            let cgWidth = (board.width + 1) / maxBoardLength * maxCGLength
+            let cgHeight = (board.height + 1) / maxBoardLength * maxCGLength
+            let cgSize = CGSize(width: cgWidth, height: cgHeight)
+            let isDrawingCapturedStones = false
+            let dimensions = Dimensions(size: cgSize,
+                                        width: board.width,
+                                        height: board.height,
+                                        showCoordinate: false,
+                                        showPass: false,
+                                        isDrawingCapturedStones: isDrawingCapturedStones)
+
+            let config = gameRecord.concreteConfig
+            let content = ZStack {
+                BoardLineView(dimensions: dimensions,
+                              showPass: false,
+                              verticalFlip: config.verticalFlip)
+
+                StoneView(dimensions: dimensions,
+                          isClassicStoneStyle: config.isClassicStoneStyle,
+                          verticalFlip: config.verticalFlip,
+                          isDrawingCapturedStones: isDrawingCapturedStones)
+
+                AnalysisView(config: config, dimensions: dimensions)
+            }
+                .environment(board)
+                .environment(stones)
+                .environment(analysis)
+                .environment(gobanState)
+                .environment(player)
+
+            let renderer = ImageRenderer(content: content)
+            gameRecord.thumbnail = renderer.uiImage?.pngData()
         }
     }
 

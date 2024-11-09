@@ -153,16 +153,22 @@ struct Dimensions {
     let gobanStartY: CGFloat
     let coordinate: Bool
     let capturedStonesWidth: CGFloat = 80
-    let capturedStonesHeight: CGFloat = 20
+    let capturedStonesHeight: CGFloat
     let capturedStonesStartY: CGFloat
     let totalWidth: CGFloat
     let totalHeight: CGFloat
     let drawHeight: CGFloat
 
-    init(size: CGSize, width: CGFloat, height: CGFloat, showCoordinate coordinate: Bool = false, showPass: Bool = true) {
+    init(size: CGSize,
+         width: CGFloat,
+         height: CGFloat,
+         showCoordinate coordinate: Bool = false,
+         showPass: Bool = true,
+         isDrawingCapturedStones: Bool = true) {
         self.width = width
         self.height = height
         self.coordinate = coordinate
+        self.capturedStonesHeight = isDrawingCapturedStones ? 20 : 0
 
         totalWidth = size.width
         totalHeight = size.height

@@ -12,17 +12,22 @@ struct StoneView: View {
     let dimensions: Dimensions
     let isClassicStoneStyle: Bool
     let verticalFlip: Bool
+    var isDrawingCapturedStones: Bool = true
 
     var body: some View {
         drawStones(dimensions: dimensions)
-        drawCapturedStones(color: .black,
-                           count: stones.blackStonesCaptured,
-                           xOffset: 0,
-                           dimensions: dimensions)
-        drawCapturedStones(color: .white,
-                           count: stones.whiteStonesCaptured,
-                           xOffset: 1,
-                           dimensions: dimensions)
+
+        if isDrawingCapturedStones {
+            drawCapturedStones(color: .black,
+                               count: stones.blackStonesCaptured,
+                               xOffset: 0,
+                               dimensions: dimensions)
+            drawCapturedStones(color: .white,
+                               count: stones.whiteStonesCaptured,
+                               xOffset: 1,
+                               dimensions: dimensions)
+            
+        }
     }
 
     private func drawCapturedStones(color: Color, count: Int, xOffset: CGFloat, dimensions: Dimensions) -> some View {
