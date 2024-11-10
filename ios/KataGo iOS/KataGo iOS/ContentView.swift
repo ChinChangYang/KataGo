@@ -36,8 +36,7 @@ struct ContentView: View {
     var body: some View {
         if isInitialized {
             NavigationSplitView {
-                GameListView(isInitialized: $isInitialized,
-                             isEditorPresented: $isEditorPresented,
+                GameListView(isEditorPresented: $isEditorPresented,
                              selectedGameRecord: $navigationContext.selectedGameRecord,
                              importing: $importing)
                 .toolbar {
@@ -50,8 +49,7 @@ struct ContentView: View {
                     toolbarUuid = UUID()
                 }
             } detail: {
-                GobanView(isInitialized: $isInitialized,
-                          isEditorPresented: $isEditorPresented,
+                GobanView(isEditorPresented: $isEditorPresented,
                           importing: $importing)
             }
             .environment(stones)

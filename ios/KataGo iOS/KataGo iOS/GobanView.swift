@@ -45,7 +45,6 @@ class GobanTab {
 }
 
 struct GobanView: View {
-    @Binding var isInitialized: Bool
     @Binding var isEditorPresented: Bool
     @Binding var importing: Bool
     @Environment(NavigationContext.self) var navigationContext
@@ -55,8 +54,7 @@ struct GobanView: View {
 
     var body: some View {
         Group {
-            if isInitialized,
-               let gameRecord = navigationContext.selectedGameRecord {
+            if let gameRecord = navigationContext.selectedGameRecord {
                 GobanItems(gameRecord: gameRecord, importing: $importing)
                     .toolbar {
                         ToolbarItem(placement: .principal) {
