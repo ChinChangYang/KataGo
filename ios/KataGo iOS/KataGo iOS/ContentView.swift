@@ -127,7 +127,7 @@ struct ContentView: View {
                 .environment(player)
 
             let renderer = ImageRenderer(content: content)
-            gameRecord.thumbnail = renderer.uiImage?.pngData()
+            gameRecord.thumbnail = renderer.uiImage?.heicData()
         }
     }
 
