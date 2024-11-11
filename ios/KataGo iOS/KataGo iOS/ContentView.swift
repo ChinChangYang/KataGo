@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var gobanTab = GobanTab()
     @State var importing = false
     @State var toolbarUuid = UUID()
+    @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
     @State var branchState = BranchState()
@@ -38,7 +39,8 @@ struct ContentView: View {
             NavigationSplitView {
                 GameListView(isEditorPresented: $isEditorPresented,
                              selectedGameRecord: $navigationContext.selectedGameRecord,
-                             importing: $importing)
+                             importing: $importing,
+                             isGameListViewAppeared: $isGameListViewAppeared)
                 .toolbar {
                     ToolbarItem {
                         PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
@@ -86,11 +88,23 @@ struct ContentView: View {
                 processChange(oldBranchStateSgf: oldBranchStateSgf,
                               newBranchStateSgf: newBranchStateSgf)
             }
+            .onChange(of: isGameListViewAppeared) { oldIsGameListViewAppeared, newIsGameListViewAppeared in
+                processChange(oldIsGameListViewAppeared: oldIsGameListViewAppeared,
+                              newIsGameListViewAppeared: newIsGameListViewAppeared)
+            }
+
         } else {
             LoadingView()
                 .task {
                     await initializationTask()
                 }
+        }
+    }
+
+    func processChange(oldIsGameListViewAppeared: Bool,
+                       newIsGameListViewAppeared: Bool) {
+        if !oldIsGameListViewAppeared && newIsGameListViewAppeared {
+            createThumbnail(for: navigationContext.selectedGameRecord)
         }
     }
 

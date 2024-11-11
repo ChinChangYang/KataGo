@@ -15,6 +15,7 @@ struct GameListView: View {
     @Environment(\.modelContext) private var modelContext
     @State var searchText = ""
     @Binding var importing: Bool
+    @Binding var isGameListViewAppeared: Bool
 
     var filteredGameRecords: [GameRecord] {
         if searchText == "" {
@@ -49,6 +50,12 @@ struct GameListView: View {
             NameEditorView(gameRecord: selectedGameRecord)
         }
         .searchable(text: $searchText)
+        .onAppear {
+            isGameListViewAppeared = true
+        }
+        .onDisappear {
+            isGameListViewAppeared = false
+        }
     }
 }
 
