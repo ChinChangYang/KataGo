@@ -13,7 +13,7 @@ import KataGoInterface
 @main
 struct KataGo_iOSApp: App {
     init() {
-        #if false
+        #if DEBUG
             removeAllGameRecords()
         #endif
 

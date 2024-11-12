@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import KataGoInterface
 
 @Model
 final class GameRecord {
@@ -106,5 +107,35 @@ final class GameRecord {
                                     thumbnail: thumbnail)
         config.gameRecord = gameRecord
         return gameRecord
+    }
+
+    class func createGameRecord(from file: URL) -> GameRecord? {
+        guard file.startAccessingSecurityScopedResource() else { return nil }
+
+        // Get the name
+        let name = file.deletingPathExtension().lastPathComponent
+
+        // Attempt to read the contents of the file into a string; exit if reading fails
+        guard let fileContents = try? String(contentsOf: file, encoding: .utf8) else { return nil }
+
+        // Release access
+        file.stopAccessingSecurityScopedResource()
+
+        // Initialize the SGF helper with the file contents
+        let sgfHelper = SgfHelper(sgf: fileContents)
+
+        // Get the index of the last move in the SGF file; exit if the SGF is invalid
+        guard let moveSize = sgfHelper.moveSize else { return nil }
+
+        // Create a dictionary of comments for each move by filtering and mapping non-empty comments
+        let comments = (0...moveSize)
+            .compactMap { index in sgfHelper.getComment(at: index).flatMap { !$0.isEmpty ? (index, $0) : nil } }
+            .reduce(into: [:]) { $0[$1.0] = $1.1 }
+
+        // Create a new game record with the SGF content, the current move index, the name, and the comments
+        return GameRecord.createGameRecord(sgf: fileContents,
+                                           currentIndex: moveSize,
+                                           name: name,
+                                           comments: comments)
     }
 }
