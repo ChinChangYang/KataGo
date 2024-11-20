@@ -103,7 +103,7 @@ struct ContentView: View {
 
     func processChange(oldIsGameListViewAppeared: Bool,
                        newIsGameListViewAppeared: Bool) {
-        if !oldIsGameListViewAppeared && newIsGameListViewAppeared {
+        if !oldIsGameListViewAppeared && newIsGameListViewAppeared && gobanState.isShownBoard {
             createThumbnail(for: navigationContext.selectedGameRecord)
         }
     }

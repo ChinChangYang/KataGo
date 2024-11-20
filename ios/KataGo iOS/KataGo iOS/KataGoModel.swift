@@ -324,6 +324,7 @@ class GobanState {
     var analysisStatus = AnalysisStatus.run
     var showBoardCount: Int = 0
     var isEditing = false
+    var isShownBoard: Bool = false
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -333,6 +334,7 @@ class GobanState {
     func consumeShowBoardResponse(response: String) -> Bool {
         if response.hasPrefix("= MoveNum") {
             showBoardCount = showBoardCount - 1
+            isShownBoard = true
             return showBoardCount == 0
         } else {
             return false
