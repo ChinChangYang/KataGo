@@ -76,7 +76,7 @@ time python ./train.py \
      -datadir "$BASEDIR"/shuffleddata/current/ \
      -exportdir "$BASEDIR"/"$EXPORT_SUBDIR" \
      -exportprefix "$TRAININGNAME" \
-     -pos-len 19 \
+     -pos-len 9 \
      -batch-size "$BATCHSIZE" \
      -model-kind "$MODELKIND" \
      $EXTRAFLAG \

@@ -80,8 +80,9 @@ function exportStuff() {
 
                 python ./convert_coreml_pytorch.py \
                        -checkpoint "$TMPDST"/model.ckpt \
-                       -output "$TMPDST"/KataGoModel19x19fp16.mlpackage \
-                       -use-swa
+                       -output "$TMPDST"/KataGoModel9x9fp16.mlpackage \
+                       -use-swa \
+                       -pos-len 9
 
                 gzip "$TMPDST"/model.bin
 
