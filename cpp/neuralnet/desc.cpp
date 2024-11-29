@@ -763,8 +763,9 @@ TrunkDesc::TrunkDesc(istream& in, int vrsn, bool binaryFloats, int metaEncVersio
 
   if(in.fail())
     throw StringError(name + ": trunk failed to parse num blocks or various channel parameters");
-  if(numBlocks < 1)
-    throw StringError(name + ": trunk num blocks must be positive");
+  // Transformer doesn't contain any blocks
+  // if(numBlocks < 1)
+  //   throw StringError(name + ": trunk num blocks must be positive");
   if(
     trunkNumChannels <= 0 || midNumChannels <= 0 || regularNumChannels <= 0 ||
     gpoolNumChannels <= 0)
