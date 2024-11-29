@@ -1560,9 +1560,9 @@ class Model(torch.nn.Module):
         # Replace convolutional blocks with TransformerTrunk
         self.trunk = TransformerTrunk(
             c_trunk=self.c_trunk,
-            num_transformer_layers=config.get("num_transformer_layers", 3),
-            num_heads=config.get("num_transformer_heads", 3),
-            dim_feedforward=config.get("transformer_dim_feedforward", 512),
+            num_transformer_layers=config.get("num_transformer_layers", 6),
+            num_heads=config.get("num_transformer_heads", 6),
+            dim_feedforward=config.get("transformer_dim_feedforward", 1024),
             dropout=config.get("transformer_dropout", 0.1),
             pos_len=self.pos_len
         )
