@@ -1472,17 +1472,8 @@ class TransformerTrunk(nn.Module):
         # Add positional embeddings
         x = x + self.pos_embedding[:, :H*W, :]
 
-        # Prepare attention mask: transformer expects mask shape [S, S], but we need to handle batch masks
-        # Here, we'll create a global attention mask based on the input mask
-        # Masked positions will have a large negative value in the attention scores
-        # Create a mask of shape (N, H*W)
-        attention_mask = (mask.view(N, H * W) == 0)  # True where mask is 0 (to be masked)
-
-        # Transformer expects mask of shape (N, S), where S=H*W
-        # However, nn.TransformerEncoder expects a mask of shape (S, S)
-        # To handle batch-specific masks, we can use key_padding_mask which has shape (N, S)
-        # key_padding_mask: True for positions to be masked
-        transformer_output = self.transformer_encoder(x.transpose(0, 1), src_key_padding_mask=attention_mask)  # S, N, C
+        # Transformer expects: S, N, C
+        transformer_output = self.transformer_encoder(x.transpose(0, 1))  # S, N, C
         transformer_output = transformer_output.transpose(0, 1)  # N, S, C
 
         # Apply layer normalization
@@ -1560,9 +1551,9 @@ class Model(torch.nn.Module):
         # Replace convolutional blocks with TransformerTrunk
         self.trunk = TransformerTrunk(
             c_trunk=self.c_trunk,
-            num_transformer_layers=config.get("num_transformer_layers", 6),
-            num_heads=config.get("num_transformer_heads", 6),
-            dim_feedforward=config.get("transformer_dim_feedforward", 1024),
+            num_transformer_layers=config.get("num_transformer_layers", 12),
+            num_heads=config.get("num_transformer_heads", 12),
+            dim_feedforward=config.get("transformer_dim_feedforward", 128),
             dropout=config.get("transformer_dropout", 0.1),
             pos_len=self.pos_len
         )
@@ -1625,13 +1616,7 @@ class Model(torch.nn.Module):
             if self.metadata_encoder is not None:
                 self.metadata_encoder.initialize()
 
-            # Initialize the transformer trunk
-            for param in self.trunk.parameters():
-                if param.dim() > 1:
-                    nn.init.xavier_uniform_(param)
-                else:
-                    nn.init.zeros_(param)
-
+            # Skipped the transformer trunk
             # Skipped fixup for transformer trunk
 
             self.policy_head.initialize()
