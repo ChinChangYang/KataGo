@@ -1437,7 +1437,7 @@ class MetadataEncoder(torch.nn.Module):
 
 # Insert the TransformerTrunk class
 class TransformerTrunk(nn.Module):
-    def __init__(self, c_trunk, num_transformer_layers=12, num_heads=12, dim_feedforward=3072, dropout=0.1, pos_len=19):
+    def __init__(self, c_trunk, num_transformer_layers, num_heads, dim_feedforward, dropout=0.1, pos_len=19):
         super(TransformerTrunk, self).__init__()
         self.c_trunk = c_trunk
         self.pos_len = pos_len
@@ -1447,7 +1447,12 @@ class TransformerTrunk(nn.Module):
         self.pos_embedding = nn.Parameter(torch.zeros(1, self.num_tokens, c_trunk))
 
         # Transformer Encoder
-        encoder_layer = nn.TransformerEncoderLayer(d_model=c_trunk, nhead=num_heads, dim_feedforward=dim_feedforward, dropout=dropout, activation='gelu')
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=c_trunk,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation='gelu')
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_transformer_layers)
 
         # Layer normalization after transformer
@@ -1464,7 +1469,6 @@ class TransformerTrunk(nn.Module):
         Returns: NCHW
         """
         N, C, H, W = x.shape
-        assert H == self.pos_len and W == self.pos_len, f"Expected spatial dimensions {self.pos_len}x{self.pos_len}, got {H}x{W}"
 
         # Flatten spatial dimensions: N, C, H, W -> N, H*W, C
         x = x.view(N, C, H * W).transpose(1, 2)  # N, H*W, C
@@ -1548,15 +1552,99 @@ class Model(torch.nn.Module):
         self.bin_input_shape = [22, pos_len, pos_len]
         self.global_input_shape = [19]
 
-        # Replace convolutional blocks with TransformerTrunk
-        self.trunk = TransformerTrunk(
-            c_trunk=self.c_trunk,
-            num_transformer_layers=config.get("num_transformer_layers", 12),
-            num_heads=config.get("num_transformer_heads", 12),
-            dim_feedforward=config.get("transformer_dim_feedforward", 128),
-            dropout=config.get("transformer_dropout", 0.1),
-            pos_len=self.pos_len
-        )
+        self.blocks = torch.nn.ModuleList()
+        for block_config in self.block_kind:
+            block_name = block_config[0]
+            block_kind = block_config[1]
+            use_gpool_this_block = False
+            if block_kind.endswith("gpool"):
+                use_gpool_this_block = True
+                block_kind = block_kind[:-5]
+
+            if block_kind == "regular":
+                self.blocks.append(ResBlock(
+                    name=block_name,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottle1" or block_kind == "bottle":
+                self.blocks.append(BottleneckResBlock(
+                    name=block_name,
+                    internal_length=1,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottle2":
+                self.blocks.append(BottleneckResBlock(
+                    name=block_name,
+                    internal_length=2,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottle3":
+                self.blocks.append(BottleneckResBlock(
+                    name=block_name,
+                    internal_length=3,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottlenest2":
+                self.blocks.append(NestedBottleneckResBlock(
+                    name=block_name,
+                    internal_length=2,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottlenest3":
+                self.blocks.append(NestedBottleneckResBlock(
+                    name=block_name,
+                    internal_length=3,
+                    c_main=self.c_trunk,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            elif block_kind == "bottlenest2bottlenest2":
+                self.blocks.append(NestedNestedBottleneckResBlock(
+                    name=block_name,
+                    internal_length=2,
+                    sub_internal_length=2,
+                    c_main=self.c_trunk,
+                    c_outermid=self.c_outermid,
+                    c_mid=self.c_mid,
+                    c_gpool=(self.c_gpool if use_gpool_this_block else None),
+                    config=self.config,
+                    activation=self.activation,
+                ))
+            else:
+                assert False, f"Unknown block kind: {block_config[1]}"
+
+        if config.get("num_transformer_layers", 0) > 0:
+            self.transformer = TransformerTrunk(
+                c_trunk=self.c_trunk,
+                num_transformer_layers=config.get("num_transformer_layers", 1),
+                num_heads=config.get("num_transformer_heads", 1),
+                dim_feedforward=config.get("transformer_dim_feedforward", 128),
+                pos_len=self.pos_len,
+            )
+        else:
+            self.transformer = None
 
         if self.trunk_normless:
             self.norm_trunkfinal = BiasMask(self.c_trunk, self.config, is_after_batchnorm=True)
@@ -1616,8 +1704,17 @@ class Model(torch.nn.Module):
             if self.metadata_encoder is not None:
                 self.metadata_encoder.initialize()
 
-            # Skipped the transformer trunk
-            # Skipped fixup for transformer trunk
+            if self.norm_kind == "fixup" and self.num_total_blocks != 0:
+                fixup_scale = 1.0 / math.sqrt(self.num_total_blocks)
+                for block in self.blocks:
+                    block.initialize(fixup_scale=fixup_scale)
+            elif self.norm_kind == "fixscale" or self.norm_kind == "fixbrenorm" or self.norm_kind == "fixscaleonenorm":
+                for i, block in enumerate(self.blocks):
+                    block.initialize(fixup_scale=1.0 / math.sqrt(i+1.0))
+                self.norm_trunkfinal.set_scale(1.0 / math.sqrt(self.num_total_blocks+1.0))
+            else:
+                for block in self.blocks:
+                    block.initialize(fixup_scale=1.0)
 
             self.policy_head.initialize()
             self.value_head.initialize()
@@ -1644,12 +1741,14 @@ class Model(torch.nn.Module):
         reg_dict["normal"].append(self.linear_global.weight)
         if self.metadata_encoder is not None:
             self.metadata_encoder.add_reg_dict(reg_dict)
-        # Add transformer parameters
-        for name, param in self.trunk.named_parameters():
-            if "norm" in name or "transformer_encoder" in name:
+
+        for block in self.blocks:
+            block.add_reg_dict(reg_dict)
+
+        if self.transformer is not None:
+            for _, param in self.transformer.named_parameters():
                 reg_dict["normal"].append(param)
-            else:
-                reg_dict["output"].append(param)
+
         self.norm_trunkfinal.add_reg_dict(reg_dict)
         self.policy_head.add_reg_dict(reg_dict)
         self.value_head.add_reg_dict(reg_dict)
@@ -1659,7 +1758,8 @@ class Model(torch.nn.Module):
             self.intermediate_value_head.add_reg_dict(reg_dict)
 
     def set_brenorm_params(self, renorm_avg_momentum: float, rmax: float, dmax: float):
-        # TransformerTrunk does not use Brenorm, so skip
+        for block in self.blocks:
+            block.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
         self.norm_trunkfinal.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
         self.policy_head.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
         self.value_head.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
@@ -1669,7 +1769,8 @@ class Model(torch.nn.Module):
             self.intermediate_value_head.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
 
     def add_brenorm_clippage(self, upper_rclippage, lower_rclippage, dclippage):
-        # TransformerTrunk does not use Brenorm, so skip
+        for block in self.blocks:
+            block.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
         self.norm_trunkfinal.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
         self.policy_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
         self.value_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
@@ -1706,10 +1807,54 @@ class Model(torch.nn.Module):
             x_meta = self.metadata_encoder.forward(input_meta,extra_outputs)
             out = out + x_meta.unsqueeze(-1).unsqueeze(-1)
 
-        # Pass through Transformer Trunk
-        out = self.trunk(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+        # print("TENSOR BEFORE TRUNK")
+        # print(out)
 
-        # Skipped intermediate head for transformer trunk
+        self.has_intermediate_head = False if self.for_coreml else self.has_intermediate_head
+
+        if self.has_intermediate_head:
+            count = 0
+            for block in self.blocks[:self.intermediate_head_blocks]:
+                # print("TENSOR BEFORE BLOCK")
+                # print(count)
+                # print(out)
+                out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+                count += 1
+
+            # print("INTERMEDIATE")
+            iout = out
+            iout = self.norm_intermediate_trunkfinal(iout, mask=mask, mask_sum=mask_sum)
+            iout = self.act_intermediate_trunkfinal(iout)
+            iout_policy = self.intermediate_policy_head(iout, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+            (
+                iout_value,
+                iout_miscvalue,
+                iout_moremiscvalue,
+                iout_ownership,
+                iout_scoring,
+                iout_futurepos,
+                iout_seki,
+                iout_scorebelief_logprobs,
+            ) = self.intermediate_value_head(iout, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, input_global=input_global, extra_outputs=extra_outputs)
+
+            for block in self.blocks[self.intermediate_head_blocks:]:
+                # print("TENSOR BEFORE BLOCK")
+                # print(count)
+                # print(out)
+                out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+                count += 1
+
+        else:
+            count = 0
+            for block in self.blocks:
+                # print("TENSOR BEFORE BLOCK")
+                # print(count)
+                # print(out)
+                out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+                count += 1
+
+        if self.transformer is not None:
+            out = self.transformer(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
 
         out = self.norm_trunkfinal(out, mask=mask, mask_sum=mask_sum)
         out = self.act_trunkfinal(out)
@@ -1730,7 +1875,32 @@ class Model(torch.nn.Module):
             out_scorebelief_logprobs,
         ) = self.value_head(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, input_global=input_global, extra_outputs=extra_outputs)
 
-        if self.for_coreml:
+        if self.has_intermediate_head:
+            return (
+                (
+                    out_policy,
+                    out_value,
+                    out_miscvalue,
+                    out_moremiscvalue,
+                    out_ownership,
+                    out_scoring,
+                    out_futurepos,
+                    out_seki,
+                    out_scorebelief_logprobs,
+                ),
+                (
+                    iout_policy,
+                    iout_value,
+                    iout_miscvalue,
+                    iout_moremiscvalue,
+                    iout_ownership,
+                    iout_scoring,
+                    iout_futurepos,
+                    iout_seki,
+                    iout_scorebelief_logprobs,
+                ),
+            )
+        elif self.for_coreml:
             return ((
                 out_policy,
                 out_value,
