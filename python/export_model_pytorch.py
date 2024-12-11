@@ -319,9 +319,7 @@ def main(args):
 
     def write_trunk(name,model):
         writeln("trunk")
-        # Skip transformer trunk
-        # writeln(len(model.blocks))
-        writeln(0)
+        writeln(len(model.blocks))
         writeln(model.c_trunk)
         writeln(model.c_mid)
         writeln(model.c_mid-model.c_gpool)
@@ -343,9 +341,8 @@ def main(args):
             assert version >= 15
             write_metadata_encoder("model.sgf_metadata_encoder",model.metadata_encoder)
 
-        # Skip transformer trunk
-        # for i,block in enumerate(model.blocks):
-        #     write_block("model.blocks."+str(i), block)
+        for i,block in enumerate(model.blocks):
+            write_block("model.blocks."+str(i), block)
         if model.trunk_normless:
             write_biasmask("model.norm_trunkfinal", model.norm_trunkfinal)
         else:
