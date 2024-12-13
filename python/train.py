@@ -111,6 +111,7 @@ if __name__ == "__main__":
 
     optional_args.add_argument('-main-loss-scale', type=float, help='Loss factor scale for main head', required=False)
     optional_args.add_argument('-intermediate-loss-scale', type=float, help='Loss factor scale for intermediate head', required=False)
+    optional_args.add_argument('-use-adamw', required=False, action='store_true')
 
     args = vars(parser.parse_args())
 
@@ -197,6 +198,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
     main_loss_scale = args["main_loss_scale"]
     intermediate_loss_scale = args["intermediate_loss_scale"]
+    use_adamw = args["use_adamw"]
 
     if lr_scale is None:
         lr_scale = 1.0
@@ -414,6 +416,14 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         assert num_params == num_reg_dict_params, "Reg dict does not have entries for all params in model"
         return param_groups
 
+    def get_optimizer(raw_model, train_state, running_metrics):
+        if use_adamw:
+            optimizer = torch.optim.AdamW(raw_model.parameters())
+            # optimizer = torch.optim.RAdam(raw_model.parameters(), weight_decay=1e-2, decoupled_weight_decay=True)
+        else:
+            optimizer = torch.optim.SGD(get_param_groups(raw_model,train_state,running_metrics), lr=1.0, momentum=0.9)
+        return optimizer
+
     def load():
         if not os.path.exists(get_checkpoint_path()):
             logging.info("No preexisting checkpoint found at: " + get_checkpoint_path())
@@ -465,7 +475,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                 train_state["modelnorm_normal_baseline"] = modelnorm_normal_baseline
                 logging.info(f"Model norm normal baseline computed: {modelnorm_normal_baseline}")
 
-            optimizer = torch.optim.SGD(get_param_groups(raw_model,train_state,running_metrics), lr=1.0, momentum=0.9)
+            optimizer = get_optimizer(raw_model, train_state, running_metrics)
 
             return (model_config, ddp_model, raw_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics)
         else:
@@ -527,7 +537,8 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
             else:
                 logging.info("WARNING: Running metrics not found in state dict, using fresh last val metrics")
 
-            optimizer = torch.optim.SGD(get_param_groups(raw_model,train_state,running_metrics), lr=1.0, momentum=0.9)
+            optimizer = get_optimizer(raw_model, train_state, running_metrics)
+
             if "optimizer" in state_dict:
                 optimizer.load_state_dict(state_dict["optimizer"])
             else:
@@ -613,7 +624,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
     # EPOCHS AND LR ---------------------------------------------------------------------
 
-    def update_and_return_lr_and_wd():
+    def update_and_return_lr_and_wd_for_sgd():
         per_sample_lr = 0.00003 * lr_scale * lr_scale_auto_factor(train_state)
 
         # Warmup for initial training
@@ -699,6 +710,12 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                 logging.info(f"Param group {param_group['group_name']} lr {param_group['lr']} weight_decay {param_group['weight_decay']}")
 
         return per_sample_lr * warmup_scale, normal_weight_decay
+
+    def update_and_return_lr_and_wd():
+        if use_adamw:
+            return 1, 0
+        else:
+            return update_and_return_lr_and_wd_for_sgd()
 
     last_brenorm_update_samples_this_instance = train_state["global_step_samples"]
     def maybe_update_brenorm_params():

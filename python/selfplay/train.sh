@@ -79,6 +79,7 @@ time python ./train.py \
      -pos-len 9 \
      -batch-size "$BATCHSIZE" \
      -model-kind "$MODELKIND" \
+     -use-adamw \
      $EXTRAFLAG \
      "$@" \
      2>&1 | tee -a "$BASEDIR"/train/"$TRAININGNAME"/stdout.txt
