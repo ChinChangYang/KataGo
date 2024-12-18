@@ -483,19 +483,10 @@ ComputeContext* NeuralNet::createComputeContext(
   enabled_t useNHWCMode,
   const LoadedModel* loadedModel) {
 
-  bool useCpuAndNeuralEngine = false;
+  // In some models, neural engine is faster than GPU, so use neural engine anyway.
+  bool useCpuAndNeuralEngine = true;
 
-  // If Metal is enabled for GPU computation, CoreML uses CPU and Neural Engine.
-  // If Metal is disabled, CoreML uses all computation units, including CPU, GPU, and Neural Engine.
-  // This ensures that Metal and CoreML do not use GPU in the same computation context.
-  for (auto it = gpuIdxs.begin(); it != gpuIdxs.end(); it++) {
-    auto gpuIdx = *it;
-    if (gpuIdx < 100) {
-      useCpuAndNeuralEngine = true;
-      break;
-    }
-  }
-
+  (void)gpuIdxs;
   (void)logger;
   (void)openCLTunerFile;
   (void)homeDataDirOverride;
