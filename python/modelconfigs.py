@@ -1322,6 +1322,75 @@ b20c640nbt = {
     "v2_size":144,
 }
 
+t2c1024 = {
+    "version":15,
+    "norm_kind":"fixup",
+    "bnorm_epsilon": 1e-4,
+    "bnorm_running_avg_momentum": 0.001,
+    "initial_conv_1x1": False,
+    "trunk_num_channels":1024,
+    "mid_num_channels":384,
+    "gpool_num_channels":64,
+    "use_attention_pool":False,
+    "num_attention_pool_heads":4,
+    "block_kind": [],
+    "num_transformer_layers": 2,
+    "num_transformer_heads": 32,
+    "transformer_dim_feedforward": 1024,
+    "p1_num_channels":96,
+    "g1_num_channels":96,
+    "v1_num_channels":192,
+    "sbv2_num_channels":256,
+    "num_scorebeliefs":8,
+    "v2_size":192,
+}
+
+t4c512 = {
+    "version":15,
+    "norm_kind":"fixup",
+    "bnorm_epsilon": 1e-4,
+    "bnorm_running_avg_momentum": 0.001,
+    "initial_conv_1x1": False,
+    "trunk_num_channels":512,
+    "mid_num_channels":256,
+    "gpool_num_channels":64,
+    "use_attention_pool":False,
+    "num_attention_pool_heads":4,
+    "block_kind": [],
+    "num_transformer_layers": 4,
+    "num_transformer_heads": 16,
+    "transformer_dim_feedforward": 512,
+    "p1_num_channels":64,
+    "g1_num_channels":64,
+    "v1_num_channels":128,
+    "sbv2_num_channels":128,
+    "num_scorebeliefs":8,
+    "v2_size":144,
+}
+
+t8c384 = {
+    "version":15,
+    "norm_kind":"fixup",
+    "bnorm_epsilon": 1e-4,
+    "bnorm_running_avg_momentum": 0.001,
+    "initial_conv_1x1": False,
+    "trunk_num_channels":384,
+    "mid_num_channels":192,
+    "gpool_num_channels":64,
+    "use_attention_pool":False,
+    "num_attention_pool_heads":4,
+    "block_kind": [],
+    "num_transformer_layers": 8,
+    "num_transformer_heads": 16,
+    "transformer_dim_feedforward": 384,
+    "p1_num_channels":48,
+    "g1_num_channels":48,
+    "v1_num_channels":96,
+    "sbv2_num_channels":112,
+    "num_scorebeliefs":8,
+    "v2_size":128,
+}
+
 t16c96 = {
     "version":15,
     "norm_kind":"fixup",
@@ -1414,6 +1483,9 @@ base_config_of_name = {
     "b20c640nbt": b20c640nbt,
 
     # Transformer model configs
+    "t2c1024": t2c1024,
+    "t4c512": t4c512,
+    "t8c384": t8c384,
     "t16c96": t16c96,
 
     "sandbox": sandbox,
