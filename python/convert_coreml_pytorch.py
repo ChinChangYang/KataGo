@@ -25,6 +25,7 @@ from coremltools.optimize.coreml import (
     linear_quantize_weights,
 )
 
+from fastvit import transform_model
 
 def print_versions():
     """Print versions of torch, coremltools, and coremlmish."""
@@ -278,6 +279,9 @@ def main():
     # Select the appropriate model
     func = swa_model if swa_model is not None else model
     print(f"Using model: {func.__class__.__name__}")
+
+    # Reparameterize
+    func = transform_model(func)
 
     # Determine meta encoder version
     meta_encoder_version = (

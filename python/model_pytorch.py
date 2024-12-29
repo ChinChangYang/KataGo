@@ -6,9 +6,10 @@ import torch.nn.functional as F
 import torch.nn.init
 import packaging
 import packaging.version
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Any, Optional, Set
 
 import modelconfigs
+from fastvit import FastViTModel
 
 EXTRA_SCORE_DISTR_RADIUS = 60
 
@@ -34,7 +35,7 @@ def act(activation, inplace=False):
     if activation == "mish":
         return torch.nn.Mish(inplace=inplace)
     if activation == "gelu":
-        return torch.nn.GELU(inplace=inplace)
+        return torch.nn.GELU()
     if activation == "hardswish":
         if packaging.version.parse(torch.__version__) > packaging.version.parse("1.6.0"):
             return torch.nn.Hardswish(inplace=inplace)
@@ -1488,18 +1489,73 @@ class TransformerTrunk(nn.Module):
 
         return transformer_output
 
-# Modified Model class with TransformerTrunk
-class Model(torch.nn.Module):
-    def __init__(self, config: modelconfigs.ModelConfig, pos_len: int, for_coreml: bool = False):
+
+def create_fastvit_trunk(
+    layers: List[int],
+    embed_dim: List[int],
+    mlp_ratio: List[float],
+    token_mixer: List[str],
+    pos_embed: List[Optional[Any]],
+    **kwargs,
+) -> "FastViTModel":
+    """
+    *Initialize* a FastViT trunk with the specified hyperparameters.
+
+    **Args**:
+    - **layers** (List[int]): Number of layers in each FastViT stage.
+    - **embed_dim** (List[int]): Embedding dimensions for each FastViT stage.
+    - **mlp_ratio** (List[float]): MLP expansion ratios for each FastViT stage.
+    - **token_mixer** (List[str]): Types of token mixers for each FastViT stage (e.g., 'repmixer', 'attention').
+    - **pos_embed** (List[Optional[Any]]): Positional embeddings for each FastViT stage (e.g., None or partial(RepCPE, ...)).
+    - **downsample** (List[bool]): Whether to apply downsampling between FastViT stages.
+    - **activation** (str, optional): Activation function to use ('relu' or 'gelu'). Defaults to *relu*.
+    - **down_patch_size** (int, optional): Patch size for downsampling. Defaults to 7.
+    - **down_stride** (int, optional): Stride for downsampling. Defaults to 2.
+    - **pretrained** (bool, optional): Whether to load pretrained weights. Defaults to False.
+    - **in_channels** (int, optional): Number of input channels. Defaults to 3.
+    - **kwargs**: Additional keyword arguments for FastViT.
+
+    **Returns**:
+    - **FastViT**: Configured FastViT trunk.
+    """
+    # Instantiate FastViT with the provided hyperparameters
+    trunk = FastViTModel(
+        layers=layers,
+        embed_dims=embed_dim,
+        mlp_ratios=mlp_ratio,
+        mixers=token_mixer,
+        pos_embs=pos_embed,
+        **kwargs,
+    )
+    return trunk
+
+
+class Model(nn.Module):
+    def __init__(self, config: Dict[str, Any], pos_len: int, for_coreml: bool = False):
+        """
+        Initialize the KataGo model with optional FastViT integration.
+
+        *config* (Dict[str, Any]):
+            - Dictionary that can include the FastViT parameters and insertion points.
+        *pos_len* (int):
+            - The board size dimension (19 for standard 19x19, etc.).
+        *for_coreml* (bool):
+            - Flag indicating if the model is for CoreML export (disables some features).
+        """
+
         super(Model, self).__init__()
 
+        # 1) Store basic parameters from config
         self.config = config
         self.norm_kind = config["norm_kind"]
         self.block_kind = config["block_kind"]
         self.c_trunk = config["trunk_num_channels"]
+        self.c_initial = config.get("initial_num_channels", self.c_trunk)
+        self.c_trunkfinal = config.get("turnkfinal_num_channels", self.c_trunk)
         self.c_mid = config["mid_num_channels"]
         self.c_gpool = config["gpool_num_channels"]
         self.c_outermid = config["outermid_num_channels"] if "outermid_num_channels" in config else self.c_mid
+        self.c_p_input = config.get("policy_input_channels", self.c_trunk)
         self.c_p1 = config["p1_num_channels"]
         self.c_g1 = config["g1_num_channels"]
         self.c_v1 = config["v1_num_channels"]
@@ -1510,6 +1566,7 @@ class Model(torch.nn.Module):
         self.pos_len = pos_len
         self.for_coreml = for_coreml
 
+        # 2) Version-based multipliers, unchanged from the base KataGo
         if config["version"] <= 12:
             self.td_score_multiplier = 20.0
             self.scoremean_multiplier = 20.0
@@ -1527,8 +1584,10 @@ class Model(torch.nn.Module):
             self.shortterm_value_error_multiplier = 0.25
             self.shortterm_score_error_multiplier = 150.0
 
+        # 3) Additional trunk parameters
         self.trunk_normless = "trunk_normless" in config and config["trunk_normless"]
 
+        # 4) Check if there's an *intermediate head*
         if "has_intermediate_head" in config and config["has_intermediate_head"]:
             self.has_intermediate_head = True
             self.intermediate_head_blocks = config["intermediate_head_blocks"]
@@ -1536,23 +1595,28 @@ class Model(torch.nn.Module):
             self.has_intermediate_head = False
             self.intermediate_head_blocks = 0
 
+        # 5) Activation function
         self.activation = "relu" if "activation" not in config else config["activation"]
 
+        # 6) Input convolution
         if config["initial_conv_1x1"]:
-            self.conv_spatial = torch.nn.Conv2d(22, self.c_trunk, kernel_size=1, padding="same", bias=False)
+            self.conv_spatial = nn.Conv2d(22, self.c_initial, kernel_size=1, padding="same", bias=False)
         else:
-            self.conv_spatial = torch.nn.Conv2d(22, self.c_trunk, kernel_size=3, padding="same", bias=False)
-        self.linear_global = torch.nn.Linear(19, self.c_trunk, bias=False)
+            self.conv_spatial = nn.Conv2d(22, self.c_initial, kernel_size=3, padding="same", bias=False)
+        self.linear_global = nn.Linear(19, self.c_initial, bias=False)
 
+        # 7) Optional metadata encoder
         if "metadata_encoder" in config and config["metadata_encoder"] is not None:
             self.metadata_encoder = MetadataEncoder(config)
         else:
             self.metadata_encoder = None
 
+        # 8) Input shapes
         self.bin_input_shape = [22, pos_len, pos_len]
         self.global_input_shape = [19]
 
-        self.blocks = torch.nn.ModuleList()
+        # 9) Construct trunk blocks (ResNet-like)
+        self.blocks = nn.ModuleList()
         for block_config in self.block_kind:
             block_name = block_config[0]
             block_kind = block_config[1]
@@ -1570,7 +1634,7 @@ class Model(torch.nn.Module):
                     config=self.config,
                     activation=self.activation,
                 ))
-            elif block_kind == "bottle1" or block_kind == "bottle":
+            elif block_kind in ["bottle1", "bottle"]:
                 self.blocks.append(BottleneckResBlock(
                     name=block_name,
                     internal_length=1,
@@ -1635,9 +1699,10 @@ class Model(torch.nn.Module):
             else:
                 assert False, f"Unknown block kind: {block_config[1]}"
 
+        # 10) Optional Transformer trunk
         if config.get("num_transformer_layers", 0) > 0:
             self.transformer = TransformerTrunk(
-                c_trunk=self.c_trunk,
+                c_trunk=self.c_trunkfinal,
                 num_transformer_layers=config.get("num_transformer_layers", 1),
                 num_heads=config.get("num_transformer_heads", 1),
                 dim_feedforward=config.get("transformer_dim_feedforward", 128),
@@ -1646,21 +1711,23 @@ class Model(torch.nn.Module):
         else:
             self.transformer = None
 
+        # 11) Final trunk norm
         if self.trunk_normless:
-            self.norm_trunkfinal = BiasMask(self.c_trunk, self.config, is_after_batchnorm=True)
+            self.norm_trunkfinal = BiasMask(self.c_trunkfinal, self.config, is_after_batchnorm=True)
         else:
-            self.norm_trunkfinal = NormMask(self.c_trunk, self.config, fixup_use_gamma=False, is_last_batchnorm=True)
+            self.norm_trunkfinal = NormMask(self.c_trunkfinal, self.config, fixup_use_gamma=False, is_last_batchnorm=True)
         self.act_trunkfinal = act(self.activation)
 
+        # 12) Policy/Value heads
         self.policy_head = PolicyHead(
-            self.c_trunk,
+            self.c_p_input,
             self.c_p1,
             self.c_g1,
             self.config,
             self.activation,
         )
         self.value_head = ValueHead(
-            self.c_trunk,
+            self.c_trunkfinal,
             self.c_v1,
             self.c_v2,
             self.c_sv2,
@@ -1669,18 +1736,25 @@ class Model(torch.nn.Module):
             self.activation,
             self.pos_len,
         )
+
+        # 13) If there's an *intermediate* head
         if self.has_intermediate_head:
-            self.norm_intermediate_trunkfinal = NormMask(self.c_trunk, self.config, fixup_use_gamma=False, is_last_batchnorm=True)
+            self.norm_intermediate_trunkfinal = NormMask(
+                self.c_trunkfinal,
+                self.config,
+                fixup_use_gamma=False,
+                is_last_batchnorm=True,
+            )
             self.act_intermediate_trunkfinal = act(self.activation)
             self.intermediate_policy_head = PolicyHead(
-                self.c_trunk,
+                self.c_p_input,
                 self.c_p1,
                 self.c_g1,
                 self.config,
                 self.activation,
             )
             self.intermediate_value_head = ValueHead(
-                self.c_trunk,
+                self.c_trunkfinal,
                 self.c_v1,
                 self.c_v2,
                 self.c_sv2,
@@ -1690,11 +1764,35 @@ class Model(torch.nn.Module):
                 self.pos_len,
             )
 
+        # 14) FastViT trunks (possibly multiple insertion points)
+        #     We'll store them in a dictionary, added post-initialization if needed.
+        self.fastvit_trunks = nn.ModuleDict()
+        self.insertion_points = config.get("fastvit_insertion_points", [])
+
+        if self.insertion_points:
+            # Create each FastViT trunk from provided config
+            fastvit_cfgs = config.get("fastvit_configs", {})
+            for point in self.insertion_points:
+                # Validate insertion point
+                valid_points = {"before_trunk", "after_trunk", "before_policy_head", "before_value_head"}
+                if point not in valid_points:
+                    raise ValueError(
+                        f"Invalid FastViT insertion point '{point}'. Valid: {valid_points}."
+                    )
+
+                # Create and register each trunk
+                trunk = create_fastvit_trunk(**fastvit_cfgs.get(point, {}))
+                self.fastvit_trunks[point] = trunk
+
+
     @property
     def device(self):
         return self.linear_global.weight.device
 
     def initialize(self):
+        """
+        Initialize network weights.
+        """
         with torch.no_grad():
             spatial_scale = 0.8
             global_scale = 0.6
@@ -1708,10 +1806,10 @@ class Model(torch.nn.Module):
                 fixup_scale = 1.0 / math.sqrt(self.num_total_blocks)
                 for block in self.blocks:
                     block.initialize(fixup_scale=fixup_scale)
-            elif self.norm_kind == "fixscale" or self.norm_kind == "fixbrenorm" or self.norm_kind == "fixscaleonenorm":
+            elif self.norm_kind in ["fixscale", "fixbrenorm", "fixscaleonenorm"]:
                 for i, block in enumerate(self.blocks):
-                    block.initialize(fixup_scale=1.0 / math.sqrt(i+1.0))
-                self.norm_trunkfinal.set_scale(1.0 / math.sqrt(self.num_total_blocks+1.0))
+                    block.initialize(fixup_scale=1.0 / math.sqrt(i + 1.0))
+                self.norm_trunkfinal.set_scale(1.0 / math.sqrt(self.num_total_blocks + 1.0))
             else:
                 for block in self.blocks:
                     block.initialize(fixup_scale=1.0)
@@ -1722,15 +1820,19 @@ class Model(torch.nn.Module):
                 self.intermediate_policy_head.initialize()
                 self.intermediate_value_head.initialize()
 
-    def get_norm_kind(self) -> bool:
+    def get_norm_kind(self) -> str:
         return self.norm_kind
 
     def get_has_intermediate_head(self) -> bool:
         return self.has_intermediate_head
+
     def get_has_metadata_encoder(self) -> bool:
         return self.metadata_encoder is not None
 
-    def add_reg_dict(self, reg_dict:Dict[str,List]):
+    def add_reg_dict(self, reg_dict: Dict[str, List]):
+        """
+        Register parameters for regularization (e.g., L2 penalty).
+        """
         reg_dict["normal"] = []
         reg_dict["normal_gamma"] = []
         reg_dict["output"] = []
@@ -1739,6 +1841,7 @@ class Model(torch.nn.Module):
 
         reg_dict["normal"].append(self.conv_spatial.weight)
         reg_dict["normal"].append(self.linear_global.weight)
+
         if self.metadata_encoder is not None:
             self.metadata_encoder.add_reg_dict(reg_dict)
 
@@ -1757,6 +1860,11 @@ class Model(torch.nn.Module):
             self.intermediate_policy_head.add_reg_dict(reg_dict)
             self.intermediate_value_head.add_reg_dict(reg_dict)
 
+        # Add FastViT trunks parameters
+        for name, trunk in self.fastvit_trunks.items():
+            for _, param in trunk.named_parameters():
+                reg_dict["normal"].append(param)
+
     def set_brenorm_params(self, renorm_avg_momentum: float, rmax: float, dmax: float):
         for block in self.blocks:
             block.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
@@ -1768,6 +1876,10 @@ class Model(torch.nn.Module):
             self.intermediate_policy_head.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
             self.intermediate_value_head.set_brenorm_params(renorm_avg_momentum, rmax, dmax)
 
+        for _, trunk in self.fastvit_trunks.items():
+            # If any brenorm settings are relevant to FastViT
+            pass
+
     def add_brenorm_clippage(self, upper_rclippage, lower_rclippage, dclippage):
         for block in self.blocks:
             block.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
@@ -1775,57 +1887,74 @@ class Model(torch.nn.Module):
         self.policy_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
         self.value_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
         if self.has_intermediate_head:
-            self.norm_intermediate_trunkfinal.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
-            self.intermediate_policy_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
-            self.intermediate_value_head.add_brenorm_clippage(upper_rclippage, lower_rclippage, dclippage)
+            self.norm_intermediate_trunkfinal.add_brenorm_clippage(
+                upper_rclippage, lower_rclippage, dclippage
+            )
+            self.intermediate_policy_head.add_brenorm_clippage(
+                upper_rclippage, lower_rclippage, dclippage
+            )
+            self.intermediate_value_head.add_brenorm_clippage(
+                upper_rclippage, lower_rclippage, dclippage
+            )
+
+        for _, trunk in self.fastvit_trunks.items():
+            # If any brenorm clippage is relevant to FastViT
+            pass
 
     # Returns a tuple of tuples of outputs
-    # The outer tuple indexes different sets of heads, such as if the net also computes intermediate heads.
-    #   0 is the main output, 1 is intermediate.
-    # The inner tuple ranges over the outputs of a set of heads (policy, value, etc).
+    # Outer tuple indexes different sets of heads
+    # Inner tuple ranges over the outputs of a set of heads (policy, value, etc.)
     def forward(
         self,
         input_spatial,
         input_global,
-        input_meta = None,
-        extra_outputs: Optional[ExtraOutputs] = None,
+        input_meta=None,
+        extra_outputs: Optional["ExtraOutputs"] = None,
     ):
-        # float_formatter = "{:.3f}".format
-        # np.set_printoptions(formatter={'float_kind':float_formatter}, threshold=1000000, linewidth=10000)
+        """
+        Forward pass with optional FastViT insertion points:
+        - before_trunk
+        - after_trunk
+        - before_policy_head
+        - before_value_head
+        """
 
+        # 1) Basic input setup
         mask = input_spatial[:, 0:1, :, :].contiguous()
-        mask_sum_hw = torch.sum(mask,dim=(2,3),keepdim=True)
+        mask_sum_hw = torch.sum(mask, dim=(2, 3), keepdim=True)
         mask_sum = torch.sum(mask)
 
         x_spatial = self.conv_spatial(input_spatial)
         x_global = self.linear_global(input_global).unsqueeze(-1).unsqueeze(-1)
-
         out = x_spatial + x_global
 
+        # 2) Metadata
         if self.metadata_encoder is not None:
             assert input_meta is not None
-            x_meta = self.metadata_encoder.forward(input_meta,extra_outputs)
+            x_meta = self.metadata_encoder.forward(input_meta, extra_outputs)
             out = out + x_meta.unsqueeze(-1).unsqueeze(-1)
 
-        # print("TENSOR BEFORE TRUNK")
-        # print(out)
-
+        # 3) Possibly disable intermediate head if for_coreml
         self.has_intermediate_head = False if self.for_coreml else self.has_intermediate_head
 
+        # 4) FastViT insertion *before trunk*
+        if "before_trunk" in self.fastvit_trunks:
+            out = self.fastvit_trunks["before_trunk"](out)
+
+        # 5) Main trunk blocks
         if self.has_intermediate_head:
             count = 0
-            for block in self.blocks[:self.intermediate_head_blocks]:
-                # print("TENSOR BEFORE BLOCK")
-                # print(count)
-                # print(out)
+            for block in self.blocks[: self.intermediate_head_blocks]:
                 out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
                 count += 1
 
-            # print("INTERMEDIATE")
+            # Intermediate head output
             iout = out
             iout = self.norm_intermediate_trunkfinal(iout, mask=mask, mask_sum=mask_sum)
             iout = self.act_intermediate_trunkfinal(iout)
-            iout_policy = self.intermediate_policy_head(iout, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+            iout_policy = self.intermediate_policy_head(
+                iout, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs
+            )
             (
                 iout_value,
                 iout_miscvalue,
@@ -1835,35 +1964,61 @@ class Model(torch.nn.Module):
                 iout_futurepos,
                 iout_seki,
                 iout_scorebelief_logprobs,
-            ) = self.intermediate_value_head(iout, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, input_global=input_global, extra_outputs=extra_outputs)
+            ) = self.intermediate_value_head(
+                iout,
+                mask=mask,
+                mask_sum_hw=mask_sum_hw,
+                mask_sum=mask_sum,
+                input_global=input_global,
+                extra_outputs=extra_outputs,
+            )
 
-            for block in self.blocks[self.intermediate_head_blocks:]:
-                # print("TENSOR BEFORE BLOCK")
-                # print(count)
-                # print(out)
+            for block in self.blocks[self.intermediate_head_blocks :]:
                 out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
                 count += 1
-
         else:
             count = 0
             for block in self.blocks:
-                # print("TENSOR BEFORE BLOCK")
-                # print(count)
-                # print(out)
                 out = block(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
                 count += 1
 
+        # 6) FastViT insertion *after trunk*
+        if "after_trunk" in self.fastvit_trunks:
+            out = self.fastvit_trunks["after_trunk"](out)
+
+        # 7) Optional transformer
         if self.transformer is not None:
             out = self.transformer(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
 
+        # 8) Trunk final norm+act
         out = self.norm_trunkfinal(out, mask=mask, mask_sum=mask_sum)
         out = self.act_trunkfinal(out)
 
         if extra_outputs is not None:
             extra_outputs.report("trunkfinal", out)
 
-        # Main Heads
-        out_policy = self.policy_head(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, extra_outputs=extra_outputs)
+        # 9) FastViT insertion *before policy head*
+        if "before_policy_head" in self.fastvit_trunks:
+            out_for_policy = self.fastvit_trunks["before_policy_head"](out)
+        else:
+            out_for_policy = out
+
+        # Policy Head
+        out_policy = self.policy_head(
+            out_for_policy,
+            mask=mask,
+            mask_sum_hw=mask_sum_hw,
+            mask_sum=mask_sum,
+            extra_outputs=extra_outputs,
+        )
+
+        # 10) FastViT insertion *before value head*
+        if "before_value_head" in self.fastvit_trunks:
+            out_for_value = self.fastvit_trunks["before_value_head"](out)
+        else:
+            out_for_value = out
+
+        # Value Head
         (
             out_value,
             out_miscvalue,
@@ -1873,7 +2028,14 @@ class Model(torch.nn.Module):
             out_futurepos,
             out_seki,
             out_scorebelief_logprobs,
-        ) = self.value_head(out, mask=mask, mask_sum_hw=mask_sum_hw, mask_sum=mask_sum, input_global=input_global, extra_outputs=extra_outputs)
+        ) = self.value_head(
+            out_for_value,
+            mask=mask,
+            mask_sum_hw=mask_sum_hw,
+            mask_sum=mask_sum,
+            input_global=input_global,
+            extra_outputs=extra_outputs,
+        )
 
         if self.has_intermediate_head:
             return (
@@ -1901,25 +2063,29 @@ class Model(torch.nn.Module):
                 ),
             )
         elif self.for_coreml:
-            return ((
-                out_policy,
-                out_value,
-                out_miscvalue,
-                out_moremiscvalue,
-                out_ownership,
-            ),)
+            return (
+                (
+                    out_policy,
+                    out_value,
+                    out_miscvalue,
+                    out_moremiscvalue,
+                    out_ownership,
+                ),
+            )
         else:
-            return ((
-                out_policy,
-                out_value,
-                out_miscvalue,
-                out_moremiscvalue,
-                out_ownership,
-                out_scoring,
-                out_futurepos,
-                out_seki,
-                out_scorebelief_logprobs,
-            ),)
+            return (
+                (
+                    out_policy,
+                    out_value,
+                    out_miscvalue,
+                    out_moremiscvalue,
+                    out_ownership,
+                    out_scoring,
+                    out_futurepos,
+                    out_seki,
+                    out_scorebelief_logprobs,
+                ),
+            )
 
     def float32ify_output(self, outputs_byheads):
         return tuple(self.float32ify_single_heads_output(outputs) for outputs in outputs_byheads)
@@ -1976,28 +2142,30 @@ class Model(torch.nn.Module):
         pred_scorestdev = SoftPlusWithGradientFloorFunction.apply(out_miscvalue[:, 1], 0.05, False) * self.scorestdev_multiplier
         pred_lead = out_miscvalue[:, 2] * self.lead_multiplier
         pred_variance_time = SoftPlusWithGradientFloorFunction.apply(out_miscvalue[:, 3], 0.05, False) * self.variance_time_multiplier
+
         if self.config["version"] < 14:
             pred_shortterm_value_error = SoftPlusWithGradientFloorFunction.apply(out_moremiscvalue[:,0], 0.05, False) * self.shortterm_value_error_multiplier
             pred_shortterm_score_error = SoftPlusWithGradientFloorFunction.apply(out_moremiscvalue[:,1], 0.05, False) * self.shortterm_score_error_multiplier
         else:
             pred_shortterm_value_error = SoftPlusWithGradientFloorFunction.apply(out_moremiscvalue[:,0], 0.05, True) * self.shortterm_value_error_multiplier
             pred_shortterm_score_error = SoftPlusWithGradientFloorFunction.apply(out_moremiscvalue[:,1], 0.05, True) * self.shortterm_score_error_multiplier
+
         scorebelief_logits = out_scorebelief_logprobs
 
         return (
-            policy_logits,      # N, num_policy_outputs, move
-            value_logits,       # N, {win,loss,noresult}
-            td_value_logits,    # N, {long, mid, short} {win,loss,noresult}
-            pred_td_score,      # N, {long, mid, short}
-            ownership_pretanh,  # N, 1, y, x
-            pred_scoring,       # N, 1, y, x
-            futurepos_pretanh,  # N, 2, y, x
-            seki_logits,        # N, 4, y, x
-            pred_scoremean,     # N
-            pred_scorestdev,    # N
-            pred_lead,          # N
-            pred_variance_time, # N
+            policy_logits,       # N, num_policy_outputs, move
+            value_logits,        # N, {win,loss,noresult}
+            td_value_logits,     # N, {long, mid, short} {win,loss,noresult}
+            pred_td_score,       # N, {long, mid, short}
+            ownership_pretanh,   # N, 1, y, x
+            pred_scoring,        # N, 1, y, x
+            futurepos_pretanh,   # N, 2, y, x
+            seki_logits,         # N, 4, y, x
+            pred_scoremean,      # N
+            pred_scorestdev,     # N
+            pred_lead,           # N
+            pred_variance_time,  # N
             pred_shortterm_value_error, # N
             pred_shortterm_score_error, # N
-            scorebelief_logits, # N, 2 * (self.pos_len*self.pos_len + EXTRA_SCORE_DISTR_RADIUS)
+            scorebelief_logits,  # N, 2*(pos_len*pos_len + EXTRA_SCORE_DISTR_RADIUS)
         )
