@@ -29,6 +29,10 @@ struct StatusToolbarItems: View {
             }
 
             Button(action: backwardAction) {
+                Image(systemName: "backward")
+            }
+
+            Button(action: backwardFrameAction) {
                 Image(systemName: "backward.frame")
             }
 
@@ -49,8 +53,12 @@ struct StatusToolbarItems: View {
                 }
             }
 
-            Button(action: forwardAction) {
+            Button(action: forwardFrameAction) {
                 Image(systemName: "forward.frame")
+            }
+
+            Button(action: forwardAction) {
+                Image(systemName: "forward")
             }
 
             Button(action: forwardEndAction) {
@@ -59,7 +67,37 @@ struct StatusToolbarItems: View {
         }
     }
 
+    func backwardEndAction() {
+        backwardMoves(limit: nil)
+        sendPostExecutionCommands()
+    }
+
     func backwardAction() {
+        backwardMoves(limit: 10)
+        sendPostExecutionCommands()
+    }
+
+    private func backwardMoves(limit: Int?) {
+        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
+        var movesExecuted = 0
+
+        while sgfHelper.getMove(at: (branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) - 1) != nil {
+            if branchState.isActive {
+                branchState.undo()
+            } else {
+                gameRecord.undo()
+            }
+            messageList.appendAndSend(command: "undo")
+            player.toggleNextColorForPlayCommand()
+
+            movesExecuted += 1
+            if let limit = limit, movesExecuted >= limit {
+                break
+            }
+        }
+    }
+
+    func backwardFrameAction() {
         if branchState.isActive {
             branchState.undo()
         } else {
@@ -88,64 +126,56 @@ struct StatusToolbarItems: View {
         messageList.appendAndSend(command: "stop")
     }
 
-    func forwardAction() {
-        let currentIndex = branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex
-        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
-        if let nextMove = sgfHelper.getMove(at: currentIndex) {
-            if let move = locationToMove(location: nextMove.location) {
-                if branchState.isActive {
-                    branchState.currentIndex = currentIndex + 1
-                } else {
-                    gameRecord.currentIndex = currentIndex + 1
-                }
-                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
-                player.toggleNextColorForPlayCommand()
-                audioModel.playPlaySound(soundEffect: config.soundEffect)
-            }
-        }
+    func forwardFrameAction() {
+        forwardMoves(limit: 1)
+    }
 
-        gobanState.sendShowBoardCommand(messageList: messageList)
-        gobanState.maybeRequestAnalysis(config: config,
-                                        nextColorForPlayCommand: player.nextColorForPlayCommand,
-                                        messageList: messageList)
-        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+    func forwardAction() {
+        forwardMoves(limit: 10)
     }
 
     func forwardEndAction() {
+        forwardMoves(limit: nil)
+    }
+
+    private func forwardMoves(limit: Int?) {
         let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
-        while let nextMove = sgfHelper.getMove(at: branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) {
+        var movesExecuted = 0
+
+        while let nextMove = sgfHelper.getMove(at: currentIndex) {
             if let move = locationToMove(location: nextMove.location) {
-                if branchState.isActive {
-                    branchState.currentIndex = branchState.currentIndex + 1
-                } else {
-                    gameRecord.currentIndex = gameRecord.currentIndex + 1
-                }
+                updateCurrentIndex()
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
                 player.toggleNextColorForPlayCommand()
+
+                movesExecuted += 1
+                if let limit = limit, movesExecuted >= limit {
+                    break
+                }
             }
         }
 
-        gobanState.sendShowBoardCommand(messageList: messageList)
-        gobanState.maybeRequestAnalysis(config: config,
-                                        nextColorForPlayCommand: player.nextColorForPlayCommand,
-                                        messageList: messageList)
-        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
+        if movesExecuted > 0 {
+            audioModel.playPlaySound(soundEffect: config.soundEffect)
+        }
+
+        sendPostExecutionCommands()
     }
 
-    func backwardEndAction() {
-        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
-        while sgfHelper.getMove(at: (branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) - 1) != nil {
-            if branchState.isActive {
-                branchState.undo()
-            } else {
-                gameRecord.undo()
-            }
-            messageList.appendAndSend(command: "undo")
-            player.toggleNextColorForPlayCommand()
-        }
+    private var currentIndex: Int {
+        branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex
+    }
 
+    private func updateCurrentIndex() {
+        if branchState.isActive {
+            branchState.currentIndex += 1
+        } else {
+            gameRecord.currentIndex += 1
+        }
+    }
+
+    private func sendPostExecutionCommands() {
         gobanState.sendShowBoardCommand(messageList: messageList)
         gobanState.maybeRequestAnalysis(config: config,
                                         nextColorForPlayCommand: player.nextColorForPlayCommand,
