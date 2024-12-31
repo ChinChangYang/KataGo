@@ -457,7 +457,7 @@ class Mixer(nn.Module):
         self.norm_block.reparameterize()
 
         # Merge weights and biases from mixer and normalization
-        merged_weight = self.mixer_block.conv.weight + self.scale.unsqueeze(-1) * (
+        merged_weight = self.mixer_block.identity_weight + self.scale.unsqueeze(-1) * (
             self.mixer_block.conv.weight - self.norm_block.conv.weight
         )
         merged_bias = self.scale.squeeze() * (
