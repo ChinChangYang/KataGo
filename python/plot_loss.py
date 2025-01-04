@@ -59,13 +59,14 @@ def update_plot(args):
         for nsamp, loss, parent_directory in plot_data:
             plt.plot(nsamp, loss, label=parent_directory)
 
+        plt.xscale("log")  # Set x-axis to log scale
         plt.title("nsamp vs. loss for all files")
         plt.xlabel("nsamp")
         plt.ylabel("vloss" if args.use_vloss else "p0loss")
         plt.grid(True)
         plt.legend()
         plt.draw()
-        plt.pause(0.5)  # Keep the GUI responsive
+        plt.pause(3)  # Keep the GUI responsive
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot metrics from JSON files.")
