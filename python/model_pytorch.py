@@ -1499,24 +1499,18 @@ def create_fastvit_trunk(
     **kwargs,
 ) -> "FastViTModel":
     """
-    *Initialize* a FastViT trunk with the specified hyperparameters.
+    Initialize a FastViT trunk with the specified hyperparameters.
 
-    **Args**:
-    - **layers** (List[int]): Number of layers in each FastViT stage.
-    - **embed_dim** (List[int]): Embedding dimensions for each FastViT stage.
-    - **mlp_ratio** (List[float]): MLP expansion ratios for each FastViT stage.
-    - **token_mixer** (List[str]): Types of token mixers for each FastViT stage (e.g., 'repmixer', 'attention').
-    - **pos_embed** (List[Optional[Any]]): Positional embeddings for each FastViT stage (e.g., None or partial(RepCPE, ...)).
-    - **downsample** (List[bool]): Whether to apply downsampling between FastViT stages.
-    - **activation** (str, optional): Activation function to use ('relu' or 'gelu'). Defaults to *relu*.
-    - **down_patch_size** (int, optional): Patch size for downsampling. Defaults to 7.
-    - **down_stride** (int, optional): Stride for downsampling. Defaults to 2.
-    - **pretrained** (bool, optional): Whether to load pretrained weights. Defaults to False.
-    - **in_channels** (int, optional): Number of input channels. Defaults to 3.
-    - **kwargs**: Additional keyword arguments for FastViT.
+    Args:
+    - layers (List[int]): Number of layers in each FastViT stage.
+    - embed_dim (List[int]): Embedding dimensions for each FastViT stage.
+    - mlp_ratio (List[float]): MLP expansion ratios for each FastViT stage.
+    - token_mixer (List[str]): Types of token mixers for each FastViT stage (e.g., 'mixer', 'attention').
+    - pos_embed (List[Optional[Any]]): Positional embeddings for each FastViT stage (e.g., None or partial(PositionalEncoding)).
+    - **kwargs: Additional keyword arguments for FastViT.
 
-    **Returns**:
-    - **FastViT**: Configured FastViT trunk.
+    Returns:
+    - FastViTModel: Configured FastViT trunk.
     """
     # Instantiate FastViT with the provided hyperparameters
     trunk = FastViTModel(
@@ -1535,11 +1529,11 @@ class Model(nn.Module):
         """
         Initialize the KataGo model with optional FastViT integration.
 
-        *config* (Dict[str, Any]):
+        - config (Dict[str, Any]):
             - Dictionary that can include the FastViT parameters and insertion points.
-        *pos_len* (int):
+        - pos_len (int):
             - The board size dimension (19 for standard 19x19, etc.).
-        *for_coreml* (bool):
+        - for_coreml (bool):
             - Flag indicating if the model is for CoreML export (disables some features).
         """
 
