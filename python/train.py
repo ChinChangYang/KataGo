@@ -29,6 +29,7 @@ import torch.multiprocessing
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.swa_utils import AveragedModel
 from torch.cuda.amp import GradScaler, autocast
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import modelconfigs
 from model_pytorch import Model, ExtraOutputs, MetadataEncoder
@@ -299,7 +300,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         return os.path.join(traindir,f"checkpoint_prev{i}.ckpt")
 
     NUM_SHORTTERM_CHECKPOINTS_TO_KEEP = 4
-    def save(ddp_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics, path=None):
+    def save(ddp_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics, path=None):
         if gnorm_stats_debug:
             logging.warning("Skipping save since debugging gnorm stats")
             return
@@ -307,6 +308,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
             state_dict = {}
             state_dict["model"] = ddp_model.state_dict()
             state_dict["optimizer"] = optimizer.state_dict()
+            state_dict["scheduler"] = scheduler.state_dict()
             state_dict["metrics"] = metrics_obj.state_dict()
             state_dict["running_metrics"] = running_metrics
             state_dict["train_state"] = train_state
@@ -418,11 +420,15 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
     def get_optimizer(raw_model, train_state, running_metrics):
         if use_adamw:
-            optimizer = torch.optim.AdamW(raw_model.parameters())
-            # optimizer = torch.optim.RAdam(raw_model.parameters(), weight_decay=1e-2, decoupled_weight_decay=True)
+            # optimizer = torch.optim.AdamW(raw_model.parameters())
+            optimizer = torch.optim.RAdam(raw_model.parameters(), weight_decay=5e-2, decoupled_weight_decay=True)
+            # optimizer = torch.optim.RAdam(raw_model.parameters())
         else:
             optimizer = torch.optim.SGD(get_param_groups(raw_model,train_state,running_metrics), lr=1.0, momentum=0.9)
-        return optimizer
+
+        scheduler = CosineAnnealingLR(optimizer, T_max=50)
+    
+        return optimizer, scheduler
 
     def load():
         if not os.path.exists(get_checkpoint_path()):
@@ -475,9 +481,9 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                 train_state["modelnorm_normal_baseline"] = modelnorm_normal_baseline
                 logging.info(f"Model norm normal baseline computed: {modelnorm_normal_baseline}")
 
-            optimizer = get_optimizer(raw_model, train_state, running_metrics)
+            optimizer, scheduler = get_optimizer(raw_model, train_state, running_metrics)
 
-            return (model_config, ddp_model, raw_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics)
+            return (model_config, ddp_model, raw_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics)
         else:
             state_dict = torch.load(path_to_load_from, map_location=device)
             model_config = state_dict["config"] if "config" in state_dict else modelconfigs.config_of_name[model_kind]
@@ -537,16 +543,21 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
             else:
                 logging.info("WARNING: Running metrics not found in state dict, using fresh last val metrics")
 
-            optimizer = get_optimizer(raw_model, train_state, running_metrics)
+            optimizer, scheduler = get_optimizer(raw_model, train_state, running_metrics)
 
             if "optimizer" in state_dict:
                 optimizer.load_state_dict(state_dict["optimizer"])
             else:
                 logging.info("WARNING: Optimizer not found in state dict, using fresh optimizer")
 
-            return (model_config, ddp_model, raw_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics)
+            if "scheduler" in state_dict:
+                scheduler.load_state_dict(state_dict["scheduler"])
+            else:
+                logging.info("WARNING: Scheduler not found in state dict, using fresh scheduler")
 
-    (model_config, ddp_model, raw_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics) = load()
+            return (model_config, ddp_model, raw_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics)
+
+    (model_config, ddp_model, raw_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics) = load()
 
 
     if "global_step_samples" not in train_state:
@@ -565,6 +576,8 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         train_state["data_files_used"] = set()
     if "swa_sample_accum" not in train_state:
         train_state["swa_sample_accum"] = 0.0
+    if "scheduler_sample_accum" not in train_state:
+        train_state["scheduler_sample_accum"] = 0.0
 
 
     if intermediate_loss_scale is not None:
@@ -781,7 +794,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                 # Fill the buckets
                 if max_train_bucket_per_new_data is not None:
                     if "train_bucket_level_at_row" not in train_state:
-                        train_state["train_bucket_level_at_row"] = train_state["total_num_data_rows"]
+                        train_state["train_bucket_level_at_row"] = 0 # train_state["total_num_data_rows"]
                     if train_state["total_num_data_rows"] > train_state["train_bucket_level_at_row"]:
                         new_row_count = train_state["total_num_data_rows"] - train_state["train_bucket_level_at_row"]
                         logging.info("Advancing trainbucket row %.0f to %.0f, %.0f new rows" % (
@@ -1040,6 +1053,13 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
             logging.info("Beginning training subepoch!")
             logging.info("This subepoch, using files: " + str(train_files_to_use))
             logging.info("Currently up to data row " + str(train_state["total_num_data_rows"]))
+
+            # Log current learning rate
+            current_counter = str(train_state["export_cycle_counter"])
+            current_lr = scheduler.get_last_lr()[0]
+            current_samples = train_state["global_step_samples"]
+            logging.info(f"Current Learning Rate [{current_counter}]: {current_lr} at {current_samples} samples")
+
             lookahead_counter = 0
             for batch in data_processing_pytorch.read_npz_training_data(
                 train_files_to_use,
@@ -1208,6 +1228,17 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                         logging.info("Accumulating SWA")
                         swa_model.update_parameters(raw_model)
 
+                train_state["scheduler_sample_accum"] += batch_size * world_size
+                if train_state["scheduler_sample_accum"] >= 1e5:
+                    train_state["scheduler_sample_accum"] = 0
+                    logging.info("Updating learning rate scheduler")
+                    scheduler.step()
+                    # Log current learning rate
+                    current_counter = str(train_state["export_cycle_counter"])
+                    current_lr = scheduler.get_last_lr()[0]
+                    current_samples = train_state["global_step_samples"]
+                    logging.info(f"Current Learning Rate [{current_counter}]: {current_lr} at {current_samples} samples")
+
             logging.info("Finished training subepoch!")
 
         # END SUB EPOCH LOOP ------------
@@ -1223,7 +1254,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         if rank == 0:
             train_state["export_cycle_counter"] += 1
 
-        save(ddp_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics)
+        save(ddp_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics)
 
         num_epochs_this_instance += 1
 
@@ -1328,7 +1359,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                 else:
                     os.mkdir(savepathtmp)
                     logging.info("SAVING MODEL FOR EXPORT TO: " + savepath)
-                    save(ddp_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics, path=os.path.join(savepathtmp,"model.ckpt"))
+                    save(ddp_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics, path=os.path.join(savepathtmp,"model.ckpt"))
                     time.sleep(2)
                     os.rename(savepathtmp,savepath)
 
@@ -1343,7 +1374,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
             if now - last_longterm_checkpoint_save_time >= datetime.timedelta(hours=12):
                 last_longterm_checkpoint_save_time = now
                 dated_name = datetime.datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-                save(ddp_model, swa_model, optimizer, metrics_obj, running_metrics, train_state, last_val_metrics, path=os.path.join(longterm_checkpoints_dir,f"{dated_name}.ckpt"))
+                save(ddp_model, swa_model, optimizer, scheduler, metrics_obj, running_metrics, train_state, last_val_metrics, path=os.path.join(longterm_checkpoints_dir,f"{dated_name}.ckpt"))
 
     train_metrics_out.close()
     val_metrics_out.close()
