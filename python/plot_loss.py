@@ -11,25 +11,36 @@ import queue
 # Queue for communicating between threads
 plot_update_queue = queue.Queue()
 
+
 def process_metrics_file(args):
     file_paths = glob.glob(args.metrics_path)
     plot_data = []
 
     for file_path in file_paths:
         try:
-            with open(file_path, 'r') as file:
+            with open(file_path, "r") as file:
                 logs = [json.loads(line) for line in file]
 
-            nsamp = [entry["nsamp"] for entry in logs if "nsamp" in entry and entry["nsamp"] <= args.nsamp_threshold]
+            nsamp = [
+                entry["nsamp"]
+                for entry in logs
+                if "nsamp" in entry and entry["nsamp"] <= args.nsamp_threshold
+            ]
             loss_key = "vloss" if args.use_vloss else "p0loss"
-            loss = [entry[loss_key] for entry in logs if loss_key in entry and entry.get("nsamp", float('inf')) <= args.nsamp_threshold]
+            loss = [
+                entry[loss_key]
+                for entry in logs
+                if loss_key in entry
+                and entry.get("nsamp", float("inf")) <= args.nsamp_threshold
+            ]
 
             parent_directory = os.path.basename(os.path.dirname(file_path))
             plot_data.append((nsamp, loss, parent_directory))
         except Exception as e:
             print(f"Error processing file {file_path}: {e}")
-    
+
     return plot_data
+
 
 class MetricsEventHandler(FileSystemEventHandler):
     def __init__(self, args):
@@ -39,6 +50,7 @@ class MetricsEventHandler(FileSystemEventHandler):
         if event.src_path.endswith(".json"):
             print(f"File modified: {event.src_path}")
             plot_update_queue.put("update")  # Signal an update
+
 
 def update_plot(args):
     # Initial plot
@@ -54,6 +66,9 @@ def update_plot(args):
         except queue.Empty:
             pass  # No updates, continue
 
+        # Sort the plot data by parent_directory (label)
+        plot_data.sort(key=lambda x: x[2])  # x[2] is the parent_directory
+
         # Update the plot
         plt.clf()
         for nsamp, loss, parent_directory in plot_data:
@@ -68,15 +83,30 @@ def update_plot(args):
         plt.draw()
         plt.pause(3)  # Keep the GUI responsive
 
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot metrics from JSON files.")
-parser.add_argument("--use_vloss", action="store_true", help="Replace p0loss with vloss")
-parser.add_argument("--nsamp_threshold", type=float, default=float('inf'), help="Threshold for nsamp values")
-parser.add_argument("--metrics_path", type=str, default="*/train/*/metrics_train.json", help="Path to search for JSON files")
+parser.add_argument(
+    "--use_vloss", action="store_true", help="Replace p0loss with vloss"
+)
+parser.add_argument(
+    "--nsamp_threshold",
+    type=float,
+    default=float("inf"),
+    help="Threshold for nsamp values",
+)
+parser.add_argument(
+    "--metrics_path",
+    type=str,
+    default="*/train/*/metrics_train.json",
+    help="Path to search for JSON files",
+)
 args = parser.parse_args()
 
 # Set up the watchdog observer
-path_to_watch = os.path.commonpath([os.path.dirname(path) for path in glob.glob(args.metrics_path)])
+path_to_watch = os.path.commonpath(
+    [os.path.dirname(path) for path in glob.glob(args.metrics_path)]
+)
 observer = Observer()
 handler = MetricsEventHandler(args)
 observer.schedule(handler, path=path_to_watch, recursive=True)
