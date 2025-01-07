@@ -40,8 +40,8 @@ then
   (
       time python ./shuffle.py \
            "$BASEDIR"/selfplay/ \
-           -expand-window-per-row 0.4 \
-           -taper-window-exponent 0.65 \
+           -expand-window-per-row 1.0 \
+           -taper-window-exponent 1.0 \
            -out-dir "$BASEDIR"/shuffleddata/$OUTDIRTRAIN \
            -out-tmp-dir "$TMPDIR"/train \
            -approx-rows-per-out-file 70000 \
