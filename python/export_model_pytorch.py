@@ -64,7 +64,7 @@ def main(args):
     logging.info(str(sys.argv))
 
     # LOAD MODEL ---------------------------------------------------------------------
-    model, swa_model, other_state_dict = load_model(checkpoint_file, use_swa, device="cpu", pos_len=9, verbose=True)
+    model, swa_model, other_state_dict = load_model(checkpoint_file, use_swa, device="cpu", pos_len=19, verbose=True)
     model_config = model.config
 
     # WRITING MODEL ----------------------------------------------------------------
