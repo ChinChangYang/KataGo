@@ -44,6 +44,9 @@ function exportStuff() {
         elif [ ${FILEPATH: -9} == ".exported" ]
         then
             echo "Skipping self tmp file:" "$FILEPATH"
+        elif [ ${FILEPATH: -9} == ".DS_Store" ]
+        then
+            echo "Skipping .DS_Store:" "$FILEPATH"
         else
             echo "Found model to export:" "$FILEPATH"
             NAME="$(basename "$FILEPATH")"
