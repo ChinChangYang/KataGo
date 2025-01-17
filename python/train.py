@@ -112,7 +112,9 @@ if __name__ == "__main__":
 
     optional_args.add_argument('-main-loss-scale', type=float, help='Loss factor scale for main head', required=False)
     optional_args.add_argument('-intermediate-loss-scale', type=float, help='Loss factor scale for intermediate head', required=False)
-    optional_args.add_argument('-use-adamw', required=False, action='store_true')
+    optional_args.add_argument('-use-radam', help='Use the RAdam optimizer', required=False, action='store_true')
+    optional_args.add_argument('-radam-weight-decay', type=float, default=5e-2, help='Weight decay for RAdam optimizer', required=False)
+    optional_args.add_argument('-lr-scheduler-period-samples', type=float, default=5e4, help='How frequently to update learning rate, in samples', required=False)
 
     args = vars(parser.parse_args())
 
@@ -199,7 +201,9 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
     main_loss_scale = args["main_loss_scale"]
     intermediate_loss_scale = args["intermediate_loss_scale"]
-    use_adamw = args["use_adamw"]
+    use_radam = args["use_radam"]
+    radam_weight_decay = args["radam_weight_decay"]
+    lr_scheduler_period_samples = args["lr_scheduler_period_samples"]
 
     if lr_scale is None:
         lr_scale = 1.0
@@ -419,15 +423,18 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         return param_groups
 
     def get_optimizer(raw_model, train_state, running_metrics):
-        if use_adamw:
-            # optimizer = torch.optim.AdamW(raw_model.parameters())
-            optimizer = torch.optim.RAdam(raw_model.parameters(), weight_decay=5e-2, decoupled_weight_decay=True)
-            # optimizer = torch.optim.RAdam(raw_model.parameters())
+        if use_radam:
+            optimizer = torch.optim.RAdam(raw_model.parameters(), weight_decay=radam_weight_decay, decoupled_weight_decay=True)
+            if max_training_samples is not None:
+                T_max = max_training_samples // lr_scheduler_period_samples
+                logging.info(f"Scheduler T_max: {T_max}")
+                scheduler = CosineAnnealingLR(optimizer, T_max=T_max)
+            else:
+                scheduler = None
         else:
             optimizer = torch.optim.SGD(get_param_groups(raw_model,train_state,running_metrics), lr=1.0, momentum=0.9)
+            scheduler = None
 
-        scheduler = CosineAnnealingLR(optimizer, T_max=50)
-    
         return optimizer, scheduler
 
     def load():
@@ -637,7 +644,7 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
     # EPOCHS AND LR ---------------------------------------------------------------------
 
-    def update_and_return_lr_and_wd_for_sgd():
+    def update_and_return_lr_and_wd():
         per_sample_lr = 0.00003 * lr_scale * lr_scale_auto_factor(train_state)
 
         # Warmup for initial training
@@ -724,11 +731,6 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
 
         return per_sample_lr * warmup_scale, normal_weight_decay
 
-    def update_and_return_lr_and_wd():
-        if use_adamw:
-            return 1, 0
-        else:
-            return update_and_return_lr_and_wd_for_sgd()
 
     last_brenorm_update_samples_this_instance = train_state["global_step_samples"]
     def maybe_update_brenorm_params():
@@ -1014,7 +1016,12 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
         if use_fp16:
             logging.info(f"Current grad scale: {scaler.get_scale()}")
 
-        lr_right_now, normal_weight_decay_right_now = update_and_return_lr_and_wd()
+        if scheduler is not None:
+            lr_right_now = scheduler.get_last_lr()[0]
+            normal_weight_decay_right_now = radam_weight_decay
+        else:
+            lr_right_now, normal_weight_decay_right_now = update_and_return_lr_and_wd()
+
         maybe_update_brenorm_params()
 
         # SUB EPOCH LOOP -----------
@@ -1196,8 +1203,16 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                     metrics["time_since_last_print"] = timediff
                     log_metrics(running_metrics["sums"], running_metrics["weights"], metrics, train_metrics_out)
 
-                # Update LR more frequently at the start for smoother warmup ramp and wd adjustment
-                if train_state["global_step_samples"] <= 50000000 and batch_count_this_epoch % 50 == 0:
+                if scheduler is not None:
+                    # Perform learning rate scheduler
+                    train_state["scheduler_sample_accum"] += batch_size * world_size
+                    if train_state["scheduler_sample_accum"] >= lr_scheduler_period_samples:
+                        train_state["scheduler_sample_accum"] = 0
+                        scheduler.step()
+                        lr_right_now = scheduler.get_last_lr()[0]
+                        normal_weight_decay_right_now = radam_weight_decay
+                elif train_state["global_step_samples"] <= 50000000 and batch_count_this_epoch % 50 == 0:
+                    # Update LR more frequently at the start for smoother warmup ramp and wd adjustment
                     lr_right_now, normal_weight_decay_right_now = update_and_return_lr_and_wd()
 
                 # Update batch renorm parameters
@@ -1227,17 +1242,6 @@ def main(rank: int, world_size: int, args, multi_gpu_device_ids, readpipes, writ
                         train_state["swa_sample_accum"] = 0
                         logging.info("Accumulating SWA")
                         swa_model.update_parameters(raw_model)
-
-                train_state["scheduler_sample_accum"] += batch_size * world_size
-                if train_state["scheduler_sample_accum"] >= 1e5:
-                    train_state["scheduler_sample_accum"] = 0
-                    logging.info("Updating learning rate scheduler")
-                    scheduler.step()
-                    # Log current learning rate
-                    current_counter = str(train_state["export_cycle_counter"])
-                    current_lr = scheduler.get_last_lr()[0]
-                    current_samples = train_state["global_step_samples"]
-                    logging.info(f"Current Learning Rate [{current_counter}]: {current_lr} at {current_samples} samples")
 
             logging.info("Finished training subepoch!")
 
