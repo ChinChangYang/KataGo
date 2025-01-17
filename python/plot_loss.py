@@ -5,7 +5,6 @@ import argparse
 import os
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-import threading
 import queue
 
 # Queue for communicating between threads
@@ -26,7 +25,7 @@ def process_metrics_file(args):
                 for entry in logs
                 if "nsamp" in entry and entry["nsamp"] <= args.nsamp_threshold
             ]
-            loss_key = "vloss" if args.use_vloss else "p0loss"
+            loss_key = args.metric
             loss = [
                 entry[loss_key]
                 for entry in logs
@@ -75,10 +74,17 @@ def update_plot(args):
             plt.plot(nsamp, loss, label=parent_directory)
 
         plt.xscale("log")  # Set x-axis to log scale
-        plt.title("nsamp vs. loss for all files")
+
+        # Conditional Y-axis scaling
+        if args.metric == "pslr_batch":
+            plt.yscale("log")  # Set y-axis to log scale for pslr_batch
+        else:
+            plt.yscale("linear")  # Set y-axis to linear scale for other metrics
+
+        plt.title(f"nsamp vs. {args.metric} for all files")
         plt.xlabel("nsamp")
-        plt.ylabel("vloss" if args.use_vloss else "p0loss")
-        plt.grid(True)
+        plt.ylabel(args.metric)
+        plt.grid(True, which="both", ls="--", linewidth=0.5)
         plt.legend()
         plt.draw()
         plt.pause(3)  # Keep the GUI responsive
@@ -87,7 +93,11 @@ def update_plot(args):
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot metrics from JSON files.")
 parser.add_argument(
-    "--use_vloss", action="store_true", help="Replace p0loss with vloss"
+    "--metric",
+    type=str,
+    choices=["p0loss", "vloss", "pslr_batch"],
+    default="p0loss",
+    help="Metric to plot: p0loss, vloss, or pslr_batch",
 )
 parser.add_argument(
     "--nsamp_threshold",
@@ -101,6 +111,7 @@ parser.add_argument(
     default="*/train/*/metrics_train.json",
     help="Path to search for JSON files",
 )
+
 args = parser.parse_args()
 
 # Set up the watchdog observer
