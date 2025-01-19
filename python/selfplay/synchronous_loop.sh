@@ -56,14 +56,15 @@ mkdir -p "$BASEDIR"/gatekeepersgf
 
 NUM_GAMES_PER_CYCLE=500 # Every cycle, play this many games
 NUM_THREADS_FOR_SHUFFLING=8
-NUM_TRAIN_SAMPLES_PER_EPOCH=1000000  # Training will proceed in chunks of this many rows, subject to MAX_TRAIN_PER_DATA.
+NUM_TRAIN_SAMPLES_PER_EPOCH=500000  # Training will proceed in chunks of this many rows, subject to MAX_TRAIN_PER_DATA.
 MAX_TRAIN_PER_DATA=10 # On average, train only this many times on each data row. Larger numbers may cause overfitting.
 NUM_TRAIN_SAMPLES_PER_SWA=100000  # Stochastic weight averaging frequency.
 BATCHSIZE=128 # For lower-end GPUs 64 or smaller may be needed to avoid running out of GPU memory.
 SHUFFLE_MINROWS=100000 # Require this many rows at the very start before beginning training.
 MAX_TRAIN_SAMPLES_PER_CYCLE=5000000  # Each cycle will do at most this many training steps.
 TAPER_WINDOW_SCALE=50000 # Parameter setting the scale at which the shuffler will make the training window grow sublinearly.
-SHUFFLE_KEEPROWS=10000000 # Needs to be larger than MAX_TRAIN_SAMPLES_PER_CYCLE, so the shuffler samples enough rows each cycle for the training to use.
+SHUFFLE_KEEPROWS=30000000 # Needs to be larger than MAX_TRAIN_SAMPLES_PER_CYCLE, so the shuffler samples enough rows each cycle for the training to use.
+MAX_TRAIN_SAMPLES=10000000 # Maximum training samples, affecting learning rate scheduler.
 
 # Paths to the selfplay and gatekeeper configs that contain board sizes, rules, search parameters, etc.
 # See cpp/configs/training/README.md for some notes on other selfplay configs.
@@ -88,22 +89,29 @@ cd "$DATED_ARCHIVE"
 
 # Begin cycling forever, running each step in order.
 set -x
-for i in {1..5}
-do
-    echo "Shuffle"
-    (
-        # Skip validate since peeling off 5% of data is actually a bit too chunky and discrete when running at a small scale, and validation data
-        # doesn't actually add much to debugging a fast-changing RL training.
-        time SKIP_VALIDATE=1 ./shuffle.sh "$BASEDIR" "$SCRATCHDIR" "$NUM_THREADS_FOR_SHUFFLING" "$BATCHSIZE" -min-rows "$SHUFFLE_MINROWS" -keep-target-rows "$SHUFFLE_KEEPROWS" -taper-window-scale "$TAPER_WINDOW_SCALE" | tee -a "$BASEDIR"/logs/outshuffle.txt
-    )
 
+# echo "Shuffle"
+# (
+#     # Skip validate since peeling off 5% of data is actually a bit too chunky and discrete when running at a small scale, and validation data
+#     # doesn't actually add much to debugging a fast-changing RL training.
+#     time SKIP_VALIDATE=1 ./shuffle.sh "$BASEDIR" "$SCRATCHDIR" "$NUM_THREADS_FOR_SHUFFLING" "$BATCHSIZE" -min-rows "$SHUFFLE_MINROWS" -keep-target-rows "$SHUFFLE_KEEPROWS" -taper-window-scale "$TAPER_WINDOW_SCALE" | tee -a "$BASEDIR"/logs/outshuffle.txt
+# )
+
+for i in {1..20}
+do
     echo "Train"
-    time ./train.sh "$BASEDIR" "$TRAININGNAME" "$MODELKIND" "$BATCHSIZE" main -samples-per-epoch "$NUM_TRAIN_SAMPLES_PER_EPOCH" -swa-period-samples "$NUM_TRAIN_SAMPLES_PER_SWA" -quit-if-no-data -stop-when-train-bucket-limited -no-repeat-files -max-train-bucket-per-new-data "$MAX_TRAIN_PER_DATA" -max-train-bucket-size "$MAX_TRAIN_SAMPLES_PER_CYCLE"
+    time ./train.sh "$BASEDIR" "$TRAININGNAME" "$MODELKIND" "$BATCHSIZE" main \
+                    -samples-per-epoch "$NUM_TRAIN_SAMPLES_PER_EPOCH" \
+                    -swa-period-samples "$NUM_TRAIN_SAMPLES_PER_SWA" \
+                    -quit-if-no-data \
+                    -no-repeat-files \
+                    -max-training-samples "$MAX_TRAIN_SAMPLES" \
+                    -use-radam \
+                    -lookahead-alpha 1.0 \
+                    -max-epochs-this-instance 1
 
     echo "Export"
-    (
-        time ./export_model_for_selfplay.sh "$NAMEPREFIX" "$BASEDIR" "$USEGATING" | tee -a "$BASEDIR"/logs/outexport.txt
-    )
+    time ./export_model_for_selfplay.sh "$NAMEPREFIX" "$BASEDIR" "$USEGATING" | tee -a "$BASEDIR"/logs/outexport.txt
 
     # echo "Gatekeeper"
     # time ./katago gatekeeper -rejected-models-dir "$BASEDIR"/rejectedmodels -accepted-models-dir "$BASEDIR"/models/ -sgf-output-dir "$BASEDIR"/gatekeepersgf/ -test-models-dir "$BASEDIR"/modelstobetested/ -config "$DATED_ARCHIVE"/gatekeeper.cfg -quit-if-no-nets-to-test | tee -a "$BASEDIR"/gatekeepersgf/stdout.txt
