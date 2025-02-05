@@ -93,23 +93,28 @@ class KataGoModelOutputBatch {
 class KataGoModel {
     let model: MLModel
 
-    class func getBundleModelURL(modelName: String) -> URL {
+    class func getBundleModelURL(modelName: String, modelDirectory: String) -> URL {
         // Set model type name
         let typeName = "mlpackage"
         // Get model path from bundle resource
         // Fallback to create a default model path
         let modelPath = Bundle.main.path(forResource: modelName, ofType: typeName) ?? "\(modelName).\(typeName)"
-        let bundleModelURL = URL(filePath: modelPath)
+        // If modelDirectory is not empty, prepend it to the modelPath
+        let finalPath = modelDirectory.isEmpty ? modelPath : "\(modelDirectory)/\(modelName).\(typeName)" 
+        let bundleModelURL = URL(filePath: finalPath)
 
         return bundleModelURL
     }
 
-    class func compileBundleMLModel(modelName: String, computeUnits: MLComputeUnits, mustCompile: Bool = false) -> MLModel? {
+    class func compileBundleMLModel(modelName: String,
+                                    computeUnits: MLComputeUnits,
+                                    mustCompile: Bool = false,
+                                    modelDirectory: String = "") -> MLModel? {
         var mlmodel: MLModel?
 
         do {
             // Get model URL at bundle
-            let bundleModelURL = getBundleModelURL(modelName: modelName)
+            let bundleModelURL = getBundleModelURL(modelName: modelName, modelDirectory: modelDirectory)
 
             // Compile MLModel
             mlmodel = try compileMLModel(modelName: modelName,
@@ -249,22 +254,12 @@ class KataGoModel {
     }
 
     class func compileMLModel(modelName: String, modelURL: URL, computeUnits: MLComputeUnits, mustCompile: Bool) throws -> MLModel {
-        let permanentURL = try getMLModelCPermanentURL(modelName: modelName)
-        let savedDigestURL = try getSavedDigestURL(modelName: modelName)
-        let digest = try getDigest(modelURL: modelURL)
+        printError("Compiling CoreML model at \(modelURL)");
 
-        let shouldCompileModel = mustCompile || checkShouldCompileModel(permanentURL: permanentURL,
-                                                                        savedDigestURL: savedDigestURL,
-                                                                        digest: digest)
+        // Compile the model
+        let compiledURL = try MLModel.compileModel(at: modelURL)
 
-        if shouldCompileModel {
-            try compileAndSaveModel(permanentURL: permanentURL,
-                                    savedDigestURL: savedDigestURL,
-                                    modelURL: modelURL,
-                                    digest: digest)
-        }
-
-        return try loadModel(permanentURL: permanentURL,
+        return try loadModel(permanentURL: compiledURL,
                              modelName: modelName,
                              computeUnits: computeUnits);
     }

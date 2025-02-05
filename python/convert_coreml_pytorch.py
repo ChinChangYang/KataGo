@@ -1,84 +1,285 @@
 #!/usr/bin/python3
-# Example: python3 convert_coreml_pytorch.py -checkpoint b18c384nbt-uec-20221121b.ckpt -use-swa
-import argparse
-import torch
-from load_model import load_model
-import coremltools as ct
-import coremlmish
-import coremltools.optimize as cto
+"""
+Convert a trained PyTorch neural network to a CoreML model.
 
-description = """
-Convert a trained neural net to a CoreML model.
+Example usage:
+    python3 convert_coreml_pytorch.py -checkpoint b18c384nbt-uec-20221121b.ckpt -use-swa -nbits 8
 """
 
-# Print torch version
-print(f"torch version: {torch.__version__}")
+import argparse
+import sys
+from typing import Optional, Tuple
 
-# Print coremltools version
-print(f"coremltools version: {ct.__version__}")
+import torch
+import coremltools as ct
+import coremlmish
 
-# Print coremlmish function
-print(f"Using coremlmish function: {coremlmish.__function__}")
+from load_model import load_model
+from coremltools.optimize.coreml import (
+    OptimizationConfig,
+    OpMagnitudePrunerConfig,
+    OpPalettizerConfig,
+    prune_weights,
+    palettize_weights,
+    OpLinearQuantizerConfig,
+    linear_quantize_weights,
+)
+
+
+def print_versions():
+    """Print versions of torch, coremltools, and coremlmish."""
+    print(f"torch version: {torch.__version__}")
+    print(f"coremltools version: {ct.__version__}")
+    # Assuming coremlmish has an attribute __function__; adjust if necessary
+    function_name = getattr(coremlmish, "__function__", "Unknown")
+    print(f"Using coremlmish function: {function_name}")
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Convert a trained neural net to a CoreML model."
+    )
+
+    parser.add_argument(
+        "-checkpoint",
+        required=True,
+        help="Path to the model checkpoint file.",
+    )
+    parser.add_argument(
+        "-use-swa",
+        action="store_true",
+        help="Use SWA (Stochastic Weight Averaging) model.",
+    )
+    parser.add_argument(
+        "-pos-len",
+        type=int,
+        default=19,
+        help="Position length (default: 19).",
+    )
+    parser.add_argument(
+        "-batch-size",
+        type=int,
+        default=1,
+        help="Batch size (default: 1).",
+    )
+    parser.add_argument(
+        "-fp32",
+        action="store_true",
+        help="Use 32-bit floating-point precision (default: FLOAT16).",
+    )
+    parser.add_argument(
+        "-nbits",
+        type=int,
+        choices=[8, 6, 4, 3, 2, 1],
+        help="Number of bits for palettizing the weights (e.g., 8).",
+    )
+    parser.add_argument(
+        "-sparsity",
+        type=float,
+        default=0.0,
+        help="Target sparsity for pruning the weights (default: 0.0).",
+    )
+    parser.add_argument(
+        "-output",
+        required=False,
+        help="Path to the converted Core ML package.",
+    )
+
+    return parser.parse_args()
+
+
+def load_traced_model(
+    func: torch.nn.Module,
+    example_inputs: Tuple[torch.Tensor, ...],
+) -> torch.jit.ScriptModule:
+    """Trace the PyTorch model using TorchScript."""
+    print("Tracing model ...")
+    traced = torch.jit.trace(func, example_inputs)
+    return traced
+
+
+def prepare_example_inputs(
+    model,
+    batch_size: int,
+) -> Tuple[torch.Tensor, ...]:
+    """Prepare example inputs for tracing the model."""
+    input_spatial = torch.rand(
+        batch_size,
+        model.bin_input_shape[0],
+        model.bin_input_shape[1],
+        model.bin_input_shape[2],
+    )
+    input_global = torch.rand(batch_size, model.global_input_shape[0])
+    input_meta = (
+        torch.rand(batch_size, model.metadata_encoder.c_input)
+        if model.metadata_encoder
+        else None
+    )
+
+    if input_meta is not None:
+        return (input_spatial, input_global, input_meta)
+    return (input_spatial, input_global)
+
+
+def convert_to_coreml(
+    traced_model: torch.jit.ScriptModule,
+    model,
+    input_shapes: Tuple[torch.Size, ...],
+    compute_precision: ct.precision,
+    minimum_deployment_target: Optional[ct.target],
+) -> ct.models.MLModel:
+    """Convert the traced PyTorch model to CoreML format."""
+    inputs = [ct.TensorType(shape=shape) for shape in input_shapes]
+
+    print("Converting model ...")
+    mlmodel = ct.convert(
+        traced_model,
+        convert_to="mlprogram",
+        inputs=inputs,
+        compute_precision=compute_precision,
+        minimum_deployment_target=minimum_deployment_target,
+    )
+
+    return mlmodel
+
+
+def rename_features(spec, old_name: str, new_name: str):
+    """Rename a feature in the CoreML model spec."""
+    ct.utils.rename_feature(spec, old_name, new_name)
+
+
+def apply_optimizations(
+    mlmodel: ct.models.MLModel,
+    sparsity: float,
+    nbits: Optional[int],
+    joint_compression: bool,
+) -> Tuple[ct.models.MLModel, str]:
+    """Apply pruning and quantization optimizations to the CoreML model."""
+    spec = mlmodel._spec
+    compression_description = ""
+
+    # Apply sparsity pruning if requested
+    if sparsity > 0:
+        sparsity_config = OpMagnitudePrunerConfig(target_sparsity=sparsity)
+        pruning_config = OptimizationConfig(global_config=sparsity_config)
+
+        print(f"Pruning weights with {sparsity} sparsity ...")
+        mlmodel = prune_weights(mlmodel, config=pruning_config)
+        compression_description += f"sparsity {sparsity} "
+
+    # Apply quantization or palettization if nbits is specified
+    if nbits is not None:
+        if nbits == 8:
+            threshold_config = OpLinearQuantizerConfig(
+                mode="linear",
+            )
+            quantizing_config = OptimizationConfig(global_config=threshold_config)
+
+            print(f"Quantizing weights to {nbits} bits ...")
+            mlmodel = linear_quantize_weights(
+                mlmodel,
+                config=quantizing_config,
+                joint_compression=joint_compression,
+            )
+        else:
+            palettizing_config = OptimizationConfig(
+                global_config=OpPalettizerConfig(
+                    nbits=nbits,
+                    mode="kmeans",
+                    granularity="per_grouped_channel",
+                    group_size=4,
+                )
+            )
+
+            print(f"Palettizing weights with {nbits} bit(s) ...")
+            mlmodel = palettize_weights(
+                mlmodel,
+                palettizing_config,
+                joint_compression=joint_compression,
+            )
+
+        compression_description += f"quantization bits {nbits} "
+
+    return mlmodel, compression_description
+
+
+def update_model_metadata(
+    mlmodel: ct.models.MLModel,
+    pos_len: int,
+    precision_name: str,
+    version: int,
+    sparsity_description: str,
+    compression_description: str,
+    meta_encoder_version: int,
+    checkpoint_file: str,
+) -> None:
+    """Update the metadata and description of the CoreML model."""
+    description = (
+        f"KataGo {pos_len}x{pos_len} compute "
+        f"precision {precision_name} model version {version} "
+        f"{sparsity_description}"
+        f"{compression_description}"
+        f"meta encoder version {meta_encoder_version} "
+        f"converted from {checkpoint_file}"
+    )
+    mlmodel.short_description = description
+    mlmodel.version = f"{version}"
+
+
+def save_coreml_model(
+    mlmodel: ct.models.MLModel,
+    pos_len: int,
+    precision_name: str,
+    meta_encoder_version: int,
+    output_path: str,
+) -> str:
+    """Save the CoreML model to a file and return the file path."""
+    if output_path is None:
+        meta_encoder_suffix = f"m{meta_encoder_version}" if meta_encoder_version > 0 else ""
+        filename = (
+            f"KataGoModel{pos_len}x{pos_len}{precision_name}{meta_encoder_suffix}.mlpackage"
+        )
+    else:
+        filename = output_path
+
+    print("Saving model ...")
+    mlmodel.save(filename)
+    print(f"Saved Core ML model at {filename}")
+
+    return filename
 
 
 def main():
-    # Create the parser
-    parser = argparse.ArgumentParser(description=description)
+    """Main function to convert PyTorch model to CoreML."""
+    print_versions()
 
-    # Add an argument of checkpoint file
-    parser.add_argument("-checkpoint", help="Checkpoint to test", required=True)
+    args = parse_arguments()
 
-    # Add an argument of use swa
-    parser.add_argument(
-        "-use-swa", help="Use SWA model", action="store_true", required=False
-    )
-
-    # Add an argument of position length
-    parser.add_argument("-pos-len", help="Position length", type=int, required=False)
-
-    # Add an argument of batch size
-    parser.add_argument("-batch-size", help="Batch size", type=int, required=False)
-
-    # Add an argument of 32-bit floating-point
-    parser.add_argument(
-        "-fp32", help="32-bit floating-point", action="store_true", required=False
-    )
-
-    # Parse the arguments
-    args = vars(parser.parse_args())
-
-    # Get the argument of checkpoint file
-    checkpoint_file = args["checkpoint"]
-
-    # Get the argument of use swa
-    use_swa = args["use_swa"]
-
-    # Get the argument of position length
-    pos_len = args["pos_len"] if args["pos_len"] else 19
-
-    # Get the argument of batch size
-    batch_size = args["batch_size"] if args["batch_size"] else 1
-
-    # Get the argument of 32-bit floating-point
-    fp32 = args["fp32"]
+    checkpoint_file = args.checkpoint
+    use_swa = args.use_swa
+    pos_len = args.pos_len
+    batch_size = args.batch_size
+    fp32 = args.fp32
+    nbits = args.nbits
+    sparsity = args.sparsity
+    output_path = args.output
 
     # Load the model
     model, swa_model, _ = load_model(
-        checkpoint_file,
-        use_swa,
+        checkpoint_file=checkpoint_file,
+        use_swa=use_swa,
         device="cpu",
         pos_len=pos_len,
         for_coreml=True,
         verbose=True,
     )
 
-    # Set the model
-    func = model if swa_model is None else swa_model
-
-    # Print the model name
+    # Select the appropriate model
+    func = swa_model if swa_model is not None else model
     print(f"Using model: {func.__class__.__name__}")
 
-    # Get the meta encoder version
+    # Determine meta encoder version
     meta_encoder_version = (
         0
         if model.metadata_encoder is None
@@ -88,164 +289,106 @@ def main():
             else model.config["metadata_encoder"]["meta_encoder_version"]
         )
     )
-
-    # Print the meta encoder version
     print(f"Meta encoder version: {meta_encoder_version}")
 
-    # Get the model version
-    version = model.config["version"]
-
-    # Workaround for incorrect model version
-    version = max(version, 15) if meta_encoder_version > 0 else version
-
-    # Print the model version
+    # Determine model version with workaround
+    version = model.config.get("version", 0)
+    if meta_encoder_version > 0:
+        version = max(version, 15)
     print(f"Model version: {version}")
 
+    # Prepare example inputs for tracing
+    example_inputs = prepare_example_inputs(model, batch_size)
+
     with torch.no_grad():
-        # Set the model to eval mode
         func.eval()
+        traced_model = load_traced_model(func, example_inputs)
 
-        # NCHW
-        input_spatial = torch.rand(
-            batch_size,
-            model.bin_input_shape[0],
-            model.bin_input_shape[1],
-            model.bin_input_shape[2],
-        )
+    # Determine compute precision
+    compute_precision = ct.precision.FLOAT32 if fp32 else ct.precision.FLOAT16
 
-        # NC
-        input_global = torch.rand(batch_size, model.global_input_shape[0])
+    # Determine minimum deployment target
+    minimum_deployment_target = (
+        ct.target.iOS18 if sparsity or (nbits and nbits != 8) else 
+        ct.target.iOS16 if nbits == 8 else 
+        None
+    )
 
-        # NC
-        input_meta = (
-            torch.rand(batch_size, model.metadata_encoder.c_input)
-            if model.metadata_encoder is not None
-            else None
-        )
+    # Convert traced model to CoreML
+    mlmodel = convert_to_coreml(
+        traced_model=traced_model,
+        model=model,
+        input_shapes=tuple(input.shape for input in example_inputs),
+        compute_precision=compute_precision,
+        minimum_deployment_target=minimum_deployment_target,
+    )
 
-        # Set the example inputs
-        example_inputs = (
-            (input_spatial, input_global, input_meta)
-            if input_meta is not None
-            else (input_spatial, input_global)
-        )
+    # Rename input features
+    spec = mlmodel._spec
+    rename_features(spec, "input_1", "input_global")
+    input_names = [input.name for input in spec.description.input]
+    print(f"Input names: {input_names}")
 
-        # Trace the model
-        print(f"Tracing model ...")
-        traced_model = torch.jit.trace(func, example_inputs)
+    # Rename output features
+    output_names = [
+        "output_policy",
+        "out_value",
+        "out_miscvalue",
+        "out_moremiscvalue",
+        "out_ownership",
+    ]
 
-        # Set the compute precision
-        compute_precision = ct.precision.FLOAT16 if not fp32 else ct.precision.FLOAT32
+    for i, new_name in enumerate(output_names):
+        old_name = spec.description.output[i].name
+        rename_features(spec, old_name, new_name)
 
-        # Set the input types
-        inputs = (
-            [
-                ct.TensorType(shape=input_spatial.shape),
-                ct.TensorType(shape=input_global.shape),
-                ct.TensorType(shape=input_meta.shape),
-            ]
-            if input_meta is not None
-            else [
-                ct.TensorType(shape=input_spatial.shape),
-                ct.TensorType(shape=input_global.shape),
-            ]
-        )
+    print(f"Output names: {output_names}")
 
-        # Convert the model
-        print(f"Converting model ...")
+    # Determine precision name
+    precision_name = "fp32" if fp32 else "fp16"
 
-        mlmodel = ct.convert(
-            traced_model,
-            convert_to="mlprogram",
-            inputs=inputs,
-            compute_precision=compute_precision,
-        )
+    # Apply optimizations
+    joint_compression = sparsity > 0
+    mlmodel, compression_description = apply_optimizations(
+        mlmodel=mlmodel,
+        sparsity=sparsity,
+        nbits=nbits,
+        joint_compression=joint_compression,
+    )
+    sparsity_description = f"sparsity {sparsity} " if sparsity > 0 else ""
 
-        # Get the protobuf spec
-        spec = mlmodel._spec
+    # Update model metadata
+    update_model_metadata(
+        mlmodel=mlmodel,
+        pos_len=pos_len,
+        precision_name=precision_name,
+        version=version,
+        sparsity_description=sparsity_description,
+        compression_description=compression_description,
+        meta_encoder_version=meta_encoder_version,
+        checkpoint_file=checkpoint_file,
+    )
 
-        # Rename the input
-        ct.utils.rename_feature(spec, "input_1", "input_global")
+    # Rebuild the model with the updated spec
+    print("Rebuilding model with updated spec ...")
+    rebuilt_mlmodel = ct.models.MLModel(
+        mlmodel._spec,
+        weights_dir=mlmodel._weights_dir,
+    )
 
-        # Get input names
-        input_names = [input.name for input in spec.description.input]
-
-        # Print the input names
-        print(f"Input names: {input_names}")
-
-        # Set output names
-        output_names = [
-            "output_policy",
-            "out_value",
-            "out_miscvalue",
-            "out_moremiscvalue",
-            "out_ownership",
-        ]
-
-        # Rename output names
-        for i, name in enumerate(output_names):
-            # Rename the output
-            ct.utils.rename_feature(spec, spec.description.output[i].name, name)
-
-        # Print the output names
-        print(f"Output names: {output_names}")
-
-        # Set the compute precision name
-        precision_name = "fp16" if not fp32 else "fp32"
-
-        # Set the meta encoder name
-        meta_encoder_name = (
-            "" if meta_encoder_version == 0 else f"m{meta_encoder_version}"
-        )
-
-        # Set model description
-        mlmodel.short_description = (
-            f"KataGo {pos_len}x{pos_len} compute "
-            f"precision {precision_name} model version {version} "
-            f"meta encoder version {meta_encoder_version} "
-            f"converted from {checkpoint_file}"
-        )
-
-        # Set model version
-        mlmodel.version = f"{version}"
-
-        # Rebuild the model with the updated spec
-        print(f"Rebuilding model with updated spec ...")
-        rebuilt_mlmodel = ct.models.MLModel(
-            mlmodel._spec, weights_dir=mlmodel._weights_dir
-        )
-
-        # Set file name
-        mlmodel_file = f"KataGoModel{pos_len}x{pos_len}{precision_name}{meta_encoder_name}.mlpackage"
-
-        # Save the model
-        print(f"Saving model ...")
-        rebuilt_mlmodel.save(mlmodel_file)
-
-        # Print the file name
-        print(f"Saved Core ML model at {mlmodel_file}")
-
-        # Define compressor configuration
-        nbits = 8
-        op_config = cto.coreml.OpPalettizerConfig(nbits=nbits)
-
-        # Define optimization config
-        config = cto.coreml.OptimizationConfig(global_config=op_config)
-                
-        # Palettize weights
-        print(f"Palettizing mode ...")
-        compressed_mlmodel = cto.coreml.palettize_weights(rebuilt_mlmodel, config)
-
-        # Set compressed file name
-        compressed_file = f"KataGoModel{pos_len}x{pos_len}{precision_name}{meta_encoder_name}b{nbits}.mlpackage"
-
-        # Save the compressed model
-        print(f"Saving compressed model ...")
-        compressed_mlmodel.save(compressed_file)
-
-        # Print the compressed file name
-        print(f"Saved compressed model at {compressed_file}")
+    # Save the CoreML model
+    save_coreml_model(
+        mlmodel=rebuilt_mlmodel,
+        pos_len=pos_len,
+        precision_name=precision_name,
+        meta_encoder_version=meta_encoder_version,
+        output_path=output_path,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
