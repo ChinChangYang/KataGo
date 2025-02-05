@@ -17,7 +17,7 @@ class AudioModel {
 
     init() {
 #if !os(macOS)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .duckOthers)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
         try? AVAudioSession.sharedInstance().setActive(true)
 #endif
     }
