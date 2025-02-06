@@ -39,7 +39,6 @@ struct PlayView: View {
         let isHorizontalLayout = dimensions.gobanStartX > dimensions.capturedStonesStartY
 
         let commentView = CommentView(gameRecord: gameRecord)
-            .padding()
             .focused($commentIsFocused)
             .frame(width: isHorizontalLayout ? max(dimensions.totalWidth - dimensions.gobanWidth, 200) : nil,
                    height: isHorizontalLayout ? nil : max(dimensions.totalHeight - dimensions.drawHeight, 100))
@@ -49,12 +48,14 @@ struct PlayView: View {
         return Group {
             if isHorizontalLayout {
                 HStack {
-                    commentView
                     boardView
+                    commentView
+                        .padding(.horizontal)
                 }
             } else {
                 VStack {
                     commentView
+                        .padding()
                     boardView
                 }
             }
