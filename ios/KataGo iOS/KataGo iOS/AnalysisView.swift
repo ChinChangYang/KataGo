@@ -42,6 +42,7 @@ struct AnalysisView: View {
         return ForEach(analysis.ownershipUnits) { unit in
             if unit.opacity > 0.1 {
                 Rectangle()
+                    .hoverEffect()
                     .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
                     .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
                     .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
@@ -85,6 +86,7 @@ struct AnalysisView: View {
                             }
                         }
                     }
+                    .hoverEffect()
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
                               y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
