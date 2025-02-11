@@ -32,6 +32,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
     @State var branchState = BranchState()
+    @State var version: String?
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     var body: some View {
@@ -94,7 +95,7 @@ struct ContentView: View {
             }
 
         } else {
-            LoadingView()
+            LoadingView(version: $version)
                 .task {
                     await initializationTask()
                 }
@@ -224,7 +225,7 @@ struct ContentView: View {
         }
     }
 
-    private func messagingLoop() async {
+    private func messaging() async {
         let line = await Task.detached {
             // Get a message line from KataGo
             return KataGoHelper.getMessageLine()
@@ -265,19 +266,27 @@ struct ContentView: View {
     @MainActor
     private func initializationTask() async {
         messageList.messages.append(Message(text: "Initializing..."))
+        messageList.appendAndSend(command: "version")
+
+        version = await Task.detached {
+            // Get a message line from KataGo
+            return KataGoHelper.getMessageLine()
+        }.value
+
         sendInitialCommands(config: gameRecords.first?.concreteConfig)
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
         gobanState.sendShowBoardCommand(messageList: messageList)
         messageList.appendAndSend(command: "printsgf")
-        await messagingLoop()
+        await messaging()
+        try? await Task.sleep(for: .seconds(3))
         isInitialized = true
     }
 
     @MainActor
     private func messageTask() async {
         while true {
-            await messagingLoop()
+            await messaging()
         }
     }
 
