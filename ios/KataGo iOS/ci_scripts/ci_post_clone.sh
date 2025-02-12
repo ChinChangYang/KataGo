@@ -1,5 +1,6 @@
 #!/bin/sh
-curl -L -o default_model.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b28c512nbt-null.bin.gz
+rm -f default_model.bin.gz
+curl -L -o default_model.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b28c512nbt-null-s8032M.bin.gz
 cp -f default_model.bin.gz ../Resources/default_model.bin.gz
 
 curl -L -o b18c384nbt-humanv0.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b18c384nbt-humanv0-null.bin.gz
