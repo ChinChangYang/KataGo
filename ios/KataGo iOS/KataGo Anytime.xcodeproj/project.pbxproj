@@ -199,21 +199,21 @@
 		E11881DA2B081E3F00637D44 /* commandline.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E11838982B081DA800637D44 /* commandline.cpp */; };
 		E11887632B081E4E00637D44 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E1183E5F2B081DA900637D44 /* main.cpp */; };
 		E11887E42B0830C900637D44 /* KataGoSwift.h in Headers */ = {isa = PBXBuildFile; fileRef = E11887E32B0830C900637D44 /* KataGoSwift.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		E11887E72B0830C900637D44 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
-		E11887E82B0830C900637D44 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E11887E72B0830C900637D44 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; platformFilters = (ios, xros, ); };
+		E11887E82B0830C900637D44 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; platformFilters = (ios, xros, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E11887EF2B08310800637D44 /* coremlmodel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887EC2B08310800637D44 /* coremlmodel.swift */; };
 		E11887F02B08310800637D44 /* coremlbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887ED2B08310800637D44 /* coremlbackend.swift */; };
 		E11887F12B08310800637D44 /* metalbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887EE2B08310800637D44 /* metalbackend.swift */; };
 		E11887F42B08312F00637D44 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		E11887F52B0831B100637D44 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
-		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
-		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; platformFilters = (ios, xros, ); };
+		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; platformFilters = (ios, xros, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1240BAF2C6D640200B4874F /* LoadingView.swift */; };
 		E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6E9E2C322E020002DED0 /* ConfigModel.swift */; };
 		E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6EA02C325E010002DED0 /* WinrateBarView.swift */; };
 		E12A6F192C37FE710002DED0 /* KataGoInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F182C37FE710002DED0 /* KataGoInterface.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; };
-		E12A6F1D2C37FE710002DED0 /* KataGoInterface.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; platformFilters = (ios, xros, ); };
+		E12A6F1D2C37FE710002DED0 /* KataGoInterface.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; platformFilters = (ios, xros, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E12A6F292C38018D0002DED0 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E12A6F382C38BE120002DED0 /* KataGoCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E12A6F392C38BE120002DED0 /* KataGoCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */; };
@@ -1657,6 +1657,10 @@
 /* Begin PBXTargetDependency section */
 		E11887E62B0830C900637D44 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilters = (
+				ios,
+				xros,
+			);
 			target = E11887E02B0830C900637D44 /* KataGoSwift */;
 			targetProxy = E11887E52B0830C900637D44 /* PBXContainerItemProxy */;
 		};
@@ -1667,11 +1671,19 @@
 		};
 		E118EE952B081C3300637D44 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilters = (
+				ios,
+				xros,
+			);
 			target = E118EE8F2B081C3200637D44 /* katago */;
 			targetProxy = E118EE942B081C3300637D44 /* PBXContainerItemProxy */;
 		};
 		E12A6F1B2C37FE710002DED0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilters = (
+				ios,
+				xros,
+			);
 			target = E12A6F152C37FE710002DED0 /* KataGoInterface */;
 			targetProxy = E12A6F1A2C37FE710002DED0 /* PBXContainerItemProxy */;
 		};
@@ -1729,7 +1741,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1777,7 +1789,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1831,7 +1843,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1887,7 +1899,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1937,7 +1949,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1983,7 +1995,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = NO;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -2164,9 +2176,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
@@ -2206,9 +2218,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
