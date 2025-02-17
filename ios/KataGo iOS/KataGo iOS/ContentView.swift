@@ -461,7 +461,7 @@ struct ContentView: View {
         for y in stride(from:(height - 1), through: 0, by: -1) {
             for x in 0..<width {
                 let point = BoardPoint(x: x, y: y)
-                let whiteness = (nextColorFromShowBoard == .white) ? ((mean[i]) + 1) / 2 : (-mean[i] + 1) / 2
+                let whiteness = (mean[i] + 1) / 2
                 let definiteness = computeDefiniteness(whiteness)
                 // Show a black or white square if definiteness is high and stdev is low
                 // Show nothing if definiteness is low and stdev is low
@@ -544,9 +544,13 @@ struct ContentView: View {
 
     func matchWinratePattern(dataLine: String) -> Float? {
         let pattern = /winrate ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern) {
-            let winrate = Float(match.1)
-            return winrate
+        if let match = dataLine.firstMatch(of: pattern),
+           let winrate = Float(match.1) {
+            if player.nextColorFromShowBoard == .black {
+                return 1.0 - winrate
+            } else {
+                return winrate
+            }
         }
 
         return nil
@@ -554,9 +558,13 @@ struct ContentView: View {
 
     func matchScoreLeadPattern(dataLine: String) -> Float? {
         let pattern = /scoreLead ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern) {
-            let scoreLead = Float(match.1)
-            return scoreLead
+        if let match = dataLine.firstMatch(of: pattern),
+           let scoreLead = Float(match.1) {
+            if player.nextColorFromShowBoard == .black {
+                return -scoreLead
+            } else {
+                return scoreLead
+            }
         }
 
         return nil
@@ -564,9 +572,13 @@ struct ContentView: View {
 
     func matchUtilityLcbPattern(dataLine: String) -> Float? {
         let pattern = /utilityLcb ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern) {
-            let utilityLcb = Float(match.1)
-            return utilityLcb
+        if let match = dataLine.firstMatch(of: pattern),
+           let utilityLcb = Float(match.1) {
+            if player.nextColorFromShowBoard == .black {
+                return -utilityLcb
+            } else {
+                return utilityLcb
+            }
         }
 
         return nil
