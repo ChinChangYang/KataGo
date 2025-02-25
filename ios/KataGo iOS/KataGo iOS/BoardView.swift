@@ -50,7 +50,8 @@ struct BoardView: View {
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
-                    if let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
+                    if gobanState.showBoardCount == 0,
+                       let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
