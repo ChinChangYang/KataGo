@@ -64,8 +64,8 @@ struct BoardView: View {
                         }
                         messageList.appendAndSend(command: "play \(turn) \(move)")
                         player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")
+                        gobanState.sendShowBoardCommand(messageList: messageList)
                         audioModel.playPlaySound(soundEffect: config.soundEffect)
                     }
                 }
