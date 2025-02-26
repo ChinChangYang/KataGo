@@ -50,11 +50,13 @@ struct BoardView: View {
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
-                    if let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
+                    if stones.isReady,
+                       let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
+                        stones.isReady = false
                         if gobanState.isEditing {
                             gameRecord.clearComments(after: gameRecord.currentIndex)
                         } else if !branchState.isActive {

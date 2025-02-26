@@ -60,6 +60,7 @@ class Stones {
     var moveOrder: [BoardPoint: Character] = [:]
     var blackStonesCaptured: Int = 0
     var whiteStonesCaptured: Int = 0
+    var isReady: Bool = true
 }
 
 enum PlayerColor {

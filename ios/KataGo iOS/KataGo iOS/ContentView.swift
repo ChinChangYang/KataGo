@@ -349,6 +349,8 @@ struct ContentView: View {
                     stones.whiteStonesCaptured = whiteStonesCaptured
                 }
             }
+
+            stones.isReady = true
         }
     }
 
