@@ -495,8 +495,8 @@ struct SgfConfigView: View {
                         messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
                         messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
                         messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
-                        messageList.appendAndSend(command: "printsgf")
                         gobanState.sendShowBoardCommand(messageList: messageList)
+                        messageList.appendAndSend(command: "printsgf")
                     }
                 }
         }
@@ -534,8 +534,8 @@ struct ConfigItems: View {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
                 messageList.appendAndSend(command: gameRecord.concreteConfig.getKataBoardSizeCommand())
-                messageList.appendAndSend(command: "printsgf")
                 gobanState.sendShowBoardCommand(messageList: messageList)
+                messageList.appendAndSend(command: "printsgf")
             }
         }
     }

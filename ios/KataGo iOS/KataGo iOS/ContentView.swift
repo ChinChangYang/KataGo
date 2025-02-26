@@ -276,8 +276,8 @@ struct ContentView: View {
         sendInitialCommands(config: gameRecords.first?.concreteConfig)
         navigationContext.selectedGameRecord = gameRecords.first
         maybeLoadSgf()
-        messageList.appendAndSend(command: "printsgf")
         gobanState.sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
         await messaging()
         try? await Task.sleep(for: .seconds(3))
         isInitialized = true
