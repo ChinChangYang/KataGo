@@ -44,7 +44,7 @@ struct BoardLineView: View {
     private func horizontalCoordinate(i: Int, dimensions: Dimensions) -> some View {
         Text(Coordinate.xLabelMap[i] ?? "")
             .foregroundStyle(.black)
-            .font(.system(size: 500, design: .monospaced))
+            .font(.system(size: 500))
             .minimumScaleFactor(0.01)
             .bold()
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
@@ -55,7 +55,7 @@ struct BoardLineView: View {
     private func verticalCoordinate(i: Int, dimensions: Dimensions) -> some View {
         Text(String(i + 1))
             .foregroundStyle(.black)
-            .font(.system(size: 500, design: .monospaced))
+            .font(.system(size: 500))
             .minimumScaleFactor(0.01)
             .bold()
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
@@ -88,7 +88,7 @@ struct BoardLineView: View {
                           y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
 
             Text("Pass")
-                .font(.system(size: 500, design: .monospaced))
+                .font(.system(size: 500))
                 .minimumScaleFactor(0.01)
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
