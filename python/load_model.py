@@ -18,6 +18,11 @@ def load_model_state_dict(state_dict):
         # Filter out some extra keys that were present in older checkpoints
         if "score_belief_offset_vector" in key or "score_belief_offset_bias_vector" in key or "score_belief_parity_vector" in key:
             continue
+
+        # Filter out COREML extra keys that were inserted by pruner
+        if "_COREML_" in key:
+            continue
+
         model_state_dict[key] = state_dict["model"][old_key]
     return model_state_dict
 
