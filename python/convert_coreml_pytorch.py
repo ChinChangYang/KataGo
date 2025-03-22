@@ -124,7 +124,6 @@ def prepare_example_inputs(
 
 def convert_to_coreml(
     traced_model: torch.jit.ScriptModule,
-    model,
     input_shapes: Tuple[torch.Size, ...],
     compute_precision: ct.precision,
     minimum_deployment_target: Optional[ct.target],
@@ -317,7 +316,6 @@ def main():
     # Convert traced model to CoreML
     mlmodel = convert_to_coreml(
         traced_model=traced_model,
-        model=model,
         input_shapes=tuple(input.shape for input in example_inputs),
         compute_precision=compute_precision,
         minimum_deployment_target=minimum_deployment_target,

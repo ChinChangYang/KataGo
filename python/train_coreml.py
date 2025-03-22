@@ -37,6 +37,10 @@ from coremltools.optimize.torch.pruning.pruning_scheduler import (
     PolynomialDecayScheduler
 )
 
+# Core ML
+import coremltools as ct
+import convert_coreml_pytorch as coml
+
 # HANDLE COMMAND AND ARGS -------------------------------------------------------------------
 
 def get_args():
@@ -111,6 +115,79 @@ def make_dirs(args):
     if exportdir is not None and not os.path.exists(exportdir):
         os.makedirs(exportdir)
 
+def convert_to_coreml(
+        ddp_model,
+        pos_len, 
+        version,
+        meta_encoder_version=0,
+        checkpoint_file="checkpoint.ckpt", 
+        output_path="KataGoModel.mlpackage"):
+    
+    example_inputs = coml.prepare_example_inputs(ddp_model, batch_size=1)
+
+    with torch.no_grad():
+        ddp_model.eval()
+        traced_model = coml.load_traced_model(ddp_model, example_inputs)
+    
+    compute_precision = ct.precision.FLOAT16
+    minimum_deployment_target = ct.target.iOS18
+
+    mlmodel = coml.convert_to_coreml(
+        traced_model=traced_model,
+        input_shapes=tuple(input.shape for input in example_inputs),
+        compute_precision=compute_precision,
+        minimum_deployment_target=minimum_deployment_target,
+    )
+
+    spec = mlmodel._spec
+    coml.rename_features(spec, "input_1", "input_global")
+    input_names = [input.name for input in spec.description.input]
+    print(f"Input names: {input_names}")
+
+    output_names = [
+        "output_policy",
+        "out_value",
+        "out_miscvalue",
+        "out_moremiscvalue",
+        "out_ownership",
+    ]
+
+    for i, new_name in enumerate(output_names):
+        old_name = spec.description.output[i].name
+        coml.rename_features(spec, old_name, new_name)
+
+    print(f"Output names: {output_names}")
+
+    # Determine precision name
+    precision_name = "fp16"
+
+    # Update model metadata
+    coml.update_model_metadata(
+        mlmodel=mlmodel,
+        pos_len=pos_len,
+        precision_name=precision_name,
+        version=version,
+        sparsity_description="",
+        compression_description="",
+        meta_encoder_version=meta_encoder_version,
+        checkpoint_file=checkpoint_file,
+    )
+
+    # Rebuild the model with the updated spec
+    print("Rebuilding model with updated spec ...")
+    rebuilt_mlmodel = ct.models.MLModel(
+        mlmodel._spec,
+        weights_dir=mlmodel._weights_dir,
+    )
+
+    # Save the CoreML model
+    coml.save_coreml_model(
+        mlmodel=rebuilt_mlmodel,
+        pos_len=pos_len,
+        precision_name=precision_name,
+        meta_encoder_version=meta_encoder_version,
+        output_path=output_path,
+    )
 
 def main():
     args = get_args()
@@ -845,6 +922,14 @@ def main():
     train_metrics_out.close()
     val_metrics_out.close()
 
+    ddp_model.to(torch.device("cpu"))
+
+    convert_to_coreml(
+        ddp_model,
+        device,
+        pos_len,
+        modelconfigs.get_version(model_config),
+        checkpoint_file=os.path.join(traindir,"KataGoModel.mlpackage"))
 
 if __name__ == "__main__":
     main()
