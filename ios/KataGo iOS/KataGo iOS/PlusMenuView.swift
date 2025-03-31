@@ -14,6 +14,7 @@ struct PlusMenuView: View {
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
     @Environment(GobanState.self) var gobanState
+    @Environment(ThumbnailModel.self) var thumbnailModel
 
     var body: some View {
         Menu {
@@ -58,6 +59,15 @@ struct PlusMenuView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+            }
+
+            Button {
+                withAnimation {
+                    thumbnailModel.isLarge.toggle()
+                    thumbnailModel.save()
+                }
+            } label: {
+                return Label(thumbnailModel.title, systemImage: "photo")
             }
         } label: {
             Image(systemName: "plus.square")

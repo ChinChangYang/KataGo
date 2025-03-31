@@ -10,6 +10,7 @@ import SwiftData
 
 struct GameLinkView: View {
     let gameRecord: GameRecord
+    @Environment(ThumbnailModel.self) var thumbnailModel
 
     var body: some View {
         HStack {
@@ -29,6 +30,8 @@ struct GameLinkView: View {
                let uiImage = UIImage(data: thumbnail) {
                 Spacer()
                 Image(uiImage: uiImage)
+                    .resizable()
+                    .frame(width: thumbnailModel.width, height: thumbnailModel.height)
             }
         }
     }

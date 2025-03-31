@@ -33,6 +33,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @State var branchState = BranchState()
     @State var version: String?
+    @State var thumbnailModel = ThumbnailModel()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     var body: some View {
@@ -65,6 +66,7 @@ struct ContentView: View {
             .environment(navigationContext)
             .environment(gobanTab)
             .environment(branchState)
+            .environment(thumbnailModel)
             .task {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
@@ -112,7 +114,7 @@ struct ContentView: View {
     func createThumbnail(for gameRecord: GameRecord?) {
         if let gameRecord {
             let maxBoardLength = max(board.width + 1, board.height + 1)
-            let maxCGLength: CGFloat = 64
+            let maxCGLength: CGFloat = ThumbnailModel.largeSize
             let cgWidth = (board.width + 1) / maxBoardLength * maxCGLength
             let cgHeight = (board.height + 1) / maxBoardLength * maxCGLength
             let cgSize = CGSize(width: cgWidth, height: cgHeight)
