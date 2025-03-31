@@ -61,6 +61,8 @@ struct PlusMenuView: View {
                 }
             }
 
+            Divider()
+
             Button {
                 withAnimation {
                     thumbnailModel.isLarge.toggle()
