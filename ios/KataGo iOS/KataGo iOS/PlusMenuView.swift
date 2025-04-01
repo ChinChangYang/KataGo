@@ -61,17 +61,18 @@ struct PlusMenuView: View {
                 }
             }
 
+            if thumbnailModel.isGameListViewAppeared {
 #if !os(visionOS)
-            Divider()
+                Divider()
 #endif
-
-            Button {
-                withAnimation {
-                    thumbnailModel.isLarge.toggle()
-                    thumbnailModel.save()
+                Button {
+                    withAnimation {
+                        thumbnailModel.isLarge.toggle()
+                        thumbnailModel.save()
+                    }
+                } label: {
+                    return Label(thumbnailModel.title, systemImage: "photo")
                 }
-            } label: {
-                return Label(thumbnailModel.title, systemImage: "photo")
             }
         } label: {
             Image(systemName: "plus.square")

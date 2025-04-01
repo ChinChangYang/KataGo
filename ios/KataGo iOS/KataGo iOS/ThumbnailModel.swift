@@ -12,6 +12,7 @@ class ThumbnailModel {
     static let smallSize: CGFloat = 64.0
     static let largeSize: CGFloat = 128.0
     var isLarge: Bool = UserDefaults.standard.bool(forKey: "isLargeThumbnail")
+    var isGameListViewAppeared: Bool = false
 
     var title: String {
         return isLarge ? "Small Thumbnails" : "Large Thumbnails"

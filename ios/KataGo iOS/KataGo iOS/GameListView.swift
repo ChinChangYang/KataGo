@@ -16,6 +16,7 @@ struct GameListView: View {
     @State var searchText = ""
     @Binding var importing: Bool
     @Binding var isGameListViewAppeared: Bool
+    @Environment(ThumbnailModel.self) var thumbnailModel
 
     var filteredGameRecords: [GameRecord] {
         if searchText == "" {
@@ -52,9 +53,11 @@ struct GameListView: View {
         .searchable(text: $searchText)
         .onAppear {
             isGameListViewAppeared = true
+            thumbnailModel.isGameListViewAppeared = true
         }
         .onDisappear {
             isGameListViewAppeared = false
+            thumbnailModel.isGameListViewAppeared = false
         }
     }
 }
