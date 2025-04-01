@@ -61,7 +61,9 @@ struct PlusMenuView: View {
                 }
             }
 
+#if !os(visionOS)
             Divider()
+#endif
 
             Button {
                 withAnimation {
