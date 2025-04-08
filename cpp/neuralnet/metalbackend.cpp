@@ -365,14 +365,14 @@ void NeuralNet::freeLoadedModel(LoadedModel* loadedModel) {
 
 /**
  * @brief Retrieves the model description associated with the loaded model.
- * 
+ *
  * This function accesses the model description from a given LoadedModel instance.
- * It returns a constant reference to the ModelDesc, which contains details 
+ * It returns a constant reference to the ModelDesc, which contains details
  * about the structure and parameters of the neural network model.
- * 
+ *
  * @param loadedModel Pointer to the LoadedModel instance from which to retrieve
  *                    the model description. This should not be null.
- * @return const ModelDesc& A constant reference to the model description of 
+ * @return const ModelDesc& A constant reference to the model description of
  *                          the loaded model.
  */
 const ModelDesc& NeuralNet::getModelDesc(const LoadedModel* loadedModel) {
@@ -383,17 +383,10 @@ const ModelDesc& NeuralNet::getModelDesc(const LoadedModel* loadedModel) {
 
 ComputeContext::ComputeContext(int nnX, int nnY, enabled_t useFP16Mode, enabled_t useNHWCMode):
 metalComputeContext(createMetalComputeContext(nnX, nnY)) {
-  this->useFP16Mode = useFP16Mode;
+  /* Do not use FP16 mode unless the user explicitly enabled it. */
+  useFP16 = (useFP16Mode == enabled_t::True);
 
-  SWEnable swUseFP16Mode =
-  (useFP16Mode == enabled_t::False) ? SWEnable::False() :
-  (useFP16Mode == enabled_t::True) ? SWEnable::True() :
-  SWEnable::Auto();
-
-  SWEnable swUseNHWCMode =
-  (useNHWCMode == enabled_t::False) ? SWEnable::False() :
-  (useNHWCMode == enabled_t::True) ? SWEnable::True() :
-  SWEnable::Auto();
+  (void)useNHWCMode;
 }
 
 ComputeContext::~ComputeContext() {
@@ -457,8 +450,9 @@ ComputeHandle::ComputeHandle(ComputeContext* context,
 metalhandle(maybeCreateMetalComputeHandle((gpuIdx < 100),
                                           serverThreadIdx,
                                           MetalProcess::modelDescToSwift(&loadedModel->modelDesc),
-                                          context->metalComputeContext)) {
-  
+                                          context->metalComputeContext,
+                                          context->useFP16)) {
+
   const ModelDesc* modelDesc = &loadedModel->modelDesc;
   auto metalContext = context->metalComputeContext;
 
@@ -467,13 +461,8 @@ metalhandle(maybeCreateMetalComputeHandle((gpuIdx < 100),
   gpuIndex = gpuIdx;
   version = modelDesc->modelVersion;
   metaEncoderVersion = modelDesc->metaEncoderVersion;
+  useFP16 = context->useFP16;
   this->inputsUseNHWC = inputsUseNHWC;
-
-  /* Use FP16 mode if the model supports it and the user has not explicitly
-   * disabled it. */
-  useFP16 = (context->useFP16Mode != enabled_t::False);
-
-  (void)serverThreadIdx;
 }
 
 ComputeHandle::~ComputeHandle() {
@@ -726,7 +715,7 @@ void MetalProcess::convertNCHW(
       processed[target_idx] = true;
       value_in_hand = value_at_target;
       current_idx = target_idx;
-      
+
       if (current_idx == i)
         break;
     }

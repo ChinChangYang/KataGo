@@ -151,7 +151,7 @@ struct ComputeContext {
   /**
    * @brief Whether to use FP16 mode for computations.
    */
-  enabled_t useFP16Mode;
+  bool useFP16;
 
   /**
    * @brief ComputeContext ID
