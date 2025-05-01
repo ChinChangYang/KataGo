@@ -42,7 +42,7 @@ public:
     PlayerCpp getPlayer() const SWIFT_COMPUTED_PROPERTY;
 private:
     LocCpp loc;
-    PlayerCpp player;
+    PlayerCpp _player;
 };
 
 class SgfCpp {
@@ -58,8 +58,8 @@ public:
     string getCommentAt(const int index) const;
 private:
     void* sgf;
-    int xSize;
-    int ySize;
+    int _xSize;
+    int _ySize;
     vector<MoveCpp> moves;
     vector<string> comments;
     void traverseSgf(const void* sgf);

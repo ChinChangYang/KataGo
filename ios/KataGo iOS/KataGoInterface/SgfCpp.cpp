@@ -39,7 +39,7 @@ bool LocCpp::getPass() const {
 }
 
 MoveCpp::MoveCpp(const LocCpp& loc, const PlayerCpp player): loc(loc) {
-    this->player = player;
+    this->_player = player;
 }
 
 int MoveCpp::getX() const {
@@ -55,16 +55,16 @@ bool MoveCpp::getPass() const {
 }
 
 PlayerCpp MoveCpp::getPlayer() const {
-    return player;
+    return _player;
 }
 
-SgfCpp::SgfCpp(const string& str) : sgf(nullptr), xSize(0), ySize(0) {
+SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0) {
     try {
         sgf = Sgf::parse(str);
         if (sgf != NULL) {
             auto size = ((Sgf*)sgf)->getXYSize();
-            xSize = size.x;
-            ySize = size.y;
+            _xSize = size.x;
+            _ySize = size.y;
             traverseSgf(sgf);
         }
     } catch (...) {
@@ -91,7 +91,7 @@ void SgfCpp::traverseSgfHelper(const void* sgf) {
         if (node->move.pla != C_EMPTY) {
             LocCpp locCpp;
             if ((node->move.x == COORD_MAX && node->move.y == COORD_MAX) ||
-                (node->move.x == 19 && node->move.y == 19 && (xSize <= 19 || ySize <= 19))) {
+                (node->move.x == 19 && node->move.y == 19 && (_xSize <= 19 || _ySize <= 19))) {
                 locCpp = LocCpp(); // Pass move
             } else {
                 int x = node->move.x;
@@ -133,11 +133,11 @@ bool SgfCpp::getValid() const {
 }
 
 int SgfCpp::getXSize() const {
-    return xSize;
+    return _xSize;
 }
 
 int SgfCpp::getYSize() const {
-    return ySize;
+    return _ySize;
 }
 
 unsigned long SgfCpp::getMovesSize() const {
