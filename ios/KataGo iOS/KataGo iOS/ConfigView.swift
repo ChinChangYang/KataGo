@@ -532,44 +532,41 @@ struct ConfigItems: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                NavigationLink("Name") {
-                    NameConfigView(gameRecord: gameRecord)
-                        .navigationTitle("Name")
-                }
-
-                NavigationLink("Rule") {
-                    RuleConfigView(config: config, isBoardSizeChanged: $isBoardSizeChanged)
-                        .navigationTitle("Rule")
-                }
-
-                NavigationLink("Analysis") {
-                    AnalysisConfigView(config: config)
-                        .navigationTitle("Analysis")
-                }
-
-                NavigationLink("View") {
-                    ViewConfigView(config: config)
-                        .navigationTitle("View")
-                }
-
-                NavigationLink("Sound") {
-                    SoundConfigView(config: config)
-                        .navigationTitle("Sound")
-                }
-
-                NavigationLink("AI") {
-                    AIConfigView(config: config)
-                        .navigationTitle("AI")
-                }
-
-                NavigationLink("SGF") {
-                    SgfConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
-                        .navigationTitle("SGF")
-                }
+        List {
+            NavigationLink("Name") {
+                NameConfigView(gameRecord: gameRecord)
+                    .navigationTitle("Name")
             }
-            .navigationTitle("Configuration")
+
+            NavigationLink("Rule") {
+                RuleConfigView(config: config, isBoardSizeChanged: $isBoardSizeChanged)
+                    .navigationTitle("Rule")
+            }
+
+            NavigationLink("Analysis") {
+                AnalysisConfigView(config: config)
+                    .navigationTitle("Analysis")
+            }
+
+            NavigationLink("View") {
+                ViewConfigView(config: config)
+                    .navigationTitle("View")
+            }
+
+            NavigationLink("Sound") {
+                SoundConfigView(config: config)
+                    .navigationTitle("Sound")
+            }
+
+            NavigationLink("AI") {
+                AIConfigView(config: config)
+                    .navigationTitle("AI")
+            }
+
+            NavigationLink("SGF") {
+                SgfConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
+                    .navigationTitle("SGF")
+            }
         }
         .onAppear {
             isBoardSizeChanged = false
@@ -589,10 +586,9 @@ struct ConfigView: View {
     var gameRecord: GameRecord
 
     var body: some View {
-        VStack {
+        NavigationStack {
             ConfigItems(gameRecord: gameRecord)
-                .padding()
         }
-        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .navigationTitle("Configuration")
     }
 }
