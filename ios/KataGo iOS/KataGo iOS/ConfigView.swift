@@ -171,7 +171,7 @@ struct NameConfigView: View {
 
     var body: some View {
         Form {
-            Section("Name") {
+            Section {
                 TextField("Enter your game name", text: $name)
                     .onAppear {
                         name = gameRecord.name
@@ -195,7 +195,7 @@ struct RuleConfigView: View {
 
     var body: some View {
         Form {
-            Section("Rule") {
+            Section {
                 ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                     .onAppear {
                         boardWidth = config.boardWidth
@@ -253,7 +253,7 @@ struct AnalysisConfigView: View {
 
     var body: some View {
         Form {
-            Section("Analysis") {
+            Section {
                 ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
                     .onAppear {
                         analysisInformation = config.analysisInformation
@@ -325,7 +325,7 @@ struct ViewConfigView: View {
 
     var body: some View {
         Form {
-            Section("View") {
+            Section {
                 ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
                     .onAppear {
                         stoneStyle = config.stoneStyle
@@ -376,7 +376,7 @@ struct SoundConfigView: View {
 
     var body: some View {
         Form {
-            Section("Sound") {
+            Section {
                 ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
                     .onAppear {
                         soundEffect = config.soundEffect
@@ -401,7 +401,7 @@ struct AIConfigView: View {
 
     var body: some View {
         Form {
-            Section("AI") {
+            Section {
                 ConfigFloatItem(title: "White advantage:",
                                 value: $playoutDoublingAdvantage,
                                 step: 1/4,
@@ -443,7 +443,7 @@ struct AIConfigView: View {
                     if player.nextColorForPlayCommand != .white {
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
-                }
+                    }
             }
 
             Section("White AI") {
@@ -472,7 +472,7 @@ struct AIConfigView: View {
                     if player.nextColorForPlayCommand != .black {
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
-                }
+                    }
             }
         }
     }
@@ -488,7 +488,7 @@ struct SgfConfigView: View {
 
     var body: some View {
         Form {
-            Section("SGF") {
+            Section {
                 TextField("Paste your SGF text", text: $sgf, axis: .vertical)
                     .disableAutocorrection(true)
 #if !os(macOS)
