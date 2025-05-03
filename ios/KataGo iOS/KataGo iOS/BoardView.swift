@@ -10,7 +10,7 @@ import KataGoInterface
 import AVKit
 
 struct BoardView: View {
-    @State var audioModel = AudioModel()
+    @Environment(AudioModel.self) var audioModel
     @Environment(BoardSize.self) var board
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState

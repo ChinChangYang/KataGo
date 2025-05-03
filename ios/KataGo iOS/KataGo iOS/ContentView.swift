@@ -34,6 +34,7 @@ struct ContentView: View {
     @State var branchState = BranchState()
     @State var version: String?
     @State var thumbnailModel = ThumbnailModel()
+    @State var audioModel = AudioModel()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     var body: some View {
@@ -67,6 +68,7 @@ struct ContentView: View {
             .environment(gobanTab)
             .environment(branchState)
             .environment(thumbnailModel)
+            .environment(audioModel)
             .task {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
@@ -664,10 +666,26 @@ struct ContentView: View {
         }
     }
 
+    func postProcessAIMove() {
+        if let gameRecord = navigationContext.selectedGameRecord {
+            if gobanState.isEditing {
+                gameRecord.clearComments(after: gameRecord.currentIndex)
+            } else if !branchState.isActive {
+                branchState.sgf = gameRecord.sgf
+                branchState.currentIndex = gameRecord.currentIndex
+            }
+            gobanState.sendShowBoardCommand(messageList: messageList)
+            messageList.appendAndSend(command: "printsgf")
+            if let config = gameRecord.config {
+                audioModel.playPlaySound(soundEffect: config.soundEffect)
+            }
+        }
+    }
+
     func maybeCollectPlay(message: String) {
         let playPrefix = "play "
         if message.hasPrefix(playPrefix) {
-            gobanState.sendShowBoardCommand(messageList: messageList)
+            postProcessAIMove()
         }
     }
 
@@ -676,7 +694,7 @@ struct ContentView: View {
         if let match = message.firstMatch(of: genMoveOutputPattern) {
             let move = String(match.1) // Extract the move string
             if let _ = moveToPoint(move: move) { // Translate the move into a BoardPoint
-                gobanState.sendShowBoardCommand(messageList: messageList)
+                postProcessAIMove()
             }
         }
     }

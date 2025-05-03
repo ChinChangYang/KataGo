@@ -396,8 +396,19 @@ class GobanState {
     }
 
     func shouldGenMove(config: Config, player: Turn) -> Bool {
-        return ((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
-        ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))
+        if ((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
+            ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white)) {
+            if (analysisStatus == .clear) && (config.blackMaxTime > 0) && (config.whiteMaxTime > 0) {
+                // Allow the user to pause AI play by disabling the analysis
+                return false
+            } else {
+                // One of black and white is enabled for AI play.
+                return true
+            }
+        } else {
+            // All of black and white are disabled for AI play.
+            return false
+        }
     }
 
     func maybeSendGenMoveCommand(config: Config, player: Turn, messageList: MessageList) {
