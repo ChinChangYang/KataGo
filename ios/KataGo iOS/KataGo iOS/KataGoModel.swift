@@ -343,9 +343,10 @@ class GobanState {
     }
 
     private func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
-        if let nextColorForPlayCommand = nextColorForPlayCommand,
-           config.blackMaxTime > 0 && nextColorForPlayCommand == .black {
+        if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
             return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
+        } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
+            return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
         } else {
             return [config.getKataFastAnalyzeCommand()]
         }
@@ -394,12 +395,18 @@ class GobanState {
         }
     }
 
+    func shouldGenMove(config: Config, player: Turn) -> Bool {
+        return ((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
+        ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))
+    }
+
     func maybeSendGenMoveCommand(config: Config, player: Turn, messageList: MessageList) {
-        if (analysisStatus == .clear) &&
-            (!config.blackMaxTime.isZero) &&
-            (player.nextColorForPlayCommand == .black),
-           let nextTurn = player.nextColorSymbolForPlayCommand {
-            messageList.appendAndSend(command: "genmove \(nextTurn)")
+        if (analysisStatus == .clear) {
+            if shouldGenMove(config: config, player: player) {
+                if let nextTurn = player.nextColorSymbolForPlayCommand {
+                    messageList.appendAndSend(command: "genmove \(nextTurn)")
+                }
+            }
         }
     }
 }

@@ -37,6 +37,7 @@ final class Config {
     var optionalShowPass: Bool? = defaultShowPass
     var optionalVerticalFlip: Bool? = defaultVerticalFlip
     var optionalBlackMaxTime: Float? = defaultBlackMaxTime
+    var optionalWhiteMaxTime: Float? = defaultWhiteMaxTime
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -61,7 +62,8 @@ final class Config {
          optionalShowComments: Bool? = defaultShowComments,
          optionalShowPass: Bool? = defaultShowPass,
          optionalVerticalFlip: Bool? = defaultVerticalFlip,
-         optionalBlackMaxTime: Float? = defaultBlackMaxTime) {
+         optionalBlackMaxTime: Float? = defaultBlackMaxTime,
+         optionalWhiteMaxTime: Float? = defaultWhiteMaxTime) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -86,6 +88,7 @@ final class Config {
         self.optionalShowPass = optionalShowPass
         self.optionalVerticalFlip = optionalVerticalFlip
         self.optionalBlackMaxTime = optionalBlackMaxTime
+        self.optionalWhiteMaxTime = optionalWhiteMaxTime
     }
 
     convenience init(config: Config?) {
@@ -114,7 +117,8 @@ final class Config {
                 optionalShowComments: config.optionalShowComments,
                 optionalShowPass: config.optionalShowPass,
                 optionalVerticalFlip: config.optionalVerticalFlip,
-                optionalBlackMaxTime: config.optionalBlackMaxTime)
+                optionalBlackMaxTime: config.optionalBlackMaxTime,
+                optionalWhiteMaxTime: config.optionalWhiteMaxTime)
         } else {
             self.init()
         }
@@ -385,6 +389,20 @@ extension Config {
         
         set(newValue) {
             optionalBlackMaxTime = newValue
+        }
+    }
+}
+
+extension Config {
+    static let defaultWhiteMaxTime: Float = 0.0
+    
+    var whiteMaxTime: Float {
+        get {
+            return optionalWhiteMaxTime ?? Config.defaultBlackMaxTime
+        }
+        
+        set(newValue) {
+            optionalWhiteMaxTime = newValue
         }
     }
 }

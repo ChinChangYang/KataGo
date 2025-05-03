@@ -56,7 +56,7 @@ struct BoardView: View {
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
-                       player.nextColorForPlayCommand != .black || config.blackMaxTime.isZero {
+                       !gobanState.shouldGenMove(config: config, player: player) {
                         stones.isReady = false
                         if gobanState.isEditing {
                             gameRecord.clearComments(after: gameRecord.currentIndex)

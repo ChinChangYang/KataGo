@@ -207,7 +207,7 @@ struct ContentView: View {
                 messageList.appendAndSend(command: "stop")
             } else {
                 if let config = navigationContext.selectedGameRecord?.config {
-                    if config.blackMaxTime.isZero || player.nextColorForPlayCommand != .black {
+                    if !gobanState.shouldGenMove(config: config, player: player) {
                         messageList.appendAndSend(command: config.getKataAnalyzeCommand())
                     }
                 }

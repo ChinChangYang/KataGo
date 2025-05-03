@@ -398,6 +398,7 @@ struct AIConfigView: View {
     @State var blackMaxTime = Config.defaultBlackMaxTime
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
     @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
+    @State var whiteMaxTime = Config.defaultWhiteMaxTime
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
 
@@ -488,6 +489,20 @@ struct AIConfigView: View {
                     if player.nextColorForPlayCommand != .black {
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
+                }
+
+                ConfigFloatItem(title: "Time per move:",
+                                value: $whiteMaxTime,
+                                step: 0.5,
+                                minValue: 0,
+                                maxValue: 60,
+                                format: .number,
+                                postFix: "s")
+                .onAppear {
+                    whiteMaxTime = config.whiteMaxTime
+                }
+                .onChange(of: whiteMaxTime) { _, newValue in
+                    config.whiteMaxTime = newValue
                 }
             }
         }
