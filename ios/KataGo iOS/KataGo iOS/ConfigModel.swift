@@ -36,6 +36,7 @@ final class Config {
     var optionalShowComments: Bool? = defaultShowComments
     var optionalShowPass: Bool? = defaultShowPass
     var optionalVerticalFlip: Bool? = defaultVerticalFlip
+    var optionalBlackMaxTime: Float? = defaultBlackMaxTime
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -59,7 +60,8 @@ final class Config {
          optionalSoundEffect: Bool? = defaultSoundEffect,
          optionalShowComments: Bool? = defaultShowComments,
          optionalShowPass: Bool? = defaultShowPass,
-         optionalVerticalFlip: Bool? = defaultVerticalFlip) {
+         optionalVerticalFlip: Bool? = defaultVerticalFlip,
+         optionalBlackMaxTime: Float? = defaultBlackMaxTime) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -83,6 +85,7 @@ final class Config {
         self.optionalShowComments = optionalShowComments
         self.optionalShowPass = optionalShowPass
         self.optionalVerticalFlip = optionalVerticalFlip
+        self.optionalBlackMaxTime = optionalBlackMaxTime
     }
 
     convenience init(config: Config?) {
@@ -110,7 +113,8 @@ final class Config {
                 optionalSoundEffect: config.optionalSoundEffect,
                 optionalShowComments: config.optionalShowComments,
                 optionalShowPass: config.optionalShowPass,
-                optionalVerticalFlip: config.optionalVerticalFlip)
+                optionalVerticalFlip: config.optionalVerticalFlip,
+                optionalBlackMaxTime: config.optionalBlackMaxTime)
         } else {
             self.init()
         }
@@ -128,6 +132,12 @@ extension Config {
 
     func getKataFastAnalyzeCommand() -> String {
         return getKataAnalyzeCommand(analysisInterval: 10);
+    }
+
+    func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
+        return [
+            "kata-set-param maxTime \(max(maxTime, 0.5))",
+            "kata-genmove_analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"]
     }
 
     func getKataBoardSizeCommand() -> String {
@@ -361,6 +371,20 @@ extension Config {
         
         set(newVerticalFlip) {
             optionalVerticalFlip = newVerticalFlip
+        }
+    }
+}
+
+extension Config {
+    static let defaultBlackMaxTime: Float = 0.0
+
+    var blackMaxTime: Float {
+        get {
+            return optionalBlackMaxTime ?? Config.defaultBlackMaxTime
+        }
+        
+        set(newValue) {
+            optionalBlackMaxTime = newValue
         }
     }
 }

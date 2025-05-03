@@ -207,7 +207,9 @@ struct ContentView: View {
                 messageList.appendAndSend(command: "stop")
             } else {
                 if let config = navigationContext.selectedGameRecord?.config {
-                    messageList.appendAndSend(command: config.getKataAnalyzeCommand())
+                    if config.blackMaxTime.isZero || player.nextColorForPlayCommand != .black {
+                        messageList.appendAndSend(command: config.getKataAnalyzeCommand())
+                    }
                 }
             }
         }
@@ -247,6 +249,12 @@ struct ContentView: View {
 
         // Collect SGF information
         maybeCollectSgf(message: line)
+
+        // Collect play information
+        maybeCollectPlay(message: line)
+
+        // Collect genmove output
+        maybeCollectGenMoveOutput(message: line)
 
         // Remove when there are too many messages
         messageList.shrink()
@@ -521,14 +529,14 @@ struct ContentView: View {
     func matchMovePattern(dataLine: String) -> BoardPoint? {
         let movePattern = /move (\w+\d+)/ // Regular expression to match standard moves
         let passPattern = /move pass/ // Regular expression to match "pass" moves
-        
+
         // Search for a standard move pattern in the data line
         if let match = dataLine.firstMatch(of: movePattern) {
             let move = String(match.1) // Extract the move string
             if let point = moveToPoint(move: move) { // Translate the move into a BoardPoint
                 return point // Return the corresponding BoardPoint
             }
-        // Check if the data line indicates a "pass" move
+            // Check if the data line indicates a "pass" move
         } else if dataLine.firstMatch(of: passPattern) != nil {
             return BoardPoint.pass(width: Int(board.width), height: Int(board.height)) // Return a pass move
         }
@@ -652,6 +660,23 @@ struct ContentView: View {
                     gameRecord.currentIndex = currentIndex
                     gameRecord.lastModificationDate = Date.now
                 }
+            }
+        }
+    }
+
+    func maybeCollectPlay(message: String) {
+        let playPrefix = "play "
+        if message.hasPrefix(playPrefix) {
+            gobanState.sendShowBoardCommand(messageList: messageList)
+        }
+    }
+
+    func maybeCollectGenMoveOutput(message: String) {
+        let genMoveOutputPattern = /= (\w+\d+)/
+        if let match = message.firstMatch(of: genMoveOutputPattern) {
+            let move = String(match.1) // Extract the move string
+            if let _ = moveToPoint(move: move) { // Translate the move into a BoardPoint
+                gobanState.sendShowBoardCommand(messageList: messageList)
             }
         }
     }

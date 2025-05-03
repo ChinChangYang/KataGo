@@ -55,7 +55,8 @@ struct BoardView: View {
                        let point = coordinate.point,
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
-                       !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
+                       !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
+                       player.nextColorForPlayCommand != .black || config.blackMaxTime.isZero {
                         stones.isReady = false
                         if gobanState.isEditing {
                             gameRecord.clearComments(after: gameRecord.currentIndex)
@@ -68,6 +69,7 @@ struct BoardView: View {
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")
                         audioModel.playPlaySound(soundEffect: config.soundEffect)
+                        gobanState.maybeSendGenMoveCommand(config: config, player: player, messageList: messageList)
                     }
                 }
             }

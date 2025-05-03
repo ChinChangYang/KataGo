@@ -39,6 +39,7 @@ struct ConfigFloatItem: View {
     let minValue: Float
     let maxValue: Float
     let format: ValueFormat
+    var postFix: String?
 
     var body: some View {
         HStack {
@@ -47,7 +48,7 @@ struct ConfigFloatItem: View {
             Spacer()
 #endif
             Stepper(value: $value, in: minValue...maxValue, step: step) {
-                Text(formattedValue)
+                Text(formattedValue + (postFix ?? ""))
 #if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
 #endif
@@ -394,6 +395,7 @@ struct AIConfigView: View {
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
     @State var humanSLProfile = Config.defaultHumanSLProfile
     @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
+    @State var blackMaxTime = Config.defaultBlackMaxTime
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
     @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
     @Environment(Turn.self) var player
@@ -443,7 +445,21 @@ struct AIConfigView: View {
                     if player.nextColorForPlayCommand != .white {
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
-                    }
+                }
+
+                ConfigFloatItem(title: "Time per move:",
+                                value: $blackMaxTime,
+                                step: 0.5,
+                                minValue: 0,
+                                maxValue: 60,
+                                format: .number,
+                                postFix: "s")
+                .onAppear {
+                    blackMaxTime = config.blackMaxTime
+                }
+                .onChange(of: blackMaxTime) { _, newValue in
+                    config.blackMaxTime = newValue
+                }
             }
 
             Section("White AI") {
@@ -472,7 +488,7 @@ struct AIConfigView: View {
                     if player.nextColorForPlayCommand != .black {
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
-                    }
+                }
             }
         }
     }
@@ -578,6 +594,8 @@ struct ConfigItems: View {
                 gobanState.sendShowBoardCommand(messageList: messageList)
                 messageList.appendAndSend(command: "printsgf")
             }
+
+            gobanState.maybeSendGenMoveCommand(config: config, player: player, messageList: messageList)
         }
     }
 }
