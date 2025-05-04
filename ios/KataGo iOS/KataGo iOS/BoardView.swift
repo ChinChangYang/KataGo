@@ -69,7 +69,6 @@ struct BoardView: View {
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")
                         audioModel.playPlaySound(soundEffect: config.soundEffect)
-                        gobanState.maybeSendGenMoveCommand(config: config, player: player, messageList: messageList)
                     }
                 }
             }

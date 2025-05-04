@@ -609,8 +609,6 @@ struct ConfigItems: View {
                 gobanState.sendShowBoardCommand(messageList: messageList)
                 messageList.appendAndSend(command: "printsgf")
             }
-
-            gobanState.maybeSendGenMoveCommand(config: config, player: player, messageList: messageList)
         }
     }
 }

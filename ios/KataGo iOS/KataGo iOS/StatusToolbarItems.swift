@@ -68,13 +68,18 @@ struct StatusToolbarItems: View {
     }
 
     func backwardEndAction() {
-        backwardMoves(limit: nil)
-        sendPostExecutionCommands()
+        maybeBackwardAction(limit: nil)
     }
 
     func backwardAction() {
-        backwardMoves(limit: 10)
-        sendPostExecutionCommands()
+        maybeBackwardAction(limit: 10)
+    }
+
+    private func maybeBackwardAction(limit: Int?) {
+        if !gobanState.shouldGenMove(config: config, player: player) {
+            backwardMoves(limit: limit)
+            sendPostExecutionCommands()
+        }
     }
 
     private func backwardMoves(limit: Int?) {
@@ -98,14 +103,16 @@ struct StatusToolbarItems: View {
     }
 
     func backwardFrameAction() {
-        if branchState.isActive {
-            branchState.undo()
-        } else {
-            gameRecord.undo()
+        if !gobanState.shouldGenMove(config: config, player: player) {
+            if branchState.isActive {
+                branchState.undo()
+            } else {
+                gameRecord.undo()
+            }
+            messageList.appendAndSend(command: "undo")
+            player.toggleNextColorForPlayCommand()
+            gobanState.sendShowBoardCommand(messageList: messageList)
         }
-        messageList.appendAndSend(command: "undo")
-        player.toggleNextColorForPlayCommand()
-        gobanState.sendShowBoardCommand(messageList: messageList)
     }
 
     func startAnalysisAction() {
@@ -127,15 +134,21 @@ struct StatusToolbarItems: View {
     }
 
     func forwardFrameAction() {
-        forwardMoves(limit: 1)
+        maybeForwardMoves(limit: 1)
     }
 
     func forwardAction() {
-        forwardMoves(limit: 10)
+        maybeForwardMoves(limit: 10)
     }
 
     func forwardEndAction() {
-        forwardMoves(limit: nil)
+        maybeForwardMoves(limit: nil)
+    }
+
+    private func maybeForwardMoves(limit: Int?) {
+        if !gobanState.shouldGenMove(config: config, player: player) {
+            forwardMoves(limit: limit)
+        }
     }
 
     private func forwardMoves(limit: Int?) {

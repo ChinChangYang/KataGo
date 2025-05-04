@@ -255,9 +255,6 @@ struct ContentView: View {
         // Collect play information
         maybeCollectPlay(message: line)
 
-        // Collect genmove output
-        maybeCollectGenMoveOutput(message: line)
-
         // Remove when there are too many messages
         messageList.shrink()
     }
@@ -674,6 +671,7 @@ struct ContentView: View {
                 branchState.sgf = gameRecord.sgf
                 branchState.currentIndex = gameRecord.currentIndex
             }
+            player.toggleNextColorForPlayCommand()
             gobanState.sendShowBoardCommand(messageList: messageList)
             messageList.appendAndSend(command: "printsgf")
             if let config = gameRecord.config {
@@ -686,16 +684,6 @@ struct ContentView: View {
         let playPrefix = "play "
         if message.hasPrefix(playPrefix) {
             postProcessAIMove()
-        }
-    }
-
-    func maybeCollectGenMoveOutput(message: String) {
-        let genMoveOutputPattern = /= (\w+\d+)/
-        if let match = message.firstMatch(of: genMoveOutputPattern) {
-            let move = String(match.1) // Extract the move string
-            if let _ = moveToPoint(move: move) { // Translate the move into a BoardPoint
-                postProcessAIMove()
-            }
         }
     }
 }
