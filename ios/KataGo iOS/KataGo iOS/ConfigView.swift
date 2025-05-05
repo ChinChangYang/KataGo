@@ -187,12 +187,14 @@ struct NameConfigView: View {
 
 struct RuleConfigView: View {
     var config: Config
-    @Binding var isBoardSizeChanged: Bool
+    @State var isBoardSizeChanged: Bool = false
     @State var boardWidth: Int = -1
     @State var boardHeight: Int = -1
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
     @Environment(MessageList.self) var messageList
+    @Environment(Turn.self) var player
+    @Environment(GobanState.self) var gobanState
 
     var body: some View {
         Form {
@@ -236,6 +238,17 @@ struct RuleConfigView: View {
                         config.komi = newValue
                         messageList.appendAndSend(command: config.getKataKomiCommand())
                     }
+            }
+        }
+        .onAppear {
+            isBoardSizeChanged = false
+        }
+        .onDisappear {
+            if isBoardSizeChanged {
+                player.nextColorForPlayCommand = .unknown
+                messageList.appendAndSend(command: config.getKataBoardSizeCommand())
+                gobanState.sendShowBoardCommand(messageList: messageList)
+                messageList.appendAndSend(command: "printsgf")
             }
         }
     }
@@ -511,7 +524,6 @@ struct AIConfigView: View {
 
 struct SgfConfigView: View {
     var gameRecord: GameRecord
-    @Binding var isBoardSizeChanged: Bool
     @State var sgf: String = ""
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
@@ -529,7 +541,7 @@ struct SgfConfigView: View {
                         sgf = gameRecord.sgf
                     }
                     .onDisappear {
-                        if (!isBoardSizeChanged) && (sgf != gameRecord.sgf) {
+                        if sgf != gameRecord.sgf {
                             let config = gameRecord.concreteConfig
                             gameRecord.sgf = sgf
                             player.nextColorForPlayCommand = .unknown
@@ -550,7 +562,6 @@ struct SgfConfigView: View {
 
 struct ConfigItems: View {
     var gameRecord: GameRecord
-    @State private var isBoardSizeChanged = false
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -570,7 +581,7 @@ struct ConfigItems: View {
             }
 
             NavigationLink("Rule") {
-                RuleConfigView(config: config, isBoardSizeChanged: $isBoardSizeChanged)
+                RuleConfigView(config: config)
                     .navigationTitle("Rule")
             }
 
@@ -595,19 +606,8 @@ struct ConfigItems: View {
             }
 
             NavigationLink("SGF") {
-                SgfConfigView(gameRecord: gameRecord, isBoardSizeChanged: $isBoardSizeChanged)
+                SgfConfigView(gameRecord: gameRecord)
                     .navigationTitle("SGF")
-            }
-        }
-        .onAppear {
-            isBoardSizeChanged = false
-        }
-        .onDisappear {
-            if isBoardSizeChanged {
-                player.nextColorForPlayCommand = .unknown
-                messageList.appendAndSend(command: gameRecord.concreteConfig.getKataBoardSizeCommand())
-                gobanState.sendShowBoardCommand(messageList: messageList)
-                messageList.appendAndSend(command: "printsgf")
             }
         }
     }
