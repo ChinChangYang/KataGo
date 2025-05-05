@@ -26,7 +26,7 @@ final class Config {
     var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
     var stoneStyle: Int = defaultStoneStyle
     var showCoordinate: Bool = defaultShowCoordinate
-    var humanRatioForBlack: Float = defaultHumanRatio
+    var humanSLRootExploreProbWeightful: Float = defaultHumanRatio
     var humanSLProfile: String = defaultHumanSLProfile
     var optionalAnalysisForWhom: Int? = defaultAnalysisForWhom
     var optionalShowOwnership: Bool? = defaultShowOwnership
@@ -52,7 +52,7 @@ final class Config {
          hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio,
          stoneStyle: Int = defaultStoneStyle,
          showCoordinate: Bool = defaultShowCoordinate,
-         humanRatioForBlack: Float = defaultHumanRatio,
+         humanSLRootExploreProbWeightful: Float = defaultHumanRatio,
          humanSLProfile: String = defaultHumanSLProfile,
          optionalAnalysisForWhom: Int? = defaultAnalysisForWhom,
          optionalShowOwnership: Bool? = defaultShowOwnership,
@@ -77,7 +77,7 @@ final class Config {
         self.hiddenAnalysisVisitRatio = hiddenAnalysisVisitRatio
         self.stoneStyle = stoneStyle
         self.showCoordinate = showCoordinate
-        self.humanRatioForBlack = humanRatioForBlack
+        self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
         self.humanSLProfile = humanSLProfile
         self.optionalAnalysisForWhom = optionalAnalysisForWhom
         self.optionalShowOwnership = optionalShowOwnership
@@ -107,7 +107,7 @@ final class Config {
                 hiddenAnalysisVisitRatio: config.hiddenAnalysisVisitRatio,
                 stoneStyle: config.stoneStyle,
                 showCoordinate: config.showCoordinate,
-                humanRatioForBlack: config.humanRatioForBlack,
+                humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
                 humanSLProfile: config.humanSLProfile,
                 optionalAnalysisForWhom: config.optionalAnalysisForWhom,
                 optionalShowOwnership: config.optionalShowOwnership,
@@ -292,6 +292,28 @@ extension Config {
 
         set(newShowOwnership) {
             optionalShowOwnership = newShowOwnership
+        }
+    }
+}
+
+extension Config {
+    var humanProfileForBlack: String {
+        get {
+            return humanSLProfile
+        }
+        
+        set(newValue) {
+            humanSLProfile = newValue
+        }
+    }
+
+    var humanRatioForBlack: Float {
+        get {
+            return humanSLRootExploreProbWeightful
+        }
+        
+        set(newValue) {
+            humanSLRootExploreProbWeightful = newValue
         }
     }
 }
