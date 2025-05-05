@@ -26,11 +26,11 @@ final class Config {
     var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
     var stoneStyle: Int = defaultStoneStyle
     var showCoordinate: Bool = defaultShowCoordinate
-    var humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful
+    var humanRatioForBlack: Float = defaultHumanRatio
     var humanSLProfile: String = defaultHumanSLProfile
     var optionalAnalysisForWhom: Int? = defaultAnalysisForWhom
     var optionalShowOwnership: Bool? = defaultShowOwnership
-    var optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful
+    var optionalHumanRatioForWhite: Float? = defaultHumanRatio
     var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
     var optionalSoundEffect: Bool? = defaultSoundEffect
     var optionalShowComments: Bool? = defaultShowComments
@@ -52,11 +52,11 @@ final class Config {
          hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio,
          stoneStyle: Int = defaultStoneStyle,
          showCoordinate: Bool = defaultShowCoordinate,
-         humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
+         humanRatioForBlack: Float = defaultHumanRatio,
          humanSLProfile: String = defaultHumanSLProfile,
          optionalAnalysisForWhom: Int? = defaultAnalysisForWhom,
          optionalShowOwnership: Bool? = defaultShowOwnership,
-         optionalHumanRatioForWhite: Float? = defaultHumanSLRootExploreProbWeightful,
+         optionalHumanRatioForWhite: Float? = defaultHumanRatio,
          optionalHumanProfileForWhite: String? = defaultHumanSLProfile,
          optionalSoundEffect: Bool? = defaultSoundEffect,
          optionalShowComments: Bool? = defaultShowComments,
@@ -77,7 +77,7 @@ final class Config {
         self.hiddenAnalysisVisitRatio = hiddenAnalysisVisitRatio
         self.stoneStyle = stoneStyle
         self.showCoordinate = showCoordinate
-        self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
+        self.humanRatioForBlack = humanRatioForBlack
         self.humanSLProfile = humanSLProfile
         self.optionalAnalysisForWhom = optionalAnalysisForWhom
         self.optionalShowOwnership = optionalShowOwnership
@@ -107,7 +107,7 @@ final class Config {
                 hiddenAnalysisVisitRatio: config.hiddenAnalysisVisitRatio,
                 stoneStyle: config.stoneStyle,
                 showCoordinate: config.showCoordinate,
-                humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
+                humanRatioForBlack: config.humanRatioForBlack,
                 humanSLProfile: config.humanSLProfile,
                 optionalAnalysisForWhom: config.optionalAnalysisForWhom,
                 optionalShowOwnership: config.optionalShowOwnership,
@@ -141,7 +141,7 @@ extension Config {
     func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
         return [
             "kata-set-param maxTime \(max(maxTime, 0.5))",
-            "kata-genmove_analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"]
+            "kata-search_analyze_cancellable interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"]
     }
 
     func getKataBoardSizeCommand() -> String {
@@ -163,7 +163,7 @@ extension Config {
     func getSymmetricHumanAnalysisCommands() -> [String] {
         if isEqualBlackWhiteHumanSettings {
             return ["kata-set-param humanSLProfile \(humanSLProfile)",
-                    "kata-set-param humanSLRootExploreProbWeightful \(humanSLRootExploreProbWeightful)"]
+                    "kata-set-param humanSLRootExploreProbWeightful \(humanRatioForBlack)"]
         } else {
             return []
         }
@@ -237,7 +237,7 @@ extension Config {
 }
 
 extension Config {
-    static let defaultHumanSLRootExploreProbWeightful: Float = 0
+    static let defaultHumanRatio: Float = 0
 }
 
 extension Config {
@@ -309,7 +309,7 @@ extension Config {
 
     var humanRatioForWhite: Float {
         get {
-            return optionalHumanRatioForWhite ?? Config.defaultHumanSLRootExploreProbWeightful
+            return optionalHumanRatioForWhite ?? Config.defaultHumanRatio
         }
 
         set(newHumanRatioForWhite) {
@@ -318,7 +318,7 @@ extension Config {
     }
 
     var isEqualBlackWhiteHumanSettings: Bool {
-        return (humanSLProfile == humanProfileForWhite) && (humanSLRootExploreProbWeightful == humanRatioForWhite)
+        return (humanSLProfile == humanProfileForWhite) && (humanRatioForBlack == humanRatioForWhite)
     }
 }
 

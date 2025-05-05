@@ -407,10 +407,10 @@ struct AIConfigView: View {
     var config: Config
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
     @State var humanSLProfile = Config.defaultHumanSLProfile
-    @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
+    @State var humanRatioForBlack = Config.defaultHumanRatio
     @State var blackMaxTime = Config.defaultBlackMaxTime
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
-    @State var humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
+    @State var humanRatioForWhite = Config.defaultHumanRatio
     @State var whiteMaxTime = Config.defaultWhiteMaxTime
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
@@ -446,17 +446,18 @@ struct AIConfigView: View {
                     }
 
                 ConfigFloatItem(title: "Humanness:",
-                                value: $humanSLRootExploreProbWeightful,
+                                value: $humanRatioForBlack,
                                 step: 1/4,
                                 minValue: 0.0,
                                 maxValue: 1.0,
                                 format: .percent)
                 .onAppear {
-                    humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
+                    humanRatioForBlack = config.humanRatioForBlack
                 }
-                .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
-                    config.humanSLRootExploreProbWeightful = newValue
+                .onChange(of: humanRatioForBlack) { _, newValue in
+                    config.humanRatioForBlack = newValue
                     if player.nextColorForPlayCommand != .white {
+                        messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(newValue)")
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
                 }
@@ -500,6 +501,7 @@ struct AIConfigView: View {
                 .onChange(of: humanRatioForWhite) { _, newValue in
                     config.humanRatioForWhite = newValue
                     if player.nextColorForPlayCommand != .black {
+                        messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(newValue)")
                         messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
                 }

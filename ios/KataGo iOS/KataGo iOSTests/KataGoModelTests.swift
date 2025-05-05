@@ -317,7 +317,6 @@ struct KataGoModelTests {
     @Test func testMessageDefaultInitialization() async throws {
         let message = Message(text: "Hello, World!")
         #expect(message.text == "Hello, World!")
-        #expect(message.id != nil)
     }
 
     @Test func testMessageInitializationWithMaxLength() async throws {

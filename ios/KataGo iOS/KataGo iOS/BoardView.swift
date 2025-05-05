@@ -110,9 +110,11 @@ struct BoardView: View {
         if !config.isEqualBlackWhiteHumanSettings {
             if nextColorForPlayCommand == .black {
                 messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
-                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+                messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(config.humanRatioForBlack)")
+                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForBlack)")
             } else if nextColorForPlayCommand == .white {
                 messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanProfileForWhite)")
+                messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(config.humanRatioForWhite)")
                 messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
             }
         }

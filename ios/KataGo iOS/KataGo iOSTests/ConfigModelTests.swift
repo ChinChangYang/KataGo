@@ -26,11 +26,11 @@ struct ConfigModelTests {
         #expect(config.hiddenAnalysisVisitRatio == Config.defaultHiddenAnalysisVisitRatio)
         #expect(config.stoneStyle == Config.defaultStoneStyle)
         #expect(config.showCoordinate == Config.defaultShowCoordinate)
-        #expect(config.humanSLRootExploreProbWeightful == Config.defaultHumanSLRootExploreProbWeightful)
+        #expect(config.humanRatioForBlack == Config.defaultHumanRatio)
         #expect(config.humanSLProfile == Config.defaultHumanSLProfile)
         #expect(config.optionalAnalysisForWhom == Config.defaultAnalysisForWhom)
         #expect(config.optionalShowOwnership == Config.defaultShowOwnership)
-        #expect(config.optionalHumanRatioForWhite == Config.defaultHumanSLRootExploreProbWeightful)
+        #expect(config.optionalHumanRatioForWhite == Config.defaultHumanRatio)
         #expect(config.optionalHumanProfileForWhite == Config.defaultHumanSLProfile)
         #expect(config.optionalSoundEffect == Config.defaultSoundEffect)
         #expect(config.optionalShowComments == Config.defaultShowComments)
@@ -50,7 +50,7 @@ struct ConfigModelTests {
             hiddenAnalysisVisitRatio: 0.05,
             stoneStyle: 1,
             showCoordinate: true,
-            humanSLRootExploreProbWeightful: 0.1,
+            humanRatioForBlack: 0.1,
             humanSLProfile: "custom_profile",
             optionalAnalysisForWhom: 2,
             optionalShowOwnership: false,
@@ -72,7 +72,7 @@ struct ConfigModelTests {
         #expect(customConfig.hiddenAnalysisVisitRatio == 0.05)
         #expect(customConfig.stoneStyle == 1)
         #expect(customConfig.showCoordinate == true)
-        #expect(customConfig.humanSLRootExploreProbWeightful == 0.1)
+        #expect(customConfig.humanRatioForBlack == 0.1)
         #expect(customConfig.humanSLProfile == "custom_profile")
         #expect(customConfig.optionalAnalysisForWhom == 2)
         #expect(customConfig.optionalShowOwnership == false)
@@ -89,7 +89,7 @@ struct ConfigModelTests {
         // Test default values
         #expect(config.analysisForWhom == Config.defaultAnalysisForWhom)
         #expect(config.showOwnership == Config.defaultShowOwnership)
-        #expect(config.humanRatioForWhite == Config.defaultHumanSLRootExploreProbWeightful)
+        #expect(config.humanRatioForWhite == Config.defaultHumanRatio)
         #expect(config.humanProfileForWhite == Config.defaultHumanSLProfile)
         #expect(config.soundEffect == Config.defaultSoundEffect)
         #expect(config.showComments == Config.defaultShowComments)
@@ -125,7 +125,7 @@ struct ConfigModelTests {
         #expect(config.isEqualBlackWhiteHumanSettings == false)
 
         // Revert and change another property
-        config.humanRatioForWhite = Config.defaultHumanSLRootExploreProbWeightful
+        config.humanRatioForWhite = Config.defaultHumanRatio
         config.humanProfileForWhite = "different_profile"
         #expect(config.isEqualBlackWhiteHumanSettings == false)
 
@@ -284,7 +284,7 @@ struct ConfigModelTests {
 
         // Default values
         #expect(config.humanProfileForWhite == Config.defaultHumanSLProfile)
-        #expect(config.humanRatioForWhite == Config.defaultHumanSLRootExploreProbWeightful)
+        #expect(config.humanRatioForWhite == Config.defaultHumanRatio)
 
         // Set custom values
         config.humanProfileForWhite = "new_white_profile"
@@ -296,7 +296,7 @@ struct ConfigModelTests {
         config.optionalHumanProfileForWhite = nil
         config.optionalHumanRatioForWhite = nil
         #expect(config.humanProfileForWhite == Config.defaultHumanSLProfile)
-        #expect(config.humanRatioForWhite == Config.defaultHumanSLRootExploreProbWeightful)
+        #expect(config.humanRatioForWhite == Config.defaultHumanRatio)
     }
 
     // 6. Edge Cases and Error Handling
@@ -349,7 +349,7 @@ struct ConfigModelTests {
             hiddenAnalysisVisitRatio: 0.05,
             stoneStyle: 1,
             showCoordinate: true,
-            humanSLRootExploreProbWeightful: 0.1,
+            humanRatioForBlack: 0.1,
             humanSLProfile: "custom_profile",
             optionalAnalysisForWhom: 2,
             optionalShowOwnership: false,
@@ -373,7 +373,7 @@ struct ConfigModelTests {
         #expect(cloneConfig.hiddenAnalysisVisitRatio == originalConfig.hiddenAnalysisVisitRatio)
         #expect(cloneConfig.stoneStyle == originalConfig.stoneStyle)
         #expect(cloneConfig.showCoordinate == originalConfig.showCoordinate)
-        #expect(cloneConfig.humanSLRootExploreProbWeightful == originalConfig.humanSLRootExploreProbWeightful)
+        #expect(cloneConfig.humanRatioForBlack == originalConfig.humanRatioForBlack)
         #expect(cloneConfig.humanSLProfile == originalConfig.humanSLProfile)
         #expect(cloneConfig.optionalAnalysisForWhom == originalConfig.optionalAnalysisForWhom)
         #expect(cloneConfig.optionalShowOwnership == originalConfig.optionalShowOwnership)
@@ -399,7 +399,7 @@ struct ConfigModelTests {
         #expect(config.hiddenAnalysisVisitRatio == clone.hiddenAnalysisVisitRatio)
         #expect(config.stoneStyle == clone.stoneStyle)
         #expect(config.showCoordinate == clone.showCoordinate)
-        #expect(config.humanSLRootExploreProbWeightful == clone.humanSLRootExploreProbWeightful)
+        #expect(config.humanRatioForBlack == clone.humanRatioForBlack)
         #expect(config.humanSLProfile == clone.humanSLProfile)
         #expect(config.optionalAnalysisForWhom == clone.optionalAnalysisForWhom)
         #expect(config.optionalShowOwnership == clone.optionalShowOwnership)

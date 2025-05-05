@@ -25,15 +25,30 @@ struct StatusToolbarItems: View {
     var body: some View {
         HStack {
             Button(action: backwardEndAction) {
-                Image(systemName: "backward.end")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "backward.end")
+                } else {
+                    Image(systemName: "backward.end")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Button(action: backwardAction) {
-                Image(systemName: "backward")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "backward")
+                } else {
+                    Image(systemName: "backward")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Button(action: backwardFrameAction) {
-                Image(systemName: "backward.frame")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "backward.frame")
+                } else {
+                    Image(systemName: "backward.frame")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if gobanState.analysisStatus == .pause {
@@ -54,15 +69,30 @@ struct StatusToolbarItems: View {
             }
 
             Button(action: forwardFrameAction) {
-                Image(systemName: "forward.frame")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "forward.frame")
+                } else {
+                    Image(systemName: "forward.frame")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Button(action: forwardAction) {
-                Image(systemName: "forward")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "forward")
+                } else {
+                    Image(systemName: "forward")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Button(action: forwardEndAction) {
-                Image(systemName: "forward.end")
+                if !gobanState.shouldGenMove(config: config, player: player) {
+                    Image(systemName: "forward.end")
+                } else {
+                    Image(systemName: "forward.end")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

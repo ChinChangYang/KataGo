@@ -202,16 +202,15 @@ struct ContentView: View {
         }
     }
 
-    private func processChange(oldWaitingForAnalysis waitedForAnalysis: Bool,
-                               newWaitingForAnalysis waitingForAnalysis: Bool) {
-        if (waitedForAnalysis && !waitingForAnalysis) {
-            if gobanState.analysisStatus == .pause {
-                messageList.appendAndSend(command: "stop")
-            } else {
-                if let config = navigationContext.selectedGameRecord?.config {
-                    if !gobanState.shouldGenMove(config: config, player: player) {
-                        messageList.appendAndSend(command: config.getKataAnalyzeCommand())
-                    }
+    private func processChange(oldWaitingForAnalysis: Bool,
+                               newWaitingForAnalysis: Bool) {
+        if (oldWaitingForAnalysis && !newWaitingForAnalysis) {
+            if let config = navigationContext.selectedGameRecord?.config,
+               !gobanState.shouldGenMove(config: config, player: player) {
+                if gobanState.analysisStatus == .pause {
+                    messageList.appendAndSend(command: "stop")
+                } else {
+                    messageList.appendAndSend(command: config.getKataAnalyzeCommand())
                 }
             }
         }
@@ -663,19 +662,26 @@ struct ContentView: View {
         }
     }
 
-    func postProcessAIMove() {
-        if let gameRecord = navigationContext.selectedGameRecord {
-            if gobanState.isEditing {
-                gameRecord.clearComments(after: gameRecord.currentIndex)
-            } else if !branchState.isActive {
-                branchState.sgf = gameRecord.sgf
-                branchState.currentIndex = gameRecord.currentIndex
-            }
-            player.toggleNextColorForPlayCommand()
-            gobanState.sendShowBoardCommand(messageList: messageList)
-            messageList.appendAndSend(command: "printsgf")
-            if let config = gameRecord.config {
-                audioModel.playPlaySound(soundEffect: config.soundEffect)
+    func postProcessAIMove(message: String) {
+        let pattern = /play (\w+\d+)/
+        if let match = message.firstMatch(of: pattern),
+            let turn = player.nextColorSymbolForPlayCommand {
+            let move = match.1
+            if let gameRecord = navigationContext.selectedGameRecord {
+                if gobanState.isEditing {
+                    gameRecord.clearComments(after: gameRecord.currentIndex)
+                } else if !branchState.isActive {
+                    branchState.sgf = gameRecord.sgf
+                    branchState.currentIndex = gameRecord.currentIndex
+                }
+
+                messageList.appendAndSend(command: "play \(turn) \(move)")
+                player.toggleNextColorForPlayCommand()
+                gobanState.sendShowBoardCommand(messageList: messageList)
+                messageList.appendAndSend(command: "printsgf")
+                if let config = gameRecord.config {
+                    audioModel.playPlaySound(soundEffect: config.soundEffect)
+                }
             }
         }
     }
@@ -683,7 +689,7 @@ struct ContentView: View {
     func maybeCollectPlay(message: String) {
         let playPrefix = "play "
         if message.hasPrefix(playPrefix) {
-            postProcessAIMove()
+            postProcessAIMove(message: message)
         }
     }
 }

@@ -16,6 +16,7 @@ struct TopToolbarView: View {
     @Environment(GobanTab.self) var gobanTab
     @Environment(BranchState.self) var branchState
     @Environment(GobanState.self) var gobanState
+    @Environment(Turn.self) var player
 
     var body: some View {
         HStack {
@@ -67,11 +68,18 @@ struct TopToolbarView: View {
                         }
                     }
                 }
-            } else {
+            } else if let config = gameRecord.config {
                 Button {
-                    branchState.deactivate()
+                    if !gobanState.shouldGenMove(config: config, player: player) {
+                        branchState.deactivate()
+                    }
                 } label: {
-                    Image(systemName: "arrow.uturn.backward.circle")
+                    if !gobanState.shouldGenMove(config: config, player: player) {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                    } else {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }
