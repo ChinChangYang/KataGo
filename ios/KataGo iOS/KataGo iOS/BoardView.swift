@@ -108,14 +108,12 @@ struct BoardView: View {
 
     func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor) {
         if !config.isEqualBlackWhiteHumanSettings {
-            if nextColorForPlayCommand == .black {
-                messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
-                messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(config.humanRatioForBlack)")
-                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForBlack)")
-            } else if nextColorForPlayCommand == .white {
-                messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanProfileForWhite)")
-                messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(config.humanRatioForWhite)")
-                messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(config.humanRatioForWhite)")
+            if nextColorForPlayCommand == .black,
+               let humanSLModel = HumanSLModel(profile: config.humanProfileForBlack) {
+                messageList.appendAndSend(commands: humanSLModel.commands)
+            } else if nextColorForPlayCommand == .white,
+                      let humanSLModel = HumanSLModel(profile: config.humanProfileForWhite) {
+                messageList.appendAndSend(commands: humanSLModel.commands)
             }
         }
     }

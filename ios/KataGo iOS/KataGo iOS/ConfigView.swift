@@ -131,35 +131,9 @@ struct HumanStylePicker: View {
     let title: String
     @Binding var humanSLProfile: String
 
-    var profiles: [String] {
-        let dans = (1...9).reversed().map() { dan in
-            return "\(dan)d"
-        }
-
-        let kyus = (1...20).map() { kyu in
-            return "\(kyu)k"
-        }
-
-        let dansKyus = dans + kyus
-
-        let ranks = dansKyus.map() { rank in
-            return "rank_\(rank)"
-        }
-
-        let preAlphaZeros = dansKyus.map() { rank in
-            return "preaz_\(rank)"
-        }
-
-        let proYears = (1800...2023).map() { year in
-            return "proyear_\(year)"
-        }
-
-        return ranks + preAlphaZeros + proYears
-    }
-
     var body: some View {
         Picker(title, selection: $humanSLProfile) {
-            ForEach(profiles, id: \.self) { profile in
+            ForEach(HumanSLModel.allProfiles, id: \.self) { profile in
                 Text(profile).tag(profile)
             }
         }
@@ -406,12 +380,12 @@ struct SoundConfigView: View {
 struct AIConfigView: View {
     var config: Config
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
-    @State var humanSLProfile = Config.defaultHumanSLProfile
-    @State var humanRatioForBlack = Config.defaultHumanRatio
+    @State var humanProfileForBlack = Config.defaultHumanSLProfile
     @State var blackMaxTime = Config.defaultBlackMaxTime
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
-    @State var humanRatioForWhite = Config.defaultHumanRatio
     @State var whiteMaxTime = Config.defaultWhiteMaxTime
+    @State var blackHumanSLModel = HumanSLModel()
+    @State var whiteHumanSLModel = HumanSLModel()
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
 
@@ -434,33 +408,18 @@ struct AIConfigView: View {
             }
 
             Section("Black AI") {
-                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanSLProfile)
+                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForBlack)
                     .onAppear {
-                        humanSLProfile = config.humanSLProfile
+                        humanProfileForBlack = config.humanSLProfile
+                        blackHumanSLModel.profile = config.humanProfileForBlack
                     }
-                    .onChange(of: humanSLProfile) { _, newValue in
+                    .onChange(of: humanProfileForBlack) { _, newValue in
                         config.humanSLProfile = newValue
+                        blackHumanSLModel.profile = newValue
                         if player.nextColorForPlayCommand != .white {
-                            messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
+                            messageList.appendAndSend(commands: blackHumanSLModel.commands)
                         }
                     }
-
-                ConfigFloatItem(title: "Humanness:",
-                                value: $humanRatioForBlack,
-                                step: 1/4,
-                                minValue: 0.0,
-                                maxValue: 1.0,
-                                format: .percent)
-                .onAppear {
-                    humanRatioForBlack = config.humanRatioForBlack
-                }
-                .onChange(of: humanRatioForBlack) { _, newValue in
-                    config.humanRatioForBlack = newValue
-                    if player.nextColorForPlayCommand != .white {
-                        messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(newValue)")
-                        messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
-                    }
-                }
 
                 ConfigFloatItem(title: "Time per move:",
                                 value: $blackMaxTime,
@@ -481,30 +440,15 @@ struct AIConfigView: View {
                 HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
                     .onAppear {
                         humanProfileForWhite = config.humanProfileForWhite
+                        whiteHumanSLModel.profile = config.humanProfileForWhite
                     }
                     .onChange(of: humanProfileForWhite) { _, newValue in
                         config.humanProfileForWhite = newValue
+                        whiteHumanSLModel.profile = newValue
                         if player.nextColorForPlayCommand != .black {
-                            messageList.appendAndSend(command: "kata-set-param humanSLProfile \(config.humanSLProfile)")
+                            messageList.appendAndSend(commands: whiteHumanSLModel.commands)
                         }
                     }
-
-                ConfigFloatItem(title: "Humanness:",
-                                value: $humanRatioForWhite,
-                                step: 1/4,
-                                minValue: 0.0,
-                                maxValue: 1.0,
-                                format: .percent)
-                .onAppear {
-                    humanRatioForWhite = config.humanRatioForWhite
-                }
-                .onChange(of: humanRatioForWhite) { _, newValue in
-                    config.humanRatioForWhite = newValue
-                    if player.nextColorForPlayCommand != .black {
-                        messageList.appendAndSend(command: "kata-set-param humanSLChosenMoveProp \(newValue)")
-                        messageList.appendAndSend(command: "kata-set-param humanSLRootExploreProbWeightful \(newValue)")
-                    }
-                }
 
                 ConfigFloatItem(title: "Time per move:",
                                 value: $whiteMaxTime,

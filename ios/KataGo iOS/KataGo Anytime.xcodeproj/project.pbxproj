@@ -228,6 +228,7 @@
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
+		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
 		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
@@ -554,6 +555,7 @@
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
 		E16BC8362C4CB28900EA3A1E /* misc.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = misc.swift; path = ../../../cpp/neuralnet/misc.swift; sourceTree = "<group>"; };
@@ -997,11 +999,12 @@
 		E16BC8252C47EB1D00EA3A1E /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
+				E10C8BAC2C80BECE00477A7B /* AudioModel.swift */,
 				E12A6E9E2C322E020002DED0 /* ConfigModel.swift */,
 				E14753582C3A5A440066DE29 /* GameRecord.swift */,
+				E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */,
+				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
-				E10C8BAC2C80BECE00477A7B /* AudioModel.swift */,
 				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
 			);
 			name = Model;
@@ -1625,6 +1628,7 @@
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
+				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,

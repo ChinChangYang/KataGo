@@ -161,9 +161,9 @@ extension Config {
     }
 
     func getSymmetricHumanAnalysisCommands() -> [String] {
-        if isEqualBlackWhiteHumanSettings {
-            return ["kata-set-param humanSLProfile \(humanSLProfile)",
-                    "kata-set-param humanSLRootExploreProbWeightful \(humanRatioForBlack)"]
+        if isEqualBlackWhiteHumanSettings,
+           let humanSLModel = HumanSLModel(profile: humanSLProfile) {
+            return humanSLModel.commands
         } else {
             return []
         }
