@@ -241,7 +241,7 @@ extension Config {
 }
 
 extension Config {
-    static let defaultHumanSLProfile = "preaz_9d"
+    static let defaultHumanSLProfile = "AI"
 }
 
 extension Config {
