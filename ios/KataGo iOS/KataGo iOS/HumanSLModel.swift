@@ -103,12 +103,12 @@ struct HumanSLModel {
 
     /// Temperature for the early game, randomize between chosen moves with this temperature
     var chosenMoveTemperatureEarly: Float {
-        return max(0.85, 0.70 - ((Float(level) - 8.0) * 0.02))
+        return min(0.85, 0.70 - ((Float(level) - 8.0) * 0.02))
     }
 
     /// At the end of search after the early game, randomize between chosen moves with this temperature
     var chosenMoveTemperature: Float {
-        return max(0.70, 0.25 - ((Float(level) - 8.0) * 0.05))
+        return min(0.70, 0.25 - ((Float(level) - 8.0) * 0.05))
     }
 
     /// Decay temperature for the early game by 0.5 every this many moves, scaled with board size.
@@ -118,7 +118,7 @@ struct HumanSLModel {
 
     /// Temperature only starts to dampen moves below this
     var chosenMoveTemperatureOnlyBelowProb: Float {
-        return max(0.01, pow(10.0, (Float(level) - 8.0) * 0.2))
+        return min(1.0, max(0.01, pow(10.0, (Float(level) - 8.0) * 0.2)))
     }
 
     /// When a move starts to lose more than 0.08 utility (several percent winrate), downweight it.
