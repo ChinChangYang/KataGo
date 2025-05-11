@@ -177,7 +177,7 @@ RulesCpp SgfCpp::getRules() const {
                         rules.whiteHandicapBonusRule,
                         rules.friendlyPassOk,
                         rules.komi);
-    } catch (IOError& error) {
-        return RulesCpp(0, 0, 0, false, false, 0, false, 0);
+    } catch (std::exception &exception) {
+        return RulesCpp(0, 0, 0, false, false, 0, false, 7.0);
     }
 }
