@@ -542,6 +542,12 @@ struct SgfConfigView: View {
                             let sgfHelper = SgfHelper(sgf: sgf)
                             config.boardWidth = sgfHelper.xSize
                             config.boardHeight = sgfHelper.ySize
+                            config.koRule = sgfHelper.rules.koRule
+                            config.scoringRule = sgfHelper.rules.scoringRule
+                            config.taxRule = sgfHelper.rules.taxRule
+                            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
+                            config.hasButton = sgfHelper.rules.hasButton
+                            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
                             config.komi = sgfHelper.rules.komi
                             gameRecord.sgf = sgf
                             player.nextColorForPlayCommand = .unknown

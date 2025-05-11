@@ -185,14 +185,22 @@ struct ContentView: View {
             } else {
                 gobanState.isEditing = false
             }
-            let config = newSelectedGameRecord.concreteConfig
             let currentIndex = newSelectedGameRecord.currentIndex
-            newSelectedGameRecord.currentIndex = SgfHelper(sgf: newSelectedGameRecord.sgf).moveSize ?? 0
+            let sgfHelper = SgfHelper(sgf: newSelectedGameRecord.sgf)
+            newSelectedGameRecord.currentIndex = sgfHelper.moveSize ?? 0
             maybeLoadSgf()
             while newSelectedGameRecord.currentIndex > currentIndex {
                 newSelectedGameRecord.undo()
                 messageList.appendAndSend(command: "undo")
             }
+            let config = newSelectedGameRecord.concreteConfig
+            config.koRule = sgfHelper.rules.koRule
+            config.scoringRule = sgfHelper.rules.scoringRule
+            config.taxRule = sgfHelper.rules.taxRule
+            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
+            config.hasButton = sgfHelper.rules.hasButton
+            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
+            config.komi = sgfHelper.rules.komi
             messageList.appendAndSend(commands: config.ruleCommands)
             messageList.appendAndSend(command: config.getKataKomiCommand())
             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
