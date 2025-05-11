@@ -45,6 +45,35 @@ private:
     PlayerCpp _player;
 };
 
+class RulesCpp {
+public:
+    RulesCpp(const int koRule,
+             const int scoringRule,
+             const int taxRule,
+             const bool multiStoneSuicideLegal,
+             const bool hasButton,
+             const int whiteHandicapBonusRule,
+             const bool friendlyPassOk,
+             const float komi);
+    int getKoRule() const SWIFT_COMPUTED_PROPERTY;
+    int getScoringRule() const SWIFT_COMPUTED_PROPERTY;
+    int getTaxRule() const SWIFT_COMPUTED_PROPERTY;
+    bool getMultiStoneSuicideLegal() const SWIFT_COMPUTED_PROPERTY;
+    bool getHasButton() const SWIFT_COMPUTED_PROPERTY;
+    int getWhiteHandicapBonusRule() const SWIFT_COMPUTED_PROPERTY;
+    bool getFriendlyPassOk() const SWIFT_COMPUTED_PROPERTY;
+    float getKomi() const SWIFT_COMPUTED_PROPERTY;
+private:
+    int _koRule;
+    int _scoringRule;
+    int _taxRule;
+    bool _multiStoneSuicideLegal;
+    bool _hasButton;
+    int _whiteHandicapBonusRule;
+    bool _friendlyPassOk;
+    float _komi;
+};
+
 class SgfCpp {
 public:
     SgfCpp(const string& str);
@@ -56,6 +85,7 @@ public:
     bool isValidCommentIndex(const int index) const;
     MoveCpp getMoveAt(const int index) const;
     string getCommentAt(const int index) const;
+    RulesCpp getRules() const;
 private:
     void* sgf;
     int _xSize;

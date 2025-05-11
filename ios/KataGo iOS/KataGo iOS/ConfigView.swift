@@ -164,7 +164,12 @@ struct RuleConfigView: View {
     @State var isBoardSizeChanged: Bool = false
     @State var boardWidth: Int = -1
     @State var boardHeight: Int = -1
-    @State var rule: Int = Config.defaultRule
+    @State var koRule: Int = Config.defaultKoRule
+    @State var scoringRule: Int = Config.defaultScoringRule
+    @State var taxRule: Int = Config.defaultTaxRule
+    @State var multiStoneSuicideLegal: Bool = Config.defaultMultiStoneSuicideLegal
+    @State var hasButton: Bool = Config.defaultHasButton
+    @State var whiteHandicapBonusRule: Int = Config.defaultWhiteHandicapBonusRule
     @State var komi: Float = Config.defaultKomi
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
@@ -195,13 +200,58 @@ struct RuleConfigView: View {
                         }
                     }
 
-                ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
+                ConfigTextItem(title: "Ko rule:", texts: Config.koRules, value: $koRule)
                     .onAppear {
-                        rule = config.rule
+                        koRule = config.koRule.rawValue
                     }
-                    .onChange(of: rule) { _, newValue in
-                        config.rule = newValue
-                        messageList.appendAndSend(command: config.getKataRuleCommand())
+                    .onChange(of: koRule) { _, newValue in
+                        config.koRule = KoRule(rawValue: newValue) ?? .simple
+                        messageList.appendAndSend(command: config.koRuleCommand)
+                    }
+
+                ConfigTextItem(title: "Scoring rule:", texts: Config.scoringRules, value: $scoringRule)
+                    .onAppear {
+                        scoringRule = config.scoringRule.rawValue
+                    }
+                    .onChange(of: scoringRule) { _, newValue in
+                        config.scoringRule = ScoringRule(rawValue: newValue) ?? .area
+                        messageList.appendAndSend(command: config.scoringRuleCommand)
+                    }
+
+                ConfigTextItem(title: "Tax rule:", texts: Config.taxRules, value: $taxRule)
+                    .onAppear {
+                        taxRule = config.taxRule.rawValue
+                    }
+                    .onChange(of: taxRule) { _, newValue in
+                        config.taxRule = TaxRule(rawValue: newValue) ?? .none
+                        messageList.appendAndSend(command: config.taxRuleCommand)
+                    }
+
+                ConfigBoolItem(title: "Multi-stone suicide:", value: $multiStoneSuicideLegal)
+                    .onAppear {
+                        multiStoneSuicideLegal = config.multiStoneSuicideLegal
+                    }
+                    .onChange(of: multiStoneSuicideLegal) { _, newValue in
+                        config.multiStoneSuicideLegal = newValue
+                        messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+                    }
+
+                ConfigBoolItem(title: "Has button:", value: $hasButton)
+                    .onAppear {
+                        hasButton = config.hasButton
+                    }
+                    .onChange(of: hasButton) { _, newValue in
+                        config.hasButton = newValue
+                        messageList.appendAndSend(command: config.hasButtonCommand)
+                    }
+
+                ConfigTextItem(title: "White handicap bonus:", texts: Config.whiteHandicapBonusRules, value: $whiteHandicapBonusRule)
+                    .onAppear {
+                        whiteHandicapBonusRule = config.whiteHandicapBonusRule.rawValue
+                    }
+                    .onChange(of: whiteHandicapBonusRule) { _, newValue in
+                        config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: newValue) ?? .zero
+                        messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
                     }
 
                 ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
@@ -489,10 +539,14 @@ struct SgfConfigView: View {
                     .onDisappear {
                         if sgf != gameRecord.sgf {
                             let config = gameRecord.concreteConfig
+                            let sgfHelper = SgfHelper(sgf: sgf)
+                            config.boardWidth = sgfHelper.xSize
+                            config.boardHeight = sgfHelper.ySize
+                            config.komi = sgfHelper.rules.komi
                             gameRecord.sgf = sgf
                             player.nextColorForPlayCommand = .unknown
                             messageList.maybeLoadSgf(sgf: sgf)
-                            messageList.appendAndSend(command: config.getKataRuleCommand())
+                            messageList.appendAndSend(commands: config.ruleCommands)
                             messageList.appendAndSend(command: config.getKataKomiCommand())
                             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
                             messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())

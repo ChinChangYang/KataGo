@@ -229,6 +229,7 @@
 		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
+		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
 		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
@@ -556,6 +557,7 @@
 		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
+		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
 		E16BC8362C4CB28900EA3A1E /* misc.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = misc.swift; path = ../../../cpp/neuralnet/misc.swift; sourceTree = "<group>"; };
@@ -949,12 +951,13 @@
 		E12A6F172C37FE710002DED0 /* KataGoInterface */ = {
 			isa = PBXGroup;
 			children = (
-				E12A6F182C37FE710002DED0 /* KataGoInterface.h */,
-				E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */,
 				E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */,
+				E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */,
 				E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */,
-				E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */,
+				E12A6F182C37FE710002DED0 /* KataGoInterface.h */,
+				E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */,
 				E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */,
+				E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */,
 				E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */,
 			);
 			path = KataGoInterface;
@@ -1599,6 +1602,7 @@
 				E12A6F3B2C38C5EA0002DED0 /* KataGoHelper.swift in Sources */,
 				E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */,
 				E12A6F392C38BE120002DED0 /* KataGoCpp.cpp in Sources */,
+				E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

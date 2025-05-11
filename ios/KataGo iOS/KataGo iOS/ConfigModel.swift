@@ -38,6 +38,12 @@ final class Config {
     var optionalVerticalFlip: Bool? = defaultVerticalFlip
     var optionalBlackMaxTime: Float? = defaultBlackMaxTime
     var optionalWhiteMaxTime: Float? = defaultWhiteMaxTime
+    var optionalKoRule: Int? = defaultKoRule
+    var optionalScoringRule: Int? = defaultScoringRule
+    var optionalTaxRule: Int? = defaultTaxRule
+    var optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal
+    var optionalHasButton: Bool? = defaultHasButton
+    var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -63,7 +69,13 @@ final class Config {
          optionalShowPass: Bool? = defaultShowPass,
          optionalVerticalFlip: Bool? = defaultVerticalFlip,
          optionalBlackMaxTime: Float? = defaultBlackMaxTime,
-         optionalWhiteMaxTime: Float? = defaultWhiteMaxTime) {
+         optionalWhiteMaxTime: Float? = defaultWhiteMaxTime,
+         optionalKoRule: Int? = defaultKoRule,
+         optionalScoringRule: Int? = defaultScoringRule,
+         optionalTaxRule: Int? = defaultTaxRule,
+         optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal,
+         optionalHasButton: Bool? = defaultHasButton,
+         optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -89,6 +101,12 @@ final class Config {
         self.optionalVerticalFlip = optionalVerticalFlip
         self.optionalBlackMaxTime = optionalBlackMaxTime
         self.optionalWhiteMaxTime = optionalWhiteMaxTime
+        self.optionalKoRule = optionalKoRule
+        self.optionalScoringRule = optionalScoringRule
+        self.optionalTaxRule = optionalTaxRule
+        self.optionalMultiStoneSuicideLegal = optionalMultiStoneSuicideLegal
+        self.optionalHasButton = optionalHasButton
+        self.optionalWhiteHandicapBonusRule = optionalWhiteHandicapBonusRule
     }
 
     convenience init(config: Config?) {
@@ -426,5 +444,123 @@ extension Config {
         set(newValue) {
             optionalWhiteMaxTime = newValue
         }
+    }
+}
+
+extension Config {
+    static let defaultKoRule: Int = 0
+    static let koRules = ["SIMPLE", "POSITIONAL", "SITUATIONAL"]
+
+    var koRule: KoRule {
+        get {
+            return KoRule(rawValue: optionalKoRule ?? Config.defaultKoRule) ?? .simple
+        }
+
+        set(newValue) {
+            optionalKoRule = newValue.rawValue
+        }
+    }
+
+    var koRuleCommand: String {
+        guard koRule.rawValue < Config.koRules.count else { return "" }
+        return "kata-set-rule ko \(Config.koRules[koRule.rawValue])"
+    }
+
+    static let defaultScoringRule: Int = 0
+    static let scoringRules = ["AREA", "TERRITORY"]
+
+    var scoringRule: ScoringRule {
+        get {
+            return ScoringRule(rawValue: optionalScoringRule ?? Config.defaultScoringRule) ?? .area
+        }
+        
+        set(newValue) {
+            optionalScoringRule = newValue.rawValue
+        }
+    }
+
+    var scoringRuleCommand: String {
+        guard scoringRule.rawValue < Config.scoringRules.count else { return "" }
+
+        return "kata-set-rule scoring \(Config.scoringRules[scoringRule.rawValue])"
+    }
+
+    static let defaultTaxRule: Int = 0
+    static let taxRules = ["NONE", "SEKI", "ALL"]
+
+    var taxRule: TaxRule {
+        get {
+            return TaxRule(rawValue: optionalTaxRule ?? Config.defaultTaxRule) ?? .none
+        }
+        
+        set(newValue) {
+            optionalTaxRule = newValue.rawValue
+        }
+    }
+
+    var taxRuleCommand: String {
+        guard taxRule.rawValue < Config.taxRules.count else { return "" }
+
+        return "kata-set-rule tax \(Config.taxRules[taxRule.rawValue])"
+    }
+
+    static let defaultMultiStoneSuicideLegal: Bool = false
+
+    var multiStoneSuicideLegal: Bool {
+        get {
+            return optionalMultiStoneSuicideLegal ?? Config.defaultMultiStoneSuicideLegal
+        }
+        
+        set(newValue) {
+            optionalMultiStoneSuicideLegal = newValue
+        }
+    }
+
+    var multiStoneSuicideLegalCommand: String {
+        return "kata-set-rule suicide \(multiStoneSuicideLegal)"
+    }
+
+    static let defaultHasButton: Bool = false
+
+    var hasButton: Bool {
+        get {
+            return optionalHasButton ?? Config.defaultHasButton
+        }
+        
+        set(newValue) {
+            optionalHasButton = newValue
+        }
+    }
+
+    var hasButtonCommand: String {
+        return "kata-set-rule hasButton \(hasButton)"
+    }
+
+    static let defaultWhiteHandicapBonusRule: Int = 0
+    static let whiteHandicapBonusRules = ["0", "N-1", "N"]
+
+    var whiteHandicapBonusRule: WhiteHandicapBonusRule {
+        get {
+            return WhiteHandicapBonusRule(rawValue: optionalWhiteHandicapBonusRule ?? Config.defaultWhiteHandicapBonusRule) ?? .zero
+        }
+
+        set(newValue) {
+            optionalWhiteHandicapBonusRule = newValue.rawValue
+        }
+    }
+
+    var whiteHandicapBonusRuleCommand: String {
+        guard whiteHandicapBonusRule.rawValue < Config.whiteHandicapBonusRules.count else { return "" }
+
+        return "kata-set-rule whiteHandicapBonus \(Config.whiteHandicapBonusRules[whiteHandicapBonusRule.rawValue])"
+    }
+
+    var ruleCommands: [String] {
+        return [koRuleCommand,
+                scoringRuleCommand,
+                taxRuleCommand,
+                multiStoneSuicideLegalCommand,
+                hasButtonCommand,
+                whiteHandicapBonusRuleCommand]
     }
 }

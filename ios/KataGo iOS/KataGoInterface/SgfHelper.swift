@@ -40,6 +40,58 @@ public struct Move {
     }
 }
 
+public enum KoRule: Int {
+    case simple = 0
+    case positional = 1
+    case situational = 2
+}
+
+public enum ScoringRule: Int {
+    case area = 0
+    case territory = 1
+}
+
+public enum TaxRule: Int {
+    case none = 0
+    case seki = 1
+    case all = 2
+}
+
+public enum WhiteHandicapBonusRule: Int {
+    case zero = 0
+    case n = 1
+    case n_minus_one = 2
+}
+
+public struct Rules {
+    public let koRule: KoRule
+    public let scoringRule: ScoringRule
+    public let taxRule: TaxRule
+    public let multiStoneSuicideLegal: Bool
+    public let hasButton: Bool
+    public let whiteHandicapBonusRule: WhiteHandicapBonusRule
+    public let friendlyPassOk: Bool
+    public let komi: Float
+
+    public init(koRule: KoRule,
+                scoringRule: ScoringRule,
+                taxRule: TaxRule,
+                multiStoneSuicideLegal: Bool,
+                hasButton: Bool,
+                whiteHandicapBonusRule: WhiteHandicapBonusRule,
+                friendlyPassOk: Bool,
+                komi: Float) {
+        self.koRule = koRule
+        self.scoringRule = scoringRule
+        self.taxRule = taxRule
+        self.multiStoneSuicideLegal = multiStoneSuicideLegal
+        self.hasButton = hasButton
+        self.whiteHandicapBonusRule = whiteHandicapBonusRule
+        self.friendlyPassOk = friendlyPassOk
+        self.komi = komi
+    }
+}
+
 public class SgfHelper {
     let sgfCpp: SgfCpp
 
@@ -64,5 +116,30 @@ public class SgfHelper {
     public var moveSize: Int? {
         guard ((sgfCpp.valid) && (sgfCpp.movesSize > 0)) else { return nil }
         return Int(sgfCpp.movesSize)
+    }
+
+    public var xSize: Int {
+        return Int(sgfCpp.xSize)
+    }
+
+    public var ySize: Int {
+        return Int(sgfCpp.ySize)
+    }
+
+    public var rules: Rules {
+        let rulesCpp = sgfCpp.getRules()
+        let koRule = KoRule(rawValue: Int(rulesCpp.koRule)) ?? .simple
+        let scoringRule = ScoringRule(rawValue: Int(rulesCpp.scoringRule)) ?? .area
+        let taxRule = TaxRule(rawValue: Int(rulesCpp.taxRule)) ?? .none
+        let whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: Int(rulesCpp.whiteHandicapBonusRule)) ?? .zero
+
+        return Rules(koRule: koRule,
+                     scoringRule: scoringRule,
+                     taxRule: taxRule,
+                     multiStoneSuicideLegal: rulesCpp.multiStoneSuicideLegal,
+                     hasButton: rulesCpp.hasButton,
+                     whiteHandicapBonusRule: whiteHandicapBonusRule,
+                     friendlyPassOk: rulesCpp.friendlyPassOk,
+                     komi: rulesCpp.komi)
     }
 }

@@ -99,13 +99,20 @@ final class GameRecord {
                                 comments: [Int: String]? = [:],
                                 thumbnail: Data? = nil) -> GameRecord {
         let config = Config()
+        let sgfHelper = SgfHelper(sgf: sgf)
+        config.boardWidth = sgfHelper.xSize
+        config.boardHeight = sgfHelper.ySize
+        config.komi = sgfHelper.rules.komi
+
         let gameRecord = GameRecord(sgf: sgf,
                                     currentIndex: currentIndex,
                                     config: config,
                                     name: name,
                                     comments: comments,
                                     thumbnail: thumbnail)
+
         config.gameRecord = gameRecord
+
         return gameRecord
     }
 

@@ -165,3 +165,19 @@ string SgfCpp::getCommentAt(const int index) const {
     }
     return "";
 }
+
+RulesCpp SgfCpp::getRules() const {
+    try {
+        Rules rules = ((Sgf*)sgf)->getRulesOrFail();
+        return RulesCpp(rules.koRule,
+                        rules.scoringRule,
+                        rules.taxRule,
+                        rules.multiStoneSuicideLegal,
+                        rules.hasButton,
+                        rules.whiteHandicapBonusRule,
+                        rules.friendlyPassOk,
+                        rules.komi);
+    } catch (IOError& error) {
+        return RulesCpp(0, 0, 0, false, false, 0, false, 0);
+    }
+}
