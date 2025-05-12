@@ -232,7 +232,6 @@
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
-		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
@@ -1466,7 +1465,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E11887F02B08310800637D44 /* coremlbackend.swift in Sources */,
-				E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */,
 				E11887F12B08310800637D44 /* metalbackend.swift in Sources */,
 				E11887EF2B08310800637D44 /* coremlmodel.swift in Sources */,
 			);
