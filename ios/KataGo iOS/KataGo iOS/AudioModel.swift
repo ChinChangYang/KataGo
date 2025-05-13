@@ -10,8 +10,6 @@ import SwiftUI
 
 @Observable
 class AudioModel {
-    static let playSoundPath = Bundle.main.path(forResource: "PlayGoStone", ofType: "m4a")
-    static let captureSoundPath = Bundle.main.path(forResource: "Capture1GoStone", ofType: "m4a")
     var playSoundPlayer: AVAudioPlayer?
     var captureSoundPlayer: AVAudioPlayer?
 
@@ -23,18 +21,28 @@ class AudioModel {
     }
 
     func playPlaySound(soundEffect: Bool) {
-        if let playSoundPath = AudioModel.playSoundPath, soundEffect {
-            let playSoundUrl = URL(fileURLWithPath: playSoundPath)
-            playSoundPlayer = try? AVAudioPlayer(contentsOf: playSoundUrl)
-            playSoundPlayer?.play()
+        if soundEffect {
+            let randomIndex = Int.random(in: 1...3)
+            let playSoundSource = "PlayGoStone\(randomIndex)"
+
+            if let playSoundPath = Bundle.main.path(forResource: playSoundSource, ofType: "mp3") {
+                let playSoundUrl = URL(fileURLWithPath: playSoundPath)
+                playSoundPlayer = try? AVAudioPlayer(contentsOf: playSoundUrl)
+                playSoundPlayer?.play()
+            }
         }
     }
 
     func playCaptureSound(soundEffect: Bool) {
-        if let captureSoundPath = AudioModel.captureSoundPath, soundEffect {
-            let captureSoundUrl = URL(fileURLWithPath: captureSoundPath)
-            captureSoundPlayer = try? AVAudioPlayer(contentsOf: captureSoundUrl)
-            captureSoundPlayer?.play()
+        if soundEffect {
+            let randomIndex = Int.random(in: 1...3)
+            let captureSoundSource = "CaptureGoStone\(randomIndex)"
+
+            if let captureSoundPath = Bundle.main.path(forResource: captureSoundSource, ofType: "mp3") {
+                let captureSoundUrl = URL(fileURLWithPath: captureSoundPath)
+                captureSoundPlayer = try? AVAudioPlayer(contentsOf: captureSoundUrl)
+                captureSoundPlayer?.play()
+            }
         }
     }
 }
