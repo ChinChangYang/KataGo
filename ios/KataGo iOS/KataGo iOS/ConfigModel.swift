@@ -217,10 +217,12 @@ extension Config {
     static let analysisInformationWinrate = "Winrate"
     static let analysisInformationScore = "Score"
     static let analysisInformationAll = "All"
+    static let analysisInformationNone = "None"
 
     static let analysisInformations = [analysisInformationWinrate,
                                        analysisInformationScore,
-                                       analysisInformationAll]
+                                       analysisInformationAll,
+                                       analysisInformationNone]
 
     var isAnalysisInformationWinrate: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
@@ -230,6 +232,16 @@ extension Config {
     var isAnalysisInformationScore: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
+    }
+
+    var isAnalysisInformationAll: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationAll
+    }
+
+    var isAnalysisInformationNone: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationNone
     }
 }
 

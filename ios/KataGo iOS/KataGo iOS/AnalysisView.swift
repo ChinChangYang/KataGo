@@ -77,7 +77,7 @@ struct AnalysisView: View {
                                 winrateText(info.winrate)
                             } else if config.isAnalysisInformationScore {
                                 scoreText(info.scoreLead)
-                            } else {
+                            } else if config.isAnalysisInformationAll {
                                 VStack {
                                     winrateText(info.winrate)
                                     visitsText(info.visits)
@@ -101,14 +101,18 @@ struct AnalysisView: View {
                 let blackSet = Set(stones.blackPoints)
                 let whiteSet = Set(stones.whitePoints)
                 let sortedInfoKeys = analysis.info.keys.sorted()
-                
-                shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
-                
+
+                if !config.isAnalysisInformationNone {
+                    shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
+                }
+
                 if config.showOwnership {
                     ownerships
                 }
-                
-                moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
+
+                if !config.isAnalysisInformationNone {
+                    moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
+                }
             }
             .onAppear() {
                 if gobanState.requestingClearAnalysis {
