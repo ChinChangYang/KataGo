@@ -21,7 +21,8 @@ struct ContentView: View {
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @State var gobanState = GobanState()
-    @State var winrate = Winrate()
+    @State var rootWinrate = Winrate()
+    @State var rootScore = Score()
     @State private var navigationContext = NavigationContext()
     @State private var isEditorPresented = false
     @State private var isInitialized = false
@@ -63,7 +64,8 @@ struct ContentView: View {
             .environment(player)
             .environment(analysis)
             .environment(gobanState)
-            .environment(winrate)
+            .environment(rootWinrate)
+            .environment(rootScore)
             .environment(navigationContext)
             .environment(gobanTab)
             .environment(branchState)
@@ -447,6 +449,12 @@ struct ContentView: View {
         return blackWinrate
     }
 
+    func getBlackScore() -> Float {
+        guard let maxScore = analysis.maxScoreLead else { return 0.0 }
+        let blackScore = (analysis.nextColorForAnalysis == .black) ? maxScore : -maxScore
+        return blackScore
+    }
+
     func collectAnalysisInfo(message: String) async -> ([[BoardPoint: AnalysisInfo]], String.SubSequence?) {
         let splitData = message.split(separator: "info")
         let analysisInfo = splitData.compactMap {
@@ -510,7 +518,8 @@ struct ContentView: View {
 
                 analysis.ownershipUnits = ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
-                winrate.black = getBlackWinrate()
+                rootWinrate.black = getBlackWinrate()
+                rootScore.black = getBlackScore()
             }
 
             gobanState.waitingForAnalysis = false

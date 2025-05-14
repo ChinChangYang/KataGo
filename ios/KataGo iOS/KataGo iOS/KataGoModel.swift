@@ -129,6 +129,11 @@ class Analysis {
         return winrates.max()
     }
 
+    var maxScoreLead: Float? {
+        let scoreLeads = info.values.map(\.scoreLead)
+        return scoreLeads.max()
+    }
+
     func clear() {
         info = [:]
         ownershipUnits = []
@@ -414,6 +419,15 @@ class Winrate {
 
     var white: Float {
         1 - black
+    }
+}
+
+@Observable
+class Score {
+    var black: Float = 0.0
+
+    var white: Float {
+        -black
     }
 }
 

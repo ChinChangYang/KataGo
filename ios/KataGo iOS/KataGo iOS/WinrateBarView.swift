@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct WinrateBarView: View {
-    @Environment(Winrate.self) var winrate
+    @Environment(Winrate.self) var rootWinrate
+    @Environment(Score.self) var rootScore
     let dimensions: Dimensions
 
     var body: some View {
@@ -17,7 +18,7 @@ struct WinrateBarView: View {
         let positionXEnd = positionXBegin + width
         let positionX = (positionXBegin + positionXEnd) / 2
         let barHeight = dimensions.gobanHeight
-        let whiteBarHeight = barHeight * CGFloat(winrate.white)
+        let whiteBarHeight = barHeight * CGFloat(rootWinrate.white)
         let blackBarHeight = barHeight - whiteBarHeight
         let whiteBarPositionYBegin = dimensions.gobanStartY
         let whiteBarPositionYEnd = whiteBarPositionYBegin + whiteBarHeight
@@ -25,8 +26,10 @@ struct WinrateBarView: View {
         let blackBarPositionYEnd = blackBarPositionYBegin + blackBarHeight
         let whiteBarPositionY = (whiteBarPositionYBegin + whiteBarPositionYEnd) / 2
         let blackBarPositionY = (blackBarPositionYBegin + blackBarPositionYEnd) / 2
+        let barCenterY = dimensions.gobanStartY + (barHeight / 2)
+        let scoreTextValue = abs(lround(Double(rootScore.black)))
 
-        Group {
+        ZStack {
             Rectangle()
                 .frame(width: width, height: whiteBarHeight)
                 .foregroundColor(.white)
@@ -36,12 +39,20 @@ struct WinrateBarView: View {
                 .frame(width: width, height: blackBarHeight)
                 .foregroundColor(.black)
                 .position(x: positionX, y: blackBarPositionY)
+
+            Text(String(format: "%d", scoreTextValue))
+                .font(.system(size: (scoreTextValue < 10) ? 14 : 500, design: .monospaced))
+                .minimumScaleFactor(0.01)
+                .foregroundColor(.gray)
+                .frame(width: width)
+                .position(x: positionX, y: barCenterY)
         }
     }
 }
 
 #Preview {
-    let winrate = Winrate()
+    let rootWinrate = Winrate()
+    let rootScore = Score()
 
     return ZStack {
         Rectangle()
@@ -55,6 +66,7 @@ struct WinrateBarView: View {
             BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
             WinrateBarView(dimensions: dimensions)
         }
-        .environment(winrate)
+        .environment(rootWinrate)
+        .environment(rootScore)
     }
 }
