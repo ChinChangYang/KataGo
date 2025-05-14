@@ -46,7 +46,10 @@ struct BoardView: View {
 
                     AnalysisView(config: config, dimensions: dimensions)
                     MoveNumberView(dimensions: dimensions, verticalFlip: config.verticalFlip)
-                    WinrateBarView(dimensions: dimensions)
+
+                    if config.showWinrateBar {
+                        WinrateBarView(dimensions: dimensions)
+                    }
                 }
                 .onTapGesture { location in
                     commentIsFocused = false

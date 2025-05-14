@@ -44,6 +44,7 @@ final class Config {
     var optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal
     var optionalHasButton: Bool? = defaultHasButton
     var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
+    var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -75,7 +76,8 @@ final class Config {
          optionalTaxRule: Int? = defaultTaxRule,
          optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal,
          optionalHasButton: Bool? = defaultHasButton,
-         optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule) {
+         optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule,
+         optionalShowWinrateBar: Bool? = defaultShowWinrateBar) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -107,6 +109,7 @@ final class Config {
         self.optionalMultiStoneSuicideLegal = optionalMultiStoneSuicideLegal
         self.optionalHasButton = optionalHasButton
         self.optionalWhiteHandicapBonusRule = optionalWhiteHandicapBonusRule
+        self.optionalShowWinrateBar = optionalShowWinrateBar
     }
 
     convenience init(config: Config?) {
@@ -136,7 +139,8 @@ final class Config {
                 optionalShowPass: config.optionalShowPass,
                 optionalVerticalFlip: config.optionalVerticalFlip,
                 optionalBlackMaxTime: config.optionalBlackMaxTime,
-                optionalWhiteMaxTime: config.optionalWhiteMaxTime)
+                optionalWhiteMaxTime: config.optionalWhiteMaxTime,
+                optionalShowWinrateBar: config.optionalShowWinrateBar)
         } else {
             self.init()
         }
@@ -574,5 +578,19 @@ extension Config {
                 multiStoneSuicideLegalCommand,
                 hasButtonCommand,
                 whiteHandicapBonusRuleCommand]
+    }
+}
+
+extension Config {
+    static let defaultShowWinrateBar: Bool = true
+
+    var showWinrateBar: Bool {
+        get {
+            return optionalShowWinrateBar ?? Config.defaultShowWinrateBar
+        }
+
+        set(newValue) {
+            optionalShowWinrateBar = newValue
+        }
     }
 }

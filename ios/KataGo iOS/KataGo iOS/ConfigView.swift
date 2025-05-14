@@ -287,6 +287,7 @@ struct AnalysisConfigView: View {
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
+    @State var showWinrateBar: Bool = Config.defaultShowWinrateBar
     @Environment(MessageList.self) var messageList
 
     var body: some View {
@@ -347,6 +348,14 @@ struct AnalysisConfigView: View {
                     }
                     .onChange(of: analysisInterval) { _, newValue in
                         config.analysisInterval = newValue
+                    }
+
+                ConfigBoolItem(title: "Show win rate bar:", value: $showWinrateBar)
+                    .onAppear {
+                        showWinrateBar = config.showWinrateBar
+                    }
+                    .onChange(of: showWinrateBar) { _, newValue in
+                        config.showWinrateBar = newValue
                     }
             }
         }
