@@ -102,7 +102,7 @@ struct AnalysisView: View {
                 let whiteSet = Set(stones.whitePoints)
                 let sortedInfoKeys = analysis.info.keys.sorted()
 
-                if !config.isAnalysisInformationNone {
+                if !config.isAnalysisInformationNone && config.isClassicAnalysisStyle {
                     shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
                 }
 

@@ -45,6 +45,7 @@ final class Config {
     var optionalHasButton: Bool? = defaultHasButton
     var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
     var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
+    var optionalAnalysisStyle: Int? = defaultAnalysisStyle
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -77,7 +78,8 @@ final class Config {
          optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal,
          optionalHasButton: Bool? = defaultHasButton,
          optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule,
-         optionalShowWinrateBar: Bool? = defaultShowWinrateBar) {
+         optionalShowWinrateBar: Bool? = defaultShowWinrateBar,
+         optionalAnalysisStyle: Int? = defaultAnalysisStyle) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -110,6 +112,7 @@ final class Config {
         self.optionalHasButton = optionalHasButton
         self.optionalWhiteHandicapBonusRule = optionalWhiteHandicapBonusRule
         self.optionalShowWinrateBar = optionalShowWinrateBar
+        self.optionalAnalysisStyle = optionalAnalysisStyle
     }
 
     convenience init(config: Config?) {
@@ -140,7 +143,8 @@ final class Config {
                 optionalVerticalFlip: config.optionalVerticalFlip,
                 optionalBlackMaxTime: config.optionalBlackMaxTime,
                 optionalWhiteMaxTime: config.optionalWhiteMaxTime,
-                optionalShowWinrateBar: config.optionalShowWinrateBar)
+                optionalShowWinrateBar: config.optionalShowWinrateBar,
+                optionalAnalysisStyle: config.optionalAnalysisStyle)
         } else {
             self.init()
         }
@@ -592,5 +596,32 @@ extension Config {
         set(newValue) {
             optionalShowWinrateBar = newValue
         }
+    }
+}
+
+extension Config {
+    static let fastAnalysisStyle = "Fast"
+    static let classicAnalysisStyle = "Classic"
+    static let analysisStyles = [fastAnalysisStyle, classicAnalysisStyle]
+    static let defaultAnalysisStyle = 0
+
+    var analysisStyle: Int {
+        get {
+            return optionalAnalysisStyle ?? Config.defaultAnalysisStyle
+        }
+        
+        set(newValue) {
+            optionalAnalysisStyle = newValue
+        }
+    }
+
+    var isFastAnalysisStyle: Bool {
+        guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
+        return Config.analysisStyles[analysisStyle] == Config.fastAnalysisStyle
+    }
+
+    var isClassicAnalysisStyle: Bool {
+        guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
+        return Config.analysisStyles[analysisStyle] == Config.classicAnalysisStyle
     }
 }

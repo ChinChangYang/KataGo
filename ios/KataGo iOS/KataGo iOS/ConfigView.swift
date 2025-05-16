@@ -288,6 +288,7 @@ struct AnalysisConfigView: View {
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
     @State var showWinrateBar: Bool = Config.defaultShowWinrateBar
+    @State var analysisStyle: Int = Config.defaultAnalysisStyle
     @Environment(MessageList.self) var messageList
 
     var body: some View {
@@ -356,6 +357,14 @@ struct AnalysisConfigView: View {
                     }
                     .onChange(of: showWinrateBar) { _, newValue in
                         config.showWinrateBar = newValue
+                    }
+
+                ConfigTextItem(title: "Analysis style:", texts: Config.analysisStyles, value: $analysisStyle)
+                    .onAppear {
+                        analysisStyle = config.analysisStyle
+                    }
+                    .onChange(of: analysisStyle) { _, newValue in
+                        config.analysisStyle = newValue
                     }
             }
         }
