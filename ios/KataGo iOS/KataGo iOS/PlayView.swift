@@ -9,6 +9,7 @@ import SwiftUI
 
 struct PlayView: View {
     var gameRecord: GameRecord
+    @State var isHorizontalLayout = false
     @Environment(BoardSize.self) var board
     @FocusState var commentIsFocused: Bool
 
@@ -35,9 +36,6 @@ struct PlayView: View {
     }
 
     private func commentBoardView(for dimensions: Dimensions) -> some View {
-        // Determine horizontal layout if horizontal space is greater than vertical space
-        let isHorizontalLayout = dimensions.gobanStartX > dimensions.capturedStonesStartY
-
         let commentView = CommentView(gameRecord: gameRecord)
             .focused($commentIsFocused)
             .frame(width: isHorizontalLayout ? max(dimensions.totalWidth - dimensions.gobanWidth, 200) : nil,
@@ -59,6 +57,10 @@ struct PlayView: View {
                     boardView
                 }
             }
+        }
+        .onAppear {
+            // Determine horizontal layout if horizontal space is greater than vertical space
+            isHorizontalLayout = dimensions.gobanStartX > dimensions.capturedStonesStartY
         }
     }
 
