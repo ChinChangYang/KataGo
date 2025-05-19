@@ -391,8 +391,15 @@ struct ContentView: View {
     func parseBoardPoints(boardText: [String]) async {
         let (width, height, blackStones, whiteStones, moveOrder) = await parseStones(boardText: boardText)
 
-        updateStones(blackStones, whiteStones, moveOrder) // Update the state of stones on the board
-        adjustBoardDimensionsIfNeeded(width: width, height: height) // Adjust dimensions if they change
+        withAnimation(.none) {
+            stones.blackPoints = blackStones // Update black stone positions
+            stones.whitePoints = whiteStones // Update white stone positions
+            adjustBoardDimensionsIfNeeded(width: width, height: height) // Adjust dimensions if they change
+        } completion: {
+            withAnimation(.spring) {
+                stones.moveOrder = moveOrder // Animate the change of move order using spring animation
+            }
+        }
     }
 
     // Calculates the board dimensions based on the text representation
@@ -421,15 +428,6 @@ struct ContentView: View {
             } else if char.isNumber {
                 moveOrder[point] = char // Track move number
             }
-        }
-    }
-
-    // Updates the stones displayed on the board and triggers animation
-    private func updateStones(_ blackStones: [BoardPoint], _ whiteStones: [BoardPoint], _ moveOrder: [BoardPoint: Character]) {
-        stones.blackPoints = blackStones // Update black stone positions
-        stones.whitePoints = whiteStones // Update white stone positions
-        withAnimation(.spring) {
-            stones.moveOrder = moveOrder // Animate the change of move order using spring animation
         }
     }
 
