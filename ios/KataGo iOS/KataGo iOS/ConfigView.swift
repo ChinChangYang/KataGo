@@ -162,6 +162,7 @@ struct NameConfigView: View {
 struct RuleConfigView: View {
     var config: Config
     @State var isBoardSizeChanged: Bool = false
+    @State var isRuleChanged: Bool = false
     @State var boardWidth: Int = -1
     @State var boardHeight: Int = -1
     @State var koRule: Int = Config.defaultKoRule
@@ -207,6 +208,7 @@ struct RuleConfigView: View {
                     .onChange(of: koRule) { _, newValue in
                         config.koRule = KoRule(rawValue: newValue) ?? .simple
                         messageList.appendAndSend(command: config.koRuleCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigTextItem(title: "Scoring rule:", texts: Config.scoringRules, value: $scoringRule)
@@ -216,6 +218,7 @@ struct RuleConfigView: View {
                     .onChange(of: scoringRule) { _, newValue in
                         config.scoringRule = ScoringRule(rawValue: newValue) ?? .area
                         messageList.appendAndSend(command: config.scoringRuleCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigTextItem(title: "Tax rule:", texts: Config.taxRules, value: $taxRule)
@@ -225,6 +228,7 @@ struct RuleConfigView: View {
                     .onChange(of: taxRule) { _, newValue in
                         config.taxRule = TaxRule(rawValue: newValue) ?? .none
                         messageList.appendAndSend(command: config.taxRuleCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigBoolItem(title: "Multi-stone suicide:", value: $multiStoneSuicideLegal)
@@ -234,6 +238,7 @@ struct RuleConfigView: View {
                     .onChange(of: multiStoneSuicideLegal) { _, newValue in
                         config.multiStoneSuicideLegal = newValue
                         messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigBoolItem(title: "Has button:", value: $hasButton)
@@ -243,6 +248,7 @@ struct RuleConfigView: View {
                     .onChange(of: hasButton) { _, newValue in
                         config.hasButton = newValue
                         messageList.appendAndSend(command: config.hasButtonCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigTextItem(title: "White handicap bonus:", texts: Config.whiteHandicapBonusRules, value: $whiteHandicapBonusRule)
@@ -252,6 +258,7 @@ struct RuleConfigView: View {
                     .onChange(of: whiteHandicapBonusRule) { _, newValue in
                         config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: newValue) ?? .zero
                         messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+                        isRuleChanged = true
                     }
 
                 ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
@@ -261,17 +268,22 @@ struct RuleConfigView: View {
                     .onChange(of: komi) { _, newValue in
                         config.komi = newValue
                         messageList.appendAndSend(command: config.getKataKomiCommand())
+                        isRuleChanged = true
                     }
             }
         }
         .onAppear {
             isBoardSizeChanged = false
+            isRuleChanged = false
         }
         .onDisappear {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
                 messageList.appendAndSend(command: config.getKataBoardSizeCommand())
                 gobanState.sendShowBoardCommand(messageList: messageList)
+            }
+
+            if isBoardSizeChanged || isRuleChanged {
                 messageList.appendAndSend(command: "printsgf")
             }
         }
