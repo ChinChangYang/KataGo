@@ -37,6 +37,7 @@ struct ContentView: View {
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
+    @Binding var selectedModel: NeuralNetworkModel?
 
     var body: some View {
         if isInitialized {
@@ -101,7 +102,7 @@ struct ContentView: View {
             }
 
         } else {
-            LoadingView(version: $version)
+            LoadingView(version: $version, selectedModel: $selectedModel)
                 .task {
                     await initializationTask()
                 }
@@ -707,12 +708,4 @@ struct ContentView: View {
             postProcessAIMove(message: message)
         }
     }
-}
-
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: GameRecord.self, configurations: config)
-
-    return ContentView()
-        .modelContainer(container)
 }

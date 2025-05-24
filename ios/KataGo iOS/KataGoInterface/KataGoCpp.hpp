@@ -12,7 +12,7 @@
 
 using namespace std;
 
-void KataGoRunGtp(string modelPath, string humanModelPath, string configPath);
+void KataGoRunGtp(string modelPath, string humanModelPath, string configPath, int coremlDeviceToUse);
 string KataGoGetMessageLine();
 void KataGoSendCommand(string command);
 

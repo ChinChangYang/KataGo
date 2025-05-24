@@ -9,17 +9,17 @@ import Foundation
 
 public class KataGoHelper {
 
-    public class func runGtp() {
+    public class func runGtp(modelPath: String? = nil, useMetal: Bool = false) {
         let mainBundle = Bundle.main
         let modelName = "default_model"
         let modelExt = "bin.gz"
-
-        let modelPath = mainBundle.path(forResource: modelName,
-                                        ofType: modelExt)
-
+        
+        let mainModelPath = modelPath ?? mainBundle.path(forResource: modelName,
+                                                         ofType: modelExt)
+        
         let humanModelName = "b18c384nbt-humanv0"
         let humanModelExt = "bin.gz"
-
+        
         let humanModelPath = mainBundle.path(forResource: humanModelName,
                                              ofType: humanModelExt)
 
@@ -29,9 +29,12 @@ public class KataGoHelper {
         let configPath = mainBundle.path(forResource: configName,
                                          ofType: configExt)
 
-        KataGoRunGtp(std.string(modelPath),
+        let coremlDeviceToUse = useMetal ? 0 : 100
+
+        KataGoRunGtp(std.string(mainModelPath),
                      std.string(humanModelPath),
-                     std.string(configPath))
+                     std.string(configPath),
+                     Int32(coremlDeviceToUse))
     }
 
     public class func getMessageLine() -> String {

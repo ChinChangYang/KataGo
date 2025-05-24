@@ -226,6 +226,8 @@
 		E13B927E2DD35B48009F8A1A /* CaptureGoStone2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E13B927C2DD35B48009F8A1A /* CaptureGoStone2.mp3 */; };
 		E13B927F2DD35B48009F8A1A /* CaptureGoStone1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E13B927B2DD35B48009F8A1A /* CaptureGoStone1.mp3 */; };
 		E13B92802DD35B48009F8A1A /* CaptureGoStone3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E13B927D2DD35B48009F8A1A /* CaptureGoStone3.mp3 */; };
+		E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */; };
+		E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */; };
 		E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */; };
 		E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14753582C3A5A440066DE29 /* GameRecord.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
@@ -239,6 +241,7 @@
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
+		E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
@@ -557,6 +560,8 @@
 		E13B927B2DD35B48009F8A1A /* CaptureGoStone1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = CaptureGoStone1.mp3; sourceTree = "<group>"; };
 		E13B927C2DD35B48009F8A1A /* CaptureGoStone2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = CaptureGoStone2.mp3; sourceTree = "<group>"; };
 		E13B927D2DD35B48009F8A1A /* CaptureGoStone3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = CaptureGoStone3.mp3; sourceTree = "<group>"; };
+		E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
+		E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRunnerView.swift; sourceTree = "<group>"; };
 		E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEditorView.swift; sourceTree = "<group>"; };
 		E14753582C3A5A440066DE29 /* GameRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecord.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
@@ -571,6 +576,7 @@
 		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
 		E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16m1.mlpackage; sourceTree = "<group>"; };
+		E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModel.swift; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
@@ -994,6 +1000,8 @@
 				E13828622C5B8C3600670FD3 /* GameListView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
+				E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */,
+				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
 				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
@@ -1015,6 +1023,7 @@
 				E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */,
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
+				E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */,
 				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
 			);
 			name = Model;
@@ -1646,6 +1655,8 @@
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
+				E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */,
+				E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */,
 				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
@@ -1653,6 +1664,7 @@
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
 				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
 				E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */,
+				E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2198,7 +2210,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.16;
+				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;
@@ -2240,7 +2252,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.16;
+				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = NO;

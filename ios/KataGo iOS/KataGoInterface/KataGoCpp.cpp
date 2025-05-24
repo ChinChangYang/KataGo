@@ -67,7 +67,7 @@ ThreadSafeStreamBuf tsbToKataGo;
 // Output stream to KataGo
 ostream outToKataGo(&tsbToKataGo);
 
-void KataGoRunGtp(string modelPath, string humanModelPath, string configPath) {
+void KataGoRunGtp(string modelPath, string humanModelPath, string configPath, int coremlDeviceToUse) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -75,7 +75,7 @@ void KataGoRunGtp(string modelPath, string humanModelPath, string configPath) {
     cin.rdbuf(&tsbToKataGo);
 
     vector<string> subArgs;
-#if true
+
     // Call the main command gtp
     subArgs.push_back(string("gtp"));
     subArgs.push_back(string("-model"));
@@ -84,18 +84,8 @@ void KataGoRunGtp(string modelPath, string humanModelPath, string configPath) {
     subArgs.push_back(humanModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
+    subArgs.push_back(string("-override-config coremlDeviceToUse=") + to_string(coremlDeviceToUse));
     MainCmds::gtp(subArgs);
-#else
-    // Call the main command benchmark
-    subArgs.push_back(string("benchmark"));
-    subArgs.push_back(string("-model"));
-    subArgs.push_back(string([modelPath UTF8String]));
-    subArgs.push_back(string("-config"));
-    subArgs.push_back(string([configPath UTF8String]));
-    subArgs.push_back(string("-t"));
-    subArgs.push_back(string("2,4,8"));
-    MainCmds::benchmark(subArgs);
-#endif
 }
 
 string KataGoGetMessageLine() {
