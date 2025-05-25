@@ -242,6 +242,8 @@
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
 		E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */; };
+		E16E1F392DE2AA8400B0F144 /* Downloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F382DE2AA8300B0F144 /* Downloader.swift */; };
+		E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
@@ -577,6 +579,8 @@
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
 		E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16m1.mlpackage; sourceTree = "<group>"; };
 		E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModel.swift; sourceTree = "<group>"; };
+		E16E1F382DE2AA8300B0F144 /* Downloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloader.swift; sourceTree = "<group>"; };
+		E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugUtils.swift; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
@@ -1019,6 +1023,8 @@
 			children = (
 				E10C8BAC2C80BECE00477A7B /* AudioModel.swift */,
 				E12A6E9E2C322E020002DED0 /* ConfigModel.swift */,
+				E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */,
+				E16E1F382DE2AA8300B0F144 /* Downloader.swift */,
 				E14753582C3A5A440066DE29 /* GameRecord.swift */,
 				E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */,
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
@@ -1643,6 +1649,7 @@
 				E13A9ACE2D9A42B6002A367C /* ThumbnailModel.swift in Sources */,
 				E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
+				E16E1F392DE2AA8400B0F144 /* Downloader.swift in Sources */,
 				E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */,
 				E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
@@ -1657,6 +1664,7 @@
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */,
 				E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */,
+				E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */,
 				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
