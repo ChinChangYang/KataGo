@@ -49,7 +49,7 @@ struct ModelRunnerView: View {
         }
 
         // Expand the stack size to resolve a stack overflow problem
-        katagoThread.stackSize = 4096 * 256
+        katagoThread.stackSize = 4096 * 512
         katagoThread.start()
 
         self.katagoThread = katagoThread

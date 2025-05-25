@@ -179,7 +179,7 @@ struct RuleConfigView: View {
     var body: some View {
         Form {
             Section {
-                ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
+                ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 41)
                     .onAppear {
                         boardWidth = config.boardWidth
                     }
@@ -190,7 +190,7 @@ struct RuleConfigView: View {
                         }
                     }
 
-                ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
+                ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 41)
                     .onAppear {
                         boardHeight = config.boardHeight
                     }
