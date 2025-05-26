@@ -244,6 +244,7 @@
 		E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */; };
 		E16E1F392DE2AA8400B0F144 /* Downloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F382DE2AA8300B0F144 /* Downloader.swift */; };
 		E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */; };
+		E16E1F3F2DE4235000B0F144 /* TerminationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F3E2DE4235000B0F144 /* TerminationModel.swift */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
@@ -581,6 +582,7 @@
 		E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModel.swift; sourceTree = "<group>"; };
 		E16E1F382DE2AA8300B0F144 /* Downloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloader.swift; sourceTree = "<group>"; };
 		E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugUtils.swift; sourceTree = "<group>"; };
+		E16E1F3E2DE4235000B0F144 /* TerminationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationModel.swift; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
@@ -1031,6 +1033,7 @@
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
 				E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */,
 				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
+				E16E1F3E2DE4235000B0F144 /* TerminationModel.swift */,
 			);
 			name = Model;
 			sourceTree = "<group>";
@@ -1671,6 +1674,7 @@
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
 				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
+				E16E1F3F2DE4235000B0F144 /* TerminationModel.swift in Sources */,
 				E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */,
 				E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,

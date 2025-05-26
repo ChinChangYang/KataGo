@@ -46,4 +46,8 @@ public class KataGoHelper {
     public class func sendCommand(_ command: String) {
         KataGoSendCommand(std.string(command))
     }
+
+    public class func sendMessage(_ message: String) {
+        KataGoSendMessage(std.string(message))
+    }
 }

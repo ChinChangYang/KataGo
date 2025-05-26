@@ -100,3 +100,7 @@ void KataGoSendCommand(string command) {
     // Write GTP commands to the outToKataGo
     outToKataGo << command << endl;
 }
+
+void KataGoSendMessage(string message) {
+    cout << message;
+}

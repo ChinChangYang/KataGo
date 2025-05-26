@@ -36,6 +36,7 @@ struct ContentView: View {
     @State var version: String?
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
+    @State var quitStatus: QuitStatus = .none
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
     let selectedModel: NeuralNetworkModel
 
@@ -50,7 +51,16 @@ struct ContentView: View {
                     ToolbarItem {
                         HStack {
                             Button(role: .destructive) {
+                                quitStatus = .quitting
                                 KataGoSendCommand("quit")
+                                Task {
+                                    // Wait until all messages are consumed.
+                                    try? await Task.sleep(for: .seconds(1))
+                                    // False the condition of consumer's loop.
+                                    quitStatus = .quitted
+                                    // An additional message to terminate the consumer.
+                                    KataGoHelper.sendMessage("\n")
+                                }
                             } label: {
                                 Image(systemName: "rectangle.portrait.and.arrow.forward")
                                     .foregroundStyle(.red)
@@ -255,26 +265,28 @@ struct ContentView: View {
             return KataGoHelper.getMessageLine()
         }.value
 
-        // Create a message with the line
-        let message = Message(text: line)
+        if quitStatus == .none {
+            // Create a message with the line
+            let message = Message(text: line)
 
-        // Append the message to the list of messages
-        messageList.messages.append(message)
+            // Append the message to the list of messages
+            messageList.messages.append(message)
 
-        // Collect board information
-        await maybeCollectBoard(message: line)
+            // Collect board information
+            await maybeCollectBoard(message: line)
 
-        // Collect analysis information
-        await maybeCollectAnalysis(message: line)
+            // Collect analysis information
+            await maybeCollectAnalysis(message: line)
 
-        // Collect SGF information
-        maybeCollectSgf(message: line)
+            // Collect SGF information
+            maybeCollectSgf(message: line)
 
-        // Collect play information
-        maybeCollectPlay(message: line)
+            // Collect play information
+            maybeCollectPlay(message: line)
 
-        // Remove when there are too many messages
-        messageList.shrink()
+            // Remove when there are too many messages
+            messageList.shrink()
+        }
     }
 
     private func sendInitialCommands(config: Config?) {
@@ -312,7 +324,7 @@ struct ContentView: View {
 
     @MainActor
     private func messageTask() async {
-        while true {
+        while quitStatus != .quitted {
             await messaging()
         }
     }

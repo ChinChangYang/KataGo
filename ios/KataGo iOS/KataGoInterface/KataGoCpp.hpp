@@ -15,5 +15,6 @@ using namespace std;
 void KataGoRunGtp(string modelPath, string humanModelPath, string configPath, int coremlDeviceToUse);
 string KataGoGetMessageLine();
 void KataGoSendCommand(string command);
+void KataGoSendMessage(string message);
 
 #endif /* KataGoCpp_hpp */
