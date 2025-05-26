@@ -9,34 +9,29 @@ import SwiftUI
 import KataGoInterface
 
 struct ModelRunnerView: View {
-    @State private var selectedModel: NeuralNetworkModel?
-    @State private var isModelPicked: Bool = false
+    @State private var selectedModel: NeuralNetworkModel? = nil
     @State private var katagoThread: Thread?
 
     var body: some View {
         Group {
-            if isModelPicked {
-                ContentView(selectedModel: $selectedModel)
+            if let selectedModel {
+                ContentView(selectedModel: selectedModel)
             } else {
-                ModelPickerView(selectedModel: $selectedModel, isModelPicked: $isModelPicked)
+                ModelPickerView(selectedModel: $selectedModel)
             }
         }
-        .onChange(of: isModelPicked) { _, newValue in
-            if newValue {
-                if let selectedModel {
-                    if !selectedModel.builtIn {
-                        let fileManager = FileManager.default
-                        if let docsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-                            let downloadedURL = docsURL.appendingPathComponent(selectedModel.fileName)
-                            startKataGoThread(modelPath: downloadedURL.path(), useMetal: !selectedModel.builtIn)
-                        } else {
-                            isModelPicked = false
-                        }
-                    } else {
-                        startKataGoThread()
-                    }
+        .onChange(of: selectedModel) { _, _ in
+            if let selectedModel {
+                if selectedModel.builtIn {
+                    // Start KataGo with the built-in model
+                    startKataGoThread()
                 } else {
-                    isModelPicked = false
+                    if let downloadedURL = selectedModel.downloadedURL {
+                        startKataGoThread(modelPath: downloadedURL.path(), useMetal: !selectedModel.builtIn)
+                    } else {
+                        // Failed to get model URL, go back to the model picker view
+                        self.selectedModel = nil
+                    }
                 }
             }
         }

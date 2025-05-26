@@ -11,7 +11,6 @@ extension Int {
     var humanFileSize: String {
         let size = Double(self)
         guard size > 0 else { return "0 B" }
-
         let units = ["B", "kB", "MB", "GB", "TB"]
         let exponent = Int(floor(log(size) / log(1024)))
         let scaledSize = size / pow(1024, Double(exponent))
@@ -23,16 +22,17 @@ extension Int {
 
 struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
-    @State private var downloader: Downloader?
+    @State private var downloaders: [UUID: Downloader?] = [:]
     @State private var isDownloaded: [UUID: Bool] = [:]
+
+    // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
-    @Binding var isModelPicked: Bool
 
     var selectedIndex: Int? {
         NeuralNetworkModel.allCases.map { $0.id }.firstIndex(of: selectedModelID)
     }
 
-    var theSelectedModel: NeuralNetworkModel? {
+    var currentSelectedModel: NeuralNetworkModel? {
         if let selectedIndex {
             NeuralNetworkModel.allCases[selectedIndex]
         } else {
@@ -40,28 +40,33 @@ struct ModelPickerView: View {
         }
     }
 
-    var body: some View {
-        VStack {
-            Text("Select a Model")
-                .font(.headline)
-
-            List(NeuralNetworkModel.allCases, selection: $selectedModelID) { model in
-                VStack(alignment: .leading) {
-                    Text(model.title)
-                        .bold()
-                    Text(model.description)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical)
+    var listView: some View {
+        List(NeuralNetworkModel.allCases, selection: $selectedModelID) { model in
+            VStack(alignment: .leading) {
+                Text(model.title)
+                    .bold()
+                Text(model.description)
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical)
+            .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
+                if oldValue == true && newValue == false {
+                    if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
+                        isDownloaded[model.id] = true
+                    }
+                }
+            }
+        }
+    }
 
-            if let theSelectedModel {
-                if isDownloaded[theSelectedModel.id] ?? false {
+    var bottomView: some View {
+        Group {
+            if let currentSelectedModel {
+                if isDownloaded[currentSelectedModel.id] ?? false {
                     HStack {
                         Button {
-                            selectedModel = theSelectedModel
-                            isModelPicked = true
+                            selectedModel = currentSelectedModel
                         } label: {
                             VStack {
                                 Image(systemName: "arrowtriangle.forward")
@@ -70,50 +75,56 @@ struct ModelPickerView: View {
                         }
                         .padding(.horizontal)
 
-                        if !theSelectedModel.builtIn {
+                        if !currentSelectedModel.builtIn {
                             Button(role: .destructive) {
-                                let fileManager = FileManager.default
-                                if let docsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-                                    let downloadedURL = docsURL.appendingPathComponent(theSelectedModel.fileName)
-                                    try? fileManager.removeItem(at: downloadedURL)
-                                    isDownloaded[theSelectedModel.id] = false
+                                if let downloadedURL = currentSelectedModel.downloadedURL {
+                                    try? FileManager.default.removeItem(at: downloadedURL)
+                                    if !FileManager.default.fileExists(atPath: downloadedURL.path) {
+                                        isDownloaded[currentSelectedModel.id] = false
+                                    }
                                 }
                             } label: {
                                 VStack {
                                     Image(systemName: "trash")
-                                    Text("Delete (\(theSelectedModel.fileSize.humanFileSize))")
+                                    Text("Delete (\(currentSelectedModel.fileSize.humanFileSize))")
                                 }
                             }
                         }
                     }
                     .padding()
-                } else if !(downloader?.isDownloading ?? false) {
+                } else if !(downloaders[currentSelectedModel.id]??.isDownloading ?? false) {
                     Button {
                         Task {
-                            let fileManager = FileManager.default
-                            if let modelURL = URL(string: theSelectedModel.url),
-                               let docsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-                                let downloadedURL = docsURL.appendingPathComponent(theSelectedModel.fileName)
-                                downloader = Downloader(destinationURL: downloadedURL)
-                                try? await downloader?.download(from: modelURL)
+                            if let modelURL = URL(string: currentSelectedModel.url) {
+                                try? await downloaders[currentSelectedModel.id]??.download(from: modelURL)
                             }
                         }
                     } label: {
                         VStack {
                             Image(systemName: "square.and.arrow.down")
-                            Text("Download (\(theSelectedModel.fileSize.humanFileSize))")
+                            Text("Download (\(currentSelectedModel.fileSize.humanFileSize))")
                         }
                     }
                     .padding()
                 } else {
                     VStack {
-                        ProgressView(value: downloader?.progress)
+                        ProgressView(value: downloaders[currentSelectedModel.id]??.progress)
                             .progressViewStyle(.linear)
                             .padding()
-                        Text("Downloading: \(Int((downloader?.progress ?? 0) * 100))%")
+                        Text("Downloading: \(Int((downloaders[currentSelectedModel.id]??.progress ?? 0) * 100))%")
                     }
                 }
             }
+        }
+    }
+
+    var body: some View {
+        VStack {
+            Text("Select a Model")
+                .font(.headline)
+
+            listView
+            bottomView
         }
         .padding()
         .onAppear {
@@ -121,10 +132,9 @@ struct ModelPickerView: View {
                 if model.builtIn {
                     isDownloaded[model.id] = true
                 } else {
-                    let fileManager = FileManager.default
-                    if let docsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-                        let downloadedURL = docsURL.appendingPathComponent(model.fileName)
-                        if fileManager.fileExists(atPath: downloadedURL.path) {
+                    if let downloadedURL = model.downloadedURL {
+                        downloaders[model.id] = Downloader(destinationURL: downloadedURL)
+                        if FileManager.default.fileExists(atPath: downloadedURL.path) {
                             isDownloaded[model.id] = true
                         } else {
                             isDownloaded[model.id] = false
@@ -132,14 +142,6 @@ struct ModelPickerView: View {
                     } else {
                         isDownloaded[model.id] = false
                     }
-                }
-            }
-        }
-        .onChange(of: downloader?.isDownloading) { oldValue, newValue in
-            if oldValue == true && newValue == false,
-               let theSelectedModel {
-                if FileManager.default.fileExists(atPath: downloader?.destinationURL.path ?? "") {
-                    isDownloaded[theSelectedModel.id] = true
                 }
             }
         }

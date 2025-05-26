@@ -15,7 +15,7 @@ struct LoadingView: View {
     @State var animationSpeed = 0.1
     @State var animationCount = 0
     @Binding var version: String?
-    @Binding var selectedModel: NeuralNetworkModel?
+    let selectedModel: NeuralNetworkModel
 
     static let maxAnimationCount = 5
 
@@ -44,9 +44,7 @@ struct LoadingView: View {
                     .padding()
                     .accessibilityIdentifier("loadingText")
 
-                if let selectedModel {
-                    Text(selectedModel.title)
-                }
+                Text(selectedModel.title)
 
                 if let version {
                     Text("\nKataGo \(version)")

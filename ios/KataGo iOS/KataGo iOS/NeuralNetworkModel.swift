@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct NeuralNetworkModel: Identifiable {
+struct NeuralNetworkModel: Identifiable, Equatable {
     let title: String
     let description: String
     let url: String
@@ -15,6 +15,11 @@ struct NeuralNetworkModel: Identifiable {
     let fileSize: Int
     let builtIn: Bool
     let id = UUID()
+
+    var downloadedURL: URL? {
+        let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        return docsURL?.appendingPathComponent(fileName)
+    }
 
     init(title: String, description: String, url: String, fileName: String, fileSize: Int, builtIn: Bool = false) {
         self.title = title

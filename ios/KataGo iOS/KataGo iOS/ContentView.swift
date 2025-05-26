@@ -37,7 +37,7 @@ struct ContentView: View {
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
-    @Binding var selectedModel: NeuralNetworkModel?
+    let selectedModel: NeuralNetworkModel
 
     var body: some View {
         if isInitialized {
@@ -102,7 +102,7 @@ struct ContentView: View {
             }
 
         } else {
-            LoadingView(version: $version, selectedModel: $selectedModel)
+            LoadingView(version: $version, selectedModel: selectedModel)
                 .task {
                     await initializationTask()
                 }
