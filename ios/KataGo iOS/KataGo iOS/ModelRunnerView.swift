@@ -41,6 +41,12 @@ struct ModelRunnerView: View {
         // Start a thread to run KataGo GTP
         let katagoThread = Thread {
             KataGoHelper.runGtp(modelPath: modelPath, useMetal: useMetal)
+
+            Task {
+                await MainActor.run {
+                    selectedModel = nil
+                }
+            }
         }
 
         // Expand the stack size to resolve a stack overflow problem

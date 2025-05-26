@@ -48,8 +48,16 @@ struct ContentView: View {
                              isGameListViewAppeared: $isGameListViewAppeared)
                 .toolbar {
                     ToolbarItem {
-                        PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
-                            .id(toolbarUuid)
+                        HStack {
+                            Button(role: .destructive) {
+                                KataGoSendCommand("quit")
+                            } label: {
+                                Image(systemName: "rectangle.portrait.and.arrow.forward")
+                                    .foregroundStyle(.red)
+                            }
+                            PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
+                                .id(toolbarUuid)
+                        }
                     }
                 }
                 .onChange(of: horizontalSizeClass) { _, _ in
