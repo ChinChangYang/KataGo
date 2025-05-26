@@ -30,11 +30,17 @@ public class KataGoHelper {
                                          ofType: configExt)
 
         let coremlDeviceToUse = useMetal ? 0 : 100
+        let gtpForceMaxNNSize = !useMetal
+        let numSearchThreads = useMetal ? 16 : 2
+        let nnMaxBatchSize = useMetal ? 8 : 1
 
         KataGoRunGtp(std.string(mainModelPath),
                      std.string(humanModelPath),
                      std.string(configPath),
-                     Int32(coremlDeviceToUse))
+                     Int32(coremlDeviceToUse),
+                     gtpForceMaxNNSize,
+                     Int32(numSearchThreads),
+                     Int32(nnMaxBatchSize))
     }
 
     public class func getMessageLine() -> String {

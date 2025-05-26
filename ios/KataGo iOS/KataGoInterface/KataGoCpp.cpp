@@ -67,7 +67,13 @@ ThreadSafeStreamBuf tsbToKataGo;
 // Output stream to KataGo
 ostream outToKataGo(&tsbToKataGo);
 
-void KataGoRunGtp(string modelPath, string humanModelPath, string configPath, int coremlDeviceToUse) {
+void KataGoRunGtp(string modelPath,
+                  string humanModelPath,
+                  string configPath,
+                  int coremlDeviceToUse,
+                  bool gtpForceMaxNNSize,
+                  int numSearchThreads,
+                  int nnMaxBatchSize) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -85,6 +91,9 @@ void KataGoRunGtp(string modelPath, string humanModelPath, string configPath, in
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
     subArgs.push_back(string("-override-config coremlDeviceToUse=") + to_string(coremlDeviceToUse));
+    subArgs.push_back(string("-override-config gtpForceMaxNNSize=") + (gtpForceMaxNNSize ? "true" : "false"));
+    subArgs.push_back(string("-override-config numSearchThreads=") + to_string(numSearchThreads));
+    subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));
     MainCmds::gtp(subArgs);
 }
 
