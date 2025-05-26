@@ -3,7 +3,7 @@ rm -f default_model.bin.gz
 curl -L -o default_model.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b28c512nbt-null-s8834M.bin.gz
 cp -f default_model.bin.gz ../Resources/default_model.bin.gz
 
-curl -L -o b18c384nbt-humanv0.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b18c384nbt-humanv0-null.bin.gz
+curl -L -o b18c384nbt-humanv0.bin.gz https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz
 cp -f b18c384nbt-humanv0.bin.gz ../Resources/b18c384nbt-humanv0.bin.gz
 
 rm -rf ../Resources/KataGoModel29x29fp16.mlpackage
