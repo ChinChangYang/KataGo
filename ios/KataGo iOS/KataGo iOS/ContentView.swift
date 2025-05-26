@@ -66,8 +66,8 @@ struct ContentView: View {
                                     .foregroundStyle(.red)
                             }
                             PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
-                                .id(toolbarUuid)
                         }
+                        .id(toolbarUuid)
                     }
                 }
                 .onChange(of: horizontalSizeClass) { _, _ in
