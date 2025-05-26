@@ -29,7 +29,7 @@ struct NeuralNetworkModel: Identifiable {
         .init(
             title: "Built-in KataGo Core ML model",
             description: """
-This is the 8-bit quantized Core ML model converted from the strongest confidently-rated network in KataGo distributed training.
+This model is based on the strongest network from KataGo's distributed training and has been converted to Core ML with 8-bit quantization. It's optimized to run efficiently on Apple devices using the Neural Engine.
 
 Name: kata1-b28c512nbt-s8834891520-d4763401477.
 Uploaded at: 2025-05-10 07:04:59 UTC.
@@ -43,7 +43,7 @@ Elo Rating: 14006.6 ± 18.3 - (2,449 games).
         .init(
             title: "Official KataGo Network",
             description: """
-This is the strongest confidently-rated network in KataGo distributed training.
+This is the strongest confidently-rated network in KataGo distributed training. It runs using the GPU and may offer faster performance than the Core ML model on high-end Macs.
 
 Name: kata1-b28c512nbt-s8925522176-d4787295149.
 Uploaded at: 2025-05-18 01:48:36 UTC.
