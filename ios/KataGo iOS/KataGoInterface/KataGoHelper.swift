@@ -9,6 +9,14 @@ import Foundation
 
 public class KataGoHelper {
 
+#if DEBUG
+    static let metalNumSearchThreads = 2
+    static let metalNnMaxBatchSize = 1
+#else
+    static let metalNumSearchThreads = 16
+    static let metalNnMaxBatchSize = 8
+#endif
+
     public class func runGtp(modelPath: String? = nil, useMetal: Bool = false) {
         let mainBundle = Bundle.main
         let modelName = "default_model"
@@ -31,8 +39,8 @@ public class KataGoHelper {
 
         let coremlDeviceToUse = useMetal ? 0 : 100
         let gtpForceMaxNNSize = !useMetal
-        let numSearchThreads = useMetal ? 16 : 2
-        let nnMaxBatchSize = useMetal ? 8 : 1
+        let numSearchThreads = useMetal ? metalNumSearchThreads : 2
+        let nnMaxBatchSize = useMetal ? metalNnMaxBatchSize : 1
 
         KataGoRunGtp(std.string(mainModelPath),
                      std.string(humanModelPath),
