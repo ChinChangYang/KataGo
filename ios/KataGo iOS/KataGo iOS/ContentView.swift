@@ -204,6 +204,19 @@ struct ContentView: View {
         }
     }
 
+    private func placeLoadingBoard(width: Int, height: Int) {
+        withAnimation {
+            board.width = CGFloat(width)
+            board.height = CGFloat(height)
+            stones.blackPoints.removeAll()
+            stones.whitePoints.removeAll()
+            stones.moveOrder.removeAll()
+            stones.blackStonesCaptured = 0
+            stones.whiteStonesCaptured = 0
+            stones.isReady = false
+        }
+    }
+
     private func processChange(newSelectedGameRecord: GameRecord?) {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
@@ -231,6 +244,7 @@ struct ContentView: View {
             config.hasButton = sgfHelper.rules.hasButton
             config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
             config.komi = sgfHelper.rules.komi
+            placeLoadingBoard(width: config.boardWidth, height: config.boardHeight)
             messageList.appendAndSend(commands: config.ruleCommands)
             messageList.appendAndSend(command: config.getKataKomiCommand())
             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
