@@ -9,12 +9,12 @@ import Foundation
 
 public class KataGoHelper {
 
-#if DEBUG
-    static let metalNumSearchThreads = 2
-    static let metalNnMaxBatchSize = 1
-#else
+#if os(macOS)
     static let metalNumSearchThreads = 16
     static let metalNnMaxBatchSize = 8
+#else
+    static let metalNumSearchThreads = 2
+    static let metalNnMaxBatchSize = 1
 #endif
 
     public class func runGtp(modelPath: String? = nil, useMetal: Bool = false) {

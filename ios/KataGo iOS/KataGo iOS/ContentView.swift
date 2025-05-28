@@ -169,7 +169,16 @@ struct ContentView: View {
                 .environment(player)
 
             let renderer = ImageRenderer(content: content)
+#if os(macOS)
+            if let nsImage = renderer.nsImage,
+               let tiffData = nsImage.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiffData),
+               let pngData = bitmap.representation(using: .png, properties: [:]) {
+                gameRecord.thumbnail = pngData
+            }
+#else
             gameRecord.thumbnail = renderer.uiImage?.heicData()
+#endif
         }
     }
 

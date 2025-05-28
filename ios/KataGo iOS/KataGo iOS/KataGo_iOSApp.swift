@@ -27,7 +27,7 @@ struct KataGo_iOSApp: App {
     var scene: some Scene {
         #if os(macOS)
             Window("KataGo Anytime", id: "KataGo Anytime") {
-                ContentView()
+                ModelRunnerView()
             }
         #else
             WindowGroup {
