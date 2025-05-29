@@ -8,10 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10C8BAC2C80BECE00477A7B /* AudioModel.swift */; };
-		E114E9362DE886FB00EFEACA /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
-		E114E9372DE886FB00EFEACA /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E114E9392DE8870200EFEACA /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
-		E114E93A2DE8870200EFEACA /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E1183E662B081DAA00637D44 /* main.h in Headers */ = {isa = PBXBuildFile; fileRef = E118EF0C2B081D8500637D44 /* main.h */; };
 		E118802E2B081E3900637D44 /* sgf.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CA2B081DA700637D44 /* sgf.h */; };
 		E118802F2B081E3900637D44 /* trainingwrite.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CB2B081DA700637D44 /* trainingwrite.h */; };
@@ -206,6 +202,7 @@
 		E11887EF2B08310800637D44 /* coremlmodel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887EC2B08310800637D44 /* coremlmodel.swift */; };
 		E11887F02B08310800637D44 /* coremlbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887ED2B08310800637D44 /* coremlbackend.swift */; };
 		E11887F12B08310800637D44 /* metalbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11887EE2B08310800637D44 /* metalbackend.swift */; };
+		E11887F42B08312F00637D44 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		E11887F52B0831B100637D44 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
 		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -215,6 +212,7 @@
 		E12A6F192C37FE710002DED0 /* KataGoInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F182C37FE710002DED0 /* KataGoInterface.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; };
 		E12A6F1D2C37FE710002DED0 /* KataGoInterface.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E12A6F292C38018D0002DED0 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E12A6F382C38BE120002DED0 /* KataGoCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E12A6F392C38BE120002DED0 /* KataGoCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */; };
 		E12A6F3B2C38C5EA0002DED0 /* KataGoHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */; };
@@ -335,28 +333,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		E114E9382DE886FB00EFEACA /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				E114E9372DE886FB00EFEACA /* katago.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E114E93B2DE8870200EFEACA /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				E114E93A2DE8870200EFEACA /* KataGoSwift.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		E118EE842B0819E500637D44 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -659,8 +635,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E11887F42B08312F00637D44 /* KataGoSwift.framework in Frameworks */,
 				E11887F52B0831B100637D44 /* libz.tbd in Frameworks */,
-				E114E9392DE8870200EFEACA /* KataGoSwift.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -668,7 +644,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E114E9362DE886FB00EFEACA /* katago.framework in Frameworks */,
+				E12A6F292C38018D0002DED0 /* katago.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1312,7 +1288,6 @@
 				E118EE8C2B081C3200637D44 /* Sources */,
 				E118EE8D2B081C3200637D44 /* Frameworks */,
 				E118EE8E2B081C3200637D44 /* Resources */,
-				E114E93B2DE8870200EFEACA /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -1332,7 +1307,6 @@
 				E12A6F122C37FE710002DED0 /* Sources */,
 				E12A6F132C37FE710002DED0 /* Frameworks */,
 				E12A6F142C37FE710002DED0 /* Resources */,
-				E114E9382DE886FB00EFEACA /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -2235,7 +2209,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
@@ -2278,7 +2251,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
