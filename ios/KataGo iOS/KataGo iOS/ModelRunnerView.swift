@@ -44,7 +44,9 @@ struct ModelRunnerView: View {
 
             Task {
                 await MainActor.run {
-                    selectedModel = nil
+                    withAnimation {
+                        selectedModel = nil
+                    }
                 }
             }
         }
