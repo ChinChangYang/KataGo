@@ -18,14 +18,10 @@ struct ConfigIntItem: View {
     var body: some View {
         HStack {
             Text(title)
-#if !os(macOS)
             Spacer()
-#endif
             Stepper(value: $value, in: minValue...maxValue, step: step) {
                 Text("\(value)")
-#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-#endif
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,14 +40,10 @@ struct ConfigFloatItem: View {
     var body: some View {
         HStack {
             Text(title)
-#if !os(macOS)
             Spacer()
-#endif
             Stepper(value: $value, in: minValue...maxValue, step: step) {
                 Text(formattedValue + (postFix ?? ""))
-#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-#endif
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -80,14 +72,10 @@ struct ConfigTextItem: View {
     var body: some View {
         HStack {
             Text(title)
-#if !os(macOS)
             Spacer()
-#endif
             Stepper {
                 Text(texts[value])
-#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-#endif
             } onIncrement: {
                 value = ((value + 1) < texts.count) ? (value + 1) : 0
             } onDecrement: {
@@ -109,14 +97,10 @@ struct ConfigBoolItem: View {
     var body: some View {
         HStack {
             Text(title)
-#if !os(macOS)
             Spacer()
-#endif
             Stepper {
                 Text(label)
-#if !os(macOS)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-#endif
             } onIncrement: {
                 value.toggle()
             } onDecrement: {
@@ -145,16 +129,14 @@ struct NameConfigView: View {
     @State var name: String = ""
 
     var body: some View {
-        Form {
-            Section {
-                TextField("Enter your game name", text: $name)
-                    .onAppear {
-                        name = gameRecord.name
-                    }
-                    .onChange(of: name) { _, newValue in
-                        gameRecord.name = name
-                    }
-            }
+        List {
+            TextField("Enter your game name", text: $name)
+                .onAppear {
+                    name = gameRecord.name
+                }
+                .onChange(of: name) { _, newValue in
+                    gameRecord.name = name
+                }
         }
     }
 }
@@ -177,100 +159,98 @@ struct RuleConfigView: View {
     @Environment(GobanState.self) var gobanState
 
     var body: some View {
-        Form {
-            Section {
-                ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
-                    .onAppear {
-                        boardWidth = config.boardWidth
+        List {
+            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
+                .onAppear {
+                    boardWidth = config.boardWidth
+                }
+                .onChange(of: boardWidth) { oldValue, newValue in
+                    config.boardWidth = newValue
+                    if oldValue != -1 {
+                        isBoardSizeChanged = true
                     }
-                    .onChange(of: boardWidth) { oldValue, newValue in
-                        config.boardWidth = newValue
-                        if oldValue != -1 {
-                            isBoardSizeChanged = true
-                        }
-                    }
+                }
 
-                ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
-                    .onAppear {
-                        boardHeight = config.boardHeight
+            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
+                .onAppear {
+                    boardHeight = config.boardHeight
+                }
+                .onChange(of: boardHeight) { oldValue, newValue in
+                    config.boardHeight = newValue
+                    if oldValue != -1 {
+                        isBoardSizeChanged = true
                     }
-                    .onChange(of: boardHeight) { oldValue, newValue in
-                        config.boardHeight = newValue
-                        if oldValue != -1 {
-                            isBoardSizeChanged = true
-                        }
-                    }
+                }
 
-                ConfigTextItem(title: "Ko rule:", texts: Config.koRules, value: $koRule)
-                    .onAppear {
-                        koRule = config.koRule.rawValue
-                    }
-                    .onChange(of: koRule) { _, newValue in
-                        config.koRule = KoRule(rawValue: newValue) ?? .simple
-                        messageList.appendAndSend(command: config.koRuleCommand)
-                        isRuleChanged = true
-                    }
+            ConfigTextItem(title: "Ko rule:", texts: Config.koRules, value: $koRule)
+                .onAppear {
+                    koRule = config.koRule.rawValue
+                }
+                .onChange(of: koRule) { _, newValue in
+                    config.koRule = KoRule(rawValue: newValue) ?? .simple
+                    messageList.appendAndSend(command: config.koRuleCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigTextItem(title: "Scoring rule:", texts: Config.scoringRules, value: $scoringRule)
-                    .onAppear {
-                        scoringRule = config.scoringRule.rawValue
-                    }
-                    .onChange(of: scoringRule) { _, newValue in
-                        config.scoringRule = ScoringRule(rawValue: newValue) ?? .area
-                        messageList.appendAndSend(command: config.scoringRuleCommand)
-                        isRuleChanged = true
-                    }
+            ConfigTextItem(title: "Scoring rule:", texts: Config.scoringRules, value: $scoringRule)
+                .onAppear {
+                    scoringRule = config.scoringRule.rawValue
+                }
+                .onChange(of: scoringRule) { _, newValue in
+                    config.scoringRule = ScoringRule(rawValue: newValue) ?? .area
+                    messageList.appendAndSend(command: config.scoringRuleCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigTextItem(title: "Tax rule:", texts: Config.taxRules, value: $taxRule)
-                    .onAppear {
-                        taxRule = config.taxRule.rawValue
-                    }
-                    .onChange(of: taxRule) { _, newValue in
-                        config.taxRule = TaxRule(rawValue: newValue) ?? .none
-                        messageList.appendAndSend(command: config.taxRuleCommand)
-                        isRuleChanged = true
-                    }
+            ConfigTextItem(title: "Tax rule:", texts: Config.taxRules, value: $taxRule)
+                .onAppear {
+                    taxRule = config.taxRule.rawValue
+                }
+                .onChange(of: taxRule) { _, newValue in
+                    config.taxRule = TaxRule(rawValue: newValue) ?? .none
+                    messageList.appendAndSend(command: config.taxRuleCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigBoolItem(title: "Multi-stone suicide:", value: $multiStoneSuicideLegal)
-                    .onAppear {
-                        multiStoneSuicideLegal = config.multiStoneSuicideLegal
-                    }
-                    .onChange(of: multiStoneSuicideLegal) { _, newValue in
-                        config.multiStoneSuicideLegal = newValue
-                        messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
-                        isRuleChanged = true
-                    }
+            ConfigBoolItem(title: "Multi-stone suicide:", value: $multiStoneSuicideLegal)
+                .onAppear {
+                    multiStoneSuicideLegal = config.multiStoneSuicideLegal
+                }
+                .onChange(of: multiStoneSuicideLegal) { _, newValue in
+                    config.multiStoneSuicideLegal = newValue
+                    messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigBoolItem(title: "Has button:", value: $hasButton)
-                    .onAppear {
-                        hasButton = config.hasButton
-                    }
-                    .onChange(of: hasButton) { _, newValue in
-                        config.hasButton = newValue
-                        messageList.appendAndSend(command: config.hasButtonCommand)
-                        isRuleChanged = true
-                    }
+            ConfigBoolItem(title: "Has button:", value: $hasButton)
+                .onAppear {
+                    hasButton = config.hasButton
+                }
+                .onChange(of: hasButton) { _, newValue in
+                    config.hasButton = newValue
+                    messageList.appendAndSend(command: config.hasButtonCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigTextItem(title: "White handicap bonus:", texts: Config.whiteHandicapBonusRules, value: $whiteHandicapBonusRule)
-                    .onAppear {
-                        whiteHandicapBonusRule = config.whiteHandicapBonusRule.rawValue
-                    }
-                    .onChange(of: whiteHandicapBonusRule) { _, newValue in
-                        config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: newValue) ?? .zero
-                        messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
-                        isRuleChanged = true
-                    }
+            ConfigTextItem(title: "White handicap bonus:", texts: Config.whiteHandicapBonusRules, value: $whiteHandicapBonusRule)
+                .onAppear {
+                    whiteHandicapBonusRule = config.whiteHandicapBonusRule.rawValue
+                }
+                .onChange(of: whiteHandicapBonusRule) { _, newValue in
+                    config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: newValue) ?? .zero
+                    messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+                    isRuleChanged = true
+                }
 
-                ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
-                    .onAppear {
-                        komi = config.komi
-                    }
-                    .onChange(of: komi) { _, newValue in
-                        config.komi = newValue
-                        messageList.appendAndSend(command: config.getKataKomiCommand())
-                        isRuleChanged = true
-                    }
-            }
+            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
+                .onAppear {
+                    komi = config.komi
+                }
+                .onChange(of: komi) { _, newValue in
+                    config.komi = newValue
+                    messageList.appendAndSend(command: config.getKataKomiCommand())
+                    isRuleChanged = true
+                }
         }
         .onAppear {
             isBoardSizeChanged = false
@@ -304,81 +284,79 @@ struct AnalysisConfigView: View {
     @Environment(MessageList.self) var messageList
 
     var body: some View {
-        Form {
-            Section {
-                ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
-                    .onAppear {
-                        analysisInformation = config.analysisInformation
-                    }
-                    .onChange(of: analysisInformation) { _, newValue in
-                        config.analysisInformation = newValue
-                    }
+        List {
+            ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
+                .onAppear {
+                    analysisInformation = config.analysisInformation
+                }
+                .onChange(of: analysisInformation) { _, newValue in
+                    config.analysisInformation = newValue
+                }
 
-                ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
-                    .onAppear {
-                        showOwnership = config.showOwnership
-                    }
-                    .onChange(of: showOwnership) { _, newValue in
-                        config.showOwnership = newValue
-                    }
+            ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
+                .onAppear {
+                    showOwnership = config.showOwnership
+                }
+                .onChange(of: showOwnership) { _, newValue in
+                    config.showOwnership = newValue
+                }
 
-                ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
-                    .onAppear {
-                        analysisForWhom = config.analysisForWhom
-                    }
-                    .onChange(of: analysisForWhom) { _, newValue in
-                        config.analysisForWhom = newValue
-                    }
+            ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
+                .onAppear {
+                    analysisForWhom = config.analysisForWhom
+                }
+                .onChange(of: analysisForWhom) { _, newValue in
+                    config.analysisForWhom = newValue
+                }
 
-                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                    .onAppear {
-                        hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
-                    }
-                    .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
-                        config.hiddenAnalysisVisitRatio = newValue
-                    }
+            ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
+                .onAppear {
+                    hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
+                }
+                .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
+                    config.hiddenAnalysisVisitRatio = newValue
+                }
 
-                ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                    .onAppear {
-                        analysisWideRootNoise = config.analysisWideRootNoise
-                    }
-                    .onChange(of: analysisWideRootNoise) { _, newValue in
-                        config.analysisWideRootNoise = newValue
-                        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-                    }
+            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
+                .onAppear {
+                    analysisWideRootNoise = config.analysisWideRootNoise
+                }
+                .onChange(of: analysisWideRootNoise) { _, newValue in
+                    config.analysisWideRootNoise = newValue
+                    messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                }
 
-                ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
-                    .onAppear {
-                        maxAnalysisMoves = config.maxAnalysisMoves
-                    }
-                    .onChange(of: maxAnalysisMoves) { _, newValue in
-                        config.maxAnalysisMoves = newValue
-                    }
+            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
+                .onAppear {
+                    maxAnalysisMoves = config.maxAnalysisMoves
+                }
+                .onChange(of: maxAnalysisMoves) { _, newValue in
+                    config.maxAnalysisMoves = newValue
+                }
 
-                ConfigIntItem(title: "Analysis interval:", value: $analysisInterval, minValue: 10, maxValue: 300, step: 10)
-                    .onAppear {
-                        analysisInterval = config.analysisInterval
-                    }
-                    .onChange(of: analysisInterval) { _, newValue in
-                        config.analysisInterval = newValue
-                    }
+            ConfigIntItem(title: "Analysis interval:", value: $analysisInterval, minValue: 10, maxValue: 300, step: 10)
+                .onAppear {
+                    analysisInterval = config.analysisInterval
+                }
+                .onChange(of: analysisInterval) { _, newValue in
+                    config.analysisInterval = newValue
+                }
 
-                ConfigBoolItem(title: "Show win rate bar:", value: $showWinrateBar)
-                    .onAppear {
-                        showWinrateBar = config.showWinrateBar
-                    }
-                    .onChange(of: showWinrateBar) { _, newValue in
-                        config.showWinrateBar = newValue
-                    }
+            ConfigBoolItem(title: "Show win rate bar:", value: $showWinrateBar)
+                .onAppear {
+                    showWinrateBar = config.showWinrateBar
+                }
+                .onChange(of: showWinrateBar) { _, newValue in
+                    config.showWinrateBar = newValue
+                }
 
-                ConfigTextItem(title: "Analysis style:", texts: Config.analysisStyles, value: $analysisStyle)
-                    .onAppear {
-                        analysisStyle = config.analysisStyle
-                    }
-                    .onChange(of: analysisStyle) { _, newValue in
-                        config.analysisStyle = newValue
-                    }
-            }
+            ConfigTextItem(title: "Analysis style:", texts: Config.analysisStyles, value: $analysisStyle)
+                .onAppear {
+                    analysisStyle = config.analysisStyle
+                }
+                .onChange(of: analysisStyle) { _, newValue in
+                    config.analysisStyle = newValue
+                }
         }
     }
 }
@@ -392,48 +370,46 @@ struct ViewConfigView: View {
     @State var verticalFlip = Config.defaultVerticalFlip
 
     var body: some View {
-        Form {
-            Section {
-                ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
-                    .onAppear {
-                        stoneStyle = config.stoneStyle
-                    }
-                    .onChange(of: stoneStyle) { _, newValue in
-                        config.stoneStyle = stoneStyle
-                    }
+        List {
+            ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
+                .onAppear {
+                    stoneStyle = config.stoneStyle
+                }
+                .onChange(of: stoneStyle) { _, newValue in
+                    config.stoneStyle = stoneStyle
+                }
 
-                ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
-                    .onAppear {
-                        showCoordinate = config.showCoordinate
-                    }
-                    .onChange(of: showCoordinate) { _, newValue in
-                        config.showCoordinate = showCoordinate
-                    }
+            ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
+                .onAppear {
+                    showCoordinate = config.showCoordinate
+                }
+                .onChange(of: showCoordinate) { _, newValue in
+                    config.showCoordinate = showCoordinate
+                }
 
-                ConfigBoolItem(title: "Show comments:", value: $showComments)
-                    .onAppear {
-                        showComments = config.showComments
-                    }
-                    .onChange(of: showComments) { _, newValue in
-                        config.showComments = showComments
-                    }
+            ConfigBoolItem(title: "Show comments:", value: $showComments)
+                .onAppear {
+                    showComments = config.showComments
+                }
+                .onChange(of: showComments) { _, newValue in
+                    config.showComments = showComments
+                }
 
-                ConfigBoolItem(title: "Show pass:", value: $showPass)
-                    .onAppear {
-                        showPass = config.showPass
-                    }
-                    .onChange(of: showPass) { _, newValue in
-                        config.showPass = showPass
-                    }
+            ConfigBoolItem(title: "Show pass:", value: $showPass)
+                .onAppear {
+                    showPass = config.showPass
+                }
+                .onChange(of: showPass) { _, newValue in
+                    config.showPass = showPass
+                }
 
-                ConfigBoolItem(title: "Vertical flip:", value: $verticalFlip)
-                    .onAppear {
-                        verticalFlip = config.verticalFlip
-                    }
-                    .onChange(of: verticalFlip) { _, newValue in
-                        config.verticalFlip = verticalFlip
-                    }
-            }
+            ConfigBoolItem(title: "Vertical flip:", value: $verticalFlip)
+                .onAppear {
+                    verticalFlip = config.verticalFlip
+                }
+                .onChange(of: verticalFlip) { _, newValue in
+                    config.verticalFlip = verticalFlip
+                }
         }
     }
 }
@@ -443,16 +419,14 @@ struct SoundConfigView: View {
     @State var soundEffect: Bool = Config.defaultSoundEffect
 
     var body: some View {
-        Form {
-            Section {
-                ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
-                    .onAppear {
-                        soundEffect = config.soundEffect
-                    }
-                    .onChange(of: soundEffect) { _, newValue in
-                        config.soundEffect = soundEffect
-                    }
-            }
+        List {
+            ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
+                .onAppear {
+                    soundEffect = config.soundEffect
+                }
+                .onChange(of: soundEffect) { _, newValue in
+                    config.soundEffect = soundEffect
+                }
         }
     }
 }
@@ -470,79 +444,83 @@ struct AIConfigView: View {
     @Environment(MessageList.self) var messageList
 
     var body: some View {
-        Form {
-            Section {
-                ConfigFloatItem(title: "White advantage:",
-                                value: $playoutDoublingAdvantage,
-                                step: 1/4,
-                                minValue: -3.0,
-                                maxValue: 3.0,
-                                format: .percent)
-                .onAppear {
-                    playoutDoublingAdvantage = config.playoutDoublingAdvantage
-                }
-                .onChange(of: playoutDoublingAdvantage) { _, newValue in
-                    config.playoutDoublingAdvantage = newValue
-                    messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                }
+        List {
+            ConfigFloatItem(title: "White advantage:",
+                            value: $playoutDoublingAdvantage,
+                            step: 1/4,
+                            minValue: -3.0,
+                            maxValue: 3.0,
+                            format: .percent)
+            .onAppear {
+                playoutDoublingAdvantage = config.playoutDoublingAdvantage
+            }
+            .onChange(of: playoutDoublingAdvantage) { _, newValue in
+                config.playoutDoublingAdvantage = newValue
+                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
             }
 
-            Section("Black AI") {
-                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForBlack)
-                    .onAppear {
-                        humanProfileForBlack = config.humanSLProfile
-                        blackHumanSLModel.profile = config.humanProfileForBlack
-                    }
-                    .onChange(of: humanProfileForBlack) { _, newValue in
-                        config.humanSLProfile = newValue
-                        blackHumanSLModel.profile = newValue
-                        if player.nextColorForPlayCommand != .white {
-                            messageList.appendAndSend(commands: blackHumanSLModel.commands)
-                        }
-                    }
+            Text("Black AI".uppercased())
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .padding(.top)
 
-                ConfigFloatItem(title: "Time per move:",
-                                value: $blackMaxTime,
-                                step: 0.5,
-                                minValue: 0,
-                                maxValue: 60,
-                                format: .number,
-                                postFix: "s")
+            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForBlack)
                 .onAppear {
-                    blackMaxTime = config.blackMaxTime
+                    humanProfileForBlack = config.humanSLProfile
+                    blackHumanSLModel.profile = config.humanProfileForBlack
                 }
-                .onChange(of: blackMaxTime) { _, newValue in
-                    config.blackMaxTime = newValue
+                .onChange(of: humanProfileForBlack) { _, newValue in
+                    config.humanSLProfile = newValue
+                    blackHumanSLModel.profile = newValue
+                    if player.nextColorForPlayCommand != .white {
+                        messageList.appendAndSend(commands: blackHumanSLModel.commands)
+                    }
                 }
+
+            ConfigFloatItem(title: "Time per move:",
+                            value: $blackMaxTime,
+                            step: 0.5,
+                            minValue: 0,
+                            maxValue: 60,
+                            format: .number,
+                            postFix: "s")
+            .onAppear {
+                blackMaxTime = config.blackMaxTime
+            }
+            .onChange(of: blackMaxTime) { _, newValue in
+                config.blackMaxTime = newValue
             }
 
-            Section("White AI") {
-                HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
-                    .onAppear {
-                        humanProfileForWhite = config.humanProfileForWhite
-                        whiteHumanSLModel.profile = config.humanProfileForWhite
-                    }
-                    .onChange(of: humanProfileForWhite) { _, newValue in
-                        config.humanProfileForWhite = newValue
-                        whiteHumanSLModel.profile = newValue
-                        if player.nextColorForPlayCommand != .black {
-                            messageList.appendAndSend(commands: whiteHumanSLModel.commands)
-                        }
-                    }
+            Text("White AI".uppercased())
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .padding(.top)
 
-                ConfigFloatItem(title: "Time per move:",
-                                value: $whiteMaxTime,
-                                step: 0.5,
-                                minValue: 0,
-                                maxValue: 60,
-                                format: .number,
-                                postFix: "s")
+            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
                 .onAppear {
-                    whiteMaxTime = config.whiteMaxTime
+                    humanProfileForWhite = config.humanProfileForWhite
+                    whiteHumanSLModel.profile = config.humanProfileForWhite
                 }
-                .onChange(of: whiteMaxTime) { _, newValue in
-                    config.whiteMaxTime = newValue
+                .onChange(of: humanProfileForWhite) { _, newValue in
+                    config.humanProfileForWhite = newValue
+                    whiteHumanSLModel.profile = newValue
+                    if player.nextColorForPlayCommand != .black {
+                        messageList.appendAndSend(commands: whiteHumanSLModel.commands)
+                    }
                 }
+
+            ConfigFloatItem(title: "Time per move:",
+                            value: $whiteMaxTime,
+                            step: 0.5,
+                            minValue: 0,
+                            maxValue: 60,
+                            format: .number,
+                            postFix: "s")
+            .onAppear {
+                whiteMaxTime = config.whiteMaxTime
+            }
+            .onChange(of: whiteMaxTime) { _, newValue in
+                config.whiteMaxTime = newValue
             }
         }
     }
@@ -556,42 +534,40 @@ struct SgfConfigView: View {
     @Environment(MessageList.self) var messageList
 
     var body: some View {
-        Form {
-            Section {
-                TextField("Paste your SGF text", text: $sgf, axis: .vertical)
-                    .disableAutocorrection(true)
+        List {
+            TextField("Paste your SGF text", text: $sgf, axis: .vertical)
+                .disableAutocorrection(true)
 #if !os(macOS)
-                    .textInputAutocapitalization(.never)
+                .textInputAutocapitalization(.never)
 #endif
-                    .onAppear {
-                        sgf = gameRecord.sgf
+                .onAppear {
+                    sgf = gameRecord.sgf
+                }
+                .onDisappear {
+                    if sgf != gameRecord.sgf {
+                        let config = gameRecord.concreteConfig
+                        let sgfHelper = SgfHelper(sgf: sgf)
+                        config.boardWidth = sgfHelper.xSize
+                        config.boardHeight = sgfHelper.ySize
+                        config.koRule = sgfHelper.rules.koRule
+                        config.scoringRule = sgfHelper.rules.scoringRule
+                        config.taxRule = sgfHelper.rules.taxRule
+                        config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
+                        config.hasButton = sgfHelper.rules.hasButton
+                        config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
+                        config.komi = sgfHelper.rules.komi
+                        gameRecord.sgf = sgf
+                        player.nextColorForPlayCommand = .unknown
+                        messageList.maybeLoadSgf(sgf: sgf)
+                        messageList.appendAndSend(commands: config.ruleCommands)
+                        messageList.appendAndSend(command: config.getKataKomiCommand())
+                        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+                        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+                        gobanState.sendShowBoardCommand(messageList: messageList)
+                        messageList.appendAndSend(command: "printsgf")
                     }
-                    .onDisappear {
-                        if sgf != gameRecord.sgf {
-                            let config = gameRecord.concreteConfig
-                            let sgfHelper = SgfHelper(sgf: sgf)
-                            config.boardWidth = sgfHelper.xSize
-                            config.boardHeight = sgfHelper.ySize
-                            config.koRule = sgfHelper.rules.koRule
-                            config.scoringRule = sgfHelper.rules.scoringRule
-                            config.taxRule = sgfHelper.rules.taxRule
-                            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
-                            config.hasButton = sgfHelper.rules.hasButton
-                            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
-                            config.komi = sgfHelper.rules.komi
-                            gameRecord.sgf = sgf
-                            player.nextColorForPlayCommand = .unknown
-                            messageList.maybeLoadSgf(sgf: sgf)
-                            messageList.appendAndSend(commands: config.ruleCommands)
-                            messageList.appendAndSend(command: config.getKataKomiCommand())
-                            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-                            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
-                            gobanState.sendShowBoardCommand(messageList: messageList)
-                            messageList.appendAndSend(command: "printsgf")
-                        }
-                    }
-            }
+                }
         }
     }
 }
