@@ -96,7 +96,7 @@ struct ContentView: View {
             }
             .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
                 createThumbnail(for: oldGameRecord)
-                processChange(newSelectedGameRecord: newGameRecord)
+                processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
             }
             .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
                 processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
@@ -217,26 +217,26 @@ struct ContentView: View {
         }
     }
 
-    private func processChange(newSelectedGameRecord: GameRecord?) {
+    private func processChange(oldGameRecord: GameRecord?, newGameRecord: GameRecord?) {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
         branchState.deactivate()
-        if let newSelectedGameRecord {
-            if newSelectedGameRecord.sgf == GameRecord.defaultSgf {
+        if let newGameRecord {
+            if newGameRecord.sgf == GameRecord.defaultSgf {
                 gobanState.isEditing = true
             } else {
                 gobanState.isEditing = false
             }
-            let currentIndex = newSelectedGameRecord.currentIndex
-            let sgfHelper = SgfHelper(sgf: newSelectedGameRecord.sgf)
-            newSelectedGameRecord.currentIndex = sgfHelper.moveSize ?? 0
+            let currentIndex = newGameRecord.currentIndex
+            let sgfHelper = SgfHelper(sgf: newGameRecord.sgf)
+            newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
             maybeLoadSgf()
-            while newSelectedGameRecord.currentIndex > currentIndex {
-                newSelectedGameRecord.undo()
+            while newGameRecord.currentIndex > currentIndex {
+                newGameRecord.undo()
                 messageList.appendAndSend(command: "undo")
             }
-            let config = newSelectedGameRecord.concreteConfig
+            let config = newGameRecord.concreteConfig
             config.koRule = sgfHelper.rules.koRule
             config.scoringRule = sgfHelper.rules.scoringRule
             config.taxRule = sgfHelper.rules.taxRule
@@ -244,7 +244,13 @@ struct ContentView: View {
             config.hasButton = sgfHelper.rules.hasButton
             config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
             config.komi = sgfHelper.rules.komi
-            placeLoadingBoard(width: config.boardWidth, height: config.boardHeight)
+
+            if let oldGameRecord,
+               oldGameRecord.concreteConfig.boardWidth != config.boardWidth ||
+                oldGameRecord.concreteConfig.boardHeight != config.boardHeight {
+                placeLoadingBoard(width: config.boardWidth, height: config.boardHeight)
+            }
+
             messageList.appendAndSend(commands: config.ruleCommands)
             messageList.appendAndSend(command: config.getKataKomiCommand())
             messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
@@ -278,7 +284,7 @@ struct ContentView: View {
     private func processChange(oldBranchStateSgf: String, newBranchStateSgf: String) {
         if (oldBranchStateSgf.isActiveSgf) &&
             (!newBranchStateSgf.isActiveSgf) {
-            processChange(newSelectedGameRecord: navigationContext.selectedGameRecord)
+            processChange(oldGameRecord: nil, newGameRecord: navigationContext.selectedGameRecord)
         }
     }
 
