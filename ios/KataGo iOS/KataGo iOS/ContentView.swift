@@ -534,7 +534,7 @@ struct ContentView: View {
                 // Show a black or white square if definiteness is high and stdev is low
                 // Show nothing if definiteness is low and stdev is low
                 // Show a square with linear gradient of black and white if definiteness is low and stdev is high
-                let scale = max(definiteness, stdev[i]) * 0.7
+                let scale = max(definiteness, stdev[i]) * 0.65
                 let opacity = computeOpacity(scale: scale)
                 ownershipUnits.append(OwnershipUnit(point: point, whiteness: whiteness, scale: scale, opacity: opacity))
                 i = i + 1
