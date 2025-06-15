@@ -121,12 +121,47 @@ struct HumanSLModel {
         return min(1.0, max(0.01, pow(10.0, (Float(level) - 8.0) * 0.2)))
     }
 
-    /// When a move starts to lose more than 0.08 utility (several percent winrate), downweight it.
-    /// Increase this number to reduce the strength and use the human SL policy more and KataGo's evaluations less.
-    /// Decrease this number a little more to improve strength even further and play less human-like.
-    /// (although below 0.02 you probably are better off going back to a normal KataGo config and scaling visits).
+    /// By default humanSLChosenMovePiklLambda is a large number which effectively disables it.
+    /// Setting it to a smaller number will "suppress" human-like moves that KataGo disapproves of.
+    /// In particular, if set to, for example, 0.4 when KataGo judges a human SL move to lose 0.4 utility,
+    /// it will substantially suppress the chance of playing that move (in particular, by a factor of exp(1)).
+    /// Less-bad moves will also be suppressed, but not by as much, e.g. a move losing 0.2 would get lowered
+    /// by a factor of exp(0.5).
+    /// As configured lower down, utilities by default range from -1.0 (loss) to +1.0 (win), plus up to +/- 0.3 for score.
+    /// WARNING: ONLY moves that KataGo actually searches will get suppressed! If a move is so bad that KataGo
+    /// rejects it without searching it, it will NOT get suppressed.
+    /// Therefore, to use humanSLChosenMovePiklLambda, it is STRONGLY recommended that you also use something
+    /// like humanSLRootExploreProbWeightless to ensure most human moves including bad moves get searched,
+    /// and ALSO use at least hundreds and ideally thousands of maxVisits, to ensure enough visits.
     var humanSLChosenMovePiklLambda: Float {
-        return min(1e8, pow(10.0, 8.0 - Float(level)))
+        return 0.1 - (Float(level) - 8.0) * 0.05
+    }
+
+    /// Scales the utility of winning/losing
+    var winLossUtilityFactor: Float {
+        if profile == "AI" {
+            return 1.0
+        } else {
+            return 0.0
+        }
+    }
+
+    /// Scales the utility for trying to maximize score
+    var staticScoreUtilityFactor: Float {
+        if profile == "AI" {
+            return 0.1
+        } else {
+            return 0.5
+        }
+    }
+
+    /// Scales the utility for trying to maximize score based on dynamic score evaluation
+    var dynamicScoreUtilityFactor: Float {
+        if profile == "AI" {
+            return 0.3
+        } else {
+            return 0.5
+        }
     }
 
     var commands: [String] {
@@ -137,6 +172,9 @@ struct HumanSLModel {
          "kata-set-param chosenMoveTemperature \(chosenMoveTemperature)",
          "kata-set-param chosenMoveTemperatureHalflife \(chosenMoveTemperatureHalflife)",
          "kata-set-param chosenMoveTemperatureOnlyBelowProb \(chosenMoveTemperatureOnlyBelowProb)",
-         "kata-set-param humanSLChosenMovePiklLambda \(humanSLChosenMovePiklLambda)"]
+         "kata-set-param humanSLChosenMovePiklLambda \(humanSLChosenMovePiklLambda)",
+         "kata-set-param winLossUtilityFactor \(winLossUtilityFactor)",
+         "kata-set-param staticScoreUtilityFactor \(staticScoreUtilityFactor)",
+         "kata-set-param dynamicScoreUtilityFactor \(dynamicScoreUtilityFactor)"]
     }
 }
