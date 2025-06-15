@@ -93,11 +93,14 @@ struct HumanSLModel {
     }
 
     /// Use the human SL policy for exploration during search, only at the root of the search
-    var humanSLRootExploreProbWeightful: Float {
+    /// For example, humanSLRootExploreProbWeightless = 0.5 would tell KataGo at the root of the search to spend
+    /// 50% of its visits to judge different possible human moves, but NOT to use those visits for determining the
+    /// value of the position (avoiding biasing the utility if some human SL moves are very bad).
+    var humanSLRootExploreProbWeightless: Float {
         if profile == "AI" {
             return 0.0
         } else {
-            return 1.0
+            return 0.5
         }
     }
 
@@ -167,7 +170,7 @@ struct HumanSLModel {
     var commands: [String] {
         ["kata-set-param humanSLProfile \(humanSLProfile)",
          "kata-set-param humanSLChosenMoveProp \(humanSLChosenMoveProp)",
-         "kata-set-param humanSLRootExploreProbWeightful \(humanSLRootExploreProbWeightful)",
+         "kata-set-param humanSLRootExploreProbWeightless \(humanSLRootExploreProbWeightless)",
          "kata-set-param chosenMoveTemperatureEarly \(chosenMoveTemperatureEarly)",
          "kata-set-param chosenMoveTemperature \(chosenMoveTemperature)",
          "kata-set-param chosenMoveTemperatureHalflife \(chosenMoveTemperatureHalflife)",
