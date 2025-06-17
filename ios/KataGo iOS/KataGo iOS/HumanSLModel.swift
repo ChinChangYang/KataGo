@@ -137,7 +137,7 @@ struct HumanSLModel {
     /// like humanSLRootExploreProbWeightless to ensure most human moves including bad moves get searched,
     /// and ALSO use at least hundreds and ideally thousands of maxVisits, to ensure enough visits.
     var humanSLChosenMovePiklLambda: Float {
-        return 0.1 - (Float(level) - 8.0) * 0.05
+        return max(0.03, 0.06 - (Float(level) - 8.0) * 0.05)
     }
 
     /// Scales the utility of winning/losing
