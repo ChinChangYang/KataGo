@@ -106,17 +106,17 @@ struct HumanSLModel {
 
     /// Temperature for the early game, randomize between chosen moves with this temperature
     var chosenMoveTemperatureEarly: Float {
-        return min(0.85, 0.70 - ((Float(level) - 8.0) * 0.02))
+        return min(0.85, 0.70 - ((Float(level) - 8.0) * 0.03))
     }
 
     /// At the end of search after the early game, randomize between chosen moves with this temperature
     var chosenMoveTemperature: Float {
-        return min(0.70, 0.25 - ((Float(level) - 8.0) * 0.05))
+        return min(0.70, 0.25 - ((Float(level) - 8.0) * 0.09))
     }
 
     /// Decay temperature for the early game by 0.5 every this many moves, scaled with board size.
     var chosenMoveTemperatureHalflife: Int {
-        return 30 - ((level - 8) * 3)
+        return 30 - ((level - 8) * 4)
     }
 
     /// Temperature only starts to dampen moves below this
@@ -137,7 +137,7 @@ struct HumanSLModel {
     /// like humanSLRootExploreProbWeightless to ensure most human moves including bad moves get searched,
     /// and ALSO use at least hundreds and ideally thousands of maxVisits, to ensure enough visits.
     var humanSLChosenMovePiklLambda: Float {
-        return max(0.03, 0.06 - (Float(level) - 8.0) * 0.05)
+        return 0.06 + (Float(level) - 9.0) * (Float(level) - 9.0) * 0.03
     }
 
     /// Scales the utility of winning/losing
