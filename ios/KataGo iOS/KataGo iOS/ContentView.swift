@@ -667,6 +667,8 @@ struct ContentView: View {
         let utilityLcb = matchUtilityLcbPattern(dataLine: dataLine)
 
         if let point, let visits, let winrate, let scoreLead, let utilityLcb {
+            // Winrate is 0.5 when visits = 0, so skip those analysis to let win rate bar stable.
+            guard visits > 0 else { return nil }
             let analysisInfo = AnalysisInfo(visits: visits, winrate: winrate, scoreLead: scoreLead, utilityLcb: utilityLcb)
 
             return [point: analysisInfo]
