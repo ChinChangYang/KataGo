@@ -491,8 +491,8 @@ struct ContentView: View {
         }
     }
 
-    func getBlackWinrate() -> Float {
-        guard let maxWinrate = analysis.maxWinrate else { return 0.5 }
+    func getBlackWinrate() -> Float? {
+        guard let maxWinrate = analysis.maxWinrate else { return nil }
         let blackWinrate = (analysis.nextColorForAnalysis == .black) ? maxWinrate : (1 - maxWinrate)
         return blackWinrate
     }
@@ -566,7 +566,11 @@ struct ContentView: View {
 
                 analysis.ownershipUnits = ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
-                rootWinrate.black = getBlackWinrate()
+
+                if let blackWinrate = getBlackWinrate() {
+                    rootWinrate.black = blackWinrate
+                }
+
                 rootScore.black = getBlackScore()
             }
 
@@ -668,7 +672,7 @@ struct ContentView: View {
 
         if let point, let visits, let winrate, let scoreLead, let utilityLcb {
             // Winrate is 0.5 when visits = 0, so skip those analysis to let win rate bar stable.
-            guard visits > 0 else { return nil }
+            guard visits > 0 || winrate != 0.5 else { return nil }
             let analysisInfo = AnalysisInfo(visits: visits, winrate: winrate, scoreLead: scoreLead, utilityLcb: utilityLcb)
 
             return [point: analysisInfo]
