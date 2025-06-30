@@ -6,6 +6,7 @@
 #include "../neuralnet/nninterface.h"
 #include "../neuralnet/metalbackend.h"
 #include "../neuralnet/coremlbackend.h"
+#include "../core/test.h"
 
 /// Converts a ConvLayerDesc instance from C++ to Swift by creating a new SWConvLayerDesc instance with the same properties.
 /// - Parameter desc: The ConvLayerDesc instance to convert.
@@ -30,13 +31,8 @@ SWBatchNormLayerDesc MetalProcess::batchNormLayerDescToSwift(const BatchNormLaye
 
   SWBatchNormLayerDesc swDesc =
   createSWBatchNormLayerDesc(desc->numChannels,
-                             desc->epsilon,
-                             desc->hasScale,
-                             desc->hasBias,
-                             (float*)desc->mean.data(),
-                             (float*)desc->variance.data(),
-                             (float*)desc->scale.data(),
-                             (float*)desc->bias.data());
+                             (float*)desc->mergedScale.data(),
+                             (float*)desc->mergedBias.data());
 
   return swDesc;
 }
@@ -50,8 +46,14 @@ ActivationKind MetalProcess::activationLayerDescToSwift(const ActivationLayerDes
       return ActivationKind::relu();
     case ACTIVATION_MISH:
       return ActivationKind::mish();
-    default:
+    case ACTIVATION_MISH_SCALE8:
+      testAssert(false); // Metal does not use scaled mish activations due to no fp16
+      return ActivationKind::identity(); // Placeholder for compilation
+    case ACTIVATION_IDENTITY:
       return ActivationKind::identity();
+    default:
+      testAssert(false);
+      return ActivationKind::identity(); // Placeholder for compilation
   }
 }
 
@@ -367,14 +369,14 @@ void NeuralNet::freeLoadedModel(LoadedModel* loadedModel) {
 
 /**
  * @brief Retrieves the model description associated with the loaded model.
- * 
+ *
  * This function accesses the model description from a given LoadedModel instance.
- * It returns a constant reference to the ModelDesc, which contains details 
+ * It returns a constant reference to the ModelDesc, which contains details
  * about the structure and parameters of the neural network model.
- * 
+ *
  * @param loadedModel Pointer to the LoadedModel instance from which to retrieve
  *                    the model description. This should not be null.
- * @return const ModelDesc& A constant reference to the model description of 
+ * @return const ModelDesc& A constant reference to the model description of
  *                          the loaded model.
  */
 const ModelDesc& NeuralNet::getModelDesc(const LoadedModel* loadedModel) {
@@ -605,7 +607,11 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
 
   maxBatchSize = maxBatchSz;
   policyResultChannels = m.policyHead.p2Conv.outChannels;
-  assert((m.modelVersion >= 12) ? (policyResultChannels == 2) : (policyResultChannels == 1));
+
+  assert(((m.modelVersion < 16) || (policyResultChannels == 4)) &&
+         ((m.modelVersion >= 16) || (m.modelVersion < 12) || (policyResultChannels == 2)) &&
+         ((m.modelVersion >= 12) || (policyResultChannels == 1)));
+
   modelPolicyResultChannels = (m.modelVersion >= 12) ? 6 : 4;
   singleSpatialElts = (size_t)m.numInputChannels * nnXLen * nnYLen;
   singleInputElts = (size_t)m.numInputChannels * modelXLen * modelYLen;
@@ -768,7 +774,7 @@ void MetalProcess::convertNCHW(
       processed[target_idx] = true;
       value_in_hand = value_at_target;
       current_idx = target_idx;
-      
+
       if (current_idx == i)
         break;
     }
@@ -896,7 +902,7 @@ void MetalProcess::processScoreValues(
   const float* currentScoreValueData = &inputBuffers->scoreValuesResults[offset];
 
   if(modelVersion >= 9) {
-    int numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
     assert(numScoreValueChannels == 6);
     currentOutput->whiteScoreMean = currentScoreValueData[0];
     currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
@@ -906,7 +912,7 @@ void MetalProcess::processScoreValues(
     currentOutput->shorttermScoreError = currentScoreValueData[5];
   }
   else if(modelVersion >= 8) {
-    int numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
     assert(numScoreValueChannels == 4);
     currentOutput->whiteScoreMean = currentScoreValueData[0];
     currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
@@ -916,7 +922,7 @@ void MetalProcess::processScoreValues(
     currentOutput->shorttermScoreError = 0;
   }
   else if(modelVersion >= 4) {
-    int numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
     assert(numScoreValueChannels == 2);
     currentOutput->whiteScoreMean = currentScoreValueData[0];
     currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
@@ -927,7 +933,7 @@ void MetalProcess::processScoreValues(
   }
   else {
     assert(modelVersion >= 3);
-    int numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
     assert(numScoreValueChannels == 1);
     currentOutput->whiteScoreMean = currentScoreValueData[0];
     //Version 3 neural nets don't have any second moment currentOutput, implicitly already folding it in, so we just use the mean squared

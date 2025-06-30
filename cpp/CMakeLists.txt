@@ -5,7 +5,7 @@ else()
   project(katago)
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 include_directories(external)
 include_directories(external/tclap-1.2.2/include)
@@ -338,14 +338,52 @@ elseif(USE_BACKEND STREQUAL "TENSORRT")
     message(FATAL_ERROR "${ColorBoldRed} NvInfer.h was NOT found, specify TENSORRT_INCLUDE_DIR to indicate where it is. ${ColorReset}")
   endif()
   find_library(TENSORRT_LIBRARY nvinfer HINTS ${TENSORRT_ROOT_DIR} PATH_SUFFIXES lib)
+
+  # Hackily extract out the version from the TensorRT header
+  # In each case, try the old format and on failure try the new format.
   file(READ "${TENSORRT_INCLUDE_DIR}/NvInferVersion.h" tensorrt_version_header)
-  string(REGEX MATCH "#define NV_TENSORRT_MAJOR ([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
-  set(TENSORRT_VERSION_MAJOR ${CMAKE_MATCH_1})
-  string(REGEX MATCH "#define NV_TENSORRT_MINOR ([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
-  set(TENSORRT_VERSION_MINOR ${CMAKE_MATCH_1})
-  string(REGEX MATCH "#define NV_TENSORRT_PATCH ([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
-  set(TENSORRT_VERSION_PATCH ${CMAKE_MATCH_1})
+
+  set(TENSORRT_VERSION_MAJOR "")
+  set(TENSORRT_VERSION_MINOR "")
+  set(TENSORRT_VERSION_PATCH "")
+
+  string(REGEX MATCH "#define NV_TENSORRT_MAJOR +([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
+  if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+    set(TENSORRT_VERSION_MAJOR ${CMAKE_MATCH_1})
+  else()
+    string(REGEX MATCH "#define TRT_MAJOR_ENTERPRISE +([0-9]+)" tensorrt_major_enterprise ${tensorrt_version_header})
+    if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+      set(TENSORRT_VERSION_MAJOR ${CMAKE_MATCH_1})
+    endif()
+  endif()
+
+  string(REGEX MATCH "#define NV_TENSORRT_MINOR +([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
+  if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+    set(TENSORRT_VERSION_MINOR ${CMAKE_MATCH_1})
+  else()
+    string(REGEX MATCH "#define TRT_MINOR_ENTERPRISE +([0-9]+)" tensorrt_minor_enterprise ${tensorrt_version_header})
+    if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+      set(TENSORRT_VERSION_MINOR ${CMAKE_MATCH_1})
+    endif()
+  endif()
+
+  string(REGEX MATCH "#define NV_TENSORRT_PATCH +([0-9]+)" tensorrt_version_macro ${tensorrt_version_header})
+  if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+    set(TENSORRT_VERSION_PATCH ${CMAKE_MATCH_1})
+  else()
+    string(REGEX MATCH "#define TRT_PATCH_ENTERPRISE +([0-9]+)" tensorrt_patch_enterprise ${tensorrt_version_header})
+    if(DEFINED CMAKE_MATCH_1 AND NOT "${CMAKE_MATCH_1}" STREQUAL "")
+      set(TENSORRT_VERSION_PATCH ${CMAKE_MATCH_1})
+    endif()
+  endif()
+
   set(TENSORRT_VERSION "${TENSORRT_VERSION_MAJOR}.${TENSORRT_VERSION_MINOR}.${TENSORRT_VERSION_PATCH}")
+  message(STATUS "Detected TensorRT version: ${TENSORRT_VERSION}")
+
+  if("${TENSORRT_VERSION_MAJOR}" STREQUAL "" OR "${TENSORRT_VERSION_MINOR}" STREQUAL "" OR "${TENSORRT_VERSION_PATCH}" STREQUAL "")
+    message(FATAL_ERROR "Could not determine TensorRT version from header file")
+  endif()
+
   # Version 8 is required for serializing the builder timing cache.
   # Version 8.2 is required for eliminating the global logger for Builder and Runtime.
   # Version 8.5 is required for eliminating many deprecated APIs and adopting new features.
@@ -382,7 +420,7 @@ elseif(USE_BACKEND STREQUAL "OPENCL")
   endif()
 elseif(USE_BACKEND STREQUAL "EIGEN")
   target_compile_definitions(katago PRIVATE USE_EIGEN_BACKEND)
-  if(NOT (MSVC OR MINGW))
+  if(NOT (MSVC))
     find_package(Eigen3 REQUIRED)
     include_directories(SYSTEM ${EIGEN3_INCLUDE_DIRS})
     message(STATUS "Found Eigen3 at ${EIGEN3_INCLUDE_DIRS}")
@@ -458,17 +496,45 @@ endif()
 
 # add_compile_definitions(NDEBUG)
 
-if(MSVC)
-  message(STATUS "Setting up build for MSVC.")
+if (WIN32) # handles both x86 and x64
+  message(STATUS "Setting up build for Windows.")
   # Suppress min and max macros on windows
-  # Also define a few other things for windows
+  # Also define a few other things
   target_compile_definitions(katago PRIVATE NOMINMAX)
   target_compile_definitions(katago PRIVATE BYTE_ORDER=1234)
   target_compile_definitions(katago PRIVATE LITTLE_ENDIAN=1234)
   target_compile_definitions(katago PRIVATE BIG_ENDIAN=4321)
   # core/rand.cpp uses winsock for a gethostname
   target_link_libraries(katago ws2_32)
+  if (MINGW)
+    message(STATUS "Setting up build for mingw.")
+    if(USE_BACKEND STREQUAL "CUDA" OR USE_BACKEND STREQUAL "TENSORRT")
+      message(SEND_ERROR "CUDA and TENSORRT MinGW backends are not supported by NVIDIA, see https://forums.developer.nvidia.com/t/cuda-with-mingw-how-to-get-cuda-running-under-mingw")
+    endif()
 
+    # Make the build independent of MinGW dynamic libraries
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+      # Strip symbols. It significantly reduces binary size (makes it 20x smaller)
+      set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+    endif()
+
+    # It's needed for linking `PathRemoveFileSpecW` and probably other Windows API functions
+    target_link_libraries(katago shlwapi)
+
+    # For some reason MINGW doesn't define `HAVE_LONG_LONG` directive on his own unlike MSVC
+    # Define it because TCLAP library needs it. Actually it's part of standard and should be supported everywhere
+    include(CheckTypeSize)
+    check_type_size("long long" HAVE_LONG_LONG)
+    if(HAVE_LONG_LONG)
+      target_compile_definitions(katago PRIVATE HAVE_LONG_LONG)
+    endif()
+  endif()
+endif()
+
+if(MSVC)
+  message(STATUS "Setting up build for MSVC.")
   # Go ahead and suppress some MSVC warnings about sprintf and similar
   # things. They might be useful in some cases, but also are noisy.
   target_compile_definitions(katago PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -479,12 +545,9 @@ if(MSVC)
   endif()
 
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8388608")
-endif()
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  message(STATUS "Setting up build for GNU or Clang.")
-  if(NOT (${CMAKE_SYSTEM_PROCESSOR} MATCHES "(arm|arm64|aarch32|aarch64)"))
-    message(STATUS "Enabling single-precision floating-point instructions (SSE)")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  message(STATUS "Setting up build for GNU, Clang or MinGW.")
+  if(NOT (${CMAKE_SYSTEM_PROCESSOR} MATCHES "(arm|aarch32|aarch64)"))
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -mfpmath=sse")
   else()
     # For ARM architecture, as a hack, ensure that char is signed
