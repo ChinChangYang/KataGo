@@ -323,6 +323,11 @@ class BranchState {
     }
 }
 
+enum EyeStatus {
+    case opened
+    case closed
+}
+
 @Observable
 class GobanState {
     var waitingForAnalysis = false
@@ -331,6 +336,7 @@ class GobanState {
     var showBoardCount: Int = 0
     var isEditing = false
     var isShownBoard: Bool = false
+    var eyeStatus = EyeStatus.opened
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")

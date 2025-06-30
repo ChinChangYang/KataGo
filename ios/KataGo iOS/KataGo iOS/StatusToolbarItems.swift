@@ -68,6 +68,17 @@ struct StatusToolbarItems: View {
                 }
             }
 
+            if gobanState.eyeStatus == .closed {
+                Button(action: eyeSlashAction) {
+                    Image(systemName: "eye.slash")
+                        .foregroundColor(.red)
+                }
+            } else {
+                Button(action: eyeAction) {
+                    Image(systemName: "eye")
+                }
+            }
+
             Button(action: forwardFrameAction) {
                 if !gobanState.shouldGenMove(config: config, player: player) {
                     Image(systemName: "forward.frame")
@@ -161,6 +172,18 @@ struct StatusToolbarItems: View {
             gobanState.analysisStatus = .clear
         }
         messageList.appendAndSend(command: "stop")
+    }
+
+    func eyeSlashAction() {
+        withAnimation {
+            gobanState.eyeStatus = .opened
+        }
+    }
+
+    func eyeAction() {
+        withAnimation {
+            gobanState.eyeStatus = .closed
+        }
     }
 
     func forwardFrameAction() {

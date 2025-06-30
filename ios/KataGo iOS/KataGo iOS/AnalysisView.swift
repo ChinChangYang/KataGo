@@ -100,7 +100,8 @@ struct AnalysisView: View {
     }
 
     var body: some View {
-        if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
+        if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) &&
+            (gobanState.eyeStatus == .opened) {
             Group {
                 let blackSet = Set(stones.blackPoints)
                 let whiteSet = Set(stones.whitePoints)

@@ -47,7 +47,7 @@ struct BoardView: View {
                     AnalysisView(config: config, dimensions: dimensions)
                     MoveNumberView(dimensions: dimensions, verticalFlip: config.verticalFlip)
 
-                    if config.showWinrateBar {
+                    if config.showWinrateBar && (gobanState.eyeStatus == .opened) {
                         WinrateBarView(dimensions: dimensions)
                     }
                 }
