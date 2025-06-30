@@ -22,88 +22,57 @@ struct StatusToolbarItems: View {
         return gameRecord.concreteConfig
     }
 
+    var foregroundStyle: HierarchicalShapeStyle {
+        gobanState.shouldGenMove(config: config, player: player) ? .secondary : .primary
+    }
+
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             Button(action: backwardEndAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "backward.end")
-                } else {
-                    Image(systemName: "backward.end")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "backward.end")
+                    .foregroundStyle(foregroundStyle)
             }
 
             Button(action: backwardAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "backward")
-                } else {
-                    Image(systemName: "backward")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "backward")
+                    .foregroundStyle(foregroundStyle)
             }
 
             Button(action: backwardFrameAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "backward.frame")
-                } else {
-                    Image(systemName: "backward.frame")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "backward.frame")
+                    .foregroundStyle(foregroundStyle)
             }
 
-            if gobanState.analysisStatus == .pause {
-                Button(action: stopAction) {
-                    Image(systemName: "sparkle")
-                }
-                .contentTransition(.symbolEffect(.replace))
-            } else if gobanState.analysisStatus == .run {
-                Button(action: pauseAnalysisAction) {
-                    Image(systemName: "sparkle")
-                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
-                }
-            } else {
-                Button(action: startAnalysisAction) { 
+            Button(action: sparkleAction) {
+                if gobanState.analysisStatus == .clear {
                     Image("custom.sparkle.slash")
                         .foregroundColor(.red)
+                } else if gobanState.analysisStatus == .run {
+                    Image(systemName: "sparkles")
+                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
+                } else {
+                    Image(systemName: "sparkle")
                 }
             }
 
-            if gobanState.eyeStatus == .closed {
-                Button(action: eyeSlashAction) {
-                    Image(systemName: "eye.slash")
-                        .foregroundColor(.red)
-                }
-            } else {
-                Button(action: eyeAction) {
-                    Image(systemName: "eye")
-                }
+            Button(action: eyeAction) {
+                Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
+                    .foregroundColor((gobanState.eyeStatus == .opened) ? .accentColor : .red)
             }
 
             Button(action: forwardFrameAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "forward.frame")
-                } else {
-                    Image(systemName: "forward.frame")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "forward.frame")
+                    .foregroundStyle(foregroundStyle)
             }
 
             Button(action: forwardAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "forward")
-                } else {
-                    Image(systemName: "forward")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "forward")
+                    .foregroundStyle(foregroundStyle)
             }
 
             Button(action: forwardEndAction) {
-                if !gobanState.shouldGenMove(config: config, player: player) {
-                    Image(systemName: "forward.end")
-                } else {
-                    Image(systemName: "forward.end")
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "forward.end")
+                    .foregroundStyle(foregroundStyle)
             }
         }
     }
@@ -174,15 +143,23 @@ struct StatusToolbarItems: View {
         messageList.appendAndSend(command: "stop")
     }
 
-    func eyeSlashAction() {
-        withAnimation {
-            gobanState.eyeStatus = .opened
+    func sparkleAction() {
+        if gobanState.analysisStatus == .pause {
+            stopAction()
+        } else if gobanState.analysisStatus == .run {
+            pauseAnalysisAction()
+        } else {
+            startAnalysisAction()
         }
     }
 
     func eyeAction() {
         withAnimation {
-            gobanState.eyeStatus = .closed
+            if gobanState.eyeStatus == .closed {
+                gobanState.eyeStatus = .opened
+            } else {
+                gobanState.eyeStatus = .closed
+            }
         }
     }
 
