@@ -50,11 +50,11 @@ Elo Rating: 14006.6 ± 18.3 - (2,449 games).
             description: """
 This is the strongest confidently-rated network in KataGo distributed training. It runs using the GPU and may offer faster performance than the Core ML model on high-end Macs.
 
-Name: kata1-b28c512nbt-s8925522176-d4787295149.
-Uploaded at: 2025-05-18 01:48:36 UTC.
-Elo Rating: 14021.7 ± 18.8 - (2,345 games).
+Name: kata1-b28c512nbt-s9435149568-d4923088660.
+Uploaded at: 2025-06-22 19:35:33 UTC.
+Elo Rating: 14040.9 ± 22.0 - (1,547 games).
 """,
-            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s8925522176-d4787295149.bin.gz",
+            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s9435149568-d4923088660.bin.gz",
             fileName: "official.bin.gz",
             fileSize: 271_357_345
         ),
