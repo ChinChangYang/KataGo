@@ -48,7 +48,8 @@ struct StatusToolbarItems: View {
                     Image("custom.sparkle.slash")
                         .foregroundColor(.red)
                 } else if gobanState.analysisStatus == .run {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "sparkle")
+                        .symbolRenderingMode(.multicolor)
                         .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 } else {
                     Image(systemName: "sparkle")
@@ -59,6 +60,7 @@ struct StatusToolbarItems: View {
                 Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
                     .foregroundColor((gobanState.eyeStatus == .opened) ? .accentColor : .red)
             }
+            .contentTransition(.symbolEffect(.replace))
 
             Button(action: forwardFrameAction) {
                 Image(systemName: "forward.frame")
