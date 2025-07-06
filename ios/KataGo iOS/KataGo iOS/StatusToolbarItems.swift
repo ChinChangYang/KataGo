@@ -44,17 +44,11 @@ struct StatusToolbarItems: View {
             }
 
             Button(action: sparkleAction) {
-                if gobanState.analysisStatus == .clear {
-                    Image("custom.sparkle.slash")
-                        .foregroundColor(.red)
-                } else if gobanState.analysisStatus == .run {
-                    Image(systemName: "sparkle")
-                        .symbolRenderingMode(.multicolor)
-                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
-                } else {
-                    Image(systemName: "sparkle")
-                }
+                Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
+                    .foregroundColor((gobanState.analysisStatus == .clear) ? .red : (gobanState.analysisStatus == .run) ? .yellow : .accentColor)
+                    .symbolEffect(.variableColor.iterative.reversing, isActive: gobanState.analysisStatus == .run)
             }
+            .contentTransition(.symbolEffect(.replace))
 
             Button(action: eyeAction) {
                 Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
