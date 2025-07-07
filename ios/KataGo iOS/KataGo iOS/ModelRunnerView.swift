@@ -24,10 +24,14 @@ struct ModelRunnerView: View {
             if let selectedModel {
                 if selectedModel.builtIn {
                     // Start KataGo with the built-in model
-                    startKataGoThread()
+                    startKataGoThread(coremlModelPath: selectedModel.url,
+                                      humanCoremlModelPath: selectedModel.humanUrl,
+                                      nnLen: selectedModel.nnLen)
                 } else {
                     if let downloadedURL = selectedModel.downloadedURL {
-                        startKataGoThread(modelPath: downloadedURL.path(), useMetal: !selectedModel.builtIn)
+                        startKataGoThread(modelPath: downloadedURL.path(),
+                                          useMetal: !selectedModel.builtIn,
+                                          nnLen: selectedModel.nnLen)
                     } else {
                         // Failed to get model URL, go back to the model picker view
                         self.selectedModel = nil
@@ -37,10 +41,18 @@ struct ModelRunnerView: View {
         }
     }
 
-    private func startKataGoThread(modelPath: String? = nil, useMetal: Bool = false) {
+    private func startKataGoThread(modelPath: String? = nil,
+                                   useMetal: Bool = false,
+                                   coremlModelPath: String? = nil,
+                                   humanCoremlModelPath: String? = nil,
+                                   nnLen: Int) {
         // Start a thread to run KataGo GTP
         let katagoThread = Thread {
-            KataGoHelper.runGtp(modelPath: modelPath, useMetal: useMetal)
+            KataGoHelper.runGtp(modelPath: modelPath,
+                                useMetal: useMetal,
+                                coremlModelPath: coremlModelPath,
+                                humanCoremlModelPath: humanCoremlModelPath,
+                                nnLen: nnLen)
 
             Task {
                 await MainActor.run {

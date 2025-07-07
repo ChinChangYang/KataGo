@@ -527,7 +527,7 @@
 		E118388D2B081DA800637D44 /* selfplay.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = selfplay.cpp; sourceTree = "<group>"; };
 		E118388E2B081DA800637D44 /* misc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = misc.cpp; sourceTree = "<group>"; };
 		E118388F2B081DA800637D44 /* sandbox.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sandbox.cpp; sourceTree = "<group>"; };
-		E11838902B081DA800637D44 /* gtp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = gtp.cpp; sourceTree = "<group>"; };
+		E11838902B081DA800637D44 /* gtp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 2; lastKnownFileType = sourcecode.cpp.cpp; path = gtp.cpp; sourceTree = "<group>"; tabWidth = 2; };
 		E11838912B081DA800637D44 /* gatekeeper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = gatekeeper.cpp; sourceTree = "<group>"; };
 		E11838922B081DA800637D44 /* evalsgf.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = evalsgf.cpp; sourceTree = "<group>"; };
 		E11838932B081DA800637D44 /* benchmark.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = benchmark.cpp; sourceTree = "<group>"; };
@@ -575,7 +575,6 @@
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
-		E16BC8362C4CB28900EA3A1E /* misc.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = misc.swift; path = ../../../cpp/neuralnet/misc.swift; sourceTree = "<group>"; };
 		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
 		E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16m1.mlpackage; sourceTree = "<group>"; };
@@ -935,7 +934,6 @@
 				E11887ED2B08310800637D44 /* coremlbackend.swift */,
 				E11887EC2B08310800637D44 /* coremlmodel.swift */,
 				E11887EE2B08310800637D44 /* metalbackend.swift */,
-				E16BC8362C4CB28900EA3A1E /* misc.swift */,
 			);
 			path = KataGoSwift;
 			sourceTree = "<group>";

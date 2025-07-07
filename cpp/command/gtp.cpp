@@ -478,6 +478,12 @@ struct GTPEngine {
       nnYLen = Board::MAX_LEN;
     }
 
+    if (cfg.contains("gtpForceNNSize")) {
+      defaultRequireExactNNLen = false;
+      nnXLen = cfg.getInt("gtpForceNNSize");
+      nnYLen = nnXLen;
+    }
+
     //If the neural net is wrongly sized, we need to create or recreate it
     if(nnEval == NULL || !(nnXLen == nnEval->getNNXLen() && nnYLen == nnEval->getNNYLen())) {
 

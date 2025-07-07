@@ -15,13 +15,14 @@ struct GobanItems: View {
     @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
+    var maxBoardLength: Int
 
     var body: some View {
         Group {
             if gobanTab.isCommandPresented {
                 CommandView(config: gameRecord.concreteConfig)
             } else if gobanTab.isConfigPresented {
-                ConfigView(gameRecord: gameRecord)
+                ConfigView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             } else {
                 PlayView(gameRecord: gameRecord)
             }
@@ -51,11 +52,12 @@ struct GobanView: View {
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @State var toolbarUuid = UUID()
+    var maxBoardLength: Int
 
     var body: some View {
         Group {
             if let gameRecord = navigationContext.selectedGameRecord {
-                GobanItems(gameRecord: gameRecord, importing: $importing)
+                GobanItems(gameRecord: gameRecord, importing: $importing, maxBoardLength: maxBoardLength)
                     .toolbar {
                         ToolbarItem(placement: .principal) {
                             Text(gameRecord.name)

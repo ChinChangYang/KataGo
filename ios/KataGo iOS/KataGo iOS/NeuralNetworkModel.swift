@@ -8,26 +8,48 @@
 import Foundation
 
 struct NeuralNetworkModel: Identifiable, Equatable {
+    let id = UUID()
     let title: String
     let description: String
     let url: String
     let fileName: String
     let fileSize: Int
     let builtIn: Bool
-    let id = UUID()
+    let nnLen: Int
+    let humanUrl: String
 
     var downloadedURL: URL? {
         let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return docsURL?.appendingPathComponent(fileName)
     }
+    
+    /// Initialize the neural network model
+    /// - Parameters:
+    ///   - title: the title of the model
+    ///   - description: the description of the model
+    ///   - url: the URL of the model
+    ///   - humanUrl: the URL of the human SL model   s
+    ///   - fileName: the file name of the model
+    ///   - fileSize: the file size of the model
+    ///   - builtIn: a flag to indicate that the model is built-in or not
+    ///   - nnLen: neural network board length, default value should be equal to `COMPILE_MAX_BOARD_LEN`
+    init(title: String,
+         description: String,
+         url: String,
+         humanUrl: String = "",
+         fileName: String,
+         fileSize: Int,
+         builtIn: Bool = false,
+         nnLen: Int = 29) {
 
-    init(title: String, description: String, url: String, fileName: String, fileSize: Int, builtIn: Bool = false) {
         self.title = title
         self.description = description
         self.url = url
         self.fileName = fileName
         self.fileSize = fileSize
         self.builtIn = builtIn
+        self.nnLen = nnLen
+        self.humanUrl = humanUrl
     }
 
     static let allCases: [NeuralNetworkModel] = [
@@ -40,10 +62,12 @@ Name: kata1-b28c512nbt-s8834891520-d4763401477.
 Uploaded at: 2025-05-10 07:04:59 UTC.
 Elo Rating: 14006.6 ± 18.3 - (2,449 games).
 """,
-            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s8834891520-d4763401477.bin.gz",
+            url: Bundle.main.path(forResource: "KataGoModel29x29fp16", ofType: "mlpackage") ?? "",
+            humanUrl: Bundle.main.path(forResource: "KataGoModel29x29fp16m1", ofType: "mlpackage") ?? "",
             fileName: "builtin.bin.gz",
             fileSize: 271_357_345,
-            builtIn: true
+            builtIn: true,
+            nnLen: 29
         ),
         .init(
             title: "Official KataGo Network",

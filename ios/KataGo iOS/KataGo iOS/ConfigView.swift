@@ -157,10 +157,11 @@ struct RuleConfigView: View {
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
+    var maxBoardLength: Int
 
     var body: some View {
         List {
-            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
+            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardWidth = config.boardWidth
                 }
@@ -171,7 +172,7 @@ struct RuleConfigView: View {
                     }
                 }
 
-            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
+            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardHeight = config.boardHeight
                 }
@@ -580,6 +581,7 @@ struct ConfigItems: View {
     @Environment(GobanState.self) var gobanState
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
+    var maxBoardLength: Int
 
     var config: Config {
         gameRecord.concreteConfig
@@ -593,7 +595,7 @@ struct ConfigItems: View {
             }
 
             NavigationLink("Rule") {
-                RuleConfigView(config: config)
+                RuleConfigView(config: config, maxBoardLength: maxBoardLength)
                     .navigationTitle("Rule")
             }
 
@@ -627,10 +629,11 @@ struct ConfigItems: View {
 
 struct ConfigView: View {
     var gameRecord: GameRecord
+    var maxBoardLength: Int
 
     var body: some View {
         NavigationStack {
-            ConfigItems(gameRecord: gameRecord)
+            ConfigItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
         }
         .navigationTitle("Configuration")
     }

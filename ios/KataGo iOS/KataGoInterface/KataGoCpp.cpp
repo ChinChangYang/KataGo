@@ -69,9 +69,11 @@ ostream outToKataGo(&tsbToKataGo);
 
 void KataGoRunGtp(string modelPath,
                   string humanModelPath,
+                  string coremlModelPath,
+                  string humanCoremlModelPath,
                   string configPath,
                   int coremlDeviceToUse,
-                  bool gtpForceMaxNNSize,
+                  int gtpForceNNSize,
                   int numSearchThreads,
                   int nnMaxBatchSize) {
     // Replace the global cout object with the custom one
@@ -88,10 +90,18 @@ void KataGoRunGtp(string modelPath,
     subArgs.push_back(modelPath);
     subArgs.push_back(string("-human-model"));
     subArgs.push_back(humanModelPath);
+    subArgs.push_back(string("-coreml-model"));
+    subArgs.push_back(coremlModelPath);
+    subArgs.push_back(string("-human-coreml-model"));
+    subArgs.push_back(humanCoremlModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
     subArgs.push_back(string("-override-config coremlDeviceToUse=") + to_string(coremlDeviceToUse));
-    subArgs.push_back(string("-override-config gtpForceMaxNNSize=") + (gtpForceMaxNNSize ? "true" : "false"));
+
+    if (gtpForceNNSize > 0) {
+        subArgs.push_back(string("-override-config gtpForceNNSize=") + to_string(gtpForceNNSize));
+    }
+
     subArgs.push_back(string("-override-config numSearchThreads=") + to_string(numSearchThreads));
     subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));
     MainCmds::gtp(subArgs);

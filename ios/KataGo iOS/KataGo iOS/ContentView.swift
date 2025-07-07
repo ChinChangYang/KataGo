@@ -75,7 +75,8 @@ struct ContentView: View {
                 }
             } detail: {
                 GobanView(isEditorPresented: $isEditorPresented,
-                          importing: $importing)
+                          importing: $importing,
+                          maxBoardLength: selectedModel.nnLen)
             }
             .environment(stones)
             .environment(messageList)

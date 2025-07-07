@@ -17,7 +17,11 @@ public class KataGoHelper {
     static let metalNnMaxBatchSize = 1
 #endif
 
-    public class func runGtp(modelPath: String? = nil, useMetal: Bool = false) {
+    public class func runGtp(modelPath: String? = nil,
+                             useMetal: Bool = false,
+                             coremlModelPath: String? = nil,
+                             humanCoremlModelPath: String? = nil,
+                             nnLen: Int) {
         let mainBundle = Bundle.main
         let modelName = "default_model"
         let modelExt = "bin.gz"
@@ -38,15 +42,17 @@ public class KataGoHelper {
                                          ofType: configExt)
 
         let coremlDeviceToUse = useMetal ? 0 : 100
-        let gtpForceMaxNNSize = !useMetal
+        let gtpForceNNSize = useMetal ? 0 : nnLen
         let numSearchThreads = useMetal ? metalNumSearchThreads : 2
         let nnMaxBatchSize = useMetal ? metalNnMaxBatchSize : 1
 
         KataGoRunGtp(std.string(mainModelPath),
                      std.string(humanModelPath),
+                     std.string(coremlModelPath ?? ""),
+                     std.string(humanCoremlModelPath ?? ""),
                      std.string(configPath),
                      Int32(coremlDeviceToUse),
-                     gtpForceMaxNNSize,
+                     Int32(gtpForceNNSize),
                      Int32(numSearchThreads),
                      Int32(nnMaxBatchSize))
     }
