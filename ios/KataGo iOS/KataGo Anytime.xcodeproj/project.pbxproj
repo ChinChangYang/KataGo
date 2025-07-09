@@ -237,10 +237,13 @@
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
+		E160DEE72E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */; };
+		E160DEE82E1E927F004B065F /* KataGoModel19x19fp16.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */; };
+		E160DEE92E1E92D2004B065F /* KataGoModel19x19fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */; };
+		E160DEEA2E1E92D2004B065F /* KataGoModel19x19fp16.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
-		E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */; };
 		E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */; };
 		E16E1F392DE2AA8400B0F144 /* Downloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F382DE2AA8300B0F144 /* Downloader.swift */; };
 		E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */; };
@@ -257,7 +260,6 @@
 		E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */; };
 		E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */; };
-		E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */; };
 		E1AFE0532C3C07E00061D724 /* SgfCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */; };
 		E1AFE0542C3C07E00061D724 /* SgfCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */; };
@@ -574,10 +576,11 @@
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
+		E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel19x19fp16m1.mlpackage; sourceTree = "<group>"; };
+		E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel19x19fp16.mlpackage; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
 		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
-		E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16m1.mlpackage; sourceTree = "<group>"; };
 		E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModel.swift; sourceTree = "<group>"; };
 		E16E1F382DE2AA8300B0F144 /* Downloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloader.swift; sourceTree = "<group>"; };
 		E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugUtils.swift; sourceTree = "<group>"; };
@@ -597,7 +600,6 @@
 		E18F3F752A514B9700D335E1 /* default_gtp.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = default_gtp.cfg; sourceTree = "<group>"; };
 		E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModel.swift; sourceTree = "<group>"; };
 		E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusToolbarItems.swift; sourceTree = "<group>"; };
-		E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16.mlpackage; sourceTree = "<group>"; };
 		E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SgfCpp.cpp; sourceTree = "<group>"; };
 		E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = SgfCpp.hpp; sourceTree = "<group>"; };
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
@@ -1121,6 +1123,8 @@
 		E18F3F792A514BA700D335E1 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */,
+				E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */,
 				E13B927B2DD35B48009F8A1A /* CaptureGoStone1.mp3 */,
 				E13B927C2DD35B48009F8A1A /* CaptureGoStone2.mp3 */,
 				E13B927D2DD35B48009F8A1A /* CaptureGoStone3.mp3 */,
@@ -1130,8 +1134,6 @@
 				E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */,
 				E18F3F752A514B9700D335E1 /* default_gtp.cfg */,
 				E18F3F742A514B9700D335E1 /* default_model.bin.gz */,
-				E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */,
-				E16BC83F2C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -1457,8 +1459,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E16BC8412C566DA300EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Resources */,
-				E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */,
+				E160DEE92E1E92D2004B065F /* KataGoModel19x19fp16m1.mlpackage in Resources */,
+				E160DEEA2E1E92D2004B065F /* KataGoModel19x19fp16.mlpackage in Resources */,
 				E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */,
 				E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */,
 				E13B927E2DD35B48009F8A1A /* CaptureGoStone2.mp3 in Resources */,
@@ -1666,6 +1668,8 @@
 				E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */,
 				E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */,
 				E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */,
+				E160DEE72E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage in Sources */,
+				E160DEE82E1E927F004B065F /* KataGoModel19x19fp16.mlpackage in Sources */,
 				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
@@ -2091,7 +2095,7 @@
 					NO_LIBZIP,
 					NO_GIT_REVISION,
 					OS_IS_IOS,
-					"COMPILE_MAX_BOARD_LEN=29",
+					"COMPILE_MAX_BOARD_LEN=37",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -2158,7 +2162,7 @@
 					NO_LIBZIP,
 					NO_GIT_REVISION,
 					OS_IS_IOS,
-					"COMPILE_MAX_BOARD_LEN=29",
+					"COMPILE_MAX_BOARD_LEN=37",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -2209,7 +2213,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -2252,7 +2256,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1;
+				MARKETING_VERSION = 5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
