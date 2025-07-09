@@ -57,17 +57,28 @@ struct GobanView: View {
     var body: some View {
         Group {
             if let gameRecord = navigationContext.selectedGameRecord {
-                GobanItems(gameRecord: gameRecord, importing: $importing, maxBoardLength: maxBoardLength)
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            Text(gameRecord.name)
-                                .bold()
-                                .onTapGesture {
-                                    isEditorPresented = true
-                                }
-                                .id(toolbarUuid)
+                if (gameRecord.concreteConfig.boardWidth <= maxBoardLength) &&
+                    (gameRecord.concreteConfig.boardHeight <= maxBoardLength) {
+                    GobanItems(gameRecord: gameRecord, importing: $importing, maxBoardLength: maxBoardLength)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                Text(gameRecord.name)
+                                    .bold()
+                                    .onTapGesture {
+                                        isEditorPresented = true
+                                    }
+                                    .id(toolbarUuid)
+                            }
                         }
-                    }
+                } else {
+                    ContentUnavailableView("Too large board size \(gameRecord.concreteConfig.boardWidth)x\(gameRecord.concreteConfig.boardHeight) to run with this neural network.\nPlease select other neural networks.", systemImage: "rectangle.portrait.and.arrow.forward")
+                        .toolbar {
+                            ToolbarItem {
+                                PlusMenuView(gameRecord: nil, importing: $importing)
+                                    .id(toolbarUuid)
+                            }
+                        }
+                }
             } else {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                     .toolbar {
