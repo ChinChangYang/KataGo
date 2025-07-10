@@ -75,6 +75,7 @@ Board sizes: 2x2 to 19x19.
             title: "Official KataGo Network",
             description: """
 This is the strongest confidently-rated network in KataGo distributed training. It runs using the GPU and may offer faster performance than the Core ML model on high-end Macs.
+
 This app will irregularly update the URL for the strongest confidently-rated network. If a new network becomes available, you can keep using your current one or manually switch by deleting it and downloading the latest version.
 
 Name: kata1-b28c512nbt-s9584861952-d4960414494.
