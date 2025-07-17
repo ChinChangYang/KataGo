@@ -17,6 +17,7 @@ struct BoardView: View {
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
     @Environment(BranchState.self) var branchState
+    @Environment(Analysis.self) var analysis
     var gameRecord: GameRecord
     @FocusState<Bool>.Binding var commentIsFocused: Bool
 
@@ -63,6 +64,13 @@ struct BoardView: View {
                         stones.isReady = false
                         if gobanState.isEditing {
                             gameRecord.clearComments(after: gameRecord.currentIndex)
+                            gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
+                            if gobanState.analysisStatus != .clear,
+                               let scoreLead = analysis.blackScore {
+                                withAnimation(.spring) {
+                                    gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                                }
+                            }
                         } else if !branchState.isActive {
                             branchState.sgf = gameRecord.sgf
                             branchState.currentIndex = gameRecord.currentIndex

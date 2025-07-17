@@ -17,7 +17,8 @@ struct CommentView: View {
             if gobanState.isEditing {
                 TextField("Add your comment", text: $comment, axis: .vertical)
             } else {
-                Text(comment)
+                let scoreLead = gameRecord.scoreLeads?[gameRecord.currentIndex] ?? 0
+                Text(comment + " (\(scoreLead))")
             }
         }
     }

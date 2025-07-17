@@ -15,22 +15,30 @@ struct PlayView: View {
 
     var config: Config { gameRecord.concreteConfig }
 
+    func boardLinePlotView(for dimensions: Dimensions) -> some View {
+        return VStack {
+            LinePlotView(gameRecord: gameRecord)
+                .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 100))
+                .padding()
+            BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+        }
+    }
+
     var boardOptionalCommentView: some View {
         Group {
-            if config.showComments {
-                // Show comment and board views
-                GeometryReader { geometry in
-                    let dimensions = Dimensions(size: geometry.size,
-                                                width: board.width,
-                                                height: board.height,
-                                                showCoordinate: config.showCoordinate,
-                                                showPass: config.showPass)
+            GeometryReader { geometry in
+                let dimensions = Dimensions(size: geometry.size,
+                                            width: board.width,
+                                            height: board.height,
+                                            showCoordinate: config.showCoordinate,
+                                            showPass: config.showPass)
 
+                if config.showComments {
+                    // Show comment and board views
                     commentBoardView(for: dimensions)
+                } else {
+                    boardLinePlotView(for: dimensions)
                 }
-            } else {
-                // Only show the board view
-                BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
             }
         }
     }
@@ -41,12 +49,12 @@ struct PlayView: View {
             .frame(width: isHorizontalLayout ? max(dimensions.totalWidth - dimensions.gobanWidth, 200) : nil,
                    height: isHorizontalLayout ? nil : max(dimensions.totalHeight - dimensions.drawHeight, 100))
 
-        let boardView = BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+        let boardLinePlotView = boardLinePlotView(for: dimensions)
 
         return Group {
             if isHorizontalLayout {
                 HStack {
-                    boardView
+                    boardLinePlotView
                     commentView
                         .padding(.horizontal)
                 }
@@ -54,7 +62,7 @@ struct PlayView: View {
                 VStack {
                     commentView
                         .padding()
-                    boardView
+                    boardLinePlotView
                 }
             }
         }

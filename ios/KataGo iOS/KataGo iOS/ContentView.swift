@@ -492,18 +492,6 @@ struct ContentView: View {
         }
     }
 
-    func getBlackWinrate() -> Float? {
-        guard let maxWinrate = analysis.maxWinrate else { return nil }
-        let blackWinrate = (analysis.nextColorForAnalysis == .black) ? maxWinrate : (1 - maxWinrate)
-        return blackWinrate
-    }
-
-    func getBlackScore() -> Float {
-        guard let maxScore = analysis.maxScoreLead else { return 0.0 }
-        let blackScore = (analysis.nextColorForAnalysis == .black) ? maxScore : -maxScore
-        return blackScore
-    }
-
     func collectAnalysisInfo(message: String) async -> ([[BoardPoint: AnalysisInfo]], String.SubSequence?) {
         let splitData = message.split(separator: "info")
         let analysisInfo = splitData.compactMap {
@@ -568,11 +556,11 @@ struct ContentView: View {
                 analysis.ownershipUnits = ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
 
-                if let blackWinrate = getBlackWinrate() {
+                if let blackWinrate = analysis.blackWinrate {
                     rootWinrate.black = blackWinrate
                 }
 
-                rootScore.black = getBlackScore()
+                rootScore.black = analysis.blackScore ?? 0
             }
 
             gobanState.waitingForAnalysis = false
@@ -742,6 +730,13 @@ struct ContentView: View {
             if let gameRecord = navigationContext.selectedGameRecord {
                 if gobanState.isEditing {
                     gameRecord.clearComments(after: gameRecord.currentIndex)
+                    gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
+                    if gobanState.analysisStatus != .clear,
+                       let scoreLead = analysis.blackScore {
+                        withAnimation(.spring) {
+                            gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                        }
+                    }
                 } else if !branchState.isActive {
                     branchState.sgf = gameRecord.sgf
                     branchState.currentIndex = gameRecord.currentIndex

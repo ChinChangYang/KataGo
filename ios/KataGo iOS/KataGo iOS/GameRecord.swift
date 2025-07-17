@@ -23,6 +23,7 @@ final class GameRecord {
     var comments: [Int: String]?
     var uuid: UUID? = UUID()
     var thumbnail: Data?
+    var scoreLeads: [Int: Float]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -44,7 +45,8 @@ final class GameRecord {
          name: String = defaultName,
          lastModificationDate: Date? = Date.now,
          comments: [Int: String]? = [:],
-         thumbnail: Data? = nil) {
+         thumbnail: Data? = nil,
+         scoreLeads: [Int: Float]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -52,6 +54,7 @@ final class GameRecord {
         self.lastModificationDate = lastModificationDate
         self.comments = comments
         self.thumbnail = thumbnail
+        self.scoreLeads = scoreLeads
     }
 
     func clone() -> GameRecord {
@@ -62,7 +65,8 @@ final class GameRecord {
                                        name: self.name + " (copy)",
                                        lastModificationDate: Date.now,
                                        comments: self.comments,
-                                       thumbnail: self.thumbnail)
+                                       thumbnail: self.thumbnail,
+                                       scoreLeads: self.scoreLeads)
         newConfig.gameRecord = newGameRecord
         return newGameRecord
     }
@@ -76,6 +80,11 @@ final class GameRecord {
     func clearComments(after index: Int) {
         guard let comments = comments else { return }
         self.comments = comments.filter { $0.key <= index }
+    }
+
+    func clearScoreLeads(after index: Int) {
+        guard let scoreLeads = scoreLeads else { return }
+        self.scoreLeads = scoreLeads.filter { $0.key <= index }
     }
 
     class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
@@ -97,7 +106,8 @@ final class GameRecord {
                                 currentIndex: Int = 0,
                                 name: String = defaultName,
                                 comments: [Int: String]? = [:],
-                                thumbnail: Data? = nil) -> GameRecord {
+                                thumbnail: Data? = nil,
+                                scoreLeads: [Int: Float]? = [:]) -> GameRecord {
         let config = Config()
         let sgfHelper = SgfHelper(sgf: sgf)
         config.boardWidth = sgfHelper.xSize
@@ -109,7 +119,8 @@ final class GameRecord {
                                     config: config,
                                     name: name,
                                     comments: comments,
-                                    thumbnail: thumbnail)
+                                    thumbnail: thumbnail,
+                                    scoreLeads: scoreLeads)
 
         config.gameRecord = gameRecord
 

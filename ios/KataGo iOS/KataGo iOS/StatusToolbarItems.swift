@@ -16,6 +16,7 @@ struct StatusToolbarItems: View {
     @Environment(BoardSize.self) var board
     @Environment(MessageList.self) var messageList
     @Environment(BranchState.self) var branchState
+    @Environment(Analysis.self) var analysis
     var gameRecord: GameRecord
 
     var config: Config {
@@ -178,6 +179,13 @@ struct StatusToolbarItems: View {
     }
 
     private func forwardMoves(limit: Int?) {
+        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
+           let scoreLead = analysis.blackScore {
+            withAnimation(.spring) {
+                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+            }
+        }
+
         let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
         var movesExecuted = 0
 

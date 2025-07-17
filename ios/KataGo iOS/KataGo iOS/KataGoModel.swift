@@ -129,9 +129,21 @@ class Analysis {
         return winrates.max()
     }
 
-    var maxScoreLead: Float? {
+    private var maxScoreLead: Float? {
         let scoreLeads = info.values.map(\.scoreLead)
         return scoreLeads.max()
+    }
+
+    var blackWinrate: Float? {
+        guard let maxWinrate = maxWinrate else { return nil }
+        let blackWinrate = (nextColorForAnalysis == .black) ? maxWinrate : (1 - maxWinrate)
+        return blackWinrate
+    }
+
+    var blackScore: Float? {
+        guard let maxScore = maxScoreLead else { return nil }
+        let blackScore = (nextColorForAnalysis == .black) ? maxScore : -maxScore
+        return blackScore
     }
 
     func clear() {
