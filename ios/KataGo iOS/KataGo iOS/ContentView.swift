@@ -722,6 +722,13 @@ struct ContentView: View {
         }
     }
 
+    private func maybeUpdateScoreLeads(gameRecord: GameRecord) {
+        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
+           let scoreLead = analysis.blackScore {
+            gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+        }
+    }
+
     func postProcessAIMove(message: String) {
         let pattern = /play (\w+\d+)/
         if let match = message.firstMatch(of: pattern),
@@ -731,12 +738,7 @@ struct ContentView: View {
                 if gobanState.isEditing {
                     gameRecord.clearComments(after: gameRecord.currentIndex)
                     gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
-                    if gobanState.analysisStatus != .clear,
-                       let scoreLead = analysis.blackScore {
-                        withAnimation(.spring) {
-                            gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
-                        }
-                    }
+                    maybeUpdateScoreLeads(gameRecord: gameRecord)
                 } else if !branchState.isActive {
                     branchState.sgf = gameRecord.sgf
                     branchState.currentIndex = gameRecord.currentIndex
