@@ -20,6 +20,7 @@ struct Point {
 
 struct LinePlotView: View {
     var gameRecord: GameRecord
+    @State var selectedMove: Int?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(GobanState.self) private var gobanState
 
@@ -30,6 +31,14 @@ struct LinePlotView: View {
             return gameRecord.scoreLeads?.keys.sorted().compactMap { key in
                     .init(x: key, y: gameRecord.scoreLeads?[key] ?? 0)
             } ?? []
+        }
+    }
+
+    var selectedScoreLead: Float? {
+        if let selectedMove {
+            return gameRecord.scoreLeads?[selectedMove]
+        } else {
+            return nil
         }
     }
 
@@ -57,11 +66,15 @@ struct LinePlotView: View {
         max(10, maxScoreLead)
     }
 
-    var currentMoves: [Point] {
+    var currentPoint: Point? {
         if gobanState.eyeStatus == .closed {
-            return []
+            return nil
+        } else if let selectedMove, let selectedScoreLead {
+            return Point(x: selectedMove, y: selectedScoreLead)
+        } else if let scoreLead = gameRecord.scoreLeads?[gameRecord.currentIndex] {
+            return Point(x: gameRecord.currentIndex, y: scoreLead)
         } else {
-            return [Point(x: gameRecord.currentIndex, y: 0)]
+            return nil
         }
     }
 
@@ -75,11 +88,31 @@ struct LinePlotView: View {
             .interpolationMethod(.catmullRom)
             .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
-            RulePlot(currentMoves,
-                     x: .value("Current", \.x))
-            .foregroundStyle(.red)
-            .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
+            if let selectedMove, let selectedScoreLead {
+                RuleMark(x: .value("Current", selectedMove))
+                    .foregroundStyle(.red)
+                    .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
+                .annotation(position: .top,
+                            alignment: .center,
+                            spacing: nil,
+                            overflowResolution: .init(x: .fit(to: .chart),
+                                                      y: .disabled)) {
+
+                    let leadText = String(format: "%+.1f", selectedScoreLead)
+
+                    VStack {
+                        Text("Move \(selectedMove)")
+                        Text("Lead \(leadText)")
+                    }
+                }
+
+            } else if let currentPoint {
+                RuleMark(x: .value("Current", currentPoint.x))
+                    .foregroundStyle(.red)
+                    .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
+            }
         }
+        .chartXSelection(value: $selectedMove)
         .chartXScale(domain: 0...maxMove)
         .chartYScale(domain: minYDomain...maxYDomain)
         .chartYAxisLabel("Black Score Lead")
