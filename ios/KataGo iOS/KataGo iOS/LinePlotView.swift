@@ -78,7 +78,7 @@ struct LinePlotView: View {
             RulePlot(currentMoves,
                      x: .value("Current", \.x))
             .foregroundStyle(.red)
-            .lineStyle(.init(dash: [2, 2]))
+            .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
         }
         .chartXScale(domain: 0...maxMove)
         .chartYScale(domain: minYDomain...maxYDomain)
