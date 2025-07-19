@@ -74,15 +74,27 @@ struct StatusToolbarItems: View {
         }
     }
 
+    private func maybeUpdateScoreLeads(gameRecord: GameRecord) {
+        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
+           let scoreLead = analysis.blackScore {
+            gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+        }
+    }
+
     func backwardEndAction() {
-        maybeBackwardAction(limit: nil)
+        withAnimation(.spring) {
+            maybeBackwardAction(limit: nil)
+        }
     }
 
     func backwardAction() {
-        maybeBackwardAction(limit: 10)
+        withAnimation(.spring) {
+            maybeBackwardAction(limit: 10)
+        }
     }
 
     private func maybeBackwardAction(limit: Int?) {
+        maybeUpdateScoreLeads(gameRecord: gameRecord)
         if !gobanState.shouldGenMove(config: config, player: player) {
             backwardMoves(limit: limit)
             sendPostExecutionCommands()
@@ -110,15 +122,18 @@ struct StatusToolbarItems: View {
     }
 
     func backwardFrameAction() {
-        if !gobanState.shouldGenMove(config: config, player: player) {
-            if branchState.isActive {
-                branchState.undo()
-            } else {
-                gameRecord.undo()
+        withAnimation(.spring) {
+            maybeUpdateScoreLeads(gameRecord: gameRecord)
+            if !gobanState.shouldGenMove(config: config, player: player) {
+                if branchState.isActive {
+                    branchState.undo()
+                } else {
+                    gameRecord.undo()
+                }
+                messageList.appendAndSend(command: "undo")
+                player.toggleNextColorForPlayCommand()
+                gobanState.sendShowBoardCommand(messageList: messageList)
             }
-            messageList.appendAndSend(command: "undo")
-            player.toggleNextColorForPlayCommand()
-            gobanState.sendShowBoardCommand(messageList: messageList)
         }
     }
 
@@ -161,31 +176,31 @@ struct StatusToolbarItems: View {
     }
 
     func forwardFrameAction() {
-        maybeForwardMoves(limit: 1)
+        withAnimation(.spring) {
+            maybeForwardMoves(limit: 1)
+        }
     }
 
     func forwardAction() {
-        maybeForwardMoves(limit: 10)
+        withAnimation(.spring) {
+            maybeForwardMoves(limit: 10)
+        }
     }
 
     func forwardEndAction() {
-        maybeForwardMoves(limit: nil)
+        withAnimation(.spring) {
+            maybeForwardMoves(limit: nil)
+        }
     }
 
     private func maybeForwardMoves(limit: Int?) {
+        maybeUpdateScoreLeads(gameRecord: gameRecord)
         if !gobanState.shouldGenMove(config: config, player: player) {
             forwardMoves(limit: limit)
         }
     }
 
     private func forwardMoves(limit: Int?) {
-        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
-           let scoreLead = analysis.blackScore {
-            withAnimation(.spring) {
-                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
-            }
-        }
-
         let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
         var movesExecuted = 0
 
