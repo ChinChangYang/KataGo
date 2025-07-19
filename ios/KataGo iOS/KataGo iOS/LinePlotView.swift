@@ -73,7 +73,7 @@ struct LinePlotView: View {
             )
             .foregroundStyle(colorScheme == .dark ? .white : .black)
             .interpolationMethod(.catmullRom)
-            .lineStyle(.init(lineWidth: 1, lineCap: .round, lineJoin: .round))
+            .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
             RulePlot(currentMoves,
                      x: .value("Current", \.x))
