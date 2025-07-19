@@ -83,5 +83,11 @@ struct LinePlotView: View {
         .chartXScale(domain: 0...maxMove)
         .chartYScale(domain: minYDomain...maxYDomain)
         .chartYAxisLabel("Black Score Lead")
+        .onAppear {
+            // Upgrade old game record to support score leads
+            if gameRecord.scoreLeads == nil {
+                gameRecord.scoreLeads = [:]
+            }
+        }
     }
 }
