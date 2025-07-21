@@ -12,7 +12,7 @@ import SwiftUI
 @main
 struct KataGo_iOSApp: App {
     init() {
-        #if DEBUG
+        #if false
             removeAllGameRecords()
         #endif
 
