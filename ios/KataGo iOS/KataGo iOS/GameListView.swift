@@ -8,43 +8,55 @@
 import SwiftUI
 import SwiftData
 
+struct GameLinksView: View {
+    @Binding var selectedGameRecord: GameRecord?
+    @Query var gameRecords: [GameRecord]
+    @Environment(\.modelContext) private var modelContext
+
+    init(selectedGameRecord: Binding<GameRecord?>,
+         searchText: String) {
+        _selectedGameRecord = selectedGameRecord
+
+        let predicate = #Predicate<GameRecord> {
+            searchText.isEmpty || $0.name.contains(searchText)
+        }
+
+        _gameRecords = Query(filter: predicate,
+                             sort: \GameRecord.lastModificationDate,
+                             order: .reverse)
+    }
+
+    var body: some View {
+        ForEach(gameRecords) { gameRecord in
+            NavigationLink(value: gameRecord) {
+                GameLinkView(gameRecord: gameRecord)
+            }
+        }
+        .onDelete { indexSet in
+            for index in indexSet {
+                let gameRecordToDelete = gameRecords[index]
+                if selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
+                    selectedGameRecord = nil
+                }
+
+                modelContext.safelyDelete(gameRecord: gameRecordToDelete)
+            }
+        }
+    }
+}
+
 struct GameListView: View {
     @Binding var isEditorPresented: Bool
     @Binding var selectedGameRecord: GameRecord?
-    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
-    @Environment(\.modelContext) private var modelContext
     @State var searchText = ""
     @Binding var importing: Bool
     @Binding var isGameListViewAppeared: Bool
     @Environment(ThumbnailModel.self) var thumbnailModel
 
-    var filteredGameRecords: [GameRecord] {
-        if searchText == "" {
-            return gameRecords
-        } else {
-            return gameRecords.filter { gameRecord in
-                gameRecord.name.localizedCaseInsensitiveContains(searchText)
-            }
-        }
-    }
-
     var body: some View {
         List(selection: $selectedGameRecord) {
-            ForEach(filteredGameRecords) { gameRecord in
-                NavigationLink(value: gameRecord) {
-                    GameLinkView(gameRecord: gameRecord)
-                }
-            }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    let gameRecordToDelete = gameRecords[index]
-                    if selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
-                        selectedGameRecord = nil
-                    }
-
-                    modelContext.safelyDelete(gameRecord: gameRecordToDelete)
-                }
-            }
+            GameLinksView(selectedGameRecord: $selectedGameRecord,
+                          searchText: searchText)
         }
         .navigationTitle("Games")
         .sheet(isPresented: $isEditorPresented) {
@@ -58,6 +70,11 @@ struct GameListView: View {
         .onDisappear {
             isGameListViewAppeared = false
             thumbnailModel.isGameListViewAppeared = false
+        }
+        .onChange(of: selectedGameRecord) { _, newValue in
+            if let name = newValue?.name {
+                searchText = name
+            }
         }
     }
 }

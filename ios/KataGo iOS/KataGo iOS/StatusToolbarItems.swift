@@ -77,20 +77,18 @@ struct StatusToolbarItems: View {
     private func maybeUpdateScoreLeads(gameRecord: GameRecord) {
         if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
            let scoreLead = analysis.blackScore {
-            gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+            withAnimation(.spring) {
+                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+            }
         }
     }
 
     func backwardEndAction() {
-        withAnimation(.spring) {
-            maybeBackwardAction(limit: nil)
-        }
+        maybeBackwardAction(limit: nil)
     }
 
     func backwardAction() {
-        withAnimation(.spring) {
-            maybeBackwardAction(limit: 10)
-        }
+        maybeBackwardAction(limit: 10)
     }
 
     private func maybeBackwardAction(limit: Int?) {
@@ -122,18 +120,16 @@ struct StatusToolbarItems: View {
     }
 
     func backwardFrameAction() {
-        withAnimation(.spring) {
-            maybeUpdateScoreLeads(gameRecord: gameRecord)
-            if !gobanState.shouldGenMove(config: config, player: player) {
-                if branchState.isActive {
-                    branchState.undo()
-                } else {
-                    gameRecord.undo()
-                }
-                messageList.appendAndSend(command: "undo")
-                player.toggleNextColorForPlayCommand()
-                gobanState.sendShowBoardCommand(messageList: messageList)
+        maybeUpdateScoreLeads(gameRecord: gameRecord)
+        if !gobanState.shouldGenMove(config: config, player: player) {
+            if branchState.isActive {
+                branchState.undo()
+            } else {
+                gameRecord.undo()
             }
+            messageList.appendAndSend(command: "undo")
+            player.toggleNextColorForPlayCommand()
+            gobanState.sendShowBoardCommand(messageList: messageList)
         }
     }
 
@@ -176,21 +172,15 @@ struct StatusToolbarItems: View {
     }
 
     func forwardFrameAction() {
-        withAnimation(.spring) {
-            maybeForwardMoves(limit: 1)
-        }
+        maybeForwardMoves(limit: 1)
     }
 
     func forwardAction() {
-        withAnimation(.spring) {
-            maybeForwardMoves(limit: 10)
-        }
+        maybeForwardMoves(limit: 10)
     }
 
     func forwardEndAction() {
-        withAnimation(.spring) {
-            maybeForwardMoves(limit: nil)
-        }
+        maybeForwardMoves(limit: nil)
     }
 
     private func maybeForwardMoves(limit: Int?) {

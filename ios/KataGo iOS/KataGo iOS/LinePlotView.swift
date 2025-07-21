@@ -42,28 +42,28 @@ struct LinePlotView: View {
         }
     }
 
-    var minMove: Int {
+    func minMove(scoreLeadPoints: [Point]) -> Int {
         scoreLeadPoints.min(by: { $0.x < $1.x })?.x ?? 0
     }
 
-    var maxMove: Int {
+    func maxMove(scoreLeadPoints: [Point]) -> Int {
         scoreLeadPoints.max(by: { $0.x < $1.x })?.x ?? 0
     }
 
-    var minScoreLead: Float {
+    func minScoreLead(scoreLeadPoints: [Point]) -> Float {
         scoreLeadPoints.min(by: { $0.y < $1.y })?.y ?? 0
     }
 
-    var maxScoreLead: Float {
+    func maxScoreLead(scoreLeadPoints: [Point]) -> Float {
         scoreLeadPoints.max(by: { $0.y < $1.y })?.y ?? 0
     }
 
-    var minYDomain: Float {
-        min(-10, minScoreLead)
+    func minYDomain(scoreLeadPoints: [Point]) -> Float {
+        min(-10, minScoreLead(scoreLeadPoints: scoreLeadPoints))
     }
 
-    var maxYDomain: Float {
-        max(10, maxScoreLead)
+    func maxYDomain(scoreLeadPoints: [Point]) -> Float {
+        max(10, maxScoreLead(scoreLeadPoints: scoreLeadPoints))
     }
 
     var currentPoint: Point? {
@@ -79,6 +79,10 @@ struct LinePlotView: View {
     }
 
     var body: some View {
+        let scoreLeadPoints = self.scoreLeadPoints
+        let minYDomain = self.minYDomain(scoreLeadPoints: scoreLeadPoints)
+        let maxYDomain = self.maxYDomain(scoreLeadPoints: scoreLeadPoints)
+
         Chart {
             LinePlot(scoreLeadPoints,
                      x: .value("Move", \.x),
@@ -113,7 +117,7 @@ struct LinePlotView: View {
             }
         }
         .chartXSelection(value: $selectedMove)
-        .chartXScale(domain: 0...maxMove)
+        .chartXScale(domain: 0...maxMove(scoreLeadPoints: scoreLeadPoints))
         .chartYScale(domain: minYDomain...maxYDomain)
         .chartYAxisLabel("Black Score Lead")
         .onAppear {
