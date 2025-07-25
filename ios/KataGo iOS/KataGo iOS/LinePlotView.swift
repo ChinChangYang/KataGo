@@ -126,5 +126,11 @@ struct LinePlotView: View {
                 gameRecord.scoreLeads = [:]
             }
         }
+        .onChange(of: gameRecord) { _, _ in
+            // Upgrade old game record to support score leads
+            if gameRecord.scoreLeads == nil {
+                gameRecord.scoreLeads = [:]
+            }
+        }
     }
 }
