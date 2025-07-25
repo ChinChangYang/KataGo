@@ -66,6 +66,10 @@ struct GameListView: View {
         .onAppear {
             isGameListViewAppeared = true
             thumbnailModel.isGameListViewAppeared = true
+            if let selectedGameRecord {
+                // reduces unnecessary updates and filters out unrelated game records when a game is edited.
+                searchText = selectedGameRecord.name
+            }
         }
         .onDisappear {
             isGameListViewAppeared = false
@@ -73,6 +77,7 @@ struct GameListView: View {
         }
         .onChange(of: selectedGameRecord?.name) {
             if let name = selectedGameRecord?.name {
+                // reduces unnecessary updates and filters out unrelated game records when a game is edited.
                 searchText = name
             }
         }
