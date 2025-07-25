@@ -71,8 +71,8 @@ struct GameListView: View {
             isGameListViewAppeared = false
             thumbnailModel.isGameListViewAppeared = false
         }
-        .onChange(of: selectedGameRecord) { _, newValue in
-            if let name = newValue?.name {
+        .onChange(of: selectedGameRecord?.name) {
+            if let name = selectedGameRecord?.name {
                 searchText = name
             }
         }
