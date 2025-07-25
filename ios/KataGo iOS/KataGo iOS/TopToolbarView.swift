@@ -60,11 +60,9 @@ struct TopToolbarView: View {
                         gobanState.isEditing.toggle()
                     } label: {
                         if gobanState.isEditing {
-                            Text("Done")
-                                .bold()
+                            Image(systemName: "lock.open")
                         } else {
-                            Text("Edit")
-                                .bold()
+                            Image(systemName: "lock")
                         }
                     }
                 }
@@ -76,6 +74,7 @@ struct TopToolbarView: View {
                 } label: {
                     if !gobanState.shouldGenMove(config: config, player: player) {
                         Image(systemName: "arrow.uturn.backward.circle")
+                            .foregroundStyle(.red)
                     } else {
                         Image(systemName: "arrow.uturn.backward.circle")
                             .foregroundColor(.secondary)
