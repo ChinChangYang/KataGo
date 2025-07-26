@@ -37,6 +37,7 @@ struct ContentView: View {
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
     @State var quitStatus: QuitStatus = .none
+    @State var autoPlayTimer: Timer? = nil
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
     let selectedModel: NeuralNetworkModel
 
@@ -119,12 +120,79 @@ struct ContentView: View {
                 processChange(oldIsGameListViewAppeared: oldIsGameListViewAppeared,
                               newIsGameListViewAppeared: newIsGameListViewAppeared)
             }
-
+            .onChange(of: gobanState.isEditing) { oldIsEditing, newIsEditing in
+                processIsEditingChange(oldIsEditing: oldIsEditing, newIsEditing: newIsEditing)
+            }
+            .onChange(of: gobanState.isAutoPlaying ) { oldIsAutoPlaying, newIsAutoPlaying in
+                processIsAutoPlayingChange(
+                    oldIsAutoPlaying: oldIsAutoPlaying,
+                    newIsAutoPlaying: newIsAutoPlaying)
+            }
         } else {
             LoadingView(version: $version, selectedModel: selectedModel)
                 .task {
                     await initializationTask()
                 }
+        }
+    }
+
+    func processIsAutoPlayingChange(oldIsAutoPlaying: Bool,
+                                    newIsAutoPlaying: Bool) {
+        if gobanState.isAutoPlaying,
+           let gameRecord = navigationContext.selectedGameRecord {
+            gobanState.analysisStatus = .pause
+            gobanState.eyeStatus = .opened
+            branchState.deactivate()
+
+            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+            while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
+                gameRecord.undo()
+                messageList.appendAndSend(command: "undo")
+                player.toggleNextColorForPlayCommand()
+            }
+
+            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
+                                                 messageList: messageList,
+                                                 player: player)
+            autoPlayTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+                Task {
+                    await MainActor.run {
+                        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
+                           let scoreLead = analysis.blackScore,
+                           let gameRecord = navigationContext.selectedGameRecord {
+                            withAnimation(.spring) {
+                                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                            }
+
+                            // forward move
+                            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+
+                            if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
+                               let move = board.locationToMove(location: nextMove.location) {
+                                gameRecord.currentIndex += 1
+                                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                                messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
+                                player.toggleNextColorForPlayCommand()
+                                audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
+                            } else {
+                                gobanState.isAutoPlaying = false
+                            }
+
+                            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
+                                                                 messageList: messageList,
+                                                                 player: player)
+                        }
+                    }
+                }
+            }
+        } else {
+            autoPlayTimer?.invalidate()
+        }
+    }
+
+    func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
+        if !newIsEditing {
+            gobanState.isAutoPlaying = false
         }
     }
 
@@ -224,6 +292,7 @@ struct ContentView: View {
         player.nextColorForPlayCommand = .unknown
         branchState.deactivate()
         if let newGameRecord {
+            gobanState.isAutoPlaying = false
             if newGameRecord.sgf == GameRecord.defaultSgf {
                 gobanState.isEditing = true
             } else {

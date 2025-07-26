@@ -78,12 +78,12 @@ struct LinePlotView: View {
         }
     }
 
-    var body: some View {
+    var chart: some View {
         let scoreLeadPoints = self.scoreLeadPoints
         let minYDomain = self.minYDomain(scoreLeadPoints: scoreLeadPoints)
         let maxYDomain = self.maxYDomain(scoreLeadPoints: scoreLeadPoints)
 
-        Chart {
+        return Chart {
             LinePlot(scoreLeadPoints,
                      x: .value("Move", \.x),
                      y: .value("Score Lead", \.y)
@@ -96,19 +96,19 @@ struct LinePlotView: View {
                 RuleMark(x: .value("Current", selectedMove))
                     .foregroundStyle(.red)
                     .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
-                .annotation(position: .top,
-                            alignment: .center,
-                            spacing: nil,
-                            overflowResolution: .init(x: .fit(to: .chart),
-                                                      y: .disabled)) {
+                    .annotation(position: .top,
+                                alignment: .center,
+                                spacing: nil,
+                                overflowResolution: .init(x: .fit(to: .chart),
+                                                          y: .disabled)) {
 
-                    let leadText = String(format: "%+.1f", selectedScoreLead)
+                        let leadText = String(format: "%+.1f", selectedScoreLead)
 
-                    VStack {
-                        Text("Move \(selectedMove)")
-                        Text("Lead \(leadText)")
+                        VStack {
+                            Text("Move \(selectedMove)")
+                            Text("Lead \(leadText)")
+                        }
                     }
-                }
 
             } else if let currentPoint {
                 RuleMark(x: .value("Current", currentPoint.x))
@@ -130,6 +130,26 @@ struct LinePlotView: View {
             // Upgrade old game record to support score leads
             if gameRecord.scoreLeads == nil {
                 gameRecord.scoreLeads = [:]
+            }
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            chart
+
+            if gobanState.isEditing {
+                VStack {
+                    Button {
+                        gobanState.isAutoPlaying.toggle()
+                    } label: {
+                        let systemName = gobanState.isAutoPlaying ? "stop.circle" : "wand.and.sparkles"
+                        Image(systemName: systemName)
+                            .foregroundStyle(gobanState.isAutoPlaying ? .gray : .red)
+                    }
+
+                    Spacer()
+                }
             }
         }
     }

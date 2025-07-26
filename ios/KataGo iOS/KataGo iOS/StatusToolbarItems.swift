@@ -95,7 +95,7 @@ struct StatusToolbarItems: View {
         maybeUpdateScoreLeads(gameRecord: gameRecord)
         if !gobanState.shouldGenMove(config: config, player: player) {
             backwardMoves(limit: limit)
-            sendPostExecutionCommands()
+            gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
         }
     }
 
@@ -195,7 +195,7 @@ struct StatusToolbarItems: View {
         var movesExecuted = 0
 
         while let nextMove = sgfHelper.getMove(at: currentIndex) {
-            if let move = locationToMove(location: nextMove.location) {
+            if let move = board.locationToMove(location: nextMove.location) {
                 updateCurrentIndex()
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                 messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
@@ -212,7 +212,7 @@ struct StatusToolbarItems: View {
             audioModel.playPlaySound(soundEffect: config.soundEffect)
         }
 
-        sendPostExecutionCommands()
+        gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
     }
 
     private var currentIndex: Int {
@@ -225,23 +225,5 @@ struct StatusToolbarItems: View {
         } else {
             gameRecord.currentIndex += 1
         }
-    }
-
-    private func sendPostExecutionCommands() {
-        gobanState.sendShowBoardCommand(messageList: messageList)
-        gobanState.maybeRequestAnalysis(config: config,
-                                        nextColorForPlayCommand: player.nextColorForPlayCommand,
-                                        messageList: messageList)
-        gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand)
-    }
-
-    func locationToMove(location: Location) -> String? {
-        guard !location.pass else { return "pass" }
-        let x = location.x
-        let y = Int(board.height) - location.y
-
-        guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
-
-        return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
     }
 }

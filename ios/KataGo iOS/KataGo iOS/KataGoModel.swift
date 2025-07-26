@@ -13,6 +13,16 @@ import KataGoInterface
 class BoardSize {
     var width: CGFloat = 19
     var height: CGFloat = 19
+
+    func locationToMove(location: Location) -> String? {
+        guard !location.pass else { return "pass" }
+        let x = location.x
+        let y = Int(height) - location.y
+
+        guard (1...Int(height)).contains(y), (0..<Int(width)).contains(x) else { return nil }
+
+        return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
+    }
 }
 
 struct BoardPoint: Hashable, Comparable {
@@ -349,6 +359,7 @@ class GobanState {
     var isEditing = false
     var isShownBoard: Bool = false
     var eyeStatus = EyeStatus.opened
+    var isAutoPlaying: Bool = false
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -428,6 +439,17 @@ class GobanState {
             // All of black and white are disabled for AI play.
             return false
         }
+    }
+
+    func sendPostExecutionCommands(config: Config, messageList: MessageList, player: Turn) {
+        sendShowBoardCommand(messageList: messageList)
+
+        maybeRequestAnalysis(config: config,
+                             nextColorForPlayCommand: player.nextColorForPlayCommand,
+                             messageList: messageList)
+
+        maybeRequestClearAnalysisData(config: config,
+                                      nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 }
 
