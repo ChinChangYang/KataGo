@@ -36,10 +36,26 @@ struct LinePlotView: View {
 
     var selectedScoreLead: Float? {
         if let selectedMove {
-            return gameRecord.scoreLeads?[selectedMove]
-        } else {
-            return nil
+            if let scoreLeads = gameRecord.scoreLeads {
+                if let scoreLead = scoreLeads[selectedMove] {
+                    return scoreLead
+                } else {
+                    // Search for the nearest index with a non-nil score lead
+                    for offset in 1..<scoreLeads.count {
+                        if selectedMove - offset >= 0,
+                           let scoreLead = scoreLeads[selectedMove - offset] {
+                            return scoreLead
+                        }
+                        if selectedMove + offset < scoreLeads.count,
+                           let scoreLead = scoreLeads[selectedMove + offset] {
+                            return scoreLead
+                        }
+                    }
+                }
+            }
         }
+
+        return nil
     }
 
     func minMove(scoreLeadPoints: [Point]) -> Int {
