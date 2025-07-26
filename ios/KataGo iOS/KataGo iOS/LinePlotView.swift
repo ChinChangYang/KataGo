@@ -148,7 +148,7 @@ struct LinePlotView: View {
                     } label: {
                         let systemName = gobanState.isAutoPlaying ? "stop.circle" : "wand.and.sparkles"
                         Image(systemName: systemName)
-                            .foregroundStyle(gobanState.isAutoPlaying ? .gray : .red)
+                            .foregroundStyle(.red)
                     }
 
                     Spacer()
