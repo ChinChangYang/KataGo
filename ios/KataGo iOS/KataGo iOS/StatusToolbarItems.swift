@@ -24,7 +24,9 @@ struct StatusToolbarItems: View {
     }
 
     var isFunctional: Bool {
-        (!gobanState.shouldGenMove(config: config, player: player) && !gobanState.isAutoPlaying)
+        !gobanState.shouldGenMove(config: config, player: player)
+        && !gobanState.isAutoPlaying
+        && (gobanState.showBoardCount == 0)
     }
 
     var foregroundStyle: HierarchicalShapeStyle {
