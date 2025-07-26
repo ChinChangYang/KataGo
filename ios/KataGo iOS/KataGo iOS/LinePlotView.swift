@@ -143,6 +143,7 @@ struct LinePlotView: View {
 
             if gobanState.isEditing {
                 VStack {
+                    Spacer()
                     Button {
                         gobanState.isAutoPlaying.toggle()
                     } label: {
@@ -150,8 +151,6 @@ struct LinePlotView: View {
                         Image(systemName: systemName)
                             .foregroundStyle(.red)
                     }
-
-                    Spacer()
                 }
             }
         }
