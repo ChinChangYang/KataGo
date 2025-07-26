@@ -154,10 +154,12 @@ struct ContentView: View {
             gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
                                                  messageList: messageList,
                                                  player: player)
-            autoPlayTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            autoPlayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
                 Task {
                     await MainActor.run {
-                        if (gobanState.isEditing) && (gobanState.analysisStatus != .clear),
+                        if (gobanState.isEditing) &&
+                            (gobanState.analysisStatus != .clear) &&
+                            (!gobanState.waitingForAnalysis),
                            let scoreLead = analysis.blackScore,
                            let gameRecord = navigationContext.selectedGameRecord {
                             withAnimation(.spring) {
