@@ -46,6 +46,7 @@ final class Config {
     var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
     var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
     var optionalAnalysisStyle: Int? = defaultAnalysisStyle
+    var optionalShowCharts: Bool? = defaultShowCharts
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -79,7 +80,8 @@ final class Config {
          optionalHasButton: Bool? = defaultHasButton,
          optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule,
          optionalShowWinrateBar: Bool? = defaultShowWinrateBar,
-         optionalAnalysisStyle: Int? = defaultAnalysisStyle) {
+         optionalAnalysisStyle: Int? = defaultAnalysisStyle,
+         optionalShowCharts: Bool? = defaultShowCharts) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -113,6 +115,7 @@ final class Config {
         self.optionalWhiteHandicapBonusRule = optionalWhiteHandicapBonusRule
         self.optionalShowWinrateBar = optionalShowWinrateBar
         self.optionalAnalysisStyle = optionalAnalysisStyle
+        self.optionalShowCharts = optionalShowCharts
     }
 
     convenience init(config: Config?) {
@@ -144,7 +147,8 @@ final class Config {
                 optionalBlackMaxTime: config.optionalBlackMaxTime,
                 optionalWhiteMaxTime: config.optionalWhiteMaxTime,
                 optionalShowWinrateBar: config.optionalShowWinrateBar,
-                optionalAnalysisStyle: config.optionalAnalysisStyle)
+                optionalAnalysisStyle: config.optionalAnalysisStyle,
+                optionalShowCharts: config.optionalShowCharts)
         } else {
             self.init()
         }
@@ -623,5 +627,19 @@ extension Config {
     var isClassicAnalysisStyle: Bool {
         guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
         return Config.analysisStyles[analysisStyle] == Config.classicAnalysisStyle
+    }
+}
+
+extension Config {
+    static let defaultShowCharts: Bool = true
+
+    var showCharts: Bool {
+        get {
+            return optionalShowCharts ?? Config.defaultShowCharts
+        }
+        
+        set(newValue) {
+            optionalShowCharts = newValue
+        }
     }
 }

@@ -17,9 +17,12 @@ struct PlayView: View {
 
     func boardLinePlotView(for dimensions: Dimensions) -> some View {
         return VStack {
-            LinePlotView(gameRecord: gameRecord)
-                .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 100))
-                .padding()
+            if config.showCharts {
+                LinePlotView(gameRecord: gameRecord)
+                    .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 100))
+                    .padding()
+            }
+
             BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
         }
     }

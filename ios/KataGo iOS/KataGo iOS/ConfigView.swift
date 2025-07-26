@@ -369,6 +369,7 @@ struct ViewConfigView: View {
     @State var showComments = Config.defaultShowComments
     @State var showPass = Config.defaultShowPass
     @State var verticalFlip = Config.defaultVerticalFlip
+    @State var showCharts = Config.defaultShowCharts
 
     var body: some View {
         List {
@@ -410,6 +411,14 @@ struct ViewConfigView: View {
                 }
                 .onChange(of: verticalFlip) { _, newValue in
                     config.verticalFlip = verticalFlip
+                }
+
+            ConfigBoolItem(title: "Show charts:", value: $showCharts)
+                .onAppear {
+                    showCharts = config.showCharts
+                }
+                .onChange(of: showCharts) { _, newValue in
+                    config.showCharts = showCharts
                 }
         }
     }
