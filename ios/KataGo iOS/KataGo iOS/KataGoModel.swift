@@ -451,6 +451,15 @@ class GobanState {
         maybeRequestClearAnalysisData(config: config,
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
+
+    func maybeUpdateScoreLeads(gameRecord: GameRecord, analysis: Analysis) {
+        if isEditing && (analysisStatus != .clear),
+           let scoreLead = analysis.blackScore {
+            withAnimation(.spring) {
+                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+            }
+        }
+    }
 }
 
 @Observable
