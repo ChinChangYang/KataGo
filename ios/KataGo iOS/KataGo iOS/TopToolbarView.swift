@@ -57,12 +57,16 @@ struct TopToolbarView: View {
                 
                 if !gobanTab.isCommandPresented && !gobanTab.isConfigPresented {
                     Button {
-                        gobanState.isEditing.toggle()
+                        if !gobanState.isAutoPlaying {
+                            gobanState.isEditing.toggle()
+                        }
                     } label: {
                         if gobanState.isEditing {
                             Image(systemName: "lock.open")
+                                .foregroundStyle(gobanState.isAutoPlaying ? .secondary : .primary)
                         } else {
                             Image(systemName: "lock")
+                                .foregroundStyle(gobanState.isAutoPlaying ? .secondary : .primary)
                         }
                     }
                 }

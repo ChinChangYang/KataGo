@@ -54,7 +54,7 @@ struct BoardView: View {
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
-                    if stones.isReady,
+                    if stones.isReady && !gobanState.isAutoPlaying,
                        let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
                        let move = coordinate.move,

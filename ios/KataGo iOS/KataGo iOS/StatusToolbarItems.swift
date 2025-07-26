@@ -23,8 +23,12 @@ struct StatusToolbarItems: View {
         return gameRecord.concreteConfig
     }
 
+    var isFunctional: Bool {
+        (!gobanState.shouldGenMove(config: config, player: player) && !gobanState.isAutoPlaying)
+    }
+
     var foregroundStyle: HierarchicalShapeStyle {
-        gobanState.shouldGenMove(config: config, player: player) ? .secondary : .primary
+        isFunctional ? .primary : .secondary
     }
 
     var body: some View {
@@ -84,7 +88,7 @@ struct StatusToolbarItems: View {
 
     private func maybeBackwardAction(limit: Int?) {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-        if !gobanState.shouldGenMove(config: config, player: player) {
+        if isFunctional {
             backwardMoves(limit: limit)
             gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
         }
@@ -112,7 +116,7 @@ struct StatusToolbarItems: View {
 
     func backwardFrameAction() {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-        if !gobanState.shouldGenMove(config: config, player: player) {
+        if isFunctional {
             if branchState.isActive {
                 branchState.undo()
             } else {
@@ -176,7 +180,7 @@ struct StatusToolbarItems: View {
 
     private func maybeForwardMoves(limit: Int?) {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-        if !gobanState.shouldGenMove(config: config, player: player) {
+        if isFunctional {
             forwardMoves(limit: limit)
         }
     }

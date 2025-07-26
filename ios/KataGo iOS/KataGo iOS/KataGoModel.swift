@@ -430,7 +430,7 @@ class GobanState {
     }
 
     func shouldGenMove(config: Config, player: Turn) -> Bool {
-        if (analysisStatus != .clear) &&
+        if (!isAutoPlaying) && (analysisStatus != .clear) &&
             (((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
              ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))) {
             // One of black and white is enabled for AI play.
