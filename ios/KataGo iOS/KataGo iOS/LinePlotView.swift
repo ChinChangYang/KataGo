@@ -108,6 +108,9 @@ struct LinePlotView: View {
                             Text("Move \(selectedMove)")
                             Text("Lead \(leadText)")
                         }
+                        .font(.footnote)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.9).opacity(0.9)))
                     }
 
             } else if let currentPoint {
