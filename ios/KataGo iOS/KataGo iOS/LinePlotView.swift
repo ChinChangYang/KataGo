@@ -41,7 +41,8 @@ struct LinePlotView: View {
                     return scoreLead
                 } else {
                     // Search for the nearest index with a non-nil score lead
-                    for offset in 1..<scoreLeads.count {
+                    guard scoreLeads.count >= 1 else { return nil }
+                    for offset in 1...scoreLeads.count {
                         if selectedMove - offset >= 0,
                            let scoreLead = scoreLeads[selectedMove - offset] {
                             return scoreLead
