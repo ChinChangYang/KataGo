@@ -167,6 +167,7 @@ struct LinePlotView: View {
                         let systemName = gobanState.isAutoPlaying ? "stop.circle" : "wand.and.sparkles"
                         Image(systemName: systemName)
                             .foregroundStyle(.red)
+                            .padding()
                     }
                 }
             }
