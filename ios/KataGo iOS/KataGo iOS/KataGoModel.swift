@@ -377,9 +377,9 @@ class GobanState {
     }
 
     private func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
-        if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
+        if (!isAutoPlaying) && (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
             return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
-        } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
+        } else if (!isAutoPlaying) && (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
             return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
         } else {
             return [config.getKataFastAnalyzeCommand()]
