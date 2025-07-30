@@ -89,10 +89,14 @@ struct BoardView: View {
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
-                    maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newValue)
+                    gobanState.maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newValue,
+                                                                        config: config,
+                                                                        messageList: messageList)
+
                     gobanState.maybeRequestAnalysis(config: config,
                                                     nextColorForPlayCommand: newValue,
                                                     messageList: messageList)
+
                     gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
                 }
             }
@@ -108,18 +112,6 @@ struct BoardView: View {
             }
             .onDisappear {
                 gobanState.maybePauseAnalysis()
-            }
-        }
-    }
-
-    func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor) {
-        if !config.isEqualBlackWhiteHumanSettings {
-            if nextColorForPlayCommand == .black,
-               let humanSLModel = HumanSLModel(profile: config.humanProfileForBlack) {
-                messageList.appendAndSend(commands: humanSLModel.commands)
-            } else if nextColorForPlayCommand == .white,
-                      let humanSLModel = HumanSLModel(profile: config.humanProfileForWhite) {
-                messageList.appendAndSend(commands: humanSLModel.commands)
             }
         }
     }

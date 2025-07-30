@@ -460,6 +460,20 @@ class GobanState {
             }
         }
     }
+
+    func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
+                                                  config: Config,
+                                                  messageList: MessageList) {
+        if !config.isEqualBlackWhiteHumanSettings && !isAutoPlaying {
+            if nextColorForPlayCommand == .black,
+               let humanSLModel = HumanSLModel(profile: config.humanProfileForBlack) {
+                messageList.appendAndSend(commands: humanSLModel.commands)
+            } else if nextColorForPlayCommand == .white,
+                      let humanSLModel = HumanSLModel(profile: config.humanProfileForWhite) {
+                messageList.appendAndSend(commands: humanSLModel.commands)
+            }
+        }
+    }
 }
 
 @Observable

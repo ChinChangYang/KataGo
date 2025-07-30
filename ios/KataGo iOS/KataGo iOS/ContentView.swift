@@ -151,9 +151,11 @@ struct ContentView: View {
                 player.toggleNextColorForPlayCommand()
             }
 
-            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
-                                                 messageList: messageList,
-                                                 player: player)
+            // auto-play analysis by best AI profile
+            if let humanSLModel = HumanSLModel(profile: "AI") {
+                messageList.appendAndSend(commands: humanSLModel.commands)
+            }
+
             autoPlayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
                 Task {
                     await MainActor.run {
@@ -179,16 +181,20 @@ struct ContentView: View {
                             } else {
                                 gobanState.isAutoPlaying = false
                             }
-
-                            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
-                                                                 messageList: messageList,
-                                                                 player: player)
                         }
                     }
                 }
             }
         } else {
             autoPlayTimer?.invalidate()
+
+            // restore human profile for the next player
+            if let gameRecord = navigationContext.selectedGameRecord {
+                gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+                    nextColorForPlayCommand: player.nextColorForPlayCommand,
+                    config: gameRecord.concreteConfig,
+                    messageList: messageList)
+            }
         }
     }
 
