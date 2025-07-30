@@ -164,6 +164,7 @@ struct ContentView: View {
                             (!gobanState.waitingForAnalysis),
                            let scoreLead = analysis.blackScore,
                            let gameRecord = navigationContext.selectedGameRecord {
+
                             withAnimation(.spring) {
                                 gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
                             }
@@ -177,6 +178,7 @@ struct ContentView: View {
                                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
                                 messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
                                 player.toggleNextColorForPlayCommand()
+                                gobanState.sendShowBoardCommand(messageList: messageList)
                                 audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
                             } else {
                                 gobanState.isAutoPlaying = false
