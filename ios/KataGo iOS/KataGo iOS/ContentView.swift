@@ -156,39 +156,12 @@ struct ContentView: View {
                 messageList.appendAndSend(commands: humanSLModel.commands)
             }
 
-            autoPlayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
-                Task {
-                    await MainActor.run {
-                        if (gobanState.isEditing) &&
-                            (gobanState.analysisStatus != .clear) &&
-                            (!gobanState.waitingForAnalysis),
-                           let scoreLead = analysis.blackScore,
-                           let gameRecord = navigationContext.selectedGameRecord {
-
-                            withAnimation(.spring) {
-                                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
-                            }
-
-                            // forward move
-                            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-
-                            if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
-                               let move = board.locationToMove(location: nextMove.location) {
-                                gameRecord.currentIndex += 1
-                                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                                messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
-                                player.toggleNextColorForPlayCommand()
-                                gobanState.sendShowBoardCommand(messageList: messageList)
-                                audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
-                            } else {
-                                gobanState.isAutoPlaying = false
-                            }
-                        }
-                    }
-                }
-            }
+            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
+                                                 messageList: messageList,
+                                                 player: player)
         } else {
             autoPlayTimer?.invalidate()
+            gobanState.analysisStatus = .clear
 
             // restore human profile for the next player
             if let gameRecord = navigationContext.selectedGameRecord {
@@ -343,12 +316,36 @@ struct ContentView: View {
     private func processChange(oldWaitingForAnalysis: Bool,
                                newWaitingForAnalysis: Bool) {
         if (oldWaitingForAnalysis && !newWaitingForAnalysis) {
-            if let config = navigationContext.selectedGameRecord?.config,
+            if let gameRecord = navigationContext.selectedGameRecord,
+               let config = gameRecord.config,
                !gobanState.shouldGenMove(config: config, player: player) {
                 if gobanState.analysisStatus == .pause {
                     messageList.appendAndSend(command: "stop")
                 } else {
                     messageList.appendAndSend(command: config.getKataAnalyzeCommand())
+                }
+
+                if gobanState.isAutoPlaying,
+                   let scoreLead = analysis.blackScore {
+
+                    withAnimation(.spring) {
+                        gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                    }
+
+                    // forward move
+                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+
+                    if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
+                       let move = board.locationToMove(location: nextMove.location) {
+                        gameRecord.currentIndex += 1
+                        let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                        messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
+                        player.toggleNextColorForPlayCommand()
+                        gobanState.sendShowBoardCommand(messageList: messageList)
+                        audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
+                    } else {
+                        gobanState.isAutoPlaying = false
+                    }
                 }
             }
         }
