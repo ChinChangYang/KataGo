@@ -52,10 +52,14 @@ struct PlusMenuView: View {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
 
-            if let gameRecordToDelete = gameRecord {
+            if let gameRecord = gameRecord {
+                ShareLink(item: gameRecord.sgf) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+
                 Button(role: .destructive) {
                     navigationContext.selectedGameRecord = nil
-                    modelContext.safelyDelete(gameRecord: gameRecordToDelete)
+                    modelContext.safelyDelete(gameRecord: gameRecord)
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
