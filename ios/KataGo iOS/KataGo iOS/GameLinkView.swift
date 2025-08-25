@@ -26,22 +26,12 @@ struct GameLinkView: View {
                 }
             }
 
-            if let thumbnail = gameRecord.thumbnail {
-#if os(macOS)
-                if let uiImage = NSImage(data: thumbnail) {
+            if let image = gameRecord.image {
                     Spacer()
-                    Image(nsImage: uiImage)
-                        .resizable()
-                        .frame(width: thumbnailModel.width, height: thumbnailModel.height)
-                }
-#else
-                if let uiImage = UIImage(data: thumbnail) {
-                    Spacer()
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .frame(width: thumbnailModel.width, height: thumbnailModel.height)
-                }
-#endif
+
+                    image
+                    .resizable()
+                    .frame(width: thumbnailModel.width, height: thumbnailModel.height)
             }
         }
     }

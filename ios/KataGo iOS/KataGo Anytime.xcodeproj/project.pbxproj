@@ -229,6 +229,7 @@
 		E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */; };
 		E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */; };
 		E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */; };
+		E1455D922E5C286A00D8841F /* TransferableSgf.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1455D912E5C286A00D8841F /* TransferableSgf.swift */; };
 		E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14753582C3A5A440066DE29 /* GameRecord.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
@@ -569,6 +570,7 @@
 		E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRunnerView.swift; sourceTree = "<group>"; };
 		E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEditorView.swift; sourceTree = "<group>"; };
+		E1455D912E5C286A00D8841F /* TransferableSgf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferableSgf.swift; sourceTree = "<group>"; };
 		E14753582C3A5A440066DE29 /* GameRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecord.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
@@ -1035,8 +1037,9 @@
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
 				E16E1F362DE16C5B00B0F144 /* NeuralNetworkModel.swift */,
-				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
 				E16E1F3E2DE4235000B0F144 /* TerminationModel.swift */,
+				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
+				E1455D912E5C286A00D8841F /* TransferableSgf.swift */,
 			);
 			name = Model;
 			sourceTree = "<group>";
@@ -1670,6 +1673,7 @@
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */,
 				E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */,
+				E1455D922E5C286A00D8841F /* TransferableSgf.swift in Sources */,
 				E16E1F3B2DE2C97A00B0F144 /* DebugUtils.swift in Sources */,
 				E160DEE72E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage in Sources */,
 				E160DEE82E1E927F004B065F /* KataGoModel19x19fp16.mlpackage in Sources */,

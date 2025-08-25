@@ -53,7 +53,13 @@ struct PlusMenuView: View {
             }
 
             if let gameRecord = gameRecord {
-                ShareLink(item: gameRecord.sgf) {
+                ShareLink(item:
+                            TransferableSgf(
+                                name: gameRecord.name,
+                                content: gameRecord.sgf),
+                          preview: SharePreview(
+                            gameRecord.name,
+                            image: gameRecord.image ?? Image(.loadingIcon))) {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
 

@@ -5,7 +5,7 @@
 //  Created by Chin-Chang Yang on 2024/7/7.
 //
 
-import Foundation
+import SwiftUI
 import SwiftData
 import KataGoInterface
 
@@ -155,5 +155,23 @@ final class GameRecord {
                                            currentIndex: moveSize,
                                            name: name,
                                            comments: comments)
+    }
+
+    var image: Image? {
+#if os(macOS)
+        if let thumbnail,
+           let uiImage = NSImage(data: thumbnail) {
+            return Image(nsImage: uiImage)
+        } else {
+            return nil
+        }
+#else
+        if let thumbnail,
+           let uiImage = UIImage(data: thumbnail) {
+            return Image(uiImage: uiImage)
+        } else {
+            return nil
+        }
+#endif
     }
 }
