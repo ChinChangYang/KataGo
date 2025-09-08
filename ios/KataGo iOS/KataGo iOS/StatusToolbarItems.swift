@@ -106,7 +106,8 @@ struct StatusToolbarItems: View {
             } else {
                 gameRecord.undo()
             }
-            messageList.appendAndSend(command: "undo")
+
+            gobanState.undo(messageList: messageList)
             player.toggleNextColorForPlayCommand()
 
             movesExecuted += 1
@@ -124,7 +125,8 @@ struct StatusToolbarItems: View {
             } else {
                 gameRecord.undo()
             }
-            messageList.appendAndSend(command: "undo")
+
+            gobanState.undo(messageList: messageList)
             player.toggleNextColorForPlayCommand()
             gobanState.sendShowBoardCommand(messageList: messageList)
         }
@@ -195,7 +197,7 @@ struct StatusToolbarItems: View {
             if let move = board.locationToMove(location: nextMove.location) {
                 updateCurrentIndex()
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
+                gobanState.play(turn: nextPlayer, move: move, messageList: messageList)
                 player.toggleNextColorForPlayCommand()
 
                 movesExecuted += 1

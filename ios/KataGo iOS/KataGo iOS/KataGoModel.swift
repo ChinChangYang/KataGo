@@ -360,6 +360,7 @@ class GobanState {
     var isShownBoard: Bool = false
     var eyeStatus = EyeStatus.opened
     var isAutoPlaying: Bool = false
+    var passCount: Int = 0
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -377,9 +378,15 @@ class GobanState {
     }
 
     private func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
-        if (!isAutoPlaying) && (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
+        if (!isAutoPlaying) &&
+            (nextColorForPlayCommand == .black) &&
+            (config.blackMaxTime > 0) &&
+            (passCount < 2) {
             return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
-        } else if (!isAutoPlaying) && (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
+        } else if (!isAutoPlaying) &&
+                    (nextColorForPlayCommand == .white) &&
+                    (config.whiteMaxTime > 0) &&
+                    (passCount < 2) {
             return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
         } else {
             return [config.getKataFastAnalyzeCommand()]
@@ -430,7 +437,9 @@ class GobanState {
     }
 
     func shouldGenMove(config: Config, player: Turn) -> Bool {
-        if (!isAutoPlaying) && (analysisStatus != .clear) &&
+        if (!isAutoPlaying) &&
+            (analysisStatus != .clear) &&
+            (passCount < 2) &&
             (((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
              ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))) {
             // One of black and white is enabled for AI play.
@@ -472,6 +481,24 @@ class GobanState {
                       let humanSLModel = HumanSLModel(profile: config.humanProfileForWhite) {
                 messageList.appendAndSend(commands: humanSLModel.commands)
             }
+        }
+    }
+
+    func play(turn: String, move: String, messageList: MessageList) {
+        messageList.appendAndSend(command: "play \(turn) \(move)")
+
+        if move == "pass" {
+            passCount = passCount + 1
+        } else {
+            passCount = 0
+        }
+    }
+
+    func undo(messageList: MessageList) {
+        messageList.appendAndSend(command: "undo")
+
+        if passCount > 0 {
+            passCount = passCount - 1
         }
     }
 }

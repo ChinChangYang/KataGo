@@ -70,7 +70,13 @@ struct BoardView: View {
                             branchState.sgf = gameRecord.sgf
                             branchState.currentIndex = gameRecord.currentIndex
                         }
-                        messageList.appendAndSend(command: "play \(turn) \(move)")
+
+                        gobanState.play(
+                            turn: turn,
+                            move: move,
+                            messageList: messageList
+                        )
+
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")

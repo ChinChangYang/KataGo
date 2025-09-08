@@ -147,7 +147,7 @@ struct ContentView: View {
             let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
             while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
                 gameRecord.undo()
-                messageList.appendAndSend(command: "undo")
+                gobanState.undo(messageList: messageList)
                 player.toggleNextColorForPlayCommand()
             }
 
@@ -287,7 +287,7 @@ struct ContentView: View {
             maybeLoadSgf()
             while newGameRecord.currentIndex > currentIndex {
                 newGameRecord.undo()
-                messageList.appendAndSend(command: "undo")
+                gobanState.undo(messageList: messageList)
             }
             let config = newGameRecord.concreteConfig
             config.koRule = sgfHelper.rules.koRule
@@ -339,7 +339,13 @@ struct ContentView: View {
                        let move = board.locationToMove(location: nextMove.location) {
                         gameRecord.currentIndex += 1
                         let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                        messageList.appendAndSend(command: "play \(nextPlayer) \(move)")
+
+                        gobanState.play(
+                            turn: nextPlayer,
+                            move: String(move),
+                            messageList: messageList
+                        )
+
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
@@ -799,7 +805,7 @@ struct ContentView: View {
     }
 
     func postProcessAIMove(message: String) {
-        let pattern = /play (\w+\d+)/
+        let pattern = /play (pass|\w+\d+)/
         if let match = message.firstMatch(of: pattern),
             let turn = player.nextColorSymbolForPlayCommand {
             let move = match.1
@@ -813,7 +819,7 @@ struct ContentView: View {
                     branchState.currentIndex = gameRecord.currentIndex
                 }
 
-                messageList.appendAndSend(command: "play \(turn) \(move)")
+                gobanState.play(turn: turn, move: String(move), messageList: messageList)
                 player.toggleNextColorForPlayCommand()
                 gobanState.sendShowBoardCommand(messageList: messageList)
                 messageList.appendAndSend(command: "printsgf")
