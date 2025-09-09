@@ -42,18 +42,20 @@ struct ModelPickerView: View {
 
     var listView: some View {
         List(NeuralNetworkModel.allCases, selection: $selectedModelID) { model in
-            VStack(alignment: .leading) {
-                Text(model.title)
-                    .bold()
-                Text(model.description)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical)
-            .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
-                if oldValue == true && newValue == false {
-                    if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
-                        isDownloaded[model.id] = true
+            if model.visible {
+                VStack(alignment: .leading) {
+                    Text(model.title)
+                        .bold()
+                    Text(model.description)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical)
+                .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
+                    if oldValue == true && newValue == false {
+                        if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
+                            isDownloaded[model.id] = true
+                        }
                     }
                 }
             }

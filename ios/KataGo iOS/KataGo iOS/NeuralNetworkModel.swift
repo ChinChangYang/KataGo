@@ -22,7 +22,15 @@ struct NeuralNetworkModel: Identifiable, Equatable {
         let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return docsURL?.appendingPathComponent(fileName)
     }
-    
+
+    var visible: Bool {
+#if os(macOS)
+        !builtIn
+#else
+        true
+#endif
+    }
+
     /// Initialize the neural network model
     /// - Parameters:
     ///   - title: the title of the model
