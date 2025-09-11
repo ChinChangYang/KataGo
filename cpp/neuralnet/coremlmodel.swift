@@ -93,18 +93,39 @@ class KataGoModelOutputBatch {
 class KataGoModel {
     let model: MLModel
 
-    class func getBundleModelURL(modelName: String, modelDirectory: String) -> URL {
-        // Set model type name
-        let typeName = "mlpackage"
-        // Get model path from bundle resource
-        // Fallback to create a default model path
-        let modelPath = Bundle.main.path(forResource: modelName, ofType: typeName) ?? "\(modelName).\(typeName)"
-        // If modelDirectory is not empty, prepend it to the modelPath
-        let finalPath = modelDirectory.isEmpty ? modelPath : modelDirectory 
-        let bundleModelURL = URL(filePath: finalPath)
+    // Search order: compiled first, then source package, then raw single-file.
+    private static let searchExtensions = ["mlmodelc","mlpackage","mlmodel"]
 
-        return bundleModelURL
+    class func getBundleModelURL(modelName: String, modelDirectory: String) -> URL {
+        let fm = FileManager.default
+
+        // If a custom directory is provided, probe it.
+        if !modelDirectory.isEmpty {
+            let base = URL(fileURLWithPath: modelDirectory, isDirectory: true)
+            for ext in searchExtensions {
+                let isDir = (ext != "mlmodel")
+                let candidate = base.appendingPathComponent("\(modelName).\(ext)", isDirectory: isDir)
+                if fm.fileExists(atPath: candidate.path) {
+                    printError("Found model in custom directory: \(candidate.path)")
+                    return candidate
+                }
+            }
+            printError("No model found in custom directory \(modelDirectory); falling back to bundle.")
+        }
+
+        // Probe bundle resources.
+        for ext in searchExtensions {
+            if let url = Bundle.main.url(forResource: modelName, withExtension: ext) {
+                printError("Found model in bundle: \(url.lastPathComponent)")
+                return url
+            }
+        }
+
+        printError("CoreML model \(modelName) not found in bundle or custom directory.")
+        return URL(fileURLWithPath: "/MISSING_\(modelName)")
     }
+
+    // MARK: - Public compile/load entry
 
     class func compileBundleMLModel(modelName: String,
                                     computeUnits: MLComputeUnits,
@@ -116,11 +137,26 @@ class KataGoModel {
             // Get model URL at bundle
             let bundleModelURL = getBundleModelURL(modelName: modelName, modelDirectory: modelDirectory)
 
+            // Directly load compiled model
+            if bundleModelURL.pathExtension == "mlmodelc" {
+                printError("Loading precompiled .mlmodelc without recompiling.")
+                return try loadModel(permanentURL: bundleModelURL,
+                                     modelName: modelName,
+                                     computeUnits: computeUnits)
+            }
+            // Raw single .mlmodel file
+            if bundleModelURL.pathExtension == "mlmodel" {
+                printError("Compiling raw .mlmodel (single file).")
+                let compiled = try MLModel.compileModel(at: bundleModelURL)
+                return try loadModel(permanentURL: compiled,
+                                     modelName: modelName,
+                                     computeUnits: computeUnits)
+            }
             // Compile MLModel
             mlmodel = try compileMLModel(modelName: modelName,
-                                         modelURL: bundleModelURL,
-                                         computeUnits: computeUnits,
-                                         mustCompile: mustCompile)
+                                      modelURL: bundleModelURL,
+                                      computeUnits: computeUnits,
+                                      mustCompile: mustCompile)
         } catch {
             printError("An error occurred: \(error)")
         }
@@ -129,17 +165,17 @@ class KataGoModel {
     }
 
     private class func getApplicationSupportURL() throws -> URL {
-        // Get default file manager
-        let fileManager = FileManager.default
-
-        return try fileManager.url(for: .applicationSupportDirectory,
-                                   in: .userDomainMask,
-                                   appropriateFor: nil,
-                                   create: true)
+        try FileManager.default.url(for: .applicationSupportDirectory,
+                                    in: .userDomainMask,
+                                    appropriateFor: nil,
+                                    create: true)
     }
 
     private class func getDigest(modelURL: URL) throws -> String {
-        // Create the URL for the model data file
+        // Only hash source package (.mlpackage); skip otherwise.
+        guard modelURL.pathExtension == "mlpackage" else {
+            return "no-digest-\(modelURL.lastPathComponent)"
+        }
         let dataURL = modelURL.appending(component: "Data/com.apple.CoreML/model.mlmodel")
 
         // Get model data
@@ -249,18 +285,32 @@ class KataGoModel {
 
         return permanentURL
     }
-
+    
     class func getSavedDigestURL(modelName: String) throws -> URL {
         let appSupportURL = try getApplicationSupportURL()
         let savedDigestURL = appSupportURL.appending(component: "KataGoModels/\(modelName).digest")
 
         return savedDigestURL
     }
-
+    
     class func compileMLModel(modelName: String,
                               modelURL: URL,
                               computeUnits: MLComputeUnits,
                               mustCompile: Bool) throws -> MLModel {
+        
+        // If already compiled (defensive)
+        if modelURL.pathExtension == "mlmodelc" {
+            return try loadModel(permanentURL: modelURL,
+                                 modelName: modelName,
+                                 computeUnits: computeUnits)
+        }
+        // If raw single file (defensive)
+        if modelURL.pathExtension == "mlmodel" {
+            let compiled = try MLModel.compileModel(at: modelURL)
+            return try loadModel(permanentURL: compiled,
+                                 modelName: modelName,
+                                 computeUnits: computeUnits)
+        }
 
         let permanentURL = try getMLModelCPermanentURL(modelName: modelName)
         let savedDigestURL = try getSavedDigestURL(modelName: modelName)
@@ -288,12 +338,12 @@ class KataGoModel {
                              computeUnits: computeUnits);
     }
 
-    init(model: MLModel) {
-        self.model = model
+    init(model: MLModel) { 
+        self.model = model 
     }
 
     private func createOutput(from outFeatures: MLFeatureProvider) -> KataGoModelOutput {
-
+        
         let output_policy = (outFeatures.featureValue(for: "output_policy")?.multiArrayValue)!
         let out_value = (outFeatures.featureValue(for: "out_value")?.multiArrayValue)!
         let out_miscvalue = (outFeatures.featureValue(for: "out_miscvalue")?.multiArrayValue)!
@@ -309,7 +359,7 @@ class KataGoModel {
 
     func prediction(from inputBatch: KataGoModelInputBatch,
                     options: MLPredictionOptions) throws -> KataGoModelOutputBatch {
-
+        
         let outFeaturesBatch = try model.predictions(from: inputBatch, options: options)
         let outputArray = (0..<outFeaturesBatch.count).map { index -> KataGoModelOutput in
             let outFeatures = outFeaturesBatch.features(at: index)
