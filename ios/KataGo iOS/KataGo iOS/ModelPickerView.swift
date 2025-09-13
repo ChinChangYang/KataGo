@@ -24,6 +24,8 @@ struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
     @State private var downloaders: [UUID: Downloader?] = [:]
     @State private var isDownloaded: [UUID: Bool] = [:]
+    
+    @Binding var isHumanSLEnabled: Bool
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -42,20 +44,18 @@ struct ModelPickerView: View {
 
     var listView: some View {
         List(NeuralNetworkModel.allCases, selection: $selectedModelID) { model in
-            if model.visible {
-                VStack(alignment: .leading) {
-                    Text(model.title)
-                        .bold()
-                    Text(model.description)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical)
-                .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
-                    if oldValue == true && newValue == false {
-                        if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
-                            isDownloaded[model.id] = true
-                        }
+            VStack(alignment: .leading) {
+                Text(model.title)
+                    .bold()
+                Text(model.description)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical)
+            .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
+                if oldValue == true && newValue == false {
+                    if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
+                        isDownloaded[model.id] = true
                     }
                 }
             }
@@ -67,6 +67,18 @@ struct ModelPickerView: View {
             if let currentSelectedModel {
                 if isDownloaded[currentSelectedModel.id] ?? false {
                     HStack {
+                        Button {
+                            isHumanSLEnabled.toggle()
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: isHumanSLEnabled ? "checkmark.square.fill" : "square")
+                                    .font(.title3)
+                                Text("Human SL")
+                                    .font(.caption)
+                            }
+                        }
+                        .padding(.horizontal)
+
                         Button {
                             selectedModel = currentSelectedModel
                         } label: {

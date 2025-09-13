@@ -21,7 +21,8 @@ public class KataGoHelper {
                              useMetal: Bool = false,
                              coremlModelPath: String? = nil,
                              humanCoremlModelPath: String? = nil,
-                             nnLen: Int) {
+                             nnLen: Int, 
+                             humanSLEnabled: Bool = false) {
         let mainBundle = Bundle.main
         let modelName = "default_model"
         let modelExt = "bin.gz"
@@ -31,11 +32,11 @@ public class KataGoHelper {
         
         let humanModelName = "b18c384nbt-humanv0"
         let humanModelExt = "bin.gz"
-        
-        let humanModelPath = mainBundle.path(forResource: humanModelName,
-                                             ofType: humanModelExt)
 
-        let configName = "default_gtp"
+        let humanModelPath = humanSLEnabled ? mainBundle.path(forResource: humanModelName,
+                                             ofType: humanModelExt) : nil
+
+        let configName = humanSLEnabled ? "default_human_gtp" : "default_gtp"
         let configExt = "cfg"
 
         let configPath = mainBundle.path(forResource: configName,
