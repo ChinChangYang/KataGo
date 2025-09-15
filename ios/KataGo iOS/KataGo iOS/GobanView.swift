@@ -53,6 +53,7 @@ struct GobanView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @State var toolbarUuid = UUID()
     var maxBoardLength: Int
+    @Binding var columnVisibility: NavigationSplitViewVisibility
 
     var body: some View {
         Group {
@@ -62,12 +63,25 @@ struct GobanView: View {
                     GobanItems(gameRecord: gameRecord, importing: $importing, maxBoardLength: maxBoardLength)
                         .toolbar {
                             ToolbarItem(placement: .principal) {
-                                Text(gameRecord.name)
-                                    .bold()
-                                    .onTapGesture {
-                                        isEditorPresented = true
+                                HStack {
+#if os(visionOS)
+                                    Button(action: toggleFullScreen) {
+                                        Image(
+                                            systemName: (columnVisibility == .all)
+                                            ? "arrow.up.left.and.arrow.down.right"
+                                            : "arrow.down.right.and.arrow.up.left"
+                                        )
                                     }
-                                    .id(toolbarUuid)
+                                    .scaledToFit()
+#endif
+
+                                    Text(gameRecord.name)
+                                        .bold()
+                                        .onTapGesture {
+                                            isEditorPresented = true
+                                        }
+                                        .id(toolbarUuid)
+                                }
                             }
                         }
                 } else {
@@ -92,6 +106,14 @@ struct GobanView: View {
         .environment(gobanTab)
         .onChange(of: horizontalSizeClass) { _, _ in
             toolbarUuid = UUID()
+        }
+    }
+
+    func toggleFullScreen() {
+        if columnVisibility == .detailOnly {
+            columnVisibility = .all
+        } else {
+            columnVisibility = .detailOnly
         }
     }
 }

@@ -38,12 +38,13 @@ struct ContentView: View {
     @State var audioModel = AudioModel()
     @State var quitStatus: QuitStatus = .none
     @State var autoPlayTimer: Timer? = nil
+    @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
     let selectedModel: NeuralNetworkModel
 
     var body: some View {
         if isInitialized {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
                 GameListView(isEditorPresented: $isEditorPresented,
                              selectedGameRecord: $navigationContext.selectedGameRecord,
                              importing: $importing,
@@ -77,7 +78,8 @@ struct ContentView: View {
             } detail: {
                 GobanView(isEditorPresented: $isEditorPresented,
                           importing: $importing,
-                          maxBoardLength: selectedModel.nnLen)
+                          maxBoardLength: selectedModel.nnLen,
+                          columnVisibility: $columnVisibility)
             }
             .environment(stones)
             .environment(messageList)
