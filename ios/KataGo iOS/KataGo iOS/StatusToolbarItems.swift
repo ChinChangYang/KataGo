@@ -34,7 +34,7 @@ struct StatusToolbarItems: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack {
             Button(action: backwardEndAction) {
                 Image(systemName: "backward.end")
                     .foregroundStyle(foregroundStyle)

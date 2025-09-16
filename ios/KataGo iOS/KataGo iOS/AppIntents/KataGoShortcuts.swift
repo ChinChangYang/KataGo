@@ -8,7 +8,7 @@
 import Foundation
 import AppIntents
 
-class KataGoShortcuts: AppShortcutsProvider {
+final class KataGoShortcuts: AppShortcutsProvider {
 
     static let shortcutTileColor = ShortcutTileColor.yellow
 
