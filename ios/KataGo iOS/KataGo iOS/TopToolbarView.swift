@@ -20,18 +20,14 @@ struct TopToolbarView: View {
 
     var body: some View {
         HStack {
-            if !gobanTab.isConfigPresented {
+            if gobanTab.isCommandPresented {
                 Button {
                     withAnimation {
-                        gobanTab.isCommandPresented.toggle()
+                        gobanTab.isCommandPresented = false
                         gobanTab.isConfigPresented = false
                     }
                 } label: {
-                    if gobanTab.isCommandPresented {
-                        Image(systemName: "doc.plaintext.fill")
-                    } else {
-                        Image(systemName: "doc.plaintext")
-                    }
+                    Image(systemName: "doc.plaintext.fill")
                 }
             }
 

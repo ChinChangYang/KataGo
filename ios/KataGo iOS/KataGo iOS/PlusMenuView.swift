@@ -52,7 +52,7 @@ struct PlusMenuView: View {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
 
-            if let gameRecord = gameRecord {
+            if let gameRecord {
                 ShareLink(item:
                             TransferableSgf(
                                 name: gameRecord.name,
@@ -81,11 +81,19 @@ struct PlusMenuView: View {
                         thumbnailModel.save()
                     }
                 } label: {
-                    return Label(thumbnailModel.title, systemImage: "photo")
+                    Label(thumbnailModel.title, systemImage: "photo")
                 }
             }
+
+            Button {
+                withAnimation {
+                    gobanTab.isCommandPresented = true
+                }
+            } label: {
+                Label("Developer Mode", systemImage: "doc.plaintext")
+            }
         } label: {
-            Image(systemName: "plus.square")
+            Image(systemName: "ellipsis.circle")
         }
     }
 }
