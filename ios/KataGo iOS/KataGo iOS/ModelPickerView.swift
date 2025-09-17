@@ -40,73 +40,76 @@ struct ModelPickerView: View {
         }
     }
 
+    func downloadPlayButton(model: NeuralNetworkModel) -> some View {
+        Button {
+            if isDownloaded[model.id] ?? false {
+                selectedModel = model
+            } else if !(downloaders[model.id]??.isDownloading ?? false) {
+                Task {
+                    if let modelURL = URL(string: model.url) {
+                        try? await downloaders[model.id]??.download(from: modelURL)
+                    }
+                }
+            } else {
+                // TODO: pause/stop download
+            }
+        } label: {
+            if isDownloaded[model.id] ?? false {
+                Image(systemName: "play.fill")
+            } else if !(downloaders[model.id]??.isDownloading ?? false) {
+                Image(systemName: "arrow.down")
+            } else {
+                if #available(iOS 26.0, *),
+                   #available(macOS 26.0, *),
+                   #available(visionOS 26.0, *) {
+                    Image(
+                        systemName: "pause.circle",
+                        variableValue: downloaders[model.id]??.progress
+                    )
+                    .symbolVariableValueMode(.draw)
+
+                } else {
+                    Image(systemName: "pause.circle")
+                }
+            }
+        }
+        .buttonStyle(.borderedProminent)
+    }
+
     func modelDetailView(model: NeuralNetworkModel) -> some View {
         VStack {
-            ZStack {
-                Image(.loadingIcon)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(.circle)
-                    .rotationEffect(.degrees((downloaders[model.id]??.progress ?? 0) * 360))
+            Image(.loadingIcon)
+                .resizable()
+                .scaledToFit()
+                .clipShape(.circle)
+                .rotationEffect(.degrees((downloaders[model.id]??.progress ?? 0) * 360))
 
-                Button {
-                    if isDownloaded[model.id] ?? false {
-                        selectedModel = model
-                    } else if !(downloaders[model.id]??.isDownloading ?? false) {
-                        Task {
-                            if let modelURL = URL(string: model.url) {
-                                try? await downloaders[model.id]??.download(from: modelURL)
+            VStack(alignment: .leading) {
+                HStack {
+                    Text(model.title)
+                        .bold()
+
+                    Text(model.builtIn ? "" : model.fileSize.humanFileSize)
+                        .foregroundStyle(.secondary)
+
+                    downloadPlayButton(model: model)
+
+                    if !model.builtIn && (isDownloaded[model.id] ?? false) {
+                        Button(role: .destructive) {
+                            if let downloadedURL = model.downloadedURL {
+                                try? FileManager.default.removeItem(at: downloadedURL)
+                                if !FileManager.default.fileExists(atPath: downloadedURL.path) {
+                                    isDownloaded[model.id] = false
+                                }
                             }
-                        }
-                    } else {
-                        // TODO: pause/stop download
-                    }
-                } label: {
-                    if isDownloaded[model.id] ?? false {
-                        Image(systemName: "play.fill")
-                    } else if !(downloaders[model.id]??.isDownloading ?? false) {
-                        Image(systemName: "arrow.down")
-                    } else {
-                        if #available(iOS 26.0, *),
-                           #available(macOS 26.0, *),
-                           #available(visionOS 26.0, *) {
-                            Image(
-                                systemName: "pause.circle",
-                                variableValue: downloaders[model.id]??.progress
-                            )
-                            .symbolVariableValueMode(.draw)
-
-                        } else {
-                            Image(systemName: "pause.circle")
+                        } label: {
+                            Image(systemName: "trash")
                         }
                     }
                 }
-                .buttonStyle(.borderedProminent)
-            }
+                .padding(.vertical)
 
-            ScrollView {
-                VStack(alignment: .leading) {
-                    HStack {
-                        Text(model.title)
-                            .bold()
-
-                        Text(model.builtIn ? "" : model.fileSize.humanFileSize)
-                            .foregroundStyle(.secondary)
-
-                        if !model.builtIn && (isDownloaded[model.id] ?? false) {
-                            Button(role: .destructive) {
-                                if let downloadedURL = model.downloadedURL {
-                                    try? FileManager.default.removeItem(at: downloadedURL)
-                                    if !FileManager.default.fileExists(atPath: downloadedURL.path) {
-                                        isDownloaded[model.id] = false
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                        }
-                    }
-
+                ScrollView {
                     Text(model.description)
                 }
             }
