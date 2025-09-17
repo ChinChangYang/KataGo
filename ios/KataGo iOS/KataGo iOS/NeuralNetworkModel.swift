@@ -158,7 +158,7 @@ Board sizes: 2x2 to 37x37.
             fileSize: 271_357_345
         ),
         .init(
-            title: "Strong Igo Hatsuyoron 120 Net)",
+            title: "Strong Igo Hatsuyoron 120 Net",
             description: """
 Trained by "Friday9i" for close to a year, this is one of the strongest publicly-available networks specially trained to understand what has been termed the most difficult problem in the world, problem number 120 in a classic problem collection from Inoue Dosetsu Inseki dating back to the 1700s.
 

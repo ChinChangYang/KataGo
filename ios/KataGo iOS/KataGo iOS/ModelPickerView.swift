@@ -40,112 +40,126 @@ struct ModelPickerView: View {
         }
     }
 
-    var listView: some View {
-        List(NeuralNetworkModel.allCases, selection: $selectedModelID) { model in
-            if model.visible {
-                VStack(alignment: .leading) {
-                    Text(model.title)
-                        .bold()
-                    Text(model.description)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical)
-                .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
-                    if oldValue == true && newValue == false {
-                        if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
-                            isDownloaded[model.id] = true
+    func modelDetailView(model: NeuralNetworkModel) -> some View {
+        VStack {
+            ZStack {
+                Image(.loadingIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(.circle)
+                    .rotationEffect(.degrees((downloaders[model.id]??.progress ?? 0) * 360))
+
+                Button {
+                    if isDownloaded[model.id] ?? false {
+                        selectedModel = model
+                    } else if !(downloaders[model.id]??.isDownloading ?? false) {
+                        Task {
+                            if let modelURL = URL(string: model.url) {
+                                try? await downloaders[model.id]??.download(from: modelURL)
+                            }
+                        }
+                    } else {
+                        // TODO: pause/stop download
+                    }
+                } label: {
+                    if isDownloaded[model.id] ?? false {
+                        Image(systemName: "play.fill")
+                    } else if !(downloaders[model.id]??.isDownloading ?? false) {
+                        Image(systemName: "arrow.down")
+                    } else {
+                        if #available(iOS 26.0, *) {
+                            Image(
+                                systemName: "pause.circle",
+                                variableValue: downloaders[model.id]??.progress
+                            )
+                            .symbolVariableValueMode(.draw)
+                        } else {
+                            Image(systemName: "pause.circle")
                         }
                     }
                 }
+                .buttonStyle(.borderedProminent)
             }
-        }
-    }
 
-    var bottomView: some View {
-        Group {
-            if let currentSelectedModel {
-                if isDownloaded[currentSelectedModel.id] ?? false {
+            ScrollView {
+                VStack(alignment: .leading) {
                     HStack {
-                        Button {
-                            selectedModel = currentSelectedModel
-                        } label: {
-                            VStack {
-                                Image(systemName: "arrowtriangle.forward")
-                                Text("Start")
-                            }
-                        }
-                        .padding(.horizontal)
+                        Text(model.title)
+                            .bold()
 
-                        if !currentSelectedModel.builtIn {
+                        Text(model.builtIn ? "" : model.fileSize.humanFileSize)
+                            .foregroundStyle(.secondary)
+
+                        if !model.builtIn && (isDownloaded[model.id] ?? false) {
                             Button(role: .destructive) {
-                                if let downloadedURL = currentSelectedModel.downloadedURL {
+                                if let downloadedURL = model.downloadedURL {
                                     try? FileManager.default.removeItem(at: downloadedURL)
                                     if !FileManager.default.fileExists(atPath: downloadedURL.path) {
-                                        isDownloaded[currentSelectedModel.id] = false
+                                        isDownloaded[model.id] = false
                                     }
                                 }
                             } label: {
-                                VStack {
-                                    Image(systemName: "trash")
-                                    Text("Delete (\(currentSelectedModel.fileSize.humanFileSize))")
-                                }
+                                Image(systemName: "trash")
                             }
                         }
                     }
-                    .padding()
-                } else if !(downloaders[currentSelectedModel.id]??.isDownloading ?? false) {
-                    Button {
-                        Task {
-                            if let modelURL = URL(string: currentSelectedModel.url) {
-                                try? await downloaders[currentSelectedModel.id]??.download(from: modelURL)
-                            }
-                        }
-                    } label: {
-                        VStack {
-                            Image(systemName: "square.and.arrow.down")
-                            Text("Download (\(currentSelectedModel.fileSize.humanFileSize))")
-                        }
-                    }
-                    .padding()
-                } else {
-                    VStack {
-                        ProgressView(value: downloaders[currentSelectedModel.id]??.progress)
-                            .progressViewStyle(.linear)
-                            .padding()
-                        Text("Downloading: \(Int((downloaders[currentSelectedModel.id]??.progress ?? 0) * 100))%")
-                    }
+
+                    Text(model.description)
                 }
             }
         }
+        .padding()
+        .onChange(of: downloaders[model.id]??.isDownloading) { oldValue, newValue in
+            if oldValue == true && newValue == false {
+                if FileManager.default.fileExists(atPath: downloaders[model.id]??.destinationURL.path ?? "") {
+                    isDownloaded[model.id] = true
+                }
+            }
+        }
+        .navigationTitle(model.title)
     }
 
     var body: some View {
-        VStack {
-            Text("Select a Model")
-                .font(.headline)
-
-            listView
-            bottomView
-        }
-        .padding()
-        .onAppear {
-            for model in NeuralNetworkModel.allCases {
-                if model.builtIn {
-                    isDownloaded[model.id] = true
-                } else {
-                    if let downloadedURL = model.downloadedURL {
-                        downloaders[model.id] = Downloader(destinationURL: downloadedURL)
-                        if FileManager.default.fileExists(atPath: downloadedURL.path) {
-                            isDownloaded[model.id] = true
+        NavigationStack {
+            List(selection: $selectedModelID) {
+                ForEach(NeuralNetworkModel.allCases) { model in
+                    if model.visible {
+                        NavigationLink(model.title) {
+                            modelDetailView(model: model)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select a Model")
+            .onAppear {
+                for model in NeuralNetworkModel.allCases {
+                    if model.builtIn {
+                        isDownloaded[model.id] = true
+                    } else {
+                        if let downloadedURL = model.downloadedURL {
+                            downloaders[model.id] = Downloader(destinationURL: downloadedURL)
+                            if FileManager.default.fileExists(atPath: downloadedURL.path) {
+                                isDownloaded[model.id] = true
+                            } else {
+                                isDownloaded[model.id] = false
+                            }
                         } else {
                             isDownloaded[model.id] = false
                         }
-                    } else {
-                        isDownloaded[model.id] = false
                     }
                 }
             }
         }
     }
+}
+
+#Preview("Model Picker") {
+    // A simple wrapper view to host the binding required by ModelPickerView
+    struct PreviewHost: View {
+        @State private var selectedModel: NeuralNetworkModel? = nil
+        var body: some View {
+            ModelPickerView(selectedModel: $selectedModel)
+        }
+    }
+    return PreviewHost()
 }
