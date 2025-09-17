@@ -51,7 +51,7 @@ struct ModelPickerView: View {
                     }
                 }
             } else {
-                // TODO: pause/stop download
+                downloaders[model.id]??.cancel()
             }
         } label: {
             if isDownloaded[model.id] ?? false {
@@ -63,13 +63,13 @@ struct ModelPickerView: View {
                    #available(macOS 26.0, *),
                    #available(visionOS 26.0, *) {
                     Image(
-                        systemName: "pause.circle",
+                        systemName: "stop.circle",
                         variableValue: downloaders[model.id]??.progress
                     )
                     .symbolVariableValueMode(.draw)
 
                 } else {
-                    Image(systemName: "pause.circle")
+                    Image(systemName: "stop.circle")
                 }
             }
         }
@@ -93,6 +93,7 @@ struct ModelPickerView: View {
                         .foregroundStyle(.secondary)
 
                     downloadPlayButton(model: model)
+                    Spacer()
 
                     if !model.builtIn && (isDownloaded[model.id] ?? false) {
                         Button(role: .destructive) {

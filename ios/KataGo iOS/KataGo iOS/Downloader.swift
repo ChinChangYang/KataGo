@@ -34,6 +34,13 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         downloadTask?.resume()
     }
 
+    func cancel() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        isDownloading = false
+        progress = 0.0
+    }
+
     nonisolated func urlSession(_ session: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didWriteData bytesWritten: Int64,
@@ -58,6 +65,19 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
             await MainActor.run {
                 downloadedFileURL = destinationURL
                 isDownloading = false
+            }
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession,
+                                task: URLSessionTask,
+                                didCompleteWithError error: (any Error)?) {
+        // This is called for both success (error == nil) and failure/cancel
+        Task { @MainActor in
+            // If canceled or failed without producing a file, mark as not downloading
+            if error != nil && downloadedFileURL == nil {
+                isDownloading = false
+                progress = 0.0
             }
         }
     }
