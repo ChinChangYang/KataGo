@@ -67,12 +67,15 @@ struct ModelPickerView: View {
                     } else if !(downloaders[model.id]??.isDownloading ?? false) {
                         Image(systemName: "arrow.down")
                     } else {
-                        if #available(iOS 26.0, *) {
+                        if #available(iOS 26.0, *),
+                           #available(macOS 26.0, *),
+                           #available(visionOS 26.0, *) {
                             Image(
                                 systemName: "pause.circle",
                                 variableValue: downloaders[model.id]??.progress
                             )
                             .symbolVariableValueMode(.draw)
+
                         } else {
                             Image(systemName: "pause.circle")
                         }
