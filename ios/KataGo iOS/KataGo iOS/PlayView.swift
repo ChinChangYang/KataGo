@@ -76,11 +76,10 @@ struct PlayView: View {
     }
 
     var body: some View {
-        boardOptionalCommentView
-            .toolbar {
-                ToolbarItem(placement: .status) {
-                    StatusToolbarItems(gameRecord: gameRecord)
-                }
-            }
+        VStack {
+            boardOptionalCommentView
+            StatusToolbarItems(gameRecord: gameRecord)
+                .padding()
+        }
     }
 }

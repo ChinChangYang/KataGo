@@ -39,44 +39,66 @@ struct StatusToolbarItems: View {
                 Image(systemName: "backward.end")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
+
+            Spacer()
 
             Button(action: backwardAction) {
                 Image(systemName: "backward")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
+
+            Spacer()
 
             Button(action: backwardFrameAction) {
                 Image(systemName: "backward.frame")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
+
+            Spacer()
 
             Button(action: sparkleAction) {
                 Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
                     .foregroundColor((gobanState.analysisStatus == .clear) ? .red : (gobanState.analysisStatus == .run) ? .yellow : .accentColor)
                     .symbolEffect(.variableColor.iterative.reversing, isActive: gobanState.analysisStatus == .run)
             }
+            .buttonStyle(.borderless)
             .contentTransition(.symbolEffect(.replace))
+
+            Spacer()
 
             Button(action: eyeAction) {
                 Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
                     .foregroundColor((gobanState.eyeStatus == .opened) ? .accentColor : .red)
             }
+            .buttonStyle(.borderless)
             .contentTransition(.symbolEffect(.replace))
+
+            Spacer()
 
             Button(action: forwardFrameAction) {
                 Image(systemName: "forward.frame")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
+
+            Spacer()
 
             Button(action: forwardAction) {
                 Image(systemName: "forward")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
+
+            Spacer()
 
             Button(action: forwardEndAction) {
                 Image(systemName: "forward.end")
                     .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.borderless)
         }
     }
 
@@ -225,4 +247,29 @@ struct StatusToolbarItems: View {
             gameRecord.currentIndex += 1
         }
     }
+}
+
+
+#Preview("StatusToolbarItems minimal preview") {
+    struct PreviewHost: View {
+        let gobanState = GobanState()
+        let player = Turn()
+        let board = BoardSize()
+        let messageList = MessageList()
+        let branchState = BranchState()
+        let analysis = Analysis()
+        let gameRecord = GameRecord(config: Config())
+
+        var body: some View {
+            StatusToolbarItems(gameRecord: gameRecord)
+                .environment(gobanState)
+                .environment(player)
+                .environment(board)
+                .environment(messageList)
+                .environment(branchState)
+                .environment(analysis)
+        }
+    }
+
+    return PreviewHost()
 }
