@@ -1389,7 +1389,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1430;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					E11887E02B0830C900637D44 = {
 						CreatedOnToolsVersion = 15.0.1;
@@ -2129,6 +2129,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -2196,6 +2197,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -2216,7 +2218,10 @@
 				CURRENT_PROJECT_VERSION = 164;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"../../cpp/external/tclap-1.2.2/include",
@@ -2235,7 +2240,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 6.3;
+				MARKETING_VERSION = 6.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -2261,7 +2266,10 @@
 				CURRENT_PROJECT_VERSION = 164;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"../../cpp/external/tclap-1.2.2/include",
@@ -2280,7 +2288,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 6.3;
+				MARKETING_VERSION = 6.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
