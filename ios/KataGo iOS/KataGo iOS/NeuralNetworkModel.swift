@@ -119,6 +119,17 @@ Board sizes: 2x2 to 37x37.
             fileSize: 2_196_103
         ),
         .init(
+            title: "Lionffen b24c64 Network",
+            description: """
+Trained by "lionffen", this is a heavily optimized small network with a number of parameters between KataGo's historical 6 and 10 block networks in normal games that may be competitive with KataGo's historical 15-block nets or weaker 20-block networks. However, it might not be suitable for general game review/analysis, even on weaker hardware that might benefit from a small/fast net, since it appears to have been optimized head-to-head strength against superhuman opponents and might be fragile and play poor moves when behind or in some unfamiliar situations.
+
+Board sizes: 2x2 to 37x37.
+""",
+            url: "https://media.katagotraining.org/uploaded/networks/models_extra/lionffen_b24c64_3x3_v3_12300.bin.gz",
+            fileName: "lionffen_b24c64_3x3_v3_12300.bin.gz",
+            fileSize: 4_842_138
+        ),
+        .init(
             title: "Finetuned 9x9 Network",
             description: """
 This net is likely one of the strongest KataGo nets for 9x9, even compared to nets more recent than it! It was specially finetuned for a few months on a couple of GPUs exclusively on a diverse set of 9x9 board positions, including large trees of positions that KataGo's main nets had significant misevaluations on. This was also the net used to generate the 9x9 book at https://katagobooks.org/.
