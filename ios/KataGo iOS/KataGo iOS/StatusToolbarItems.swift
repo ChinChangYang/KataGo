@@ -29,76 +29,124 @@ struct StatusToolbarItems: View {
         && (gobanState.showBoardCount == 0)
     }
 
+    var spacing: CGFloat {
+        if #available(iOS 26.0, *),
+           #available(macOS 26.0, *) {
+            // glass button's padding is big, so spacing is small.
+            return 1
+        } else {
+            // plain button's padding is small, so spacing is big.
+            return 20
+        }
+    }
+
     var foregroundStyle: HierarchicalShapeStyle {
         isFunctional ? .primary : .secondary
     }
 
-    var body: some View {
-        HStack {
+    func createButton(action: @escaping @MainActor () -> Void,
+                      systemImage: String) -> some View {
+        Group {
+#if os(visionOS)
+            // visionOS doesn't support glass button style
             Button(action: backwardEndAction) {
-                Image(systemName: "backward.end")
+                Image(systemName: systemImage)
                     .foregroundStyle(foregroundStyle)
             }
-            .buttonStyle(.borderless)
-
-            Spacer()
-
-            Button(action: backwardAction) {
-                Image(systemName: "backward")
-                    .foregroundStyle(foregroundStyle)
+#else
+            if #available(iOS 26.0, *),
+               #available(macOS 26.0, *) {
+                // iOS and macOS 26.0 support glass button style
+                Button(action: action) {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(foregroundStyle)
+                }
+                .buttonStyle(.glass)
+            } else {
+                // previous iOS and macOS do not support glass button style
+                Button(action: backwardEndAction) {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(foregroundStyle)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.borderless)
+#endif
+        }
+    }
 
-            Spacer()
-
-            Button(action: backwardFrameAction) {
-                Image(systemName: "backward.frame")
-                    .foregroundStyle(foregroundStyle)
+    func createButton(action: @escaping @MainActor () -> Void,
+                      image: some View) -> some View {
+        Group {
+#if os(visionOS)
+            // visionOS doesn't support glass button style
+            Button(action: action) {
+                image
             }
-            .buttonStyle(.borderless)
+#else
+            if #available(iOS 26.0, *),
+               #available(macOS 26.0, *) {
+                // iOS and macOS 26.0 support glass button style
+                Button(action: action) {
+                    image
+                }
+                .buttonStyle(.glass)
+            } else {
+                // previous iOS and macOS do not support glass button style
+                Button(action: action) {
+                    image
+                }
+                .buttonStyle(.plain)
+            }
+#endif
+        }
+    }
 
-            Spacer()
+    var body: some View {
+        HStack(spacing: spacing) {
+            createButton(
+                action: backwardEndAction,
+                systemImage: "backward.end"
+            )
 
-            Button(action: sparkleAction) {
-                Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
+            createButton(
+                action: backwardAction,
+                systemImage: "backward"
+            )
+
+            createButton(
+                action: backwardFrameAction,
+                systemImage: "backward.frame"
+            )
+
+            createButton(
+                action: sparkleAction,
+                image:
+                    Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
                     .foregroundColor((gobanState.analysisStatus == .clear) ? .red : (gobanState.analysisStatus == .run) ? .yellow : .accentColor)
                     .symbolEffect(.variableColor.iterative.reversing, isActive: gobanState.analysisStatus == .run)
-            }
-            .buttonStyle(.borderless)
+            )
+
+            createButton(
+                action: eyeAction,
+                systemImage: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash"
+            )
+            .foregroundColor((gobanState.eyeStatus == .opened) ? .accentColor : .red)
             .contentTransition(.symbolEffect(.replace))
 
-            Spacer()
+            createButton(
+                action: forwardFrameAction,
+                systemImage: "forward.frame"
+            )
 
-            Button(action: eyeAction) {
-                Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
-                    .foregroundColor((gobanState.eyeStatus == .opened) ? .accentColor : .red)
-            }
-            .buttonStyle(.borderless)
-            .contentTransition(.symbolEffect(.replace))
+            createButton(
+                action: forwardAction,
+                systemImage: "forward"
+            )
 
-            Spacer()
-
-            Button(action: forwardFrameAction) {
-                Image(systemName: "forward.frame")
-                    .foregroundStyle(foregroundStyle)
-            }
-            .buttonStyle(.borderless)
-
-            Spacer()
-
-            Button(action: forwardAction) {
-                Image(systemName: "forward")
-                    .foregroundStyle(foregroundStyle)
-            }
-            .buttonStyle(.borderless)
-
-            Spacer()
-
-            Button(action: forwardEndAction) {
-                Image(systemName: "forward.end")
-                    .foregroundStyle(foregroundStyle)
-            }
-            .buttonStyle(.borderless)
+            createButton(
+                action: forwardEndAction,
+                systemImage: "forward.end"
+            )
         }
     }
 
