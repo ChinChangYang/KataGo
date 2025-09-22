@@ -11,7 +11,6 @@ import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord
-    @Binding var importing: Bool
     @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -29,7 +28,7 @@ struct GobanItems: View {
         }
         .toolbar {
             ToolbarItem {
-                TopToolbarView(gameRecord: gameRecord, importing: $importing)
+                TopToolbarView(gameRecord: gameRecord)
                     .id(toolbarUuid)
             }
         }
@@ -47,7 +46,6 @@ class GobanTab {
 
 struct GobanView: View {
     @Binding var isEditorPresented: Bool
-    @Binding var importing: Bool
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -60,7 +58,7 @@ struct GobanView: View {
             if let gameRecord = navigationContext.selectedGameRecord {
                 if (gameRecord.concreteConfig.boardWidth <= maxBoardLength) &&
                     (gameRecord.concreteConfig.boardHeight <= maxBoardLength) {
-                    GobanItems(gameRecord: gameRecord, importing: $importing, maxBoardLength: maxBoardLength)
+                    GobanItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
                         .toolbar {
                             ToolbarItem(placement: .principal) {
                                 HStack {
@@ -88,7 +86,7 @@ struct GobanView: View {
                     ContentUnavailableView("Too large board size \(gameRecord.concreteConfig.boardWidth)x\(gameRecord.concreteConfig.boardHeight) to run with this neural network.\nPlease select other neural networks.", systemImage: "rectangle.portrait.and.arrow.forward")
                         .toolbar {
                             ToolbarItem {
-                                PlusMenuView(gameRecord: nil, importing: $importing)
+                                PlusMenuView(gameRecord: nil)
                                     .id(toolbarUuid)
                             }
                         }
@@ -97,7 +95,7 @@ struct GobanView: View {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                     .toolbar {
                         ToolbarItem {
-                            PlusMenuView(gameRecord: nil, importing: $importing)
+                            PlusMenuView(gameRecord: nil)
                                 .id(toolbarUuid)
                         }
                     }

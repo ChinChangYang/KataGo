@@ -10,7 +10,6 @@ import KataGoInterface
 
 struct TopToolbarView: View {
     var gameRecord: GameRecord
-    @Binding var importing: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
@@ -48,7 +47,7 @@ struct TopToolbarView: View {
                 }
                 
                 if !gobanTab.isCommandPresented && !gobanTab.isConfigPresented && !gobanState.isEditing {
-                    PlusMenuView(gameRecord: gameRecord, importing: $importing)
+                    PlusMenuView(gameRecord: gameRecord)
                 }
                 
                 if !gobanTab.isCommandPresented && !gobanTab.isConfigPresented {

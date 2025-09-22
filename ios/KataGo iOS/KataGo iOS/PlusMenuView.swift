@@ -9,12 +9,12 @@ import SwiftUI
 
 struct PlusMenuView: View {
     var gameRecord: GameRecord?
-    @Binding var importing: Bool
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
     @Environment(GobanState.self) var gobanState
     @Environment(ThumbnailModel.self) var thumbnailModel
+    @Environment(TopUIState.self) var topUIState
 
     var body: some View {
         Menu {
@@ -46,7 +46,7 @@ struct PlusMenuView: View {
 
             Button {
                 withAnimation {
-                    importing = true
+                    topUIState.importing = true
                 }
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
@@ -64,8 +64,7 @@ struct PlusMenuView: View {
                 }
 
                 Button(role: .destructive) {
-                    navigationContext.selectedGameRecord = nil
-                    modelContext.safelyDelete(gameRecord: gameRecord)
+                    topUIState.confirmingDeletion = true
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -96,4 +95,15 @@ struct PlusMenuView: View {
             Image(systemName: "ellipsis.circle")
         }
     }
+}
+
+#Preview {
+    PlusMenuView(
+        gameRecord: GameRecord(config: Config())
+    )
+    .environment(NavigationContext())
+    .environment(GobanTab())
+    .environment(GobanState())
+    .environment(ThumbnailModel())
+    .environment(TopUIState())
 }

@@ -597,3 +597,9 @@ struct Coordinate {
         }
     }
 }
+
+@Observable
+class TopUIState {
+    var importing = false
+    var confirmingDeletion = false
+}

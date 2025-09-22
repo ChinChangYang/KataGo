@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var isEditorPresented = false
     @State private var isInitialized = false
     @State private var gobanTab = GobanTab()
-    @State var importing = false
     @State var toolbarUuid = UUID()
     @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
@@ -39,6 +38,7 @@ struct ContentView: View {
     @State var quitStatus: QuitStatus = .none
     @State var autoPlayTimer: Timer? = nil
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var topUIState = TopUIState()
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
     let selectedModel: NeuralNetworkModel
 
@@ -47,13 +47,12 @@ struct ContentView: View {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 GameListView(isEditorPresented: $isEditorPresented,
                              selectedGameRecord: $navigationContext.selectedGameRecord,
-                             importing: $importing,
                              isGameListViewAppeared: $isGameListViewAppeared)
                 .toolbar {
                     ToolbarItem {
                         HStack {
                             QuitButton(quitStatus: $quitStatus)
-                            PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
+                            PlusMenuView(gameRecord: navigationContext.selectedGameRecord)
                         }
                         .id(toolbarUuid)
                     }
@@ -63,7 +62,6 @@ struct ContentView: View {
                 }
             } detail: {
                 GobanView(isEditorPresented: $isEditorPresented,
-                          importing: $importing,
                           maxBoardLength: selectedModel.nnLen,
                           columnVisibility: $columnVisibility)
             }
@@ -80,6 +78,7 @@ struct ContentView: View {
             .environment(branchState)
             .environment(thumbnailModel)
             .environment(audioModel)
+            .environment(topUIState)
             .task {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
@@ -92,7 +91,7 @@ struct ContentView: View {
                 processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
                               newWaitingForAnalysis: newWaitingForAnalysis)
             }
-            .fileImporter(isPresented: $importing,
+            .fileImporter(isPresented: $topUIState.importing,
                           allowedContentTypes: [sgfType, .text],
                           allowsMultipleSelection: true) { result in
                 importFiles(result: result)
@@ -115,6 +114,22 @@ struct ContentView: View {
                 processIsAutoPlayingChange(
                     oldIsAutoPlaying: oldIsAutoPlaying,
                     newIsAutoPlaying: newIsAutoPlaying)
+            }
+            .confirmationDialog(
+                "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!",
+                isPresented: $topUIState.confirmingDeletion,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let gameRecord = navigationContext.selectedGameRecord {
+                        navigationContext.selectedGameRecord = nil
+                        modelContext.safelyDelete(gameRecord: gameRecord)
+                    }
+                }
+
+                Button("Cancel", role: .cancel) {
+                    topUIState.confirmingDeletion = false
+                }
             }
         } else {
             LoadingView(version: $version, selectedModel: selectedModel)

@@ -49,7 +49,6 @@ struct GameListView: View {
     @Binding var isEditorPresented: Bool
     @Binding var selectedGameRecord: GameRecord?
     @State var searchText = ""
-    @Binding var importing: Bool
     @Binding var isGameListViewAppeared: Bool
     @Environment(ThumbnailModel.self) var thumbnailModel
 
