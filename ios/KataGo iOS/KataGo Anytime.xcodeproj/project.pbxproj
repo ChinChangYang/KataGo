@@ -262,6 +262,7 @@
 		E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */; };
 		E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */; };
+		E1A143AC2E80FAD200FAA1BF /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */; };
 		E1AFE0532C3C07E00061D724 /* SgfCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */; };
 		E1AFE0542C3C07E00061D724 /* SgfCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */; };
@@ -604,6 +605,7 @@
 		E18F3F752A514B9700D335E1 /* default_gtp.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = default_gtp.cfg; sourceTree = "<group>"; };
 		E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModel.swift; sourceTree = "<group>"; };
 		E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusToolbarItems.swift; sourceTree = "<group>"; };
+		E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SgfCpp.cpp; sourceTree = "<group>"; };
 		E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = SgfCpp.hpp; sourceTree = "<group>"; };
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
@@ -1017,6 +1019,7 @@
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
 				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
+				E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */,
 				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
 				E1D7D3AC2AA897C000556DFB /* StoneView.swift */,
 				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
@@ -1649,6 +1652,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */,
+				E1A143AC2E80FAD200FAA1BF /* QuitButton.swift in Sources */,
 				E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */,
 				E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */,
 				E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */,

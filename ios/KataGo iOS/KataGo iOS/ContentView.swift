@@ -52,21 +52,7 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem {
                         HStack {
-                            Button(role: .destructive) {
-                                quitStatus = .quitting
-                                KataGoSendCommand("quit")
-                                Task {
-                                    // Wait until all messages are consumed.
-                                    try? await Task.sleep(for: .seconds(1))
-                                    // False the condition of consumer's loop.
-                                    quitStatus = .quitted
-                                    // An additional message to terminate the consumer.
-                                    KataGoHelper.sendMessage("\n")
-                                }
-                            } label: {
-                                Image(systemName: "rectangle.portrait.and.arrow.forward")
-                                    .foregroundStyle(.red)
-                            }
+                            QuitButton(quitStatus: $quitStatus)
                             PlusMenuView(gameRecord: navigationContext.selectedGameRecord, importing: $importing)
                         }
                         .id(toolbarUuid)
