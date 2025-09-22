@@ -49,7 +49,7 @@ struct StatusToolbarItems: View {
         Group {
 #if os(visionOS)
             // visionOS doesn't support glass button style
-            Button(action: backwardEndAction) {
+            Button(action: action) {
                 Image(systemName: systemImage)
                     .foregroundStyle(foregroundStyle)
             }
@@ -64,7 +64,7 @@ struct StatusToolbarItems: View {
                 .buttonStyle(.glass)
             } else {
                 // previous iOS and macOS do not support glass button style
-                Button(action: backwardEndAction) {
+                Button(action: action) {
                     Image(systemName: systemImage)
                         .foregroundStyle(foregroundStyle)
                 }
