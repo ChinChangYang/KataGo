@@ -48,6 +48,7 @@ struct LoadingView: View {
 
                 if let version {
                     Text("\nKataGo \(version)")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

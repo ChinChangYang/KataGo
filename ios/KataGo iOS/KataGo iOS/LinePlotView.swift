@@ -23,6 +23,7 @@ struct LinePlotView: View {
     @State var selectedMove: Int?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(GobanState.self) private var gobanState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var scoreLeadPoints: [Point] {
         if gobanState.eyeStatus == .closed {
@@ -95,6 +96,10 @@ struct LinePlotView: View {
         }
     }
 
+    var yAxisLabel: String {
+        dynamicTypeSize <= .large ? "Black Score Lead" : ""
+    }
+
     var chart: some View {
         let scoreLeadPoints = self.scoreLeadPoints
         let minYDomain = self.minYDomain(scoreLeadPoints: scoreLeadPoints)
@@ -139,7 +144,10 @@ struct LinePlotView: View {
         .chartXSelection(value: $selectedMove)
         .chartXScale(domain: 0...maxMove(scoreLeadPoints: scoreLeadPoints))
         .chartYScale(domain: minYDomain...maxYDomain)
-        .chartYAxisLabel("Black Score Lead")
+        .chartYAxisLabel(yAxisLabel)
+        .chartYAxis {
+            dynamicTypeSize <= .large ? AxisMarks() : nil
+        }
         .onAppear {
             // Upgrade old game record to support score leads
             if gameRecord.scoreLeads == nil {
@@ -173,4 +181,30 @@ struct LinePlotView: View {
             }
         }
     }
+}
+
+#Preview("LinePlotView minimal preview") {
+    struct PreviewHost: View {
+        let gobanState = GobanState()
+        let gameRecord: GameRecord = {
+            let gr = GameRecord(config: Config())
+            gr.currentIndex = 50
+            var leads: [Int: Float] = [:]
+            for i in 0...100 {
+                leads[i] = Float(sin(Double(i) / 10.0) * 10.0)
+            }
+            gr.scoreLeads = leads
+            return gr
+        }()
+
+        var body: some View {
+            LinePlotView(gameRecord: gameRecord)
+                .frame(height: 100)
+                .padding()
+                .environment(gobanState)
+        }
+    }
+
+    return PreviewHost()
+        .environment(\.dynamicTypeSize, .accessibility5)
 }

@@ -103,10 +103,10 @@ struct ModelDetailView: View {
                 .rotationEffect(.degrees(downloader.progress * 360))
 
             VStack(alignment: .leading) {
-                HStack {
-                    Text(model.title)
-                        .bold()
+                Text(model.title)
+                    .bold()
 
+                HStack {
                     Text(model.builtIn ? "" : model.fileSize.humanFileSize)
                         .foregroundStyle(.secondary)
 
@@ -192,7 +192,7 @@ struct ModelPickerView: View {
     return PreviewHost()
 }
 
-#Preview("Model Detail") {
+#Preview("Model Detail xSmall") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         var body: some View {
@@ -207,6 +207,25 @@ struct ModelPickerView: View {
     }
 
     return PreviewHost()
+        .environment(\.dynamicTypeSize, .xSmall)
+}
+
+#Preview("Model Detail accessibility5") {
+    struct PreviewHost: View {
+        @State private var selectedModel: NeuralNetworkModel? = nil
+        var body: some View {
+            ModelDetailView(
+                model: NeuralNetworkModel.allCases[1],
+                downloader: Downloader(
+                    destinationURL: NeuralNetworkModel.allCases[1].downloadedURL!
+                ),
+                selectedModel: $selectedModel
+            )
+        }
+    }
+
+    return PreviewHost()
+        .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 #Preview("Model Trash Button") {

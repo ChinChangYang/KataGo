@@ -150,6 +150,7 @@ struct StatusToolbarItems: View {
                 systemImage: "forward.end"
             )
         }
+        .dynamicTypeSize(...DynamicTypeSize.large)
     }
 
     func backwardEndAction() {
@@ -311,13 +312,30 @@ struct StatusToolbarItems: View {
         let gameRecord = GameRecord(config: Config())
 
         var body: some View {
-            StatusToolbarItems(gameRecord: gameRecord)
-                .environment(gobanState)
-                .environment(player)
-                .environment(board)
-                .environment(messageList)
-                .environment(branchState)
-                .environment(analysis)
+            VStack(alignment: .leading) {
+                Text("accessibility5:")
+
+                StatusToolbarItems(gameRecord: gameRecord)
+                    .environment(gobanState)
+                    .environment(player)
+                    .environment(board)
+                    .environment(messageList)
+                    .environment(branchState)
+                    .environment(analysis)
+                    .environment(\.dynamicTypeSize, .accessibility5)
+
+                Text("xSmall:")
+
+                StatusToolbarItems(gameRecord: gameRecord)
+                    .environment(gobanState)
+                    .environment(player)
+                    .environment(board)
+                    .environment(messageList)
+                    .environment(branchState)
+                    .environment(analysis)
+                    .environment(\.dynamicTypeSize, .xSmall)
+
+            }
         }
     }
 
