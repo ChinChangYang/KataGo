@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var isEditorPresented = false
     @State private var isInitialized = false
     @State private var gobanTab = GobanTab()
-    @State var toolbarUuid = UUID()
     @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
@@ -49,16 +48,10 @@ struct ContentView: View {
                              selectedGameRecord: $navigationContext.selectedGameRecord,
                              isGameListViewAppeared: $isGameListViewAppeared)
                 .toolbar {
-                    ToolbarItem {
-                        HStack {
-                            QuitButton(quitStatus: $quitStatus)
-                            PlusMenuView(gameRecord: navigationContext.selectedGameRecord)
-                        }
-                        .id(toolbarUuid)
-                    }
-                }
-                .onChange(of: horizontalSizeClass) { _, _ in
-                    toolbarUuid = UUID()
+                    GameListToolbar(
+                        gameRecord: navigationContext.selectedGameRecord,
+                        quitStatus: $quitStatus
+                    )
                 }
             } detail: {
                 GobanView(isEditorPresented: $isEditorPresented,
