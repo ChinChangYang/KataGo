@@ -40,16 +40,14 @@ struct AnalysisView: View {
 
     var ownerships: some View {
         return ForEach(analysis.ownershipUnits) { unit in
-            if unit.opacity > 0.1 {
-                Rectangle()
+            Rectangle()
 #if !os(macOS)
-                    .hoverEffect()
+                .hoverEffect()
 #endif
-                    .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
-                    .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
-                    .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
-            }
+                .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
+                .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
+                .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
         }
     }
 
