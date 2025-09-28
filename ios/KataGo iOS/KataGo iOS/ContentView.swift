@@ -603,13 +603,26 @@ struct ContentView: View {
             for x in 0..<width {
                 let point = BoardPoint(x: x, y: y)
                 let whiteness = (mean[i] + 1) / 2
-                let definiteness = computeDefiniteness(whiteness)
+                // digitize for performance
+                let digit: Float = 5
+                let digitizedWhiteness = (whiteness * digit).rounded() / digit
+                let digitizedStdev = (stdev[i] * digit).rounded() / digit
+                let definiteness = computeDefiniteness(digitizedWhiteness)
                 // Show a black or white square if definiteness is high and stdev is low
                 // Show nothing if definiteness is low and stdev is low
                 // Show a square with linear gradient of black and white if definiteness is low and stdev is high
-                let scale = max(definiteness, stdev[i]) * 0.65
+                let scale = max(definiteness, digitizedStdev) * 0.65
                 let opacity = computeOpacity(scale: scale)
-                ownershipUnits.append(OwnershipUnit(point: point, whiteness: whiteness, scale: scale, opacity: opacity))
+
+                ownershipUnits.append(
+                    OwnershipUnit(
+                        point: point,
+                        whiteness: digitizedWhiteness,
+                        scale: scale,
+                        opacity: opacity
+                    )
+                )
+
                 i = i + 1
             }
         }
