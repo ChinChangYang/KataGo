@@ -11,7 +11,6 @@ import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord
-    @State var toolbarUuid = UUID()
     @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     var maxBoardLength: Int
@@ -27,13 +26,7 @@ struct GobanItems: View {
             }
         }
         .toolbar {
-            ToolbarItem {
-                TopToolbarView(gameRecord: gameRecord)
-                    .id(toolbarUuid)
-            }
-        }
-        .onChange(of: horizontalSizeClass) { _, _ in
-            toolbarUuid = UUID()
+            TopToolbarView(gameRecord: gameRecord)
         }
     }
 }

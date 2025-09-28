@@ -16,10 +16,12 @@ struct GameListToolbar: ToolbarContent {
             PlusMenuView(gameRecord: gameRecord)
         }
 
+#if !os(visionOS)
         if #available(iOS 26.0, *),
            #available(macOS 26.0, *) {
             ToolbarSpacer()
         }
+#endif // !os(visionOS)
 
         ToolbarItem(id: "quit") {
             QuitButton(quitStatus: $quitStatus)

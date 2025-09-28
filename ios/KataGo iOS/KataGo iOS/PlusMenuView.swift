@@ -84,12 +84,17 @@ struct PlusMenuView: View {
                 }
             }
 
-            Button {
-                withAnimation {
-                    gobanTab.isCommandPresented = true
+            if let gameRecord {
+#if !os(visionOS)
+                Divider()
+#endif
+                Button {
+                    withAnimation {
+                        gobanTab.isCommandPresented = true
+                    }
+                } label: {
+                    Label("Developer Mode", systemImage: "doc.plaintext")
                 }
-            } label: {
-                Label("Developer Mode", systemImage: "doc.plaintext")
             }
         } label: {
             Image(systemName: "ellipsis.circle")
