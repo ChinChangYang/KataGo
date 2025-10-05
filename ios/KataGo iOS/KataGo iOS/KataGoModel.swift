@@ -507,6 +507,73 @@ class GobanState {
     func getCurrentIndex(gameRecord: GameRecord?) -> Int? {
         isBranchActive ? branchIndex : gameRecord?.currentIndex
     }
+
+    func backwardMoves(
+        limit: Int?,
+        gameRecord: GameRecord?,
+        messageList: MessageList,
+        player: Turn
+    ) {
+        guard let sgf = getSgf(gameRecord: gameRecord) else {
+            return
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
+        var movesExecuted = 0
+
+        while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
+            sgfHelper.getMove(at: currentIndex - 1) != nil {
+            undoIndex(gameRecord: gameRecord)
+            undo(messageList: messageList)
+            player.toggleNextColorForPlayCommand()
+
+            movesExecuted += 1
+            if let limit = limit, movesExecuted >= limit {
+                break
+            }
+        }
+    }
+
+    func forwardMoves(
+        limit: Int?,
+        gameRecord: GameRecord,
+        board: BoardSize,
+        messageList: MessageList,
+        player: Turn,
+        audioModel: AudioModel
+
+    ) {
+        guard let sgf = getSgf(gameRecord: gameRecord) else {
+            return
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
+        var movesExecuted = 0
+
+        while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
+              let nextMove = sgfHelper.getMove(at: currentIndex) {
+            if let move = board.locationToMove(location: nextMove.location) {
+                if isBranchActive {
+                    branchIndex += 1
+                } else {
+                    gameRecord.currentIndex += 1
+                }
+
+                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                play(turn: nextPlayer, move: move, messageList: messageList)
+                player.toggleNextColorForPlayCommand()
+
+                movesExecuted += 1
+                if let limit = limit, movesExecuted >= limit {
+                    break
+                }
+            }
+        }
+
+        if movesExecuted > 0 {
+            audioModel.playPlaySound(soundEffect: gameRecord.concreteConfig.soundEffect)
+        }
+    }
 }
 
 @Observable

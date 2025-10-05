@@ -163,29 +163,14 @@ struct StatusToolbarItems: View {
     private func maybeBackwardAction(limit: Int?) {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
         if isFunctional {
-            backwardMoves(limit: limit)
+            gobanState.backwardMoves(
+                limit: limit,
+                gameRecord: gameRecord,
+                messageList: messageList,
+                player: player
+            )
+
             gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
-        }
-    }
-
-    private func backwardMoves(limit: Int?) {
-        guard let sgf = gobanState.getSgf(gameRecord: gameRecord) else {
-            return
-        }
-
-        let sgfHelper = SgfHelper(sgf: sgf)
-        var movesExecuted = 0
-
-        while let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord),
-            sgfHelper.getMove(at: currentIndex - 1) != nil {
-            gobanState.undoIndex(gameRecord: gameRecord)
-            gobanState.undo(messageList: messageList)
-            player.toggleNextColorForPlayCommand()
-
-            movesExecuted += 1
-            if let limit = limit, movesExecuted >= limit {
-                break
-            }
         }
     }
 
@@ -252,45 +237,20 @@ struct StatusToolbarItems: View {
     private func maybeForwardMoves(limit: Int?) {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
         if isFunctional {
-            forwardMoves(limit: limit)
-        }
-    }
+            gobanState.forwardMoves(
+                limit: limit,
+                gameRecord: gameRecord,
+                board: board,
+                messageList: messageList,
+                player: player,
+                audioModel: audioModel
+            )
 
-    private func forwardMoves(limit: Int?) {
-        guard let sgf = gobanState.getSgf(gameRecord: gameRecord) else {
-            return
-        }
-
-        let sgfHelper = SgfHelper(sgf: sgf)
-        var movesExecuted = 0
-
-        while let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord),
-              let nextMove = sgfHelper.getMove(at: currentIndex) {
-            if let move = board.locationToMove(location: nextMove.location) {
-                updateCurrentIndex()
-                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                gobanState.play(turn: nextPlayer, move: move, messageList: messageList)
-                player.toggleNextColorForPlayCommand()
-
-                movesExecuted += 1
-                if let limit = limit, movesExecuted >= limit {
-                    break
-                }
-            }
-        }
-
-        if movesExecuted > 0 {
-            audioModel.playPlaySound(soundEffect: config.soundEffect)
-        }
-
-        gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
-    }
-
-    private func updateCurrentIndex() {
-        if gobanState.isBranchActive {
-            gobanState.branchIndex += 1
-        } else {
-            gameRecord.currentIndex += 1
+            gobanState.sendPostExecutionCommands(
+                config: config,
+                messageList: messageList,
+                player: player
+            )
         }
     }
 }
