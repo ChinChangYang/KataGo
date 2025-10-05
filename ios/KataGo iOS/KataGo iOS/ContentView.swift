@@ -30,7 +30,6 @@ struct ContentView: View {
     @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
-    @State var branchState = BranchState()
     @State var version: String?
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
@@ -68,7 +67,6 @@ struct ContentView: View {
             .environment(rootScore)
             .environment(navigationContext)
             .environment(gobanTab)
-            .environment(branchState)
             .environment(thumbnailModel)
             .environment(audioModel)
             .environment(topUIState)
@@ -92,7 +90,7 @@ struct ContentView: View {
             .onChange(of: scenePhase) { _, newScenePhase in
                 processChange(newScenePhase: newScenePhase)
             }
-            .onChange(of: branchState.sgf) { oldBranchStateSgf, newBranchStateSgf in
+            .onChange(of: gobanState.branchSgf) { oldBranchStateSgf, newBranchStateSgf in
                 processChange(oldBranchStateSgf: oldBranchStateSgf,
                               newBranchStateSgf: newBranchStateSgf)
             }
@@ -138,7 +136,7 @@ struct ContentView: View {
            let gameRecord = navigationContext.selectedGameRecord {
             gobanState.analysisStatus = .pause
             gobanState.eyeStatus = .opened
-            branchState.deactivate()
+            gobanState.deactivateBranch()
 
             let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
             while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
@@ -269,7 +267,7 @@ struct ContentView: View {
         gobanTab.isConfigPresented = false
         gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
-        branchState.deactivate()
+        gobanState.deactivateBranch()
         if let newGameRecord {
             gobanState.isAutoPlaying = false
             if newGameRecord.sgf == GameRecord.defaultSgf {
@@ -438,8 +436,8 @@ struct ContentView: View {
     }
 
     func maybeLoadSgf() {
-        if branchState.isActive {
-            messageList.maybeLoadSgf(sgf: branchState.sgf)
+        if gobanState.isBranchActive {
+            messageList.maybeLoadSgf(sgf: gobanState.branchSgf)
         } else if let gameRecord = navigationContext.selectedGameRecord {
             messageList.maybeLoadSgf(sgf: gameRecord.sgf)
         }
@@ -801,9 +799,9 @@ struct ContentView: View {
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
                     gobanState.isEditing = true
-                } else if branchState.isActive {
-                    branchState.sgf = sgfString
-                    branchState.currentIndex = currentIndex
+                } else if gobanState.isBranchActive {
+                    gobanState.branchSgf = sgfString
+                    gobanState.branchIndex = currentIndex
                 } else if let gameRecord = navigationContext.selectedGameRecord {
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex
@@ -823,9 +821,9 @@ struct ContentView: View {
                     gameRecord.clearComments(after: gameRecord.currentIndex)
                     gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
                     gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-                } else if !branchState.isActive {
-                    branchState.sgf = gameRecord.sgf
-                    branchState.currentIndex = gameRecord.currentIndex
+                } else if !gobanState.isBranchActive {
+                    gobanState.branchSgf = gameRecord.sgf
+                    gobanState.branchIndex = gameRecord.currentIndex
                 }
 
                 gobanState.play(turn: turn, move: String(move), messageList: messageList)

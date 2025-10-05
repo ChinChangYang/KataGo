@@ -15,7 +15,6 @@ struct StatusToolbarItems: View {
     @Environment(GobanState.self) var gobanState
     @Environment(BoardSize.self) var board
     @Environment(MessageList.self) var messageList
-    @Environment(BranchState.self) var branchState
     @Environment(Analysis.self) var analysis
     var gameRecord: GameRecord
 
@@ -170,12 +169,12 @@ struct StatusToolbarItems: View {
     }
 
     private func backwardMoves(limit: Int?) {
-        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
+        let sgfHelper = SgfHelper(sgf: gobanState.isBranchActive ? gobanState.branchSgf : gameRecord.sgf)
         var movesExecuted = 0
 
-        while sgfHelper.getMove(at: (branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex) - 1) != nil {
-            if branchState.isActive {
-                branchState.undo()
+        while sgfHelper.getMove(at: (gobanState.isBranchActive ? gobanState.branchIndex : gameRecord.currentIndex) - 1) != nil {
+            if gobanState.isBranchActive {
+                gobanState.undoBranchIndex()
             } else {
                 gameRecord.undo()
             }
@@ -193,8 +192,8 @@ struct StatusToolbarItems: View {
     func backwardFrameAction() {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
         if isFunctional {
-            if branchState.isActive {
-                branchState.undo()
+            if gobanState.isBranchActive {
+                gobanState.undoBranchIndex()
             } else {
                 gameRecord.undo()
             }
@@ -263,7 +262,7 @@ struct StatusToolbarItems: View {
     }
 
     private func forwardMoves(limit: Int?) {
-        let sgfHelper = SgfHelper(sgf: branchState.isActive ? branchState.sgf : gameRecord.sgf)
+        let sgfHelper = SgfHelper(sgf: gobanState.isBranchActive ? gobanState.branchSgf : gameRecord.sgf)
         var movesExecuted = 0
 
         while let nextMove = sgfHelper.getMove(at: currentIndex) {
@@ -288,12 +287,12 @@ struct StatusToolbarItems: View {
     }
 
     private var currentIndex: Int {
-        branchState.isActive ? branchState.currentIndex : gameRecord.currentIndex
+        gobanState.isBranchActive ? gobanState.branchIndex : gameRecord.currentIndex
     }
 
     private func updateCurrentIndex() {
-        if branchState.isActive {
-            branchState.currentIndex += 1
+        if gobanState.isBranchActive {
+            gobanState.branchIndex += 1
         } else {
             gameRecord.currentIndex += 1
         }
@@ -307,7 +306,6 @@ struct StatusToolbarItems: View {
         let player = Turn()
         let board = BoardSize()
         let messageList = MessageList()
-        let branchState = BranchState()
         let analysis = Analysis()
         let gameRecord = GameRecord(config: Config())
 
@@ -320,7 +318,6 @@ struct StatusToolbarItems: View {
                     .environment(player)
                     .environment(board)
                     .environment(messageList)
-                    .environment(branchState)
                     .environment(analysis)
                     .environment(\.dynamicTypeSize, .accessibility5)
 
@@ -331,7 +328,6 @@ struct StatusToolbarItems: View {
                     .environment(player)
                     .environment(board)
                     .environment(messageList)
-                    .environment(branchState)
                     .environment(analysis)
                     .environment(\.dynamicTypeSize, .xSmall)
 

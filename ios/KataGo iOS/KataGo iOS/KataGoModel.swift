@@ -318,33 +318,6 @@ extension Int {
     }
 }
 
-@Observable
-class BranchState {
-    var sgf: String
-    var currentIndex: Int
-
-    var isActive: Bool {
-        return (sgf.isActiveSgf) && (currentIndex.isActiveSgfIndex)
-    }
-
-    init(sgf: String = .inActiveSgf,
-         currentIndex: Int = .inActiveCurrentIndex) {
-        self.sgf = sgf
-        self.currentIndex = currentIndex
-    }
-
-    func deactivate() {
-        sgf = .inActiveSgf
-        currentIndex = .inActiveCurrentIndex
-    }
-
-    func undo() {
-        if (currentIndex > 0) {
-            currentIndex = currentIndex - 1
-        }
-    }
-}
-
 enum EyeStatus {
     case opened
     case closed
@@ -361,6 +334,8 @@ class GobanState {
     var eyeStatus = EyeStatus.opened
     var isAutoPlaying: Bool = false
     var passCount: Int = 0
+    var branchSgf: String = .inActiveSgf
+    var branchIndex: Int = .inActiveCurrentIndex
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -499,6 +474,21 @@ class GobanState {
 
         if passCount > 0 {
             passCount = passCount - 1
+        }
+    }
+
+    var isBranchActive: Bool {
+        return (branchSgf.isActiveSgf) && (branchIndex.isActiveSgfIndex)
+    }
+
+    func deactivateBranch() {
+        branchSgf = .inActiveSgf
+        branchIndex = .inActiveCurrentIndex
+    }
+
+    func undoBranchIndex() {
+        if (branchIndex > 0) {
+            branchIndex = branchIndex - 1
         }
     }
 }

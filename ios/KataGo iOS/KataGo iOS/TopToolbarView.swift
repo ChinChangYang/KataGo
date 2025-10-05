@@ -13,7 +13,6 @@ struct TopToolbarView: ToolbarContent {
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanTab.self) var gobanTab
-    @Environment(BranchState.self) var branchState
     @Environment(GobanState.self) var gobanState
     @Environment(Turn.self) var player
 
@@ -41,7 +40,7 @@ struct TopToolbarView: ToolbarContent {
                 }
             }
         } else {
-            if !branchState.isActive {
+            if !gobanState.isBranchActive {
                 if gobanState.isEditing {
                     ToolbarItem(id: "gearshape") {
                         Button {
@@ -98,7 +97,7 @@ struct TopToolbarView: ToolbarContent {
                 ToolbarItem(id: "arrow.uturn.backward.circle") {
                     Button {
                         if !gobanState.shouldGenMove(config: config, player: player) {
-                            branchState.deactivate()
+                            gobanState.deactivateBranch()
                         }
                     } label: {
                         if !gobanState.shouldGenMove(config: config, player: player) {
@@ -124,7 +123,6 @@ struct TopToolbarView: ToolbarContent {
     }
     .environment(NavigationContext())
     .environment(GobanTab())
-    .environment(BranchState())
     .environment(GobanState())
     .environment(Turn())
     .environment(ThumbnailModel())
@@ -142,25 +140,7 @@ struct TopToolbarView: ToolbarContent {
     }
     .environment(NavigationContext())
     .environment(GobanTab())
-    .environment(BranchState())
     .environment(gobanState)
-    .environment(Turn())
-    .environment(ThumbnailModel())
-    .environment(TopUIState())
-}
-
-#Preview("Branch Active") {
-    let branchState = BranchState(sgf: ";FF[4]GM[1]SZ[19]", currentIndex: 0)
-    return NavigationStack {
-        Text("Toolbar Preview - Branch Active")
-            .toolbar {
-                TopToolbarView(gameRecord: GameRecord(config: Config()))
-            }
-    }
-    .environment(NavigationContext())
-    .environment(GobanTab())
-    .environment(branchState)
-    .environment(GobanState())
     .environment(Turn())
     .environment(ThumbnailModel())
     .environment(TopUIState())

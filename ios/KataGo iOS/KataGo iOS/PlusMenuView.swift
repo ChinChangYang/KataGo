@@ -84,7 +84,7 @@ struct PlusMenuView: View {
                 }
             }
 
-            if let gameRecord {
+            if gameRecord != nil {
 #if !os(visionOS)
                 Divider()
 #endif
