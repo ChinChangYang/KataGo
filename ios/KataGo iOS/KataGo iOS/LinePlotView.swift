@@ -24,6 +24,9 @@ struct LinePlotView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(GobanState.self) private var gobanState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(BoardSize.self) var board
+    @Environment(MessageList.self) var messageList
+    @Environment(Turn.self) var player
 
     var scoreLeadPoints: [Point] {
         if gobanState.eyeStatus == .closed {
@@ -158,6 +161,18 @@ struct LinePlotView: View {
             // Upgrade old game record to support score leads
             if gameRecord.scoreLeads == nil {
                 gameRecord.scoreLeads = [:]
+            }
+        }
+        .onChange(of: selectedMove) { _, newSelectedMove in
+            if let newSelectedMove {
+                gobanState.go(
+                    to: newSelectedMove,
+                    gameRecord: gameRecord,
+                    board: board,
+                    messageList: messageList,
+                    player: player,
+                    audioModel: nil
+                )
             }
         }
     }

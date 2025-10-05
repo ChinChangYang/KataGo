@@ -510,7 +510,7 @@ class GobanState {
 
     func backwardMoves(
         limit: Int?,
-        gameRecord: GameRecord?,
+        gameRecord: GameRecord,
         messageList: MessageList,
         player: Turn
     ) {
@@ -532,6 +532,11 @@ class GobanState {
                 break
             }
         }
+
+        sendPostExecutionCommands(
+            config: gameRecord.concreteConfig,
+            messageList: messageList,
+            player: player)
     }
 
     func forwardMoves(
@@ -540,7 +545,7 @@ class GobanState {
         board: BoardSize,
         messageList: MessageList,
         player: Turn,
-        audioModel: AudioModel
+        audioModel: AudioModel?
 
     ) {
         guard let sgf = getSgf(gameRecord: gameRecord) else {
@@ -571,7 +576,47 @@ class GobanState {
         }
 
         if movesExecuted > 0 {
-            audioModel.playPlaySound(soundEffect: gameRecord.concreteConfig.soundEffect)
+            audioModel?.playPlaySound(soundEffect: gameRecord.concreteConfig.soundEffect)
+        }
+
+        sendPostExecutionCommands(
+            config: gameRecord.concreteConfig,
+            messageList: messageList,
+            player: player)
+    }
+
+    func go(to targetIndex: Int,
+            gameRecord: GameRecord,
+            board: BoardSize,
+            messageList: MessageList,
+            player: Turn,
+            audioModel: AudioModel?
+    ) {
+        guard let currentIndex = getCurrentIndex(gameRecord: gameRecord),
+        currentIndex != targetIndex else {
+            return
+        }
+
+        if targetIndex < currentIndex {
+            let limit = currentIndex - targetIndex
+
+            backwardMoves(
+                limit: limit,
+                gameRecord: gameRecord,
+                messageList: messageList,
+                player: player
+            )
+        } else {
+            let limit = targetIndex - currentIndex
+
+            forwardMoves(
+                limit: limit,
+                gameRecord: gameRecord,
+                board: board,
+                messageList: messageList,
+                player: player,
+                audioModel: audioModel
+            )
         }
     }
 }

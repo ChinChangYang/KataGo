@@ -169,8 +169,6 @@ struct StatusToolbarItems: View {
                 messageList: messageList,
                 player: player
             )
-
-            gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
         }
     }
 
@@ -244,12 +242,6 @@ struct StatusToolbarItems: View {
                 messageList: messageList,
                 player: player,
                 audioModel: audioModel
-            )
-
-            gobanState.sendPostExecutionCommands(
-                config: config,
-                messageList: messageList,
-                player: player
             )
         }
     }
