@@ -169,16 +169,16 @@ struct StatusToolbarItems: View {
     }
 
     private func backwardMoves(limit: Int?) {
-        let sgfHelper = SgfHelper(sgf: gobanState.isBranchActive ? gobanState.branchSgf : gameRecord.sgf)
+        guard let sgf = gobanState.getSgf(gameRecord: gameRecord) else {
+            return
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
         var movesExecuted = 0
 
-        while sgfHelper.getMove(at: (gobanState.isBranchActive ? gobanState.branchIndex : gameRecord.currentIndex) - 1) != nil {
-            if gobanState.isBranchActive {
-                gobanState.undoBranchIndex()
-            } else {
-                gameRecord.undo()
-            }
-
+        while let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord),
+            sgfHelper.getMove(at: currentIndex - 1) != nil {
+            gobanState.undoIndex(gameRecord: gameRecord)
             gobanState.undo(messageList: messageList)
             player.toggleNextColorForPlayCommand()
 
@@ -192,12 +192,7 @@ struct StatusToolbarItems: View {
     func backwardFrameAction() {
         gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
         if isFunctional {
-            if gobanState.isBranchActive {
-                gobanState.undoBranchIndex()
-            } else {
-                gameRecord.undo()
-            }
-
+            gobanState.undoIndex(gameRecord: gameRecord)
             gobanState.undo(messageList: messageList)
             player.toggleNextColorForPlayCommand()
             gobanState.sendShowBoardCommand(messageList: messageList)
@@ -262,10 +257,15 @@ struct StatusToolbarItems: View {
     }
 
     private func forwardMoves(limit: Int?) {
-        let sgfHelper = SgfHelper(sgf: gobanState.isBranchActive ? gobanState.branchSgf : gameRecord.sgf)
+        guard let sgf = gobanState.getSgf(gameRecord: gameRecord) else {
+            return
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
         var movesExecuted = 0
 
-        while let nextMove = sgfHelper.getMove(at: currentIndex) {
+        while let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord),
+              let nextMove = sgfHelper.getMove(at: currentIndex) {
             if let move = board.locationToMove(location: nextMove.location) {
                 updateCurrentIndex()
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
@@ -284,10 +284,6 @@ struct StatusToolbarItems: View {
         }
 
         gobanState.sendPostExecutionCommands(config: config, messageList: messageList, player: player)
-    }
-
-    private var currentIndex: Int {
-        gobanState.isBranchActive ? gobanState.branchIndex : gameRecord.currentIndex
     }
 
     private func updateCurrentIndex() {

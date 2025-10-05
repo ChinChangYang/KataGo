@@ -491,6 +491,22 @@ class GobanState {
             branchIndex = branchIndex - 1
         }
     }
+
+    func undoIndex(gameRecord: GameRecord?) {
+        if isBranchActive {
+            undoBranchIndex()
+        } else {
+            gameRecord?.undo()
+        }
+    }
+
+    func getSgf(gameRecord: GameRecord?) -> String? {
+        isBranchActive ? branchSgf : gameRecord?.sgf
+    }
+
+    func getCurrentIndex(gameRecord: GameRecord?) -> Int? {
+        isBranchActive ? branchIndex : gameRecord?.currentIndex
+    }
 }
 
 @Observable

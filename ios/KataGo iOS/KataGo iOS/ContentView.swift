@@ -436,10 +436,8 @@ struct ContentView: View {
     }
 
     func maybeLoadSgf() {
-        if gobanState.isBranchActive {
-            messageList.maybeLoadSgf(sgf: gobanState.branchSgf)
-        } else if let gameRecord = navigationContext.selectedGameRecord {
-            messageList.maybeLoadSgf(sgf: gameRecord.sgf)
+        if let sgf = gobanState.getSgf(gameRecord: navigationContext.selectedGameRecord) {
+            messageList.maybeLoadSgf(sgf: sgf)
         }
     }
 
