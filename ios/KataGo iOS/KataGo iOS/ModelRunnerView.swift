@@ -11,6 +11,7 @@ import KataGoInterface
 struct ModelRunnerView: View {
     @State private var selectedModel: NeuralNetworkModel? = nil
     @State private var katagoThread: Thread?
+    @AppStorage("ModelRunnerView.selectedModelTitle") private var selectedModelTitle = ""
 
     var body: some View {
         Group {
@@ -20,8 +21,17 @@ struct ModelRunnerView: View {
                 ModelPickerView(selectedModel: $selectedModel)
             }
         }
+        .onAppear {
+            if !selectedModelTitle.isEmpty {
+                selectedModel = NeuralNetworkModel.allCases.first(
+                    where: { $0.title == selectedModelTitle }
+                )
+            }
+        }
         .onChange(of: selectedModel) { _, _ in
             if let selectedModel {
+                selectedModelTitle = selectedModel.title
+
                 if selectedModel.builtIn {
                     // Start KataGo with the built-in model
                     startKataGoThread(coremlModelPath: selectedModel.url,
