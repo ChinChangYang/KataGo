@@ -23,9 +23,11 @@ struct ModelRunnerView: View {
         }
         .onAppear {
             if !selectedModelTitle.isEmpty {
+#if !DEBUG
                 selectedModel = NeuralNetworkModel.allCases.first(
                     where: { $0.title == selectedModelTitle }
                 )
+#endif
             }
         }
         .onChange(of: selectedModel) { _, _ in

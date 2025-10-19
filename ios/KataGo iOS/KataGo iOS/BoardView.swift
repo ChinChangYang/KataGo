@@ -19,6 +19,8 @@ struct BoardView: View {
     @Environment(Analysis.self) var analysis
     var gameRecord: GameRecord
     @FocusState<Bool>.Binding var commentIsFocused: Bool
+    @State private var confirmingOverwrite: Bool = false
+    @State private var gestureLocation: CGPoint?
 
     var config: Config {
         gameRecord.concreteConfig
@@ -53,6 +55,8 @@ struct BoardView: View {
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
+                    gestureLocation = location
+
                     if stones.isReady && !gobanState.isAutoPlaying,
                        let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
@@ -60,26 +64,40 @@ struct BoardView: View {
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
                        !gobanState.shouldGenMove(config: config, player: player) {
-                        stones.isReady = false
-                        if gobanState.isEditing {
-                            gameRecord.clearComments(after: gameRecord.currentIndex)
-                            gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
-                            gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-                        } else if !gobanState.isBranchActive {
-                            gobanState.branchSgf = gameRecord.sgf
-                            gobanState.branchIndex = gameRecord.currentIndex
+
+                        if gobanState.isOverwriting(gameRecord: gameRecord) {
+                            confirmingOverwrite = true
+                        } else {
+                            processGesureLocation(
+                                location: location,
+                                dimensions: dimensions,
+                                turn: turn,
+                                move: move
+                            )
                         }
+                    }
+                }
+                .confirmationDialog(
+                    "Are you sure you want to overwrite this move?",
+                    isPresented: $confirmingOverwrite,
+                    titleVisibility: .visible
+                ) {
+                    Button("Overwite", role: .destructive) {
+                        if let gestureLocation,
+                           let coordinate = locationToCoordinate(location: gestureLocation, dimensions: dimensions),
+                           let move = coordinate.move,
+                           let turn = player.nextColorSymbolForPlayCommand {
+                            processGesureLocation(
+                                location: gestureLocation,
+                                dimensions: dimensions,
+                                turn: turn,
+                                move: move
+                            )
+                        }
+                    }
 
-                        gobanState.play(
-                            turn: turn,
-                            move: move,
-                            messageList: messageList
-                        )
-
-                        player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand(messageList: messageList)
-                        messageList.appendAndSend(command: "printsgf")
-                        audioModel.playPlaySound(soundEffect: config.soundEffect)
+                    Button("Cancel", role: .cancel) {
+                        confirmingOverwrite = false
                     }
                 }
             }
@@ -119,6 +137,34 @@ struct BoardView: View {
                 gobanState.maybePauseAnalysis()
             }
         }
+    }
+
+    func processGesureLocation(
+        location: CGPoint,
+        dimensions: Dimensions,
+        turn: String,
+        move: String
+    ) {
+        stones.isReady = false
+        if gobanState.isEditing {
+            gameRecord.clearComments(after: gameRecord.currentIndex)
+            gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
+            gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+        } else if !gobanState.isBranchActive {
+            gobanState.branchSgf = gameRecord.sgf
+            gobanState.branchIndex = gameRecord.currentIndex
+        }
+
+        gobanState.play(
+            turn: turn,
+            move: move,
+            messageList: messageList
+        )
+
+        player.toggleNextColorForPlayCommand()
+        gobanState.sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
+        audioModel.playPlaySound(soundEffect: config.soundEffect)
     }
 
     func locationToCoordinate(location: CGPoint, dimensions: Dimensions) -> Coordinate? {

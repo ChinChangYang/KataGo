@@ -619,6 +619,16 @@ class GobanState {
             )
         }
     }
+
+    func isOverwriting(gameRecord: GameRecord) -> Bool {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let moveSize = SgfHelper(sgf: sgf).moveSize,
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
+            return false
+        }
+
+        return currentIndex < moveSize
+    }
 }
 
 @Observable
