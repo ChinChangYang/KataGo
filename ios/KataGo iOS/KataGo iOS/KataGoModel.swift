@@ -627,7 +627,7 @@ class GobanState {
             return false
         }
 
-        return currentIndex < moveSize
+        return (currentIndex < moveSize) && (isEditing || isBranchActive)
     }
 }
 
