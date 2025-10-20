@@ -56,6 +56,26 @@ struct ContentView: View {
                 GobanView(isEditorPresented: $isEditorPresented,
                           maxBoardLength: selectedModel.nnLen,
                           columnVisibility: $columnVisibility)
+                .confirmationDialog(
+                    "Do you allow AI overwriting this move?",
+                    isPresented: $gobanState.confirmingAIOverwrite,
+                    titleVisibility: .visible
+                ) {
+                    Button("Overwrite", role: .destructive) {
+                        if let gameRecord = navigationContext.selectedGameRecord {
+                            gobanState.requestAnalysis(
+                                config: gameRecord.concreteConfig,
+                                messageList: messageList,
+                                nextColorForPlayCommand: player.nextColorForPlayCommand
+                            )
+                        }
+                    }
+
+                    Button("Cancel", role: .cancel) {
+                        gobanState.confirmingAIOverwrite = false
+                        gobanState.analysisStatus = .clear
+                    }
+                }
             }
             .environment(stones)
             .environment(messageList)
@@ -150,9 +170,12 @@ struct ContentView: View {
                 messageList.appendAndSend(commands: humanSLModel.commands)
             }
 
-            gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
-                                                 messageList: messageList,
-                                                 player: player)
+            gobanState.sendPostExecutionCommands(
+                config: gameRecord.concreteConfig,
+                messageList: messageList,
+                player: player,
+                gameRecord: gameRecord
+            )
         } else {
             autoPlayTimer?.invalidate()
             gobanState.analysisStatus = .clear

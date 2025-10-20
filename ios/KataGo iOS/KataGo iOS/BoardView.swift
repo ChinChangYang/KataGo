@@ -106,9 +106,11 @@ struct BoardView: View {
                 gobanState.sendShowBoardCommand(messageList: messageList)
             }
             .onChange(of: config.maxAnalysisMoves) { _, _ in
-                gobanState.maybeRequestAnalysis(config: config,
-                                                nextColorForPlayCommand: player.nextColorForPlayCommand,
-                                                messageList: messageList)
+                gobanState.maybeRequestAnalysis(
+                    config: config,
+                    nextColorForPlayCommand: player.nextColorForPlayCommand,
+                    messageList: messageList,
+                    gameRecord: gameRecord)
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
@@ -116,9 +118,11 @@ struct BoardView: View {
                                                                         config: config,
                                                                         messageList: messageList)
 
-                    gobanState.maybeRequestAnalysis(config: config,
-                                                    nextColorForPlayCommand: newValue,
-                                                    messageList: messageList)
+                    gobanState.maybeRequestAnalysis(
+                        config: config,
+                        nextColorForPlayCommand: newValue,
+                        messageList: messageList,
+                        gameRecord: gameRecord)
 
                     gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
                 }

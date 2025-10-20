@@ -336,6 +336,14 @@ class GobanState {
     var passCount: Int = 0
     var branchSgf: String = .inActiveSgf
     var branchIndex: Int = .inActiveCurrentIndex
+    var confirmingAIOverwrite: Bool = false
+
+    func isAItoPlay(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
+        (!isAutoPlaying) &&
+        (passCount < 2) &&
+        ((nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) ||
+         ((nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0)))
+    }
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -368,22 +376,45 @@ class GobanState {
         }
     }
 
-    private func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
+    func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
         let commands = getRequestAnalysisCommands(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
         messageList.appendAndSend(commands: commands)
         waitingForAnalysis = true
     }
 
-    func maybeRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?, messageList: MessageList) {
+    func maybeRequestAnalysis(
+        config: Config,
+        nextColorForPlayCommand: PlayerColor?,
+        messageList: MessageList,
+        gameRecord: GameRecord
+    ) {
         if (shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)) {
-            requestAnalysis(config: config,
-                            messageList: messageList,
-                            nextColorForPlayCommand: nextColorForPlayCommand)
+
+            let isAItoPlay = self.isAItoPlay(
+                config: config,
+                nextColorForPlayCommand: nextColorForPlayCommand
+            )
+
+            if isAItoPlay && isOverwriting(gameRecord: gameRecord) {
+                confirmingAIOverwrite = true
+            } else {
+                requestAnalysis(config: config,
+                                messageList: messageList,
+                                nextColorForPlayCommand: nextColorForPlayCommand)
+            }
         }
     }
 
-    func maybeRequestAnalysis(config: Config, messageList: MessageList) {
-        return maybeRequestAnalysis(config: config, nextColorForPlayCommand: nil, messageList: messageList)
+    func maybeRequestAnalysis(
+        config: Config,
+        messageList: MessageList,
+        gameRecord: GameRecord
+    ) {
+        return maybeRequestAnalysis(
+            config: config,
+            nextColorForPlayCommand: nil,
+            messageList: messageList,
+            gameRecord: gameRecord)
     }
 
     func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
@@ -425,12 +456,20 @@ class GobanState {
         }
     }
 
-    func sendPostExecutionCommands(config: Config, messageList: MessageList, player: Turn) {
+    func sendPostExecutionCommands(
+        config: Config,
+        messageList: MessageList,
+        player: Turn,
+        gameRecord: GameRecord
+    ) {
         sendShowBoardCommand(messageList: messageList)
 
-        maybeRequestAnalysis(config: config,
-                             nextColorForPlayCommand: player.nextColorForPlayCommand,
-                             messageList: messageList)
+        maybeRequestAnalysis(
+            config: config,
+            nextColorForPlayCommand: player.nextColorForPlayCommand,
+            messageList: messageList,
+            gameRecord: gameRecord
+        )
 
         maybeRequestClearAnalysisData(config: config,
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
@@ -536,7 +575,9 @@ class GobanState {
         sendPostExecutionCommands(
             config: gameRecord.concreteConfig,
             messageList: messageList,
-            player: player)
+            player: player,
+            gameRecord: gameRecord
+        )
     }
 
     func forwardMoves(
@@ -582,7 +623,9 @@ class GobanState {
         sendPostExecutionCommands(
             config: gameRecord.concreteConfig,
             messageList: messageList,
-            player: player)
+            player: player,
+            gameRecord: gameRecord
+        )
     }
 
     func go(to targetIndex: Int,

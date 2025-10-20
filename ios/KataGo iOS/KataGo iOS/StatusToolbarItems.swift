@@ -184,9 +184,13 @@ struct StatusToolbarItems: View {
 
     func startAnalysisAction() {
         gobanState.analysisStatus = .run
-        gobanState.maybeRequestAnalysis(config: config,
-                                        nextColorForPlayCommand: player.nextColorForPlayCommand,
-                                        messageList: messageList)
+
+        gobanState.maybeRequestAnalysis(
+            config: config,
+            nextColorForPlayCommand: player.nextColorForPlayCommand,
+            messageList: messageList,
+            gameRecord: gameRecord
+        )
     }
 
     func pauseAnalysisAction() {
