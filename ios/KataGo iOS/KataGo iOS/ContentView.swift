@@ -37,6 +37,7 @@ struct ContentView: View {
     @State var autoPlayTimer: Timer? = nil
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var topUIState = TopUIState()
+    @State var aiMove: String? = nil
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
     let selectedModel: NeuralNetworkModel
 
@@ -62,12 +63,9 @@ struct ContentView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Overwrite", role: .destructive) {
-                        if let gameRecord = navigationContext.selectedGameRecord {
-                            gobanState.requestAnalysis(
-                                config: gameRecord.concreteConfig,
-                                messageList: messageList,
-                                nextColorForPlayCommand: player.nextColorForPlayCommand
-                            )
+                        if let gameRecord = navigationContext.selectedGameRecord,
+                           let turn = player.nextColorSymbolForPlayCommand {
+                            playAIMove(gameRecord: gameRecord, turn: turn)
                         }
                     }
 
@@ -835,26 +833,37 @@ struct ContentView: View {
     func postProcessAIMove(message: String) {
         let pattern = /play (pass|\w+\d+)/
         if let match = message.firstMatch(of: pattern),
-            let turn = player.nextColorSymbolForPlayCommand {
-            let move = match.1
+           let turn = player.nextColorSymbolForPlayCommand {
+            let move = String(match.1)
+            aiMove = move
             if let gameRecord = navigationContext.selectedGameRecord {
-                if gobanState.isEditing {
-                    gameRecord.clearComments(after: gameRecord.currentIndex)
-                    gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
-                    gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
-                } else if !gobanState.isBranchActive {
-                    gobanState.branchSgf = gameRecord.sgf
-                    gobanState.branchIndex = gameRecord.currentIndex
-                }
-
-                gobanState.play(turn: turn, move: String(move), messageList: messageList)
-                player.toggleNextColorForPlayCommand()
-                gobanState.sendShowBoardCommand(messageList: messageList)
-                messageList.appendAndSend(command: "printsgf")
-                if let config = gameRecord.config {
-                    audioModel.playPlaySound(soundEffect: config.soundEffect)
+                if gobanState.isOverwriting(gameRecord: gameRecord) {
+                    gobanState.confirmingAIOverwrite = true
+                } else {
+                    playAIMove(gameRecord: gameRecord, turn: turn)
                 }
             }
+        }
+    }
+
+    func playAIMove(gameRecord: GameRecord, turn: String) {
+        guard let aiMove = aiMove else { return }
+
+        if gobanState.isEditing {
+            gameRecord.clearComments(after: gameRecord.currentIndex)
+            gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
+            gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+        } else if !gobanState.isBranchActive {
+            gobanState.branchSgf = gameRecord.sgf
+            gobanState.branchIndex = gameRecord.currentIndex
+        }
+
+        gobanState.play(turn: turn, move: aiMove, messageList: messageList)
+        player.toggleNextColorForPlayCommand()
+        gobanState.sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
+        if let config = gameRecord.config {
+            audioModel.playPlaySound(soundEffect: config.soundEffect)
         }
     }
 

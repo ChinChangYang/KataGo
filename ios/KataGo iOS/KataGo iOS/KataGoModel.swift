@@ -389,19 +389,9 @@ class GobanState {
         gameRecord: GameRecord
     ) {
         if (shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)) {
-
-            let isAItoPlay = self.isAItoPlay(
-                config: config,
-                nextColorForPlayCommand: nextColorForPlayCommand
-            )
-
-            if isAItoPlay && isOverwriting(gameRecord: gameRecord) {
-                confirmingAIOverwrite = true
-            } else {
-                requestAnalysis(config: config,
-                                messageList: messageList,
-                                nextColorForPlayCommand: nextColorForPlayCommand)
-            }
+            requestAnalysis(config: config,
+                            messageList: messageList,
+                            nextColorForPlayCommand: nextColorForPlayCommand)
         }
     }
 
