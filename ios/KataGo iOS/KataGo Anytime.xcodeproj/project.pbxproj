@@ -238,6 +238,10 @@
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
+		E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */; };
+		E15E3A262EA8FEDB00B70DE2 /* demoplay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */; };
+		E15E3A292EA8FF2C00B70DE2 /* evalcache.h in Headers */ = {isa = PBXBuildFile; fileRef = E15E3A272EA8FF2C00B70DE2 /* evalcache.h */; };
+		E15E3A2A2EA8FF2C00B70DE2 /* evalcache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		E160DEE72E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */; };
 		E160DEE82E1E927F004B065F /* KataGoModel19x19fp16.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */; };
@@ -581,6 +585,10 @@
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
+		E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demoplay.cpp; sourceTree = "<group>"; };
+		E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = startposes.cpp; sourceTree = "<group>"; };
+		E15E3A272EA8FF2C00B70DE2 /* evalcache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = evalcache.h; sourceTree = "<group>"; };
+		E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = evalcache.cpp; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
 		E160DEE52E1E927F004B065F /* KataGoModel19x19fp16m1.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel19x19fp16m1.mlpackage; sourceTree = "<group>"; };
 		E160DEE62E1E927F004B065F /* KataGoModel19x19fp16.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel19x19fp16.mlpackage; sourceTree = "<group>"; };
@@ -843,6 +851,8 @@
 		E11838302B081DA700637D44 /* search */ = {
 			isa = PBXGroup;
 			children = (
+				E15E3A272EA8FF2C00B70DE2 /* evalcache.h */,
+				E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */,
 				E11838312B081DA800637D44 /* analysisdata.h */,
 				E11838322B081DA800637D44 /* searchparams.h */,
 				E11838332B081DA800637D44 /* timecontrols.cpp */,
@@ -917,6 +927,8 @@
 		E11838882B081DA800637D44 /* command */ = {
 			isa = PBXGroup;
 			children = (
+				E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */,
+				E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */,
 				E11838892B081DA800637D44 /* genbook.cpp */,
 				E118388A2B081DA800637D44 /* analysis.cpp */,
 				E118388B2B081DA800637D44 /* gputest.cpp */,
@@ -1192,6 +1204,7 @@
 				E11881852B081E3E00637D44 /* reportedsearchvalues.h in Headers */,
 				E118803A2B081E3900637D44 /* files.h in Headers */,
 				E118816B2B081E3E00637D44 /* nninputs.h in Headers */,
+				E15E3A292EA8FF2C00B70DE2 /* evalcache.h in Headers */,
 				E11880612B081E3900637D44 /* commandloop.h in Headers */,
 				E11881632B081E3E00637D44 /* modelversion.h in Headers */,
 				E11881912B081E3E00637D44 /* distributiontable.h in Headers */,
@@ -1619,6 +1632,8 @@
 				E11880982B081E3A00637D44 /* testsymmetries.cpp in Sources */,
 				E118818C2B081E3E00637D44 /* searchupdatehelpers.cpp in Sources */,
 				E11881932B081E3E00637D44 /* search.cpp in Sources */,
+				E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */,
+				E15E3A262EA8FEDB00B70DE2 /* demoplay.cpp in Sources */,
 				E11881962B081E3E00637D44 /* searchhelpers.cpp in Sources */,
 				E118805B2B081E3900637D44 /* rand.cpp in Sources */,
 				E118804E2B081E3900637D44 /* fileutils.cpp in Sources */,
@@ -1628,6 +1643,7 @@
 				E11881882B081E3E00637D44 /* mutexpool.cpp in Sources */,
 				E11881D52B081E3F00637D44 /* benchmark.cpp in Sources */,
 				E118818B2B081E3E00637D44 /* searchmultithreadhelpers.cpp in Sources */,
+				E15E3A2A2EA8FF2C00B70DE2 /* evalcache.cpp in Sources */,
 				E118807A2B081E3A00637D44 /* testsgf.cpp in Sources */,
 				E11881622B081E3E00637D44 /* modelversion.cpp in Sources */,
 				E11881642B081E3E00637D44 /* nninputs.cpp in Sources */,
@@ -2248,7 +2264,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 6.5;
+				MARKETING_VERSION = 6.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -2296,7 +2312,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 6.5;
+				MARKETING_VERSION = 6.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
