@@ -97,6 +97,16 @@ jobs:
         xcode-select -p
         sudo xcode-select -s /Applications/Xcode_15.0.1.app/Contents/Developer
 
+    - name: Verify cmake
+      run: |
+        which cmake
+        cmake --version
+        brew uninstall cmake
+        brew untap local/pinned
+        brew install cmake
+        which cmake
+        cmake --version
+
     - name: Build KataGo with Eigen backend
       run: |
         mkdir -p cpp/build
