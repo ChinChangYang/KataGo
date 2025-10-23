@@ -134,7 +134,7 @@ jobs:
         mv CMakeLists.txt-macos CMakeLists.txt
         mkdir -p build
         cd build
-        cmake -G Ninja ../ -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk
+        cmake -G Ninja ../
         ninja
 
     - name: Setup configuration
