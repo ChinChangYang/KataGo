@@ -133,15 +133,20 @@ class Analysis {
     var info: [BoardPoint: AnalysisInfo] = [:]
     var ownershipUnits: [OwnershipUnit] = []
 
-    // Get maximum winrate in the analysis info
+    var maxVisits: Int? {
+        let visits = info.values.map(\.visits)
+        return visits.max()
+    }
+
     var maxWinrate: Float? {
-        let winrates = info.values.map(\.winrate)
-        return winrates.max()
+        guard let maxVisits else { return nil }
+        return info.values.first(where: { $0.visits == maxVisits })?.winrate
     }
 
     private var maxScoreLead: Float? {
-        let scoreLeads = info.values.map(\.scoreLead)
-        return scoreLeads.max()
+        guard let maxVisits else { return nil }
+        return info.values.first(where: { $0.visits == maxVisits })?.scoreLead
+        
     }
 
     var blackWinrate: Float? {
