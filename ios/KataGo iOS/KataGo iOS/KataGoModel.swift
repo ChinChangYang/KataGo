@@ -146,7 +146,6 @@ class Analysis {
     private var maxScoreLead: Float? {
         guard let maxVisits else { return nil }
         return info.values.first(where: { $0.visits == maxVisits })?.scoreLead
-        
     }
 
     var blackWinrate: Float? {
