@@ -78,9 +78,9 @@ struct ConfigTextField: View {
                 .keyboardType(isDecimal ? .decimalPad : .default)
 #endif
                 .multilineTextAlignment(.trailing)
-                .padding(2)
+                .padding(8)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 8)
                         .stroke(
                             Color.secondary.opacity(0.5),
                             lineWidth: 1
