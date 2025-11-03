@@ -67,12 +67,16 @@ struct ConfigFloatItem: View {
 struct ConfigTextField: View {
     let title: String
     @Binding var text: String
-    
+    var isDecimal: Bool = false
+
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             TextField(title, text: $text)
+#if !os(macOS)
+                .keyboardType(isDecimal ? .decimalPad : .default)
+#endif
                 .multilineTextAlignment(.trailing)
                 .padding(2)
                 .overlay(
@@ -276,7 +280,8 @@ struct RuleConfigView: View {
 
             ConfigTextField(
                 title: "Komi",
-                text: $komiText
+                text: $komiText,
+                isDecimal: true
             )
             .onAppear {
                 komi = config.komi
@@ -346,7 +351,8 @@ struct AnalysisConfigView: View {
 
             ConfigTextField(
                 title: "Hidden analysis visit ratio",
-                text: $hiddenAnalysisVisitRatioText
+                text: $hiddenAnalysisVisitRatioText,
+                isDecimal: true
             )
             .onAppear {
                 hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
@@ -358,7 +364,8 @@ struct AnalysisConfigView: View {
 
             ConfigTextField(
                 title: "Analysis wide root noise",
-                text: $analysisWideRootNoiseText
+                text: $analysisWideRootNoiseText,
+                isDecimal: true
             )
             .onAppear {
                 analysisWideRootNoise = config.analysisWideRootNoise
