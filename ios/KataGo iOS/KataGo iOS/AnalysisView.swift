@@ -176,17 +176,24 @@ struct AnalysisView: View {
 
     func computeBaseColorByVisits(visits: Int, maxVisits: Int) -> Color {
         let ratio = min(1, max(0.01, Float(visits)) / max(0.01, Float(maxVisits)))
-
         let fraction = 2 / (pow((1 / ratio) - 1, 0.9) + 1)
+        var hue: Float
 
         if fraction < 1 {
-            let hue = cbrt(fraction * fraction) / 2
-            return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
+            hue = cbrt(fraction * fraction) / 2
         } else {
-            let hue = 1 - (sqrt(2 - fraction) / 2)
-            return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
+            hue = 1 - (sqrt(2 - fraction) / 2)
         }
 
+        // discrete for performance
+        let digit: Float = 10
+        let discretedHue = (hue * digit).rounded() / digit
+
+        return Color(
+            hue: Double(discretedHue) / 2,
+            saturation: 1,
+            brightness: 1
+        )
     }
 
     func computeColorByVisits(isHidden: Bool, visits: Int, maxVisits: Int) -> Color {
