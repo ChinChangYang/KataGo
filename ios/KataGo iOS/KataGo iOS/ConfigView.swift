@@ -64,25 +64,51 @@ struct ConfigFloatItem: View {
     }
 }
 
-struct ConfigTextItem: View {
+struct ConfigTextField: View {
     let title: String
-    let texts: [String]
-    @Binding var value: Int
-
+    @Binding var text: String
+    
     var body: some View {
         HStack {
             Text(title)
             Spacer()
-            Stepper {
-                Text(texts[value])
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            } onIncrement: {
-                value = ((value + 1) < texts.count) ? (value + 1) : 0
-            } onDecrement: {
-                value = ((value - 1) >= 0) ? (value - 1) : (texts.count - 1)
-            }
+            TextField(title, text: $text)
+                .multilineTextAlignment(.trailing)
+                .padding(2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(
+                            Color.secondary.opacity(0.5),
+                            lineWidth: 1
+                        )
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+#Preview("ConfigTextField") {
+    struct PreviewHost: View {
+        @State private var text = "Sample Text"
+        var body: some View {
+            ConfigTextField(title: "Test Field", text: $text)
+                .padding()
+        }
+    }
+    return PreviewHost()
+}
+
+struct ConfigTextPicker: View {
+    let title: String
+    let texts: [String]
+    @Binding var selectedText: String
+
+    var body: some View {
+        Picker(title, selection: $selectedText) {
+            ForEach(texts, id: \.self) { text in
+                Text(text).tag(text)
+            }
+        }
     }
 }
 
@@ -90,24 +116,8 @@ struct ConfigBoolItem: View {
     let title: String
     @Binding var value: Bool
 
-    var label: String {
-        value ? "Yes" : "No"
-    }
-
     var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Stepper {
-                Text(label)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            } onIncrement: {
-                value.toggle()
-            } onDecrement: {
-                value.toggle()
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Toggle(title, isOn: $value)
     }
 }
 
@@ -147,13 +157,14 @@ struct RuleConfigView: View {
     @State var isRuleChanged: Bool = false
     @State var boardWidth: Int = -1
     @State var boardHeight: Int = -1
-    @State var koRule: Int = Config.defaultKoRule
-    @State var scoringRule: Int = Config.defaultScoringRule
-    @State var taxRule: Int = Config.defaultTaxRule
+    @State var koRuleText: String = Config.defaultKoRuleText
+    @State var scoringRuleText: String = Config.defaultScoringRuleText
+    @State var taxRuleText: String = Config.defaultTaxRuleText
     @State var multiStoneSuicideLegal: Bool = Config.defaultMultiStoneSuicideLegal
     @State var hasButton: Bool = Config.defaultHasButton
-    @State var whiteHandicapBonusRule: Int = Config.defaultWhiteHandicapBonusRule
+    @State var whiteHandicapBonusRuleText: String = Config.defaultWhiteHandicapBonusRuleText
     @State var komi: Float = Config.defaultKomi
+    @State var komiText: String = String(Config.defaultKomi)
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
@@ -161,7 +172,7 @@ struct RuleConfigView: View {
 
     var body: some View {
         List {
-            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: maxBoardLength)
+            ConfigIntItem(title: "Board width", value: $boardWidth, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardWidth = config.boardWidth
                 }
@@ -172,7 +183,7 @@ struct RuleConfigView: View {
                     }
                 }
 
-            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: maxBoardLength)
+            ConfigIntItem(title: "Board height", value: $boardHeight, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardHeight = config.boardHeight
                 }
@@ -183,37 +194,52 @@ struct RuleConfigView: View {
                     }
                 }
 
-            ConfigTextItem(title: "Ko rule:", texts: Config.koRules, value: $koRule)
-                .onAppear {
-                    koRule = config.koRule.rawValue
-                }
-                .onChange(of: koRule) { _, newValue in
-                    config.koRule = KoRule(rawValue: newValue) ?? .simple
-                    messageList.appendAndSend(command: config.koRuleCommand)
-                    isRuleChanged = true
-                }
+            ConfigTextPicker(
+                title: "Ko rule",
+                texts: Config.koRules,
+                selectedText: $koRuleText
+            )
+            .onAppear {
+                koRuleText = config.koRuleText
+            }
+            .onChange(of: koRuleText) { _, newValue in
+                let rawValue = Config.koRules.firstIndex(of: newValue) ?? Config.defaultKoRule
+                config.koRule = KoRule(rawValue: rawValue) ?? .simple
+                messageList.appendAndSend(command: config.koRuleCommand)
+                isRuleChanged = true
+            }
 
-            ConfigTextItem(title: "Scoring rule:", texts: Config.scoringRules, value: $scoringRule)
-                .onAppear {
-                    scoringRule = config.scoringRule.rawValue
-                }
-                .onChange(of: scoringRule) { _, newValue in
-                    config.scoringRule = ScoringRule(rawValue: newValue) ?? .area
-                    messageList.appendAndSend(command: config.scoringRuleCommand)
-                    isRuleChanged = true
-                }
+            ConfigTextPicker(
+                title: "Scoring rule",
+                texts: Config.scoringRules,
+                selectedText: $scoringRuleText
+            )
+            .onAppear {
+                scoringRuleText = config.scoringRuleText
+            }
+            .onChange(of: scoringRuleText) { _, newValue in
+                let rawValue = Config.scoringRules.firstIndex(of: scoringRuleText) ?? Config.defaultScoringRule
+                config.scoringRule = ScoringRule(rawValue: rawValue) ?? .area
+                messageList.appendAndSend(command: config.scoringRuleCommand)
+                isRuleChanged = true
+            }
 
-            ConfigTextItem(title: "Tax rule:", texts: Config.taxRules, value: $taxRule)
-                .onAppear {
-                    taxRule = config.taxRule.rawValue
-                }
-                .onChange(of: taxRule) { _, newValue in
-                    config.taxRule = TaxRule(rawValue: newValue) ?? .none
-                    messageList.appendAndSend(command: config.taxRuleCommand)
-                    isRuleChanged = true
-                }
+            ConfigTextPicker(
+                title: "Tax rule",
+                texts: Config.taxRules,
+                selectedText: $taxRuleText
+            )
+            .onAppear {
+                taxRuleText = config.taxRuleText
+            }
+            .onChange(of: taxRuleText) { _, newValue in
+                let rawValue = Config.taxRules.firstIndex(of: taxRuleText) ?? Config.defaultTaxRule
+                config.taxRule = TaxRule(rawValue: rawValue) ?? .none
+                messageList.appendAndSend(command: config.taxRuleCommand)
+                isRuleChanged = true
+            }
 
-            ConfigBoolItem(title: "Multi-stone suicide:", value: $multiStoneSuicideLegal)
+            ConfigBoolItem(title: "Multi-stone suicide", value: $multiStoneSuicideLegal)
                 .onAppear {
                     multiStoneSuicideLegal = config.multiStoneSuicideLegal
                 }
@@ -223,7 +249,7 @@ struct RuleConfigView: View {
                     isRuleChanged = true
                 }
 
-            ConfigBoolItem(title: "Has button:", value: $hasButton)
+            ConfigBoolItem(title: "Has button", value: $hasButton)
                 .onAppear {
                     hasButton = config.hasButton
                 }
@@ -233,25 +259,34 @@ struct RuleConfigView: View {
                     isRuleChanged = true
                 }
 
-            ConfigTextItem(title: "White handicap bonus:", texts: Config.whiteHandicapBonusRules, value: $whiteHandicapBonusRule)
-                .onAppear {
-                    whiteHandicapBonusRule = config.whiteHandicapBonusRule.rawValue
-                }
-                .onChange(of: whiteHandicapBonusRule) { _, newValue in
-                    config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: newValue) ?? .zero
-                    messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
-                    isRuleChanged = true
-                }
+            ConfigTextPicker(
+                title: "White handicap bonus",
+                texts: Config.whiteHandicapBonusRules,
+                selectedText: $whiteHandicapBonusRuleText
+            )
+            .onAppear {
+                whiteHandicapBonusRuleText = config.whiteHandicapBonusRuleText
+            }
+            .onChange(of: whiteHandicapBonusRuleText) { _, newValue in
+                let rawValue = Config.whiteHandicapBonusRules.firstIndex(of: whiteHandicapBonusRuleText) ?? Config.defaultWhiteHandicapBonusRule
+                config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
+                messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+                isRuleChanged = true
+            }
 
-            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000, format: .number)
-                .onAppear {
-                    komi = config.komi
-                }
-                .onChange(of: komi) { _, newValue in
-                    config.komi = newValue
-                    messageList.appendAndSend(command: config.getKataKomiCommand())
-                    isRuleChanged = true
-                }
+            ConfigTextField(
+                title: "Komi",
+                text: $komiText
+            )
+            .onAppear {
+                komi = config.komi
+                komiText = String(komi)
+            }
+            .onChange(of: komiText) { _, newValue in
+                config.komi = min(1_000, max(-1_000, ((Float(newValue) ?? Config.defaultKomi) * 2).rounded() / 2))
+                messageList.appendAndSend(command: config.getKataKomiCommand())
+                isRuleChanged = true
+            }
         }
         .onAppear {
             isBoardSizeChanged = false
@@ -273,61 +308,68 @@ struct RuleConfigView: View {
 
 struct AnalysisConfigView: View {
     var config: Config
-    @State var analysisInformation: Int = Config.defaultAnalysisInformation
-    @State var showOwnership: Bool = Config.defaultShowOwnership
-    @State var analysisForWhom: Int = Config.defaultAnalysisForWhom
+    @State var analysisInformationText: String = Config.defaultAnalysisInformationText
+    @State var analysisForWhomText: String = Config.defaultAnalysisForWhomText
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
+    @State var hiddenAnalysisVisitRatioText = String(Config.defaultHiddenAnalysisVisitRatio)
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
+    @State var analysisWideRootNoiseText = String(Config.defaultAnalysisWideRootNoise)
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
-    @State var showWinrateBar: Bool = Config.defaultShowWinrateBar
-    @State var analysisStyle: Int = Config.defaultAnalysisStyle
     @Environment(MessageList.self) var messageList
 
     var body: some View {
         List {
-            ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
-                .onAppear {
-                    analysisInformation = config.analysisInformation
-                }
-                .onChange(of: analysisInformation) { _, newValue in
-                    config.analysisInformation = newValue
-                }
+            ConfigTextPicker(
+                title: "Analysis information",
+                texts: Config.analysisInformations,
+                selectedText: $analysisInformationText
+            )
+            .onAppear {
+                analysisInformationText = config.analysisInformationText
+            }
+            .onChange(of: analysisInformationText) { _, newValue in
+                config.analysisInformation = Config.analysisInformations.firstIndex(of: newValue) ?? Config.defaultAnalysisInformation
+            }
 
-            ConfigBoolItem(title: "Show ownership:", value: $showOwnership)
-                .onAppear {
-                    showOwnership = config.showOwnership
-                }
-                .onChange(of: showOwnership) { _, newValue in
-                    config.showOwnership = newValue
-                }
+            ConfigTextPicker(
+                title: "Analysis for",
+                texts: Config.analysisForWhoms,
+                selectedText: $analysisForWhomText
+            )
+            .onAppear {
+                analysisForWhomText = config.analysisForWhomText
+            }
+            .onChange(of: analysisForWhomText) { _, newValue in
+                config.analysisForWhom = Config.analysisForWhoms.firstIndex(of: newValue) ?? Config.defaultAnalysisForWhom
+            }
 
-            ConfigTextItem(title: "Analysis for:", texts: Config.analysisForWhoms, value: $analysisForWhom)
-                .onAppear {
-                    analysisForWhom = config.analysisForWhom
-                }
-                .onChange(of: analysisForWhom) { _, newValue in
-                    config.analysisForWhom = newValue
-                }
+            ConfigTextField(
+                title: "Hidden analysis visit ratio",
+                text: $hiddenAnalysisVisitRatioText
+            )
+            .onAppear {
+                hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
+                hiddenAnalysisVisitRatioText = String(config.hiddenAnalysisVisitRatio)
+            }
+            .onChange(of: hiddenAnalysisVisitRatioText) { _, newValue in
+                config.hiddenAnalysisVisitRatio = min(1, max(0, Float(newValue) ?? Config.defaultHiddenAnalysisVisitRatio))
+            }
 
-            ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                .onAppear {
-                    hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
-                }
-                .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
-                    config.hiddenAnalysisVisitRatio = newValue
-                }
+            ConfigTextField(
+                title: "Analysis wide root noise",
+                text: $analysisWideRootNoiseText
+            )
+            .onAppear {
+                analysisWideRootNoise = config.analysisWideRootNoise
+                analysisWideRootNoiseText = String(config.analysisWideRootNoise)
+            }
+            .onChange(of: analysisWideRootNoiseText) { _, newValue in
+                config.analysisWideRootNoise = min(1, max(0, Float(newValue) ?? Config.defaultAnalysisWideRootNoise))
+                messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+            }
 
-            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0, format: .number)
-                .onAppear {
-                    analysisWideRootNoise = config.analysisWideRootNoise
-                }
-                .onChange(of: analysisWideRootNoise) { _, newValue in
-                    config.analysisWideRootNoise = newValue
-                    messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-                }
-
-            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
+            ConfigIntItem(title: "Max analysis moves", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
                 .onAppear {
                     maxAnalysisMoves = config.maxAnalysisMoves
                 }
@@ -335,28 +377,12 @@ struct AnalysisConfigView: View {
                     config.maxAnalysisMoves = newValue
                 }
 
-            ConfigIntItem(title: "Analysis interval:", value: $analysisInterval, minValue: 10, maxValue: 300, step: 10)
+            ConfigIntItem(title: "Analysis interval", value: $analysisInterval, minValue: 10, maxValue: 300, step: 10)
                 .onAppear {
                     analysisInterval = config.analysisInterval
                 }
                 .onChange(of: analysisInterval) { _, newValue in
                     config.analysisInterval = newValue
-                }
-
-            ConfigBoolItem(title: "Show win rate bar:", value: $showWinrateBar)
-                .onAppear {
-                    showWinrateBar = config.showWinrateBar
-                }
-                .onChange(of: showWinrateBar) { _, newValue in
-                    config.showWinrateBar = newValue
-                }
-
-            ConfigTextItem(title: "Analysis style:", texts: Config.analysisStyles, value: $analysisStyle)
-                .onAppear {
-                    analysisStyle = config.analysisStyle
-                }
-                .onChange(of: analysisStyle) { _, newValue in
-                    config.analysisStyle = newValue
                 }
         }
     }
@@ -364,24 +390,43 @@ struct AnalysisConfigView: View {
 
 struct ViewConfigView: View {
     var config: Config
-    @State var stoneStyle = Config.defaultStoneStyle
+    @State var stoneStyleText = Config.defaultStoneStyleText
+    @State var analysisStyleText = Config.defaultAnalysisStyleText
     @State var showCoordinate = Config.defaultShowCoordinate
     @State var showComments = Config.defaultShowComments
     @State var showPass = Config.defaultShowPass
     @State var verticalFlip = Config.defaultVerticalFlip
     @State var showCharts = Config.defaultShowCharts
+    @State var showOwnership: Bool = Config.defaultShowOwnership
+    @State var showWinrateBar: Bool = Config.defaultShowWinrateBar
 
     var body: some View {
         List {
-            ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
-                .onAppear {
-                    stoneStyle = config.stoneStyle
-                }
-                .onChange(of: stoneStyle) { _, newValue in
-                    config.stoneStyle = stoneStyle
-                }
+            ConfigTextPicker(
+                title: "Stone style",
+                texts: Config.stoneStyles,
+                selectedText: $stoneStyleText
+            )
+            .onAppear {
+                stoneStyleText = config.stoneStyleText
+            }
+            .onChange(of: stoneStyleText) { _, newValue in
+                config.stoneStyle = Config.stoneStyles.firstIndex(of: newValue) ?? Config.defaultStoneStyle
+            }
 
-            ConfigBoolItem(title: "Show coordinate:", value: $showCoordinate)
+            ConfigTextPicker(
+                title: "Analysis style",
+                texts: Config.analysisStyles,
+                selectedText: $analysisStyleText
+            )
+            .onAppear {
+                analysisStyleText = config.analysisStyleText
+            }
+            .onChange(of: analysisStyleText) { _, newValue in
+                config.analysisStyle = Config.analysisStyles.firstIndex(of: newValue) ?? Config.defaultAnalysisStyle
+            }
+
+            ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)
                 .onAppear {
                     showCoordinate = config.showCoordinate
                 }
@@ -389,7 +434,7 @@ struct ViewConfigView: View {
                     config.showCoordinate = showCoordinate
                 }
 
-            ConfigBoolItem(title: "Show comments:", value: $showComments)
+            ConfigBoolItem(title: "Show comments", value: $showComments)
                 .onAppear {
                     showComments = config.showComments
                 }
@@ -397,7 +442,7 @@ struct ViewConfigView: View {
                     config.showComments = showComments
                 }
 
-            ConfigBoolItem(title: "Show pass:", value: $showPass)
+            ConfigBoolItem(title: "Show pass", value: $showPass)
                 .onAppear {
                     showPass = config.showPass
                 }
@@ -405,7 +450,7 @@ struct ViewConfigView: View {
                     config.showPass = showPass
                 }
 
-            ConfigBoolItem(title: "Vertical flip:", value: $verticalFlip)
+            ConfigBoolItem(title: "Vertical flip", value: $verticalFlip)
                 .onAppear {
                     verticalFlip = config.verticalFlip
                 }
@@ -413,12 +458,28 @@ struct ViewConfigView: View {
                     config.verticalFlip = verticalFlip
                 }
 
-            ConfigBoolItem(title: "Show charts:", value: $showCharts)
+            ConfigBoolItem(title: "Show charts", value: $showCharts)
                 .onAppear {
                     showCharts = config.showCharts
                 }
                 .onChange(of: showCharts) { _, newValue in
                     config.showCharts = showCharts
+                }
+
+            ConfigBoolItem(title: "Show ownership", value: $showOwnership)
+                .onAppear {
+                    showOwnership = config.showOwnership
+                }
+                .onChange(of: showOwnership) { _, newValue in
+                    config.showOwnership = newValue
+                }
+
+            ConfigBoolItem(title: "Show win rate bar", value: $showWinrateBar)
+                .onAppear {
+                    showWinrateBar = config.showWinrateBar
+                }
+                .onChange(of: showWinrateBar) { _, newValue in
+                    config.showWinrateBar = newValue
                 }
         }
     }
@@ -430,7 +491,7 @@ struct SoundConfigView: View {
 
     var body: some View {
         List {
-            ConfigBoolItem(title: "Sound effect:", value: $soundEffect)
+            ConfigBoolItem(title: "Sound effect", value: $soundEffect)
                 .onAppear {
                     soundEffect = config.soundEffect
                 }
@@ -455,7 +516,7 @@ struct AIConfigView: View {
 
     var body: some View {
         List {
-            ConfigFloatItem(title: "White advantage:",
+            ConfigFloatItem(title: "White advantage",
                             value: $playoutDoublingAdvantage,
                             step: 1/4,
                             minValue: -3.0,
@@ -474,7 +535,7 @@ struct AIConfigView: View {
                 .font(.subheadline)
                 .padding(.top)
 
-            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForBlack)
+            HumanStylePicker(title: "Human profile", humanSLProfile: $humanProfileForBlack)
                 .onAppear {
                     humanProfileForBlack = config.humanSLProfile
                     blackHumanSLModel.profile = config.humanProfileForBlack
@@ -487,7 +548,7 @@ struct AIConfigView: View {
                     }
                 }
 
-            ConfigFloatItem(title: "Time per move:",
+            ConfigFloatItem(title: "Time per move",
                             value: $blackMaxTime,
                             step: 0.5,
                             minValue: 0,
@@ -506,7 +567,7 @@ struct AIConfigView: View {
                 .font(.subheadline)
                 .padding(.top)
 
-            HumanStylePicker(title: "Human profile:", humanSLProfile: $humanProfileForWhite)
+            HumanStylePicker(title: "Human profile", humanSLProfile: $humanProfileForWhite)
                 .onAppear {
                     humanProfileForWhite = config.humanProfileForWhite
                     whiteHumanSLModel.profile = config.humanProfileForWhite
@@ -519,7 +580,7 @@ struct AIConfigView: View {
                     }
                 }
 
-            ConfigFloatItem(title: "Time per move:",
+            ConfigFloatItem(title: "Time per move",
                             value: $whiteMaxTime,
                             step: 0.5,
                             minValue: 0,

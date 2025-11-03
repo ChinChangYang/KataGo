@@ -236,6 +236,16 @@ extension Config {
                                        analysisInformationAll,
                                        analysisInformationNone]
 
+    static let defaultAnalysisInformationText = analysisInformations[defaultAnalysisInformation]
+
+    var analysisInformationText: String {
+        guard analysisInformation < Config.analysisInformations.count else {
+            return Config.defaultAnalysisInformationText
+        }
+
+        return Config.analysisInformations[analysisInformation]
+    }
+
     var isAnalysisInformationWinrate: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
@@ -262,6 +272,15 @@ extension Config {
     static let classicStoneStyle = "Classic"
     static let stoneStyles = [fastStoneStyle, classicStoneStyle]
     static let defaultStoneStyle = 0
+    static let defaultStoneStyleText = stoneStyles[defaultStoneStyle]
+
+    var stoneStyleText: String {
+        guard stoneStyle < Config.stoneStyles.count else {
+            return Config.defaultStoneStyleText
+        }
+        
+        return Config.stoneStyles[stoneStyle]
+    }
 
     var isFastStoneStyle: Bool {
         guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
@@ -296,6 +315,8 @@ extension Config {
                                    analysisForBlack,
                                    analysisForWhite]
 
+    static let defaultAnalysisForWhomText = analysisForWhoms[defaultAnalysisForWhom]
+
     var analysisForWhom: Int {
         get {
             return optionalAnalysisForWhom ?? Config.defaultAnalysisForWhom
@@ -304,6 +325,11 @@ extension Config {
         set(newAnalysisForWhom) {
             optionalAnalysisForWhom = newAnalysisForWhom
         }
+    }
+
+    var analysisForWhomText: String {
+        guard analysisForWhom < Config.analysisForWhoms.count else { return Config.defaultAnalysisForWhomText }
+        return Config.analysisForWhoms[analysisForWhom]
     }
 
     private var isAnalysisForBlack: Bool {
@@ -474,6 +500,7 @@ extension Config {
 extension Config {
     static let defaultKoRule: Int = 0
     static let koRules = ["SIMPLE", "POSITIONAL", "SITUATIONAL"]
+    static let defaultKoRuleText = koRules[defaultKoRule]
 
     var koRule: KoRule {
         get {
@@ -485,13 +512,18 @@ extension Config {
         }
     }
 
-    var koRuleCommand: String {
+    var koRuleText: String {
         guard koRule.rawValue < Config.koRules.count else { return "" }
-        return "kata-set-rule ko \(Config.koRules[koRule.rawValue])"
+        return Config.koRules[koRule.rawValue]
+    }
+
+    var koRuleCommand: String {
+        return "kata-set-rule ko \(koRuleText)"
     }
 
     static let defaultScoringRule: Int = 0
     static let scoringRules = ["AREA", "TERRITORY"]
+    static let defaultScoringRuleText = scoringRules[defaultScoringRule]
 
     var scoringRule: ScoringRule {
         get {
@@ -503,14 +535,18 @@ extension Config {
         }
     }
 
-    var scoringRuleCommand: String {
+    var scoringRuleText: String {
         guard scoringRule.rawValue < Config.scoringRules.count else { return "" }
+        return Config.scoringRules[scoringRule.rawValue]
+    }
 
-        return "kata-set-rule scoring \(Config.scoringRules[scoringRule.rawValue])"
+    var scoringRuleCommand: String {
+        return "kata-set-rule scoring \(scoringRuleText)"
     }
 
     static let defaultTaxRule: Int = 0
     static let taxRules = ["NONE", "SEKI", "ALL"]
+    static let defaultTaxRuleText = taxRules[defaultTaxRule]
 
     var taxRule: TaxRule {
         get {
@@ -522,10 +558,13 @@ extension Config {
         }
     }
 
-    var taxRuleCommand: String {
+    var taxRuleText: String {
         guard taxRule.rawValue < Config.taxRules.count else { return "" }
+        return Config.taxRules[taxRule.rawValue]
+    }
 
-        return "kata-set-rule tax \(Config.taxRules[taxRule.rawValue])"
+    var taxRuleCommand: String {
+        return "kata-set-rule tax \(taxRuleText)"
     }
 
     static let defaultMultiStoneSuicideLegal: Bool = false
@@ -562,6 +601,7 @@ extension Config {
 
     static let defaultWhiteHandicapBonusRule: Int = 0
     static let whiteHandicapBonusRules = ["0", "N-1", "N"]
+    static let defaultWhiteHandicapBonusRuleText = whiteHandicapBonusRules[defaultWhiteHandicapBonusRule]
 
     var whiteHandicapBonusRule: WhiteHandicapBonusRule {
         get {
@@ -573,10 +613,13 @@ extension Config {
         }
     }
 
-    var whiteHandicapBonusRuleCommand: String {
+    var whiteHandicapBonusRuleText: String {
         guard whiteHandicapBonusRule.rawValue < Config.whiteHandicapBonusRules.count else { return "" }
+        return Config.whiteHandicapBonusRules[whiteHandicapBonusRule.rawValue]
+    }
 
-        return "kata-set-rule whiteHandicapBonus \(Config.whiteHandicapBonusRules[whiteHandicapBonusRule.rawValue])"
+    var whiteHandicapBonusRuleCommand: String {
+        return "kata-set-rule whiteHandicapBonus \(whiteHandicapBonusRuleText)"
     }
 
     var ruleCommands: [String] {
@@ -608,6 +651,7 @@ extension Config {
     static let classicAnalysisStyle = "Classic"
     static let analysisStyles = [fastAnalysisStyle, classicAnalysisStyle]
     static let defaultAnalysisStyle = 0
+    static let defaultAnalysisStyleText = analysisStyles[defaultAnalysisStyle]
 
     var analysisStyle: Int {
         get {
@@ -617,6 +661,14 @@ extension Config {
         set(newValue) {
             optionalAnalysisStyle = newValue
         }
+    }
+
+    var analysisStyleText: String {
+        guard analysisStyle < Config.analysisStyles.count else {
+            return Config.defaultAnalysisStyleText
+        }
+
+        return Config.analysisStyles[analysisStyle]
     }
 
     var isFastAnalysisStyle: Bool {
