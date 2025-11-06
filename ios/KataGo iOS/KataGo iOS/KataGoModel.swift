@@ -365,19 +365,16 @@ class GobanState {
     }
 
     private func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
-        if (!isAutoPlaying) &&
-            (nextColorForPlayCommand == .black) &&
-            (config.blackMaxTime > 0) &&
-            (passCount < 2) {
-            return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
-        } else if (!isAutoPlaying) &&
-                    (nextColorForPlayCommand == .white) &&
-                    (config.whiteMaxTime > 0) &&
-                    (passCount < 2) {
-            return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
-        } else {
-            return [config.getKataFastAnalyzeCommand()]
+
+        if (analysisStatus == .run) && (!isAutoPlaying) && (passCount < 2) {
+            if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
+                return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
+            } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
+                return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
+            }
         }
+
+        return [config.getKataFastAnalyzeCommand()]
     }
 
     func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
@@ -438,7 +435,7 @@ class GobanState {
 
     func shouldGenMove(config: Config, player: Turn) -> Bool {
         if (!isAutoPlaying) &&
-            (analysisStatus != .clear) &&
+            (analysisStatus == .run) &&
             (passCount < 2) &&
             (((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
              ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))) {
