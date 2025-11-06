@@ -24,11 +24,7 @@ struct NeuralNetworkModel: Identifiable, Equatable {
     }
 
     var visible: Bool {
-#if os(macOS)
-        !builtIn
-#else
         true
-#endif
     }
 
     /// Initialize the neural network model
@@ -64,11 +60,11 @@ struct NeuralNetworkModel: Identifiable, Equatable {
         .init(
             title: "Built-in KataGo Core ML model",
             description: """
-This model is based on the strongest network from KataGo's distributed training and has been converted to Core ML with 8-bit quantization. It's optimized to run efficiently on Apple devices using the Neural Engine for board sizes up to 19x19.
+This model is based on the strongest network from KataGo's distributed training and has been converted to Core ML with 16-bit operations. It's optimized to run efficiently on Apple devices using the Neural Engine for board sizes up to 19x19.
 
-Name: kata1-b28c512nbt-s9584861952-d4960414494.
-Uploaded at: 2025-07-02 09:02:15 UTC.
-Elo Rating: 14058.1 ± 19.2 - (2,082 games).
+Name: kata1-b28c512nbt-adam-s11165M-d5387M.
+Uploaded at: 2025-10-02 01:23:42 UTC.
+Elo Rating: 14082.9 ± 9.7 - (6812 games).
 
 Board sizes: 2x2 to 19x19.
 """,
@@ -86,13 +82,13 @@ This is the strongest confidently-rated network in KataGo distributed training. 
 
 This app will irregularly update the URL for the strongest confidently-rated network. If a new network becomes available, you can keep using your current one or manually switch by deleting it and downloading the latest version.
 
-Name: kata1-b28c512nbt-s9584861952-d4960414494.
-Uploaded at: 2025-07-02 09:02:15 UTC.
-Elo Rating: 14058.1 ± 19.2 - (2,082 games).
+Name: kata1-b28c512nbt-adam-s11165M-d5387M.
+Uploaded at: 2025-10-02 01:23:42 UTC.
+Elo Rating: 14082.9 ± 9.7 - (6812 games).
 
 Board sizes: 2x2 to 37x37.
 """,
-            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s9584861952-d4960414494.bin.gz",
+            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz",
             fileName: "official.bin.gz",
             fileSize: 271_357_345
         ),

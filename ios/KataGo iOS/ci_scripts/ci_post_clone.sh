@@ -1,20 +1,39 @@
 #!/bin/sh
-rm -f default_model.bin.gz
-curl -L -o default_model.bin.gz https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/b28c512nbt-null-s9584M.bin.gz
-cp -f default_model.bin.gz ../Resources/default_model.bin.gz
 
-curl -L -o b18c384nbt-humanv0.bin.gz https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz
-cp -f b18c384nbt-humanv0.bin.gz ../Resources/b18c384nbt-humanv0.bin.gz
+DEFAULT_MODEL_GZ="default_model.bin.gz"
+DEFAULT_MODEL_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.16.4-coreml1/kata1-b28c512nbt-adam-s11165M-d5387M-null.bin.gz"
+DEFAULT_MODEL_RES="../Resources/default_model.bin.gz"
 
-rm -rf ../Resources/KataGoModel19x19fp16.mlpackage
-rm -f KataGoModel19x19fp16w8LiCh-s9584M.mlpackage.zip
-curl -L -o KataGoModel19x19fp16w8LiCh-s9584M.mlpackage.zip https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/KataGoModel19x19fp16w8LiCh-s9584M.mlpackage.zip
-unzip KataGoModel19x19fp16w8LiCh-s9584M.mlpackage.zip
-mv KataGoModel19x19fp16w8LiCh-s9584M.mlpackage ../Resources/KataGoModel19x19fp16.mlpackage
+HUMAN_MODEL_GZ="b18c384nbt-humanv0.bin.gz"
+HUMAN_MODEL_URL="https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz"
+HUMAN_MODEL_RES="../Resources/b18c384nbt-humanv0.bin.gz"
 
-if [ ! -f ../Resources/KataGoModel19x19fp16m1.mlpackage ]; then
-    rm -f KataGoModel19x19fp16m1w8LiCh.mlpackage.zip
-    curl -L -o KataGoModel19x19fp16m1w8LiCh.mlpackage.zip https://github.com/ChinChangYang/KataGo/releases/download/v1.15.3-coreml1/KataGoModel19x19fp16m1w8LiCh.mlpackage.zip
-    unzip KataGoModel19x19fp16m1w8LiCh.mlpackage.zip
-    mv KataGoModel19x19fp16m1w8LiCh.mlpackage ../Resources/KataGoModel19x19fp16m1.mlpackage
+FP16_MLPACKAGE_RES="../Resources/KataGoModel19x19fp16.mlpackage"
+FP16_ZIP="KataGoModel19x19fp16-adam-s11165M.mlpackage.zip"
+FP16_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.16.4-coreml1/KataGoModel19x19fp16-adam-s11165M.mlpackage.zip"
+FP16_DIR="KataGoModel19x19fp16-adam-s11165M.mlpackage"
+
+FP16M1_MLPACKAGE_RES="../Resources/KataGoModel19x19fp16m1.mlpackage"
+FP16M1_ZIP="KataGoModel19x19fp16m1.mlpackage.zip"
+FP16M1_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.16.4-coreml1/KataGoModel19x19fp16m1.mlpackage.zip"
+FP16M1_DIR="KataGoModel19x19fp16m1.mlpackage"
+
+rm -f "$DEFAULT_MODEL_GZ"
+curl -L -o "$DEFAULT_MODEL_GZ" "$DEFAULT_MODEL_URL"
+cp -f "$DEFAULT_MODEL_GZ" "$DEFAULT_MODEL_RES"
+
+curl -L -o "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_URL"
+cp -f "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_RES"
+
+rm -rf "$FP16_MLPACKAGE_RES"
+rm -f "$FP16_ZIP"
+curl -L -o "$FP16_ZIP" "$FP16_URL"
+unzip "$FP16_ZIP"
+mv "$FP16_DIR" "$FP16_MLPACKAGE_RES"
+
+if [ ! -f "$FP16M1_MLPACKAGE_RES" ]; then
+    rm -f "$FP16M1_ZIP"
+    curl -L -o "$FP16M1_ZIP" "$FP16M1_URL"
+    unzip "$FP16M1_ZIP"
+    mv "$FP16M1_DIR" "$FP16M1_MLPACKAGE_RES"
 fi
