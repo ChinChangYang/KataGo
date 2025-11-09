@@ -400,7 +400,6 @@ struct ViewConfigView: View {
     @State var stoneStyleText = Config.defaultStoneStyleText
     @State var analysisStyleText = Config.defaultAnalysisStyleText
     @State var showCoordinate = Config.defaultShowCoordinate
-    @State var showComments = Config.defaultShowComments
     @State var showPass = Config.defaultShowPass
     @State var verticalFlip = Config.defaultVerticalFlip
     @State var showCharts = Config.defaultShowCharts
@@ -441,14 +440,6 @@ struct ViewConfigView: View {
                     config.showCoordinate = showCoordinate
                 }
 
-            ConfigBoolItem(title: "Show comments", value: $showComments)
-                .onAppear {
-                    showComments = config.showComments
-                }
-                .onChange(of: showComments) { _, newValue in
-                    config.showComments = showComments
-                }
-
             ConfigBoolItem(title: "Show pass", value: $showPass)
                 .onAppear {
                     showPass = config.showPass
@@ -465,7 +456,7 @@ struct ViewConfigView: View {
                     config.verticalFlip = verticalFlip
                 }
 
-            ConfigBoolItem(title: "Show charts", value: $showCharts)
+            ConfigBoolItem(title: "Show chart/comments", value: $showCharts)
                 .onAppear {
                     showCharts = config.showCharts
                 }

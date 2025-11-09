@@ -15,20 +15,19 @@ struct PlayView: View {
 
     var config: Config { gameRecord.concreteConfig }
 
-    func boardLinePlotView(for dimensions: Dimensions) -> some View {
+    func infoBoardView(for dimensions: Dimensions) -> some View {
         return VStack {
-            if config.showCharts {
-                LinePlotView(gameRecord: gameRecord)
-                    .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 100))
-                    .padding()
+            if config.showCharts || config.showComments {
+                InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+                    .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 125))
             }
 
             BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
         }
     }
 
-    var boardOptionalCommentView: some View {
-        Group {
+    var body: some View {
+        VStack {
             GeometryReader { geometry in
                 let dimensions = Dimensions(size: geometry.size,
                                             width: board.width,
@@ -36,48 +35,9 @@ struct PlayView: View {
                                             showCoordinate: config.showCoordinate,
                                             showPass: config.showPass)
 
-                if config.showComments {
-                    // Show comment and board views
-                    commentBoardView(for: dimensions)
-                } else {
-                    boardLinePlotView(for: dimensions)
-                }
+                infoBoardView(for: dimensions)
             }
-        }
-    }
 
-    private func commentBoardView(for dimensions: Dimensions) -> some View {
-        let commentView = CommentView(gameRecord: gameRecord)
-            .focused($commentIsFocused)
-            .frame(width: isHorizontalLayout ? max(dimensions.totalWidth - dimensions.gobanWidth, 200) : nil,
-                   height: isHorizontalLayout ? nil : max(dimensions.totalHeight - dimensions.drawHeight, 100))
-
-        let boardLinePlotView = boardLinePlotView(for: dimensions)
-
-        return Group {
-            if isHorizontalLayout {
-                HStack {
-                    boardLinePlotView
-                    commentView
-                        .padding(.horizontal)
-                }
-            } else {
-                VStack {
-                    commentView
-                        .padding()
-                    boardLinePlotView
-                }
-            }
-        }
-        .onAppear {
-            // Determine horizontal layout if horizontal space is greater than vertical space
-            isHorizontalLayout = dimensions.gobanStartX > dimensions.capturedStonesStartY
-        }
-    }
-
-    var body: some View {
-        VStack {
-            boardOptionalCommentView
             StatusToolbarItems(gameRecord: gameRecord)
                 .padding()
         }

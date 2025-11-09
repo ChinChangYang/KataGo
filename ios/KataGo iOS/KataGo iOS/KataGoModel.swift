@@ -228,7 +228,7 @@ struct Dimensions {
         boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
         boardLineStartY = (gobanStartY == capturedStonesHeight) ? (capturedStonesHeight + coordinateLength + (squareLength + gobanPadding) / 2) : (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2
         capturedStonesStartY = gobanStartY - capturedStonesHeight
-        drawHeight = gobanHeight + capturedStonesHeight + (passHeight * 2)
+        drawHeight = gobanHeight + capturedStonesHeight + passHeight
     }
 
     func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {

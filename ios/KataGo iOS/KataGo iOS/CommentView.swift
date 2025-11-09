@@ -17,33 +17,32 @@ struct CommentView: View {
             if gobanState.isEditing {
                 TextField("Add your comment", text: $comment, axis: .vertical)
             } else {
-                Text(comment)
+                Text(comment == "" ? "(No comment)" : comment)
+                    .foregroundStyle(comment == "" ? .secondary : .primary)
             }
         }
     }
 
     var body: some View {
-        if gameRecord.concreteConfig.showComments {
-            ScrollViewReader { _ in
-                ScrollView(.vertical) {
-                    textArea
-                        .onAppear {
-                            if gameRecord.comments == nil {
-                                gameRecord.comments = [:]
-                            }
+        ScrollViewReader { _ in
+            ScrollView(.vertical) {
+                textArea
+                    .onAppear {
+                        if gameRecord.comments == nil {
+                            gameRecord.comments = [:]
+                        }
 
-                            comment = gameRecord.comments?[gameRecord.currentIndex] ?? ""
+                        comment = gameRecord.comments?[gameRecord.currentIndex] ?? ""
+                    }
+                    .onChange(of: gameRecord.currentIndex) { oldIndex, newIndex in
+                        if oldIndex != newIndex {
+                            gameRecord.comments?[oldIndex] = comment
+                            comment = gameRecord.comments?[newIndex] ?? ""
                         }
-                        .onChange(of: gameRecord.currentIndex) { oldIndex, newIndex in
-                            if oldIndex != newIndex {
-                                gameRecord.comments?[oldIndex] = comment
-                                comment = gameRecord.comments?[newIndex] ?? ""
-                            }
-                        }
-                        .onDisappear {
-                            gameRecord.comments?[gameRecord.currentIndex] = comment
-                        }
-                }
+                    }
+                    .onDisappear {
+                        gameRecord.comments?[gameRecord.currentIndex] = comment
+                    }
             }
         }
     }
