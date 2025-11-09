@@ -294,7 +294,7 @@ extension Config {
 }
 
 extension Config {
-    static let defaultShowCoordinate = false
+    static let defaultShowCoordinate = true
 }
 
 extension Config {
