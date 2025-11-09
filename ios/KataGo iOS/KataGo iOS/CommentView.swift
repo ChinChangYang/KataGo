@@ -19,7 +19,9 @@ struct CommentView: View {
             if gobanState.isEditing {
                 TextField("Add your comment", text: $comment, axis: .vertical)
 
-                if comment.isEmpty {
+                if comment.isEmpty &&
+                    !analysis.info.isEmpty &&
+                    !gobanState.requestingClearAnalysis {
                     VStack {
                         Spacer()
                         Button {
@@ -75,7 +77,7 @@ struct CommentView: View {
             "Dead White Stones: \(deadWhitePointsText)\n" +
             "AI Move: \(aiMoveText)"
         } else {
-            return "No analysis data."
+            return ""
         }
     }
 
