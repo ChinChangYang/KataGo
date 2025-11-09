@@ -77,18 +77,11 @@ struct ModelDetailView: View {
             } else if !(downloader.isDownloading) {
                 Image(systemName: "arrow.down")
             } else {
-                if #available(iOS 26.0, *),
-                   #available(macOS 26.0, *),
-                   #available(visionOS 26.0, *) {
                     Image(
                         systemName: "stop.circle",
                         variableValue: downloader.progress
                     )
                     .symbolVariableValueMode(.draw)
-
-                } else {
-                    Image(systemName: "stop.circle")
-                }
             }
         }
         .buttonStyle(.borderedProminent)

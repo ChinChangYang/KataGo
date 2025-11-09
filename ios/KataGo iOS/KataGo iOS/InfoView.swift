@@ -38,27 +38,38 @@ struct InfoView: View {
                 Spacer()
 
                 HStack {
-                    Button {
+                    createButton(systemImage: "chart.xyaxis.line") {
                         selectedTab = .chart
-                    } label: {
-                        Image(systemName: "chart.xyaxis.line")
-                            .resizable()
-                            .scaledToFit()
                     }
 
-                    Button {
+                    createButton(systemImage: "text.rectangle") {
                         selectedTab = .comments
-                    } label: {
-                        Image(systemName: "text.rectangle")
-                            .resizable()
-                            .scaledToFit()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: 25)
                 .foregroundStyle(.primary)
-                .buttonStyle(.glass)
             }
+        }
+    }
 
+    func createButton(
+        systemImage: String,
+        action: @escaping @MainActor () -> Void
+    ) -> some View {
+        Group {
+#if os(visionOS)
+            // visionOS doesn't support glass button style
+            Button(action: action) {
+                Image(systemName: systemImage)
+            }
+#else
+            Button(action: action) {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .scaledToFit()
+            }
+            .buttonStyle(.glass)
+#endif
         }
     }
 }

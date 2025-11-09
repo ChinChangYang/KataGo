@@ -17,10 +17,7 @@ struct GameListToolbar: ToolbarContent {
         }
 
 #if !os(visionOS)
-        if #available(iOS 26.0, *),
-           #available(macOS 26.0, *) {
-            ToolbarSpacer()
-        }
+        ToolbarSpacer()
 #endif // !os(visionOS)
 
         ToolbarItem(id: "quit") {

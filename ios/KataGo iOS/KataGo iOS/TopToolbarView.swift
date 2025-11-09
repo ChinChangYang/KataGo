@@ -54,10 +54,7 @@ struct TopToolbarView: ToolbarContent {
                     }
 
 #if !os(visionOS)
-                    if #available(iOS 26.0, *),
-                       #available(macOS 26.0, *) {
-                        ToolbarSpacer()
-                    }
+                    ToolbarSpacer()
 #endif // !os(visionOS)
 
                     ToolbarItem(id: "lock.open") {
@@ -76,10 +73,7 @@ struct TopToolbarView: ToolbarContent {
                     }
 
 #if !os(visionOS)
-                    if #available(iOS 26.0, *),
-                       #available(macOS 26.0, *) {
-                        ToolbarSpacer()
-                    }
+                    ToolbarSpacer()
 #endif // !os(visionOS)
 
                     ToolbarItem(id: "lock") {

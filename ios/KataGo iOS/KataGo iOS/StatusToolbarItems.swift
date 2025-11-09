@@ -29,14 +29,11 @@ struct StatusToolbarItems: View {
     }
 
     var spacing: CGFloat {
-        if #available(iOS 26.0, *),
-           #available(macOS 26.0, *) {
-            // glass button's padding is big, so spacing is small.
-            return 1
-        } else {
-            // plain button's padding is small, so spacing is big.
-            return 20
-        }
+#if os(visionOS)
+        return 20
+#else
+        return 1
+#endif
     }
 
     var foregroundStyle: HierarchicalShapeStyle {
@@ -53,22 +50,11 @@ struct StatusToolbarItems: View {
                     .foregroundStyle(foregroundStyle)
             }
 #else
-            if #available(iOS 26.0, *),
-               #available(macOS 26.0, *) {
-                // iOS and macOS 26.0 support glass button style
-                Button(action: action) {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(foregroundStyle)
-                }
-                .buttonStyle(.glass)
-            } else {
-                // previous iOS and macOS do not support glass button style
-                Button(action: action) {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(foregroundStyle)
-                }
-                .buttonStyle(.plain)
+            Button(action: action) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(foregroundStyle)
             }
+            .buttonStyle(.glass)
 #endif
         }
     }
@@ -82,20 +68,10 @@ struct StatusToolbarItems: View {
                 image
             }
 #else
-            if #available(iOS 26.0, *),
-               #available(macOS 26.0, *) {
-                // iOS and macOS 26.0 support glass button style
-                Button(action: action) {
-                    image
-                }
-                .buttonStyle(.glass)
-            } else {
-                // previous iOS and macOS do not support glass button style
-                Button(action: action) {
-                    image
-                }
-                .buttonStyle(.plain)
+            Button(action: action) {
+                image
             }
+            .buttonStyle(.glass)
 #endif
         }
     }
