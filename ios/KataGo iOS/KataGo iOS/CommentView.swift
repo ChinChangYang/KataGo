@@ -66,7 +66,7 @@ struct CommentView: View {
         if let blackWinrate = analysis.blackWinrate,
            let blackScore = analysis.blackScore {
             let blackWinrateText = String(format: "%2.0f%%", (blackWinrate * 100).rounded())
-            let blackScoreText = lround(Double(blackScore) * 10) / 10
+            let blackScoreText = round(Double(blackScore) * 10) / 10.0
             let deadBlackPointsText = generateDeadBlackText()
             let deadWhitePointsText = generateDeadWhiteText()
             let aiMoveText = generateAIMoveText()
