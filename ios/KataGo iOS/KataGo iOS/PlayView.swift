@@ -19,7 +19,7 @@ struct PlayView: View {
         return VStack {
             if config.showCharts || config.showComments {
                 InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
-                    .frame(height: max(dimensions.totalHeight - dimensions.drawHeight, 125))
+                    .frame(height: max(dimensions.emptyHeight, InfoView.minHeight))
             }
 
             BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
@@ -42,4 +42,38 @@ struct PlayView: View {
                 .padding()
         }
     }
+}
+
+#Preview {
+    struct PreviewHost: View {
+        let gobanState = GobanState()
+        let gameRecord: GameRecord = {
+            let gr = GameRecord(config: Config())
+            gr.currentIndex = 50
+            var leads: [Int: Float] = [:]
+            for i in 0...100 {
+                leads[i] = Float(sin(Double(i) / 10.0) * 10.0)
+            }
+            gr.scoreLeads = leads
+            gr.comments?[50] = "Hello, world!\nSecond line.\nThird line!"
+            return gr
+        }()
+        @FocusState var commentIsFocused: Bool
+
+        var body: some View {
+            PlayView(gameRecord: gameRecord)
+                .padding()
+                .environment(gobanState)
+                .environment(BoardSize())
+                .environment(MessageList())
+                .environment(Turn())
+                .environment(Analysis())
+                .environment(Stones())
+                .environment(AudioModel())
+                .environment(Winrate())
+                .environment(Score())
+        }
+    }
+
+    return PreviewHost()
 }

@@ -13,6 +13,8 @@ enum InfoTabs {
 }
 
 struct InfoView: View {
+    static let minHeight: CGFloat = 150
+    static let buttonHeight: CGFloat = 25
     var gameRecord: GameRecord
     @State private var selectedTab: InfoTabs = .chart
     @FocusState<Bool>.Binding var commentIsFocused: Bool
@@ -31,7 +33,7 @@ struct InfoView: View {
                     }
                 }
 
-                Spacer(minLength: 5)
+                Spacer(minLength: InfoView.buttonHeight)
             }
 
             VStack {
@@ -46,7 +48,10 @@ struct InfoView: View {
                         selectedTab = .comments
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: 25)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: InfoView.buttonHeight
+                )
                 .foregroundStyle(.primary)
             }
         }
@@ -85,18 +90,21 @@ struct InfoView: View {
                 leads[i] = Float(sin(Double(i) / 10.0) * 10.0)
             }
             gr.scoreLeads = leads
+            gr.comments?[50] = "Hello, world!\nSecond line.\nThird line!"
             return gr
         }()
         @FocusState var commentIsFocused: Bool
 
         var body: some View {
             InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
-                .frame(height: 125)
+                .frame(height: InfoView.minHeight)
                 .padding()
                 .environment(gobanState)
                 .environment(BoardSize())
                 .environment(MessageList())
                 .environment(Turn())
+                .environment(Analysis())
+                .environment(Stones())
         }
     }
 
