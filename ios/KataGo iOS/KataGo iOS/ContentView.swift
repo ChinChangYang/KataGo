@@ -34,7 +34,6 @@ struct ContentView: View {
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
     @State var quitStatus: QuitStatus = .none
-    @State var autoPlayTimer: Timer? = nil
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var topUIState = TopUIState()
     @State var aiMove: String? = nil
@@ -175,7 +174,6 @@ struct ContentView: View {
                 gameRecord: gameRecord
             )
         } else {
-            autoPlayTimer?.invalidate()
             gobanState.analysisStatus = .clear
 
             // restore human profile for the next player
@@ -671,7 +669,7 @@ struct ContentView: View {
                 rootScore.black = analysis.blackScore ?? 0
             }
 
-            gobanState.waitingForAnalysis = false
+            gobanState.waitingForAnalysis = analysisInfo.isEmpty
         }
     }
 
