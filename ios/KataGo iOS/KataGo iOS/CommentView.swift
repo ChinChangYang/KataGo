@@ -25,7 +25,9 @@ struct CommentView: View {
                     VStack {
                         Spacer()
                         Button {
-                            comment = generateAnalysisText()
+                            withAnimation {
+                                comment = generateAnalysisText()
+                            }
                         } label: {
                             Image(systemName: "wand.and.sparkles")
                         }
