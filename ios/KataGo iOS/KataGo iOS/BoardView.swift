@@ -46,6 +46,9 @@ struct BoardView: View {
                               isClassicStoneStyle: config.isClassicStoneStyle,
                               verticalFlip: config.verticalFlip)
 
+                    drawNextMove(dimensions: dimensions,
+                                 verticalFlip: config.verticalFlip)
+
                     AnalysisView(config: config, dimensions: dimensions)
                     MoveNumberView(dimensions: dimensions, verticalFlip: config.verticalFlip)
 
@@ -139,6 +142,29 @@ struct BoardView: View {
             }
             .onDisappear {
                 gobanState.maybePauseAnalysis()
+            }
+        }
+    }
+
+    private func drawNextMove(dimensions: Dimensions, verticalFlip: Bool) -> some View {
+        Group {
+            if let nextMove = gobanState.getNextMove(gameRecord: gameRecord) {
+                let stoneColor: Color = (nextMove.player == .black) ? .black : Color(white: 1.0)
+
+                let boardPoint = BoardPoint(
+                    location: nextMove.location,
+                    width: Int(board.width),
+                    height: Int(board.height)
+                )
+
+                let x = boardPoint.x
+                let y = boardPoint.getPositionY(height: dimensions.height, verticalFlip: verticalFlip)
+
+                Circle()
+                    .stroke(stoneColor, lineWidth: 2)
+                    .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
+                    .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + y * dimensions.squareLength)
             }
         }
     }

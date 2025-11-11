@@ -63,6 +63,19 @@ extension BoardPoint {
     }
 }
 
+extension BoardPoint {
+    init(location: Location, width: Int, height: Int) {
+        if location.pass {
+            x = width - 1
+            y = BoardPoint.passY(height: height)
+        } else {
+            x = location.x
+            // Subtract 1 from y to make it 0-indexed
+            y = height - location.y - 1
+        }
+    }
+}
+
 @Observable
 class Stones {
     var blackPoints: [BoardPoint] = []
@@ -571,6 +584,18 @@ class GobanState {
             player: player,
             gameRecord: gameRecord
         )
+    }
+
+    func getNextMove(gameRecord: GameRecord) -> Move? {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
+            return nil
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
+        let nextMove = sgfHelper.getMove(at: currentIndex)
+
+        return nextMove
     }
 
     func forwardMoves(
