@@ -12,7 +12,7 @@ struct LoadingView: View {
     @State var degreesRotating = 0.0
     @State var text = ""
     @State var textOffset = 0
-    @State var animationSpeed = 0.1
+    @State var animationSpeed = 0.05
     @State var animationCount = 0
     @Binding var version: String?
     let selectedModel: NeuralNetworkModel
