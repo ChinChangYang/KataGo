@@ -9,6 +9,15 @@ import SwiftUI
 
 struct TransferableSgf: Transferable {
     static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(contentType: .utf8PlainText) { sgf in
+            sgf.content.data(using: .utf8) ?? Data()
+        } importing: { data in
+            TransferableSgf(
+                name: "",
+                content: String(data: data, encoding: .utf8) ?? ""
+            )
+        }
+
         DataRepresentation(exportedContentType: .utf8PlainText) { sgf in
             sgf.content.data(using: .utf8) ?? Data()
         }

@@ -104,6 +104,9 @@ struct ContentView: View {
                           allowsMultipleSelection: true) { result in
                 importFiles(result: result)
             }
+            .onOpenURL { url in
+                importUrl(url: url)
+            }
             .onChange(of: scenePhase) { _, newScenePhase in
                 processChange(newScenePhase: newScenePhase)
             }
@@ -266,6 +269,22 @@ struct ContentView: View {
                 // Update the selected game record in the navigation context
                 navigationContext.selectedGameRecord = newGameRecord
             }
+        }
+    }
+
+    private func importUrl(url: URL) {
+        // Dismiss the command interface
+        gobanTab.isCommandPresented = false
+
+        // Dismiss the configuration interface
+        gobanTab.isConfigPresented = false
+
+        if let newGameRecord = GameRecord.createGameRecord(from: url) {
+            // Insert the new game record into the model context
+            modelContext.insert(newGameRecord)
+
+            // Update the selected game record in the navigation context
+            navigationContext.selectedGameRecord = newGameRecord
         }
     }
 
