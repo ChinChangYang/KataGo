@@ -9,7 +9,7 @@ import SwiftUI
 
 struct TransferableSgf: Transferable {
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .text) { sgf in
+        DataRepresentation(exportedContentType: .utf8PlainText) { sgf in
             sgf.content.data(using: .utf8) ?? Data()
         }
         .suggestedFileName { sgf in
