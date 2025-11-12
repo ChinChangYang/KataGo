@@ -12,6 +12,7 @@ struct ModelRunnerView: View {
     @State private var selectedModel: NeuralNetworkModel? = nil
     @State private var katagoThread: Thread?
     @AppStorage("ModelRunnerView.selectedModelTitle") private var selectedModelTitle = ""
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         Group {
@@ -49,6 +50,11 @@ struct ModelRunnerView: View {
                         self.selectedModel = nil
                     }
                 }
+            }
+        }
+        .onOpenURL { url in
+            if let newGameRecord = GameRecord.createGameRecord(from: url) {
+                modelContext.insert(newGameRecord)
             }
         }
     }

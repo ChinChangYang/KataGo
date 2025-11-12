@@ -9,21 +9,39 @@ import SwiftUI
 
 struct TransferableSgf: Transferable {
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(contentType: .utf8PlainText) { sgf in
-            sgf.content.data(using: .utf8) ?? Data()
-        } importing: { data in
-            TransferableSgf(
+        FileRepresentation(contentType: .utf8PlainText) { sgf in
+            try createTransferredFile(from: sgf)
+        } importing: { received in
+            let content = try String(contentsOf: received.file, encoding: .utf8)
+
+            return TransferableSgf(
                 name: "",
-                content: String(data: data, encoding: .utf8) ?? ""
+                content: content
             )
         }
 
-        DataRepresentation(exportedContentType: .utf8PlainText) { sgf in
-            sgf.content.data(using: .utf8) ?? Data()
+        FileRepresentation(exportedContentType: .utf8PlainText) { sgf in
+            return try createTransferredFile(from: sgf)
         }
-        .suggestedFileName { sgf in
-            "\(sgf.name).sgf"
-        }
+    }
+
+    static func createTransferredFile(from sgf: TransferableSgf) throws -> SentTransferredFile {
+        let supportDirectory = try FileManager.default.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+
+        let file = supportDirectory.appendingPathComponent("KataGoAnytime.sgf")
+
+        try sgf.content.write(
+            to: file,
+            atomically: false,
+            encoding: .utf8
+        )
+
+        return SentTransferredFile(file)
     }
 
     public var name: String
