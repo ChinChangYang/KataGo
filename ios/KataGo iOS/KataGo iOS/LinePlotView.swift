@@ -181,10 +181,12 @@ struct LinePlotView: View {
         ZStack {
             chart
 
-            if gobanState.isEditing {
+            if gobanState.isEditing ||
+                (gameRecord.scoreLeads?.isEmpty == true) {
                 VStack {
                     Spacer()
                     Button {
+                        gobanState.isEditing = true
                         gobanState.isAutoPlaying.toggle()
                     } label: {
                         let systemName = gobanState.isAutoPlaying ? "stop.circle" : "wand.and.sparkles"
@@ -198,7 +200,7 @@ struct LinePlotView: View {
     }
 }
 
-#Preview("LinePlotView minimal preview") {
+#Preview("Minimal preview") {
     struct PreviewHost: View {
         let gobanState = GobanState()
         let gameRecord: GameRecord = {
@@ -214,9 +216,36 @@ struct LinePlotView: View {
 
         var body: some View {
             LinePlotView(gameRecord: gameRecord)
-                .frame(height: 100)
+                .frame(height: 125)
                 .padding()
                 .environment(gobanState)
+                .environment(BoardSize())
+                .environment(MessageList())
+                .environment(Turn())
+                .environment(Analysis())
+                .environment(Stones())
+        }
+    }
+
+    return PreviewHost()
+        .environment(\.dynamicTypeSize, .accessibility5)
+}
+
+#Preview("No data preview") {
+    struct PreviewHost: View {
+        let gobanState = GobanState()
+        let gameRecord = GameRecord(config: Config())
+
+        var body: some View {
+            LinePlotView(gameRecord: gameRecord)
+                .frame(height: 125)
+                .padding()
+                .environment(gobanState)
+                .environment(BoardSize())
+                .environment(MessageList())
+                .environment(Turn())
+                .environment(Analysis())
+                .environment(Stones())
         }
     }
 
