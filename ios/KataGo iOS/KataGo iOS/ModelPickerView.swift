@@ -149,6 +149,7 @@ struct ModelDetailView: View {
 
 struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
+    @Environment(\.modelContext) private var modelContext
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -170,6 +171,16 @@ struct ModelPickerView: View {
                 }
             }
             .navigationTitle("Select a Model")
+        }
+        .onOpenURL { url in
+            if let newGameRecord = GameRecord.createGameRecord(from: url) {
+                modelContext.insert(newGameRecord)
+                if let builtInModel = NeuralNetworkModel.allCases.first(
+                    where: { $0.builtIn }
+                ) {
+                    selectedModel = builtInModel
+                }
+            }
         }
     }
 }

@@ -10,17 +10,21 @@ import SwiftUI
 struct TransferableSgf: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .utf8PlainText) { sgf in
-            try createTransferredFile(from: sgf)
+            cleanUpSgfFiles()
+            return try createTransferredFile(from: sgf)
         } importing: { received in
-            let content = try String(contentsOf: received.file, encoding: .utf8)
+            let file = received.file
+            let name = file.deletingPathExtension().lastPathComponent
+            let content = try String(contentsOf: file, encoding: .utf8)
 
             return TransferableSgf(
-                name: "",
+                name: name,
                 content: content
             )
         }
 
         FileRepresentation(exportedContentType: .utf8PlainText) { sgf in
+            cleanUpSgfFiles()
             return try createTransferredFile(from: sgf)
         }
     }
@@ -33,7 +37,8 @@ struct TransferableSgf: Transferable {
             create: true
         )
 
-        let file = supportDirectory.appendingPathComponent("KataGoAnytime.sgf")
+        let fileName = sgf.name.isEmpty ? "KataGoAnytime" : sgf.name
+        let file = supportDirectory.appendingPathComponent("\(fileName).sgf")
 
         try sgf.content.write(
             to: file,
@@ -42,6 +47,32 @@ struct TransferableSgf: Transferable {
         )
 
         return SentTransferredFile(file)
+    }
+
+    static func cleanUpSgfFiles() {
+        let fileManager = FileManager.default
+
+        guard let supportDirectory = try? fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) else {
+            return
+        }
+
+        guard let fileURLs = try? fileManager.contentsOfDirectory(
+            at: supportDirectory,
+            includingPropertiesForKeys: nil
+        ) else {
+            return
+        }
+
+        for fileURL in fileURLs {
+            if fileURL.pathExtension == "sgf" {
+                try? fileManager.removeItem(at: fileURL)
+            }
+        }
     }
 
     public var name: String
