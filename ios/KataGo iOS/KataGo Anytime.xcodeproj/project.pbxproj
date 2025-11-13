@@ -282,7 +282,6 @@
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
 		E1BB32A72C721A8300690E67 /* ConfigModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */; };
 		E1BB32A92C72B73800690E67 /* GameRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A82C72B73800690E67 /* GameRecordTests.swift */; };
-		E1BB32AD2C730A2800690E67 /* AnalysisViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */; };
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
 		E1C6D0C72CDF0E38002C1921 /* GameLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */; };
@@ -631,7 +630,6 @@
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A62C721A8300690E67 /* ConfigModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModelTests.swift; sourceTree = "<group>"; };
 		E1BB32A82C72B73800690E67 /* GameRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecordTests.swift; sourceTree = "<group>"; };
-		E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisViewTests.swift; sourceTree = "<group>"; };
 		E1BB32B02C736AF100690E67 /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
@@ -1134,7 +1132,6 @@
 			children = (
 				E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */,
 				E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */,
-				E1BB32AC2C730A2800690E67 /* AnalysisViewTests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -1736,7 +1733,6 @@
 			files = (
 				E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */,
 				E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */,
-				E1BB32AD2C730A2800690E67 /* AnalysisViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
