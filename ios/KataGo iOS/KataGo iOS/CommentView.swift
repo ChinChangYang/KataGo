@@ -68,17 +68,28 @@ struct CommentView: View {
     func generateAnalysisText() -> String {
         if let blackWinrate = analysis.blackWinrate,
            let blackScore = analysis.blackScore {
+            let colorToPlay = analysis.nextColorForAnalysis == .black ? "Black" : "White"
+            let aiMoveText = generateAIMoveText()
             let blackWinrateText = String(format: "%2.0f%%", (blackWinrate * 100).rounded())
             let blackScoreText = round(Double(blackScore) * 10) / 10.0
-            let deadBlackPointsText = generateDeadBlackText()
-            let deadWhitePointsText = generateDeadWhiteText()
-            let aiMoveText = generateAIMoveText()
+            let deadBlackStonesText = generateDeadBlackText()
+            let deadWhiteStonesText = generateDeadWhiteText()
+            let sacrificableBlackStonesText = generateSacrificableBlackText()
+            let sacrificableWhiteStonesText = generateSacrificableWhiteText()
 
-            return "Black Winrate: \(blackWinrateText)\n" +
-            "Black Score Lead: \(blackScoreText)\n" +
-            "Dead Black Stones: \(deadBlackPointsText)\n" +
-            "Dead White Stones: \(deadWhitePointsText)\n" +
-            "AI Move: \(aiMoveText)"
+            let analysisText =
+"""
+- Color to Play: \(colorToPlay)
+- AI Move (location): \(aiMoveText)
+- Black Winrate: \(blackWinrateText)
+- Black Score Lead: \(blackScoreText)
+- Dead Black Stones: \(deadBlackStonesText)
+- Dead White Stones: \(deadWhiteStonesText)
+- Sacrificable Black Stones: \(sacrificableBlackStonesText)
+- Sacrificable White Stones: \(sacrificableWhiteStonesText)
+"""
+
+            return analysisText
         } else {
             return ""
         }
@@ -156,5 +167,33 @@ struct CommentView: View {
         )
 
         return coordinate?.move ?? "Unknown"
+    }
+
+    func generateSacrificableBlackText() -> String {
+        let points = stones.blackPoints.filter { point in
+            if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
+                return (abs(ownershipUnit.whiteness - 0.5) < 0.2) && ownershipUnit.scale > 0.4
+            } else {
+                return false
+            }
+        }
+
+        let text = boardPointsToString(points)
+
+        return text
+    }
+
+    func generateSacrificableWhiteText() -> String {
+        let points = stones.whitePoints.filter { point in
+            if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
+                return (abs(ownershipUnit.whiteness - 0.5) < 0.2) && ownershipUnit.scale > 0.4
+            } else {
+                return false
+            }
+        }
+
+        let text = boardPointsToString(points)
+
+        return text
     }
 }
