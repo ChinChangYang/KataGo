@@ -179,7 +179,12 @@ struct BoardView: View {
         if gobanState.isEditing {
             gameRecord.clearComments(after: gameRecord.currentIndex)
             gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
-            gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+
+            gobanState.maybeUpdateAnalysisData(
+                gameRecord: gameRecord,
+                analysis: analysis,
+                board: board
+            )
         } else if !gobanState.isBranchActive {
             gobanState.branchSgf = gameRecord.sgf
             gobanState.branchIndex = gameRecord.currentIndex

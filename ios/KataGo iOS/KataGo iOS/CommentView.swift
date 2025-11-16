@@ -26,6 +26,12 @@ struct CommentView: View {
                     VStack {
                         Spacer()
                         Button {
+                            gobanState.maybeUpdateAnalysisData(
+                                gameRecord: gameRecord,
+                                analysis: analysis,
+                                board: board
+                            )
+
                             withAnimation {
                                 comment = generateAnalysisText()
                             }
@@ -149,24 +155,9 @@ struct CommentView: View {
     }
 
     func generateAIMoveText() -> String {
-        guard let firstInfo = analysis.info.first else { return "Unknown" }
+        let bestMove = gameRecord.bestMoves?[gameRecord.currentIndex]
 
-        let bestMoveInfo = analysis.info.reduce(firstInfo) {
-            if $0.value.utilityLcb < $1.value.utilityLcb {
-                $1
-            } else {
-                $0
-            }
-        }
-
-        let coordinate = Coordinate(
-            x: bestMoveInfo.key.x,
-            y: bestMoveInfo.key.y + 1,
-            width: Int(board.width),
-            height: Int(board.height)
-        )
-
-        return coordinate?.move ?? "Unknown"
+        return bestMove ?? "Unknown"
     }
 
     func generateSacrificableBlackText() -> String {

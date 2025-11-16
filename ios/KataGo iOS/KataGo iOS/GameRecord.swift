@@ -24,6 +24,7 @@ final class GameRecord {
     var uuid: UUID? = UUID()
     var thumbnail: Data?
     var scoreLeads: [Int: Float]?
+    var bestMoves: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -46,7 +47,8 @@ final class GameRecord {
          lastModificationDate: Date? = Date.now,
          comments: [Int: String]? = [:],
          thumbnail: Data? = nil,
-         scoreLeads: [Int: Float]? = [:]) {
+         scoreLeads: [Int: Float]? = [:],
+         bestMoves: [Int: String]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -55,6 +57,7 @@ final class GameRecord {
         self.comments = comments
         self.thumbnail = thumbnail
         self.scoreLeads = scoreLeads
+        self.bestMoves = bestMoves
     }
 
     func clone() -> GameRecord {
@@ -66,7 +69,8 @@ final class GameRecord {
                                        lastModificationDate: Date.now,
                                        comments: self.comments,
                                        thumbnail: self.thumbnail,
-                                       scoreLeads: self.scoreLeads)
+                                       scoreLeads: self.scoreLeads,
+                                       bestMoves: self.bestMoves)
         newConfig.gameRecord = newGameRecord
         return newGameRecord
     }
@@ -107,7 +111,8 @@ final class GameRecord {
                                 name: String = defaultName,
                                 comments: [Int: String]? = [:],
                                 thumbnail: Data? = nil,
-                                scoreLeads: [Int: Float]? = [:]) -> GameRecord {
+                                scoreLeads: [Int: Float]? = [:],
+                                bestMoves: [Int: String]? = [:]) -> GameRecord {
         let config = Config()
         let sgfHelper = SgfHelper(sgf: sgf)
         config.boardWidth = sgfHelper.xSize
@@ -120,7 +125,8 @@ final class GameRecord {
                                     name: name,
                                     comments: comments,
                                     thumbnail: thumbnail,
-                                    scoreLeads: scoreLeads)
+                                    scoreLeads: scoreLeads,
+                                    bestMoves: bestMoves)
 
         config.gameRecord = gameRecord
 
@@ -173,5 +179,23 @@ final class GameRecord {
             return nil
         }
 #endif
+    }
+
+    func updateToLatestVersion() {
+        if lastModificationDate == nil {
+            lastModificationDate = Date.now
+        }
+
+        if comments == nil {
+            comments = [:]
+        }
+
+        if scoreLeads == nil {
+            scoreLeads = [:]
+        }
+
+        if bestMoves == nil {
+            bestMoves = [:]
+        }
     }
 }

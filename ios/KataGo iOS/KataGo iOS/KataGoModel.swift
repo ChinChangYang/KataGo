@@ -173,6 +173,27 @@ class Analysis {
         return blackScore
     }
 
+    func getBestMove(width: Int, height: Int) -> String? {
+        guard let firstInfo = info.first else { return nil }
+
+        let bestMoveInfo = info.reduce(firstInfo) {
+            if $0.value.utilityLcb < $1.value.utilityLcb {
+                $1
+            } else {
+                $0
+            }
+        }
+
+        let coordinate = Coordinate(
+            x: bestMoveInfo.key.x,
+            y: bestMoveInfo.key.y + 1,
+            width: width,
+            height: height
+        )
+
+        return coordinate?.move
+    }
+
     func clear() {
         info = [:]
         ownershipUnits = []
@@ -481,11 +502,23 @@ class GobanState {
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    func maybeUpdateScoreLeads(gameRecord: GameRecord, analysis: Analysis) {
-        if isEditing && (analysisStatus != .clear),
-           let scoreLead = analysis.blackScore {
-            withAnimation(.spring) {
-                gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+    func maybeUpdateAnalysisData(
+        gameRecord: GameRecord,
+        analysis: Analysis,
+        board: BoardSize
+    ) {
+        if isEditing && (analysisStatus != .clear) {
+            if let scoreLead = analysis.blackScore {
+                withAnimation(.spring) {
+                    gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                }
+            }
+
+            if let bestMove = analysis.getBestMove(
+                width: Int(board.width),
+                height: Int(board.height)
+            ) {
+                gameRecord.bestMoves?[gameRecord.currentIndex] = bestMove
             }
         }
     }

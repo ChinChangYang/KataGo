@@ -137,7 +137,12 @@ struct StatusToolbarItems: View {
     }
 
     private func maybeBackwardAction(limit: Int?) {
-        gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+        gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: analysis,
+            board: board
+        )
+
         if isFunctional {
             gobanState.backwardMoves(
                 limit: limit,
@@ -149,7 +154,12 @@ struct StatusToolbarItems: View {
     }
 
     func backwardFrameAction() {
-        gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+        gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: analysis,
+            board: board
+        )
+
         if isFunctional {
             gobanState.undoIndex(gameRecord: gameRecord)
             gobanState.undo(messageList: messageList)
@@ -213,7 +223,12 @@ struct StatusToolbarItems: View {
     }
 
     private func maybeForwardMoves(limit: Int?) {
-        gobanState.maybeUpdateScoreLeads(gameRecord: gameRecord, analysis: analysis)
+        gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: analysis,
+            board: board
+        )
+
         if isFunctional {
             gobanState.forwardMoves(
                 limit: limit,
