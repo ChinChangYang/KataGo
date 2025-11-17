@@ -75,7 +75,7 @@ struct CommentView: View {
         }
 
         withAnimation {
-            comment = generateAnalysisText()
+            comment = generateNaturalComment()
         }
     }
 
@@ -120,6 +120,115 @@ struct CommentView: View {
 """
 
         return analysisText
+    }
+
+    private func generateNaturalComment() -> String {
+        let currentIndex = gameRecord.currentIndex
+        let nextIndex = gameRecord.currentIndex + 1
+        let lastMoveText = generateLastMoveText()
+        let colorToPlay = turn.nextColorForPlayCommand.name
+        let colorPlayed = turn.nextColorForPlayCommand.other.name
+        let nextMoveText = gameRecord.moves?[currentIndex] ?? "Unknown"
+        let nextBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[nextIndex])
+
+        let nextBlackWinrateSentence = nextBlackWinrateText == "Unknown" ? "" : " Black win rate is \(nextBlackWinrateText)."
+
+        let nextBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[nextIndex])
+
+        let nextBlackScoreSentence = nextBlackScoreText == "Unknown" ? "" : " Black leads by \(nextBlackScoreText) points."
+
+        let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
+
+        let nextDeadBlackStonesSentence = (
+            nextDeadBlackStonesText == "Unknown" ? "" :
+                nextDeadBlackStonesText == "None" ? " None of Black's stones is dead on the board." :
+                " Black's dead stones are \(nextDeadBlackStonesText)."
+        )
+
+        let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
+
+        let nextDeadWhiteStonesSentence = (
+            nextDeadWhiteStonesText == "Unknown" ? "" :
+                nextDeadWhiteStonesText == "None" ? " None of White's stones is dead on the board." :
+                " White's dead stones are \(nextDeadWhiteStonesText)."
+        )
+
+        let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
+
+        let nextBlackSchrodingerSentence = (
+            nextBlackSchrodingerText == "Unknown" ? "" :
+                nextBlackSchrodingerText == "None" ? " None of Black's stones have an unresolved life-and-death." :
+                " The life-and-death at \(nextBlackSchrodingerText) for Black remain unresolved."
+        )
+
+        let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
+
+        let nextWhiteSchrodingerSentence = (
+            nextWhiteSchrodingerText == "Unknown" ? "" :
+                nextWhiteSchrodingerText == "None" ? " None of White's stones have an unresolved life-and-death." :
+                " The life-and-death at \(nextWhiteSchrodingerText) for White remain unresolved."
+        )
+
+        let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
+        let bestMoveDiffer = (bestMoveText != nextMoveText) && (bestMoveText != "Unknown")
+
+        let bestMoveSentence = bestMoveDiffer ? " KataGo recommends \(bestMoveText)" : ""
+
+        let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
+
+        let bestBlackWinrateSentence = bestMoveDiffer ? ", which changes win rate to \(bestBlackWinrateText)." : ""
+
+        let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
+
+        let bestBlackScoreSentence = bestMoveDiffer ? " If the recommended move is played, Black will leads by \(bestBlackScoreText)." : ""
+
+        let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
+
+        let bestDeadBlackStonesSentence = (
+            (bestMoveDiffer && (bestDeadBlackStonesText != "None")) ? " Black's dead stones will be \(bestDeadBlackStonesText)." :
+                bestMoveDiffer ? " None of Black's stones will be dead on the board." :
+                ""
+        )
+
+        let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
+
+        let bestDeadWhiteStonesSentence = (
+            (bestMoveDiffer && (bestDeadWhiteStonesText != "None")) ? " White's dead stones will be \(bestDeadWhiteStonesText)." :
+                bestMoveDiffer ? " None of White's stones will be dead on the board." :
+                ""
+        )
+
+        let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
+
+        let bestBlackSchrodingerSentence = (
+            (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " The life-and-death at \(bestBlackSchrodingerText) for Black will remain unresolved." :
+                bestMoveDiffer ? " None of Black's stones will have an unresolved life-and-death." :
+                ""
+        )
+
+        let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
+
+        let bestWhiteSchrodingerSentence = (
+            (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " The life-and-death at \(bestWhiteSchrodingerText) for White will remain unresolved." :
+                bestMoveDiffer ? " None of White's stones will have an unresolved life-and-death." :
+                ""
+        )
+
+        var comment: String
+
+        if currentIndex >= 1 {
+            comment =
+"""
+\(colorPlayed) number \(currentIndex) plays \(lastMoveText). \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextBlackWinrateSentence)\(nextBlackScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestBlackWinrateSentence)\(bestBlackScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+"""
+        } else {
+            comment =
+"""
+Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextBlackWinrateSentence)\(nextBlackScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestBlackWinrateSentence)\(bestBlackScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+"""
+        }
+
+        return comment
     }
 
     private func generateLastMoveText() -> String {

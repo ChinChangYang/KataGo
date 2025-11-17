@@ -95,7 +95,7 @@ extension BoardPoint {
             )
 
             if let move = coordinate?.move {
-                return "\($0) \(move)"
+                return $0 == "" ? move : "\($0) \(move)"
             } else {
                 return $0
             }
@@ -137,6 +137,14 @@ enum PlayerColor {
             "White"
         } else {
             "Unknown"
+        }
+    }
+
+    var other: PlayerColor {
+        switch self {
+        case .black: .white
+        case .white: .black
+        case .unknown: .unknown
         }
     }
 }
