@@ -97,7 +97,7 @@ struct CommentView: View {
     }
 
     func generateBlackWinRateText() -> String {
-        guard let blackWinRate = analysis.blackWinrate else {
+        guard let blackWinRate = gameRecord.winRates?[gameRecord.currentIndex] else {
             return "Unknown"
         }
 
