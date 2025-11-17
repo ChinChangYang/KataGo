@@ -146,6 +146,10 @@ class GobanState {
         boardPoints: [BoardPoint],
         condition: (OwnershipUnit) -> Bool
     ) -> String? {
+        guard !analysis.ownershipUnits.isEmpty else {
+            return nil
+        }
+
         let points = boardPoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
                 return condition(ownershipUnit)
@@ -154,13 +158,15 @@ class GobanState {
             }
         }
 
-        let text = BoardPoint.toString(
+        if let text = BoardPoint.toString(
             points,
             width: Int(board.width),
             height: Int(board.height)
-        )
-
-        return text
+        ) {
+            return text
+        } else {
+            return "None"
+        }
     }
 
     func maybeUpdateAnalysisData(

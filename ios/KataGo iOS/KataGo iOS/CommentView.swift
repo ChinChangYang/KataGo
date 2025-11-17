@@ -80,29 +80,43 @@ struct CommentView: View {
     }
 
     func generateAnalysisText() -> String {
+        let currentIndex = gameRecord.currentIndex
+        let nextIndex = gameRecord.currentIndex + 1
         let lastMoveText = generateLastMoveText()
         let colorToPlay = turn.nextColorForPlayCommand.name
-        let nextMoveText = gameRecord.moves?[gameRecord.currentIndex] ?? "Unknown"
-        let bestMoveText = gameRecord.bestMoves?[gameRecord.currentIndex] ?? "Unknown"
-        let blackWinrateText = formatBlackWinRate(gameRecord.winRates?[gameRecord.currentIndex])
-        let blackScoreText = formatBlackScore(gameRecord.scoreLeads?[gameRecord.currentIndex])
-        let deadBlackStonesText = gameRecord.deadBlackStones?[gameRecord.currentIndex] ?? "Unknown"
-        let deadWhiteStonesText = gameRecord.deadWhiteStones?[gameRecord.currentIndex] ?? "Unknown"
-        let blackSchrodingerText = gameRecord.blackSchrodingerStones?[gameRecord.currentIndex] ?? "Unknown"
-        let whiteSchrodingerText = gameRecord.whiteSchrodingerStones?[gameRecord.currentIndex] ?? "Unknown"
+        let nextMoveText = gameRecord.moves?[currentIndex] ?? "Unknown"
+        let nextBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[nextIndex])
+        let nextBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[nextIndex])
+        let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
+        let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
+        let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
+        let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
+        let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
+        let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
+        let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
+        let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
+        let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
+        let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
+        let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
 
         let analysisText =
 """
 - Last Move: \(lastMoveText)
 - Color to Play: \(colorToPlay)
 - Next Move: \(nextMoveText)
-- AI suggested Move: \(bestMoveText)
-- Black Winrate: \(blackWinrateText)
-- Black Score Lead: \(blackScoreText)
-- Dead Black Stones: \(deadBlackStonesText)
-- Dead White Stones: \(deadWhiteStonesText)
-- Schrödinger's Black Stones: \(blackSchrodingerText)
-- Schrödinger's White Stones: \(whiteSchrodingerText)
+- Next Move's Winrate: \(nextBlackWinrateText)
+- Next Move's Score Lead: \(nextBlackScoreText)
+- Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
+- Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
+- Next Move's Schrödinger's Black Stones: \(nextBlackSchrodingerText)
+- Next Move's Schrödinger's White Stones: \(nextWhiteSchrodingerText)
+- AI suggested Next Move: \(bestMoveText)
+- AI Move's Black Winrate: \(bestBlackWinrateText)
+- AI Move's Black Score Lead: \(bestBlackScoreText)
+- AI Move's Dead Black Stones: \(bestDeadBlackStonesText)
+- AI Move's Dead White Stones: \(bestDeadWhiteStonesText)
+- AI Move's Schrödinger's Black Stones: \(bestBlackSchrodingerText)
+- AI Move's Schrödinger's White Stones: \(bestWhiteSchrodingerText)
 """
 
         return analysisText
