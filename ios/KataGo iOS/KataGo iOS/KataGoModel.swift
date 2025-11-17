@@ -82,26 +82,22 @@ extension BoardPoint {
         _ points: [BoardPoint],
         width: Int,
         height: Int
-    ) -> String {
+    ) -> String? {
 
-        var text: String
+        guard !points.isEmpty else { return nil }
 
-        if points.isEmpty {
-            text = "None"
-        } else {
-            text = points.reduce("") {
-                let coordinate = Coordinate(
-                    x: $1.x,
-                    y: $1.y + 1,
-                    width: width,
-                    height: height
-                )
+        let text = points.reduce("") {
+            let coordinate = Coordinate(
+                x: $1.x,
+                y: $1.y + 1,
+                width: width,
+                height: height
+            )
 
-                if let move = coordinate?.move {
-                    return "\($0) \(move)"
-                } else {
-                    return $0
-                }
+            if let move = coordinate?.move {
+                return "\($0) \(move)"
+            } else {
+                return $0
             }
         }
 

@@ -30,6 +30,7 @@ final class GameRecord {
     var deadWhiteStones: [Int: String]?
     var blackSchrodingerStones: [Int: String]?
     var whiteSchrodingerStones: [Int: String]?
+    var moves: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -58,7 +59,9 @@ final class GameRecord {
          deadBlackStones: [Int: String]? = [:],
          deadWhiteStones: [Int: String]? = [:],
          blackSchrodingerStones: [Int: String]? = [:],
-         whiteSchrodingerStones: [Int: String]? = [:]) {
+         whiteSchrodingerStones: [Int: String]? = [:],
+         moves: [Int: String]? = [:]
+    ) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -73,6 +76,7 @@ final class GameRecord {
         self.deadWhiteStones = deadWhiteStones
         self.blackSchrodingerStones = blackSchrodingerStones
         self.whiteSchrodingerStones = whiteSchrodingerStones
+        self.moves = moves
     }
 
     func clone() -> GameRecord {
@@ -92,7 +96,8 @@ final class GameRecord {
             deadBlackStones: self.deadBlackStones,
             deadWhiteStones: self.deadWhiteStones,
             blackSchrodingerStones: self.blackSchrodingerStones,
-            whiteSchrodingerStones: self.whiteSchrodingerStones
+            whiteSchrodingerStones: self.whiteSchrodingerStones,
+            moves: self.moves
         )
 
         newConfig.gameRecord = newGameRecord
@@ -114,6 +119,7 @@ final class GameRecord {
         deadWhiteStones = deadWhiteStones?.filter { $0.key <= index }
         blackSchrodingerStones = blackSchrodingerStones?.filter { $0.key <= index }
         whiteSchrodingerStones = whiteSchrodingerStones?.filter { $0.key <= index }
+        moves = moves?.filter { $0.key <= index }
     }
 
     class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
@@ -143,7 +149,8 @@ final class GameRecord {
         deadBlackStones: [Int: String]? = [:],
         deadWhiteStones: [Int: String]? = [:],
         blackSchrodingerStones: [Int: String]? = [:],
-        whiteSchrodingerStones: [Int: String]? = [:]
+        whiteSchrodingerStones: [Int: String]? = [:],
+        moves: [Int: String]? = [:]
     ) -> GameRecord {
 
         let config = Config()
@@ -165,7 +172,8 @@ final class GameRecord {
             deadBlackStones: deadBlackStones,
             deadWhiteStones: deadWhiteStones,
             blackSchrodingerStones: blackSchrodingerStones,
-            whiteSchrodingerStones: whiteSchrodingerStones
+            whiteSchrodingerStones: whiteSchrodingerStones,
+            moves: moves
         )
 
         config.gameRecord = gameRecord
@@ -256,6 +264,10 @@ final class GameRecord {
 
         if whiteSchrodingerStones == nil {
             whiteSchrodingerStones = [:]
+        }
+
+        if moves == nil {
+            moves = [:]
         }
     }
 }

@@ -25,18 +25,7 @@ struct CommentView: View {
                     VStack {
                         Spacer()
                         Button {
-                            if gobanState.analysisStatus != .clear {
-                                gobanState.maybeUpdateAnalysisData(
-                                    gameRecord: gameRecord,
-                                    analysis: analysis,
-                                    board: board,
-                                    stones: stones
-                                )
-                            }
-
-                            withAnimation {
-                                comment = generateAnalysisText()
-                            }
+                            wandAndSparklesAction()
                         } label: {
                             Image(systemName: "wand.and.sparkles")
                         }
@@ -73,8 +62,27 @@ struct CommentView: View {
         }
     }
 
+    func wandAndSparklesAction() {
+        gobanState.maybeUpdateMoves(gameRecord: gameRecord, board: board)
+
+        if gobanState.analysisStatus != .clear {
+            gobanState.maybeUpdateAnalysisData(
+                gameRecord: gameRecord,
+                analysis: analysis,
+                board: board,
+                stones: stones
+            )
+        }
+
+        withAnimation {
+            comment = generateAnalysisText()
+        }
+    }
+
     func generateAnalysisText() -> String {
+        let lastMoveText = generateLastMoveText()
         let colorToPlay = turn.nextColorForPlayCommand.name
+        let nextMoveText = gameRecord.moves?[gameRecord.currentIndex] ?? "Unknown"
         let bestMoveText = gameRecord.bestMoves?[gameRecord.currentIndex] ?? "Unknown"
         let blackWinrateText = formatBlackWinRate(gameRecord.winRates?[gameRecord.currentIndex])
         let blackScoreText = formatBlackScore(gameRecord.scoreLeads?[gameRecord.currentIndex])
@@ -85,8 +93,10 @@ struct CommentView: View {
 
         let analysisText =
 """
+- Last Move: \(lastMoveText)
 - Color to Play: \(colorToPlay)
-- Best Move: \(bestMoveText)
+- Next Move: \(nextMoveText)
+- AI suggested Move: \(bestMoveText)
 - Black Winrate: \(blackWinrateText)
 - Black Score Lead: \(blackScoreText)
 - Dead Black Stones: \(deadBlackStonesText)
@@ -96,6 +106,12 @@ struct CommentView: View {
 """
 
         return analysisText
+    }
+
+    private func generateLastMoveText() -> String {
+        guard gameRecord.currentIndex >= 1 else { return "None" }
+        let lastMove = gameRecord.moves?[gameRecord.currentIndex - 1] ?? "Unknown"
+        return lastMove
     }
 
     private func formatBlackWinRate(_ blackWinRate: Float?) -> String {

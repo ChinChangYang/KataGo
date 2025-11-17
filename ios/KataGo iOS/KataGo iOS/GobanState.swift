@@ -145,7 +145,7 @@ class GobanState {
         board: BoardSize,
         boardPoints: [BoardPoint],
         condition: (OwnershipUnit) -> Bool
-    ) -> String {
+    ) -> String? {
         let points = boardPoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
                 return condition(ownershipUnit)
@@ -175,7 +175,7 @@ class GobanState {
                     gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
                 }
             }
-            
+
             if let bestMove = analysis.getBestMove(
                 width: Int(board.width),
                 height: Int(board.height)
@@ -428,5 +428,25 @@ class GobanState {
         }
 
         return (currentIndex < moveSize) && (isEditing || isBranchActive)
+    }
+
+    func maybeUpdateMoves(gameRecord: GameRecord, board: BoardSize, sgfHelper: SgfHelper? = nil) {
+        if gameRecord.moves == nil { gameRecord.moves = [:] }
+        let currentIndex = gameRecord.currentIndex
+        let previousIndex = currentIndex - 1
+
+        if gameRecord.moves?[currentIndex] == nil ||
+            (previousIndex >= 0 && gameRecord.moves?[previousIndex] == nil) {
+            let sgfHelper = sgfHelper ?? SgfHelper(sgf: gameRecord.sgf)
+
+            if let location = sgfHelper.getMove(at: currentIndex)?.location {
+                gameRecord.moves?[currentIndex] = board.locationToMove(location: location)
+            }
+
+            if previousIndex >= 0,
+               let location = sgfHelper.getMove(at: previousIndex)?.location {
+                gameRecord.moves?[previousIndex] = board.locationToMove(location: location)
+            }
+        }
     }
 }

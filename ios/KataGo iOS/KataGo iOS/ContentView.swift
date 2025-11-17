@@ -358,12 +358,13 @@ struct ContentView: View {
                     messageList.appendAndSend(command: config.getKataAnalyzeCommand())
                 }
 
-                if gobanState.isAutoPlaying,
-                   let scoreLead = analysis.blackScore {
-
-                    withAnimation(.spring) {
-                        gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
-                    }
+                if gobanState.isAutoPlaying && !analysis.info.isEmpty {
+                    gobanState.maybeUpdateAnalysisData(
+                        gameRecord: gameRecord,
+                        analysis: analysis,
+                        board: board,
+                        stones: stones
+                    )
 
                     // forward move
                     let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
@@ -830,7 +831,8 @@ struct ContentView: View {
         if message.hasPrefix(sgfPrefix) {
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
-                let currentIndex = SgfHelper(sgf: sgfString).moveSize ?? 0
+                let sgfHelper = SgfHelper(sgf: sgfString)
+                let currentIndex = sgfHelper.moveSize ?? 0
                 if gameRecords.isEmpty {
                     // Automatically generate and select a new game when there are no games in the list
                     let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
@@ -844,6 +846,7 @@ struct ContentView: View {
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex
                     gameRecord.lastModificationDate = Date.now
+                    gobanState.maybeUpdateMoves(gameRecord: gameRecord, board: board, sgfHelper: sgfHelper)
                 }
             }
         }
