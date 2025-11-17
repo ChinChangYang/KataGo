@@ -21,7 +21,6 @@ struct CommentView: View {
                 TextField("Add your comment", text: $comment, axis: .vertical)
 
                 if comment.isEmpty &&
-                    !analysis.info.isEmpty &&
                     !gobanState.requestingClearAnalysis {
                     VStack {
                         Spacer()
@@ -29,7 +28,8 @@ struct CommentView: View {
                             gobanState.maybeUpdateAnalysisData(
                                 gameRecord: gameRecord,
                                 analysis: analysis,
-                                board: board
+                                board: board,
+                                stones: stones
                             )
 
                             withAnimation {
@@ -72,76 +72,50 @@ struct CommentView: View {
     }
 
     func generateAnalysisText() -> String {
-        if let blackWinrate = analysis.blackWinrate,
-           let blackScore = analysis.blackScore {
-            let colorToPlay = analysis.nextColorForAnalysis == .black ? "Black" : "White"
-            let aiMoveText = generateAIMoveText()
-            let blackWinrateText = String(format: "%2.0f%%", (blackWinrate * 100).rounded())
-            let blackScoreText = round(Double(blackScore) * 10) / 10.0
-            let deadBlackStonesText = generateDeadBlackText()
-            let deadWhiteStonesText = generateDeadWhiteText()
-            let sacrificableBlackStonesText = generateSacrificableBlackText()
-            let sacrificableWhiteStonesText = generateSacrificableWhiteText()
+        let colorToPlay = analysis.nextColorForAnalysis.name
+        let bestMoveText = gameRecord.bestMoves?[gameRecord.currentIndex] ?? "Unknown"
+        let blackWinrateText = generateBlackWinRateText()
+        let blackScoreText = generateBlackScoreText()
+        let deadBlackStonesText = gameRecord.deadBlackStones?[gameRecord.currentIndex] ?? "Unknown"
+        let deadWhiteStonesText = generateDeadWhiteText()
+        let sacrificableBlackStonesText = generateSacrificableBlackText()
+        let sacrificableWhiteStonesText = generateSacrificableWhiteText()
 
-            let analysisText =
+        let analysisText =
 """
 - Color to Play: \(colorToPlay)
-- AI Move (location): \(aiMoveText)
+- Best Move: \(bestMoveText)
 - Black Winrate: \(blackWinrateText)
 - Black Score Lead: \(blackScoreText)
 - Dead Black Stones: \(deadBlackStonesText)
 - Dead White Stones: \(deadWhiteStonesText)
-- Sacrificable Black Stones: \(sacrificableBlackStonesText)
-- Sacrificable White Stones: \(sacrificableWhiteStonesText)
+- 50/50 Alive Black Stones: \(sacrificableBlackStonesText)
+- 50/50 Alive White Stones: \(sacrificableWhiteStonesText)
 """
 
-            return analysisText
-        } else {
-            return ""
-        }
+        return analysisText
     }
 
-    func boardPointsToString(_ points: [BoardPoint]) -> String {
-        var text: String
-
-        if points.isEmpty {
-            text = "None"
-        } else {
-            text = points.reduce("") {
-                let coordinate = Coordinate(
-                    x: $1.x,
-                    y: $1.y + 1,
-                    width: Int(board.width),
-                    height: Int(board.height)
-                )
-
-                if let move = coordinate?.move {
-                    return "\($0) \(move)"
-                } else {
-                    return $0
-                }
-            }
+    func generateBlackWinRateText() -> String {
+        guard let blackWinRate = analysis.blackWinrate else {
+            return "Unknown"
         }
 
-        return text
+        let blackWinRateText = String(format: "%2.0f%%", (blackWinRate * 100).rounded())
+        return blackWinRateText
     }
 
-    func generateDeadBlackText() -> String {
-        let deadPoints = stones.blackPoints.filter { point in
-            if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
-                return ownershipUnit.whiteness > 0.9
-            } else {
-                return false
-            }
+    func generateBlackScoreText() -> String {
+        guard let blackScore = gameRecord.scoreLeads?[gameRecord.currentIndex] else {
+            return "Unknown"
         }
 
-        let deadPointsText = boardPointsToString(deadPoints)
-
-        return deadPointsText
+        let blackScoreText = String(round(Double(blackScore) * 10) / 10.0)
+        return blackScoreText
     }
 
     func generateDeadWhiteText() -> String {
-        let deadPoints = stones.whitePoints.filter { point in
+        let points = stones.whitePoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
                 return ownershipUnit.whiteness < 0.1
             } else {
@@ -149,15 +123,13 @@ struct CommentView: View {
             }
         }
 
-        let deadPointsText = boardPointsToString(deadPoints)
+        let text = BoardPoint.toString(
+            points,
+            width: Int(board.width),
+            height: Int(board.height)
+        )
 
-        return deadPointsText
-    }
-
-    func generateAIMoveText() -> String {
-        let bestMove = gameRecord.bestMoves?[gameRecord.currentIndex]
-
-        return bestMove ?? "Unknown"
+        return text
     }
 
     func generateSacrificableBlackText() -> String {
@@ -169,7 +141,11 @@ struct CommentView: View {
             }
         }
 
-        let text = boardPointsToString(points)
+        let text = BoardPoint.toString(
+            points,
+            width: Int(board.width),
+            height: Int(board.height)
+        )
 
         return text
     }
@@ -183,7 +159,11 @@ struct CommentView: View {
             }
         }
 
-        let text = boardPointsToString(points)
+        let text = BoardPoint.toString(
+            points,
+            width: Int(board.width),
+            height: Int(board.height)
+        )
 
         return text
     }

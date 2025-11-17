@@ -25,6 +25,8 @@ final class GameRecord {
     var thumbnail: Data?
     var scoreLeads: [Int: Float]?
     var bestMoves: [Int: String]?
+    var winRates: [Int: Float]?
+    var deadBlackStones: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -48,7 +50,9 @@ final class GameRecord {
          comments: [Int: String]? = [:],
          thumbnail: Data? = nil,
          scoreLeads: [Int: Float]? = [:],
-         bestMoves: [Int: String]? = [:]) {
+         bestMoves: [Int: String]? = [:],
+         winRates: [Int: Float]? = [:],
+         deadBlackStones: [Int: String]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -58,19 +62,26 @@ final class GameRecord {
         self.thumbnail = thumbnail
         self.scoreLeads = scoreLeads
         self.bestMoves = bestMoves
+        self.winRates = winRates
+        self.deadBlackStones = deadBlackStones
     }
 
     func clone() -> GameRecord {
         let newConfig = Config(config: self.config)
-        let newGameRecord = GameRecord(sgf: self.sgf,
-                                       currentIndex: self.currentIndex,
-                                       config: newConfig,
-                                       name: self.name + " (copy)",
-                                       lastModificationDate: Date.now,
-                                       comments: self.comments,
-                                       thumbnail: self.thumbnail,
-                                       scoreLeads: self.scoreLeads,
-                                       bestMoves: self.bestMoves)
+
+        let newGameRecord = GameRecord(
+            sgf: self.sgf,
+            currentIndex: self.currentIndex,
+            config: newConfig,
+            name: self.name + " (copy)",
+            lastModificationDate: Date.now,
+            comments: self.comments,
+            thumbnail: self.thumbnail,
+            scoreLeads: self.scoreLeads,
+            bestMoves: self.bestMoves,
+            winRates: self.winRates,
+            deadBlackStones: self.deadBlackStones)
+
         newConfig.gameRecord = newGameRecord
         return newGameRecord
     }
@@ -106,27 +117,36 @@ final class GameRecord {
         return try context.fetch(descriptor)
     }
 
-    class func createGameRecord(sgf: String = defaultSgf,
-                                currentIndex: Int = 0,
-                                name: String = defaultName,
-                                comments: [Int: String]? = [:],
-                                thumbnail: Data? = nil,
-                                scoreLeads: [Int: Float]? = [:],
-                                bestMoves: [Int: String]? = [:]) -> GameRecord {
+    class func createGameRecord(
+        sgf: String = defaultSgf,
+        currentIndex: Int = 0,
+        name: String = defaultName,
+        comments: [Int: String]? = [:],
+        thumbnail: Data? = nil,
+        scoreLeads: [Int: Float]? = [:],
+        bestMoves: [Int: String]? = [:],
+        winRates: [Int: Float]? = [:],
+        deadBlackStones: [Int: String]? = [:]
+    ) -> GameRecord {
+
         let config = Config()
         let sgfHelper = SgfHelper(sgf: sgf)
         config.boardWidth = sgfHelper.xSize
         config.boardHeight = sgfHelper.ySize
         config.komi = sgfHelper.rules.komi
 
-        let gameRecord = GameRecord(sgf: sgf,
-                                    currentIndex: currentIndex,
-                                    config: config,
-                                    name: name,
-                                    comments: comments,
-                                    thumbnail: thumbnail,
-                                    scoreLeads: scoreLeads,
-                                    bestMoves: bestMoves)
+        let gameRecord = GameRecord(
+            sgf: sgf,
+            currentIndex: currentIndex,
+            config: config,
+            name: name,
+            comments: comments,
+            thumbnail: thumbnail,
+            scoreLeads: scoreLeads,
+            bestMoves: bestMoves,
+            winRates: winRates,
+            deadBlackStones: deadBlackStones
+        )
 
         config.gameRecord = gameRecord
 
@@ -196,6 +216,14 @@ final class GameRecord {
 
         if bestMoves == nil {
             bestMoves = [:]
+        }
+
+        if winRates == nil {
+            winRates = [:]
+        }
+
+        if deadBlackStones == nil {
+            deadBlackStones = [:]
         }
     }
 }

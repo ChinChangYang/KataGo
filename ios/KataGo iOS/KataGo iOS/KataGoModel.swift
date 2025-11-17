@@ -76,6 +76,39 @@ extension BoardPoint {
     }
 }
 
+extension BoardPoint {
+
+    static func toString(
+        _ points: [BoardPoint],
+        width: Int,
+        height: Int
+    ) -> String {
+
+        var text: String
+
+        if points.isEmpty {
+            text = "None"
+        } else {
+            text = points.reduce("") {
+                let coordinate = Coordinate(
+                    x: $1.x,
+                    y: $1.y + 1,
+                    width: width,
+                    height: height
+                )
+
+                if let move = coordinate?.move {
+                    return "\($0) \(move)"
+                } else {
+                    return $0
+                }
+            }
+        }
+
+        return text
+    }
+}
+
 @Observable
 class Stones {
     var blackPoints: [BoardPoint] = []
@@ -98,6 +131,16 @@ enum PlayerColor {
             return "w"
         } else {
             return nil
+        }
+    }
+
+    var name: String {
+        if self == .black {
+            "Black"
+        } else if self == .white {
+            "White"
+        } else {
+            "Unknown"
         }
     }
 }
@@ -502,10 +545,33 @@ class GobanState {
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
+    func generateDeadBlackText(
+        analysis: Analysis,
+        board: BoardSize,
+        stones: Stones
+    ) -> String {
+        let deadPoints = stones.blackPoints.filter { point in
+            if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
+                return ownershipUnit.whiteness > 0.9
+            } else {
+                return false
+            }
+        }
+
+        let deadPointsText = BoardPoint.toString(
+            deadPoints,
+            width: Int(board.width),
+            height: Int(board.height)
+        )
+
+        return deadPointsText
+    }
+
     func maybeUpdateAnalysisData(
         gameRecord: GameRecord,
         analysis: Analysis,
-        board: BoardSize
+        board: BoardSize,
+        stones: Stones
     ) {
         if isEditing && (analysisStatus != .clear) {
             if let scoreLead = analysis.blackScore {
@@ -520,6 +586,18 @@ class GobanState {
             ) {
                 gameRecord.bestMoves?[gameRecord.currentIndex] = bestMove
             }
+
+            if let winRate = analysis.blackWinrate {
+                gameRecord.winRates?[gameRecord.currentIndex] = winRate
+            }
+
+            let deadBlackText = generateDeadBlackText(
+                analysis: analysis,
+                board: board,
+                stones: stones
+            )
+
+            gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
         }
     }
 

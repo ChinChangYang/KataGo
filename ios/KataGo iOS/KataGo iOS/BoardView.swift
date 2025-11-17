@@ -183,7 +183,8 @@ struct BoardView: View {
             gobanState.maybeUpdateAnalysisData(
                 gameRecord: gameRecord,
                 analysis: analysis,
-                board: board
+                board: board,
+                stones: stones
             )
         } else if !gobanState.isBranchActive {
             gobanState.branchSgf = gameRecord.sgf

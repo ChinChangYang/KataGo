@@ -16,6 +16,7 @@ struct StatusToolbarItems: View {
     @Environment(BoardSize.self) var board
     @Environment(MessageList.self) var messageList
     @Environment(Analysis.self) var analysis
+    @Environment(Stones.self) var stones
     var gameRecord: GameRecord
 
     var config: Config {
@@ -140,7 +141,8 @@ struct StatusToolbarItems: View {
         gobanState.maybeUpdateAnalysisData(
             gameRecord: gameRecord,
             analysis: analysis,
-            board: board
+            board: board,
+            stones: stones
         )
 
         if isFunctional {
@@ -157,7 +159,8 @@ struct StatusToolbarItems: View {
         gobanState.maybeUpdateAnalysisData(
             gameRecord: gameRecord,
             analysis: analysis,
-            board: board
+            board: board,
+            stones: stones
         )
 
         if isFunctional {
@@ -226,7 +229,8 @@ struct StatusToolbarItems: View {
         gobanState.maybeUpdateAnalysisData(
             gameRecord: gameRecord,
             analysis: analysis,
-            board: board
+            board: board,
+            stones: stones
         )
 
         if isFunctional {
