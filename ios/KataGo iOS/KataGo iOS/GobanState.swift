@@ -23,13 +23,6 @@ class GobanState {
     var branchIndex: Int = .inActiveCurrentIndex
     var confirmingAIOverwrite: Bool = false
 
-    func isAItoPlay(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
-        (!isAutoPlaying) &&
-        (passCount < 2) &&
-        ((nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) ||
-         ((nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0)))
-    }
-
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
         showBoardCount = showBoardCount + 1
@@ -147,7 +140,7 @@ class GobanState {
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    func generateConditionalStonesText(
+    private func generateConditionalStonesText(
         analysis: Analysis,
         board: BoardSize,
         boardPoints: [BoardPoint],
@@ -182,18 +175,18 @@ class GobanState {
                     gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
                 }
             }
-
+            
             if let bestMove = analysis.getBestMove(
                 width: Int(board.width),
                 height: Int(board.height)
             ) {
                 gameRecord.bestMoves?[gameRecord.currentIndex] = bestMove
             }
-
+            
             if let winRate = analysis.blackWinrate {
                 gameRecord.winRates?[gameRecord.currentIndex] = winRate
             }
-
+            
             let deadBlackText = generateConditionalStonesText(
                 analysis: analysis,
                 board: board,
@@ -201,9 +194,9 @@ class GobanState {
             ) { ownershipUnit in
                 ownershipUnit.isWhite
             }
-
+            
             gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
-
+            
             let deadWhiteText = generateConditionalStonesText(
                 analysis: analysis,
                 board: board,
@@ -211,8 +204,28 @@ class GobanState {
             ) { ownershipUnit in
                 ownershipUnit.isBlack
             }
-
+            
             gameRecord.deadWhiteStones?[gameRecord.currentIndex] = deadWhiteText
+            
+            let blackSchrodingerText = generateConditionalStonesText(
+                analysis: analysis,
+                board: board,
+                boardPoints: stones.blackPoints
+            ) { OwnershipUnit in
+                OwnershipUnit.isSchrodinger
+            }
+            
+            gameRecord.blackSchrodingerStones?[gameRecord.currentIndex] = blackSchrodingerText
+
+            let whiteSchrodingerText = generateConditionalStonesText(
+                analysis: analysis,
+                board: board,
+                boardPoints: stones.whitePoints
+            ) { OwnershipUnit in
+                OwnershipUnit.isSchrodinger
+            }
+            
+            gameRecord.whiteSchrodingerStones?[gameRecord.currentIndex] = whiteSchrodingerText
         }
     }
 

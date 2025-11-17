@@ -190,7 +190,7 @@ struct OwnershipUnit: Identifiable {
         whiteness > 0.9
     }
 
-    var isSchrödinger: Bool {
+    var isSchrodinger: Bool {
         (abs(whiteness - 0.5) < 0.2) && scale > 0.4
     }
 }

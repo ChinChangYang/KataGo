@@ -28,6 +28,8 @@ final class GameRecord {
     var winRates: [Int: Float]?
     var deadBlackStones: [Int: String]?
     var deadWhiteStones: [Int: String]?
+    var blackSchrodingerStones: [Int: String]?
+    var whiteSchrodingerStones: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -54,7 +56,9 @@ final class GameRecord {
          bestMoves: [Int: String]? = [:],
          winRates: [Int: Float]? = [:],
          deadBlackStones: [Int: String]? = [:],
-         deadWhiteStones: [Int: String]? = [:]) {
+         deadWhiteStones: [Int: String]? = [:],
+         blackSchrodingerStones: [Int: String]? = [:],
+         whiteSchrodingerStones: [Int: String]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -67,6 +71,8 @@ final class GameRecord {
         self.winRates = winRates
         self.deadBlackStones = deadBlackStones
         self.deadWhiteStones = deadWhiteStones
+        self.blackSchrodingerStones = blackSchrodingerStones
+        self.whiteSchrodingerStones = whiteSchrodingerStones
     }
 
     func clone() -> GameRecord {
@@ -84,7 +90,9 @@ final class GameRecord {
             bestMoves: self.bestMoves,
             winRates: self.winRates,
             deadBlackStones: self.deadBlackStones,
-            deadWhiteStones: self.deadWhiteStones
+            deadWhiteStones: self.deadWhiteStones,
+            blackSchrodingerStones: self.blackSchrodingerStones,
+            whiteSchrodingerStones: self.whiteSchrodingerStones
         )
 
         newConfig.gameRecord = newGameRecord
@@ -132,7 +140,9 @@ final class GameRecord {
         bestMoves: [Int: String]? = [:],
         winRates: [Int: Float]? = [:],
         deadBlackStones: [Int: String]? = [:],
-        deadWhiteStones: [Int: String]? = [:]
+        deadWhiteStones: [Int: String]? = [:],
+        blackSchrodingerStones: [Int: String]? = [:],
+        whiteSchrodingerStones: [Int: String]? = [:]
     ) -> GameRecord {
 
         let config = Config()
@@ -152,7 +162,9 @@ final class GameRecord {
             bestMoves: bestMoves,
             winRates: winRates,
             deadBlackStones: deadBlackStones,
-            deadWhiteStones: deadWhiteStones
+            deadWhiteStones: deadWhiteStones,
+            blackSchrodingerStones: blackSchrodingerStones,
+            whiteSchrodingerStones: whiteSchrodingerStones
         )
 
         config.gameRecord = gameRecord
@@ -235,6 +247,14 @@ final class GameRecord {
 
         if deadWhiteStones == nil {
             deadWhiteStones = [:]
+        }
+
+        if blackSchrodingerStones == nil {
+            blackSchrodingerStones = [:]
+        }
+
+        if whiteSchrodingerStones == nil {
+            whiteSchrodingerStones = [:]
         }
     }
 }
