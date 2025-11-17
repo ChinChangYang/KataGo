@@ -27,6 +27,7 @@ final class GameRecord {
     var bestMoves: [Int: String]?
     var winRates: [Int: Float]?
     var deadBlackStones: [Int: String]?
+    var deadWhiteStones: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -52,7 +53,8 @@ final class GameRecord {
          scoreLeads: [Int: Float]? = [:],
          bestMoves: [Int: String]? = [:],
          winRates: [Int: Float]? = [:],
-         deadBlackStones: [Int: String]? = [:]) {
+         deadBlackStones: [Int: String]? = [:],
+         deadWhiteStones: [Int: String]? = [:]) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
@@ -64,6 +66,7 @@ final class GameRecord {
         self.bestMoves = bestMoves
         self.winRates = winRates
         self.deadBlackStones = deadBlackStones
+        self.deadWhiteStones = deadWhiteStones
     }
 
     func clone() -> GameRecord {
@@ -80,7 +83,9 @@ final class GameRecord {
             scoreLeads: self.scoreLeads,
             bestMoves: self.bestMoves,
             winRates: self.winRates,
-            deadBlackStones: self.deadBlackStones)
+            deadBlackStones: self.deadBlackStones,
+            deadWhiteStones: self.deadWhiteStones
+        )
 
         newConfig.gameRecord = newGameRecord
         return newGameRecord
@@ -126,7 +131,8 @@ final class GameRecord {
         scoreLeads: [Int: Float]? = [:],
         bestMoves: [Int: String]? = [:],
         winRates: [Int: Float]? = [:],
-        deadBlackStones: [Int: String]? = [:]
+        deadBlackStones: [Int: String]? = [:],
+        deadWhiteStones: [Int: String]? = [:]
     ) -> GameRecord {
 
         let config = Config()
@@ -145,7 +151,8 @@ final class GameRecord {
             scoreLeads: scoreLeads,
             bestMoves: bestMoves,
             winRates: winRates,
-            deadBlackStones: deadBlackStones
+            deadBlackStones: deadBlackStones,
+            deadWhiteStones: deadWhiteStones
         )
 
         config.gameRecord = gameRecord
@@ -224,6 +231,10 @@ final class GameRecord {
 
         if deadBlackStones == nil {
             deadBlackStones = [:]
+        }
+
+        if deadWhiteStones == nil {
+            deadWhiteStones = [:]
         }
     }
 }

@@ -77,7 +77,7 @@ struct CommentView: View {
         let blackWinrateText = generateBlackWinRateText()
         let blackScoreText = generateBlackScoreText()
         let deadBlackStonesText = gameRecord.deadBlackStones?[gameRecord.currentIndex] ?? "Unknown"
-        let deadWhiteStonesText = generateDeadWhiteText()
+        let deadWhiteStonesText = gameRecord.deadWhiteStones?[gameRecord.currentIndex] ?? "Unknown"
         let sacrificableBlackStonesText = generateSacrificableBlackText()
         let sacrificableWhiteStonesText = generateSacrificableWhiteText()
 
@@ -114,28 +114,10 @@ struct CommentView: View {
         return blackScoreText
     }
 
-    func generateDeadWhiteText() -> String {
-        let points = stones.whitePoints.filter { point in
-            if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
-                return ownershipUnit.whiteness < 0.1
-            } else {
-                return false
-            }
-        }
-
-        let text = BoardPoint.toString(
-            points,
-            width: Int(board.width),
-            height: Int(board.height)
-        )
-
-        return text
-    }
-
     func generateSacrificableBlackText() -> String {
         let points = stones.blackPoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
-                return (abs(ownershipUnit.whiteness - 0.5) < 0.2) && ownershipUnit.scale > 0.4
+                return ownershipUnit.isSchrödinger
             } else {
                 return false
             }
@@ -153,7 +135,7 @@ struct CommentView: View {
     func generateSacrificableWhiteText() -> String {
         let points = stones.whitePoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
-                return (abs(ownershipUnit.whiteness - 0.5) < 0.2) && ownershipUnit.scale > 0.4
+                return ownershipUnit.isSchrödinger
             } else {
                 return false
             }

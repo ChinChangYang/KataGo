@@ -147,26 +147,27 @@ class GobanState {
                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    func generateDeadBlackText(
+    func generateConditionalStonesText(
         analysis: Analysis,
         board: BoardSize,
-        stones: Stones
+        boardPoints: [BoardPoint],
+        condition: (OwnershipUnit) -> Bool
     ) -> String {
-        let deadPoints = stones.blackPoints.filter { point in
+        let points = boardPoints.filter { point in
             if let ownershipUnit = analysis.ownershipUnits.first(where: { $0.point == point }) {
-                return ownershipUnit.whiteness > 0.9
+                return condition(ownershipUnit)
             } else {
                 return false
             }
         }
 
-        let deadPointsText = BoardPoint.toString(
-            deadPoints,
+        let text = BoardPoint.toString(
+            points,
             width: Int(board.width),
             height: Int(board.height)
         )
 
-        return deadPointsText
+        return text
     }
 
     func maybeUpdateAnalysisData(
@@ -193,13 +194,25 @@ class GobanState {
                 gameRecord.winRates?[gameRecord.currentIndex] = winRate
             }
 
-            let deadBlackText = generateDeadBlackText(
+            let deadBlackText = generateConditionalStonesText(
                 analysis: analysis,
                 board: board,
-                stones: stones
-            )
+                boardPoints: stones.blackPoints
+            ) { ownershipUnit in
+                ownershipUnit.isWhite
+            }
 
             gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
+
+            let deadWhiteText = generateConditionalStonesText(
+                analysis: analysis,
+                board: board,
+                boardPoints: stones.whitePoints
+            ) { ownershipUnit in
+                ownershipUnit.isBlack
+            }
+
+            gameRecord.deadWhiteStones?[gameRecord.currentIndex] = deadWhiteText
         }
     }
 

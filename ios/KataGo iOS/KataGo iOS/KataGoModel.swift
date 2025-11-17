@@ -181,6 +181,18 @@ struct OwnershipUnit: Identifiable {
     var id: Int {
         point.hashValue
     }
+
+    var isBlack: Bool {
+        whiteness < 0.1
+    }
+
+    var isWhite: Bool {
+        whiteness > 0.9
+    }
+
+    var isSchrödinger: Bool {
+        (abs(whiteness - 0.5) < 0.2) && scale > 0.4
+    }
 }
 
 @Observable
