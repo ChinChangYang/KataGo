@@ -236,6 +236,7 @@
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
+		E15A218F2ECAAB5600708C25 /* GobanState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A218E2ECAAB5600708C25 /* GobanState.swift */; };
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */; };
@@ -583,6 +584,7 @@
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
+		E15A218E2ECAAB5600708C25 /* GobanState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanState.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demoplay.cpp; sourceTree = "<group>"; };
@@ -1052,6 +1054,7 @@
 				E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */,
 				E16E1F382DE2AA8300B0F144 /* Downloader.swift */,
 				E14753582C3A5A440066DE29 /* GameRecord.swift */,
+				E15A218E2ECAAB5600708C25 /* GobanState.swift */,
 				E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */,
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E16BC8282C48083900EA3A1E /* NavigationContext.swift */,
@@ -1705,6 +1708,7 @@
 				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
+				E15A218F2ECAAB5600708C25 /* GobanState.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
 				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
