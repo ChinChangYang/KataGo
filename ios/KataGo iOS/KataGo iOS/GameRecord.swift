@@ -105,14 +105,15 @@ final class GameRecord {
         }
     }
 
-    func clearComments(after index: Int) {
-        guard let comments = comments else { return }
-        self.comments = comments.filter { $0.key <= index }
-    }
-
-    func clearScoreLeads(after index: Int) {
-        guard let scoreLeads = scoreLeads else { return }
-        self.scoreLeads = scoreLeads.filter { $0.key <= index }
+    func clearData(after index: Int) {
+        comments = comments?.filter { $0.key <= index }
+        scoreLeads = scoreLeads?.filter { $0.key <= index }
+        bestMoves = bestMoves?.filter { $0.key <= index }
+        winRates = winRates?.filter { $0.key <= index }
+        deadBlackStones = deadBlackStones?.filter { $0.key <= index }
+        deadWhiteStones = deadWhiteStones?.filter { $0.key <= index }
+        blackSchrodingerStones = blackSchrodingerStones?.filter { $0.key <= index }
+        whiteSchrodingerStones = whiteSchrodingerStones?.filter { $0.key <= index }
     }
 
     class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {

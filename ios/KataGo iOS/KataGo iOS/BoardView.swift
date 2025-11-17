@@ -177,8 +177,7 @@ struct BoardView: View {
     ) {
         stones.isReady = false
         if gobanState.isEditing {
-            gameRecord.clearComments(after: gameRecord.currentIndex)
-            gameRecord.clearScoreLeads(after: gameRecord.currentIndex)
+            gameRecord.clearData(after: gameRecord.currentIndex)
 
             gobanState.maybeUpdateAnalysisData(
                 gameRecord: gameRecord,
