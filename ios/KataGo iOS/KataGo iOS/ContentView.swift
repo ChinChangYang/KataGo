@@ -121,10 +121,18 @@ struct ContentView: View {
             .onChange(of: gobanState.isEditing) { oldIsEditing, newIsEditing in
                 processIsEditingChange(oldIsEditing: oldIsEditing, newIsEditing: newIsEditing)
             }
-            .onChange(of: gobanState.isAutoPlaying ) { oldIsAutoPlaying, newIsAutoPlaying in
+            .onChange(of: gobanState.isAutoPlaying) { oldIsAutoPlaying, newIsAutoPlaying in
                 processIsAutoPlayingChange(
                     oldIsAutoPlaying: oldIsAutoPlaying,
                     newIsAutoPlaying: newIsAutoPlaying)
+            }
+            .onChange(of: stones.isReady) { oldValue, newValue in
+                if !oldValue && newValue,
+                   let gameRecord = navigationContext.selectedGameRecord,
+                   gobanState.isAutoPlaying
+                {
+                    gameRecord.currentIndex += 1
+                }
             }
             .confirmationDialog(
                 "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!",
@@ -358,7 +366,7 @@ struct ContentView: View {
                     messageList.appendAndSend(command: config.getKataAnalyzeCommand())
                 }
 
-                if gobanState.isAutoPlaying && !analysis.info.isEmpty {
+                if gobanState.isAutoPlaying && !analysis.info.isEmpty && stones.isReady {
                     gobanState.maybeUpdateAnalysisData(
                         gameRecord: gameRecord,
                         analysis: analysis,
@@ -371,8 +379,9 @@ struct ContentView: View {
 
                     if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
                        let move = board.locationToMove(location: nextMove.location) {
-                        gameRecord.currentIndex += 1
                         let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+
+                        stones.isReady = false
 
                         gobanState.play(
                             turn: nextPlayer,
