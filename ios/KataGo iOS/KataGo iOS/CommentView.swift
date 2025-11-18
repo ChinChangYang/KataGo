@@ -142,7 +142,7 @@ struct CommentView: View {
         let nextDeadBlackStonesSentence = (
             nextDeadBlackStonesText == "Unknown" ? "" :
                 nextDeadBlackStonesText == "None" ? " None of Black's stones is dead on the board." :
-                " Black's dead stones are \(nextDeadBlackStonesText)."
+                " Black's stones at \(nextDeadBlackStonesText) will be dead."
         )
 
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
@@ -150,7 +150,7 @@ struct CommentView: View {
         let nextDeadWhiteStonesSentence = (
             nextDeadWhiteStonesText == "Unknown" ? "" :
                 nextDeadWhiteStonesText == "None" ? " None of White's stones is dead on the board." :
-                " White's dead stones are \(nextDeadWhiteStonesText)."
+                " White's stones at \(nextDeadWhiteStonesText) will be dead."
         )
 
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
@@ -176,16 +176,16 @@ struct CommentView: View {
 
         let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
 
-        let bestBlackWinrateSentence = bestMoveDiffer ? ", which changes win rate to \(bestBlackWinrateText)." : ""
+        let bestBlackWinrateSentence = bestMoveDiffer ? ", which changes Black win rate to \(bestBlackWinrateText)." : ""
 
         let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
 
-        let bestBlackScoreSentence = bestMoveDiffer ? " If the recommended move is played, Black will leads by \(bestBlackScoreText)." : ""
+        let bestBlackScoreSentence = bestMoveDiffer ? " If the recommended move is played, Black will lead by \(bestBlackScoreText)." : ""
 
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
 
         let bestDeadBlackStonesSentence = (
-            (bestMoveDiffer && (bestDeadBlackStonesText != "None")) ? " Black's dead stones will be \(bestDeadBlackStonesText)." :
+            (bestMoveDiffer && (bestDeadBlackStonesText != "None")) ? " Black's stones at \(bestDeadBlackStonesText) will be dead." :
                 bestMoveDiffer ? " None of Black's stones will be dead on the board." :
                 ""
         )
@@ -193,7 +193,7 @@ struct CommentView: View {
         let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
 
         let bestDeadWhiteStonesSentence = (
-            (bestMoveDiffer && (bestDeadWhiteStonesText != "None")) ? " White's dead stones will be \(bestDeadWhiteStonesText)." :
+            (bestMoveDiffer && (bestDeadWhiteStonesText != "None")) ? " White's stones at \(bestDeadWhiteStonesText) will be dead." :
                 bestMoveDiffer ? " None of White's stones will be dead on the board." :
                 ""
         )
