@@ -185,6 +185,7 @@ struct CommentView: View {
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
 
         let bestDeadBlackStonesSentence = (
+            (nextDeadBlackStonesText == bestDeadBlackStonesText) ? "" :
             (bestMoveDiffer && (bestDeadBlackStonesText != "None")) ? " Black's stones at \(bestDeadBlackStonesText) will be dead." :
                 bestMoveDiffer ? " None of Black's stones will be dead on the board." :
                 ""
@@ -193,6 +194,7 @@ struct CommentView: View {
         let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
 
         let bestDeadWhiteStonesSentence = (
+            (nextDeadWhiteStonesText == bestDeadWhiteStonesText) ? "" :
             (bestMoveDiffer && (bestDeadWhiteStonesText != "None")) ? " White's stones at \(bestDeadWhiteStonesText) will be dead." :
                 bestMoveDiffer ? " None of White's stones will be dead on the board." :
                 ""
@@ -201,6 +203,7 @@ struct CommentView: View {
         let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
 
         let bestBlackSchrodingerSentence = (
+            (nextBlackSchrodingerText == bestBlackSchrodingerText) ? "" :
             (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " The life-and-death at \(bestBlackSchrodingerText) for Black will remain unresolved." :
                 bestMoveDiffer ? " None of Black's stones will have an unresolved life-and-death." :
                 ""
@@ -209,6 +212,7 @@ struct CommentView: View {
         let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
 
         let bestWhiteSchrodingerSentence = (
+            (nextWhiteSchrodingerText == bestWhiteSchrodingerText) ? "" :
             (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " The life-and-death at \(bestWhiteSchrodingerText) for White will remain unresolved." :
                 bestMoveDiffer ? " None of White's stones will have an unresolved life-and-death." :
                 ""
