@@ -172,15 +172,26 @@ struct CommentView: View {
         let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
         let bestMoveDiffer = (bestMoveText != nextMoveText) && (bestMoveText != "Unknown")
 
-        let bestMoveSentence = bestMoveDiffer ? " KataGo recommends \(bestMoveText)" : ""
+        let bestMoveSentence = (
+            bestMoveDiffer ? " KataGo recommends \(bestMoveText)." :
+                " KataGo agrees with \(colorToPlay) number \(nextIndex) at \(bestMoveText)."
+        )
 
         let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
 
-        let bestBlackWinrateSentence = bestMoveDiffer ? ", which changes Black win rate to \(bestBlackWinrateText)." : ""
+        let bestBlackWinrateSentence = (
+            (bestMoveDiffer && (bestBlackWinrateText != nextBlackWinrateText)) ? " It changes Black win rate to \(bestBlackWinrateText)." :
+                bestMoveDiffer ? " It doesn't significantly change Black win rate." :
+                ""
+        )
 
         let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
 
-        let bestBlackScoreSentence = bestMoveDiffer ? " If the recommended move is played, Black will lead by \(bestBlackScoreText)." : ""
+        let bestBlackScoreSentence = (
+            (bestMoveDiffer && (bestBlackScoreText != nextBlackScoreText)) ? " If the recommended move is played, Black will lead by \(bestBlackScoreText)." :
+                bestMoveDiffer ? " It doesn't significantly change Black score lead." :
+                ""
+        )
 
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
 
@@ -204,8 +215,8 @@ struct CommentView: View {
 
         let bestBlackSchrodingerSentence = (
             (nextBlackSchrodingerText == bestBlackSchrodingerText) ? "" :
-            (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " The life-and-death at \(bestBlackSchrodingerText) for Black will remain unresolved." :
-                bestMoveDiffer ? " None of Black's stones will have an unresolved life-and-death." :
+            (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestBlackSchrodingerText) for Black is unresolved." :
+                bestMoveDiffer ? " KataGo thinks none of Black's stones have an unresolved life-and-death." :
                 ""
         )
 
@@ -213,8 +224,8 @@ struct CommentView: View {
 
         let bestWhiteSchrodingerSentence = (
             (nextWhiteSchrodingerText == bestWhiteSchrodingerText) ? "" :
-            (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " The life-and-death at \(bestWhiteSchrodingerText) for White will remain unresolved." :
-                bestMoveDiffer ? " None of White's stones will have an unresolved life-and-death." :
+            (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestWhiteSchrodingerText) for White is unresolved." :
+                bestMoveDiffer ? " KataGo thinks none of White's stones have an unresolved life-and-death." :
                 ""
         )
 
