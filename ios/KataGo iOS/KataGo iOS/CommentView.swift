@@ -188,7 +188,7 @@ struct CommentView: View {
         let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
 
         let bestBlackScoreSentence = (
-            (bestMoveDiffer && (bestBlackScoreText != nextBlackScoreText)) ? " If the recommended move is played, Black will lead by \(bestBlackScoreText)." :
+            (bestMoveDiffer && (bestBlackScoreText != nextBlackScoreText)) ? " If \(colorToPlay) plays the recommended move, Black will lead by \(bestBlackScoreText)." :
                 bestMoveDiffer ? " It doesn't significantly change Black score lead." :
                 ""
         )
