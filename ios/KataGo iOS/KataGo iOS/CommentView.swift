@@ -6,10 +6,12 @@
 //
 
 import SwiftUI
+import FoundationModels
 
 struct CommentView: View {
     var gameRecord: GameRecord
     @State var comment = ""
+    @State private var isGenerating = false
     @Environment(GobanState.self) var gobanState
     @Environment(Analysis.self) var analysis
     @Environment(Stones.self) var stones
@@ -19,9 +21,14 @@ struct CommentView: View {
     var textArea: some View {
         ZStack {
             if gobanState.isEditing {
-                TextField("Add your comment", text: $comment, axis: .vertical)
+                TextField(
+                    isGenerating ? "Generating..." : "Add your comment",
+                    text: $comment,
+                    axis: .vertical
+                )
+                .disabled(isGenerating)
 
-                if comment.isEmpty {
+                if (comment.isEmpty) && (isGenerating == false) {
                     VStack {
                         Spacer()
                         Button {
@@ -34,6 +41,10 @@ struct CommentView: View {
             } else {
                 Text(comment.isEmpty ? "(No comment)" : comment)
                     .foregroundStyle(comment.isEmpty ? .secondary : .primary)
+            }
+
+            if isGenerating {
+                ProgressView()
             }
         }
     }
@@ -74,26 +85,83 @@ struct CommentView: View {
             )
         }
 
-        withAnimation {
-            comment = generateNaturalComment()
+        isGenerating = true
+
+        Task {
+            let original = generateNaturalComment()
+            let analysisText = generateAnalysisText(currentIndex: gameRecord.currentIndex)
+            let previousText = gameRecord.currentIndex > 0 ? generateAnalysisText(currentIndex: gameRecord.currentIndex - 1) : "None"
+
+            do {
+                let prompt =
+"""
+Improve the professional quality of the original Go commentary. Return a single paragraph of the improved commentary suitable for display as a comment for the current move.
+
+For context-only, commentary of the previous move:
+\(previousText)
+
+Analysis of the current move:
+\(analysisText)
+
+Original Go commentary of the current move to be improved:
+\(original)
+"""
+
+                let session = LanguageModelSession()
+                let options = GenerationOptions(temperature: 1.0)
+                let response = try await session.respond(to: prompt, options: options)
+                let improved = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                await MainActor.run {
+                    withAnimation {
+                        comment = improved.isEmpty ? original : improved
+                        isGenerating = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation {
+                        comment = original
+                        isGenerating = false
+                    }
+                }
+            }
         }
     }
 
-    func generateAnalysisText() -> String {
-        let currentIndex = gameRecord.currentIndex
-        let nextIndex = gameRecord.currentIndex + 1
+    func generateAnalysisText(currentIndex: Int) -> String {
+        let nextIndex = currentIndex + 1
         let lastMoveText = generateLastMoveText()
         let colorToPlay = turn.nextColorForPlayCommand.name
+        let colorPlayed = turn.nextColorForPlayCommand.other.name
         let nextMoveText = gameRecord.moves?[currentIndex] ?? "Unknown"
-        let nextBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[nextIndex])
-        let nextBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[nextIndex])
+
+        let nextWinrateText = formatWinRate(
+            gameRecord.winRates?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
+        let nextScoreText = formatScore(
+            gameRecord.scoreLeads?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
         let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
         let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
         let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
-        let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
-        let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
+
+        let bestWinrateText = formatWinRate(
+            gameRecord.winRates?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
+        let bestScoreText = formatScore(
+            gameRecord.scoreLeads?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
         let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
         let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
@@ -101,18 +169,19 @@ struct CommentView: View {
 
         let analysisText =
 """
-- Last Move: \(lastMoveText)
-- Color to Play: \(colorToPlay)
-- Next Move: \(nextMoveText)
-- Next Move's Winrate: \(nextBlackWinrateText)
-- Next Move's Score Lead: \(nextBlackScoreText)
+- Previous Color Played: \(colorPlayed)
+- Previous Move by \(colorPlayed): \(lastMoveText)
+- Next Color to Play: \(colorToPlay)
+- Next Move by \(colorToPlay): \(nextMoveText)
+- Next Move's \(colorToPlay) Winrate: \(nextWinrateText)
+- Next Move's \(colorToPlay) Score: \(nextScoreText)
 - Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
 - Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
 - Next Move's Schrödinger's Black Stones: \(nextBlackSchrodingerText)
 - Next Move's Schrödinger's White Stones: \(nextWhiteSchrodingerText)
-- AI suggested Next Move: \(bestMoveText)
-- AI Move's Black Winrate: \(bestBlackWinrateText)
-- AI Move's Black Score Lead: \(bestBlackScoreText)
+- AI suggested Next Move for \(colorToPlay): \(bestMoveText)
+- AI Move's \(colorToPlay) Winrate: \(bestWinrateText)
+- AI Move's \(colorToPlay) Score: \(bestScoreText)
 - AI Move's Dead Black Stones: \(bestDeadBlackStonesText)
 - AI Move's Dead White Stones: \(bestDeadWhiteStonesText)
 - AI Move's Schrödinger's Black Stones: \(bestBlackSchrodingerText)
@@ -129,13 +198,20 @@ struct CommentView: View {
         let colorToPlay = turn.nextColorForPlayCommand.name
         let colorPlayed = turn.nextColorForPlayCommand.other.name
         let nextMoveText = gameRecord.moves?[currentIndex] ?? "Unknown"
-        let nextBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[nextIndex])
 
-        let nextBlackWinrateSentence = nextBlackWinrateText == "Unknown" ? "" : " Black win rate is \(nextBlackWinrateText)."
+        let nextWinrateText = formatWinRate(
+            gameRecord.winRates?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        )
 
-        let nextBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[nextIndex])
+        let nextWinrateSentence = nextWinrateText == "Unknown" ? "" : " \(colorToPlay) win rate is \(nextWinrateText)."
 
-        let nextBlackScoreSentence = nextBlackScoreText == "Unknown" ? "" : " Black leads by \(nextBlackScoreText) points."
+        let nextScoreText = formatScore(
+            gameRecord.scoreLeads?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
+        let nextScoreSentence = nextScoreText == "Unknown" ? "" : " \(nextScoreText)"
 
         let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
 
@@ -173,23 +249,29 @@ struct CommentView: View {
         let bestMoveDiffer = (bestMoveText != nextMoveText) && (bestMoveText != "Unknown")
 
         let bestMoveSentence = (
-            bestMoveDiffer ? " KataGo recommends \(bestMoveText)." :
+            bestMoveDiffer ? " KataGo AI recommends \(bestMoveText)." :
                 " KataGo agrees with \(colorToPlay) number \(nextIndex) at \(bestMoveText)."
         )
 
-        let bestBlackWinrateText = formatBlackWinRate(gameRecord.winRates?[currentIndex])
+        let bestWinrateText = formatWinRate(
+            gameRecord.winRates?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
 
-        let bestBlackWinrateSentence = (
-            (bestMoveDiffer && (bestBlackWinrateText != nextBlackWinrateText)) ? " It changes Black win rate to \(bestBlackWinrateText)." :
-                bestMoveDiffer ? " It doesn't significantly change Black win rate." :
+        let bestWinrateSentence = (
+            (bestMoveDiffer && (bestWinrateText != nextWinrateText)) ? " If \(colorToPlay) plays the recommended move, \(colorToPlay)'s win rate will change to \(bestWinrateText)." :
+                bestMoveDiffer ? " It doesn't significantly change \(colorToPlay) win rate." :
                 ""
         )
 
-        let bestBlackScoreText = formatBlackScore(gameRecord.scoreLeads?[currentIndex])
+        let bestScoreText = formatScore(
+            gameRecord.scoreLeads?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
 
-        let bestBlackScoreSentence = (
-            (bestMoveDiffer && (bestBlackScoreText != nextBlackScoreText)) ? " If \(colorToPlay) plays the recommended move, Black will lead by \(bestBlackScoreText)." :
-                bestMoveDiffer ? " It doesn't significantly change Black score lead." :
+        let bestScoreSentence = (
+            (bestMoveDiffer && (bestScoreText != nextScoreText)) ? " If \(colorToPlay) plays the recommended move, \(bestScoreText)" :
+                bestMoveDiffer ? " It doesn't significantly change \(colorToPlay) score." :
                 ""
         )
 
@@ -234,12 +316,12 @@ struct CommentView: View {
         if currentIndex >= 1 {
             comment =
 """
-\(colorPlayed) number \(currentIndex) plays \(lastMoveText). \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextBlackWinrateSentence)\(nextBlackScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestBlackWinrateSentence)\(bestBlackScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+\(colorPlayed) number \(currentIndex) plays \(lastMoveText). Then, \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         } else {
             comment =
 """
-Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextBlackWinrateSentence)\(nextBlackScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestBlackWinrateSentence)\(bestBlackScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         }
 
@@ -252,21 +334,27 @@ Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextBlac
         return lastMove
     }
 
-    private func formatBlackWinRate(_ blackWinRate: Float?) -> String {
+    private func formatWinRate(_ blackWinRate: Float?, for selfColor: PlayerColor) -> String {
         guard let blackWinRate else {
             return "Unknown"
         }
 
-        let blackWinRateText = String(format: "%2.0f%%", (blackWinRate * 100).rounded())
-        return blackWinRateText
+        let winRate = (selfColor == .black) ? blackWinRate : (1.0 - blackWinRate)
+        let winRateText = String(format: "%2.0f%%", (winRate * 100).rounded())
+
+        return winRateText
     }
 
-    private func formatBlackScore(_ blackScore: Float?) -> String {
+    private func formatScore(_ blackScore: Float?, for selfColor: PlayerColor) -> String {
         guard let blackScore else {
             return "Unknown"
         }
 
-        let blackScoreText = String(round(Double(blackScore) * 10) / 10.0)
-        return blackScoreText
+        let score = (selfColor == .black) ? blackScore : (-blackScore)
+        let scoreText = String(round(Double(abs(score)) * 10) / 10.0)
+        let verb = (score > 0) ? "leads" : "is behind"
+        let scoreSentence = "\(selfColor.name) \(verb) by \(scoreText) points."
+
+        return scoreSentence
     }
 }
