@@ -92,10 +92,9 @@ struct CommentView: View {
             let analysisText = generateAnalysisText(currentIndex: gameRecord.currentIndex)
             let previousText = gameRecord.currentIndex > 0 ? generateAnalysisText(currentIndex: gameRecord.currentIndex - 1) : "None"
 
-            do {
-                let prompt =
+            let prompt =
 """
-Improve the professional quality of the original Go commentary. Return a single paragraph of the improved commentary suitable for display as a comment for the current move.
+Improve the precise and friendly quality of the original Go commentary. Return a single paragraph of the improved commentary suitable for display as a comment for the current move.
 
 For context-only, commentary of the previous move:
 \(previousText)
@@ -107,6 +106,7 @@ Original Go commentary of the current move to be improved:
 \(original)
 """
 
+            do {
                 let session = LanguageModelSession()
                 let options = GenerationOptions(temperature: 1.0)
                 let response = try await session.respond(to: prompt, options: options)
@@ -115,6 +115,16 @@ Original Go commentary of the current move to be improved:
                 await MainActor.run {
                     withAnimation {
                         comment = improved.isEmpty ? original : improved
+
+#if DEBUG
+                        comment =
+                        """
+\(comment)
+
+\(prompt)
+"""
+#endif
+
                         isGenerating = false
                     }
                 }
@@ -174,14 +184,14 @@ Original Go commentary of the current move to be improved:
 - Next Color to Play: \(colorToPlay)
 - Next Move by \(colorToPlay): \(nextMoveText)
 - Next Move's \(colorToPlay) Winrate: \(nextWinrateText)
-- Next Move's \(colorToPlay) Score: \(nextScoreText)
+- Next Move's \(colorToPlay) Score: \(nextScoreText).
 - Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
 - Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
 - Next Move's Schrödinger's Black Stones: \(nextBlackSchrodingerText)
 - Next Move's Schrödinger's White Stones: \(nextWhiteSchrodingerText)
 - AI suggested Next Move for \(colorToPlay): \(bestMoveText)
 - AI Move's \(colorToPlay) Winrate: \(bestWinrateText)
-- AI Move's \(colorToPlay) Score: \(bestScoreText)
+- AI Move's \(colorToPlay) Score: \(bestScoreText).
 - AI Move's Dead Black Stones: \(bestDeadBlackStonesText)
 - AI Move's Dead White Stones: \(bestDeadWhiteStonesText)
 - AI Move's Schrödinger's Black Stones: \(bestBlackSchrodingerText)
@@ -204,43 +214,77 @@ Original Go commentary of the current move to be improved:
             for: turn.nextColorForPlayCommand
         )
 
-        let nextWinrateSentence = nextWinrateText == "Unknown" ? "" : " \(colorToPlay) win rate is \(nextWinrateText)."
+        let bestWinrateText = formatWinRate(
+            gameRecord.winRates?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
+        let winRateDiffer = (nextWinrateText != bestWinrateText) && (bestWinrateText != "Unknown")
+
+        let winRateDiffText = winRateDiffer ? formatWinRateDiff(
+            gameRecord.winRates?[currentIndex],
+            gameRecord.winRates?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        ) : ""
+
+        let nextWinrateSentence = nextWinrateText == "Unknown" ? "" : " \(colorToPlay) win rate is \(nextWinrateText)\(winRateDiffText)."
 
         let nextScoreText = formatScore(
             gameRecord.scoreLeads?[nextIndex],
             for: turn.nextColorForPlayCommand
         )
 
-        let nextScoreSentence = nextScoreText == "Unknown" ? "" : " \(nextScoreText)"
+        let bestScoreText = formatScore(
+            gameRecord.scoreLeads?[currentIndex],
+            for: turn.nextColorForPlayCommand
+        )
+
+        let scoreDiffer = (nextScoreText != bestScoreText) && (bestScoreText != "Unknown")
+
+        let scoreDiffText = scoreDiffer ? formatScoreDiff(
+            gameRecord.scoreLeads?[currentIndex],
+            gameRecord.scoreLeads?[nextIndex],
+            for: turn.nextColorForPlayCommand
+        ) : ""
+
+        let nextScoreSentence = nextScoreText == "Unknown" ? "" : " \(nextScoreText)\(scoreDiffText)."
 
         let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
+        let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
+        let deadBlackStonesDiffer = (nextDeadBlackStonesText != bestDeadBlackStonesText) && (bestDeadBlackStonesText != "Unknown")
 
         let nextDeadBlackStonesSentence = (
-            nextDeadBlackStonesText == "Unknown" ? "" :
+            (!deadBlackStonesDiffer) ? "" :
                 nextDeadBlackStonesText == "None" ? " None of Black's stones is dead on the board." :
                 " Black's stones at \(nextDeadBlackStonesText) will be dead."
         )
 
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
+        let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
+        let deadWhiteStonesDiffer = (nextDeadWhiteStonesText != bestDeadWhiteStonesText) && (bestDeadWhiteStonesText != "Unknown")
 
         let nextDeadWhiteStonesSentence = (
-            nextDeadWhiteStonesText == "Unknown" ? "" :
+            (!deadWhiteStonesDiffer) ? "" :
                 nextDeadWhiteStonesText == "None" ? " None of White's stones is dead on the board." :
                 " White's stones at \(nextDeadWhiteStonesText) will be dead."
         )
 
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
+        let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
+        let blackSchrodingerDiffer = (nextBlackSchrodingerText != bestBlackSchrodingerText) && (bestBlackSchrodingerText != "Unknown")
 
         let nextBlackSchrodingerSentence = (
-            nextBlackSchrodingerText == "Unknown" ? "" :
+            (!blackSchrodingerDiffer) ? "" :
                 nextBlackSchrodingerText == "None" ? " None of Black's stones have an unresolved life-and-death." :
                 " The life-and-death at \(nextBlackSchrodingerText) for Black remain unresolved."
         )
 
         let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
+        let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
+        let whiteSchrodingerDiffer = (nextWhiteSchrodingerText != bestWhiteSchrodingerText) && (bestWhiteSchrodingerText != "Unknown")
 
         let nextWhiteSchrodingerSentence = (
-            nextWhiteSchrodingerText == "Unknown" ? "" :
+            (!whiteSchrodingerDiffer) ? "" :
                 nextWhiteSchrodingerText == "None" ? " None of White's stones have an unresolved life-and-death." :
                 " The life-and-death at \(nextWhiteSchrodingerText) for White remain unresolved."
         )
@@ -253,59 +297,41 @@ Original Go commentary of the current move to be improved:
                 " KataGo agrees with \(colorToPlay) number \(nextIndex) at \(bestMoveText)."
         )
 
-        let bestWinrateText = formatWinRate(
-            gameRecord.winRates?[currentIndex],
-            for: turn.nextColorForPlayCommand
-        )
-
         let bestWinrateSentence = (
-            (bestMoveDiffer && (bestWinrateText != nextWinrateText)) ? " If \(colorToPlay) plays the recommended move, \(colorToPlay)'s win rate will change to \(bestWinrateText)." :
+            (bestMoveDiffer && winRateDiffer) ? " If \(colorToPlay) plays the recommended move, \(colorToPlay)'s win rate will change to \(bestWinrateText)." :
                 bestMoveDiffer ? " It doesn't significantly change \(colorToPlay) win rate." :
                 ""
         )
 
-        let bestScoreText = formatScore(
-            gameRecord.scoreLeads?[currentIndex],
-            for: turn.nextColorForPlayCommand
-        )
-
         let bestScoreSentence = (
-            (bestMoveDiffer && (bestScoreText != nextScoreText)) ? " If \(colorToPlay) plays the recommended move, \(bestScoreText)" :
+            (bestMoveDiffer && scoreDiffer) ? " If \(colorToPlay) plays the recommended move, \(bestScoreText)." :
                 bestMoveDiffer ? " It doesn't significantly change \(colorToPlay) score." :
                 ""
         )
 
-        let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
-
         let bestDeadBlackStonesSentence = (
-            (nextDeadBlackStonesText == bestDeadBlackStonesText) ? "" :
+            (!deadBlackStonesDiffer) ? "" :
             (bestMoveDiffer && (bestDeadBlackStonesText != "None")) ? " Black's stones at \(bestDeadBlackStonesText) will be dead." :
                 bestMoveDiffer ? " None of Black's stones will be dead on the board." :
                 ""
         )
 
-        let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
-
         let bestDeadWhiteStonesSentence = (
-            (nextDeadWhiteStonesText == bestDeadWhiteStonesText) ? "" :
+            (!deadWhiteStonesDiffer) ? "" :
             (bestMoveDiffer && (bestDeadWhiteStonesText != "None")) ? " White's stones at \(bestDeadWhiteStonesText) will be dead." :
                 bestMoveDiffer ? " None of White's stones will be dead on the board." :
                 ""
         )
 
-        let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
-
         let bestBlackSchrodingerSentence = (
-            (nextBlackSchrodingerText == bestBlackSchrodingerText) ? "" :
+            (!blackSchrodingerDiffer) ? "" :
             (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestBlackSchrodingerText) for Black is unresolved." :
                 bestMoveDiffer ? " KataGo thinks none of Black's stones have an unresolved life-and-death." :
                 ""
         )
 
-        let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
-
         let bestWhiteSchrodingerSentence = (
-            (nextWhiteSchrodingerText == bestWhiteSchrodingerText) ? "" :
+            (!whiteSchrodingerDiffer) ? "" :
             (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestWhiteSchrodingerText) for White is unresolved." :
                 bestMoveDiffer ? " KataGo thinks none of White's stones have an unresolved life-and-death." :
                 ""
@@ -345,6 +371,26 @@ Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextWinr
         return winRateText
     }
 
+    private func formatWinRateDiff(
+        _ bestBlackWinRate: Float?,
+        _ myBlackWinRate: Float?,
+        for selfColor: PlayerColor
+    ) -> String {
+        guard let bestBlackWinRate, let myBlackWinRate else {
+            return ""
+        }
+
+        let bestWinRate = (selfColor == .black) ? bestBlackWinRate : (1.0 - bestBlackWinRate)
+        let myWinRate = (selfColor == .black) ? myBlackWinRate : (1.0 - myBlackWinRate)
+        let winRateDiff = bestWinRate - myWinRate
+        let verb = (winRateDiff > 0) ? "decreased" : "increased"
+        let winRateDiffText = String(format: "%2.0f%%", (abs(winRateDiff) * 100).rounded())
+        let bestWinRateText = String(format: "%2.0f%%", (bestWinRate * 100).rounded())
+        let winRateDiffSentence = ", \(verb) by \(winRateDiffText) from \(bestWinRateText)"
+
+        return winRateDiffSentence
+    }
+
     private func formatScore(_ blackScore: Float?, for selfColor: PlayerColor) -> String {
         guard let blackScore else {
             return "Unknown"
@@ -353,8 +399,28 @@ Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextWinr
         let score = (selfColor == .black) ? blackScore : (-blackScore)
         let scoreText = String(round(Double(abs(score)) * 10) / 10.0)
         let verb = (score > 0) ? "leads" : "is behind"
-        let scoreSentence = "\(selfColor.name) \(verb) by \(scoreText) points."
+        let scoreSentence = "\(selfColor.name) \(verb) by \(scoreText) points"
 
         return scoreSentence
+    }
+
+    private func formatScoreDiff(
+        _ bestBlackScore: Float?,
+        _ myBlackScore: Float?,
+        for selfColor: PlayerColor
+    ) -> String {
+        guard let bestBlackScore, let myBlackScore else {
+            return ""
+        }
+        
+        let bestScore = (selfColor == .black) ? bestBlackScore : (-bestBlackScore)
+        let myScore = (selfColor == .black) ? myBlackScore : (-myBlackScore)
+        let scoreDiff = bestScore - myScore
+        let verb = (scoreDiff > 0) ? "decreased" : "increased"
+        let scoreDiffText = String(round(Double(abs(scoreDiff)) * 10) / 10.0)
+        let bestScoreText = String(round(Double(bestScore) * 10) / 10.0)
+        let scoreDiffSentence = " \(selfColor.name) score is \(verb) by \(scoreDiffText) points from \(bestScoreText)"
+
+        return scoreDiffSentence
     }
 }
