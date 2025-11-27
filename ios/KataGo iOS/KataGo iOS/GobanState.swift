@@ -441,7 +441,7 @@ class GobanState {
         let currentIndex = gameRecord.currentIndex
         let previousIndex = currentIndex - 1
 
-        if gameRecord.moves?[currentIndex] == nil ||
+        if isEditing || gameRecord.moves?[currentIndex] == nil ||
             (previousIndex >= 0 && gameRecord.moves?[previousIndex] == nil) {
             let sgfHelper = sgfHelper ?? SgfHelper(sgf: gameRecord.sgf)
 
