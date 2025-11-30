@@ -11,36 +11,20 @@ import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord
-    @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     var maxBoardLength: Int
-
+    
     var body: some View {
-        Group {
-            if gobanTab.isCommandPresented {
-                CommandView(config: gameRecord.concreteConfig)
-            } else if gobanTab.isConfigPresented {
-                ConfigView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
-            } else {
-                PlayView(gameRecord: gameRecord)
+        PlayView(gameRecord: gameRecord)
+            .toolbar {
+                TopToolbarView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             }
-        }
-        .toolbar {
-            TopToolbarView(gameRecord: gameRecord)
-        }
     }
-}
-
-@Observable
-class GobanTab {
-    var isCommandPresented = false
-    var isConfigPresented = false
 }
 
 struct GobanView: View {
     @Binding var isEditorPresented: Bool
     @Environment(NavigationContext.self) var navigationContext
-    @Environment(GobanTab.self) var gobanTab
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @State var toolbarUuid = UUID()
     var maxBoardLength: Int
@@ -94,7 +78,6 @@ struct GobanView: View {
                     }
             }
         }
-        .environment(gobanTab)
         .onChange(of: horizontalSizeClass) { _, _ in
             toolbarUuid = UUID()
         }

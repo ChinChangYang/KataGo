@@ -11,7 +11,6 @@ struct PlusMenuView: View {
     var gameRecord: GameRecord?
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
-    @Environment(GobanTab.self) var gobanTab
     @Environment(GobanState.self) var gobanState
     @Environment(ThumbnailModel.self) var thumbnailModel
     @Environment(TopUIState.self) var topUIState
@@ -23,8 +22,6 @@ struct PlusMenuView: View {
                     let newGameRecord = GameRecord.createGameRecord()
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
-                    gobanTab.isCommandPresented = false
-                    gobanTab.isConfigPresented = false
                 }
             } label: {
                 Label("New Game", systemImage: "doc")
@@ -36,8 +33,6 @@ struct PlusMenuView: View {
                         let newGameRecord = gameRecord.clone()
                         modelContext.insert(newGameRecord)
                         navigationContext.selectedGameRecord = newGameRecord
-                        gobanTab.isCommandPresented = false
-                        gobanTab.isConfigPresented = false
                     }
                 } label: {
                     Label("Clone", systemImage: "doc.on.doc")
@@ -87,16 +82,16 @@ struct PlusMenuView: View {
                 }
             }
 
-            if gameRecord != nil {
+            if let gameRecord {
 #if !os(visionOS)
                 Divider()
 #endif
-                Button {
-                    withAnimation {
-                        gobanTab.isCommandPresented = true
+
+                NavigationStack {
+                    NavigationLink(destination: CommandView(config: gameRecord.concreteConfig)) {
+                        Label("Developer Mode", systemImage: "doc.plaintext")
                     }
-                } label: {
-                    Label("Developer Mode", systemImage: "doc.plaintext")
+                    .buttonStyle(.automatic)
                 }
             }
         } label: {
@@ -110,7 +105,6 @@ struct PlusMenuView: View {
         gameRecord: GameRecord(config: Config())
     )
     .environment(NavigationContext())
-    .environment(GobanTab())
     .environment(GobanState())
     .environment(ThumbnailModel())
     .environment(TopUIState())

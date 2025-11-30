@@ -26,7 +26,6 @@ struct ContentView: View {
     @State private var navigationContext = NavigationContext()
     @State private var isEditorPresented = false
     @State private var isInitialized = false
-    @State private var gobanTab = GobanTab()
     @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @Environment(\.scenePhase) var scenePhase
@@ -83,7 +82,6 @@ struct ContentView: View {
             .environment(rootWinrate)
             .environment(rootScore)
             .environment(navigationContext)
-            .environment(gobanTab)
             .environment(thumbnailModel)
             .environment(audioModel)
             .environment(topUIState)
@@ -263,12 +261,6 @@ struct ContentView: View {
         // Ensure the result is a successful file URL and start accessing its security-scoped resource
         guard case .success(let files) = result else { return }
 
-        // Dismiss the command interface
-        gobanTab.isCommandPresented = false
-
-        // Dismiss the configuration interface
-        gobanTab.isConfigPresented = false
-
         files.forEach { file in
             if let newGameRecord = GameRecord.createGameRecord(from: file) {
                 // Insert the new game record into the model context
@@ -281,12 +273,6 @@ struct ContentView: View {
     }
 
     private func importUrl(url: URL) {
-        // Dismiss the command interface
-        gobanTab.isCommandPresented = false
-
-        // Dismiss the configuration interface
-        gobanTab.isConfigPresented = false
-
         if let newGameRecord = GameRecord.createGameRecord(from: url) {
             // Insert the new game record into the model context
             modelContext.insert(newGameRecord)
@@ -310,8 +296,6 @@ struct ContentView: View {
     }
 
     private func processChange(oldGameRecord: GameRecord?, newGameRecord: GameRecord?) {
-        gobanTab.isConfigPresented = false
-        gobanTab.isCommandPresented = false
         player.nextColorForPlayCommand = .unknown
         gobanState.deactivateBranch()
         if let newGameRecord {

@@ -37,7 +37,6 @@ struct GameListToolbar: ToolbarContent {
             }
     }
     .environment(NavigationContext())
-    .environment(GobanTab())
     .environment(GobanState())
     .environment(ThumbnailModel())
     .environment(TopUIState())

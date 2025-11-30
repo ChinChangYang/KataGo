@@ -638,8 +638,6 @@ struct ConfigItems: View {
     var gameRecord: GameRecord
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
-    @Environment(GobanTab.self) var gobanTab
-    @Environment(GobanState.self) var gobanState
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
     var maxBoardLength: Int
