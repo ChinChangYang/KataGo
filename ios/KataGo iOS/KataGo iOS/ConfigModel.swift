@@ -47,6 +47,8 @@ final class Config {
     var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
     var optionalAnalysisStyle: Int? = defaultAnalysisStyle
     var optionalShowCharts: Bool? = defaultShowCharts
+    var optionalUseLLM: Bool? = defaultUseLLM
+    var optionalTemperature: Float? = defaultTemperature
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -81,7 +83,10 @@ final class Config {
          optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule,
          optionalShowWinrateBar: Bool? = defaultShowWinrateBar,
          optionalAnalysisStyle: Int? = defaultAnalysisStyle,
-         optionalShowCharts: Bool? = defaultShowCharts) {
+         optionalShowCharts: Bool? = defaultShowCharts,
+         optionalUseLLM: Bool? = defaultUseLLM,
+         optionalTemperature: Float? = defaultTemperature
+    ) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
@@ -116,6 +121,8 @@ final class Config {
         self.optionalShowWinrateBar = optionalShowWinrateBar
         self.optionalAnalysisStyle = optionalAnalysisStyle
         self.optionalShowCharts = optionalShowCharts
+        self.optionalUseLLM = optionalUseLLM
+        self.optionalTemperature = optionalTemperature
     }
 
     convenience init(config: Config?) {
@@ -148,7 +155,10 @@ final class Config {
                 optionalWhiteMaxTime: config.optionalWhiteMaxTime,
                 optionalShowWinrateBar: config.optionalShowWinrateBar,
                 optionalAnalysisStyle: config.optionalAnalysisStyle,
-                optionalShowCharts: config.optionalShowCharts)
+                optionalShowCharts: config.optionalShowCharts,
+                optionalUseLLM: config.optionalUseLLM,
+                optionalTemperature: config.optionalTemperature
+            )
         } else {
             self.init()
         }
@@ -692,6 +702,34 @@ extension Config {
         
         set(newValue) {
             optionalShowCharts = newValue
+        }
+    }
+}
+
+extension Config {
+    static let defaultUseLLM: Bool = false
+
+    var useLLM: Bool {
+        get {
+            return optionalUseLLM ?? Config.defaultUseLLM
+        }
+        
+        set(newValue) {
+            optionalUseLLM = newValue
+        }
+    }
+}
+
+extension Config {
+    static let defaultTemperature: Float = 0.5
+
+    var temperature: Float {
+        get {
+            return optionalTemperature ?? Config.defaultTemperature
+        }
+
+        set(newValue) {
+            optionalTemperature = newValue
         }
     }
 }

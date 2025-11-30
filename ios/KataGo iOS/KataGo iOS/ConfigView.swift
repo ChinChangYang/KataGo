@@ -588,6 +588,37 @@ struct AIConfigView: View {
     }
 }
 
+struct CommentConfigView: View {
+    var config: Config
+    @State var useLLM: Bool = Config.defaultUseLLM
+    @State var temperature: Float = Config.defaultTemperature
+
+    var body: some View {
+        List {
+            ConfigBoolItem(title: "Apple Intelligence", value: $useLLM)
+                .onAppear {
+                    useLLM = config.useLLM
+                }
+                .onChange(of: useLLM) { _, newValue in
+                    config.useLLM = useLLM
+                }
+
+            ConfigFloatItem(title: "Temperature",
+                            value: $temperature,
+                            step: 0.1,
+                            minValue: 0,
+                            maxValue: 1,
+                            format: .number)
+            .onAppear {
+                temperature = ((config.temperature) * 10).rounded() / 10
+            }
+            .onChange(of: temperature) { _, newValue in
+                config.temperature = (newValue * 10).rounded() / 10
+            }
+        }
+    }
+}
+
 struct SgfConfigView: View {
     var gameRecord: GameRecord
     @State var sgf: String = ""
@@ -676,6 +707,11 @@ struct ConfigItems: View {
             NavigationLink("AI") {
                 AIConfigView(config: config)
                     .navigationTitle("AI")
+            }
+
+            NavigationLink("Comment") {
+                CommentConfigView(config: config)
+                    .navigationTitle("Comment")
             }
 
             NavigationLink("SGF") {

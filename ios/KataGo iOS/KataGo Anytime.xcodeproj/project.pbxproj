@@ -237,6 +237,7 @@
 		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
 		E15A218F2ECAAB5600708C25 /* GobanState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A218E2ECAAB5600708C25 /* GobanState.swift */; };
+		E15A21CC2EDC4CEA00708C25 /* Commentator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A21CB2EDC4CEA00708C25 /* Commentator.swift */; };
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */; };
@@ -585,6 +586,7 @@
 		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		E15A218E2ECAAB5600708C25 /* GobanState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanState.swift; sourceTree = "<group>"; };
+		E15A21CB2EDC4CEA00708C25 /* Commentator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commentator.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demoplay.cpp; sourceTree = "<group>"; };
@@ -1050,6 +1052,7 @@
 			isa = PBXGroup;
 			children = (
 				E10C8BAC2C80BECE00477A7B /* AudioModel.swift */,
+				E15A21CB2EDC4CEA00708C25 /* Commentator.swift */,
 				E12A6E9E2C322E020002DED0 /* ConfigModel.swift */,
 				E16E1F3A2DE2C97A00B0F144 /* DebugUtils.swift */,
 				E16E1F382DE2AA8300B0F144 /* Downloader.swift */,
@@ -1708,6 +1711,7 @@
 				E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
 				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
+				E15A21CC2EDC4CEA00708C25 /* Commentator.swift in Sources */,
 				E15A218F2ECAAB5600708C25 /* GobanState.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
