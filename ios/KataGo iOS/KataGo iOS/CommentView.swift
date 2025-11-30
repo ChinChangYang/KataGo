@@ -27,6 +27,7 @@ struct CommentView: View {
                     axis: .vertical
                 )
                 .disabled(isGenerating)
+                .contentTransition(.opacity)
 
                 if (comment.isEmpty) && (isGenerating == false) {
                     VStack {
@@ -118,7 +119,7 @@ Original Go commentary of the current move to be improved:
 
 #if DEBUG
                         comment =
-                        """
+"""
 \(comment)
 
 \(prompt)
@@ -187,15 +188,15 @@ Original Go commentary of the current move to be improved:
 - Next Move's \(colorToPlay) Score: \(nextScoreText).
 - Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
 - Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
-- Next Move's Schrödinger's Black Stones: \(nextBlackSchrodingerText)
-- Next Move's Schrödinger's White Stones: \(nextWhiteSchrodingerText)
+- Next Move's Endangered Black Stones: \(nextBlackSchrodingerText)
+- Next Move's Endangered White Stones: \(nextWhiteSchrodingerText)
 - AI suggested Next Move for \(colorToPlay): \(bestMoveText)
 - AI Move's \(colorToPlay) Winrate: \(bestWinrateText)
 - AI Move's \(colorToPlay) Score: \(bestScoreText).
 - AI Move's Dead Black Stones: \(bestDeadBlackStonesText)
 - AI Move's Dead White Stones: \(bestDeadWhiteStonesText)
-- AI Move's Schrödinger's Black Stones: \(bestBlackSchrodingerText)
-- AI Move's Schrödinger's White Stones: \(bestWhiteSchrodingerText)
+- AI Move's Endangered Black Stones: \(bestBlackSchrodingerText)
+- AI Move's Endangered White Stones: \(bestWhiteSchrodingerText)
 """
 
         return analysisText
@@ -247,26 +248,37 @@ Original Go commentary of the current move to be improved:
             for: turn.nextColorForPlayCommand
         ) : ""
 
-        let nextScoreSentence = nextScoreText == "Unknown" ? "" : " \(nextScoreText)\(scoreDiffText)."
+        let nextScoreSentence = (
+            (nextScoreText == "Unknown" || scoreDiffText.isEmpty) ? ""
+            : " \(nextScoreText). \(scoreDiffText)."
+        )
 
         let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
         let deadBlackStonesDiffer = (nextDeadBlackStonesText != bestDeadBlackStonesText) && (bestDeadBlackStonesText != "Unknown")
 
+        let deadBlackStonesDiffText = deadBlackStonesDiffer ? formatDeadStonesDiff(
+            current: gameRecord.deadBlackStones?[currentIndex],
+            next: gameRecord.deadBlackStones?[nextIndex],
+            color: .black
+        ) : ""
+
         let nextDeadBlackStonesSentence = (
-            (!deadBlackStonesDiffer) ? "" :
-                nextDeadBlackStonesText == "None" ? " None of Black's stones is dead on the board." :
-                " Black's stones at \(nextDeadBlackStonesText) will be dead."
+            (!deadBlackStonesDiffer || deadBlackStonesDiffText.isEmpty) ? "" : " \(deadBlackStonesDiffText)."
         )
 
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
         let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
         let deadWhiteStonesDiffer = (nextDeadWhiteStonesText != bestDeadWhiteStonesText) && (bestDeadWhiteStonesText != "Unknown")
 
+        let deadWhiteStonesDiffText = deadWhiteStonesDiffer ? formatDeadStonesDiff(
+            current: gameRecord.deadWhiteStones?[currentIndex],
+            next: gameRecord.deadWhiteStones?[nextIndex],
+            color: .white
+        ) : ""
+
         let nextDeadWhiteStonesSentence = (
-            (!deadWhiteStonesDiffer) ? "" :
-                nextDeadWhiteStonesText == "None" ? " None of White's stones is dead on the board." :
-                " White's stones at \(nextDeadWhiteStonesText) will be dead."
+            (!deadWhiteStonesDiffer || deadWhiteStonesDiffText.isEmpty) ? "" : " \(deadWhiteStonesDiffText)."
         )
 
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
@@ -419,8 +431,23 @@ Game starts. \(colorToPlay) number \(nextIndex) plays \(nextMoveText).\(nextWinr
         let verb = (scoreDiff > 0) ? "decreased" : "increased"
         let scoreDiffText = String(round(Double(abs(scoreDiff)) * 10) / 10.0)
         let bestScoreText = String(round(Double(bestScore) * 10) / 10.0)
-        let scoreDiffSentence = " \(selfColor.name) score is \(verb) by \(scoreDiffText) points from \(bestScoreText)"
+        let scoreDiffSentence = "\(selfColor.name) score is \(verb) by \(scoreDiffText) points from \(bestScoreText)"
 
         return scoreDiffSentence
+    }
+    
+    private func formatDeadStonesDiff(
+        current: String?,
+        next: String?,
+        color: PlayerColor
+    ) -> String {
+        guard let current, let next, current != next else { return "" }
+
+        let currentSet = Set(current.split(separator: " ").map(String.init))
+        let nextSet = Set(next.split(separator: " ").map(String.init))
+        let deadStones = nextSet.subtracting(currentSet)
+        guard !deadStones.isEmpty else { return "" }
+        let stonesString = deadStones.sorted().joined(separator: " ")
+        return "\(color.name) \(stonesString) are dead"
     }
 }
