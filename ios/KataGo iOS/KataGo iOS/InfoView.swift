@@ -41,11 +41,15 @@ struct InfoView: View {
 
                 HStack {
                     createButton(systemImage: "chart.xyaxis.line") {
-                        selectedTab = .chart
+                        withAnimation {
+                            selectedTab = .chart
+                        }
                     }
 
                     createButton(systemImage: "text.rectangle") {
-                        selectedTab = .comments
+                        withAnimation {
+                            selectedTab = .comments
+                        }
                     }
                 }
                 .frame(
