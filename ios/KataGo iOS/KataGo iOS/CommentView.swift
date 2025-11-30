@@ -18,6 +18,12 @@ struct CommentView: View {
     @Environment(BoardSize.self) var board
     @Environment(Turn.self) var turn
 
+    @Generable
+    struct CommentText {
+        @Guide(description: "The natural language of the improved Go commentary.")
+        let description: String
+    }
+
     var textArea: some View {
         ZStack {
             if gobanState.isEditing {
@@ -95,7 +101,7 @@ struct CommentView: View {
 
             let prompt =
 """
-Improve the precise and friendly quality of the original Go commentary. Return a single paragraph of the improved commentary suitable for display as a comment for the current move.
+Improve the precise and friendly quality of the original Go commentary with the context of the previous and current moves. Return a single paragraph of the improved commentary suitable for display as a comment for the current move.
 
 For context-only, commentary of the previous move:
 \(previousText)
@@ -110,8 +116,14 @@ Original Go commentary of the current move to be improved:
             do {
                 let session = LanguageModelSession()
                 let options = GenerationOptions(temperature: 1.0)
-                let response = try await session.respond(to: prompt, options: options)
-                let improved = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let response = try await session.respond(
+                    to: prompt,
+                    generating: CommentText.self,
+                    options: options
+                )
+
+                let improved = response.content.description
 
                 await MainActor.run {
                     withAnimation {
