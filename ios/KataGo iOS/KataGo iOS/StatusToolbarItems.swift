@@ -192,7 +192,6 @@ struct StatusToolbarItems: View {
         withAnimation {
             gobanState.analysisStatus = .clear
         }
-        messageList.appendAndSend(command: "stop")
     }
 
     func sparkleAction() {

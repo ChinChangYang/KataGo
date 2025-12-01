@@ -132,6 +132,11 @@ struct ContentView: View {
                     gameRecord.currentIndex += 1
                 }
             }
+            .onChange(of: gobanState.analysisStatus) { oldValue, newValue in
+                if newValue == .clear {
+                    messageList.appendAndSend(command: "stop")
+                }
+            }
             .confirmationDialog(
                 "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!",
                 isPresented: $topUIState.confirmingDeletion,
@@ -174,6 +179,8 @@ struct ContentView: View {
             // auto-play analysis by best AI profile
             if let humanSLModel = HumanSLModel(profile: "AI") {
                 messageList.appendAndSend(commands: humanSLModel.commands)
+                messageList.appendAndSend(command: "kata-set-param playoutDoublingAdvantage 0")
+                messageList.appendAndSend(command: "kata-set-param analysisWideRootNoise 0")
             }
 
             gobanState.sendPostExecutionCommands(
@@ -183,14 +190,20 @@ struct ContentView: View {
                 gameRecord: gameRecord
             )
         } else {
-            gobanState.analysisStatus = .clear
+            withAnimation {
+                gobanState.analysisStatus = .clear
+            }
 
             // restore human profile for the next player
-            if let gameRecord = navigationContext.selectedGameRecord {
+            if let gameRecord = navigationContext.selectedGameRecord,
+               let config = gameRecord.config {
                 gobanState.maybeSendAsymmetricHumanAnalysisCommands(
                     nextColorForPlayCommand: player.nextColorForPlayCommand,
-                    config: gameRecord.concreteConfig,
+                    config: config,
                     messageList: messageList)
+
+                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+                messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
             }
         }
     }
