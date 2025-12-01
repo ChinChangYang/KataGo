@@ -9,6 +9,7 @@ import SwiftUI
 
 struct PlusMenuView: View {
     var gameRecord: GameRecord?
+    var maxBoardLength: Int
     @Environment(\.modelContext) private var modelContext
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanState.self) var gobanState
@@ -88,6 +89,16 @@ struct PlusMenuView: View {
 #endif
 
                 NavigationStack {
+                    NavigationLink(
+                        destination: ConfigView(
+                            gameRecord: gameRecord,
+                            maxBoardLength: maxBoardLength
+                        )
+                    ) {
+                        Label("Configurations", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.automatic)
+
                     NavigationLink(destination: CommandView(config: gameRecord.concreteConfig)) {
                         Label("Developer Mode", systemImage: "doc.plaintext")
                     }
@@ -102,7 +113,8 @@ struct PlusMenuView: View {
 
 #Preview {
     PlusMenuView(
-        gameRecord: GameRecord(config: Config())
+        gameRecord: GameRecord(config: Config()),
+        maxBoardLength: 19
     )
     .environment(NavigationContext())
     .environment(GobanState())

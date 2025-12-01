@@ -63,7 +63,7 @@ struct GobanView: View {
                     ContentUnavailableView("Too large board size \(gameRecord.concreteConfig.boardWidth)x\(gameRecord.concreteConfig.boardHeight) to run with this neural network.\nPlease select other neural networks.", systemImage: "rectangle.portrait.and.arrow.forward")
                         .toolbar {
                             ToolbarItem {
-                                PlusMenuView(gameRecord: nil)
+                                PlusMenuView(gameRecord: nil, maxBoardLength: maxBoardLength)
                                     .id(toolbarUuid)
                             }
                         }
@@ -72,7 +72,7 @@ struct GobanView: View {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                     .toolbar {
                         ToolbarItem {
-                            PlusMenuView(gameRecord: nil)
+                            PlusMenuView(gameRecord: nil, maxBoardLength: maxBoardLength)
                                 .id(toolbarUuid)
                         }
                     }

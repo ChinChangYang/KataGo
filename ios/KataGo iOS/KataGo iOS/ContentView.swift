@@ -48,6 +48,7 @@ struct ContentView: View {
                 .toolbar {
                     GameListToolbar(
                         gameRecord: navigationContext.selectedGameRecord,
+                        maxBoardLength: selectedModel.nnLen,
                         quitStatus: $quitStatus
                     )
                 }

@@ -18,53 +18,22 @@ struct TopToolbarView: ToolbarContent {
 
     var body: some ToolbarContent {
         if !gobanState.isBranchActive {
-            if gobanState.isEditing {
-                ToolbarItem(id: "gearshape") {
-                    NavigationStack {
-                        NavigationLink(
-                            destination: ConfigView(
-                                gameRecord: gameRecord,
-                                maxBoardLength: maxBoardLength
-                            )
-                        ) {
-                            Image(systemName: "gearshape")
-                        }
-                        .buttonStyle(.automatic)
-                    }
-                }
+            ToolbarItemGroup {
+                PlusMenuView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
+            }
 
 #if !os(visionOS)
-                ToolbarSpacer()
+            ToolbarSpacer()
 #endif // !os(visionOS)
 
-                ToolbarItem(id: "lock.open") {
-                    Button {
-                        if !gobanState.isAutoPlaying {
-                            gobanState.isEditing = false
-                        }
-                    } label: {
-                        Image(systemName: "lock.open")
-                            .foregroundStyle(gobanState.isAutoPlaying ? .secondary : .primary)
+            ToolbarItem(id: "lock") {
+                Button {
+                    if !gobanState.isAutoPlaying {
+                        gobanState.isEditing.toggle()
                     }
-                }
-            } else {
-                ToolbarItemGroup {
-                    PlusMenuView(gameRecord: gameRecord)
-                }
-
-#if !os(visionOS)
-                ToolbarSpacer()
-#endif // !os(visionOS)
-
-                ToolbarItem(id: "lock") {
-                    Button {
-                        if !gobanState.isAutoPlaying {
-                            gobanState.isEditing = true
-                        }
-                    } label: {
-                        Image(systemName: "lock")
-                            .foregroundStyle(gobanState.isAutoPlaying ? .secondary : .primary)
-                    }
+                } label: {
+                    Image(systemName: gobanState.isEditing ? "lock.open" : "lock")
+                        .foregroundStyle(gobanState.isAutoPlaying ? .secondary : .primary)
                 }
             }
         } else if let config = gameRecord.config {

@@ -9,11 +9,12 @@ import SwiftUI
 
 struct GameListToolbar: ToolbarContent {
     var gameRecord: GameRecord?
+    var maxBoardLength: Int
     @Binding var quitStatus: QuitStatus
 
     var body: some ToolbarContent {
         ToolbarItem(id: "ellipsis") {
-            PlusMenuView(gameRecord: gameRecord)
+            PlusMenuView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
         }
 
 #if !os(visionOS)
@@ -32,6 +33,7 @@ struct GameListToolbar: ToolbarContent {
             .toolbar {
                 GameListToolbar(
                     gameRecord: nil,
+                    maxBoardLength: 19,
                     quitStatus: .constant(.none)
                 )
             }
