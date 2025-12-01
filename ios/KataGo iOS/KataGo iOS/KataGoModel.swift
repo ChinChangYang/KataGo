@@ -197,6 +197,14 @@ struct OwnershipUnit: Identifiable {
     var isSchrodinger: Bool {
         (abs(whiteness - 0.5) < 0.2) && scale > 0.4
     }
+
+    var nearBlack: Bool {
+        whiteness < 0.3
+    }
+
+    var nearWhite: Bool {
+        whiteness > 0.7
+    }
 }
 
 @Observable

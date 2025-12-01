@@ -88,6 +88,8 @@ Original Go commentary of the current move to be improved:
 
         let nextDeadBlackStonesText = gameRecord.deadBlackStones?[nextIndex] ?? "Unknown"
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
+        let nextEndangeredBlackStonesText = gameRecord.endangeredBlackStones?[nextIndex] ?? "Unknown"
+        let nextEndangeredWhiteStonesText = gameRecord.endangeredWhiteStones?[nextIndex] ?? "Unknown"
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
         let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
         let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
@@ -104,6 +106,8 @@ Original Go commentary of the current move to be improved:
 
         let bestDeadBlackStonesText = gameRecord.deadBlackStones?[currentIndex] ?? "Unknown"
         let bestDeadWhiteStonesText = gameRecord.deadWhiteStones?[currentIndex] ?? "Unknown"
+        let bestEndangeredBlackStonesText = gameRecord.endangeredBlackStones?[currentIndex] ?? "Unknown"
+        let bestEndangeredWhiteStonesText = gameRecord.endangeredWhiteStones?[currentIndex] ?? "Unknown"
         let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
         let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
 
@@ -117,15 +121,19 @@ Original Go commentary of the current move to be improved:
 - Next Move's \(colorToPlay) Score: \(nextScoreText).
 - Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
 - Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
-- Next Move's Endangered Black Stones: \(nextBlackSchrodingerText)
-- Next Move's Endangered White Stones: \(nextWhiteSchrodingerText)
+- Next Move's Endangered Black Stones: \(nextEndangeredBlackStonesText)
+- Next Move's Endangered White Stones: \(nextEndangeredWhiteStonesText)
+- Next Move's Exchangeable Black Stones: \(nextBlackSchrodingerText)
+- Next Move's Exchangeable White Stones: \(nextWhiteSchrodingerText)
 - AI suggested Next Move for \(colorToPlay): \(bestMoveText)
 - AI Move's \(colorToPlay) Winrate: \(bestWinrateText)
 - AI Move's \(colorToPlay) Score: \(bestScoreText).
 - AI Move's Dead Black Stones: \(bestDeadBlackStonesText)
 - AI Move's Dead White Stones: \(bestDeadWhiteStonesText)
-- AI Move's Endangered Black Stones: \(bestBlackSchrodingerText)
-- AI Move's Endangered White Stones: \(bestWhiteSchrodingerText)
+- AI Move's Endangered Black Stones: \(bestEndangeredBlackStonesText)
+- AI Move's Endangered White Stones: \(bestEndangeredWhiteStonesText)
+- AI Move's Exchangeable Black Stones: \(bestBlackSchrodingerText)
+- AI Move's Exchangeable White Stones: \(bestWhiteSchrodingerText)
 """
 
         return analysisText
@@ -141,7 +149,7 @@ Original Go commentary of the current move to be improved:
 
         let colorToPlaySentence = (
             nextMoveText == "Unknown" ? "" :
-            " Then, \(colorToPlay) number \(nextIndex) plays a stone at \(nextMoveText)."
+                " Then, \(colorToPlay) number \(nextIndex) plays a stone at \(nextMoveText)."
         )
 
         let nextWinrateText = formatWinRate(
@@ -198,7 +206,8 @@ Original Go commentary of the current move to be improved:
         ) : ""
 
         let nextDeadBlackStonesSentence = (
-            ((nextMoveText == "Unknown") || !deadBlackStonesDiffer || deadBlackStonesDiffText.isEmpty) ? "" : " \(deadBlackStonesDiffText)."
+            ((nextMoveText == "Unknown") || !deadBlackStonesDiffer || deadBlackStonesDiffText.isEmpty) ? "" :
+                " \(deadBlackStonesDiffText)."
         )
 
         let nextDeadWhiteStonesText = gameRecord.deadWhiteStones?[nextIndex] ?? "Unknown"
@@ -212,27 +221,68 @@ Original Go commentary of the current move to be improved:
         ) : ""
 
         let nextDeadWhiteStonesSentence = (
-            ((nextMoveText == "Unknown") || !deadWhiteStonesDiffer || deadWhiteStonesDiffText.isEmpty) ? "" : " \(deadWhiteStonesDiffText)."
+            ((nextMoveText == "Unknown") || !deadWhiteStonesDiffer || deadWhiteStonesDiffText.isEmpty) ? "" :
+                " \(deadWhiteStonesDiffText)."
+        )
+
+        let nextEndangeredBlackStonesText = gameRecord.endangeredBlackStones?[nextIndex] ?? "Unknown"
+        let bestEndangeredBlackStonesText = gameRecord.endangeredBlackStones?[currentIndex] ?? "Unknown"
+        let endangeredBlackStonesDiffer = (nextEndangeredBlackStonesText != bestEndangeredBlackStonesText) && (bestEndangeredBlackStonesText != "Unknown")
+
+        let endangeredBlackStonesDiffText = endangeredBlackStonesDiffer ? formatEndangeredStonesDiff(
+            current: gameRecord.endangeredBlackStones?[currentIndex],
+            next: gameRecord.endangeredBlackStones?[nextIndex],
+            color: .black
+        ) : ""
+        
+        let nextEndangeredBlackSentence = (
+            ((nextMoveText == "Unknown") || !endangeredBlackStonesDiffer || endangeredBlackStonesDiffText.isEmpty) ? "" :
+                " \(endangeredBlackStonesDiffText)."
+        )
+
+        let nextEndangeredWhiteStonesText = gameRecord.endangeredWhiteStones?[nextIndex] ?? "Unknown"
+        let bestEndangeredWhiteStonesText = gameRecord.endangeredWhiteStones?[currentIndex] ?? "Unknown"
+        let endangeredWhiteStonesDiffer = (nextEndangeredWhiteStonesText != bestEndangeredWhiteStonesText) && (bestEndangeredWhiteStonesText != "Unknown")
+
+        let endangeredWhiteStonesDiffText = endangeredWhiteStonesDiffer ? formatEndangeredStonesDiff(
+            current: gameRecord.endangeredWhiteStones?[currentIndex],
+            next: gameRecord.endangeredWhiteStones?[nextIndex],
+            color: .white
+        ) : ""
+
+        let nextEndangeredWhiteSentence = (
+            ((nextMoveText == "Unknown") || !endangeredWhiteStonesDiffer || endangeredWhiteStonesDiffText.isEmpty) ? "" :
+                " \(endangeredWhiteStonesDiffText)."
         )
 
         let nextBlackSchrodingerText = gameRecord.blackSchrodingerStones?[nextIndex] ?? "Unknown"
         let bestBlackSchrodingerText = gameRecord.blackSchrodingerStones?[currentIndex] ?? "Unknown"
         let blackSchrodingerDiffer = (nextBlackSchrodingerText != bestBlackSchrodingerText) && (bestBlackSchrodingerText != "Unknown")
 
+        let blackSchrodingerDiffText = blackSchrodingerDiffer ? formatSchrodingerStonesDiff(
+            current: gameRecord.blackSchrodingerStones?[currentIndex],
+            next: gameRecord.blackSchrodingerStones?[nextIndex],
+            color: .black
+        ) : ""
+
         let nextBlackSchrodingerSentence = (
-            ((nextMoveText == "Unknown") || !blackSchrodingerDiffer) ? "" :
-                nextBlackSchrodingerText == "None" ? " None of Black's stones have an unresolved life-and-death." :
-                " The life-and-death at \(nextBlackSchrodingerText) for Black remain unresolved."
+            ((nextMoveText == "Unknown") || !blackSchrodingerDiffer || blackSchrodingerDiffText.isEmpty) ? "" :
+                " \(blackSchrodingerDiffText)."
         )
 
         let nextWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[nextIndex] ?? "Unknown"
         let bestWhiteSchrodingerText = gameRecord.whiteSchrodingerStones?[currentIndex] ?? "Unknown"
         let whiteSchrodingerDiffer = (nextWhiteSchrodingerText != bestWhiteSchrodingerText) && (bestWhiteSchrodingerText != "Unknown")
 
+        let whiteSchrodingerDiffText = whiteSchrodingerDiffer ? formatSchrodingerStonesDiff(
+            current: gameRecord.whiteSchrodingerStones?[currentIndex],
+            next: gameRecord.whiteSchrodingerStones?[nextIndex],
+            color: .white
+        ) : ""
+
         let nextWhiteSchrodingerSentence = (
-            ((nextMoveText == "Unknown") || !whiteSchrodingerDiffer) ? "" :
-                nextWhiteSchrodingerText == "None" ? " None of White's stones have an unresolved life-and-death." :
-                " The life-and-death at \(nextWhiteSchrodingerText) for White remain unresolved."
+            ((nextMoveText == "Unknown") || !whiteSchrodingerDiffer || whiteSchrodingerDiffText.isEmpty) ? "" :
+                " \(whiteSchrodingerDiffText)."
         )
 
         let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
@@ -277,18 +327,48 @@ Original Go commentary of the current move to be improved:
                 " If \(colorToPlay) plays the recommended move, \(bestDeadWhiteStonesDiffText)."
         )
 
-        let bestBlackSchrodingerSentence = (
-            (!blackSchrodingerDiffer) ? "" :
-            (bestMoveDiffer && (bestBlackSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestBlackSchrodingerText) for Black is unresolved." :
-                bestMoveDiffer ? " KataGo thinks none of Black's stones have an unresolved life-and-death." :
-                ""
+        let bestEndangeredBlackStonesDiffText = endangeredBlackStonesDiffer ? formatEndangeredStonesDiff(
+            current: gameRecord.endangeredBlackStones?[nextIndex],
+            next: gameRecord.endangeredBlackStones?[currentIndex],
+            color: .black
+        ) : ""
+        
+        let bestEndangeredBlackSentence = (
+            (!endangeredBlackStonesDiffer || !bestMoveDiffer || bestEndangeredBlackStonesDiffText.isEmpty) ? "" :
+                " If \(colorToPlay) plays the recommended move, \(bestEndangeredBlackStonesDiffText)."
+        )
+        
+        let bestEndangeredWhiteStonesDiffText = endangeredWhiteStonesDiffer ? formatEndangeredStonesDiff(
+            current: gameRecord.endangeredWhiteStones?[nextIndex],
+            next: gameRecord.endangeredWhiteStones?[currentIndex],
+            color: .white
+        ) : ""
+        
+        let bestEndangeredWhiteSentence = (
+            (!endangeredWhiteStonesDiffer || !bestMoveDiffer || bestEndangeredWhiteStonesDiffText.isEmpty) ? "" :
+                " If \(colorToPlay) plays the recommended move, \(bestEndangeredWhiteStonesDiffText)."
         )
 
+        let bestBlackSchrodingerDiffText = blackSchrodingerDiffer ? formatSchrodingerStonesDiff(
+            current: gameRecord.blackSchrodingerStones?[nextIndex],
+            next: gameRecord.blackSchrodingerStones?[currentIndex],
+            color: .black
+        ) : ""
+
+        let bestBlackSchrodingerSentence = (
+            (!blackSchrodingerDiffer || !bestMoveDiffer || bestBlackSchrodingerDiffText.isEmpty) ? "" :
+                " \(bestBlackSchrodingerDiffText)."
+        )
+
+        let bestWhiteSchrodingerDiffText = whiteSchrodingerDiffer ? formatSchrodingerStonesDiff(
+            current: gameRecord.whiteSchrodingerStones?[nextIndex],
+            next: gameRecord.whiteSchrodingerStones?[currentIndex],
+            color: .white
+        ) : ""
+
         let bestWhiteSchrodingerSentence = (
-            (!whiteSchrodingerDiffer) ? "" :
-            (bestMoveDiffer && (bestWhiteSchrodingerText != "None")) ? " KataGo thinks the life-and-death at \(bestWhiteSchrodingerText) for White is unresolved." :
-                bestMoveDiffer ? " KataGo thinks none of White's stones have an unresolved life-and-death." :
-                ""
+            (!whiteSchrodingerDiffer || !bestMoveDiffer || bestWhiteSchrodingerDiffText.isEmpty) ? "" :
+                " \(bestWhiteSchrodingerDiffText)."
         )
 
         var comment: String
@@ -296,12 +376,12 @@ Original Go commentary of the current move to be improved:
         if currentIndex >= 1 {
             comment =
 """
-\(colorPlayed) number \(currentIndex) plays a stone at \(lastMoveText).\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+\(colorPlayed) number \(currentIndex) plays a stone at \(lastMoveText).\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         } else {
             comment =
 """
-Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         }
 
@@ -312,6 +392,14 @@ Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(ne
         guard gameRecord.currentIndex >= 1 else { return "None" }
         let lastMove = gameRecord.moves?[gameRecord.currentIndex - 1] ?? "Unknown"
         return lastMove
+    }
+
+    private func stonesDiff(current: String?, next: String?) -> [String] {
+        guard let current, let next, current != next else { return [] }
+        let currentSet = Set(current.split(separator: " ").map(String.init))
+        let nextSet = Set(next.split(separator: " ").map(String.init))
+        let diff = nextSet.subtracting(currentSet)
+        return diff.sorted()
     }
 
     private func formatWinRate(_ blackWinRate: Float?, for selfColor: PlayerColor) -> String {
@@ -383,13 +471,9 @@ Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(ne
         next: String?,
         color: PlayerColor
     ) -> String {
-        guard let current, let next, current != next else { return "" }
-
-        let currentSet = Set(current.split(separator: " ").map(String.init))
-        let nextSet = Set(next.split(separator: " ").map(String.init))
-        let deadStones = nextSet.subtracting(currentSet)
+        let deadStones = stonesDiff(current: current, next: next)
         guard !deadStones.isEmpty else { return "" }
-        let stonesString = deadStones.sorted().joined(separator: " ")
+        let stonesString = deadStones.joined(separator: " ")
 
         let deadStonesDiffText = (
             stonesString == "None" ? "None of \(color.name) stones are completely dead" :
@@ -398,6 +482,40 @@ Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(ne
 
         return deadStonesDiffText
     }
+
+    private func formatSchrodingerStonesDiff(
+        current: String?,
+        next: String?,
+        color: PlayerColor
+    ) -> String {
+        let schrodingerStones = stonesDiff(current: current, next: next)
+        guard !schrodingerStones.isEmpty else { return "" }
+        let stonesString = schrodingerStones.joined(separator: " ")
+        
+        let schrodingerStonesDiffText = (
+            stonesString == "None" ? "" :
+                "\(color.name) \(stonesString) are exchangeable, allowing both players gain points in different areas on the board, resulting in a locally balanced trade-off"
+        )
+
+        return schrodingerStonesDiffText
+    }
+
+    private func formatEndangeredStonesDiff(
+        current: String?,
+        next: String?,
+        color: PlayerColor
+    ) -> String {
+        let endangeredStones = stonesDiff(current: current, next: next)
+        guard !endangeredStones.isEmpty else { return "" }
+        let stonesString = endangeredStones.joined(separator: " ")
+
+        let endangeredStonesDiffText = (
+            stonesString == "None" ? "" :
+                "\(color.name) \(stonesString) are sacrificeable, allowing to be captured to gain a greater advantage elsewhere on the board"
+        )
+
+        return endangeredStonesDiffText
+    }
 }
 
 @Generable
@@ -405,4 +523,3 @@ struct CommentText {
     @Guide(description: "The improved Go commentary in single paragraph.")
     let description: String
 }
-

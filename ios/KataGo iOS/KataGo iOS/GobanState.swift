@@ -173,7 +173,8 @@ class GobanState {
         gameRecord: GameRecord,
         analysis: Analysis,
         board: BoardSize,
-        stones: Stones
+        stones: Stones,
+        all: Bool = true
     ) {
         if isEditing && (analysisStatus != .clear) {
             if let scoreLead = analysis.blackScore {
@@ -192,46 +193,68 @@ class GobanState {
             if let winRate = analysis.blackWinrate {
                 gameRecord.winRates?[gameRecord.currentIndex] = winRate
             }
-            
-            let deadBlackText = generateConditionalStonesText(
-                analysis: analysis,
-                board: board,
-                boardPoints: stones.blackPoints
-            ) { ownershipUnit in
-                ownershipUnit.isWhite
-            }
-            
-            gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
-            
-            let deadWhiteText = generateConditionalStonesText(
-                analysis: analysis,
-                board: board,
-                boardPoints: stones.whitePoints
-            ) { ownershipUnit in
-                ownershipUnit.isBlack
-            }
-            
-            gameRecord.deadWhiteStones?[gameRecord.currentIndex] = deadWhiteText
-            
-            let blackSchrodingerText = generateConditionalStonesText(
-                analysis: analysis,
-                board: board,
-                boardPoints: stones.blackPoints
-            ) { OwnershipUnit in
-                OwnershipUnit.isSchrodinger
-            }
-            
-            gameRecord.blackSchrodingerStones?[gameRecord.currentIndex] = blackSchrodingerText
 
-            let whiteSchrodingerText = generateConditionalStonesText(
-                analysis: analysis,
-                board: board,
-                boardPoints: stones.whitePoints
-            ) { OwnershipUnit in
-                OwnershipUnit.isSchrodinger
+            if all {
+                let deadBlackText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.blackPoints
+                ) { ownershipUnit in
+                    ownershipUnit.isWhite
+                }
+
+                gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
+
+                let deadWhiteText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.whitePoints
+                ) { ownershipUnit in
+                    ownershipUnit.isBlack
+                }
+
+                gameRecord.deadWhiteStones?[gameRecord.currentIndex] = deadWhiteText
+
+                let blackSchrodingerText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.blackPoints
+                ) { OwnershipUnit in
+                    OwnershipUnit.isSchrodinger
+                }
+
+                gameRecord.blackSchrodingerStones?[gameRecord.currentIndex] = blackSchrodingerText
+
+                let whiteSchrodingerText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.whitePoints
+                ) { OwnershipUnit in
+                    OwnershipUnit.isSchrodinger
+                }
+
+                gameRecord.whiteSchrodingerStones?[gameRecord.currentIndex] = whiteSchrodingerText
+
+                let endangeredBlackText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.blackPoints
+                ) { OwnershipUnit in
+                    OwnershipUnit.nearWhite && !OwnershipUnit.isWhite
+                }
+
+                gameRecord.endangeredBlackStones?[gameRecord.currentIndex] = endangeredBlackText
+
+                let endangeredWhiteText = generateConditionalStonesText(
+                    analysis: analysis,
+                    board: board,
+                    boardPoints: stones.whitePoints
+                ) { OwnershipUnit in
+                    OwnershipUnit.nearBlack && !OwnershipUnit.isBlack
+                }
+
+                gameRecord.endangeredWhiteStones?[gameRecord.currentIndex] = endangeredWhiteText
             }
-            
-            gameRecord.whiteSchrodingerStones?[gameRecord.currentIndex] = whiteSchrodingerText
         }
     }
 

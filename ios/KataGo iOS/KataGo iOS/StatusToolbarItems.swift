@@ -142,7 +142,8 @@ struct StatusToolbarItems: View {
             gameRecord: gameRecord,
             analysis: analysis,
             board: board,
-            stones: stones
+            stones: stones,
+            all: false
         )
 
         if isFunctional {
@@ -160,7 +161,8 @@ struct StatusToolbarItems: View {
             gameRecord: gameRecord,
             analysis: analysis,
             board: board,
-            stones: stones
+            stones: stones,
+            all: false
         )
 
         if isFunctional {
@@ -230,7 +232,8 @@ struct StatusToolbarItems: View {
             gameRecord: gameRecord,
             analysis: analysis,
             board: board,
-            stones: stones
+            stones: stones,
+            all: false
         )
 
         if isFunctional {

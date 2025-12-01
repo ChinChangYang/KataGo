@@ -31,6 +31,8 @@ final class GameRecord {
     var blackSchrodingerStones: [Int: String]?
     var whiteSchrodingerStones: [Int: String]?
     var moves: [Int: String]?
+    var endangeredBlackStones: [Int: String]?
+    var endangeredWhiteStones: [Int: String]?
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -60,7 +62,9 @@ final class GameRecord {
          deadWhiteStones: [Int: String]? = [:],
          blackSchrodingerStones: [Int: String]? = [:],
          whiteSchrodingerStones: [Int: String]? = [:],
-         moves: [Int: String]? = [:]
+         moves: [Int: String]? = [:],
+         endangeredBlackStones: [Int: String]? = [:],
+         endangeredWhiteStones: [Int: String]? = [:]
     ) {
         self.sgf = sgf
         self.currentIndex = currentIndex
@@ -77,6 +81,8 @@ final class GameRecord {
         self.blackSchrodingerStones = blackSchrodingerStones
         self.whiteSchrodingerStones = whiteSchrodingerStones
         self.moves = moves
+        self.endangeredBlackStones = endangeredBlackStones
+        self.endangeredWhiteStones = endangeredWhiteStones
     }
 
     func clone() -> GameRecord {
@@ -97,7 +103,9 @@ final class GameRecord {
             deadWhiteStones: self.deadWhiteStones,
             blackSchrodingerStones: self.blackSchrodingerStones,
             whiteSchrodingerStones: self.whiteSchrodingerStones,
-            moves: self.moves
+            moves: self.moves,
+            endangeredBlackStones: self.endangeredBlackStones,
+            endangeredWhiteStones: self.endangeredWhiteStones
         )
 
         newConfig.gameRecord = newGameRecord
@@ -120,6 +128,8 @@ final class GameRecord {
         blackSchrodingerStones = blackSchrodingerStones?.filter { $0.key <= index }
         whiteSchrodingerStones = whiteSchrodingerStones?.filter { $0.key <= index }
         moves = moves?.filter { $0.key <= index }
+        endangeredBlackStones = endangeredBlackStones?.filter { $0.key <= index }
+        endangeredWhiteStones = endangeredWhiteStones?.filter { $0.key <= index }
     }
 
     class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
@@ -150,7 +160,9 @@ final class GameRecord {
         deadWhiteStones: [Int: String]? = [:],
         blackSchrodingerStones: [Int: String]? = [:],
         whiteSchrodingerStones: [Int: String]? = [:],
-        moves: [Int: String]? = [:]
+        moves: [Int: String]? = [:],
+        endangeredBlackStones: [Int: String]? = [:],
+        endangeredWhiteStones: [Int: String]? = [:]
     ) -> GameRecord {
 
         let config = Config()
@@ -173,7 +185,9 @@ final class GameRecord {
             deadWhiteStones: deadWhiteStones,
             blackSchrodingerStones: blackSchrodingerStones,
             whiteSchrodingerStones: whiteSchrodingerStones,
-            moves: moves
+            moves: moves,
+            endangeredBlackStones: endangeredBlackStones,
+            endangeredWhiteStones: endangeredWhiteStones
         )
 
         config.gameRecord = gameRecord
@@ -268,6 +282,14 @@ final class GameRecord {
 
         if moves == nil {
             moves = [:]
+        }
+
+        if endangeredBlackStones == nil {
+            endangeredBlackStones = [:]
+        }
+
+        if endangeredWhiteStones == nil {
+            endangeredWhiteStones = [:]
         }
     }
 }
