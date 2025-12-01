@@ -164,7 +164,7 @@ struct LinePlotView: View {
             }
         }
         .onChange(of: selectedMove) { _, newSelectedMove in
-            if let newSelectedMove {
+            if !gobanState.isAutoPlaying, let newSelectedMove {
                 gobanState.go(
                     to: newSelectedMove,
                     gameRecord: gameRecord,
