@@ -8,6 +8,29 @@
 import SwiftUI
 import FoundationModels
 
+enum CommentTone: Int {
+    case technical = 0
+    case educational = 1
+    case encouraging = 2
+    case enthusiastic = 3
+    case poetic = 4
+
+    var prompt: String {
+        switch self {
+        case .educational:
+            return "Educational Tone, focusing on why moves are good or bad, explaining the underlying principles (e.g., shape, influence, territory). Uses terms like this illustrates, a common mistake, principle, suboptimal, lesson, shape, evaluation, textbook, fundamentals, illustration, or the proper technique"
+        case .encouraging:
+            return "Encouraging Tone, gentle and non-judgmental, treating deviations from the AI as opportunities for human insight. Uses terms like solid, feasible, developing, trusting your intuition, valid, interesting choice, opportunity, worth exploring, hold steady, small setback"
+        case .enthusiastic:
+            return "Enthusiastic Tone, highly energetic and exciting, using vivid adjectives to describe moves as brilliant, daring, explosive, spectacular, momentum, thrill, seizing the initiative, high-stakes, decisive, or crucial. Focuses on the dramatic narrative of the game"
+        case .poetic:
+            return "Poetic Tone, emphasizing the beauty, depth, and aesthetics of the game. Uses abstract language relating moves to concepts like harmony, balance, patience, ephemeral, reflection, profound, rhythm, canvas, aesthetics, or destiny"
+        default:
+            return "Technical Tone, highly objective and analysis-driven, focusing almost exclusively on win rates, score difference, and exact positional evaluation. Language is clean, concise, and professional, minimizing subjective adjectives"
+        }
+    }
+}
+
 class Commentator {
     var gameRecord: GameRecord
     var turn: Turn
@@ -20,12 +43,13 @@ class Commentator {
     @MainActor
     func generateImprovedComment() async -> String {
         let original = generateNaturalComment()
+        let commentTone: CommentTone = gameRecord.config?.tone ?? .technical
 
         let prompt =
 """
 Refine the following original Go commentary into a single, cohesive, and insightful paragraph suitable for display as a comment for the current move.
 
-The refined commentary must adopt Technical Tone, highly objective and analysis-driven, focusing almost exclusively on win rates, score difference, and exact positional evaluation. Language is clean, concise, and professional, minimizing subjective adjectives. The structure must adhere to the following three steps: Move Report, Impact Analysis, and AI Recommendation.
+The refined commentary must adopt \(commentTone.prompt). The structure must adhere to the following three steps: Move Report, Impact Analysis, and AI Recommendation.
 
 Return only the single, improved paragraph of commentary.
 
@@ -146,10 +170,17 @@ Original Go commentary of the current move to be improved:
         let colorToPlay = turn.nextColorForPlayCommand.name
         let colorPlayed = turn.nextColorForPlayCommand.other.name
         let nextMoveText = gameRecord.moves?[currentIndex] ?? "Unknown"
+        let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
+        let bestMoveDiffer = (bestMoveText != nextMoveText) && (bestMoveText != "Unknown")
+
+        let nextMoveDifferText = (
+            bestMoveDiffer ? ". \(colorToPlay)'s move at \(nextMoveText) is different from KataGo's recommended best move at \(bestMoveText)" :
+                ", identical with KataGo's recommended move"
+        )
 
         let colorToPlaySentence = (
             nextMoveText == "Unknown" ? "" :
-                " Then, \(colorToPlay) number \(nextIndex) plays a stone at \(nextMoveText)."
+                " Then, \(colorToPlay) number \(nextIndex) plays a stone at \(nextMoveText)\(nextMoveDifferText)."
         )
 
         let nextWinrateText = formatWinRate(
@@ -285,11 +316,8 @@ Original Go commentary of the current move to be improved:
                 " \(whiteSchrodingerDiffText)."
         )
 
-        let bestMoveText = gameRecord.bestMoves?[currentIndex] ?? "Unknown"
-        let bestMoveDiffer = (bestMoveText != nextMoveText) && (bestMoveText != "Unknown")
-
         let bestMoveSentence = (
-            bestMoveDiffer ? " KataGo AI recommends \(bestMoveText)." :
+            bestMoveDiffer ? " KataGo AI recommends \(colorToPlay) to play at \(bestMoveText)." :
                 " KataGo agrees with \(colorToPlay) number \(nextIndex) at \(bestMoveText)."
         )
 

@@ -591,6 +591,7 @@ struct AIConfigView: View {
 struct CommentConfigView: View {
     var config: Config
     @State var useLLM: Bool = Config.defaultUseLLM
+    @State var toneText: String = Config.defaultToneText
     @State var temperature: Float = Config.defaultTemperature
 
     var body: some View {
@@ -603,12 +604,27 @@ struct CommentConfigView: View {
                     config.useLLM = useLLM
                 }
 
-            ConfigFloatItem(title: "Temperature",
-                            value: $temperature,
-                            step: 0.1,
-                            minValue: 0,
-                            maxValue: 1,
-                            format: .number)
+            ConfigTextPicker(
+                title: "Tone",
+                texts: Config.tones,
+                selectedText: $toneText
+            )
+            .onAppear {
+                toneText = config.toneText
+            }
+            .onChange(of: toneText) { _, newValue in
+                let rawValue = Config.tones.firstIndex(of: newValue) ?? Config.defaultTone
+                config.tone = CommentTone(rawValue: rawValue) ?? .technical
+            }
+
+            ConfigFloatItem(
+                title: "Temperature",
+                value: $temperature,
+                step: 0.1,
+                minValue: 0,
+                maxValue: 1,
+                format: .number
+            )
             .onAppear {
                 temperature = ((config.temperature) * 10).rounded() / 10
             }

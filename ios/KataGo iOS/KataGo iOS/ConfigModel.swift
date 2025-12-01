@@ -49,6 +49,7 @@ final class Config {
     var optionalShowCharts: Bool? = defaultShowCharts
     var optionalUseLLM: Bool? = defaultUseLLM
     var optionalTemperature: Float? = defaultTemperature
+    var optionalTone: Int? = defaultTone
 
     init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
@@ -85,7 +86,8 @@ final class Config {
          optionalAnalysisStyle: Int? = defaultAnalysisStyle,
          optionalShowCharts: Bool? = defaultShowCharts,
          optionalUseLLM: Bool? = defaultUseLLM,
-         optionalTemperature: Float? = defaultTemperature
+         optionalTemperature: Float? = defaultTemperature,
+         optionalTone: Int? = defaultTone
     ) {
         self.gameRecord = gameRecord
         self.boardWidth = boardWidth
@@ -123,6 +125,7 @@ final class Config {
         self.optionalShowCharts = optionalShowCharts
         self.optionalUseLLM = optionalUseLLM
         self.optionalTemperature = optionalTemperature
+        self.optionalTone = optionalTone
     }
 
     convenience init(config: Config?) {
@@ -157,7 +160,8 @@ final class Config {
                 optionalAnalysisStyle: config.optionalAnalysisStyle,
                 optionalShowCharts: config.optionalShowCharts,
                 optionalUseLLM: config.optionalUseLLM,
-                optionalTemperature: config.optionalTemperature
+                optionalTemperature: config.optionalTemperature,
+                optionalTone: config.optionalTone
             )
         } else {
             self.init()
@@ -731,5 +735,26 @@ extension Config {
         set(newValue) {
             optionalTemperature = newValue
         }
+    }
+}
+
+extension Config {
+    static let defaultTone: Int = 0
+    static let tones = ["Technical", "Educational", "Encouraging", "Enthusiastic", "Poetic"]
+    static let defaultToneText = tones[defaultTone]
+
+    var tone: CommentTone {
+        get {
+            return CommentTone(rawValue: optionalTone ?? Config.defaultTone) ?? .technical
+        }
+
+        set(newValue) {
+            optionalTone = newValue.rawValue
+        }
+    }
+
+    var toneText: String {
+        guard tone.rawValue < Config.tones.count else { return "" }
+        return Config.tones[tone.rawValue]
     }
 }
