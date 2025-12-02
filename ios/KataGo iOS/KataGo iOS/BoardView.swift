@@ -175,7 +175,6 @@ struct BoardView: View {
         turn: String,
         move: String
     ) {
-        stones.isReady = false
         if gobanState.isEditing {
             gameRecord.clearData(after: gameRecord.currentIndex)
 
@@ -193,7 +192,8 @@ struct BoardView: View {
         gobanState.play(
             turn: turn,
             move: move,
-            messageList: messageList
+            messageList: messageList,
+            stones: stones
         )
 
         player.toggleNextColorForPlayCommand()

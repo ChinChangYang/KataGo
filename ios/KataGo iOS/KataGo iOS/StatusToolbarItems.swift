@@ -151,7 +151,8 @@ struct StatusToolbarItems: View {
                 limit: limit,
                 gameRecord: gameRecord,
                 messageList: messageList,
-                player: player
+                player: player,
+                stones: stones
             )
         }
     }
@@ -167,7 +168,7 @@ struct StatusToolbarItems: View {
 
         if isFunctional {
             gobanState.undoIndex(gameRecord: gameRecord)
-            gobanState.undo(messageList: messageList)
+            gobanState.undo(messageList: messageList, stones: stones)
             player.toggleNextColorForPlayCommand()
             gobanState.sendShowBoardCommand(messageList: messageList)
         }
@@ -242,7 +243,8 @@ struct StatusToolbarItems: View {
                 board: board,
                 messageList: messageList,
                 player: player,
-                audioModel: audioModel
+                audioModel: audioModel,
+                stones: stones
             )
         }
     }

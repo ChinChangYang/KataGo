@@ -26,13 +26,121 @@ final class GameRecord {
     var scoreLeads: [Int: Float]?
     var bestMoves: [Int: String]?
     var winRates: [Int: Float]?
-    var deadBlackStones: [Int: String]?
-    var deadWhiteStones: [Int: String]?
-    var blackSchrodingerStones: [Int: String]?
-    var whiteSchrodingerStones: [Int: String]?
+
+    // These variables are not used. Leave these here for compatibility.
+    private var deadBlackStones: [Int: String]?
+    private var deadWhiteStones: [Int: String]?
+    private var blackSchrodingerStones: [Int: String]?
+    private var whiteSchrodingerStones: [Int: String]?
+
     var moves: [Int: String]?
-    var endangeredBlackStones: [Int: String]?
-    var endangeredWhiteStones: [Int: String]?
+    var blackStones: [Int: String]?
+    var whiteStones: [Int: String]?
+    var ownershipWhiteness: [Int: [Float]]?
+    var ownershipScales: [Int: [Float]]?
+    var width: Int?
+    var height: Int?
+
+    func getDeadBlackStones(_ index: Int) -> String? {
+        getStones(
+            from: blackStones,
+            index: index
+        ) { $0 > 0.9 }
+    }
+
+    func getDeadWhiteStones(_ index: Int) -> String? {
+        getStones(
+            from: whiteStones,
+            index: index
+        ) { $0 < 0.1 }
+    }
+
+    private func getStones(
+        from stones: [Int: String]?,
+        index: Int,
+        condition: (Float) -> Bool
+    ) -> String? {
+        guard let stones = stones?[index],
+              let whiteness = ownershipWhiteness?[index],
+              let width, let height else {
+            return nil
+        }
+
+        let stoneSet = Set(stones.split(separator: " ").map(String.init))
+
+        let deadStoneSet = stoneSet.filter { stone in
+            guard let coordinate = Coordinate(
+                move: stone,
+                width: width,
+                height: height
+            ) else {
+                return false
+            }
+
+            return condition(whiteness[coordinate.index])
+        }
+
+        if deadStoneSet.isEmpty {
+            return "None"
+        } else {
+            return deadStoneSet.joined(separator: " ")
+        }
+    }
+
+    func getBlackSchrodingerStones(_ index: Int) -> String? {
+        return getSchrodingerStones(from: blackStones, index: index)
+    }
+
+    func getWhiteSchrodingerStones(_ index: Int) -> String? {
+        return getSchrodingerStones(from: whiteStones, index: index)
+    }
+
+    private func getSchrodingerStones(
+        from stones: [Int: String]?,
+        index: Int
+    ) -> String? {
+        guard let stones = stones?[index],
+              let whitenesses = ownershipWhiteness?[index],
+              let scales = ownershipScales?[index],
+              let width, let height else {
+            return nil
+        }
+
+        let stoneSet = Set(stones.split(separator: " ").map(String.init))
+
+        let deadStoneSet = stoneSet.filter { stone in
+            guard let coordinate = Coordinate(
+                move: stone, width: width, height: height
+            ) else {
+                return false
+            }
+
+            let whiteness = whitenesses[coordinate.index]
+            let scale = scales[coordinate.index]
+
+            return (abs(whiteness - 0.5) < 0.2) && scale > 0.4
+        }
+
+        if deadStoneSet.isEmpty {
+            return "None"
+        } else {
+            return deadStoneSet.joined(separator: " ")
+        }
+    }
+
+    func getBlackSacrificeableStones(_ index: Int) -> String? {
+        return getStones(
+            from: blackStones,
+            index: index
+        ) { ($0 <= 0.9) && ($0 > 0.7) }
+    }
+
+    func getWhiteSacrificeableStones(_ index: Int) -> String? {
+        return getStones(
+            from: whiteStones,
+            index: index
+        ) { ($0 >= 0.1) && ($0 < 0.3) }
+    }
 
     var concreteConfig: Config {
         // A config must not be nil in any case.
@@ -64,7 +172,13 @@ final class GameRecord {
          whiteSchrodingerStones: [Int: String]? = [:],
          moves: [Int: String]? = [:],
          endangeredBlackStones: [Int: String]? = [:],
-         endangeredWhiteStones: [Int: String]? = [:]
+         endangeredWhiteStones: [Int: String]? = [:],
+         blackStones: [Int: String]? = [:],
+         whiteStones: [Int: String]? = [:],
+         ownershipWhiteness: [Int: [Float]]? = [:],
+         ownershipScales: [Int: [Float]]? = [:],
+         width: Int? = nil,
+         height: Int? = nil
     ) {
         self.sgf = sgf
         self.currentIndex = currentIndex
@@ -81,8 +195,12 @@ final class GameRecord {
         self.blackSchrodingerStones = blackSchrodingerStones
         self.whiteSchrodingerStones = whiteSchrodingerStones
         self.moves = moves
-        self.endangeredBlackStones = endangeredBlackStones
-        self.endangeredWhiteStones = endangeredWhiteStones
+        self.blackStones = blackStones
+        self.whiteStones = whiteStones
+        self.ownershipWhiteness = ownershipWhiteness
+        self.ownershipScales = ownershipScales
+        self.width = width
+        self.height = height
     }
 
     func clone() -> GameRecord {
@@ -104,8 +222,12 @@ final class GameRecord {
             blackSchrodingerStones: self.blackSchrodingerStones,
             whiteSchrodingerStones: self.whiteSchrodingerStones,
             moves: self.moves,
-            endangeredBlackStones: self.endangeredBlackStones,
-            endangeredWhiteStones: self.endangeredWhiteStones
+            blackStones: self.blackStones,
+            whiteStones: self.whiteStones,
+            ownershipWhiteness: self.ownershipWhiteness,
+            ownershipScales: self.ownershipScales,
+            width: self.width,
+            height: self.height
         )
 
         newConfig.gameRecord = newGameRecord
@@ -128,8 +250,10 @@ final class GameRecord {
         blackSchrodingerStones = blackSchrodingerStones?.filter { $0.key <= index }
         whiteSchrodingerStones = whiteSchrodingerStones?.filter { $0.key <= index }
         moves = moves?.filter { $0.key <= index }
-        endangeredBlackStones = endangeredBlackStones?.filter { $0.key <= index }
-        endangeredWhiteStones = endangeredWhiteStones?.filter { $0.key <= index }
+        blackStones = blackStones?.filter { $0.key <= index }
+        whiteStones = whiteStones?.filter { $0.key <= index }
+        ownershipWhiteness = ownershipWhiteness?.filter { $0.key <= index }
+        ownershipScales = ownershipScales?.filter { $0.key <= index }
     }
 
     class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
@@ -162,7 +286,13 @@ final class GameRecord {
         whiteSchrodingerStones: [Int: String]? = [:],
         moves: [Int: String]? = [:],
         endangeredBlackStones: [Int: String]? = [:],
-        endangeredWhiteStones: [Int: String]? = [:]
+        endangeredWhiteStones: [Int: String]? = [:],
+        blackStones: [Int: String]? = [:],
+        whiteStones: [Int: String]? = [:],
+        ownershipWhiteness: [Int: [Float]]? = [:],
+        ownershipScales: [Int: [Float]]? = [:],
+        width: Int? = nil,
+        height: Int? = nil
     ) -> GameRecord {
 
         let config = Config()
@@ -187,7 +317,13 @@ final class GameRecord {
             whiteSchrodingerStones: whiteSchrodingerStones,
             moves: moves,
             endangeredBlackStones: endangeredBlackStones,
-            endangeredWhiteStones: endangeredWhiteStones
+            endangeredWhiteStones: endangeredWhiteStones,
+            blackStones: blackStones,
+            whiteStones: whiteStones,
+            ownershipWhiteness: ownershipWhiteness,
+            ownershipScales: ownershipScales,
+            width: sgfHelper.xSize,
+            height: sgfHelper.ySize
         )
 
         config.gameRecord = gameRecord
@@ -284,12 +420,26 @@ final class GameRecord {
             moves = [:]
         }
 
-        if endangeredBlackStones == nil {
-            endangeredBlackStones = [:]
+        if blackStones == nil {
+            blackStones = [:]
         }
 
-        if endangeredWhiteStones == nil {
-            endangeredWhiteStones = [:]
+        if whiteStones == nil {
+            whiteStones = [:]
         }
+
+        if ownershipWhiteness == nil {
+            ownershipWhiteness = [:]
+        }
+
+        if ownershipScales == nil {
+            ownershipScales = [:]
+        }
+
+        let sgfHelper = SgfHelper(sgf: sgf)
+
+        width = sgfHelper.xSize
+        height = sgfHelper.ySize
     }
 }
+

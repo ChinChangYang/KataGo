@@ -123,15 +123,14 @@ struct ContentView: View {
             .onChange(of: gobanState.isAutoPlaying) { oldIsAutoPlaying, newIsAutoPlaying in
                 processIsAutoPlayingChange(
                     oldIsAutoPlaying: oldIsAutoPlaying,
-                    newIsAutoPlaying: newIsAutoPlaying)
+                    newIsAutoPlaying: newIsAutoPlaying
+                )
             }
             .onChange(of: stones.isReady) { oldValue, newValue in
-                if !oldValue && newValue,
-                   let gameRecord = navigationContext.selectedGameRecord,
-                   gobanState.isAutoPlaying
-                {
-                    gameRecord.currentIndex += 1
-                }
+                processStonesReadyChange(
+                    oldValue: oldValue,
+                    newValue: newValue
+                )
             }
             .onChange(of: gobanState.analysisStatus) { oldValue, newValue in
                 if newValue == .clear {
@@ -162,6 +161,30 @@ struct ContentView: View {
         }
     }
 
+    func processStonesReadyChange(oldValue: Bool, newValue: Bool) {
+        if !oldValue && newValue,
+           let gameRecord = navigationContext.selectedGameRecord {
+
+            let currentIndex = gameRecord.currentIndex
+
+            gameRecord.blackStones?[currentIndex] = BoardPoint.toString(
+                stones.blackPoints,
+                width: Int(board.width),
+                height: Int(board.height)
+            )
+
+            gameRecord.whiteStones?[currentIndex] = BoardPoint.toString(
+                stones.whitePoints,
+                width: Int(board.width),
+                height: Int(board.height)
+            )
+
+            if gobanState.isAutoPlaying {
+                gameRecord.currentIndex += 1
+            }
+        }
+    }
+
     func processIsAutoPlayingChange(oldIsAutoPlaying: Bool,
                                     newIsAutoPlaying: Bool) {
         if gobanState.isAutoPlaying,
@@ -173,7 +196,7 @@ struct ContentView: View {
             let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
             while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
                 gameRecord.undo()
-                gobanState.undo(messageList: messageList)
+                gobanState.undo(messageList: messageList, stones: stones)
                 player.toggleNextColorForPlayCommand()
             }
 
@@ -326,7 +349,7 @@ struct ContentView: View {
             maybeLoadSgf()
             while newGameRecord.currentIndex > currentIndex {
                 newGameRecord.undo()
-                gobanState.undo(messageList: messageList)
+                gobanState.undo(messageList: messageList, stones: stones)
             }
             let config = newGameRecord.concreteConfig
             config.koRule = sgfHelper.rules.koRule
@@ -379,12 +402,11 @@ struct ContentView: View {
                        let move = board.locationToMove(location: nextMove.location) {
                         let nextPlayer = nextMove.player == Player.black ? "b" : "w"
 
-                        stones.isReady = false
-
                         gobanState.play(
                             turn: nextPlayer,
                             move: String(move),
-                            messageList: messageList
+                            messageList: messageList,
+                            stones: stones
                         )
 
                         player.toggleNextColorForPlayCommand()
@@ -892,7 +914,7 @@ struct ContentView: View {
             gobanState.branchIndex = gameRecord.currentIndex
         }
 
-        gobanState.play(turn: turn, move: aiMove, messageList: messageList)
+        gobanState.play(turn: turn, move: aiMove, messageList: messageList, stones: stones)
         player.toggleNextColorForPlayCommand()
         gobanState.sendShowBoardCommand(messageList: messageList)
         messageList.appendAndSend(command: "printsgf")

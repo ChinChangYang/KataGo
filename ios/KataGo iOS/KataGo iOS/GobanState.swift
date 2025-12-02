@@ -169,7 +169,8 @@ class GobanState {
         }
     }
 
-    func maybeUpdateAnalysisData(
+    func
+    maybeUpdateAnalysisData(
         gameRecord: GameRecord,
         analysis: Analysis,
         board: BoardSize,
@@ -177,9 +178,11 @@ class GobanState {
         all: Bool = true
     ) {
         if isEditing && (analysisStatus != .clear) {
+            let currentIndex = gameRecord.currentIndex
+
             if let scoreLead = analysis.blackScore {
                 withAnimation(.spring) {
-                    gameRecord.scoreLeads?[gameRecord.currentIndex] = scoreLead
+                    gameRecord.scoreLeads?[currentIndex] = scoreLead
                 }
             }
 
@@ -187,74 +190,33 @@ class GobanState {
                 width: Int(board.width),
                 height: Int(board.height)
             ) {
-                gameRecord.bestMoves?[gameRecord.currentIndex] = bestMove
+                gameRecord.bestMoves?[currentIndex] = bestMove
             }
             
             if let winRate = analysis.blackWinrate {
-                gameRecord.winRates?[gameRecord.currentIndex] = winRate
+                gameRecord.winRates?[currentIndex] = winRate
             }
 
-            if all {
-                let deadBlackText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.blackPoints
-                ) { ownershipUnit in
-                    ownershipUnit.isWhite
+            let width = Int(board.width)
+            let height = Int(board.height)
+            var ownershipWhiteness: [Float] = Array(repeating: 0.5, count: width * height)
+            var ownershipScales: [Float] = Array(repeating: 0.0, count: width * height)
+
+            for ownershipUnit in analysis.ownershipUnits {
+                if let coordinate = Coordinate(
+                    x: ownershipUnit.point.x,
+                    y: ownershipUnit.point.y + 1,
+                    width: width,
+                    height: height
+                ) {
+                    let index = coordinate.index
+                    ownershipWhiteness[index] = ownershipUnit.whiteness
+                    ownershipScales[index] = ownershipUnit.scale
                 }
-
-                gameRecord.deadBlackStones?[gameRecord.currentIndex] = deadBlackText
-
-                let deadWhiteText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.whitePoints
-                ) { ownershipUnit in
-                    ownershipUnit.isBlack
-                }
-
-                gameRecord.deadWhiteStones?[gameRecord.currentIndex] = deadWhiteText
-
-                let blackSchrodingerText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.blackPoints
-                ) { OwnershipUnit in
-                    OwnershipUnit.isSchrodinger
-                }
-
-                gameRecord.blackSchrodingerStones?[gameRecord.currentIndex] = blackSchrodingerText
-
-                let whiteSchrodingerText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.whitePoints
-                ) { OwnershipUnit in
-                    OwnershipUnit.isSchrodinger
-                }
-
-                gameRecord.whiteSchrodingerStones?[gameRecord.currentIndex] = whiteSchrodingerText
-
-                let endangeredBlackText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.blackPoints
-                ) { OwnershipUnit in
-                    OwnershipUnit.nearWhite && !OwnershipUnit.isWhite
-                }
-
-                gameRecord.endangeredBlackStones?[gameRecord.currentIndex] = endangeredBlackText
-
-                let endangeredWhiteText = generateConditionalStonesText(
-                    analysis: analysis,
-                    board: board,
-                    boardPoints: stones.whitePoints
-                ) { OwnershipUnit in
-                    OwnershipUnit.nearBlack && !OwnershipUnit.isBlack
-                }
-
-                gameRecord.endangeredWhiteStones?[gameRecord.currentIndex] = endangeredWhiteText
             }
+
+            gameRecord.ownershipWhiteness?[currentIndex] = ownershipWhiteness
+            gameRecord.ownershipScales?[currentIndex] = ownershipScales
         }
     }
 
@@ -272,7 +234,8 @@ class GobanState {
         }
     }
 
-    func play(turn: String, move: String, messageList: MessageList) {
+    func play(turn: String, move: String, messageList: MessageList, stones: Stones) {
+        stones.isReady = false
         messageList.appendAndSend(command: "play \(turn) \(move)")
 
         if move == "pass" {
@@ -282,7 +245,8 @@ class GobanState {
         }
     }
 
-    func undo(messageList: MessageList) {
+    func undo(messageList: MessageList, stones: Stones) {
+        stones.isReady = false
         messageList.appendAndSend(command: "undo")
 
         if passCount > 0 {
@@ -325,7 +289,8 @@ class GobanState {
         limit: Int?,
         gameRecord: GameRecord,
         messageList: MessageList,
-        player: Turn
+        player: Turn,
+        stones: Stones
     ) {
         guard let sgf = getSgf(gameRecord: gameRecord) else {
             return
@@ -337,7 +302,7 @@ class GobanState {
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
             sgfHelper.getMove(at: currentIndex - 1) != nil {
             undoIndex(gameRecord: gameRecord)
-            undo(messageList: messageList)
+            undo(messageList: messageList, stones: stones)
             player.toggleNextColorForPlayCommand()
 
             movesExecuted += 1
@@ -372,8 +337,8 @@ class GobanState {
         board: BoardSize,
         messageList: MessageList,
         player: Turn,
-        audioModel: AudioModel?
-
+        audioModel: AudioModel?,
+        stones: Stones
     ) {
         guard let sgf = getSgf(gameRecord: gameRecord) else {
             return
@@ -392,7 +357,7 @@ class GobanState {
                 }
 
                 let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                play(turn: nextPlayer, move: move, messageList: messageList)
+                play(turn: nextPlayer, move: move, messageList: messageList, stones: stones)
                 player.toggleNextColorForPlayCommand()
 
                 movesExecuted += 1
@@ -419,7 +384,8 @@ class GobanState {
             board: BoardSize,
             messageList: MessageList,
             player: Turn,
-            audioModel: AudioModel?
+            audioModel: AudioModel?,
+            stones: Stones
     ) {
         guard let currentIndex = getCurrentIndex(gameRecord: gameRecord),
         currentIndex != targetIndex else {
@@ -433,7 +399,8 @@ class GobanState {
                 limit: limit,
                 gameRecord: gameRecord,
                 messageList: messageList,
-                player: player
+                player: player,
+                stones: stones
             )
         } else {
             let limit = targetIndex - currentIndex
@@ -444,7 +411,8 @@ class GobanState {
                 board: board,
                 messageList: messageList,
                 player: player,
-                audioModel: audioModel
+                audioModel: audioModel,
+                stones: stones
             )
         }
     }

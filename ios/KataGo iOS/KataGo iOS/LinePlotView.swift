@@ -27,6 +27,7 @@ struct LinePlotView: View {
     @Environment(BoardSize.self) var board
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
+    @Environment(Stones.self) var stones
 
     var scoreLeadPoints: [Point] {
         if gobanState.eyeStatus == .closed {
@@ -171,7 +172,8 @@ struct LinePlotView: View {
                     board: board,
                     messageList: messageList,
                     player: player,
-                    audioModel: nil
+                    audioModel: nil,
+                    stones: stones
                 )
             }
         }

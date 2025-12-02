@@ -105,6 +105,31 @@ extension BoardPoint {
     }
 }
 
+extension BoardPoint {
+    init?(move: String, width: Int, height: Int) {
+        if move == "pass" {
+            self = BoardPoint.pass(width: width, height: height)
+        } else {
+            let pattern = /(\w+)(\d+)/
+            guard let match = move.firstMatch(of: pattern) else { return nil }
+
+            let xLabel = String(match.1)
+            let yLabel = String(match.2)
+
+            let coordinate = Coordinate(
+                xLabel: xLabel,
+                yLabel: yLabel,
+                width: width,
+                height: height
+            )
+
+            guard let boardPoint = coordinate?.point else { return nil }
+
+            self = boardPoint
+        }
+    }
+}
+
 @Observable
 class Stones {
     var blackPoints: [BoardPoint] = []
@@ -476,6 +501,10 @@ struct Coordinate {
         BoardPoint(x: x, y: y - 1)
     }
 
+    var index: Int {
+        x + ((y - 1) * width)
+    }
+
     // Mapping letters A-AZ (without I) to numbers 0-49
     static let xMap: [String: Int] = [
         "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,
@@ -522,6 +551,27 @@ struct Coordinate {
         } else {
             return nil
         }
+    }
+}
+
+extension Coordinate {
+    init?(move: String, width: Int, height: Int) {
+        let pattern = /(\w+)(\d+)/
+        guard let match = move.firstMatch(of: pattern) else { return nil }
+
+        let xLabel = String(match.1)
+        let yLabel = String(match.2)
+
+        guard let coordinate = Coordinate(
+            xLabel: xLabel,
+            yLabel: yLabel,
+            width: width,
+            height: height
+        ) else {
+            return nil
+        }
+
+        self = coordinate
     }
 }
 
