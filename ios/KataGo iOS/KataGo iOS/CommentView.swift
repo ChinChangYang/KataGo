@@ -12,6 +12,7 @@ struct CommentView: View {
     var gameRecord: GameRecord
     @State var comment = ""
     @State private var isGenerating = false
+    @State private var commentator: Commentator?
     @Environment(GobanState.self) var gobanState
     @Environment(Analysis.self) var analysis
     @Environment(Stones.self) var stones
@@ -56,22 +57,30 @@ struct CommentView: View {
         ScrollViewReader { _ in
             ScrollView(.vertical) {
                 textArea
-                    .onAppear {
-                        if gameRecord.comments == nil {
-                            gameRecord.comments = [:]
-                        }
+            }
+            .onAppear {
+                if gameRecord.comments == nil {
+                    gameRecord.comments = [:]
+                }
 
-                        comment = gameRecord.comments?[gameRecord.currentIndex] ?? ""
-                    }
-                    .onChange(of: gameRecord.currentIndex) { oldIndex, newIndex in
-                        if oldIndex != newIndex {
-                            gameRecord.comments?[oldIndex] = comment
-                            comment = gameRecord.comments?[newIndex] ?? ""
-                        }
-                    }
-                    .onDisappear {
-                        gameRecord.comments?[gameRecord.currentIndex] = comment
-                    }
+                comment = gameRecord.comments?[gameRecord.currentIndex] ?? ""
+            }
+            .onChange(of: gameRecord.currentIndex) { oldIndex, newIndex in
+                if oldIndex != newIndex {
+                    gameRecord.comments?[oldIndex] = comment
+                    comment = gameRecord.comments?[newIndex] ?? ""
+                }
+            }
+            .onDisappear {
+                gameRecord.comments?[gameRecord.currentIndex] = comment
+            }
+            .task {
+                commentator = Commentator(
+                    gameRecord: gameRecord,
+                    turn: turn
+                )
+
+                commentator?.prewarm()
             }
         }
     }
@@ -88,17 +97,12 @@ struct CommentView: View {
             )
         }
 
-        let commentator = Commentator(
-            gameRecord: gameRecord,
-            turn: turn
-        )
-
         if let useLLM = gameRecord.config?.useLLM, useLLM {
             isGenerating = true
-            comment = await commentator.generateImprovedComment()
+            comment = await commentator?.generateImprovedComment() ?? ""
             isGenerating = false
         } else {
-            comment = commentator.generateNaturalComment()
+            comment = commentator?.generateNaturalComment() ?? ""
         }
     }
 }

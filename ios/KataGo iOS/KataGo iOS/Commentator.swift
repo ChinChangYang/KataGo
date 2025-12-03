@@ -34,10 +34,15 @@ enum CommentTone: Int {
 class Commentator {
     var gameRecord: GameRecord
     var turn: Turn
+    private let session = LanguageModelSession()
 
     init(gameRecord: GameRecord, turn: Turn) {
         self.gameRecord = gameRecord
         self.turn = turn
+    }
+
+    func prewarm() {
+        session.prewarm()
     }
 
     @MainActor
@@ -60,7 +65,6 @@ Original Go commentary of the current move to be improved:
         var comment = original
 
         do {
-            let session = LanguageModelSession()
             let temperature = Double(gameRecord.config?.temperature ?? Config.defaultTemperature)
             let options = GenerationOptions(temperature: temperature)
 
