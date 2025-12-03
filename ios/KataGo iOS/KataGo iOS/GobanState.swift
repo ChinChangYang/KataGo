@@ -18,6 +18,7 @@ class GobanState {
     var isShownBoard: Bool = false
     var eyeStatus = EyeStatus.opened
     var isAutoPlaying: Bool = false
+    var isAutoPlayed: Bool = false
     var passCount: Int = 0
     var branchSgf: String = .inActiveSgf
     var branchIndex: Int = .inActiveCurrentIndex
@@ -169,8 +170,7 @@ class GobanState {
         }
     }
 
-    func
-    maybeUpdateAnalysisData(
+    func maybeUpdateAnalysisData(
         gameRecord: GameRecord,
         analysis: Analysis,
         board: BoardSize,

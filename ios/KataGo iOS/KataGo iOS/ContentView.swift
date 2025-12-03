@@ -179,7 +179,7 @@ struct ContentView: View {
                 height: Int(board.height)
             )
 
-            if gobanState.isAutoPlaying {
+            if gobanState.isAutoPlayed {
                 gameRecord.currentIndex += 1
             }
         }
@@ -235,6 +235,7 @@ struct ContentView: View {
     func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
         if !newIsEditing {
             gobanState.isAutoPlaying = false
+            gobanState.isAutoPlayed = false
         }
     }
 
@@ -338,6 +339,7 @@ struct ContentView: View {
         if let newGameRecord {
             newGameRecord.updateToLatestVersion()
             gobanState.isAutoPlaying = false
+            gobanState.isAutoPlayed = false
             if newGameRecord.sgf == GameRecord.defaultSgf {
                 gobanState.isEditing = true
             } else {
@@ -412,8 +414,10 @@ struct ContentView: View {
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
+                        gobanState.isAutoPlayed = true
                     } else {
                         gobanState.isAutoPlaying = false
+                        gobanState.isAutoPlayed = false
                     }
                 }
             }
