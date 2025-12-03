@@ -228,6 +228,16 @@ struct ContentView: View {
 
                 messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
                 messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+
+                // current index might not be correct, recover it
+                gobanState.forwardMoves(
+                    limit: nil,
+                    gameRecord: gameRecord,
+                    board: board,
+                    messageList: messageList,
+                    player: player,
+                    audioModel: audioModel,
+                    stones: stones)
             }
         }
     }
