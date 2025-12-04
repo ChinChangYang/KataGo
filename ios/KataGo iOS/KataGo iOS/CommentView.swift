@@ -79,8 +79,6 @@ struct CommentView: View {
                     gameRecord: gameRecord,
                     turn: turn
                 )
-
-                commentator?.prewarm()
             }
         }
     }

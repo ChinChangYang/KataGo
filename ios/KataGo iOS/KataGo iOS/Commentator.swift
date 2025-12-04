@@ -18,13 +18,13 @@ enum CommentTone: Int {
     var prompt: String {
         switch self {
         case .educational:
-            return "Educational Tone, focusing on why moves are good or bad, explaining the underlying principles (e.g., shape, influence, territory). Uses terms like this illustrates, a common mistake, principle, suboptimal, lesson, shape, evaluation, textbook, fundamentals, illustration, or the proper technique"
+            return "Educational Tone, focusing on why moves are good or bad, explaining the underlying principles (e.g., shape, influence, territory)"
         case .encouraging:
-            return "Encouraging Tone, gentle and non-judgmental, treating deviations from the AI as opportunities for human insight. Uses terms like solid, feasible, developing, trusting your intuition, valid, interesting choice, opportunity, worth exploring, hold steady, small setback"
+            return "Encouraging Tone, gentle and non-judgmental, treating deviations from the AI as opportunities for human insight"
         case .enthusiastic:
-            return "Enthusiastic Tone, highly energetic and exciting, using vivid adjectives to describe moves as brilliant, daring, explosive, spectacular, momentum, thrill, seizing the initiative, high-stakes, decisive, or crucial. Focuses on the dramatic narrative of the game"
+            return "Enthusiastic Tone, highly energetic and exciting, using vivid adjectives to describe moves. Focuses on the dramatic narrative of the game"
         case .poetic:
-            return "Poetic Tone, emphasizing the beauty, depth, and aesthetics of the game. Uses abstract language relating moves to concepts like harmony, balance, patience, ephemeral, reflection, profound, rhythm, canvas, aesthetics, or destiny"
+            return "Poetic Tone, emphasizing the beauty, depth, and aesthetics of the game. Uses abstract language relating moves to concepts"
         default:
             return "Technical Tone, highly objective and analysis-driven, focusing almost exclusively on win rates, score difference, and exact positional evaluation. Language is clean, concise, and professional, minimizing subjective adjectives"
         }
@@ -34,15 +34,10 @@ enum CommentTone: Int {
 class Commentator {
     var gameRecord: GameRecord
     var turn: Turn
-    private let session = LanguageModelSession()
 
     init(gameRecord: GameRecord, turn: Turn) {
         self.gameRecord = gameRecord
         self.turn = turn
-    }
-
-    func prewarm() {
-        session.prewarm()
     }
 
     @MainActor
@@ -65,6 +60,7 @@ Original Go commentary of the current move to be improved:
         var comment = original
 
         do {
+            let session = LanguageModelSession()
             let temperature = Double(gameRecord.config?.temperature ?? Config.defaultTemperature)
             let options = GenerationOptions(temperature: temperature)
 
