@@ -41,6 +41,43 @@ final class GameRecord {
     var width: Int?
     var height: Int?
 
+    func getCapturedBlackStones(_ index: Int) -> String? {
+        getCapturedStones(from: blackStones, index: index)
+    }
+
+    func getCapturedWhiteStones(_ index: Int) -> String? {
+        getCapturedStones(from: whiteStones, index: index)
+    }
+
+    private func getCapturedStones(
+        from stones: [Int: String]?,
+        index: Int
+    ) -> String? {
+        guard index >= 1,
+              let previousStones = stones?[index - 1],
+              let currentStones = stones?[index]
+        else {
+            return nil
+        }
+
+        let previousSet = Set(
+            previousStones.split(separator: " ").map(String.init)
+        )
+
+        let currentSet = Set(
+            currentStones.split(separator: " ").map(String.init)
+        )
+
+        let capturedSet = previousSet.subtracting(currentSet).sorted()
+
+        let capturedStones = (
+            capturedSet.isEmpty ? "None" :
+                capturedSet.joined(separator: " ")
+        )
+
+        return capturedStones
+    }
+
     func getDeadBlackStones(_ index: Int) -> String? {
         getStones(
             from: blackStones,
@@ -62,7 +99,8 @@ final class GameRecord {
     ) -> String? {
         guard let stones = stones?[index],
               let whiteness = ownershipWhiteness?[index],
-              let width, let height else {
+              let width, let height
+        else {
             return nil
         }
 
@@ -83,7 +121,7 @@ final class GameRecord {
         if deadStoneSet.isEmpty {
             return "None"
         } else {
-            return deadStoneSet.joined(separator: " ")
+            return deadStoneSet.sorted().joined(separator: " ")
         }
     }
 
@@ -102,7 +140,8 @@ final class GameRecord {
         guard let stones = stones?[index],
               let whitenesses = ownershipWhiteness?[index],
               let scales = ownershipScales?[index],
-              let width, let height else {
+              let width, let height
+        else {
             return nil
         }
 
@@ -124,7 +163,7 @@ final class GameRecord {
         if deadStoneSet.isEmpty {
             return "None"
         } else {
-            return deadStoneSet.joined(separator: " ")
+            return deadStoneSet.sorted().joined(separator: " ")
         }
     }
 

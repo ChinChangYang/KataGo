@@ -110,6 +110,8 @@ Original Go commentary of the current move to be improved:
             for: turn.nextColorForPlayCommand
         )
 
+        let nextCapturedBlackStonesText = gameRecord.getCapturedBlackStones(nextIndex) ?? "Unknown"
+        let nextCapturedWhiteStonesText = gameRecord.getCapturedWhiteStones(nextIndex) ?? "Unknown"
         let nextDeadBlackStonesText = gameRecord.getDeadBlackStones(nextIndex) ?? "Unknown"
         let nextDeadWhiteStonesText = gameRecord.getDeadWhiteStones(nextIndex) ?? "Unknown"
         let nextEndangeredBlackStonesText = gameRecord.getBlackSacrificeableStones(nextIndex) ?? "Unknown"
@@ -143,6 +145,8 @@ Original Go commentary of the current move to be improved:
 - Next Move by \(colorToPlay): \(nextMoveText)
 - Next Move's \(colorToPlay) Winrate: \(nextWinrateText)
 - Next Move's \(colorToPlay) Score: \(nextScoreText).
+- Next Move's Captured Black Stones: \(nextCapturedBlackStonesText)
+- Next Move's Captured White Stones: \(nextCapturedWhiteStonesText)
 - Next Move's Dead Black Stones: \(nextDeadBlackStonesText)
 - Next Move's Dead White Stones: \(nextDeadWhiteStonesText)
 - Next Move's Endangered Black Stones: \(nextEndangeredBlackStonesText)
@@ -181,6 +185,20 @@ Original Go commentary of the current move to be improved:
         let colorToPlaySentence = (
             nextMoveText == "Unknown" ? "" :
                 " Then, \(colorToPlay) number \(nextIndex) plays a stone at \(nextMoveText)\(nextMoveDifferText)."
+        )
+
+        let nextCapturedBlackStonesText = gameRecord.getCapturedBlackStones(nextIndex) ?? "Unknown"
+
+        let colorCapturingBlackSentence = (
+            nextCapturedBlackStonesText == "Unknown" || nextCapturedBlackStonesText == "None" ? "" :
+                " \(colorToPlay) number \(nextIndex) at \(nextMoveText) captures Black stones at \(nextCapturedBlackStonesText)."
+        )
+
+        let nextCapturedWhiteStonesText = gameRecord.getCapturedWhiteStones(nextIndex) ?? "Unknown"
+
+        let colorCapturingWhiteSentence = (
+            nextCapturedWhiteStonesText == "Unknown" || nextCapturedWhiteStonesText == "None" ? "" :
+                " \(colorToPlay) number \(nextIndex) at \(nextMoveText) captures White stones at \(nextCapturedWhiteStonesText)."
         )
 
         let nextWinrateText = formatWinRate(
@@ -404,12 +422,12 @@ Original Go commentary of the current move to be improved:
         if currentIndex >= 1 {
             comment =
 """
-\(colorPlayed) number \(currentIndex) plays a stone at \(lastMoveText).\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+\(colorPlayed) number \(currentIndex) plays a stone at \(lastMoveText).\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturingWhiteSentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         } else {
             comment =
 """
-Game starts.\(colorToPlaySentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
+Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturingWhiteSentence)\(nextWinrateSentence)\(nextScoreSentence)\(nextDeadBlackStonesSentence)\(nextDeadWhiteStonesSentence)\(nextEndangeredBlackSentence)\(nextEndangeredWhiteSentence)\(nextBlackSchrodingerSentence)\(nextWhiteSchrodingerSentence)\(bestMoveSentence)\(bestWinrateSentence)\(bestScoreSentence)\(bestDeadBlackStonesSentence)\(bestDeadWhiteStonesSentence)\(bestEndangeredBlackSentence)\(bestEndangeredWhiteSentence)\(bestBlackSchrodingerSentence)\(bestWhiteSchrodingerSentence)
 """
         }
 
