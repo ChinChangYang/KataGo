@@ -100,7 +100,7 @@ struct StatusToolbarItems: View {
                     Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
                     .symbolEffect(.variableColor.iterative.reversing, isActive: gobanState.analysisStatus == .run)
             )
-            .foregroundColor((gobanState.analysisStatus == .clear) ? .red : .primary)
+            .foregroundStyle((gobanState.analysisStatus == .clear) ? .red : .primary)
             .contentTransition(.symbolEffect(.replace))
 
             createButton(
@@ -108,7 +108,7 @@ struct StatusToolbarItems: View {
                 image:
                     Image(systemName: (gobanState.eyeStatus == .opened) ? "eye" : "eye.slash")
             )
-            .foregroundColor((gobanState.eyeStatus == .opened) ? .primary : .red)
+            .foregroundStyle((gobanState.eyeStatus == .closed) ? .red : .primary)
             .contentTransition(.symbolEffect(.replace))
 
             createButton(

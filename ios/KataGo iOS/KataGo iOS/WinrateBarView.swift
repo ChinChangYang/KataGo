@@ -32,18 +32,18 @@ struct WinrateBarView: View {
         ZStack {
             Rectangle()
                 .frame(width: width, height: whiteBarHeight)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .position(x: positionX, y: whiteBarPositionY)
 
             Rectangle()
                 .frame(width: width, height: blackBarHeight)
-                .foregroundColor(.black)
+                .foregroundStyle(.black)
                 .position(x: positionX, y: blackBarPositionY)
 
             Text(String(format: "%d", scoreTextValue))
                 .font(.system(size: (scoreTextValue < 10) ? 14 : 500, design: .monospaced))
                 .minimumScaleFactor(0.01)
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
                 .frame(width: width)
                 .position(x: positionX, y: barCenterY)
         }
@@ -56,7 +56,7 @@ struct WinrateBarView: View {
 
     return ZStack {
         Rectangle()
-            .foregroundColor(.brown)
+            .foregroundStyle(.brown)
 
         GeometryReader { geometry in
             let dimensions = Dimensions(size: geometry.size,

@@ -33,7 +33,7 @@ struct StoneView: View {
     private func drawCapturedStones(color: Color, count: Int, xOffset: CGFloat, dimensions: Dimensions) -> some View {
         HStack {
             Circle()
-                .foregroundColor(color)
+                .foregroundStyle(color)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
             Text("x\(count)")
                 .contentTransition(.numericText())
@@ -48,7 +48,7 @@ struct StoneView: View {
 
     private func drawStoneBase(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Circle()
-            .foregroundColor(stoneColor)
+            .foregroundStyle(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
                       y: dimensions.boardLineStartY + y * dimensions.squareLength)
@@ -65,7 +65,7 @@ struct StoneView: View {
             .overlay {
                 // Mask some light
                 Circle()
-                    .foregroundColor(stoneColor)
+                    .foregroundStyle(stoneColor)
                     .blur(radius: dimensions.squareLengthDiv16)
                     .frame(width: dimensions.squareLengthDiv2, height: dimensions.squareLengthDiv2)
                     .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
@@ -187,7 +187,7 @@ struct StoneView: View {
 
     private func drawFastStoneBase(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
         Circle()
-            .foregroundColor(stoneColor)
+            .foregroundStyle(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
                       y: dimensions.boardLineStartY + y * dimensions.squareLength)
@@ -200,7 +200,7 @@ struct StoneView: View {
 
     return ZStack {
         Rectangle()
-            .foregroundColor(.brown)
+            .foregroundStyle(.brown)
 
         GeometryReader { geometry in
             StoneView(dimensions: Dimensions(size: geometry.size,
@@ -226,7 +226,7 @@ struct StoneView: View {
 
     return ZStack {
         Rectangle()
-            .foregroundColor(.brown)
+            .foregroundStyle(.brown)
 
         GeometryReader { geometry in
             StoneView(dimensions: Dimensions(size: geometry.size,

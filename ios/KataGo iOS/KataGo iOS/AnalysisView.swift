@@ -44,7 +44,7 @@ struct AnalysisView: View {
 #if !os(macOS)
                 .hoverEffect()
 #endif
-                .foregroundColor(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
+                .foregroundStyle(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
                 .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
                 .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
                           y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
@@ -65,7 +65,7 @@ struct AnalysisView: View {
 
                     ZStack {
                         Circle()
-                            .foregroundColor(color)
+                            .foregroundStyle(color)
                             .overlay {
                                 if info.utilityLcb == maxUtility {
                                     Circle()
@@ -133,7 +133,7 @@ struct AnalysisView: View {
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
-            .foregroundColor(.black)
+            .foregroundStyle(.black)
     }
 
     func visitsText(_ visits: Int) -> some View {
@@ -141,7 +141,7 @@ struct AnalysisView: View {
             .contentTransition(.numericText())
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
-            .foregroundColor(.black)
+            .foregroundStyle(.black)
     }
 
     func scoreText(_ scoreLead: Float) -> some View {
@@ -151,7 +151,7 @@ struct AnalysisView: View {
             .contentTransition(.numericText())
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
-            .foregroundColor(.black)
+            .foregroundStyle(.black)
     }
 
     func convertToSIUnits(_ number: Int) -> String {

@@ -43,7 +43,7 @@ struct MoveNumberView: View {
 
     return ZStack {
         Rectangle()
-            .foregroundColor(.brown)
+            .foregroundStyle(.brown)
 
         GeometryReader { geometry in
             let dimensions = Dimensions(size: geometry.size,

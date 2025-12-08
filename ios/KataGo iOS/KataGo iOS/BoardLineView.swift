@@ -120,7 +120,7 @@ struct BoardLineView: View {
         // Big black dot
         Circle()
             .frame(width: dimensions.squareLengthDiv4, height: dimensions.squareLengthDiv4)
-            .foregroundColor(Color.black)
+            .foregroundStyle(Color.black)
             .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
                       y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
     }

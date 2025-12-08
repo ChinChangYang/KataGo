@@ -48,7 +48,7 @@ struct TopToolbarView: ToolbarContent {
                             .foregroundStyle(.red)
                     } else {
                         Image(systemName: "arrow.uturn.backward.circle")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
