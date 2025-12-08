@@ -30,15 +30,9 @@ struct TransferableSgf: Transferable {
     }
 
     static func createTransferredFile(from sgf: TransferableSgf) throws -> SentTransferredFile {
-        let supportDirectory = try FileManager.default.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
 
         let fileName = sgf.name.isEmpty ? "KataGoAnytime" : sgf.name
-        let file = supportDirectory.appendingPathComponent("\(fileName).sgf")
+        let file = URL.documentsDirectory.appendingPathComponent("\(fileName).sgf")
 
         try sgf.content.write(
             to: file,
@@ -52,17 +46,8 @@ struct TransferableSgf: Transferable {
     static func cleanUpSgfFiles() {
         let fileManager = FileManager.default
 
-        guard let supportDirectory = try? fileManager.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ) else {
-            return
-        }
-
         guard let fileURLs = try? fileManager.contentsOfDirectory(
-            at: supportDirectory,
+            at: URL.documentsDirectory,
             includingPropertiesForKeys: nil
         ) else {
             return

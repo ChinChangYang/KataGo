@@ -387,44 +387,26 @@ struct Message: Identifiable, Equatable, Hashable {
 @Observable
 class MessageList {
     static let defaultMaxMessageLines = 1000
-
+    
     var messages: [Message] = []
-
+    
     func shrink() {
         while messages.count > MessageList.defaultMaxMessageLines {
             messages.removeFirst()
         }
     }
-
+    
     private func append(command: String) {
         messages.append(Message(text: "> \(command)"))
     }
-
+    
     func appendAndSend(command: String) {
         append(command: command)
         KataGoHelper.sendCommand(command)
     }
-
+    
     func appendAndSend(commands: [String]) {
         commands.forEach(appendAndSend)
-    }
-
-    func maybeLoadSgf(sgf: String) {
-        let supportDirectory = try? FileManager.default.url(for: .documentDirectory,
-                                                            in: .userDomainMask,
-                                                            appropriateFor: nil,
-                                                            create: true)
-
-        if let supportDirectory {
-            let file = supportDirectory.appendingPathComponent("temp.sgf")
-            do {
-                try sgf.write(to: file, atomically: false, encoding: .utf8)
-                let path = file.path()
-                appendAndSend(command: "loadsgf \(path)")
-            } catch {
-                // Do nothing
-            }
-        }
     }
 }
 

@@ -238,6 +238,7 @@
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
 		E15A218F2ECAAB5600708C25 /* GobanState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A218E2ECAAB5600708C25 /* GobanState.swift */; };
 		E15A21CC2EDC4CEA00708C25 /* Commentator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A21CB2EDC4CEA00708C25 /* Commentator.swift */; };
+		E15A220B2EE6AED800708C25 /* GameSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A220A2EE6AED800708C25 /* GameSplitView.swift */; };
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */; };
@@ -587,6 +588,7 @@
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		E15A218E2ECAAB5600708C25 /* GobanState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanState.swift; sourceTree = "<group>"; };
 		E15A21CB2EDC4CEA00708C25 /* Commentator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commentator.swift; sourceTree = "<group>"; };
+		E15A220A2EE6AED800708C25 /* GameSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSplitView.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
 		E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demoplay.cpp; sourceTree = "<group>"; };
@@ -1029,6 +1031,7 @@
 				E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */,
 				E12DF7092E875D4500521B20 /* GameListToolbar.swift */,
 				E13828622C5B8C3600670FD3 /* GameListView.swift */,
+				E15A220A2EE6AED800708C25 /* GameSplitView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E184F5E32EC022B700C06AEB /* InfoView.swift */,
 				E160DEEB2E2540B1004B065F /* LinePlotView.swift */,
@@ -1721,6 +1724,7 @@
 				E16E1F372DE16C5B00B0F144 /* NeuralNetworkModel.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 				E160DEEC2E2540B1004B065F /* LinePlotView.swift in Sources */,
+				E15A220B2EE6AED800708C25 /* GameSplitView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

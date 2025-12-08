@@ -19,8 +19,7 @@ struct NeuralNetworkModel: Identifiable, Equatable {
     let humanUrl: String
 
     var downloadedURL: URL? {
-        let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        return docsURL?.appendingPathComponent(fileName)
+        return URL.documentsDirectory.appendingPathComponent(fileName)
     }
 
     var visible: Bool {

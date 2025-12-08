@@ -667,7 +667,12 @@ struct SgfConfigView: View {
                         config.komi = sgfHelper.rules.komi
                         gameRecord.sgf = sgf
                         player.nextColorForPlayCommand = .unknown
-                        messageList.maybeLoadSgf(sgf: sgf)
+
+                        gobanState.maybeLoadSgf(
+                            gameRecord: gameRecord,
+                            messageList: messageList
+                        )
+
                         messageList.appendAndSend(commands: config.ruleCommands)
                         messageList.appendAndSend(command: config.getKataKomiCommand())
                         messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())

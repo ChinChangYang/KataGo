@@ -8,9 +8,10 @@
 import SwiftUI
 import SwiftData
 import KataGoInterface
-import UniformTypeIdentifiers
 
 struct ContentView: View {
+    let selectedModel: NeuralNetworkModel
+
     @State var stones = Stones()
     @State var messageList = MessageList()
     @State var board = BoardSize()
@@ -24,56 +25,23 @@ struct ContentView: View {
     @State var rootWinrate = Winrate()
     @State var rootScore = Score()
     @State private var navigationContext = NavigationContext()
-    @State private var isEditorPresented = false
     @State private var isInitialized = false
     @State var isGameListViewAppeared = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
-    @Environment(\.scenePhase) var scenePhase
     @State var version: String?
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
     @State var quitStatus: QuitStatus = .none
-    @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var topUIState = TopUIState()
     @State var aiMove: String? = nil
-    let sgfType = UTType("ccy.KataGo-iOS.sgf")!
-    let selectedModel: NeuralNetworkModel
 
     var body: some View {
         if isInitialized {
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                GameListView(isEditorPresented: $isEditorPresented,
-                             selectedGameRecord: $navigationContext.selectedGameRecord,
-                             isGameListViewAppeared: $isGameListViewAppeared)
-                .toolbar {
-                    GameListToolbar(
-                        gameRecord: navigationContext.selectedGameRecord,
-                        maxBoardLength: selectedModel.nnLen,
-                        quitStatus: $quitStatus
-                    )
-                }
-            } detail: {
-                GobanView(isEditorPresented: $isEditorPresented,
-                          maxBoardLength: selectedModel.nnLen,
-                          columnVisibility: $columnVisibility)
-                .confirmationDialog(
-                    "Do you allow AI overwriting this move?",
-                    isPresented: $gobanState.confirmingAIOverwrite,
-                    titleVisibility: .visible
-                ) {
-                    Button("Overwrite", role: .destructive) {
-                        if let gameRecord = navigationContext.selectedGameRecord,
-                           let turn = player.nextColorSymbolForPlayCommand {
-                            playAIMove(gameRecord: gameRecord, turn: turn)
-                        }
-                    }
-
-                    Button("Cancel", role: .cancel) {
-                        gobanState.confirmingAIOverwrite = false
-                        gobanState.analysisStatus = .clear
-                    }
-                }
-            }
+            GameSplitView(
+                selectedModel: selectedModel,
+                aiMove: $aiMove,
+                quitStatus: $quitStatus
+            )
             .environment(stones)
             .environment(messageList)
             .environment(board)
@@ -90,69 +58,6 @@ struct ContentView: View {
                 // Get messages from KataGo and append to the list of messages
                 await messageTask()
             }
-            .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
-                createThumbnail(for: oldGameRecord)
-                processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
-            }
-            .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
-                processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
-                              newWaitingForAnalysis: newWaitingForAnalysis)
-            }
-            .fileImporter(isPresented: $topUIState.importing,
-                          allowedContentTypes: [sgfType, .text],
-                          allowsMultipleSelection: true) { result in
-                importFiles(result: result)
-            }
-            .onOpenURL { url in
-                importUrl(url: url)
-            }
-            .onChange(of: scenePhase) { _, newScenePhase in
-                processChange(newScenePhase: newScenePhase)
-            }
-            .onChange(of: gobanState.branchSgf) { oldBranchStateSgf, newBranchStateSgf in
-                processChange(oldBranchStateSgf: oldBranchStateSgf,
-                              newBranchStateSgf: newBranchStateSgf)
-            }
-            .onChange(of: isGameListViewAppeared) { oldIsGameListViewAppeared, newIsGameListViewAppeared in
-                processChange(oldIsGameListViewAppeared: oldIsGameListViewAppeared,
-                              newIsGameListViewAppeared: newIsGameListViewAppeared)
-            }
-            .onChange(of: gobanState.isEditing) { oldIsEditing, newIsEditing in
-                processIsEditingChange(oldIsEditing: oldIsEditing, newIsEditing: newIsEditing)
-            }
-            .onChange(of: gobanState.isAutoPlaying) { oldIsAutoPlaying, newIsAutoPlaying in
-                processIsAutoPlayingChange(
-                    oldIsAutoPlaying: oldIsAutoPlaying,
-                    newIsAutoPlaying: newIsAutoPlaying
-                )
-            }
-            .onChange(of: stones.isReady) { oldValue, newValue in
-                processStonesReadyChange(
-                    oldValue: oldValue,
-                    newValue: newValue
-                )
-            }
-            .onChange(of: gobanState.analysisStatus) { oldValue, newValue in
-                if newValue == .clear {
-                    messageList.appendAndSend(command: "stop")
-                }
-            }
-            .confirmationDialog(
-                "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!",
-                isPresented: $topUIState.confirmingDeletion,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    if let gameRecord = navigationContext.selectedGameRecord {
-                        navigationContext.selectedGameRecord = nil
-                        modelContext.safelyDelete(gameRecord: gameRecord)
-                    }
-                }
-
-                Button("Cancel", role: .cancel) {
-                    topUIState.confirmingDeletion = false
-                }
-            }
         } else {
             LoadingView(version: $version, selectedModel: selectedModel)
                 .task {
@@ -161,294 +66,45 @@ struct ContentView: View {
         }
     }
 
-    func processStonesReadyChange(oldValue: Bool, newValue: Bool) {
-        if !oldValue && newValue,
-           let gameRecord = navigationContext.selectedGameRecord {
-
-            let currentIndex = gameRecord.currentIndex
-
-            gameRecord.blackStones?[currentIndex] = BoardPoint.toString(
-                stones.blackPoints,
-                width: Int(board.width),
-                height: Int(board.height)
-            )
-
-            gameRecord.whiteStones?[currentIndex] = BoardPoint.toString(
-                stones.whitePoints,
-                width: Int(board.width),
-                height: Int(board.height)
-            )
-
-            if gobanState.isAutoPlayed {
-                gameRecord.currentIndex += 1
-            }
-        }
+    private func initializationTask() async {
+        messageList.messages.append(Message(text: "Initializing..."))
+        messageList.appendAndSend(command: "version")
+        
+        version = await Task.detached {
+            // Get a message line from KataGo
+            return KataGoHelper.getMessageLine()
+        }.value
+        
+        sendInitialCommands(config: gameRecords.first?.concreteConfig)
+        navigationContext.selectedGameRecord = gameRecords.first
+        navigationContext.selectedGameRecord?.updateToLatestVersion()
+        
+        gobanState.maybeLoadSgf(
+            gameRecord: navigationContext.selectedGameRecord,
+            messageList: messageList
+        )
+        
+        gobanState.sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
+        await messaging()
+        try? await Task.sleep(for: .seconds(3))
+        isInitialized = true
     }
 
-    func processIsAutoPlayingChange(oldIsAutoPlaying: Bool,
-                                    newIsAutoPlaying: Bool) {
-        if gobanState.isAutoPlaying,
-           let gameRecord = navigationContext.selectedGameRecord {
-            gobanState.analysisStatus = .pause
-            gobanState.eyeStatus = .opened
-            gobanState.deactivateBranch()
-
-            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-            while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
-                gameRecord.undo()
-                gobanState.undo(messageList: messageList, stones: stones)
-                player.toggleNextColorForPlayCommand()
-            }
-
-            // auto-play analysis by best AI profile
-            if let humanSLModel = HumanSLModel(profile: "AI") {
-                messageList.appendAndSend(commands: humanSLModel.commands)
-                messageList.appendAndSend(command: "kata-set-param playoutDoublingAdvantage 0")
-                messageList.appendAndSend(command: "kata-set-param analysisWideRootNoise 0")
-            }
-
-            gobanState.sendPostExecutionCommands(
-                config: gameRecord.concreteConfig,
-                messageList: messageList,
-                player: player,
-                gameRecord: gameRecord
-            )
-        } else {
-            withAnimation {
-                gobanState.analysisStatus = .clear
-            }
-
-            // restore human profile for the next player
-            if let gameRecord = navigationContext.selectedGameRecord,
-               let config = gameRecord.config {
-                gobanState.maybeSendAsymmetricHumanAnalysisCommands(
-                    nextColorForPlayCommand: player.nextColorForPlayCommand,
-                    config: config,
-                    messageList: messageList)
-
-                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-
-                // current index might not be correct, recover it
-                gobanState.forwardMoves(
-                    limit: nil,
-                    gameRecord: gameRecord,
-                    board: board,
-                    messageList: messageList,
-                    player: player,
-                    audioModel: audioModel,
-                    stones: stones)
-            }
-        }
+    private func sendInitialCommands(config: Config?) {
+        // If a config is not available, initialize KataGo with a default config.
+        let config = config ?? Config()
+        messageList.appendAndSend(command: config.getKataBoardSizeCommand())
+        messageList.appendAndSend(commands: config.ruleCommands)
+        messageList.appendAndSend(command: config.getKataKomiCommand())
+        // Disable friendly pass to avoid a memory shortage problem
+        messageList.appendAndSend(command: "kata-set-rule friendlyPassOk false")
+        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
     }
 
-    func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
-        if !newIsEditing {
-            gobanState.isAutoPlaying = false
-            gobanState.isAutoPlayed = false
-        }
-    }
-
-    func processChange(oldIsGameListViewAppeared: Bool,
-                       newIsGameListViewAppeared: Bool) {
-        if !oldIsGameListViewAppeared && newIsGameListViewAppeared && gobanState.isShownBoard {
-            createThumbnail(for: navigationContext.selectedGameRecord)
-        }
-    }
-
-    func createThumbnail(for gameRecord: GameRecord?) {
-        if let gameRecord {
-            let maxBoardLength = max(board.width + 1, board.height + 1)
-            let maxCGLength: CGFloat = ThumbnailModel.largeSize
-            let cgWidth = (board.width + 1) / maxBoardLength * maxCGLength
-            let cgHeight = (board.height + 1) / maxBoardLength * maxCGLength
-            let cgSize = CGSize(width: cgWidth, height: cgHeight)
-            let isDrawingCapturedStones = false
-            let dimensions = Dimensions(size: cgSize,
-                                        width: board.width,
-                                        height: board.height,
-                                        showCoordinate: false,
-                                        showPass: false,
-                                        isDrawingCapturedStones: isDrawingCapturedStones)
-
-            let config = gameRecord.concreteConfig
-            let content = ZStack {
-                BoardLineView(dimensions: dimensions,
-                              showPass: false,
-                              verticalFlip: config.verticalFlip)
-
-                StoneView(dimensions: dimensions,
-                          isClassicStoneStyle: config.isClassicStoneStyle,
-                          verticalFlip: config.verticalFlip,
-                          isDrawingCapturedStones: isDrawingCapturedStones)
-
-                AnalysisView(config: config, dimensions: dimensions)
-            }
-                .environment(board)
-                .environment(stones)
-                .environment(analysis)
-                .environment(gobanState)
-                .environment(player)
-
-            let renderer = ImageRenderer(content: content)
-#if os(macOS)
-            if let nsImage = renderer.nsImage,
-               let tiffData = nsImage.tiffRepresentation,
-               let bitmap = NSBitmapImageRep(data: tiffData),
-               let pngData = bitmap.representation(using: .png, properties: [:]) {
-                gameRecord.thumbnail = pngData
-            }
-#else
-            gameRecord.thumbnail = renderer.uiImage?.heicData()
-#endif
-        }
-    }
-
-    // Handles file import from the document picker
-    private func importFiles(result: Result<[URL], any Error>) {
-        // Ensure the result is a successful file URL and start accessing its security-scoped resource
-        guard case .success(let files) = result else { return }
-
-        files.forEach { file in
-            if let newGameRecord = GameRecord.createGameRecord(from: file) {
-                // Insert the new game record into the model context
-                modelContext.insert(newGameRecord)
-
-                // Update the selected game record in the navigation context
-                navigationContext.selectedGameRecord = newGameRecord
-            }
-        }
-    }
-
-    private func importUrl(url: URL) {
-        if let newGameRecord = GameRecord.createGameRecord(from: url) {
-            // Insert the new game record into the model context
-            modelContext.insert(newGameRecord)
-
-            // Update the selected game record in the navigation context
-            navigationContext.selectedGameRecord = newGameRecord
-        }
-    }
-
-    private func placeLoadingBoard(width: Int, height: Int) {
-        withAnimation {
-            board.width = CGFloat(width)
-            board.height = CGFloat(height)
-            stones.blackPoints.removeAll()
-            stones.whitePoints.removeAll()
-            stones.moveOrder.removeAll()
-            stones.blackStonesCaptured = 0
-            stones.whiteStonesCaptured = 0
-            stones.isReady = false
-        }
-    }
-
-    private func processChange(oldGameRecord: GameRecord?, newGameRecord: GameRecord?) {
-        player.nextColorForPlayCommand = .unknown
-        gobanState.deactivateBranch()
-        if let newGameRecord {
-            newGameRecord.updateToLatestVersion()
-            gobanState.isAutoPlaying = false
-            gobanState.isAutoPlayed = false
-            if newGameRecord.sgf == GameRecord.defaultSgf {
-                gobanState.isEditing = true
-            } else {
-                gobanState.isEditing = false
-            }
-            let currentIndex = newGameRecord.currentIndex
-            let sgfHelper = SgfHelper(sgf: newGameRecord.sgf)
-            newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
-            maybeLoadSgf()
-            while newGameRecord.currentIndex > currentIndex {
-                newGameRecord.undo()
-                gobanState.undo(messageList: messageList, stones: stones)
-            }
-            let config = newGameRecord.concreteConfig
-            config.koRule = sgfHelper.rules.koRule
-            config.scoringRule = sgfHelper.rules.scoringRule
-            config.taxRule = sgfHelper.rules.taxRule
-            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
-            config.hasButton = sgfHelper.rules.hasButton
-            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
-            config.komi = sgfHelper.rules.komi
-
-            if let oldGameRecord,
-               oldGameRecord.concreteConfig.boardWidth != config.boardWidth ||
-                oldGameRecord.concreteConfig.boardHeight != config.boardHeight {
-                placeLoadingBoard(width: config.boardWidth, height: config.boardHeight)
-            }
-
-            messageList.appendAndSend(commands: config.ruleCommands)
-            messageList.appendAndSend(command: config.getKataKomiCommand())
-            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
-            gobanState.sendShowBoardCommand(messageList: messageList)
-        }
-    }
-
-    private func processChange(oldWaitingForAnalysis: Bool,
-                               newWaitingForAnalysis: Bool) {
-        if (oldWaitingForAnalysis && !newWaitingForAnalysis) {
-            if let gameRecord = navigationContext.selectedGameRecord,
-               let config = gameRecord.config,
-               !gobanState.shouldGenMove(config: config, player: player) {
-                if gobanState.analysisStatus == .pause {
-                    messageList.appendAndSend(command: "stop")
-                } else {
-                    messageList.appendAndSend(command: config.getKataAnalyzeCommand())
-                }
-
-                if gobanState.isAutoPlaying && !analysis.info.isEmpty && stones.isReady {
-                    gobanState.maybeUpdateAnalysisData(
-                        gameRecord: gameRecord,
-                        analysis: analysis,
-                        board: board,
-                        stones: stones
-                    )
-
-                    // forward move
-                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-
-                    if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
-                       let move = board.locationToMove(location: nextMove.location) {
-                        let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-
-                        gobanState.play(
-                            turn: nextPlayer,
-                            move: String(move),
-                            messageList: messageList,
-                            stones: stones
-                        )
-
-                        player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand(messageList: messageList)
-                        audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
-                        gobanState.isAutoPlayed = true
-                    } else {
-                        gobanState.isAutoPlaying = false
-                        gobanState.isAutoPlayed = false
-                    }
-                }
-            }
-        }
-    }
-
-    private func processChange(newScenePhase: ScenePhase) {
-        if newScenePhase == .background {
-            createThumbnail(for: navigationContext.selectedGameRecord)
-            gobanState.maybePauseAnalysis()
-        }
-    }
-
-    private func processChange(oldBranchStateSgf: String, newBranchStateSgf: String) {
-        if (oldBranchStateSgf.isActiveSgf) &&
-            (!newBranchStateSgf.isActiveSgf) {
-            processChange(oldGameRecord: nil, newGameRecord: navigationContext.selectedGameRecord)
-        }
-    }
-
-    private func messaging() async {
+    func messaging() async {
         let line = await Task.detached {
             // Get a message line from KataGo
             return KataGoHelper.getMessageLine()
@@ -478,50 +134,10 @@ struct ContentView: View {
         }
     }
 
-    private func sendInitialCommands(config: Config?) {
-        // If a config is not available, initialize KataGo with a default config.
-        let config = config ?? Config()
-        messageList.appendAndSend(command: config.getKataBoardSizeCommand())
-        messageList.appendAndSend(commands: config.ruleCommands)
-        messageList.appendAndSend(command: config.getKataKomiCommand())
-        // Disable friendly pass to avoid a memory shortage problem
-        messageList.appendAndSend(command: "kata-set-rule friendlyPassOk false")
-        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
-    }
-
-    @MainActor
-    private func initializationTask() async {
-        messageList.messages.append(Message(text: "Initializing..."))
-        messageList.appendAndSend(command: "version")
-
-        version = await Task.detached {
-            // Get a message line from KataGo
-            return KataGoHelper.getMessageLine()
-        }.value
-
-        sendInitialCommands(config: gameRecords.first?.concreteConfig)
-        navigationContext.selectedGameRecord = gameRecords.first
-        navigationContext.selectedGameRecord?.updateToLatestVersion()
-        maybeLoadSgf()
-        gobanState.sendShowBoardCommand(messageList: messageList)
-        messageList.appendAndSend(command: "printsgf")
-        await messaging()
-        try? await Task.sleep(for: .seconds(3))
-        isInitialized = true
-    }
-
     @MainActor
     private func messageTask() async {
         while quitStatus != .quitted {
             await messaging()
-        }
-    }
-
-    func maybeLoadSgf() {
-        if let sgf = gobanState.getSgf(gameRecord: navigationContext.selectedGameRecord) {
-            messageList.maybeLoadSgf(sgf: sgf)
         }
     }
 
@@ -905,35 +521,19 @@ struct ContentView: View {
                 if gobanState.isOverwriting(gameRecord: gameRecord) {
                     gobanState.confirmingAIOverwrite = true
                 } else {
-                    playAIMove(gameRecord: gameRecord, turn: turn)
+                    gobanState.playAIMove(
+                        aiMove: aiMove,
+                        gameRecord: gameRecord,
+                        turn: turn,
+                        analysis: analysis,
+                        board: board,
+                        stones: stones,
+                        messageList: messageList,
+                        player: player,
+                        audioModel: audioModel
+                    )
                 }
             }
-        }
-    }
-
-    func playAIMove(gameRecord: GameRecord, turn: String) {
-        guard let aiMove = aiMove else { return }
-
-        if gobanState.isEditing {
-            gameRecord.clearData(after: gameRecord.currentIndex)
-
-            gobanState.maybeUpdateAnalysisData(
-                gameRecord: gameRecord,
-                analysis: analysis,
-                board: board,
-                stones: stones
-            )
-        } else if !gobanState.isBranchActive {
-            gobanState.branchSgf = gameRecord.sgf
-            gobanState.branchIndex = gameRecord.currentIndex
-        }
-
-        gobanState.play(turn: turn, move: aiMove, messageList: messageList, stones: stones)
-        player.toggleNextColorForPlayCommand()
-        gobanState.sendShowBoardCommand(messageList: messageList)
-        messageList.appendAndSend(command: "printsgf")
-        if let config = gameRecord.config {
-            audioModel.playPlaySound(soundEffect: config.soundEffect)
         }
     }
 

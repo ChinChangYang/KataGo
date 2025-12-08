@@ -245,6 +245,42 @@ class GobanState {
         }
     }
 
+    func playAIMove(
+        aiMove: String?,
+        gameRecord: GameRecord,
+        turn: String,
+        analysis: Analysis,
+        board: BoardSize,
+        stones: Stones,
+        messageList: MessageList,
+        player: Turn,
+        audioModel: AudioModel
+    ) {
+        guard let aiMove = aiMove else { return }
+
+        if isEditing {
+            gameRecord.clearData(after: gameRecord.currentIndex)
+
+            maybeUpdateAnalysisData(
+                gameRecord: gameRecord,
+                analysis: analysis,
+                board: board,
+                stones: stones
+            )
+        } else if !isBranchActive {
+            branchSgf = gameRecord.sgf
+            branchIndex = gameRecord.currentIndex
+        }
+
+        play(turn: turn, move: aiMove, messageList: messageList, stones: stones)
+        player.toggleNextColorForPlayCommand()
+        sendShowBoardCommand(messageList: messageList)
+        messageList.appendAndSend(command: "printsgf")
+        if let config = gameRecord.config {
+            audioModel.playPlaySound(soundEffect: config.soundEffect)
+        }
+    }
+
     func undo(messageList: MessageList, stones: Stones) {
         stones.isReady = false
         messageList.appendAndSend(command: "undo")
@@ -279,6 +315,19 @@ class GobanState {
 
     func getSgf(gameRecord: GameRecord?) -> String? {
         isBranchActive ? branchSgf : gameRecord?.sgf
+    }
+
+    func maybeLoadSgf(gameRecord: GameRecord?, messageList: MessageList) {
+        if let sgf = getSgf(gameRecord: gameRecord) {
+            let file = URL.documentsDirectory.appendingPathComponent("temp.sgf")
+            do {
+                try sgf.write(to: file, atomically: false, encoding: .utf8)
+                let path = file.path()
+                messageList.appendAndSend(command: "loadsgf \(path)")
+            } catch {
+                // Do nothing
+            }
+        }
     }
 
     func getCurrentIndex(gameRecord: GameRecord?) -> Int? {

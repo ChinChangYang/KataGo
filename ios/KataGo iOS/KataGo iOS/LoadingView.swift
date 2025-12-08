@@ -27,19 +27,7 @@ struct LoadingView: View {
                     .bold()
                     .contentTransition(.numericText())
                     .onAppear {
-                        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-                            Task {
-                                await MainActor.run {
-                                    withAnimation {
-                                        let fullText = version != nil ? "Entering..." : "Loading..."
-                                        let startIndex = fullText.firstIndex(of: ".") ?? fullText.startIndex
-                                        let index = fullText.index(startIndex, offsetBy: textOffset)
-                                        text = String(fullText[..<index])
-                                        textOffset = (textOffset + 1) % 4
-                                    }
-                                }
-                            }
-                        }
+                        appearAction()
                     }
                     .padding()
                     .accessibilityIdentifier("loadingText")
@@ -66,16 +54,36 @@ struct LoadingView: View {
                         }
                 }
                 .onTapGesture {
-                    if animationCount < LoadingView.maxAnimationCount {
-                        degreesRotating = 0
-                        withAnimation(.bouncy(duration: 1)
-                            .speed(animationSpeed)) {
-                                degreesRotating = 360
-                                animationCount = animationCount + 1
-                            } completion: {
-                                animationCount = animationCount - 1
-                            }
+                    tapGestureAction()
+                }
+        }
+    }
+
+    private func appearAction() {
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            Task {
+                await MainActor.run {
+                    withAnimation {
+                        let fullText = version != nil ? "Entering..." : "Loading..."
+                        let startIndex = fullText.firstIndex(of: ".") ?? fullText.startIndex
+                        let index = fullText.index(startIndex, offsetBy: textOffset)
+                        text = String(fullText[..<index])
+                        textOffset = (textOffset + 1) % 4
                     }
+                }
+            }
+        }
+    }
+
+    private func tapGestureAction() {
+        if animationCount < LoadingView.maxAnimationCount {
+            degreesRotating = 0
+            withAnimation(.bouncy(duration: 1)
+                .speed(animationSpeed)) {
+                    degreesRotating = 360
+                    animationCount = animationCount + 1
+                } completion: {
+                    animationCount = animationCount - 1
                 }
         }
     }
