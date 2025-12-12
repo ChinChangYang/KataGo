@@ -131,13 +131,22 @@ extension BoardPoint {
 }
 
 @Observable
-class Stones {
+class Stones: Equatable {
     var blackPoints: [BoardPoint] = []
     var whitePoints: [BoardPoint] = []
     var moveOrder: [BoardPoint: Character] = [:]
     var blackStonesCaptured: Int = 0
     var whiteStonesCaptured: Int = 0
     var isReady: Bool = true
+
+    static func == (lhs: Stones, rhs: Stones) -> Bool {
+        lhs.blackPoints == rhs.blackPoints &&
+        lhs.whitePoints == rhs.whitePoints &&
+        lhs.moveOrder == rhs.moveOrder &&
+        lhs.blackStonesCaptured == rhs.blackStonesCaptured &&
+        lhs.whiteStonesCaptured == rhs.whiteStonesCaptured &&
+        lhs.isReady == rhs.isReady
+    }
 }
 
 enum PlayerColor {

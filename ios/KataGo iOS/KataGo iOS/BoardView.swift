@@ -42,9 +42,16 @@ struct BoardView: View {
                                   showPass: config.showPass,
                                   verticalFlip: config.verticalFlip)
 
-                    StoneView(dimensions: dimensions,
-                              isClassicStoneStyle: config.isClassicStoneStyle,
-                              verticalFlip: config.verticalFlip)
+                    StoneView(
+                        dimensions: dimensions,
+                        isClassicStoneStyle: config.isClassicStoneStyle,
+                        verticalFlip: config.verticalFlip
+                    )
+                    .sensoryFeedback(.selection, trigger: stones) { oldStones, newStones in
+                        (oldStones.isReady) &&
+                        (newStones.isReady) &&
+                        (oldStones != newStones)
+                    }
 
                     drawNextMove(dimensions: dimensions,
                                  verticalFlip: config.verticalFlip)
