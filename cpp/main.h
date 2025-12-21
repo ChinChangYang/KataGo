@@ -56,6 +56,8 @@ namespace MainCmds {
   int evalrandominits(const std::vector<std::string>& args);
   int searchentropyanalysis(const std::vector<std::string>& args);
 
+  int validation(const std::vector<std::string>& args);
+
   int sandbox();
 }
 
