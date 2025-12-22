@@ -39,6 +39,7 @@ struct CommentView: View {
                             }
                         } label: {
                             Image(systemName: "wand.and.sparkles")
+                                .padding()
                         }
                         .sensoryFeedback(.success, trigger: isGenerating) { wasGenerating, isGenerating in
                             wasGenerating && !isGenerating
