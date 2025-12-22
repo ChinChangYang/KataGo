@@ -29,6 +29,9 @@ struct CommentView: View {
                 )
                 .disabled(isGenerating)
                 .contentTransition(.opacity)
+                .sensoryFeedback(.impact, trigger: isGenerating) { wasGenerating, isGenerating in
+                    wasGenerating && !isGenerating
+                }
 
                 if (comment.isEmpty) && (isGenerating == false) {
                     VStack {
@@ -40,9 +43,6 @@ struct CommentView: View {
                         } label: {
                             Image(systemName: "wand.and.sparkles")
                                 .padding()
-                        }
-                        .sensoryFeedback(.success, trigger: isGenerating) { wasGenerating, isGenerating in
-                            wasGenerating && !isGenerating
                         }
                     }
                 }

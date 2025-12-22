@@ -161,6 +161,9 @@ struct StoneView: View {
                 }
             }
         }
+        .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
+            !wasReady && isReady
+        }
     }
 
     private func drawFastBlackStones(dimensions: Dimensions) -> some View {
