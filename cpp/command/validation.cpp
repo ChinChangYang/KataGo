@@ -26,12 +26,12 @@
 using namespace std;
 using json = nlohmann::json;
 
-static const int BOARD_SIZE = 19;
-
 // Parse spatial input from JSON (NCHW format) and convert to NHWC
 static void parseSpatialInput(
   const json& j,
   int numExpectedChannels,
+  int boardYSize,
+  int boardXSize,
   vector<float>& spatialNhwc
 ) {
   if(!j.is_array()) {
@@ -44,8 +44,8 @@ static void parseSpatialInput(
                       " channels but model expects " + to_string(numExpectedChannels));
   }
 
-  int h = BOARD_SIZE;
-  int w = BOARD_SIZE;
+  int h = boardYSize;
+  int w = boardXSize;
   spatialNhwc.resize(h * w * numChannels);
 
   // Read NCHW and convert to NHWC
@@ -150,6 +150,38 @@ int MainCmds::validation(const vector<string>& args) {
     return 1;
   }
 
+  // Parse board dimensions from JSON
+  int boardXSize;
+  int boardYSize;
+
+  try {
+    if(!inputJson.contains("boardXSize") || !inputJson.contains("boardYSize")) {
+      throw StringError("Input JSON must contain 'boardXSize' and 'boardYSize' fields");
+    }
+
+    boardXSize = inputJson["boardXSize"].get<int>();
+    boardYSize = inputJson["boardYSize"].get<int>();
+
+    // Validate board size range
+    if(boardXSize < 2 || boardXSize > Board::MAX_LEN ||
+       boardYSize < 2 || boardYSize > Board::MAX_LEN) {
+      throw StringError("Board size must be between 2 and " + to_string(Board::MAX_LEN) +
+                       ", got " + to_string(boardXSize) + "x" + to_string(boardYSize));
+    }
+
+    // For now, require square boards (KataGo models are trained on square boards)
+    if(boardXSize != boardYSize) {
+      throw StringError("Board must be square, got " + to_string(boardXSize) +
+                       "x" + to_string(boardYSize));
+    }
+  } catch(const json::exception& e) {
+    cerr << "Board size parse error: " << e.what() << endl;
+    return 1;
+  } catch(const StringError& e) {
+    cerr << "Board size validation error: " << e.what() << endl;
+    return 1;
+  }
+
   // Initialize neural net backend
   NeuralNet::globalInitialize();
 
@@ -176,7 +208,7 @@ int MainCmds::validation(const vector<string>& args) {
   vector<float> globalInput;
 
   try {
-    parseSpatialInput(inputJson["spatial_input"], numSpatialFeatures, spatialNhwc);
+    parseSpatialInput(inputJson["spatial_input"], numSpatialFeatures, boardYSize, boardXSize, spatialNhwc);
     parseGlobalInput(inputJson["global_input"], numGlobalFeatures, globalInput);
   } catch(const StringError& e) {
     cerr << "Input parse error: " << e.what() << endl;
@@ -192,8 +224,8 @@ int MainCmds::validation(const vector<string>& args) {
   ComputeContext* context = NeuralNet::createComputeContext(
     gpuIdxs,
     &logger,
-    BOARD_SIZE,
-    BOARD_SIZE,
+    boardXSize,
+    boardYSize,
     "",  // openCLTunerFile
     "",  // homeDataDirOverride
     false,  // openCLReTunePerBoardSize
@@ -219,7 +251,7 @@ int MainCmds::validation(const vector<string>& args) {
   );
 
   // Create input/output buffers
-  InputBuffers* inputBuffers = NeuralNet::createInputBuffers(loadedModel, maxBatchSize, BOARD_SIZE, BOARD_SIZE);
+  InputBuffers* inputBuffers = NeuralNet::createInputBuffers(loadedModel, maxBatchSize, boardXSize, boardYSize);
 
   // Create NNResultBuf and fill with our custom inputs
   NNResultBuf resultBuf;
@@ -229,14 +261,14 @@ int MainCmds::validation(const vector<string>& args) {
   resultBuf.symmetry = 0;  // No symmetry transformation
   resultBuf.policyOptimism = 0.0;
   resultBuf.includeOwnerMap = true;
-  resultBuf.boardXSizeForServer = BOARD_SIZE;
-  resultBuf.boardYSizeForServer = BOARD_SIZE;
+  resultBuf.boardXSizeForServer = boardXSize;
+  resultBuf.boardYSizeForServer = boardYSize;
 
   // Create NNOutput to receive results
   NNOutput output;
-  output.nnXLen = BOARD_SIZE;
-  output.nnYLen = BOARD_SIZE;
-  output.whiteOwnerMap = new float[BOARD_SIZE * BOARD_SIZE];
+  output.nnXLen = boardXSize;
+  output.nnYLen = boardYSize;
+  output.whiteOwnerMap = new float[boardXSize * boardYSize];
 
   // Set up pointers for batch processing
   NNResultBuf* inputBufs[1] = {&resultBuf};
@@ -251,12 +283,12 @@ int MainCmds::validation(const vector<string>& args) {
   // Policy output (board positions)
   // The policyProbs array contains log-probabilities (logits)
   // We output them in 2D format [H, W]
-  int policySize = BOARD_SIZE * BOARD_SIZE;
+  int policySize = boardXSize * boardYSize;
   vector<float> policyBoard(policySize);
   for(int i = 0; i < policySize; i++) {
     policyBoard[i] = output.policyProbs[i];
   }
-  outputJson["policy"] = arrayToJson2D(policyBoard.data(), BOARD_SIZE, BOARD_SIZE);
+  outputJson["policy"] = arrayToJson2D(policyBoard.data(), boardYSize, boardXSize);
 
   // Pass policy (single value)
   float passPolicy = output.policyProbs[policySize];
@@ -273,7 +305,7 @@ int MainCmds::validation(const vector<string>& args) {
 
   // Ownership output [H, W]
   if(output.whiteOwnerMap != nullptr) {
-    outputJson["ownership"] = arrayToJson2D(output.whiteOwnerMap, BOARD_SIZE, BOARD_SIZE);
+    outputJson["ownership"] = arrayToJson2D(output.whiteOwnerMap, boardYSize, boardXSize);
   } else {
     outputJson["ownership"] = json::array();
   }
