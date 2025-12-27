@@ -3197,23 +3197,35 @@ struct Model {
             mask.tensor: MPSGraphTensorData(maskArray),
         ]
 
-        let fetch = graph.run(
-            with: commandQueue,
-            feeds: feeds,
+        let compilationDescriptor = MPSGraphCompilationDescriptor()
+        compilationDescriptor.optimizationLevel = .level0
+
+        let executable = graph.compile(
+            with: MPSGraphDevice(mtlDevice: device),
+            feeds: [
+                input.tensor: MPSGraphShapedType(shape: input.tensor.shape, dataType: input.tensor.dataType),
+                inputGlobal.tensor: MPSGraphShapedType(shape: inputGlobal.tensor.shape, dataType: inputGlobal.tensor.dataType),
+                inputMeta.tensor: MPSGraphShapedType(shape: inputMeta.tensor.shape, dataType: inputMeta.tensor.dataType),
+                mask.tensor: MPSGraphShapedType(shape: mask.tensor.shape, dataType: mask.tensor.dataType),
+            ],
             targetTensors: targetTensors,
-            targetOperations: nil)
+            targetOperations: nil,
+            compilationDescriptor: compilationDescriptor)
 
-        assert(fetch[policyHead.policyTensor] != nil)
-        assert(fetch[policyHead.policyPassTensor] != nil)
-        assert(fetch[valueHead.valueTensor] != nil)
-        assert(fetch[valueHead.scoreValueTensor] != nil)
-        assert(fetch[valueHead.ownershipTensor] != nil)
+        let inputTensors = [input.tensor, inputGlobal.tensor, inputMeta.tensor, mask.tensor]
+        let inputData = inputTensors.map { feeds[$0]! }
 
-        fetch[policyHead.policyTensor]?.mpsndarray().readBytes(policy)
-        fetch[policyHead.policyPassTensor]?.mpsndarray().readBytes(policyPass)
-        fetch[valueHead.valueTensor]?.mpsndarray().readBytes(value)
-        fetch[valueHead.scoreValueTensor]?.mpsndarray().readBytes(scoreValue)
-        fetch[valueHead.ownershipTensor]?.mpsndarray().readBytes(ownership)
+        let results = executable.run(
+            with: commandQueue,
+            inputs: inputData,
+            results: nil,
+            executionDescriptor: nil)
+
+        results[0].mpsndarray().readBytes(policy)
+        results[1].mpsndarray().readBytes(policyPass)
+        results[2].mpsndarray().readBytes(value)
+        results[3].mpsndarray().readBytes(scoreValue)
+        results[4].mpsndarray().readBytes(ownership)
     }
 }
 
