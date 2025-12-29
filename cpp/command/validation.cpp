@@ -87,6 +87,28 @@ static void parseGlobalInput(
   }
 }
 
+// Parse metadata input from JSON (for human SL networks)
+static void parseMetaInput(
+  const json& j,
+  int numExpectedChannels,
+  vector<float>& metaInput
+) {
+  if(!j.is_array()) {
+    throw StringError("meta_input must be an array");
+  }
+
+  int numChannels = (int)j.size();
+  if(numChannels != numExpectedChannels) {
+    throw StringError("meta_input has " + to_string(numChannels) +
+                      " channels but model expects " + to_string(numExpectedChannels));
+  }
+
+  metaInput.resize(numChannels);
+  for(int i = 0; i < numChannels; i++) {
+    metaInput[i] = j[i].get<float>();
+  }
+}
+
 // Convert 2D array to JSON
 static json arrayToJson2D(const float* data, int h, int w) {
   json result = json::array();
@@ -200,16 +222,26 @@ int MainCmds::validation(const vector<string>& args) {
   // Get model parameters
   int numSpatialFeatures = modelDesc.numInputChannels;
   int numGlobalFeatures = modelDesc.numInputGlobalChannels;
+  int numMetaFeatures = modelDesc.numInputMetaChannels;
+  int metaEncoderVersion = modelDesc.metaEncoderVersion;
   int numPolicyChannels = modelDesc.numPolicyChannels;
   int modelVersion = modelDesc.modelVersion;
 
   // Parse inputs
   vector<float> spatialNhwc;
   vector<float> globalInput;
+  vector<float> metaInput;
+  bool hasMetaInput = false;
 
   try {
     parseSpatialInput(inputJson["spatial_input"], numSpatialFeatures, boardYSize, boardXSize, spatialNhwc);
     parseGlobalInput(inputJson["global_input"], numGlobalFeatures, globalInput);
+
+    // Parse metadata input if model supports it and input is provided
+    if(metaEncoderVersion > 0 && numMetaFeatures > 0 && inputJson.contains("meta_input")) {
+      parseMetaInput(inputJson["meta_input"], numMetaFeatures, metaInput);
+      hasMetaInput = true;
+    }
   } catch(const StringError& e) {
     cerr << "Input parse error: " << e.what() << endl;
     NeuralNet::freeLoadedModel(loadedModel);
@@ -257,7 +289,12 @@ int MainCmds::validation(const vector<string>& args) {
   NNResultBuf resultBuf;
   resultBuf.rowSpatialBuf = spatialNhwc;
   resultBuf.rowGlobalBuf = globalInput;
-  resultBuf.hasRowMeta = false;
+  if(hasMetaInput) {
+    resultBuf.rowMetaBuf = metaInput;
+    resultBuf.hasRowMeta = true;
+  } else {
+    resultBuf.hasRowMeta = false;
+  }
   resultBuf.symmetry = 0;  // No symmetry transformation
   resultBuf.policyOptimism = 0.0;
   resultBuf.includeOwnerMap = true;
