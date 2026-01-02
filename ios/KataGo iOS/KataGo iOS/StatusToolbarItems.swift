@@ -17,6 +17,7 @@ struct StatusToolbarItems: View {
     @Environment(MessageList.self) var messageList
     @Environment(Analysis.self) var analysis
     @Environment(Stones.self) var stones
+
     var gameRecord: GameRecord
 
     var config: Config {

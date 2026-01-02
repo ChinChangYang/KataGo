@@ -23,6 +23,8 @@ class GobanState {
     var branchSgf: String = .inActiveSgf
     var branchIndex: Int = .inActiveCurrentIndex
     var confirmingAIOverwrite: Bool = false
+    var soundEffect: Bool = false
+    var hapticFeedback: Bool = false
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -276,9 +278,7 @@ class GobanState {
         player.toggleNextColorForPlayCommand()
         sendShowBoardCommand(messageList: messageList)
         messageList.appendAndSend(command: "printsgf")
-        if let config = gameRecord.config {
-            audioModel.playPlaySound(soundEffect: config.soundEffect)
-        }
+        audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
     func undo(messageList: MessageList, stones: Stones) {
@@ -417,7 +417,7 @@ class GobanState {
         }
 
         if movesExecuted > 0 {
-            audioModel?.playPlaySound(soundEffect: gameRecord.concreteConfig.soundEffect)
+            audioModel?.playPlaySound(soundEffect: soundEffect)
         }
 
         sendPostExecutionCommands(

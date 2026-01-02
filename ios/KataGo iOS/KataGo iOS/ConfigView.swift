@@ -476,23 +476,6 @@ struct ViewConfigView: View {
     }
 }
 
-struct SoundConfigView: View {
-    var config: Config
-    @State var soundEffect: Bool = Config.defaultSoundEffect
-
-    var body: some View {
-        List {
-            ConfigBoolItem(title: "Sound effect", value: $soundEffect)
-                .onAppear {
-                    soundEffect = config.soundEffect
-                }
-                .onChange(of: soundEffect) { _, newValue in
-                    config.soundEffect = soundEffect
-                }
-        }
-    }
-}
-
 struct AIConfigView: View {
     var config: Config
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
@@ -720,11 +703,6 @@ struct ConfigItems: View {
                     .navigationTitle("View")
             }
 
-            NavigationLink("Sound") {
-                SoundConfigView(config: config)
-                    .navigationTitle("Sound")
-            }
-
             NavigationLink("AI") {
                 AIConfigView(config: config)
                     .navigationTitle("AI")
@@ -743,7 +721,36 @@ struct ConfigItems: View {
     }
 }
 
-struct ConfigView: View {
+struct GlobalSettingsView: View {
+    @State private var soundEffect: Bool = false
+    @State private var hapticFeedback: Bool = false
+    @Environment(GobanState.self) private var gobanState
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ConfigBoolItem(title: "Sound effect", value: $soundEffect)
+                    .onAppear {
+                        soundEffect = gobanState.soundEffect
+                    }
+                    .onChange(of: soundEffect) {
+                        gobanState.soundEffect = soundEffect
+                    }
+
+                ConfigBoolItem(title: "Haptic feedback", value: $hapticFeedback)
+                    .onAppear {
+                        hapticFeedback = gobanState.hapticFeedback
+                    }
+                    .onChange(of: hapticFeedback) {
+                        gobanState.hapticFeedback = hapticFeedback
+                    }
+            }
+        }
+        .navigationTitle("Global Settings")
+    }
+}
+
+struct GameSettingsView: View {
     var gameRecord: GameRecord
     var maxBoardLength: Int
 
@@ -751,6 +758,26 @@ struct ConfigView: View {
         NavigationStack {
             ConfigItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
         }
-        .navigationTitle("Configuration")
+        .navigationTitle("Game Settings")
+    }
+}
+
+struct ConfigView: View {
+    var gameRecord: GameRecord
+    var maxBoardLength: Int
+
+    var body: some View {
+        NavigationStack {
+            List {
+                NavigationLink("Global Settings") {
+                    GlobalSettingsView()
+                }
+
+                NavigationLink("Game Settings") {
+                    GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
+                }
+            }
+        }
+        .navigationTitle("Configurations")
     }
 }

@@ -9,6 +9,8 @@ import SwiftUI
 
 struct StoneView: View {
     @Environment(Stones.self) var stones
+    @Environment(GobanState.self) var gobanState
+
     let dimensions: Dimensions
     let isClassicStoneStyle: Bool
     let verticalFlip: Bool
@@ -162,7 +164,7 @@ struct StoneView: View {
             }
         }
         .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
-            !wasReady && isReady
+            !wasReady && isReady && gobanState.hapticFeedback
         }
     }
 

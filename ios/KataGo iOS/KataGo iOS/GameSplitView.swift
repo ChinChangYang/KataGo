@@ -36,6 +36,9 @@ struct GameSplitView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.modelContext) private var modelContext
 
+    @AppStorage("GlobalSettings.soundEffect") private var globalSoundEffect = false
+    @AppStorage("GlobalSettings.hapticFeedback") private var globalHapticFeedback = false
+
     var body: some View {
         @Bindable var navigationContext = navigationContext
         @Bindable var gobanState = gobanState
@@ -83,6 +86,16 @@ struct GameSplitView: View {
                     gobanState.analysisStatus = .clear
                 }
             }
+        }
+        .onAppear {
+            gobanState.soundEffect = globalSoundEffect
+            gobanState.hapticFeedback = globalHapticFeedback
+        }
+        .onChange(of: gobanState.soundEffect) { oldValue, newValue in
+            globalSoundEffect = newValue
+        }
+        .onChange(of: gobanState.hapticFeedback) { oldValue, newValue in
+            globalHapticFeedback = newValue
         }
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)
@@ -142,12 +155,13 @@ struct GameSplitView: View {
                 topUIState.confirmingDeletion = false
             }
         }
-        .fileImporter(isPresented: $topUIState.importing,
-                      allowedContentTypes: [sgfType, .text],
-                      allowsMultipleSelection: true) { result in
+        .fileImporter(
+            isPresented: $topUIState.importing,
+            allowedContentTypes: [sgfType, .text],
+            allowsMultipleSelection: true
+        ) { result in
             importFiles(result: result)
         }
-
     }
 
     private func processChange(newScenePhase: ScenePhase) {
@@ -412,7 +426,7 @@ struct GameSplitView: View {
 
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
-                        audioModel.playPlaySound(soundEffect: gameRecord.config?.soundEffect ?? false)
+                        audioModel.playPlaySound(soundEffect: globalSoundEffect)
                         gobanState.isAutoPlayed = true
                     } else {
                         gobanState.isAutoPlaying = false

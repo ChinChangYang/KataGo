@@ -30,7 +30,7 @@ struct CommentView: View {
                 .disabled(isGenerating)
                 .contentTransition(.opacity)
                 .sensoryFeedback(.impact, trigger: isGenerating) { wasGenerating, isGenerating in
-                    wasGenerating && !isGenerating
+                    wasGenerating && !isGenerating && gobanState.hapticFeedback
                 }
 
                 if (comment.isEmpty) && (isGenerating == false) {

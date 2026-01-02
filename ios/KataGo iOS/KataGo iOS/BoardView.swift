@@ -134,12 +134,12 @@ struct BoardView: View {
             }
             .onChange(of: stones.blackStonesCaptured) { oldValue, newValue in
                 if oldValue < newValue {
-                    audioModel.playCaptureSound(soundEffect: config.soundEffect)
+                    audioModel.playCaptureSound(soundEffect: gobanState.soundEffect)
                 }
             }
             .onChange(of: stones.whiteStonesCaptured) { oldValue, newValue in
                 if oldValue < newValue {
-                    audioModel.playCaptureSound(soundEffect: config.soundEffect)
+                    audioModel.playCaptureSound(soundEffect: gobanState.soundEffect)
                 }
             }
             .onDisappear {
@@ -201,7 +201,7 @@ struct BoardView: View {
         player.toggleNextColorForPlayCommand()
         gobanState.sendShowBoardCommand(messageList: messageList)
         messageList.appendAndSend(command: "printsgf")
-        audioModel.playPlaySound(soundEffect: config.soundEffect)
+        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
     }
 
     func locationToCoordinate(location: CGPoint, dimensions: Dimensions) -> Coordinate? {
