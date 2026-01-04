@@ -147,44 +147,123 @@ struct BoardLineView: View {
     }
 }
 
-#Preview {
-    GeometryReader { geometry in
-        let dimensions = Dimensions(size: geometry.size,
-                                    width: 9,
-                                    height: 9,
-                                    showCoordinate: true)
+#Preview("9x9") {
+    struct PreviewHost: View {
+        @State private var boardSize = BoardSize()
 
-        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
+        var body: some View {
+            GeometryReader { geometry in
+                let dimensions = Dimensions(
+                    size: geometry.size,
+                    width: 9,
+                    height: 9,
+                    showCoordinate: true
+                )
+
+                BoardLineView(
+                    dimensions: dimensions,
+                    showPass: true,
+                    verticalFlip: false
+                )
+                .environment(boardSize)
+            }
+            .onAppear {
+                boardSize.width = 9
+                boardSize.height = 9
+            }
+        }
     }
+    return PreviewHost()
 }
 
-#Preview {
-    GeometryReader { geometry in
-        let dimensions = Dimensions(size: geometry.size,
-                                    width: 13,
-                                    height: 13)
+#Preview("13x13") {
+    struct PreviewHost: View {
+        @State private var boardSize = BoardSize()
+        let width: CGFloat = 13
+        let height: CGFloat = 13
 
-        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
+        var body: some View {
+            GeometryReader { geometry in
+                let dimensions = Dimensions(
+                    size: geometry.size,
+                    width: width,
+                    height: height
+                )
+
+                BoardLineView(
+                    dimensions: dimensions,
+                    showPass: true,
+                    verticalFlip: false
+                )
+                .environment(boardSize)
+            }
+            .onAppear {
+                boardSize.width = width
+                boardSize.height = height
+            }
+        }
     }
+    return PreviewHost()
 }
 
-#Preview {
-    GeometryReader { geometry in
-        let dimensions = Dimensions(size: geometry.size,
-                                    width: 19,
-                                    height: 19)
+#Preview("19x19") {
+    struct PreviewHost: View {
+        @State private var boardSize = BoardSize()
+        let width: CGFloat = 19
+        let height: CGFloat = 19
 
-        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
+        var body: some View {
+            GeometryReader { geometry in
+                let dimensions = Dimensions(
+                    size: geometry.size,
+                    width: width,
+                    height: height,
+                    showCoordinate: true
+                )
+
+                BoardLineView(
+                    dimensions: dimensions,
+                    showPass: true,
+                    verticalFlip: false
+                )
+                .environment(boardSize)
+            }
+            .onAppear {
+                boardSize.width = width
+                boardSize.height = height
+            }
+        }
     }
+    return PreviewHost()
 }
 
-#Preview {
-    GeometryReader { geometry in
-        let dimensions = Dimensions(size: geometry.size,
-                                    width: 29,
-                                    height: 29,
-                                    showCoordinate: true)
+#Preview("29x29") {
+    struct PreviewHost: View {
+        @State private var boardSize = BoardSize()
+        let width: CGFloat = 29
+        let height: CGFloat = 29
 
-        BoardLineView(dimensions: dimensions, showPass: true, verticalFlip: false)
+        var body: some View {
+            GeometryReader { geometry in
+                let dimensions = Dimensions(
+                    size: geometry.size,
+                    width: width,
+                    height: height,
+                    showCoordinate: true
+                )
+
+                BoardLineView(
+                    dimensions: dimensions,
+                    showPass: true,
+                    verticalFlip: false
+                )
+                .environment(boardSize)
+            }
+            .onAppear {
+                boardSize.width = width
+                boardSize.height = height
+            }
+        }
     }
+    return PreviewHost()
 }
