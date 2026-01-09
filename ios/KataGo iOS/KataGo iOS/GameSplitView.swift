@@ -91,10 +91,10 @@ struct GameSplitView: View {
             gobanState.soundEffect = globalSoundEffect
             gobanState.hapticFeedback = globalHapticFeedback
         }
-        .onChange(of: gobanState.soundEffect) { oldValue, newValue in
+        .onChange(of: gobanState.soundEffect) { _, newValue in
             globalSoundEffect = newValue
         }
-        .onChange(of: gobanState.hapticFeedback) { oldValue, newValue in
+        .onChange(of: gobanState.hapticFeedback) { _, newValue in
             globalHapticFeedback = newValue
         }
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
@@ -134,7 +134,7 @@ struct GameSplitView: View {
                 newValue: newValue
             )
         }
-        .onChange(of: gobanState.analysisStatus) { oldValue, newValue in
+        .onChange(of: gobanState.analysisStatus) { _, newValue in
             if newValue == .clear {
                 messageList.appendAndSend(command: "stop")
             }

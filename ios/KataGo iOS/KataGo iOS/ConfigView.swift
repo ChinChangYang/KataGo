@@ -144,7 +144,7 @@ struct NameConfigView: View {
                 .onAppear {
                     name = gameRecord.name
                 }
-                .onChange(of: name) { _, newValue in
+                .onChange(of: name) { _, _ in
                     gameRecord.name = name
                 }
         }
@@ -217,7 +217,7 @@ struct RuleConfigView: View {
             .onAppear {
                 scoringRuleText = config.scoringRuleText
             }
-            .onChange(of: scoringRuleText) { _, newValue in
+            .onChange(of: scoringRuleText) { _, _ in
                 let rawValue = Config.scoringRules.firstIndex(of: scoringRuleText) ?? Config.defaultScoringRule
                 config.scoringRule = ScoringRule(rawValue: rawValue) ?? .area
                 messageList.appendAndSend(command: config.scoringRuleCommand)
@@ -232,7 +232,7 @@ struct RuleConfigView: View {
             .onAppear {
                 taxRuleText = config.taxRuleText
             }
-            .onChange(of: taxRuleText) { _, newValue in
+            .onChange(of: taxRuleText) { _, _ in
                 let rawValue = Config.taxRules.firstIndex(of: taxRuleText) ?? Config.defaultTaxRule
                 config.taxRule = TaxRule(rawValue: rawValue) ?? .none
                 messageList.appendAndSend(command: config.taxRuleCommand)
@@ -267,7 +267,7 @@ struct RuleConfigView: View {
             .onAppear {
                 whiteHandicapBonusRuleText = config.whiteHandicapBonusRuleText
             }
-            .onChange(of: whiteHandicapBonusRuleText) { _, newValue in
+            .onChange(of: whiteHandicapBonusRuleText) { _, _ in
                 let rawValue = Config.whiteHandicapBonusRules.firstIndex(of: whiteHandicapBonusRuleText) ?? Config.defaultWhiteHandicapBonusRule
                 config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
                 messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
@@ -429,7 +429,7 @@ struct ViewConfigView: View {
                 .onAppear {
                     showCoordinate = config.showCoordinate
                 }
-                .onChange(of: showCoordinate) { _, newValue in
+                .onChange(of: showCoordinate) { _, _ in
                     config.showCoordinate = showCoordinate
                 }
 
@@ -437,7 +437,7 @@ struct ViewConfigView: View {
                 .onAppear {
                     showPass = config.showPass
                 }
-                .onChange(of: showPass) { _, newValue in
+                .onChange(of: showPass) { _, _ in
                     config.showPass = showPass
                 }
 
@@ -445,7 +445,7 @@ struct ViewConfigView: View {
                 .onAppear {
                     verticalFlip = config.verticalFlip
                 }
-                .onChange(of: verticalFlip) { _, newValue in
+                .onChange(of: verticalFlip) { _, _ in
                     config.verticalFlip = verticalFlip
                 }
 
@@ -453,7 +453,7 @@ struct ViewConfigView: View {
                 .onAppear {
                     showCharts = config.showCharts
                 }
-                .onChange(of: showCharts) { _, newValue in
+                .onChange(of: showCharts) { _, _ in
                     config.showCharts = showCharts
                 }
 
@@ -583,7 +583,7 @@ struct CommentConfigView: View {
                 .onAppear {
                     useLLM = config.useLLM
                 }
-                .onChange(of: useLLM) { _, newValue in
+                .onChange(of: useLLM) { _, _ in
                     config.useLLM = useLLM
                 }
 
