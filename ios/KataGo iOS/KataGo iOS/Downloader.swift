@@ -41,9 +41,9 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         progress = 0.0
     }
 
-    nonisolated func urlSession(_ session: URLSession,
+    nonisolated func urlSession(_: URLSession,
                                 downloadTask: URLSessionDownloadTask,
-                                didWriteData bytesWritten: Int64,
+                                didWriteData _: Int64,
                                 totalBytesWritten: Int64,
                                 totalBytesExpectedToWrite: Int64) {
         Task {
@@ -53,7 +53,7 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    nonisolated func urlSession(_ session: URLSession,
+    nonisolated func urlSession(_: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didFinishDownloadingTo location: URL) {
         // Remove if exists
@@ -69,7 +69,7 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    nonisolated func urlSession(_ session: URLSession,
+    nonisolated func urlSession(_: URLSession,
                                 task: URLSessionTask,
                                 didCompleteWithError error: (any Error)?) {
         // This is called for both success (error == nil) and failure/cancel
