@@ -220,8 +220,7 @@ struct GameSplitView: View {
             gobanState.sendPostExecutionCommands(
                 config: gameRecord.concreteConfig,
                 messageList: messageList,
-                player: player,
-                gameRecord: gameRecord
+                player: player
             )
         } else {
             withAnimation {

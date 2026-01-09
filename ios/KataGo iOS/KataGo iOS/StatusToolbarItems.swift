@@ -181,8 +181,7 @@ struct StatusToolbarItems: View {
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: player.nextColorForPlayCommand,
-            messageList: messageList,
-            gameRecord: gameRecord
+            messageList: messageList
         )
     }
 

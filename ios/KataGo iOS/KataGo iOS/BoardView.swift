@@ -114,8 +114,7 @@ struct BoardView: View {
                 gobanState.maybeRequestAnalysis(
                     config: config,
                     nextColorForPlayCommand: player.nextColorForPlayCommand,
-                    messageList: messageList,
-                    gameRecord: gameRecord)
+                    messageList: messageList)
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
@@ -126,8 +125,7 @@ struct BoardView: View {
                     gobanState.maybeRequestAnalysis(
                         config: config,
                         nextColorForPlayCommand: newValue,
-                        messageList: messageList,
-                        gameRecord: gameRecord)
+                        messageList: messageList)
 
                     gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
                 }

@@ -63,8 +63,7 @@ class GobanState {
     func maybeRequestAnalysis(
         config: Config,
         nextColorForPlayCommand: PlayerColor?,
-        messageList: MessageList,
-        gameRecord: GameRecord
+        messageList: MessageList
     ) {
         if (shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)) {
             requestAnalysis(config: config,
@@ -75,14 +74,12 @@ class GobanState {
 
     func maybeRequestAnalysis(
         config: Config,
-        messageList: MessageList,
-        gameRecord: GameRecord
+        messageList: MessageList
     ) {
         return maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: nil,
-            messageList: messageList,
-            gameRecord: gameRecord)
+            messageList: messageList)
     }
 
     func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
@@ -127,16 +124,14 @@ class GobanState {
     func sendPostExecutionCommands(
         config: Config,
         messageList: MessageList,
-        player: Turn,
-        gameRecord: GameRecord
+        player: Turn
     ) {
         sendShowBoardCommand(messageList: messageList)
 
         maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: player.nextColorForPlayCommand,
-            messageList: messageList,
-            gameRecord: gameRecord
+            messageList: messageList
         )
 
         maybeRequestClearAnalysisData(config: config,
@@ -363,8 +358,7 @@ class GobanState {
         sendPostExecutionCommands(
             config: gameRecord.concreteConfig,
             messageList: messageList,
-            player: player,
-            gameRecord: gameRecord
+            player: player
         )
     }
 
@@ -423,8 +417,7 @@ class GobanState {
         sendPostExecutionCommands(
             config: gameRecord.concreteConfig,
             messageList: messageList,
-            player: player,
-            gameRecord: gameRecord
+            player: player
         )
     }
 
