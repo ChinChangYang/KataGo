@@ -418,15 +418,13 @@ struct KataGoModelTests {
     @Test func testGobanStateMaybeRequestAnalysis() async throws {
         let gobanState = GobanState()
         let config = Config()
-        let gameRecord = GameRecord(config: config)
 
         gobanState.analysisStatus = .run
 
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList(),
-            gameRecord: gameRecord
+            messageList: MessageList()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
@@ -435,15 +433,13 @@ struct KataGoModelTests {
     @Test func testGobanStateMaybeRequestAnalysisWhenShouldNotRequest() async throws {
         let gobanState = GobanState()
         let config = Config()
-        let gameRecord = GameRecord(config: config)
 
         gobanState.analysisStatus = .clear
 
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList(),
-            gameRecord: gameRecord
+            messageList: MessageList()
         )
 
         #expect(gobanState.waitingForAnalysis == false)
@@ -543,15 +539,13 @@ struct KataGoModelTests {
     @Test func testMaybeRequestAnalysisWithNextColor() async throws {
         let gobanState = GobanState()
         let config = Config()
-        let gameRecord = GameRecord(config: config)
 
         gobanState.analysisStatus = .run
 
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList(),
-            gameRecord: gameRecord
+            messageList: MessageList()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
@@ -560,14 +554,12 @@ struct KataGoModelTests {
     @Test func testMaybeRequestAnalysisWithoutNextColor() async throws {
         let gobanState = GobanState()
         let config = Config()
-        let gameRecord = GameRecord(config: config)
 
         gobanState.analysisStatus = .run
 
         gobanState.maybeRequestAnalysis(
             config: config,
-            messageList: MessageList(),
-            gameRecord: gameRecord
+            messageList: MessageList()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
