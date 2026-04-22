@@ -1,4 +1,19 @@
 cmake_minimum_required(VERSION 3.18.2)
+
+# Pre-project MLX setup: CMAKE_OSX_DEPLOYMENT_TARGET must be in effect before
+# project() so the toolchain probe picks up the correct SDK. Global
+# cmake_minimum_required stays at 3.18.2 so non-MLX backends keep building on
+# older CMake; the MLX path enforces 3.27 via the guard below.
+if(USE_BACKEND STREQUAL "MLX")
+  if(CMAKE_VERSION VERSION_LESS 3.27)
+    message(FATAL_ERROR "USE_BACKEND=MLX requires CMake 3.27 or newer. You have ${CMAKE_VERSION}. Install via: brew install cmake")
+  endif()
+  cmake_policy(VERSION 3.27)
+  if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS version (MLX requires >=13.3)" FORCE)
+  endif()
+endif()
+
 if(USE_BACKEND STREQUAL "METAL")
   project(katago LANGUAGES CXX Swift)
 else()
@@ -143,23 +158,51 @@ elseif(USE_BACKEND STREQUAL "EIGEN")
 elseif(USE_BACKEND STREQUAL "MLX")
   message(STATUS "-DUSE_BACKEND=MLX, using MLX backend for Apple Silicon.")
 
-  # MLX requires C++17 (already set) and CMake 3.27+
-  cmake_minimum_required(VERSION 3.27)
-
-  # Find MLX via Python or MLX_ROOT
-  if(NOT DEFINED MLX_ROOT)
-    find_package(Python 3.9 COMPONENTS Interpreter)
-    if(Python_FOUND)
-      execute_process(
-        COMMAND "${Python_EXECUTABLE}" -m mlx --cmake-dir
-        OUTPUT_VARIABLE MLX_ROOT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
+  if(NOT APPLE)
+    message(FATAL_ERROR "USE_BACKEND=MLX is only supported on macOS (Apple Silicon). Detected: ${CMAKE_SYSTEM_NAME}. Use USE_BACKEND=CUDA/TENSORRT/OPENCL/EIGEN instead.")
+  endif()
+  if(CMAKE_OSX_ARCHITECTURES)
+    if(NOT CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+      message(FATAL_ERROR "USE_BACKEND=MLX requires CMAKE_OSX_ARCHITECTURES=arm64 (single-arch). Got: ${CMAKE_OSX_ARCHITECTURES}. On Intel or universal builds, use USE_BACKEND=EIGEN or USE_BACKEND=METAL.")
     endif()
+  elseif(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    message(FATAL_ERROR "USE_BACKEND=MLX requires Apple Silicon (arm64). Detected processor: ${CMAKE_SYSTEM_PROCESSOR}. On Intel Macs, use USE_BACKEND=EIGEN or USE_BACKEND=METAL.")
   endif()
 
-  find_package(MLX CONFIG REQUIRED HINTS ${MLX_ROOT})
+  set(MLX_ROOT "" CACHE PATH "Optional path to MLX CMake package (for pip-only installs; leave empty to use CMake's default search, then fall back to 'python -m mlx --cmake-dir')")
+
+  if(MLX_ROOT)
+    find_package(MLX 0.18 CONFIG REQUIRED HINTS "${MLX_ROOT}")
+  else()
+    # Homebrew installs MLX's CMake config to /opt/homebrew/share/cmake/MLX/,
+    # which is on CMake's default search path — try that first.
+    find_package(MLX 0.18 CONFIG QUIET)
+    if(MLX_FOUND)
+      message(STATUS "Found MLX ${MLX_VERSION} at ${MLX_LIBRARY}")
+    else()
+      # Fallback for pip-only installs where CMake files ship inside the package dir.
+      find_package(Python 3.9 COMPONENTS Interpreter QUIET)
+      if(NOT Python_FOUND)
+        message(FATAL_ERROR "USE_BACKEND=MLX: MLX not found in CMake's default search paths and Python 3.9+ is unavailable to probe a pip install. Install via 'brew install mlx', 'pip install mlx', or pass -DMLX_ROOT=/path/to/mlx/cmake explicitly.")
+      endif()
+      execute_process(
+        COMMAND "${Python_EXECUTABLE}" -m mlx --cmake-dir
+        OUTPUT_VARIABLE MLX_ROOT_DETECTED
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE MLX_PY_RESULT
+        ERROR_VARIABLE MLX_PY_ERROR
+      )
+      if(NOT MLX_PY_RESULT EQUAL 0 OR MLX_ROOT_DETECTED STREQUAL "")
+        message(FATAL_ERROR
+          "USE_BACKEND=MLX: MLX not found in CMake's default search paths, and '${Python_EXECUTABLE} -m mlx --cmake-dir' also failed.\n"
+          "Install via:  brew install mlx   OR   ${Python_EXECUTABLE} -m pip install mlx\n"
+          "Or pass -DMLX_ROOT=/path/to/mlx/cmake explicitly.\n"
+          "Python stderr:\n${MLX_PY_ERROR}")
+      endif()
+      message(STATUS "MLX auto-detected via Python at: ${MLX_ROOT_DETECTED}")
+      find_package(MLX 0.18 CONFIG REQUIRED HINTS "${MLX_ROOT_DETECTED}")
+    endif()
+  endif()
 
   set(NEURALNET_BACKEND_SOURCES
     neuralnet/mlxbackend.cpp
