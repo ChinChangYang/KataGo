@@ -292,6 +292,12 @@ class GobanState {
                 stones: stones
             )
         } else if !isBranchActive {
+            if matchesNextRecordedMove(turn: turn, move: move, gameRecord: gameRecord, board: board) {
+                playMainlineStep(turn: turn, move: move, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
+                clearPendingMove()
+                return
+            }
+
             branchSgf = gameRecord.sgf
             branchIndex = gameRecord.currentIndex
         }
@@ -339,6 +345,11 @@ class GobanState {
                 stones: stones
             )
         } else if !isBranchActive {
+            if matchesNextRecordedMove(turn: turn, move: aiMove, gameRecord: gameRecord, board: board) {
+                playMainlineStep(turn: turn, move: aiMove, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
+                return
+            }
+
             branchSgf = gameRecord.sgf
             branchIndex = gameRecord.currentIndex
         }
@@ -434,6 +445,32 @@ class GobanState {
             messageList: messageList,
             player: player
         )
+    }
+
+    func matchesNextRecordedMove(turn: String, move: String, gameRecord: GameRecord, board: BoardSize) -> Bool {
+        guard let nextMove = getNextMove(gameRecord: gameRecord),
+              let nextMoveString = board.locationToMove(location: nextMove.location) else {
+            return false
+        }
+
+        let nextTurn = nextMove.player == Player.black ? "b" : "w"
+        return nextMoveString == move && nextTurn == turn
+    }
+
+    func playMainlineStep(
+        turn: String,
+        move: String,
+        gameRecord: GameRecord,
+        stones: Stones,
+        messageList: MessageList,
+        player: Turn,
+        audioModel: AudioModel
+    ) {
+        play(turn: turn, move: move, messageList: messageList, stones: stones)
+        player.toggleNextColorForPlayCommand()
+        gameRecord.currentIndex += 1
+        sendShowBoardCommand(messageList: messageList)
+        audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
     func getNextMove(gameRecord: GameRecord) -> Move? {
