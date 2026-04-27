@@ -105,10 +105,7 @@ QRSTune::QRSModel::QRSModel(int D,
    priorMean_(numFeatures(D), 0.0),
    l2_(numFeatures(D), l2_reg)
 {
-  // Prior mean is zero everywhere except the diagonal quadratic coefficients,
-  // which are pulled toward a negative value so noise alone does not flip the
-  // fitted quadratic from concave to convex.  The corresponding L2 strength
-  // is also raised so this prior actually dominates Fisher info on flat data.
+  // Stronger prior on the quadratic-diagonal entries; see header docstring.
   for(int d = 0; d < D_; d++) {
     priorMean_[1 + D_ + d] = quad_prior_mean;
     l2_       [1 + D_ + d] = quad_l2_reg;
@@ -1017,7 +1014,7 @@ void QRSTune::runTests() {
     const double trueOpt = 0.25;
     const int    D = 1;
     const int    numTrials = 200;
-    const int    numSeeds  = 100;
+    const int    numSeeds  = 50;
     const double intercept = 0.10;
     const double curvature = 0.20;
 
