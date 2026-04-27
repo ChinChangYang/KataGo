@@ -90,15 +90,30 @@ bool QRSTune::gaussianSolve(int F, vector<vector<double>>& A, vector<double>& b)
 QRSTune::QRSModel::QRSModel()
   :D_(0),
    F_(0),
-   l2_(0.1)
+   beta_(),
+   priorMean_(),
+   l2_()
 {}
 
-QRSTune::QRSModel::QRSModel(int D, double l2_reg)
+QRSTune::QRSModel::QRSModel(int D,
+                            double l2_reg,
+                            double quad_prior_mean,
+                            double quad_l2_reg)
   :D_(D),
    F_(numFeatures(D)),
    beta_(numFeatures(D), 0.0),
-   l2_(l2_reg)
-{}
+   priorMean_(numFeatures(D), 0.0),
+   l2_(numFeatures(D), l2_reg)
+{
+  // Prior mean is zero everywhere except the diagonal quadratic coefficients,
+  // which are pulled toward a negative value so noise alone does not flip the
+  // fitted quadratic from concave to convex.  The corresponding L2 strength
+  // is also raised so this prior actually dominates Fisher info on flat data.
+  for(int d = 0; d < D_; d++) {
+    priorMean_[1 + D_ + d] = quad_prior_mean;
+    l2_       [1 + D_ + d] = quad_l2_reg;
+  }
+}
 
 // Build the negative Hessian (Fisher info + L2 prior) at current beta.
 // negH must be pre-sized to F_ x F_; contents are overwritten.
@@ -107,7 +122,7 @@ void QRSTune::QRSModel::buildNegHessian(const vector<vector<double>>& xs,
   int N = (int)xs.size();
   for(int f = 0; f < F_; f++) fill(negH[f].begin(), negH[f].end(), 0.0);
   for(int f = 0; f < F_; f++)
-    negH[f][f] = l2_;
+    negH[f][f] = l2_[f];
 
   vector<double> phi(F_);
   for(int n = 0; n < N; n++) {
@@ -166,19 +181,22 @@ void QRSTune::QRSModel::fit(const vector<vector<double>>& xs,
   // Reset to prior mean to avoid warm-start saturation cascade: a
   // previously-extreme intercept makes w = p*(1-p) ≈ 0 for all samples,
   // degenerating the Hessian to l2_*I and producing unbounded Newton steps.
-  fill(beta_.begin(), beta_.end(), 0.0);
+  beta_ = priorMean_;
 
   vector<double> phi(F_);
   vector<double> grad(F_);
   vector<vector<double>> negH(F_, vector<double>(F_));
 
   for(int iter = 0; iter < max_iter; iter++) {
-    // Build negH and compute gradient simultaneously
+    // Build negH and compute gradient simultaneously.
+    // Prior is independent N(priorMean_[f], l2_[f]^-1) per feature: grad
+    // contribution -l2_[f]*(beta[f] - mean[f]), negative-Hessian diagonal
+    // contribution l2_[f].
     fill(grad.begin(), grad.end(), 0.0);
     for(int f = 0; f < F_; f++) fill(negH[f].begin(), negH[f].end(), 0.0);
     for(int f = 0; f < F_; f++) {
-      grad[f] = -l2_ * beta_[f];
-      negH[f][f] = l2_;
+      grad[f] = -l2_[f] * (beta_[f] - priorMean_[f]);
+      negH[f][f] = l2_[f];
     }
 
     for(int n = 0; n < N; n++) {
@@ -330,10 +348,14 @@ bool QRSTune::QRSModel::computeOptimumSE(const vector<vector<double>>& xs,
       idx++;
     }
 
-  // Clamped dims: x*[d] is at boundary, so dx*_d/dbeta = 0
-  for(int d = 0; d < D_; d++)
-    if(clamped[d])
-      fill(J[d].begin(), J[d].end(), 0.0);
+  // Note: we do NOT zero out the Jacobian rows for clamped dims.  Doing so
+  // would model the clamped value as a known constant (SE = 0), producing a
+  // degenerate point CI that almost never covers the truth on flat
+  // landscapes -- which is exactly the regime where clamping is most common.
+  // The quantity we report is the SE of the *unconstrained* optimum
+  // x*_d = -b_lin_d / (2 b_quad_d), whose uncertainty stays informative even
+  // when the point estimate sits at the boundary.  The clamped[d] flag is
+  // still returned so callers can label the result.
 
   // --- Step 5: Cov(x*) = J Cov(beta) J^T ---
   vector<vector<double>> temp(D_, vector<double>(F_, 0.0));
@@ -407,9 +429,10 @@ void QRSTune::QRSBuffer::prune(const QRSModel& model) {
 
 QRSTune::QRSTuner::QRSTuner(int D, uint64_t seed, int total_trials,
                              double l2_reg, int refit_every, int prune_every,
-                             double sigma_init, double sigma_fin)
+                             double sigma_init, double sigma_fin,
+                             double quad_prior_mean, double quad_l2_reg)
   :D_(D),
-   model_(D, l2_reg),
+   model_(D, l2_reg, quad_prior_mean, quad_l2_reg),
    buffer_(max(20, total_trials / 50), 0.25),
    rng_(seed),
    trial_count_(0),
@@ -980,5 +1003,64 @@ void QRSTune::runTests() {
       testAssert(large.dist < 0.50);
       testAssert(large.winProb > 0.48);
     }
+  }
+
+  // Very-flat x 200-trial coverage scan (1D, 100 seeds).
+  //
+  //   landscape: score = 0.10 - 0.20 * (x - trueOpt)^2,  peak winrate ~0.525
+  //
+  // Pre-fix baseline: ~40% of seeds end with a non-concave fit (mapOptimum
+  // silently falls back to the prior centre), and the reported 95% CI covers
+  // the true optimum only ~50% of the time -- well below the nominal 95%.
+  // Post-fix targets: <=10% non-concave fits, >=85% CI coverage.
+  {
+    const double trueOpt = 0.25;
+    const int    D = 1;
+    const int    numTrials = 200;
+    const int    numSeeds  = 100;
+    const double intercept = 0.10;
+    const double curvature = 0.20;
+
+    int convexCount = 0;
+    int coverCount  = 0;
+    int ciCount     = 0;
+    uniform_real_distribution<double> uni01(0.0, 1.0);
+
+    for(uint64_t seed = 0; seed < (uint64_t)numSeeds; seed++) {
+      mt19937_64 outcomeRng(seed * 100003 + 7);
+      QRSTuner tuner(D, /*seed=*/seed, numTrials,
+                     /*l2_reg=*/0.1, /*refit_every=*/10, /*prune_every=*/5,
+                     /*sigma_init=*/0.40, /*sigma_fin=*/0.05);
+      for(int trial = 0; trial < numTrials; trial++) {
+        vector<double> sample = tuner.nextSample();
+        double dx = sample[0] - trueOpt;
+        double winProb = sigmoid(intercept - curvature * dx * dx);
+        double outcome = (uni01(outcomeRng) < winProb) ? 1.0 : 0.0;
+        tuner.addResult(sample, outcome);
+      }
+      if(tuner.model().hasConvexDim()) convexCount++;
+
+      double se[1];
+      bool clamped[1];
+      bool seOk = tuner.model().computeOptimumSE(tuner.buffer().xs(), se, clamped);
+      if(seOk) {
+        ciCount++;
+        double best = tuner.bestCoords()[0];
+        double lo = best - 1.96 * se[0];
+        double hi = best + 1.96 * se[0];
+        if(trueOpt >= lo && trueOpt <= hi) coverCount++;
+      }
+    }
+
+    double convexFrac   = (double)convexCount / numSeeds;
+    double coverageFrac = ciCount > 0 ? (double)coverCount / ciCount : 0.0;
+    cout << "Very-flat x200 coverage scan over " << numSeeds << " seeds:" << endl;
+    cout << "  non-concave fits = " << convexCount << "/" << numSeeds
+         << "  (" << (100.0 * convexFrac) << "%)" << endl;
+    cout << "  95% CI covers truth = " << coverCount << "/" << ciCount
+         << "  (" << (100.0 * coverageFrac) << "% of seeds with CIs)" << endl;
+
+    testAssert(convexFrac   <= 0.10);
+    testAssert(coverageFrac >= 0.85);
   }
 }

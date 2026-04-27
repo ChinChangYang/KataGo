@@ -388,10 +388,15 @@ int MainCmds::tuneparams(const vector<string>& args) {
     double ciLo[nDims], ciHi[nDims];
     bool clampedDims[nDims];
     bool hasCIs = computeParamCIs(tuner, vBest, qrsMins, qrsMaxs, ciLo, ciHi, clampedDims);
+    bool isFallback = tuner.model().bestIsPriorFallback();
 
     for(int d = 0; d < nDims; d++) {
       double bestReal = qrsDimToReal(d, vBest[d], qrsMins, qrsMaxs);
-      if(hasCIs) {
+      if(isFallback) {
+        logger.write(Global::strprintf(
+          "Best %-25s = %.4f  [PRIOR FALLBACK - data was uninformative]",
+          tuneDims[d].name, bestReal));
+      } else if(hasCIs) {
         string warn = clampedDims[d] ? "  [boundary - CI may be unreliable]" : "";
         logger.write(Global::strprintf("Best %-25s = %.4f  95%%CI [%.4f, %.4f]%s",
           tuneDims[d].name, bestReal, ciLo[d], ciHi[d], warn.c_str()));

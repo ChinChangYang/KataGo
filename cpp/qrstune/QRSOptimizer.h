@@ -34,8 +34,9 @@ bool gaussianSolve(int F, std::vector<std::vector<double>>& A, std::vector<doubl
 // ============================================================
 class QRSModel {
   int D_, F_;
-  std::vector<double> beta_;   // F coefficients (intercept, linear, quad, cross)
-  double l2_;                  // L2 regularization strength
+  std::vector<double> beta_;       // F coefficients (intercept, linear, quad, cross)
+  std::vector<double> priorMean_;  // F-length prior mean for the L2 penalty
+  std::vector<double> l2_;         // F-length per-feature L2 strength
 
   // Build the negative Hessian (Fisher info + L2 prior) at current beta.
   void buildNegHessian(const std::vector<std::vector<double>>& xs,
@@ -47,7 +48,20 @@ class QRSModel {
 
  public:
   QRSModel();
-  QRSModel(int D, double l2_reg = 0.1);
+  // l2_reg          : L2 regularization strength applied to all coefficients
+  //                   except the diagonal quadratic ones.
+  // quad_prior_mean : prior mean for the diagonal quadratic coefficients.
+  //                   A small negative value keeps the fit concave on flat
+  //                   landscapes where the data carries no curvature signal,
+  //                   preventing a silent fallback to the prior centre.
+  // quad_l2_reg     : L2 strength on the diagonal quadratic coefficients.
+  //                   Larger than l2_reg: the prior on curvature has to be
+  //                   strong enough to dominate Fisher info on flat data, so
+  //                   the fit does not flip to convex from noise alone.
+  QRSModel(int D,
+           double l2_reg = 0.1,
+           double quad_prior_mean = -0.5,
+           double quad_l2_reg = 2.0);
 
   // Newton-Raphson MAP estimation.
   // xs: sample coordinates; ys: outcomes in {0.0, 0.5, 1.0}
@@ -72,6 +86,11 @@ class QRSModel {
   // Returns true if any fitted quadratic coefficient is non-negative (convex),
   // indicating the fit is unreliable due to noise.
   bool hasConvexDim() const;
+
+  // True iff bestCoords()/mapOptimum() will return the prior centre because
+  // the fit is convex in some dimension.  Use this to label the result as a
+  // fallback in user-facing output instead of printing it as a real estimate.
+  bool bestIsPriorFallback() const { return hasConvexDim(); }
 
   int dims()     const { return D_; }
   int features() const { return F_; }
@@ -154,7 +173,9 @@ class QRSTuner {
            int refit_every   = 10,
            int prune_every   = 5,
            double sigma_init = 0.40,
-           double sigma_fin  = 0.05);
+           double sigma_fin  = 0.05,
+           double quad_prior_mean = -0.5,
+           double quad_l2_reg     = 2.0);
 
   // Propose next point to evaluate.
   // During early exploration (< F+1 samples) or when the model has convex
