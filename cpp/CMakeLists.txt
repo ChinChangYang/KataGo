@@ -320,6 +320,7 @@ add_executable(katago
   command/gtp.cpp
   command/match.cpp
   command/tuneparams.cpp
+  command/analyzeqrs.cpp
   command/misc.cpp
   command/runtests.cpp
   command/sandbox.cpp

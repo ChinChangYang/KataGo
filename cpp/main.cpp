@@ -34,6 +34,7 @@ contribute : Connect to online distributed KataGo training and run perpetually c
 
 match : Run self-play match games based on a config, more efficient than gtp due to batching.
 tune-params : Tune KataGo PUCT hyperparameters via sequential optimization (QRS-Tune).
+analyze-qrs : Synthetic 1-D benchmark of QRS-Tune vs Grid+BT and Random+BT baselines.
 version : Print version and exit.
 
 analysis : Runs an engine designed to analyze entire games in parallel.
@@ -90,6 +91,8 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::match(subArgs);
   else if(subcommand == "tune-params")
     return MainCmds::tuneparams(subArgs);
+  else if(subcommand == "analyze-qrs")
+    return MainCmds::analyzeqrs(subArgs);
   else if(subcommand == "selfplay")
     return MainCmds::selfplay(subArgs);
   else if(subcommand == "testgpuerror")
