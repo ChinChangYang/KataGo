@@ -211,4 +211,18 @@ struct PrecompileSchedulerTests {
 
         #expect(await scheduler.status["a.bin.gz"] == nil)
     }
+
+    @MainActor
+    @Test func cancelAllPendingPreservesCachedReady() async throws {
+        let scheduler = PrecompileScheduler(worker: { _ in })
+        scheduler._setCachedReadyForTests(["a.bin.gz"])
+        scheduler._setEphemeralForTests(["b.bin.gz": .compiling])
+
+        scheduler.cancelAllPending()
+
+        // cachedReady survives — compiled entries on disk are still valid.
+        #expect(scheduler.status["a.bin.gz"] == .ready)
+        // Ephemeral state is cleared.
+        #expect(scheduler.status["b.bin.gz"] == nil)
+    }
 }
