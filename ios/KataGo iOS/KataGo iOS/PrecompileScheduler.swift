@@ -30,6 +30,8 @@ public final class PrecompileScheduler {
 
     private let defaults: UserDefaults
     private let worker: Worker
+    private let cache: CoreMLModelCache?
+    private let digestFor: ((String) async throws -> String?)?
     private var inFlight: Set<String> = []
     private var ephemeral: [String: PrecompileStatus] = [:]
     private var cachedReady: Set<String> = []
@@ -47,6 +49,20 @@ public final class PrecompileScheduler {
     public init(defaults: UserDefaults = .standard, worker: @escaping Worker) {
         self.defaults = defaults
         self.worker = worker
+        self.cache = nil
+        self.digestFor = nil
+    }
+
+    public init(
+        defaults: UserDefaults = .standard,
+        worker: @escaping Worker,
+        cache: CoreMLModelCache,
+        digestFor: @escaping (String) async throws -> String?
+    ) {
+        self.defaults = defaults
+        self.worker = worker
+        self.cache = cache
+        self.digestFor = digestFor
     }
 
     /// Enqueue a precompile for the named model. Backend-skipped if the
@@ -66,11 +82,8 @@ public final class PrecompileScheduler {
             self.ephemeral[fileName] = .compiling
             do {
                 try await self.worker(fileName)
-                // Behavior change in Task 10: cachedReady refresh.
-                // For now keep the original semantics so this task does
-                // not regress views.
                 self.ephemeral[fileName] = nil
-                self.cachedReady.insert(fileName)
+                await self.refreshCachedReady(for: fileName)
             } catch {
                 let summary = (error as NSError).localizedDescription
                 log.error("precompile.failed model=\(fileName, privacy: .public) error=\(String(describing: error), privacy: .public)")
@@ -85,6 +98,28 @@ public final class PrecompileScheduler {
     /// backend-guard applies here too.
     public func scheduleBuiltIn() async {
         await scheduleForModel(fileName: "default_model.bin.gz")
+    }
+
+    private func refreshCachedReady(for fileName: String) async {
+        guard let cache, let digestFor else {
+            // Legacy init path: preserve original unconditional-insert
+            // semantics so older tests don't regress.
+            cachedReady.insert(fileName)
+            return
+        }
+        do {
+            guard let digest = try await digestFor(fileName) else {
+                cachedReady.remove(fileName); return
+            }
+            if await cache.hasEntry(digest: digest) {
+                cachedReady.insert(fileName)
+            } else {
+                cachedReady.remove(fileName)
+            }
+        } catch {
+            log.info("refreshCachedReady.digestFailed fileName=\(fileName, privacy: .public) error=\(String(describing: error), privacy: .public)")
+            cachedReady.remove(fileName)
+        }
     }
 
     /// Replace cachedReady with the subset of `fileNames` whose projected

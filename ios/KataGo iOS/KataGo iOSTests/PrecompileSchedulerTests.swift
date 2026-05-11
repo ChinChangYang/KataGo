@@ -145,6 +145,54 @@ struct PrecompileSchedulerTests {
         #expect(await scheduler.status["a.bin.gz"] == nil)
     }
 
+    @MainActor
+    @Test func workerSuccessReflectsCacheState() async throws {
+        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = CoreMLModelCache(cacheRoot: root)
+        await cache.ensureCacheTreeExistsForTests()
+
+        // Pre-install the digest the worker is supposed to warm.
+        let pinned = try await cache.urlForKey(digest: "real-digest", missCallback: {
+            let u = URL.temporaryDirectory.appendingPathComponent("\(UUID()).mlmodelc")
+            try FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: u.appendingPathComponent("coremldata.bin"))
+            return u
+        })
+        await pinned.release()
+
+        let scheduler = PrecompileScheduler(
+            worker: { _ in /* simulate successful warm */ },
+            cache: cache,
+            digestFor: { fileName in
+                fileName == "real.bin.gz" ? "real-digest" : nil
+            })
+        UserDefaults.standard.set("coremlNE", forKey: "backend_real.bin.gz")
+
+        await scheduler.scheduleForModel(fileName: "real.bin.gz")
+
+        // Poll until the worker completes or a 500ms deadline elapses.
+        let deadline1 = ContinuousClock.now + .milliseconds(500)
+        while scheduler.status["real.bin.gz"] != .ready && ContinuousClock.now < deadline1 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(scheduler.status["real.bin.gz"] == .ready)
+
+        // Worker for a fileName the cache does not contain leaves cachedReady untouched.
+        UserDefaults.standard.set("coremlNE", forKey: "backend_ghost.bin.gz")
+        await scheduler.scheduleForModel(fileName: "ghost.bin.gz")
+
+        let deadline2 = ContinuousClock.now + .milliseconds(500)
+        while (scheduler.status["ghost.bin.gz"] == .compiling
+               || scheduler.status["ghost.bin.gz"] == .queued)
+              && ContinuousClock.now < deadline2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(scheduler.status["ghost.bin.gz"] == nil)
+
+        UserDefaults.standard.removeObject(forKey: "backend_real.bin.gz")
+        UserDefaults.standard.removeObject(forKey: "backend_ghost.bin.gz")
+    }
+
     @Test func hydrateRemovesEvictedEntriesInsideFileNamesSet() async throws {
         let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let cache = CoreMLModelCache(cacheRoot: root)
