@@ -177,6 +177,9 @@ public final class PrecompileScheduler {
             for await _ in stream {
                 guard let self else { return }
                 await self.hydrate(from: cache, fileNames: fileNames, digestFor: digestFor)
+#if DEBUG
+                self._fireHydrateTickForTests()
+#endif
             }
         }
     }
@@ -201,6 +204,21 @@ public final class PrecompileScheduler {
     }
     func _setCachedReadyForTests(_ set: Set<String>) {
         cachedReady = set
+    }
+
+    private var _hydrateTickContinuations: [AsyncStream<Void>.Continuation] = []
+
+    /// Emits one element each time the cache-event consumer finishes a
+    /// hydrate pass. Lets tests await a tick deterministically instead of
+    /// polling against a wall-clock deadline.
+    func _hydrateTickStreamForTests() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            _hydrateTickContinuations.append(continuation)
+        }
+    }
+
+    func _fireHydrateTickForTests() {
+        for c in _hydrateTickContinuations { c.yield() }
     }
 #endif
 }

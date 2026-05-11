@@ -123,6 +123,10 @@ struct PrecompileSchedulerTests {
         let scheduler = await PrecompileScheduler(worker: { _ in })
         await scheduler._setCachedReadyForTests(["a.bin.gz"])  // stale
 
+        // Install the tick observer before subscribing so we never miss
+        // the first hydrate that follows clearAll().
+        var ticks = await scheduler._hydrateTickStreamForTests().makeAsyncIterator()
+
         let knownFileNames: Set<String> = ["a.bin.gz"]
         await scheduler.subscribeToCacheEvents(
             cache,
@@ -133,14 +137,10 @@ struct PrecompileSchedulerTests {
         // the digest is not in the cache.
         await cache.clearAll()
 
-        // Poll until the subscription processes the tick or a 500ms deadline
-        // elapses. Replaces a flat 50ms sleep that was tight against the
-        // two-actor-hop path (consumer task -> MainActor hydrate -> cache
-        // actor hasEntry) on busy CI agents.
-        let deadline = ContinuousClock.now + .milliseconds(500)
-        while await scheduler.status["a.bin.gz"] != nil && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        // Deterministic wait: resume only after the consumer task has
+        // finished one hydrate pass. Replaces a 500ms wall-clock poll
+        // that flaked under Xcode Cloud load.
+        _ = await ticks.next()
 
         #expect(await scheduler.status["a.bin.gz"] == nil)
     }
