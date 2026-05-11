@@ -440,4 +440,65 @@ struct CoreMLModelCacheTests {
 
         #expect(projected == key.digest)
     }
+
+    @Test func warmInstallsEntryAndReleasesPin() async throws {
+        let tmpFile = URL.temporaryDirectory.appendingPathComponent("\(UUID()).bin.gz")
+        try Data("warm-src".utf8).write(to: tmpFile)
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        actor Counter { var n = 0; func inc() { n += 1 }; func get() -> Int { n } }
+        let compiled = Counter()
+        try await cache.warm(
+            forSourcePath: tmpFile.path,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            sourceFileName: "warm.bin.gz",
+            downloadedHasher: { _ in "stub-hash" },
+            missCallback: {
+                await compiled.inc()
+                let u = URL.temporaryDirectory.appendingPathComponent("\(UUID()).mlmodelc")
+                try FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+                try Data("c".utf8).write(to: u.appendingPathComponent("coremldata.bin"))
+                return u
+            })
+        #expect(await compiled.get() == 1)
+
+        // Calling warm again must hit the cache (no second compile).
+        try await cache.warm(
+            forSourcePath: tmpFile.path,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            sourceFileName: "warm.bin.gz",
+            downloadedHasher: { _ in "stub-hash" },
+            missCallback: {
+                Issue.record("missCallback should not run on second warm")
+                throw CancellationError()
+            })
+        #expect(await compiled.get() == 1)
+
+        // Pin must not survive — clearAll relies on no live pins to fully wipe.
+        await cache.clearAll()
+        let stats = await cache.statsByCategory()
+        #expect(stats.main.count == 0)
+        #expect(stats.auxiliary.count == 0)
+    }
+
+    @Test func warmIsNoOpWhenSourceFileMissing() async throws {
+        let missing = URL.temporaryDirectory.appendingPathComponent("does-not-exist-\(UUID()).bin.gz").path
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        try await cache.warm(
+            forSourcePath: missing,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            sourceFileName: nil,
+            downloadedHasher: { _ in "stub" },
+            missCallback: {
+                Issue.record("missCallback should not run when file missing")
+                throw CancellationError()
+            })
+        // No throw; nothing installed.
+    }
 }

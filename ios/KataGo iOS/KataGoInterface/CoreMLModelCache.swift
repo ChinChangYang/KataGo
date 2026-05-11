@@ -805,6 +805,39 @@ extension CoreMLModelCache {
             downloadedHasher: downloadedHasher)
         return key.digest
     }
+
+    /// Compute the projected digest and warm the cache. On miss, the
+    /// provided callback is invoked exactly once and the resulting
+    /// `.mlmodelc` is committed via the standard install path. On hit,
+    /// nothing runs. Either way the pin is released immediately because
+    /// `warm` has no consumer for the URL; the on-disk entry persists.
+    ///
+    /// Returns early without throwing if the source file is missing
+    /// (mirrors `projectedDigest`'s nil case — pre-download is not an
+    /// error).
+    public func warm(
+        forSourcePath sourcePath: String,
+        nnXLen: Int32, nnYLen: Int32,
+        requireExactNNLen: Bool, useFP16: Bool, maxBatchSize: Int,
+        sourceFileName: String?,
+        downloadedHasher: @Sendable @escaping (URL) async throws -> String,
+        missCallback: @Sendable @escaping () async throws -> URL
+    ) async throws {
+        guard let digest = try await Self.projectedDigest(
+            forSourcePath: sourcePath,
+            nnXLen: nnXLen, nnYLen: nnYLen,
+            requireExactNNLen: requireExactNNLen,
+            useFP16: useFP16, maxBatchSize: maxBatchSize,
+            downloadedHasher: downloadedHasher)
+        else { return }
+
+        let pinned = try await urlForKey(
+            digest: digest,
+            priority: .utility,
+            sourceFileName: sourceFileName,
+            missCallback: missCallback)
+        await pinned.release()
+    }
 }
 
 // MARK: - Shared singleton + startup
