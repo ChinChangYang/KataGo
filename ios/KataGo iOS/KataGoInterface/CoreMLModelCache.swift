@@ -262,6 +262,15 @@ extension CoreMLModelCache {
         return (epochURL(key), entry.epoch)
     }
 
+    /// Index-only lookup. Returns true iff a non-tombstoned entry exists
+    /// for `digest` in memory. No I/O. Used by `PrecompileScheduler`'s
+    /// `cachedReady` projection.
+    public func hasEntry(digest: String) -> Bool {
+        guard let entry = entries[digest] else { return false }
+        let key = DigestEpoch(digest: digest, epoch: entry.epoch)
+        return !tombstones.contains(key)
+    }
+
     /// Resolve a (digest, epoch) pair to its on-disk `.mlmodelc/` URL.
     /// Used by both lookup and the atomic-write protocol's commit step.
     ///

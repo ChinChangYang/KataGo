@@ -326,4 +326,26 @@ struct CoreMLModelCacheTests {
         let hit = try #require(await cache.lookupOnDiskForTests(digest: digest))
         #expect(hit.epoch == epoch)
     }
+
+    @Test func hasEntryReturnsFalseForUnknownDigest() async throws {
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+        #expect(await cache.hasEntry(digest: "unknown") == false)
+    }
+
+    @Test func hasEntryReturnsTrueAfterInstall() async throws {
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        let pinned = try await cache.urlForKey(digest: "abc123", missCallback: {
+            let u = URL.temporaryDirectory.appendingPathComponent("\(UUID()).mlmodelc")
+            try FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: u.appendingPathComponent("coremldata.bin"))
+            return u
+        })
+        await pinned.release()
+
+        #expect(await cache.hasEntry(digest: "abc123") == true)
+        #expect(await cache.hasEntry(digest: "missing") == false)
+    }
 }
