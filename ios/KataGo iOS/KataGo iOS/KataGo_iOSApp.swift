@@ -113,14 +113,30 @@ struct KataGo_iOSApp: App {
     }
 }
 
-// MARK: - PrecompileScheduler worker (Tasks 20/21)
+// MARK: - PrecompileScheduler worker
 
-/// Placeholder worker for `PrecompileScheduler`. Sleeps briefly so that
-/// badge UI transitions through .queued → .compiling → .ready are
-/// observable. The full bridge call (Task 19) needs channel counts that
-/// come from the C++ LoadedModel descriptor and will be wired in a
-/// follow-up task.
+/// Real precompile worker. Resolves projection inputs from the named
+/// model's persisted BackendSettings, then asks CoreMLModelCache.warm
+/// to compute the digest and either hit the cache or invoke the same
+/// converter the engine launch uses.
 @MainActor
 private func runPrecompileWorker(fileName: String) async throws {
-    try await Task.sleep(for: .seconds(1))
+    guard let inputs = makeProjectionResolver()(fileName) else { return }
+    try await CoreMLModelCache.shared.warm(
+        forSourcePath: inputs.sourcePath,
+        nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
+        requireExactNNLen: inputs.requireExactNNLen,
+        useFP16: inputs.useFP16,
+        maxBatchSize: inputs.maxBatchSize,
+        sourceFileName: fileName,
+        downloadedHasher: BinFileHasher.shared.identityForDownloadedFile,
+        missCallback: {
+            return try await convertOnCooperativePool(
+                coremlModelPath: inputs.sourcePath,
+                boardX: inputs.nnXLen, boardY: inputs.nnYLen,
+                useFP16: inputs.useFP16,
+                optimizeMask: inputs.requireExactNNLen,
+                maxBatchSize: Int32(inputs.maxBatchSize),
+                serverThreadIdx: 0)
+        })
 }
