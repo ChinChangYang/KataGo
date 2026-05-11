@@ -487,6 +487,7 @@
 		E18F3E182A51466C00D335E1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E172A51466C00D335E1 /* Preview Assets.xcassets */; };
 		E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */; };
 		AABBCCDD2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */; };
+		AABBCCE02A51466C00D335E1 /* CacheEmptySweepFooterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDF2A51466C00D335E1 /* CacheEmptySweepFooterUITests.swift */; };
 		E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */; };
 		E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
 		E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
@@ -1086,6 +1087,7 @@
 		E18F3E272A51466C00D335E1 /* KataGo AnytimeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "KataGo AnytimeUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITests.swift; sourceTree = "<group>"; };
 		AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterUITests.swift; sourceTree = "<group>"; };
+		AABBCCDF2A51466C00D335E1 /* CacheEmptySweepFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheEmptySweepFooterUITests.swift; sourceTree = "<group>"; };
 		E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		E18F3F712A5149AB00D335E1 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		E18F3F742A514B9700D335E1 /* default_model.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = default_model.bin.gz; sourceTree = "<group>"; };
@@ -1951,6 +1953,7 @@
 				E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */,
 				E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */,
 				AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */,
+				AABBCCDF2A51466C00D335E1 /* CacheEmptySweepFooterUITests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -2819,6 +2822,7 @@
 				E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */,
 				E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */,
 				AABBCCDD2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift in Sources */,
+				AABBCCE02A51466C00D335E1 /* CacheEmptySweepFooterUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
