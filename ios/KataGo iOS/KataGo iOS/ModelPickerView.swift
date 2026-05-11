@@ -32,6 +32,7 @@ struct ModelTrashButton: View {
         } label: {
             Image(systemName: "trash")
         }
+        .accessibilityIdentifier("ModelDetailView.trashButton")
         .confirmationDialog(
             "Are you sure you want to remove this model? You may need to download it again.",
             isPresented: $isConfirming,

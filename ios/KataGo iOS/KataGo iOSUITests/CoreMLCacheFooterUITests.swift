@@ -39,14 +39,11 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(afterStep1.contains("1 of 8"),
                       "Step 1: expected footer to read '1 of 8', was: '\(afterStep1)'")
 
-        // ----- Step 2: download Lionffen, launch it, return, expect "2 of 8" -----
+        // ----- Step 2: download Lionffen (if needed), launch it, return,
+        // expect "2 of 8" -----
 
         tapModelRow(in: app, title: lionffenTitle)
-        // ModelDetailView's button starts as download (arrow.down).
-        tapDownloadOrPlay(in: app)
-        waitForDownloadComplete(in: app, timeout: 180)
-        // Same button is now play.fill — tap again to launch.
-        tapDownloadOrPlay(in: app)
+        ensureDownloadedThenPlay(in: app)
         waitForEngineThenQuit(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
@@ -71,32 +68,59 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         button.tap()
     }
 
-    /// Waits for the download-in-progress button to revert to play.fill.
-    /// The button's identifier is stable; SwiftUI's symbol changes from
-    /// stop.circle → play.fill when downloading completes.
-    private func waitForDownloadComplete(in app: XCUIApplication, timeout: TimeInterval) {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if app.images["play.fill"].exists { return }
-            Thread.sleep(forTimeInterval: 1.0)
+    /// Handles both "needs to download" and "already downloaded" starting
+    /// states for a non-built-in model on ModelDetailView. On entry the trash
+    /// button's presence indicates whether the file is already on disk:
+    /// - trash visible → tap play (single tap launches the engine)
+    /// - trash absent  → tap download, wait for trash, tap play again
+    private func ensureDownloadedThenPlay(in app: XCUIApplication,
+                                          downloadTimeout: TimeInterval = 180) {
+        let trash = app.buttons["ModelDetailView.trashButton"]
+        if !trash.exists {
+            tapDownloadOrPlay(in: app)
+            XCTAssertTrue(trash.waitForExistence(timeout: downloadTimeout),
+                          "Download did not complete within \(downloadTimeout)s")
         }
-        XCTFail("Download did not complete within \(timeout)s")
+        tapDownloadOrPlay(in: app)
     }
 
-    /// After tapping play, the engine launches and the Quit toolbar button
-    /// appears once the goban view loads. Tap Quit + confirm to return.
+    /// After tapping play, the engine launches and the goban (GameSplitView)
+    /// appears. On iPhone (compact), NavigationSplitView collapses to a
+    /// navigation stack with the sidebar as the root and the goban pushed
+    /// on top. The Quit button lives in the sidebar's toolbar (GameListToolbar)
+    /// — reach it by tapping the navigation-bar leading button to pop back
+    /// to the sidebar, then tap Quit and confirm.
     private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
-        let quit = app.buttons["Quit"]
-        XCTAssertTrue(quit.waitForExistence(timeout: 120),
-                      "Quit button did not appear after launching \(label) engine")
-        quit.tap()
+        // First: wait for the goban detail to appear. The "Lock" toolbar
+        // button is the most reliable signal that GameSplitView is on screen.
+        let lockButton = app.buttons["Lock"]
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
+                      "Goban (Lock button) did not appear after launching \(label) engine")
 
-        // Confirmation dialog: the destructive button has the same label.
-        // It is the most-recently-presented "Quit" element.
-        let confirm = app.buttons.matching(identifier: "Quit").element(boundBy: 1)
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5),
-                      "Quit confirmation button not found")
-        confirm.tap()
+        // Tap leading navigation-bar button to return to the sidebar.
+        let leadingNavButton = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(leadingNavButton.waitForExistence(timeout: 5),
+                      "Navigation-bar leading button not found")
+        leadingNavButton.tap()
+
+        let toolbarQuit = app.buttons["Quit"]
+        XCTAssertTrue(toolbarQuit.waitForExistence(timeout: 10),
+                      "Quit button did not appear in sidebar after engine launch (\(label))")
+        toolbarQuit.tap()
+
+        // Confirmation dialog renders as a sheet on iPhone. Tap the
+        // destructive "Quit" inside it.
+        let dialogQuit = app.sheets.buttons["Quit"]
+        if dialogQuit.waitForExistence(timeout: 5) {
+            dialogQuit.tap()
+        } else {
+            // Fallback for compact rendering where the dialog hosts
+            // both Quit buttons under the app root.
+            let allQuit = app.buttons.matching(identifier: "Quit")
+            XCTAssertGreaterThanOrEqual(allQuit.count, 2,
+                                        "Quit confirmation button not found")
+            allQuit.element(boundBy: 1).tap()
+        }
     }
 
     /// The picker has reappeared once any model row is visible again.
