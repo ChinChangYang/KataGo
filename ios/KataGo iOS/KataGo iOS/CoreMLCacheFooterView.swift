@@ -80,6 +80,26 @@ struct CoreMLCacheFooterView: View {
         defer { clearing = false }
         await CoreMLModelCache.shared.clearAll()
         UserDefaults.standard.set("", forKey: "CoreMLCache.firstLaunchPrecompileVersion")
+        scheduler.cancelAllPending()
+        // Re-hydrate so cachedReady drops to empty in lockstep with the
+        // footer count zeroing. subscribeToCacheEvents would also fire
+        // from the clearAll tick, but this explicit await guarantees the
+        // badge is consistent by the time `refresh()` reads stats below.
+        let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
+        let resolver = makeProjectionResolver()
+        await scheduler.hydrate(
+            from: .shared,
+            fileNames: knownFileNames,
+            digestFor: { fileName in
+                guard let inputs = resolver(fileName) else { return nil }
+                return try await CoreMLModelCache.projectedDigest(
+                    forSourcePath: inputs.sourcePath,
+                    nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
+                    requireExactNNLen: inputs.requireExactNNLen,
+                    useFP16: inputs.useFP16,
+                    maxBatchSize: inputs.maxBatchSize,
+                    downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
+            })
         await scheduler.scheduleBuiltIn()
         await refresh()
     }
