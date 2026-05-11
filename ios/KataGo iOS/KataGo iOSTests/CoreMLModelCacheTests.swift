@@ -379,4 +379,36 @@ struct CoreMLModelCacheTests {
         let observed = await tick
         #expect(observed != nil)
     }
+
+    @Test func indexEventsNoTickOnStaleEpochInvalidate() async throws {
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        // Subscribe BEFORE the invalidate so the bufferingNewest(1) buffer
+        // can hold any tick that would be emitted.
+        let stream = await cache.indexEvents
+
+        // Call invalidate with an epoch that doesn't match any entry —
+        // the in-memory index is unchanged, so no tick should be emitted.
+        await cache.invalidate(digest: "no-such-digest", epoch: UUID())
+
+        // Race-tolerant assertion: race next() against a short sleep.
+        // If next() wins, an unwanted tick was emitted (bad). If the sleep
+        // wins, no tick landed within the window (good).
+        let result: Bool = await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                var iter = stream.makeAsyncIterator()
+                _ = await iter.next()
+                return true   // tick observed (bad)
+            }
+            group.addTask {
+                try? await Task.sleep(for: .milliseconds(100))
+                return false  // no tick within window (good)
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        #expect(result == false)
+    }
 }

@@ -386,6 +386,7 @@ extension CoreMLModelCache {
         if let entry = entries[digest], entry.epoch == epoch {
             entries.removeValue(forKey: digest)
             try? writeIndexAtomically()
+            emitIndexEvent()
         }
         // Tombstone-or-delete is keyed on (digest, epoch), not on whether
         // we just touched the index — the caller's failed pin is what matters.
@@ -394,7 +395,6 @@ extension CoreMLModelCache {
         } else {
             try? FileManager.default.removeItem(at: epochURL(key))
         }
-        emitIndexEvent()
     }
 
     fileprivate func directorySize(_ url: URL) -> Int64 {
