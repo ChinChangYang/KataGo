@@ -86,21 +86,26 @@ public final class PrecompileScheduler {
         await scheduleForModel(fileName: "default_model.bin.gz")
     }
 
-    /// Drop the in-flight set. The underlying detached Tasks were already
-    /// cancelled by `CoreMLModelCache.clearAll()` (which cancels its own
-    /// `inFlight` map); this just clears the scheduler's bookkeeping so
-    /// subsequent enqueues are not dedup-skipped against zombie entries.
+    /// Drop the in-flight set and ephemeral live-progress states. Leaves
+    /// `cachedReady` intact because compiled-and-cached entries remain
+    /// valid after cancellation — the on-disk cache is unchanged. The
+    /// underlying detached Tasks were already cancelled by
+    /// `CoreMLModelCache.clearAll()` (which cancels its own `inFlight`
+    /// map); this just clears the scheduler's bookkeeping so subsequent
+    /// enqueues are not dedup-skipped against zombie entries.
     public func cancelAllPending() {
         inFlight.removeAll()
         ephemeral.removeAll()
     }
 
-    // MARK: - Test seams (intentionally exposed; do not call from production)
+    // MARK: - Test seams (debug-only; not reachable from release builds)
 
-    public func _setEphemeralForTests(_ map: [String: PrecompileStatus]) {
+#if DEBUG
+    func _setEphemeralForTests(_ map: [String: PrecompileStatus]) {
         ephemeral = map
     }
-    public func _setCachedReadyForTests(_ set: Set<String>) {
+    func _setCachedReadyForTests(_ set: Set<String>) {
         cachedReady = set
     }
+#endif
 }
