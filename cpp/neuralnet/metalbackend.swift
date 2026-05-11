@@ -119,10 +119,10 @@ public final class CoreMLComputeHandle: @unchecked Sendable {
         ownership: UnsafeMutablePointer<Float32>,
         batchSize: Int
     ) {
-        // Wrap raw pointers in a Sendable struct so concurrentPerform's
-        // @Sendable closure can capture them without triggering strict
-        // concurrency warnings. Safety: each iteration reads/writes
-        // distinct offsets, so pointer aliasing is benign.
+        // Wrap raw pointers in a Sendable struct so the task group's child
+        // tasks can capture them without triggering strict concurrency
+        // warnings. Safety: each iteration reads/writes distinct offsets,
+        // so pointer aliasing across tasks is benign.
         struct Buffers: @unchecked Sendable {
             let spatialInput: UnsafeMutablePointer<Float32>
             let globalInput: UnsafeMutablePointer<Float32>
@@ -145,28 +145,40 @@ public final class CoreMLComputeHandle: @unchecked Sendable {
             scoreValue: scoreValue,
             ownership: ownership)
 
-        // Process batch elements in parallel using Grand Central Dispatch
-        // Each inference is independent, reading/writing to different buffer offsets
-        DispatchQueue.concurrentPerform(iterations: batchSize) { b in
-            autoreleasepool {
-                do {
-                    try runSingleInference(
-                        batchIndex: b,
-                        spatialInput: buffers.spatialInput,
-                        globalInput: buffers.globalInput,
-                        metaInput: buffers.metaInput,
-                        maskInput: buffers.maskInput,
-                        policy: buffers.policy,
-                        policyPass: buffers.policyPass,
-                        value: buffers.value,
-                        scoreValue: buffers.scoreValue,
-                        ownership: buffers.ownership
-                    )
-                } catch {
-                    fatalError("Metal backend: CoreML inference error: \(error)")
+        // Bridge synchronous C++ entry to Swift Concurrency: each batch
+        // element runs as a child task in a TaskGroup, and the caller is
+        // blocked on a semaphore until the group completes. Swift-C++
+        // interop cannot expose async functions to C++, so apply() must
+        // stay synchronous.
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached { [self] in
+            await withTaskGroup(of: Void.self) { group in
+                for b in 0..<batchSize {
+                    group.addTask {
+                        autoreleasepool {
+                            do {
+                                try self.runSingleInference(
+                                    batchIndex: b,
+                                    spatialInput: buffers.spatialInput,
+                                    globalInput: buffers.globalInput,
+                                    metaInput: buffers.metaInput,
+                                    maskInput: buffers.maskInput,
+                                    policy: buffers.policy,
+                                    policyPass: buffers.policyPass,
+                                    value: buffers.value,
+                                    scoreValue: buffers.scoreValue,
+                                    ownership: buffers.ownership
+                                )
+                            } catch {
+                                fatalError("Metal backend: CoreML inference error: \(error)")
+                            }
+                        }
+                    }
                 }
             }
+            semaphore.signal()
         }
+        semaphore.wait()
     }
 
     private func runSingleInference(
