@@ -115,6 +115,30 @@ struct PrecompileSchedulerTests {
         #expect(await scheduler.status["match.bin.gz"] == nil)      // not in cache
     }
 
+    @Test func cacheEventTickRefreshesCachedReady() async throws {
+        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = CoreMLModelCache(cacheRoot: root)
+        await cache.ensureCacheTreeExistsForTests()
+
+        let scheduler = await PrecompileScheduler(worker: { _ in })
+        await scheduler._setCachedReadyForTests(["a.bin.gz"])  // stale
+
+        let knownFileNames: Set<String> = ["a.bin.gz"]
+        await scheduler.subscribeToCacheEvents(
+            cache,
+            fileNames: knownFileNames,
+            digestFor: { _ in "absent-digest" })
+
+        // Trigger a tick. cachedReady should drop "a.bin.gz" because
+        // the digest is not in the cache.
+        await cache.clearAll()
+
+        // Allow one runloop turn for the subscription to react.
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(await scheduler.status["a.bin.gz"] == nil)
+    }
+
     @Test func hydrateRemovesEvictedEntriesInsideFileNamesSet() async throws {
         let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let cache = CoreMLModelCache(cacheRoot: root)

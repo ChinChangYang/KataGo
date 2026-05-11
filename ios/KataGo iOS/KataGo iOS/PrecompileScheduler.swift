@@ -120,6 +120,32 @@ public final class PrecompileScheduler {
         cachedReady.formUnion(fresh)
     }
 
+    private var didSubscribe = false
+
+    /// Start a long-lived task that consumes `cache.indexEvents` and
+    /// re-hydrates `cachedReady` after each tick. Guarded so repeated
+    /// calls (e.g., scene `.task` re-firing) are no-ops.
+    public func subscribeToCacheEvents(
+        _ cache: CoreMLModelCache,
+        fileNames: Set<String>,
+        digestFor: @escaping (String) async throws -> String?
+    ) async {
+        guard !didSubscribe else { return }
+        didSubscribe = true
+        // Register the stream synchronously (from the cache actor's POV) on
+        // this call. This guarantees the continuation is installed before
+        // we return — callers that fire a mutation right after subscribing
+        // (e.g., the cacheEventTick test, or the post-init hydrate kick) are
+        // guaranteed to see the resulting event.
+        let stream = await cache.indexEvents
+        Task { [weak self] in
+            for await _ in stream {
+                guard let self else { return }
+                await self.hydrate(from: cache, fileNames: fileNames, digestFor: digestFor)
+            }
+        }
+    }
+
     /// Drop the in-flight set and ephemeral live-progress states. Leaves
     /// `cachedReady` intact because compiled-and-cached entries remain
     /// valid after cancellation — the on-disk cache is unchanged. The
