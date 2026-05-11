@@ -28,7 +28,11 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // ----- Step 1: launch built-in, return, expect footer "1 of 8" -----
+        // ----- Step 1: launch built-in, return, capture baseline count -----
+        //
+        // An engine launch may write more than one cache entry — the main
+        // model plus auxiliaries like a HumanSL policy net — so this step
+        // is treated as a baseline rather than a fixed "1 of 8" check.
 
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
@@ -36,11 +40,15 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForPicker(in: app, title: builtInTitle)
 
         let afterStep1 = readFooter(in: app)
-        XCTAssertTrue(afterStep1.contains("1 of 8"),
-                      "Step 1: expected footer to read '1 of 8', was: '\(afterStep1)'")
+        let countAfterStep1 = parseCompiledModelsCount(afterStep1)
+        XCTAssertGreaterThanOrEqual(countAfterStep1, 1,
+                                    "Step 1: expected at least one compiled model after " +
+                                    "launching the built-in engine, footer was: '\(afterStep1)'")
 
-        // ----- Step 2: download Lionffen (if needed), launch it, return,
-        // expect "2 of 8" -----
+        // ----- Step 2: launch the downloaded Lionffen model and verify the
+        // footer's compiled-model count INCREASED — the bug was that no
+        // cache write happened for downloaded models, so the count stayed
+        // at the baseline.
 
         tapModelRow(in: app, title: lionffenTitle)
         ensureDownloadedThenPlay(in: app)
@@ -48,9 +56,24 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForPicker(in: app, title: lionffenTitle)
 
         let afterStep2 = readFooter(in: app)
-        XCTAssertTrue(afterStep2.contains("2 of 8"),
-                      "Step 2 (bug repro): expected footer to read '2 of 8' after launching " +
-                      "a downloaded model, but was: '\(afterStep2)'")
+        let countAfterStep2 = parseCompiledModelsCount(afterStep2)
+        XCTAssertGreaterThan(countAfterStep2, countAfterStep1,
+                             "Step 2 (bug repro): expected footer count to increase after " +
+                             "launching a downloaded model. Step 1 footer: '\(afterStep1)'; " +
+                             "Step 2 footer: '\(afterStep2)'")
+    }
+
+    /// Parses the "N of 8 compiled models" fragment that appears in the
+    /// non-empty footer label. Returns 0 when the footer reads "empty".
+    private func parseCompiledModelsCount(_ label: String) -> Int {
+        if label.contains("empty") { return 0 }
+        guard let range = label.range(of: #"(\d+) of 8 compiled models"#,
+                                       options: .regularExpression) else {
+            return -1
+        }
+        let match = String(label[range])
+        let n = match.split(separator: " ").first.flatMap { Int($0) }
+        return n ?? -1
     }
 
     // MARK: - Helpers
