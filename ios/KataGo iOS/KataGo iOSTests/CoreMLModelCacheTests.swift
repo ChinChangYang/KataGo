@@ -348,4 +348,35 @@ struct CoreMLModelCacheTests {
         #expect(await cache.hasEntry(digest: "abc123") == true)
         #expect(await cache.hasEntry(digest: "missing") == false)
     }
+
+    @Test func indexEventsTicksAfterUrlForKeyInstall() async throws {
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        var iter = await cache.indexEvents.makeAsyncIterator()
+        async let tick: Void? = iter.next()
+
+        let pinned = try await cache.urlForKey(digest: "evt1", missCallback: {
+            let u = URL.temporaryDirectory.appendingPathComponent("\(UUID()).mlmodelc")
+            try FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: u.appendingPathComponent("coremldata.bin"))
+            return u
+        })
+        await pinned.release()
+
+        let observed = await tick
+        #expect(observed != nil)
+    }
+
+    @Test func indexEventsTicksAfterClearAll() async throws {
+        let cache = CoreMLModelCache(cacheRoot: tempCacheRoot())
+        await cache.ensureCacheTreeExistsForTests()
+
+        var iter = await cache.indexEvents.makeAsyncIterator()
+        async let tick: Void? = iter.next()
+
+        await cache.clearAll()
+        let observed = await tick
+        #expect(observed != nil)
+    }
 }

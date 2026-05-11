@@ -54,6 +54,24 @@ public actor CoreMLModelCache {
     private var tombstones: Set<DigestEpoch> = []
     private var inFlight: [String: Task<(URL, UUID), Error>] = [:]
     private var didStartup: Bool = false
+    private var indexEventContinuations: [AsyncStream<Void>.Continuation] = []
+
+    /// Emits a value whenever the on-disk index mutates: install,
+    /// `invalidate`, `clearAll`, or eviction. Multiple subscribers each get
+    /// their own stream. Buffered with `.bufferingNewest(1)` so a slow
+    /// consumer never falls behind further than one tick.
+    public var indexEvents: AsyncStream<Void> {
+        AsyncStream<Void>(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            indexEventContinuations.append(continuation)
+            // Note: continuations are retained for the lifetime of the actor.
+            // In production CoreMLModelCache.shared lives for the process
+            // lifetime, so no detach logic is needed.
+        }
+    }
+
+    private func emitIndexEvent() {
+        for cont in indexEventContinuations { cont.yield() }
+    }
 
     public init(
         cacheRoot: URL,
@@ -211,6 +229,7 @@ public actor CoreMLModelCache {
     private func evictPartition(sorted: [IndexEntry], cap: Int) {
         var remaining = sorted
         var liveCount = sorted.count
+        var didRemoveAny = false
         while liveCount > cap, let candidate = remaining.first {
             remaining.removeFirst()
             if isCurrentEpochPinned(candidate.digest) { continue }
@@ -231,10 +250,12 @@ public actor CoreMLModelCache {
             if removed {
                 entries.removeValue(forKey: candidate.digest)
                 liveCount -= 1
+                didRemoveAny = true
                 let freedMB = Double(candidate.sizeBytes) / (1024 * 1024)
                 log.info("evicted digest=\(candidate.digest, privacy: .public) epoch=\(candidate.epoch.uuidString.lowercased(), privacy: .public) reason=lru freed=\(String(format: "%.2f", freedMB), privacy: .public)MB")
             }
         }
+        if didRemoveAny { emitIndexEvent() }
     }
 
     // MARK: Test-only pin seams.
@@ -352,6 +373,7 @@ extension CoreMLModelCache {
             lastAccessedAt: now, createdAt: now,
             sourceFileName: sourceFileName))
         try writeIndexAtomically()
+        emitIndexEvent()
         return (finalURL, epoch)
     }
 
@@ -372,6 +394,7 @@ extension CoreMLModelCache {
         } else {
             try? FileManager.default.removeItem(at: epochURL(key))
         }
+        emitIndexEvent()
     }
 
     fileprivate func directorySize(_ url: URL) -> Int64 {
@@ -619,6 +642,7 @@ extension CoreMLModelCache {
         tombstones.removeAll()
         inFlight.removeAll()
         try? writeIndexAtomically()
+        emitIndexEvent()
     }
 }
 
