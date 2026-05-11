@@ -42,7 +42,7 @@ public func createMetalComputeContext(
 }
 
 /// Handle that wraps the loaded MLModel for inference
-public class CoreMLComputeHandle {
+public final class CoreMLComputeHandle: @unchecked Sendable {
     let model: MLModel
     let nnXLen: Int32
     let nnYLen: Int32
@@ -119,6 +119,32 @@ public class CoreMLComputeHandle {
         ownership: UnsafeMutablePointer<Float32>,
         batchSize: Int
     ) {
+        // Wrap raw pointers in a Sendable struct so concurrentPerform's
+        // @Sendable closure can capture them without triggering strict
+        // concurrency warnings. Safety: each iteration reads/writes
+        // distinct offsets, so pointer aliasing is benign.
+        struct Buffers: @unchecked Sendable {
+            let spatialInput: UnsafeMutablePointer<Float32>
+            let globalInput: UnsafeMutablePointer<Float32>
+            let metaInput: UnsafeMutablePointer<Float32>
+            let maskInput: UnsafeMutablePointer<Float32>
+            let policy: UnsafeMutablePointer<Float32>
+            let policyPass: UnsafeMutablePointer<Float32>
+            let value: UnsafeMutablePointer<Float32>
+            let scoreValue: UnsafeMutablePointer<Float32>
+            let ownership: UnsafeMutablePointer<Float32>
+        }
+        let buffers = Buffers(
+            spatialInput: spatialInput,
+            globalInput: globalInput,
+            metaInput: metaInput,
+            maskInput: maskInput,
+            policy: policy,
+            policyPass: policyPass,
+            value: value,
+            scoreValue: scoreValue,
+            ownership: ownership)
+
         // Process batch elements in parallel using Grand Central Dispatch
         // Each inference is independent, reading/writing to different buffer offsets
         DispatchQueue.concurrentPerform(iterations: batchSize) { b in
@@ -126,15 +152,15 @@ public class CoreMLComputeHandle {
                 do {
                     try runSingleInference(
                         batchIndex: b,
-                        spatialInput: spatialInput,
-                        globalInput: globalInput,
-                        metaInput: metaInput,
-                        maskInput: maskInput,
-                        policy: policy,
-                        policyPass: policyPass,
-                        value: value,
-                        scoreValue: scoreValue,
-                        ownership: ownership
+                        spatialInput: buffers.spatialInput,
+                        globalInput: buffers.globalInput,
+                        metaInput: buffers.metaInput,
+                        maskInput: buffers.maskInput,
+                        policy: buffers.policy,
+                        policyPass: buffers.policyPass,
+                        value: buffers.value,
+                        scoreValue: buffers.scoreValue,
+                        ownership: buffers.ownership
                     )
                 } catch {
                     fatalError("Metal backend: CoreML inference error: \(error)")

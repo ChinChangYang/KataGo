@@ -27,7 +27,7 @@ struct ModelRunnerView: View {
 
     var body: some View {
         Group {
-            if let selectedModel {
+            if selectedModel != nil {
                 ContentView(
                     selectedModel: $selectedModel,
                     engineLifecycle: engineLifecycle,

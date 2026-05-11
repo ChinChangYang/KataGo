@@ -67,16 +67,11 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         // The downloaded file will be removed automatically.
         try? FileManager.default.moveItem(at: location, to: destinationURL)
 
-        Task {
-            await MainActor.run {
-                downloadedFileURL = destinationURL
-                isDownloading = false
-            }
+        Task { @MainActor in
+            downloadedFileURL = destinationURL
+            isDownloading = false
             // Hash the file and fire precompile now that it's at its final URL.
-            let finalURL = destinationURL
-            await MainActor.run {
-                Task { await self.onDownloadComplete?(finalURL) }
-            }
+            await self.onDownloadComplete?(destinationURL)
         }
     }
 

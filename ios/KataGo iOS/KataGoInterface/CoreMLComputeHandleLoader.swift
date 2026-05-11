@@ -194,7 +194,7 @@ public func loadCoreMLHandleWithBridgeTimeout(
         // Secondary 60s wait — give a slow-but-finishing compile a chance.
         let secondary = DispatchSemaphore(value: 0)
         Task.detached(priority: .userInitiated) {
-            _ = try? await task.value
+            await task.value
             secondary.signal()
         }
         if secondary.wait(timeout: .now() + .seconds(60)) == .timedOut {
