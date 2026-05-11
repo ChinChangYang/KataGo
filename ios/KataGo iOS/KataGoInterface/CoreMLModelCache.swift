@@ -4,6 +4,17 @@ import OSLog
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",
                          category: "engine.coreml.cache")
 
+private final class StandardErrorStream: TextOutputStream {
+    func write(_ string: String) {
+        try? FileHandle.standardError.write(contentsOf: Data(string.utf8))
+    }
+}
+
+private func printError(_ item: Any) {
+    var stream = StandardErrorStream()
+    print(item, to: &stream)
+}
+
 public struct IndexEntry: Codable, Sendable {
     public let digest: String
     public let epoch: UUID
@@ -452,6 +463,7 @@ extension CoreMLModelCache {
         if let hit = lookupOnDisk(digest: digest) {
             // Touch lastAccessedAt to mark MRU for LRU eviction (Task 11).
             entries[digest]?.lastAccessedAt = Date().timeIntervalSince1970
+            printError("CoreMLCache hit: \(sourceFileName ?? "?") digest=\(digest.prefix(12))")
             return acquireLocked(digest: digest, epoch: hit.epoch, url: hit.url)
         }
         return try await joinOrInstall(digest: digest, priority: priority,
