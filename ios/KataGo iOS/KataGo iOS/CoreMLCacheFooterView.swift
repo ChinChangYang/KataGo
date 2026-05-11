@@ -51,8 +51,18 @@ struct CoreMLCacheFooterView: View {
         }
     }
 
+    /// Filenames of bundled auxiliary models the engine loads alongside the
+    /// user-selected network (e.g., `-human-model`). The cache still stores
+    /// their compiled artifacts so engine launches are fast, but they're
+    /// excluded from the user-facing "N of 8 compiled models" count and
+    /// total-bytes display.
+    private static let auxiliaryFileNames: Set<String> = [
+        "b18c384nbt-humanv0.bin.gz",
+    ]
+
     @MainActor private func refresh() async {
-        let stats = await CoreMLModelCache.shared.statsForUI()
+        let stats = await CoreMLModelCache.shared.statsForUI(
+            excludingFileNames: Self.auxiliaryFileNames)
         entryCount = stats.count
         sizeBytes = stats.totalBytes
     }

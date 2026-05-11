@@ -60,10 +60,12 @@ public func loadCoreMLHandle(
     await reportLaunchStatus(.compilingMissFirstLaunch)
     defer { Task { await reportLaunchStatus(.idle) } }
 
+    let sourceFileName = (coremlModelPath as NSString).lastPathComponent
     for attempt in 0..<2 {
         let pinned = try await cache.urlForKey(
             digest: key.digest,
             priority: .userInitiated,
+            sourceFileName: sourceFileName,
             missCallback: {
                 return try await convertOnCooperativePool(
                     coremlModelPath: coremlModelPath,

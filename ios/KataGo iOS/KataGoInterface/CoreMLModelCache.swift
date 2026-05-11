@@ -262,7 +262,8 @@ extension CoreMLModelCache {
     /// On-actor commit step — cancellation re-check, dedup re-check,
     /// same-volume rename of `<epoch>.tmp` → `<epoch>.mlmodelc`, index update.
     public func commitStore(
-        digest: String, epoch: UUID, tmpURL: URL
+        digest: String, epoch: UUID, tmpURL: URL,
+        sourceFileName: String? = nil
     ) throws -> (url: URL, epoch: UUID) {
         if Task.isCancelled {
             try? FileManager.default.removeItem(at: tmpURL)
@@ -280,7 +281,8 @@ extension CoreMLModelCache {
         injectEntry(IndexEntry(
             digest: digest, epoch: epoch,
             sizeBytes: directorySize(finalURL),
-            lastAccessedAt: now, createdAt: now))
+            lastAccessedAt: now, createdAt: now,
+            sourceFileName: sourceFileName))
         try writeIndexAtomically()
         return (finalURL, epoch)
     }
@@ -396,6 +398,7 @@ extension CoreMLModelCache {
     public func urlForKey(
         digest: String,
         priority: TaskPriority = .userInitiated,
+        sourceFileName: String? = nil,
         missCallback: @Sendable @escaping () async throws -> URL
     ) async throws -> PinnedCacheURL {
         if let hit = lookupOnDisk(digest: digest) {
@@ -404,6 +407,7 @@ extension CoreMLModelCache {
             return acquireLocked(digest: digest, epoch: hit.epoch, url: hit.url)
         }
         return try await joinOrInstall(digest: digest, priority: priority,
+                                       sourceFileName: sourceFileName,
                                        missCallback: missCallback)
     }
 
@@ -417,6 +421,7 @@ extension CoreMLModelCache {
     private func joinOrInstall(
         digest: String,
         priority: TaskPriority,
+        sourceFileName: String? = nil,
         missCallback: @Sendable @escaping () async throws -> URL
     ) async throws -> PinnedCacheURL {
         if let existing = inFlight[digest] {
@@ -428,6 +433,7 @@ extension CoreMLModelCache {
                 // task whose failure we observed.
                 if inFlight[digest] == existing { inFlight[digest] = nil }
                 return try await joinOrInstall(digest: digest, priority: priority,
+                                               sourceFileName: sourceFileName,
                                                missCallback: missCallback)
             }
         }
@@ -445,7 +451,8 @@ extension CoreMLModelCache {
             let prep = try await self.prepareTmp(digest: digest, compiledURL: compiledURL)
             let stored = try await self.commitStore(digest: digest,
                                                     epoch: prep.epoch,
-                                                    tmpURL: prep.tmpURL)
+                                                    tmpURL: prep.tmpURL,
+                                                    sourceFileName: sourceFileName)
             Task.detached(priority: .utility) { [weak self] in
                 await self?.runEvictionIfOverBudget()
             }
@@ -478,6 +485,23 @@ extension CoreMLModelCache {
         var total: Int64 = 0
         var count = 0
         for entry in entriesSnapshot { total += entry.sizeBytes; count += 1 }
+        return Stats(count: count, totalBytes: total)
+    }
+
+    /// Stats with entries whose `sourceFileName` matches any name in
+    /// `excludedFileNames` filtered out. The UI footer uses this to hide
+    /// auxiliary models (e.g., the bundled human SL net) from the
+    /// user-facing compiled-model count while keeping them cached.
+    public func statsForUI(excludingFileNames excludedFileNames: Set<String>) -> Stats {
+        var total: Int64 = 0
+        var count = 0
+        for entry in entriesSnapshot {
+            if let name = entry.sourceFileName, excludedFileNames.contains(name) {
+                continue
+            }
+            total += entry.sizeBytes
+            count += 1
+        }
         return Stats(count: count, totalBytes: total)
     }
 
