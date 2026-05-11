@@ -88,6 +88,7 @@ struct ModelDetailView: View {
             }
         }
         .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("ModelDetailView.downloadPlayButton")
     }
 
     var body: some View {

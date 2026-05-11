@@ -22,9 +22,11 @@ struct CoreMLCacheFooterView: View {
                 if entryCount == 0 {
                     Text("empty")
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("CoreMLCache.footerStats")
                 } else {
                     Text("\(ByteCountFormatter().string(fromByteCount: sizeBytes)) · \(entryCount) of 8 compiled models")
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("CoreMLCache.footerStats")
                 }
                 Spacer()
                 if entryCount > 0 {
