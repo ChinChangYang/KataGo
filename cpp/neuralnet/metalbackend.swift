@@ -25,7 +25,7 @@ public class MetalComputeContext {
     public let nnYLen: Int32
     public let useFP16: Bool
 
-    init(nnXLen: Int32, nnYLen: Int32, useFP16: Bool) {
+    public init(nnXLen: Int32, nnYLen: Int32, useFP16: Bool) {
         self.nnXLen = nnXLen
         self.nnYLen = nnYLen
         self.useFP16 = useFP16
@@ -55,6 +55,13 @@ public class CoreMLComputeHandle {
     let numScoreValueChannels: Int
     let numOwnershipChannels: Int
 
+    /// Optional release closure for the cache-aware path. The cache
+    /// bridge populates this with `{ await pinned.release() }`; the
+    /// legacy fallback leaves it nil. Run on `deinit` to release the
+    /// pin when the engine tears the handle down. Type-erased to keep
+    /// `KataGoSwift` independent of `KataGoInterface`.
+    let releaseHook: (@Sendable () async -> Void)?
+
     /// Model input/output names matching KataGoCoremltools output
     struct IONames {
         static let spatialInput = "spatial_input"
@@ -69,15 +76,16 @@ public class CoreMLComputeHandle {
         static let scoreValueOutput = "value_sv3_bias"
     }
 
-    init(model: MLModel, nnXLen: Int32, nnYLen: Int32,
-         optimizeIdentityMask: Bool,
-         numInputChannels: Int,
-         numInputGlobalChannels: Int,
-         numInputMetaChannels: Int,
-         numPolicyChannels: Int,
-         numValueChannels: Int,
-         numScoreValueChannels: Int,
-         numOwnershipChannels: Int) {
+    public init(model: MLModel, nnXLen: Int32, nnYLen: Int32,
+                optimizeIdentityMask: Bool,
+                numInputChannels: Int,
+                numInputGlobalChannels: Int,
+                numInputMetaChannels: Int,
+                numPolicyChannels: Int,
+                numValueChannels: Int,
+                numScoreValueChannels: Int,
+                numOwnershipChannels: Int,
+                releaseHook: (@Sendable () async -> Void)? = nil) {
         self.model = model
         self.nnXLen = nnXLen
         self.nnYLen = nnYLen
@@ -89,6 +97,13 @@ public class CoreMLComputeHandle {
         self.numValueChannels = numValueChannels
         self.numScoreValueChannels = numScoreValueChannels
         self.numOwnershipChannels = numOwnershipChannels
+        self.releaseHook = releaseHook
+    }
+
+    deinit {
+        if let hook = releaseHook {
+            Task.detached { await hook() }
+        }
     }
 
     /// Run inference on a batch of inputs
@@ -397,6 +412,72 @@ public func createCoreMLComputeHandle(
 /// Print available Metal compute devices
 public func printMetalDevices() {
     printError("Metal backend: Available modes - GPU (MPSGraph), CPU+ANE (CoreML)")
+}
+
+// MARK: - Closure seam for downloaded-file hasher (Task 17)
+
+/// Process-wide downloaded-hasher closure. The main app target sets
+/// this at launch (Task 23 wires `BinFileHasher.shared.identityForDownloadedFile`
+/// into it). `metalbackend.swift` cannot import `KataGoInterface` directly
+/// (that would create a dependency cycle: KataGoInterface already links
+/// KataGoSwift), so this closure is the seam between the two frameworks.
+///
+/// The `katagocoreml_converter_version()` C bridge is declared in
+/// `KataGoInterface/CoreMLModelCache.swift` (where `katago.framework`
+/// resolves at link time) rather than here, because `KataGoSwift.framework`
+/// does not link against `katago.framework` and cannot resolve C symbols
+/// from `metalbackend.cpp` at link time.
+nonisolated(unsafe) public var katagoDownloadedHasher: (@Sendable (URL) async throws -> String)? = nil
+
+// MARK: - Closure seam for cache-aware bridge (Task 19)
+
+/// Synchronous bridge closure injected by `KataGoInterface` at startup.
+/// `KataGoInterface` sets this to its `loadCoreMLHandleWithBridgeTimeout`
+/// implementation. The closure carries all per-call parameters as a tuple
+/// to avoid a complex C-callable signature.
+///
+/// Parameters (positional to avoid label ambiguity at the call site):
+///   coremlModelPath, serverThreadIdx, requireExactNNLen,
+///   numInputChannels, numInputGlobalChannels, numInputMetaChannels,
+///   numPolicyChannels, numValueChannels, numScoreValueChannels, numOwnershipChannels,
+///   context, maxBatchSize
+///
+/// Returns the loaded handle, or nil on failure.
+///
+/// Falls back to the legacy `createCoreMLComputeHandle` path when nil.
+public typealias CoreMLBridgeFn = @Sendable (
+    String, Int, Bool,
+    Int32, Int32, Int32,
+    Int32, Int32, Int32, Int32,
+    MetalComputeContext, Int
+) -> CoreMLComputeHandle?
+
+nonisolated(unsafe) public var katago_coreml_bridge: CoreMLBridgeFn? = nil
+
+/// Invokes `katago_coreml_bridge` (set by `KataGoInterface.registerCoreMLBridge`)
+/// synchronously. The C++ side calls this instead of calling `createCoreMLComputeHandle`
+/// directly when the bridge is registered — giving the cache-aware path (Task 19).
+/// Returns nil if the bridge is not yet registered (falls back to legacy path in C++).
+public func invokeCoreMLBridge(
+    coremlModelPath: String,
+    serverThreadIdx: Int,
+    requireExactNNLen: Bool,
+    numInputChannels: Int32,
+    numInputGlobalChannels: Int32,
+    numInputMetaChannels: Int32,
+    numPolicyChannels: Int32,
+    numValueChannels: Int32,
+    numScoreValueChannels: Int32,
+    numOwnershipChannels: Int32,
+    context: MetalComputeContext,
+    maxBatchSize: Int
+) -> CoreMLComputeHandle? {
+    guard let bridge = katago_coreml_bridge else { return nil }
+    return bridge(
+        coremlModelPath, serverThreadIdx, requireExactNNLen,
+        numInputChannels, numInputGlobalChannels, numInputMetaChannels,
+        numPolicyChannels, numValueChannels, numScoreValueChannels, numOwnershipChannels,
+        context, maxBatchSize)
 }
 
 // MARK: - MPSGraph-based Model for GPU Inference

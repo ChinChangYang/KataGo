@@ -64,6 +64,11 @@ public class KataGoHelper {
         let configPath = mainBundle.path(forResource: configName,
                                          ofType: configExt)
 
+        // Register the cache-aware CoreML bridge (Task 19) before the engine
+        // starts. This wires loadCoreMLHandleWithBridgeTimeout into the
+        // KataGoSwift seam so convertAndCreateCoreMLOnlyHandle can call it.
+        registerCoreMLBridge()
+
         KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
                      std.string(humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"),
                      std.string(configPath ?? "Contents/Resources/default_gtp.cfg"),

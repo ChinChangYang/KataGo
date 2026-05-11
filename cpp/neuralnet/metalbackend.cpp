@@ -7,10 +7,13 @@
 #include "../neuralnet/metalbackend.h"
 
 #include <katagocoreml/KataGoConverter.hpp>
+#include <katagocoreml/Version.hpp>
 #include <ghc/filesystem.hpp>
 #include <mutex>
 #include <chrono>
 #include <cassert>
+#include <cstring>
+#include <cstdlib>
 #include <unistd.h>  // For getpid()
 
 using namespace std;
@@ -441,7 +444,10 @@ void NeuralNet::freeComputeContext(ComputeContext* computeContext) {
 
 static mutex computeHandleMutex;
 
-// Helper function to convert model and create CoreML-only compute handle (for mux ANE thread)
+// Helper function to convert model and create CoreML-only compute handle (for mux ANE thread).
+// When KataGoInterface has registered the cache-aware bridge (Task 19), delegates to
+// invokeCoreMLBridge which drives loadCoreMLHandleWithBridgeTimeout with two-stage timeout
+// fall-through. Falls back to the legacy direct-compile path otherwise.
 static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLOnlyHandle(
   ComputeContext* context,
   const LoadedModel* loadedModel,
@@ -455,7 +461,30 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
   bool useFP16 = (context->useFP16Mode != enabled_t::False);
   bool optimizeMask = requireExactNNLen;
 
-  // Convert model to CoreML format in temp directory
+  // Try the cache-aware bridge path first (Task 19).
+  // invokeCoreMLBridge returns nil when katago_coreml_bridge is not yet registered
+  // (e.g., before KataGoInterface.registerCoreMLBridge() is called), in which case
+  // we fall through to the legacy direct-compile path below.
+  auto bridgeResult = invokeCoreMLBridge(
+    swift::String(loadedModel->modelPath),
+    serverThreadIdx,
+    requireExactNNLen,
+    loadedModel->modelDesc.numInputChannels,
+    loadedModel->modelDesc.numInputGlobalChannels,
+    loadedModel->modelDesc.numInputMetaChannels,
+    loadedModel->modelDesc.numPolicyChannels,
+    loadedModel->modelDesc.numValueChannels,
+    loadedModel->modelDesc.numScoreValueChannels,
+    loadedModel->modelDesc.numOwnershipChannels,
+    metalContext,
+    maxBatchSize
+  );
+  if(static_cast<bool>(bridgeResult)) {
+    return bridgeResult;
+  }
+
+  // Legacy path: convert model in-place and load without cache.
+  cerr << "Metal backend " << serverThreadIdx << ": Bridge not registered, using legacy direct-compile path" << endl;
   string coremlModelPath = CoreMLConversion::convertModelToTemp(
     loadedModel->modelPath,
     nnXLen,
@@ -466,7 +495,6 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
     serverThreadIdx
   );
 
-  // Create CoreML-only compute handle (CPU+ANE)
   return createCoreMLComputeHandle(
     swift::String(coremlModelPath),
     serverThreadIdx,
@@ -1336,6 +1364,37 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
   (void)useFP16;
 
   return MetalProcess::testEvaluateGlobalPoolingResidualBlock(desc, batchSize, nnXLen, nnYLen, inputBuffer, maskBuffer, outputBuffer);
+}
+
+// Bridge for Swift to read the cache-key-stable converter version
+// (Task 17). Stable lifetime: returns a pointer into a static constexpr,
+// so the caller does NOT need to free it.
+extern "C" const char* katagocoreml_converter_version() {
+    return katagocoreml::ConverterVersion::current();
+}
+
+// Bridge for Swift (KataGoInterface) to invoke the C++ converter from a
+// Task.detached on the cooperative thread pool (Task 19). Returns a
+// malloc'd C string containing the path to the resulting .mlpackage
+// directory; the caller must pass it to katagocoreml_free_string when
+// done. Returns nullptr on conversion failure.
+extern "C" const char* katagocoreml_convert_to_temp(
+    const char* modelPath, int boardX, int boardY,
+    bool useFP16, bool optimizeMask, int maxBatchSize, int serverThreadIdx
+) {
+    try {
+        std::string out = CoreMLConversion::convertModelToTemp(
+            modelPath, boardX, boardY, useFP16, optimizeMask, maxBatchSize, serverThreadIdx);
+        char* buf = (char*)malloc(out.size() + 1);
+        memcpy(buf, out.c_str(), out.size() + 1);
+        return buf;
+    } catch(...) {
+        return nullptr;
+    }
+}
+
+extern "C" void katagocoreml_free_string(const char* s) {
+    free((void*)s);
 }
 
 #endif // USE_METAL_BACKEND
