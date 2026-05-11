@@ -109,7 +109,7 @@ public func loadCoreMLHandle(
 /// `.mlpackage` to a temp dir and returns the path; we then
 /// `MLModel.compileModel(at:)` it inline and return the resulting
 /// `.mlmodelc/` URL so the cache can store it.
-func convertOnCooperativePool(
+public func convertOnCooperativePool(
     coremlModelPath: String,
     boardX: Int32, boardY: Int32,
     useFP16: Bool, optimizeMask: Bool,
