@@ -5,8 +5,8 @@
 //  Reproduces the smoke-test Step 2 failure: after launching the
 //  built-in engine, returning to the picker, downloading the smallest
 //  non-built-in model (Lionffen b6c64, ~2.1 MB), and launching the
-//  engine with it, the footer count should advance from "1 of 8" to
-//  "2 of 8". On the current implementation the count stays at "1 of 8".
+//  engine with it, the footer count should advance from "1 of 4" to
+//  "2 of 4". On the current implementation the count stays at "1 of 4".
 //
 //  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
 //  for a clean cache state.
@@ -32,7 +32,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         //
         // An engine launch may write more than one cache entry — the main
         // model plus auxiliaries like a HumanSL policy net — so this step
-        // is treated as a baseline rather than a fixed "1 of 8" check.
+        // is treated as a baseline rather than a fixed "1 of 4" check.
 
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill

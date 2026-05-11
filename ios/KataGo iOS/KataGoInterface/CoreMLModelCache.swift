@@ -767,8 +767,9 @@ extension CoreMLModelCache {
         // eviction can't drop a user-visible main entry to keep an aux one.
         return CoreMLModelCache(
             cacheRoot: root,
+            evictionCap: 4,
             auxiliaryFileNames: ["b18c384nbt-humanv0.bin.gz"],
-            auxiliaryEvictionCap: 8)
+            auxiliaryEvictionCap: 4)
     }()
 
     /// Idempotent startup. Runs the adoption-or-orphan-sweep dispatch

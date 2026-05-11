@@ -15,8 +15,8 @@ struct CoreMLCacheFooterView: View {
     @State private var showConfirm = false
     @State private var clearing = false
 
-    private var mainCap: Int { 8 }
-    private var auxCap: Int { 8 }
+    private var mainCap: Int { 4 }
+    private var auxCap: Int { 4 }
     private var totalCount: Int { mainCount + auxCount }
 
     var body: some View {
