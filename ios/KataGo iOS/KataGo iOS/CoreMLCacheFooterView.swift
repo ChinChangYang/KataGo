@@ -61,6 +61,12 @@ struct CoreMLCacheFooterView: View {
     ]
 
     @MainActor private func refresh() async {
+        // Ensure the on-disk index is loaded into memory before reading
+        // stats. On a cold launch nothing else has called `start()` yet —
+        // it's normally invoked from `loadCoreMLHandle` at engine boot —
+        // so without this the footer reports 0 entries even when the cache
+        // on disk is populated from previous runs. `start()` is idempotent.
+        await CoreMLModelCache.shared.start()
         let stats = await CoreMLModelCache.shared.statsForUI(
             excludingFileNames: Self.auxiliaryFileNames)
         entryCount = stats.count
