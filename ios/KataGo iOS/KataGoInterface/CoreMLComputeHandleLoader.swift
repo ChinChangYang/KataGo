@@ -43,7 +43,13 @@ public func loadCoreMLHandle(
         forSourcePath: coremlModelPath,
         nnXLen: nnXLen, nnYLen: nnYLen,
         requireExactNNLen: optimizeMask, useFP16: useFP16,
-        maxBatchSize: maxBatchSize)
+        maxBatchSize: maxBatchSize,
+        downloadedHasher: { url in
+            guard let hasher = katagoDownloadedHasher else {
+                throw CoreMLCacheKeyError.downloadedHasherNotInjected
+            }
+            return try await hasher(url)
+        })
     let cache = CoreMLModelCache.shared
     await cache.start()
 
