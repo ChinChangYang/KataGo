@@ -40,7 +40,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForPicker(in: app, title: builtInTitle)
 
         let afterStep1 = readFooter(in: app)
-        let countAfterStep1 = parseCompiledModelsCount(afterStep1)
+        let countAfterStep1 = parseCount(afterStep1)
         XCTAssertGreaterThanOrEqual(countAfterStep1, 1,
                                     "Step 1: expected at least one compiled model after " +
                                     "launching the built-in engine, footer was: '\(afterStep1)'")
@@ -56,24 +56,23 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForPicker(in: app, title: lionffenTitle)
 
         let afterStep2 = readFooter(in: app)
-        let countAfterStep2 = parseCompiledModelsCount(afterStep2)
+        let countAfterStep2 = parseCount(afterStep2)
         XCTAssertGreaterThan(countAfterStep2, countAfterStep1,
                              "Step 2 (bug repro): expected footer count to increase after " +
                              "launching a downloaded model. Step 1 footer: '\(afterStep1)'; " +
                              "Step 2 footer: '\(afterStep2)'")
     }
 
-    /// Parses the "N of 8 compiled models" fragment that appears in the
-    /// non-empty footer label. Returns 0 when the footer reads "empty".
-    private func parseCompiledModelsCount(_ label: String) -> Int {
-        if label.contains("empty") { return 0 }
-        guard let range = label.range(of: #"(\d+) of 8 compiled models"#,
+    /// Parses the "<Label>: N of M" fragment from a footer line.
+    private func parseCount(_ label: String) -> Int {
+        guard let range = label.range(of: #":\s*(\d+)\s+of\s+\d+"#,
                                        options: .regularExpression) else {
             return -1
         }
         let match = String(label[range])
-        let n = match.split(separator: " ").first.flatMap { Int($0) }
-        return n ?? -1
+        let digits = match.drop { !$0.isNumber }
+                          .prefix { $0.isNumber }
+        return Int(digits) ?? -1
     }
 
     // MARK: - Helpers
@@ -154,9 +153,9 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     private func readFooter(in app: XCUIApplication) -> String {
-        let footer = app.staticTexts["CoreMLCache.footerStats"]
+        let footer = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(footer.waitForExistence(timeout: 15),
-                      "CoreMLCache.footerStats not found")
+                      "CoreMLCache.footerMainStats not found")
         return footer.label
     }
 }

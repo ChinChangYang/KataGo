@@ -8,10 +8,16 @@ import KataGoInterface
 
 struct CoreMLCacheFooterView: View {
     let scheduler: PrecompileScheduler
-    @State private var entryCount: Int = 0
-    @State private var sizeBytes: Int64 = 0
+    @State private var mainCount: Int = 0
+    @State private var mainBytes: Int64 = 0
+    @State private var auxCount: Int = 0
+    @State private var auxBytes: Int64 = 0
     @State private var showConfirm = false
     @State private var clearing = false
+
+    private var mainCap: Int { 8 }
+    private var auxCap: Int { 8 }
+    private var totalCount: Int { mainCount + auxCount }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -19,17 +25,16 @@ struct CoreMLCacheFooterView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             HStack {
-                if entryCount == 0 {
-                    Text("empty")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(line(label: "Main", count: mainCount, cap: mainCap, bytes: mainBytes))
                         .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("CoreMLCache.footerStats")
-                } else {
-                    Text("\(ByteCountFormatter().string(fromByteCount: sizeBytes)) · \(entryCount) of 8 compiled models")
+                        .accessibilityIdentifier("CoreMLCache.footerMainStats")
+                    Text(line(label: "Human SL", count: auxCount, cap: auxCap, bytes: auxBytes))
                         .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("CoreMLCache.footerStats")
+                        .accessibilityIdentifier("CoreMLCache.footerAuxStats")
                 }
                 Spacer()
-                if entryCount > 0 {
+                if totalCount > 0 {
                     Button("Clear Cache") { showConfirm = true }
                         .buttonStyle(.bordered)
                         .tint(.secondary)
@@ -47,18 +52,14 @@ struct CoreMLCacheFooterView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("All \(entryCount) compiled models will be removed. They will recompile on next use. The built-in model will recompile automatically in the background.")
+            Text("All \(totalCount) compiled models will be removed. They will recompile on next use. The built-in model will recompile automatically in the background.")
         }
     }
 
-    /// Filenames of bundled auxiliary models the engine loads alongside the
-    /// user-selected network (e.g., `-human-model`). The cache still stores
-    /// their compiled artifacts so engine launches are fast, but they're
-    /// excluded from the user-facing "N of 8 compiled models" count and
-    /// total-bytes display.
-    private static let auxiliaryFileNames: Set<String> = [
-        "b18c384nbt-humanv0.bin.gz",
-    ]
+    private func line(label: String, count: Int, cap: Int, bytes: Int64) -> String {
+        let size = ByteCountFormatter().string(fromByteCount: bytes)
+        return "\(label): \(count) of \(cap) · \(size)"
+    }
 
     @MainActor private func refresh() async {
         // Ensure the on-disk index is loaded into memory before reading
@@ -67,10 +68,11 @@ struct CoreMLCacheFooterView: View {
         // so without this the footer reports 0 entries even when the cache
         // on disk is populated from previous runs. `start()` is idempotent.
         await CoreMLModelCache.shared.start()
-        let stats = await CoreMLModelCache.shared.statsForUI(
-            excludingFileNames: Self.auxiliaryFileNames)
-        entryCount = stats.count
-        sizeBytes = stats.totalBytes
+        let stats = await CoreMLModelCache.shared.statsByCategory()
+        mainCount = stats.main.count
+        mainBytes = stats.main.totalBytes
+        auxCount  = stats.auxiliary.count
+        auxBytes  = stats.auxiliary.totalBytes
     }
 
     @MainActor private func clear() async {

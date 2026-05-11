@@ -30,6 +30,12 @@ private struct IndexFile: Codable {
 public actor CoreMLModelCache {
     public let cacheRoot: URL
     public let evictionCap: Int
+    /// Source-file basenames classified as auxiliary (e.g., the bundled
+    /// human SL net). Each engine launch writes one main entry and one
+    /// auxiliary entry; partitioning eviction means an aux-side overflow
+    /// never evicts a user-visible main entry.
+    public let auxiliaryFileNames: Set<String>
+    public let auxiliaryEvictionCap: Int
 
     private var entries: [String: IndexEntry] = [:]    // digest → entry
     private var pinnedSerials: [DigestEpoch: Set<UInt64>] = [:]
@@ -38,9 +44,24 @@ public actor CoreMLModelCache {
     private var inFlight: [String: Task<(URL, UUID), Error>] = [:]
     private var didStartup: Bool = false
 
-    public init(cacheRoot: URL, evictionCap: Int = 8) {
+    public init(
+        cacheRoot: URL,
+        evictionCap: Int = 8,
+        auxiliaryFileNames: Set<String> = [],
+        auxiliaryEvictionCap: Int = 8
+    ) {
         self.cacheRoot = cacheRoot
         self.evictionCap = evictionCap
+        self.auxiliaryFileNames = auxiliaryFileNames
+        self.auxiliaryEvictionCap = auxiliaryEvictionCap
+    }
+
+    /// Classify an entry into the main vs auxiliary partition. Entries
+    /// with no `sourceFileName` (legacy untagged entries from earlier
+    /// builds) count as main so they appear in the user-visible total.
+    fileprivate func isAuxiliary(_ entry: IndexEntry) -> Bool {
+        guard let name = entry.sourceFileName else { return false }
+        return auxiliaryFileNames.contains(name)
     }
 
     fileprivate static let schemaVersion = 1
@@ -105,12 +126,25 @@ public actor CoreMLModelCache {
         reapTombstoneIfUnpinned(key)
         // Release-triggered eviction kick (round 14): if a previous eviction
         // pass skipped a current epoch because it was pinned, this release
-        // may have unblocked it.
-        if entries.count > evictionCap {
+        // may have unblocked it. Either partition being over budget is
+        // reason enough to re-run; the eviction function itself partitions.
+        if isAnyPartitionOverBudget() {
             Task.detached(priority: .utility) { [weak self] in
                 await self?.runEvictionIfOverBudget()
             }
         }
+    }
+
+    /// True iff either the main or the auxiliary partition currently
+    /// exceeds its budget. Used to decide whether a release-triggered
+    /// eviction kick is worth scheduling.
+    private func isAnyPartitionOverBudget() -> Bool {
+        var mainCount = 0
+        var auxCount = 0
+        for entry in entries.values {
+            if isAuxiliary(entry) { auxCount += 1 } else { mainCount += 1 }
+        }
+        return mainCount > evictionCap || auxCount > auxiliaryEvictionCap
     }
 
     /// True iff any pin is held against the *current* epoch of `digest`
@@ -132,26 +166,44 @@ public actor CoreMLModelCache {
         tombstones.remove(key)
     }
 
-    /// LRU eviction. Iterates `entries` in `lastAccessedAt` ascending order
-    /// and evicts the oldest until `entries.count <= evictionCap`. Skips
-    /// any digest whose *current* epoch is pinned (`isCurrentEpochPinned`).
-    /// Pinned-everywhere over-budget is a no-op for this pass; the next
-    /// `release()` re-runs eviction (round 14).
+    /// LRU eviction, partitioned into main vs auxiliary pools so an aux
+    /// overflow can never evict a user-visible main entry. Each partition
+    /// runs the same LRU pass independently. Pinned-everywhere over-budget
+    /// is a no-op for this pass; the next `release()` re-runs eviction.
     ///
     /// Per spec error-handling table: if `removeItem` fails for an unpinned
     /// candidate, log and LEAVE the entry — the next eviction pass retries.
     /// Removing the entry from `entries` while leaving the on-disk directory
     /// would orphan it until the next-startup orphan sweep.
     fileprivate func runEvictionIfOverBudget() async {
-        var sorted = entries.values.sorted { $0.lastAccessedAt < $1.lastAccessedAt }
-        while entries.count > evictionCap, let candidate = sorted.first {
-            sorted.removeFirst()
+        var mainSorted: [IndexEntry] = []
+        var auxSorted: [IndexEntry] = []
+        for entry in entries.values {
+            if isAuxiliary(entry) { auxSorted.append(entry) }
+            else                  { mainSorted.append(entry) }
+        }
+        mainSorted.sort { $0.lastAccessedAt < $1.lastAccessedAt }
+        auxSorted.sort  { $0.lastAccessedAt < $1.lastAccessedAt }
+
+        evictPartition(sorted: mainSorted, cap: evictionCap)
+        evictPartition(sorted: auxSorted, cap: auxiliaryEvictionCap)
+
+        do {
+            try writeIndexAtomically()
+        } catch {
+            log.error("evict.indexWriteFailed error=\(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Evict from one partition until its count is within `cap`. Caller
+    /// passes the partition pre-sorted ascending by `lastAccessedAt`.
+    private func evictPartition(sorted: [IndexEntry], cap: Int) {
+        var remaining = sorted
+        var liveCount = sorted.count
+        while liveCount > cap, let candidate = remaining.first {
+            remaining.removeFirst()
             if isCurrentEpochPinned(candidate.digest) { continue }
             let key = DigestEpoch(digest: candidate.digest, epoch: candidate.epoch)
-            // Remove the on-disk dir if present. ENOENT (already-gone) is
-            // treated as success — we still want to drop the index entry.
-            // Real failures (permission, busy, I/O) leave the entry so the
-            // next eviction pass retries (per spec error-handling row).
             let url = epochURL(key)
             let removed: Bool
             if FileManager.default.fileExists(atPath: url.path) {
@@ -163,18 +215,14 @@ public actor CoreMLModelCache {
                     removed = false
                 }
             } else {
-                removed = true   // already gone — drop the index entry too.
+                removed = true
             }
             if removed {
                 entries.removeValue(forKey: candidate.digest)
+                liveCount -= 1
                 let freedMB = Double(candidate.sizeBytes) / (1024 * 1024)
                 log.info("evicted digest=\(candidate.digest, privacy: .public) epoch=\(candidate.epoch.uuidString.lowercased(), privacy: .public) reason=lru freed=\(String(format: "%.2f", freedMB), privacy: .public)MB")
             }
-        }
-        do {
-            try writeIndexAtomically()
-        } catch {
-            log.error("evict.indexWriteFailed error=\(String(describing: error), privacy: .public)")
         }
     }
 
@@ -489,9 +537,8 @@ extension CoreMLModelCache {
     }
 
     /// Stats with entries whose `sourceFileName` matches any name in
-    /// `excludedFileNames` filtered out. The UI footer uses this to hide
-    /// auxiliary models (e.g., the bundled human SL net) from the
-    /// user-facing compiled-model count while keeping them cached.
+    /// `excludedFileNames` filtered out. Kept for callers that need a
+    /// single combined number with an explicit filter set.
     public func statsForUI(excludingFileNames excludedFileNames: Set<String>) -> Stats {
         var total: Int64 = 0
         var count = 0
@@ -503,6 +550,27 @@ extension CoreMLModelCache {
             count += 1
         }
         return Stats(count: count, totalBytes: total)
+    }
+
+    /// Per-category stats partitioned by `auxiliaryFileNames`. The footer
+    /// shows both lines so the user sees the actual cache state instead
+    /// of a single number that hides aux entries.
+    public func statsByCategory() -> (main: Stats, auxiliary: Stats) {
+        var mainTotal: Int64 = 0, mainCount = 0
+        var auxTotal: Int64 = 0,  auxCount = 0
+        for entry in entriesSnapshot {
+            if isAuxiliary(entry) {
+                auxTotal += entry.sizeBytes
+                auxCount += 1
+            } else {
+                mainTotal += entry.sizeBytes
+                mainCount += 1
+            }
+        }
+        return (
+            Stats(count: mainCount, totalBytes: mainTotal),
+            Stats(count: auxCount,  totalBytes: auxTotal)
+        )
     }
 
     private var entriesSnapshot: [IndexEntry] {
@@ -694,7 +762,13 @@ extension CoreMLModelCache {
         let bundle = Bundle.main.bundleIdentifier ?? "KataGo Anytime"
         let root = appSupport.appendingPathComponent(
             "\(bundle)/coreml", isDirectory: true)
-        return CoreMLModelCache(cacheRoot: root)
+        // The bundled human SL net is loaded alongside the user-selected
+        // model on every launch. Partition it into its own LRU pool so
+        // eviction can't drop a user-visible main entry to keep an aux one.
+        return CoreMLModelCache(
+            cacheRoot: root,
+            auxiliaryFileNames: ["b18c384nbt-humanv0.bin.gz"],
+            auxiliaryEvictionCap: 8)
     }()
 
     /// Idempotent startup. Runs the adoption-or-orphan-sweep dispatch
