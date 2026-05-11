@@ -133,8 +133,14 @@ struct PrecompileSchedulerTests {
         // the digest is not in the cache.
         await cache.clearAll()
 
-        // Allow one runloop turn for the subscription to react.
-        try await Task.sleep(for: .milliseconds(50))
+        // Poll until the subscription processes the tick or a 500ms deadline
+        // elapses. Replaces a flat 50ms sleep that was tight against the
+        // two-actor-hop path (consumer task -> MainActor hydrate -> cache
+        // actor hasEntry) on busy CI agents.
+        let deadline = ContinuousClock.now + .milliseconds(500)
+        while await scheduler.status["a.bin.gz"] != nil && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
 
         #expect(await scheduler.status["a.bin.gz"] == nil)
     }
