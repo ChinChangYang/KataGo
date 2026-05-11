@@ -22,7 +22,7 @@ struct PlusMenuView: View {
         Menu {
             Button {
                 withAnimation {
-                    let newGameRecord = GameRecord.createGameRecord()
+                    let newGameRecord = GameRecord.createGameRecord(maxBoardLength: maxBoardLength)
                     modelContext.insert(newGameRecord)
                     navigationContext.selectedGameRecord = newGameRecord
                 }

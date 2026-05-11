@@ -13,6 +13,11 @@ import KataGoInterface
 final class GameRecord {
     static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
     static let defaultName = "New Game"
+
+    static func makeDefaultSgf(boardSize: Int) -> String {
+        "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
+    }
+
     var sgf: String = defaultSgf
     var currentIndex: Int = 0
     // The iCloud servers don’t guarantee atomic processing of relationship changes,
@@ -327,17 +332,25 @@ final class GameRecord {
         ownershipWhiteness: [Int: [Float]]? = [:],
         ownershipScales: [Int: [Float]]? = [:],
         width: Int? = nil,
-        height: Int? = nil
+        height: Int? = nil,
+        maxBoardLength: Int? = nil
     ) -> GameRecord {
 
+        let resolvedSgf: String = {
+            if sgf == Self.defaultSgf, let cap = maxBoardLength, cap < 19 {
+                return Self.makeDefaultSgf(boardSize: max(2, cap))
+            }
+            return sgf
+        }()
+
         let config = Config()
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfHelper(sgf: resolvedSgf)
         config.boardWidth = sgfHelper.xSize
         config.boardHeight = sgfHelper.ySize
         config.komi = sgfHelper.rules.komi
 
         let gameRecord = GameRecord(
-            sgf: sgf,
+            sgf: resolvedSgf,
             currentIndex: currentIndex,
             config: config,
             name: name,
