@@ -30,7 +30,18 @@ public final class PrecompileScheduler {
     private let defaults: UserDefaults
     private let worker: Worker
     private var inFlight: Set<String> = []
-    public var status: [String: PrecompileStatus] = [:]
+    private var ephemeral: [String: PrecompileStatus] = [:]
+    private var cachedReady: Set<String> = []
+
+    /// Merged read-only view used by SwiftUI bindings. Ephemeral states
+    /// (queued/compiling/failed) win over cachedReady so users see live
+    /// progress even when a stale cachedReady bit could otherwise show.
+    public var status: [String: PrecompileStatus] {
+        var merged: [String: PrecompileStatus] = [:]
+        for fileName in cachedReady { merged[fileName] = .ready }
+        for (fileName, state) in ephemeral { merged[fileName] = state }
+        return merged
+    }
 
     public init(defaults: UserDefaults = .standard, worker: @escaping Worker) {
         self.defaults = defaults
@@ -49,16 +60,20 @@ public final class PrecompileScheduler {
         }
         guard !inFlight.contains(fileName) else { return }
         inFlight.insert(fileName)
-        status[fileName] = .queued
+        ephemeral[fileName] = .queued
         Task(priority: .utility) {
-            self.status[fileName] = .compiling
+            self.ephemeral[fileName] = .compiling
             do {
                 try await self.worker(fileName)
-                self.status[fileName] = .ready
+                // Behavior change in Task 10: cachedReady refresh.
+                // For now keep the original semantics so this task does
+                // not regress views.
+                self.ephemeral[fileName] = nil
+                self.cachedReady.insert(fileName)
             } catch {
                 let summary = (error as NSError).localizedDescription
                 log.error("precompile.failed model=\(fileName, privacy: .public) error=\(String(describing: error), privacy: .public)")
-                self.status[fileName] = .failed(message: summary)
+                self.ephemeral[fileName] = .failed(message: summary)
             }
             self.inFlight.remove(fileName)
         }
@@ -77,5 +92,15 @@ public final class PrecompileScheduler {
     /// subsequent enqueues are not dedup-skipped against zombie entries.
     public func cancelAllPending() {
         inFlight.removeAll()
+        ephemeral.removeAll()
+    }
+
+    // MARK: - Test seams (intentionally exposed; do not call from production)
+
+    public func _setEphemeralForTests(_ map: [String: PrecompileStatus]) {
+        ephemeral = map
+    }
+    public func _setCachedReadyForTests(_ set: Set<String>) {
+        cachedReady = set
     }
 }

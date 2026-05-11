@@ -3,6 +3,22 @@ import Testing
 @testable import KataGo_Anytime
 
 struct PrecompileSchedulerTests {
+    @MainActor
+    @Test func ephemeralStateAndCachedReadyMergeCorrectly() async throws {
+        let scheduler = PrecompileScheduler(worker: { _ in })
+        scheduler._setEphemeralForTests(["a.bin.gz": .compiling])
+        scheduler._setCachedReadyForTests(["b.bin.gz", "a.bin.gz"])
+
+        // Ephemeral wins where both exist.
+        #expect(scheduler.status["a.bin.gz"] == .compiling)
+        // CachedReady fills in where ephemeral is absent.
+        #expect(scheduler.status["b.bin.gz"] == .ready)
+        // Unknown remains nil (badge resolves to .idle via the ?? .idle
+        // fallback at the call site).
+        #expect(scheduler.status["c.bin.gz"] == nil)
+    }
+
+
     @Test func skipsWhenBackendIsMpsGpu() async throws {
         let defaults = UserDefaults(suiteName: "test.\(UUID())")!
         defaults.set("mpsGPU", forKey: "backend_default_model.bin.gz")
