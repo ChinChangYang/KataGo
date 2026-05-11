@@ -71,7 +71,15 @@ public final class PrecompileScheduler {
     /// inherits `@MainActor` isolation; status mutations happen on-actor
     /// and the worker's own async suspension takes it off-actor as needed.
     public func scheduleForModel(fileName: String) async {
-        if defaults.string(forKey: "backend_\(fileName)") == "mpsGPU" {
+        // Aux's projection borrows the built-in's BackendSettings, so its
+        // mpsGPU-vs-CoreML skip decision must also follow the built-in.
+        // The aux's own `backend_<aux>` key is never written by any UI
+        // surface, so reading it would always be nil and the aux would
+        // never be skipped — which would diverge from the projection.
+        let backendKey: String = (fileName == "b18c384nbt-humanv0.bin.gz")
+            ? "backend_default_model.bin.gz"
+            : "backend_\(fileName)"
+        if defaults.string(forKey: backendKey) == "mpsGPU" {
             log.info("skip-precompile reason=mpsGPU fileName=\(fileName, privacy: .public)")
             return
         }

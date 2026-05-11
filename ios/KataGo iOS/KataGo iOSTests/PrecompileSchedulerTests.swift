@@ -212,6 +212,36 @@ struct PrecompileSchedulerTests {
         #expect(await scheduler.status["a.bin.gz"] == nil)
     }
 
+    @Test func skipsAuxWhenBuiltInBackendIsMpsGpu() async throws {
+        let defaults = UserDefaults(suiteName: "test.\(UUID())")!
+        defaults.set("mpsGPU", forKey: "backend_default_model.bin.gz")
+
+        actor Counter { var n = 0; func inc() { n += 1 }; func get() -> Int { n } }
+        let counter = Counter()
+        let scheduler = await PrecompileScheduler(defaults: defaults) { _ in
+            await counter.inc()
+        }
+        await scheduler.scheduleForModel(fileName: "b18c384nbt-humanv0.bin.gz")
+
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await counter.get() == 0)
+    }
+
+    @Test func runsAuxWhenBuiltInBackendIsCoreml() async throws {
+        let defaults = UserDefaults(suiteName: "test.\(UUID())")!
+        defaults.set("coremlNE", forKey: "backend_default_model.bin.gz")
+
+        actor Counter { var n = 0; func inc() { n += 1 }; func get() -> Int { n } }
+        let counter = Counter()
+        let scheduler = await PrecompileScheduler(defaults: defaults) { _ in
+            await counter.inc()
+        }
+        await scheduler.scheduleForModel(fileName: "b18c384nbt-humanv0.bin.gz")
+
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await counter.get() == 1)
+    }
+
     @MainActor
     @Test func cancelAllPendingPreservesCachedReady() async throws {
         let scheduler = PrecompileScheduler(worker: { _ in })
