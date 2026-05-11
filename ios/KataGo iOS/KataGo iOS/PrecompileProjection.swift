@@ -71,3 +71,23 @@ func makeProjectionResolver() -> ProjectionResolver {
             maxBatchSize: 1)         // iOS default
     }
 }
+
+/// Wraps the projection resolver into a digest-only closure suitable
+/// for `PrecompileScheduler.hydrate(...)` and `subscribeToCacheEvents(...)`.
+/// Walks `NeuralNetworkModel.allCases` to map a fileName to its source
+/// path + backend settings, then asks `CoreMLModelCache.projectedDigest`
+/// for the digest the next engine launch would compute. Returns nil
+/// when the file is not downloaded (mirrors `projectedDigest`).
+func makeProjectionDigestFor() -> (String) async throws -> String? {
+    let resolver = makeProjectionResolver()
+    return { fileName in
+        guard let inputs = resolver(fileName) else { return nil }
+        return try await CoreMLModelCache.projectedDigest(
+            forSourcePath: inputs.sourcePath,
+            nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
+            requireExactNNLen: inputs.requireExactNNLen,
+            useFP16: inputs.useFP16,
+            maxBatchSize: inputs.maxBatchSize,
+            downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
+    }
+}

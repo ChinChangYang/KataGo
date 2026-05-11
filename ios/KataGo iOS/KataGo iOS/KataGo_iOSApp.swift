@@ -12,24 +12,12 @@ import KataGoInterface
 
 @main
 struct KataGo_iOSApp: App {
-    @State private var precompileScheduler: PrecompileScheduler = {
-        let resolver = makeProjectionResolver()
-        return PrecompileScheduler(
-            worker: { fileName in
-                try await runPrecompileWorker(fileName: fileName)
-            },
-            cache: .shared,
-            digestFor: { fileName in
-                guard let inputs = resolver(fileName) else { return nil }
-                return try await CoreMLModelCache.projectedDigest(
-                    forSourcePath: inputs.sourcePath,
-                    nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
-                    requireExactNNLen: inputs.requireExactNNLen,
-                    useFP16: inputs.useFP16,
-                    maxBatchSize: inputs.maxBatchSize,
-                    downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
-            })
-    }()
+    @State private var precompileScheduler: PrecompileScheduler = PrecompileScheduler(
+        worker: { fileName in
+            try await runPrecompileWorker(fileName: fileName)
+        },
+        cache: .shared,
+        digestFor: makeProjectionDigestFor())
     @State private var engineLaunchStatus: EngineLaunchStatus
 
     init() {
@@ -70,17 +58,7 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
-                        let resolver = makeProjectionResolver()
-                        let digestFor: (String) async throws -> String? = { fileName in
-                            guard let inputs = resolver(fileName) else { return nil }
-                            return try await CoreMLModelCache.projectedDigest(
-                                forSourcePath: inputs.sourcePath,
-                                nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
-                                requireExactNNLen: inputs.requireExactNNLen,
-                                useFP16: inputs.useFP16,
-                                maxBatchSize: inputs.maxBatchSize,
-                                downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
-                        }
+                        let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
                         await precompileScheduler.hydrate(
                             from: .shared,
@@ -99,17 +77,7 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
-                        let resolver = makeProjectionResolver()
-                        let digestFor: (String) async throws -> String? = { fileName in
-                            guard let inputs = resolver(fileName) else { return nil }
-                            return try await CoreMLModelCache.projectedDigest(
-                                forSourcePath: inputs.sourcePath,
-                                nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
-                                requireExactNNLen: inputs.requireExactNNLen,
-                                useFP16: inputs.useFP16,
-                                maxBatchSize: inputs.maxBatchSize,
-                                downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
-                        }
+                        let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
                         await precompileScheduler.hydrate(
                             from: .shared,

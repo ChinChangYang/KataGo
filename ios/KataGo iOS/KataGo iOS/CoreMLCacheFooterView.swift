@@ -86,20 +86,10 @@ struct CoreMLCacheFooterView: View {
         // from the clearAll tick, but this explicit await guarantees the
         // badge is consistent by the time `refresh()` reads stats below.
         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
-        let resolver = makeProjectionResolver()
         await scheduler.hydrate(
             from: .shared,
             fileNames: knownFileNames,
-            digestFor: { fileName in
-                guard let inputs = resolver(fileName) else { return nil }
-                return try await CoreMLModelCache.projectedDigest(
-                    forSourcePath: inputs.sourcePath,
-                    nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
-                    requireExactNNLen: inputs.requireExactNNLen,
-                    useFP16: inputs.useFP16,
-                    maxBatchSize: inputs.maxBatchSize,
-                    downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
-            })
+            digestFor: makeProjectionDigestFor())
         await scheduler.scheduleBuiltIn()
         await refresh()
     }
