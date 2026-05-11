@@ -81,6 +81,7 @@
 		553DBC10CF58E3BB94880AA4 /* arg.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0B40E0A9D40BE4F1BFF2939B /* arg.cc */; };
 		55F3DCC168CA4E457E7516A7 /* mutex.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0A85319AE10A8198A3117ADE /* mutex.cc */; };
 		57106766F3F29CAD99F9BF2D /* nullguard.cc in Sources */ = {isa = PBXBuildFile; fileRef = 55915A5FD9CB10142DE64426 /* nullguard.cc */; };
+		46E9CE44951859F486FDFC20 /* AppLaunchPrecompileSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FC60CB92B55467A3D11DAC /* AppLaunchPrecompileSweepTests.swift */; };
 		57304D90A4E5D0F2A36C113F /* PrecompileSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC60437A95B0170C6CBAC8DD /* PrecompileSchedulerTests.swift */; };
 		57AB2F792F63982215ED36A6 /* TextClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B353F521781321D83987622 /* TextClassifier.pb.cc */; };
 		57C30FBD9D80117903FCC4E2 /* TreeEnsemble.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */; };
@@ -791,6 +792,7 @@
 		BC2CF6DCF3C1E8EF28EA94A2 /* MMapFileReaderFactory.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReaderFactory.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReaderFactory.cpp; sourceTree = SOURCE_ROOT; };
 		BC369E122AA45A565227D30F /* elf_mem_image.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = elf_mem_image.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/elf_mem_image.cc"; sourceTree = SOURCE_ROOT; };
 		BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheKeyTests.swift; path = "KataGo iOSTests/CoreMLCacheKeyTests.swift"; sourceTree = SOURCE_ROOT; };
+		54FC60CB92B55467A3D11DAC /* AppLaunchPrecompileSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppLaunchPrecompileSweepTests.swift; path = "KataGo iOSTests/AppLaunchPrecompileSweepTests.swift"; sourceTree = SOURCE_ROOT; };
 		BC60437A95B0170C6CBAC8DD /* PrecompileSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrecompileSchedulerTests.swift; path = "KataGo iOSTests/PrecompileSchedulerTests.swift"; sourceTree = SOURCE_ROOT; };
 		BD22490FB6D2F00C83C1BD22 /* Fp16.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp16.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp16.cpp; sourceTree = SOURCE_ROOT; };
 		BE2564FBAA9E809482077069 /* arenaz_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arenaz_sampler.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arenaz_sampler.cc"; sourceTree = SOURCE_ROOT; };
@@ -1884,6 +1886,7 @@
 				BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */,
 				757D4B93AD8FB611D5BE3C60 /* CoreMLModelCacheTests.swift */,
 				04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */,
+				54FC60CB92B55467A3D11DAC /* AppLaunchPrecompileSweepTests.swift */,
 				BC60437A95B0170C6CBAC8DD /* PrecompileSchedulerTests.swift */,
 				8A8C40769F7BCFDF7F1F74DD /* RootViewBundleUpgradeTests.swift */,
 				CC00000000000000F6000002 /* PrecompileProjection.swift */,
@@ -2802,6 +2805,7 @@
 				BF60411C8AF4BB983A288118 /* CoreMLCacheKeyTests.swift in Sources */,
 				535E4E2D903B23E105F6D0F4 /* CoreMLModelCacheTests.swift in Sources */,
 				717643FC8292874AF4166C70 /* BinFileHasherTests.swift in Sources */,
+				46E9CE44951859F486FDFC20 /* AppLaunchPrecompileSweepTests.swift in Sources */,
 				57304D90A4E5D0F2A36C113F /* PrecompileSchedulerTests.swift in Sources */,
 				AE574ABD9822214B5255D39E /* RootViewBundleUpgradeTests.swift in Sources */,
 				CC00000000000000F6000003 /* PrecompileProjectionTests.swift in Sources */,
