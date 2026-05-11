@@ -1,4 +1,5 @@
 import Foundation
+import KataGoInterface
 import Observation
 import OSLog
 
@@ -84,6 +85,30 @@ public final class PrecompileScheduler {
     /// backend-guard applies here too.
     public func scheduleBuiltIn() async {
         await scheduleForModel(fileName: "default_model.bin.gz")
+    }
+
+    /// Replace cachedReady with the subset of `fileNames` whose projected
+    /// digest is currently in the cache. Each fileName is wrapped so one
+    /// failure does not abort the rest. Ephemeral state is untouched.
+    public func hydrate(
+        from cache: CoreMLModelCache,
+        fileNames: Set<String>,
+        digestFor: @escaping (String) async throws -> String?
+    ) async {
+        var fresh: Set<String> = []
+        for fileName in fileNames {
+            do {
+                guard let digest = try await digestFor(fileName) else { continue }
+                if await cache.hasEntry(digest: digest) {
+                    fresh.insert(fileName)
+                }
+            } catch {
+                // Hash / hasher failures during hydration are non-fatal.
+                // Treat as "not ready" rather than surfacing in the badge.
+                continue
+            }
+        }
+        cachedReady = fresh
     }
 
     /// Drop the in-flight set and ephemeral live-progress states. Leaves
