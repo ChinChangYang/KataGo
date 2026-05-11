@@ -115,6 +115,13 @@ struct KataGo_iOSApp: App {
 
 // MARK: - PrecompileScheduler worker
 
+/// Sentinel server-thread index for precompile conversions. The C++
+/// converter uses `serverThreadIdx` only in temp-path naming and log
+/// messages; passing -1 distinguishes precompile work from any real
+/// engine thread (0..N-1) and avoids temp-path collisions when an
+/// engine launch and a precompile happen to convert simultaneously.
+private let kPrecompileServerThreadIdx: Int32 = -1
+
 /// Real precompile worker. Resolves projection inputs from the named
 /// model's persisted BackendSettings, then asks CoreMLModelCache.warm
 /// to compute the digest and either hit the cache or invoke the same
@@ -122,6 +129,10 @@ struct KataGo_iOSApp: App {
 @MainActor
 private func runPrecompileWorker(fileName: String) async throws {
     guard let inputs = makeProjectionResolver()(fileName) else { return }
+    // Ensure the on-disk index is loaded into memory; without this, a
+    // precompile fired before the first engine launch sees an empty
+    // `entries` map and always recompiles. `start()` is idempotent.
+    await CoreMLModelCache.shared.start()
     try await CoreMLModelCache.shared.warm(
         forSourcePath: inputs.sourcePath,
         nnXLen: inputs.nnXLen, nnYLen: inputs.nnYLen,
@@ -137,6 +148,6 @@ private func runPrecompileWorker(fileName: String) async throws {
                 useFP16: inputs.useFP16,
                 optimizeMask: inputs.requireExactNNLen,
                 maxBatchSize: Int32(inputs.maxBatchSize),
-                serverThreadIdx: 0)
+                serverThreadIdx: kPrecompileServerThreadIdx)
         })
 }
