@@ -54,3 +54,12 @@ enum RecoveryDecision {
         return .showPicker
     }
 }
+
+public enum BundleVersionWarmDecision {
+    /// Returns `true` iff the precompile re-warm should fire (stored
+    /// version is missing or differs from current). The caller writes
+    /// `current` back into the AppStorage key only on `true`.
+    public static func shouldRewarm(stored: String, current: String) -> Bool {
+        return stored != current
+    }
+}

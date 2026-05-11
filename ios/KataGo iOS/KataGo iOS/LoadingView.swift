@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoInterface
 
 @MainActor
 struct LoadingView: View {
@@ -16,6 +17,7 @@ struct LoadingView: View {
     @State var animationCount = 0
     @Binding var version: String?
     let selectedModel: NeuralNetworkModel
+    @Environment(EngineLaunchStatus.self) private var launchStatus
 
     static let maxAnimationCount = 5
 
@@ -37,6 +39,15 @@ struct LoadingView: View {
                 if let version {
                     Text("\nKataGo \(version)")
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let line = secondaryLine {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .accessibilityAddTraits(.updatesFrequently)
                 }
             }
 
@@ -85,6 +96,15 @@ struct LoadingView: View {
                 } completion: {
                     animationCount = animationCount - 1
                 }
+        }
+    }
+
+    private var secondaryLine: String? {
+        switch launchStatus.phase {
+        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
+        case .awaitingPrecompile:       "Finishing Core ML compile…"
+        case .idle:                     nil
+        @unknown default:               nil
         }
     }
 }

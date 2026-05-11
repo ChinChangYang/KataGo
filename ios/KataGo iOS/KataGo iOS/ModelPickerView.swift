@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoInterface
 
 extension Int {
     var humanFileSize: String {
@@ -58,6 +59,7 @@ struct ModelDetailView: View {
     @State var isDownloaded = false
     @State private var isShowingConfigSheet = false
     @Binding var selectedModel: NeuralNetworkModel?
+    @Environment(PrecompileScheduler.self) private var scheduler
 
     func downloadPlayButton(model: NeuralNetworkModel) -> some View {
         Button {
@@ -144,6 +146,17 @@ struct ModelDetailView: View {
                     isDownloaded = false
                 }
             }
+            // Wire the post-download seam: hash the file and schedule
+            // a background precompile so the cache is warm before the
+            // user picks the model.
+            let capturedScheduler = scheduler
+            let capturedFileName = model.fileName
+            downloader.onDownloadComplete = { url in
+                Task.detached(priority: .userInitiated) {
+                    _ = try? await BinFileHasher.shared.identityForDownloadedFile(url)
+                }
+                await capturedScheduler.scheduleForModel(fileName: capturedFileName)
+            }
         }
         .onChange(of: downloader.isDownloading) { oldValue, newValue in
             if oldValue == true && newValue == false {
@@ -162,6 +175,7 @@ struct ModelDetailView: View {
 struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
     @Environment(\.modelContext) private var modelContext
+    @Environment(PrecompileScheduler.self) private var scheduler
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -192,8 +206,9 @@ struct ModelPickerView: View {
                             } label: {
                                 HStack {
                                     Text(model.title)
+                                    Spacer()
+                                    badge(for: model.fileName)
                                     if model.title == crashedModelTitle {
-                                        Spacer()
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .foregroundStyle(.orange)
                                             .accessibilityLabel("Did not finish loading last time")
@@ -202,6 +217,10 @@ struct ModelPickerView: View {
                             }
                         }
                     }
+                }
+
+                Section {
+                    CoreMLCacheFooterView(scheduler: scheduler)
                 }
             }
             .navigationTitle("Select a Model")
@@ -216,6 +235,30 @@ struct ModelPickerView: View {
                     selectedModel = builtInModel
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func badge(for fileName: String) -> some View {
+        let status = scheduler.status[fileName] ?? .idle
+        switch status {
+        case .ready:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.tint)
+                .accessibilityLabel("Core ML cache ready")
+        case .compiling:
+            ProgressView().controlSize(.small)
+                .accessibilityLabel("Compiling Core ML model")
+        case .queued:
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Waiting to compile Core ML model")
+        case .failed:
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+                .accessibilityLabel("Compile failed; will retry")
+        case .idle:
+            EmptyView()
         }
     }
 
@@ -261,11 +304,13 @@ struct ModelPickerView: View {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var crashedModelTitle = ""
+        @State private var scheduler = PrecompileScheduler { _ in }
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel,
                 crashedModelTitle: $crashedModelTitle
             )
+            .environment(scheduler)
         }
     }
     return PreviewHost()
@@ -275,11 +320,13 @@ struct ModelPickerView: View {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var crashedModelTitle = "Official KataGo Network"
+        @State private var scheduler = PrecompileScheduler { _ in }
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel,
                 crashedModelTitle: $crashedModelTitle
             )
+            .environment(scheduler)
         }
     }
     return PreviewHost()
@@ -288,6 +335,7 @@ struct ModelPickerView: View {
 #Preview("Model Detail xSmall") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
+        @State private var scheduler = PrecompileScheduler { _ in }
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -296,6 +344,7 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
+            .environment(scheduler)
         }
     }
 
@@ -306,6 +355,7 @@ struct ModelPickerView: View {
 #Preview("Model Detail accessibility5") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
+        @State private var scheduler = PrecompileScheduler { _ in }
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -314,6 +364,7 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
+            .environment(scheduler)
         }
     }
 

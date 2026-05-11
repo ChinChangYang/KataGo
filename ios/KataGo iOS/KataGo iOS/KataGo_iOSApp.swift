@@ -8,10 +8,22 @@
 import CoreData
 import SwiftData
 import SwiftUI
+import KataGoInterface
 
 @main
 struct KataGo_iOSApp: App {
+    @State private var precompileScheduler = PrecompileScheduler { fileName in
+        try await runPrecompileWorker(fileName: fileName)
+    }
+    @State private var engineLaunchStatus: EngineLaunchStatus
+
     init() {
+        // Create the EngineLaunchStatus object first so we can capture a
+        // direct reference to it in the updater closure — at init() time
+        // the @State wrapper backing store isn't yet reachable via `self`.
+        let status = EngineLaunchStatus()
+        _engineLaunchStatus = State(initialValue: status)
+
         #if false
             removeAllGameRecords()
         #endif
@@ -22,16 +34,31 @@ struct KataGo_iOSApp: App {
         #endif
 
         KataGoShortcuts.updateAppShortcutParameters()
+
+        // Wire the bridge's downloaded-hasher seam (Task 23) to the
+        // BinFileHasher in the main app target so downloaded models can
+        // compute their `sourceIdentity` for cache-key construction.
+        registerDownloadedHasher(BinFileHasher.shared.identityForDownloadedFile)
+
+        // Wire the engine-launch status updater seam (Task 25) so that
+        // LoadingView can show a secondary caption during cache-miss compiles.
+        registerEngineLaunchStatusUpdater { phase in
+            await MainActor.run { status.phase = phase }
+        }
     }
 
     var scene: some Scene {
         #if os(macOS)
             Window("KataGo Anytime", id: "KataGo Anytime") {
                 ModelRunnerView()
+                    .environment(precompileScheduler)
+                    .environment(engineLaunchStatus)
             }
         #else
             WindowGroup {
                 ModelRunnerView()
+                    .environment(precompileScheduler)
+                    .environment(engineLaunchStatus)
             }
         #endif
     }
@@ -84,4 +111,16 @@ struct KataGo_iOSApp: App {
             }
         }
     }
+}
+
+// MARK: - PrecompileScheduler worker (Tasks 20/21)
+
+/// Placeholder worker for `PrecompileScheduler`. Sleeps briefly so that
+/// badge UI transitions through .queued → .compiling → .ready are
+/// observable. The full bridge call (Task 19) needs channel counts that
+/// come from the C++ LoadedModel descriptor and will be wired in a
+/// follow-up task.
+@MainActor
+private func runPrecompileWorker(fileName: String) async throws {
+    try await Task.sleep(for: .seconds(1))
 }

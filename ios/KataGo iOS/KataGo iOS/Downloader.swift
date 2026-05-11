@@ -17,6 +17,12 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
     private var downloadTask: URLSessionDownloadTask?
     nonisolated let destinationURL: URL
 
+    /// Called on the MainActor after a successful download completes and
+    /// the file has been moved to `destinationURL`. Callers (e.g.
+    /// `ModelDetailView`) use this seam to hash the file and schedule a
+    /// background precompile without coupling `Downloader` to the scheduler.
+    var onDownloadComplete: (@MainActor (URL) async -> Void)?
+
     init(destinationURL: URL) {
         self.destinationURL = destinationURL
     }
@@ -65,6 +71,11 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
             await MainActor.run {
                 downloadedFileURL = destinationURL
                 isDownloading = false
+            }
+            // Hash the file and fire precompile now that it's at its final URL.
+            let finalURL = destinationURL
+            await MainActor.run {
+                Task { await self.onDownloadComplete?(finalURL) }
             }
         }
     }

@@ -22,6 +22,8 @@ struct ModelRunnerView: View {
     @State private var launchedMaxBoardLength: Int = 19
     @AppStorage("ModelRunnerView.selectedModelTitle") private var selectedModelTitle = ""
     @AppStorage("ModelRunnerView.pendingLoadModelTitle") private var pendingLoadModelTitle = ""
+    @AppStorage("CoreMLCache.firstLaunchPrecompileVersion") private var lastWarmedVersion: String = ""
+    @Environment(PrecompileScheduler.self) private var scheduler
 
     var body: some View {
         Group {
@@ -39,6 +41,14 @@ struct ModelRunnerView: View {
             }
         }
         .onAppear {
+            // Bundle-version-aware re-warm: fire scheduleBuiltIn() when the
+            // app has been updated since the last precompile warm.
+            let current = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+            if BundleVersionWarmDecision.shouldRewarm(stored: lastWarmedVersion, current: current) {
+                Task { await scheduler.scheduleBuiltIn() }
+                lastWarmedVersion = current
+            }
+
             // Guard against re-appearance (e.g. scene lifecycle transitions)
             // re-triggering the recovery log and auto-restore.
             guard !hasDecidedRecovery else { return }
