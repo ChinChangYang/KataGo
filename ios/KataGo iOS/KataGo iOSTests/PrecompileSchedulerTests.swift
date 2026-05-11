@@ -93,4 +93,44 @@ struct PrecompileSchedulerTests {
         #expect(await scheduler.status["match.bin.gz"] == .ready)
         #expect(await scheduler.status["missing.bin.gz"] == nil)
     }
+
+    @Test func hydrateDoesNotClobberConcurrentInsertsOutsideFileNamesSet() async throws {
+        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = CoreMLModelCache(cacheRoot: root)
+        await cache.ensureCacheTreeExistsForTests()
+
+        let scheduler = await PrecompileScheduler(worker: { _ in })
+        // Simulate a concurrent worker that has already marked "other.bin.gz"
+        // as ready. Hydrate should NOT erase it because it's outside the
+        // fileNames set passed to hydrate.
+        await scheduler._setCachedReadyForTests(["other.bin.gz"])
+
+        let knownFileNames: Set<String> = ["match.bin.gz"]
+        await scheduler.hydrate(
+            from: cache,
+            fileNames: knownFileNames,
+            digestFor: { _ in nil })  // nothing matches the empty cache
+
+        #expect(await scheduler.status["other.bin.gz"] == .ready)   // preserved
+        #expect(await scheduler.status["match.bin.gz"] == nil)      // not in cache
+    }
+
+    @Test func hydrateRemovesEvictedEntriesInsideFileNamesSet() async throws {
+        let root = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cache = CoreMLModelCache(cacheRoot: root)
+        await cache.ensureCacheTreeExistsForTests()
+
+        let scheduler = await PrecompileScheduler(worker: { _ in })
+        // Pretend "a.bin.gz" was previously cachedReady but its cache entry
+        // has since been evicted.
+        await scheduler._setCachedReadyForTests(["a.bin.gz"])
+
+        let knownFileNames: Set<String> = ["a.bin.gz"]
+        await scheduler.hydrate(
+            from: cache,
+            fileNames: knownFileNames,
+            digestFor: { _ in "stale-digest" })  // cache is empty → hasEntry false
+
+        #expect(await scheduler.status["a.bin.gz"] == nil)
+    }
 }

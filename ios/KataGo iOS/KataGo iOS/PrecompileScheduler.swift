@@ -105,10 +105,19 @@ public final class PrecompileScheduler {
             } catch {
                 // Hash / hasher failures during hydration are non-fatal.
                 // Treat as "not ready" rather than surfacing in the badge.
+                log.info("hydrate.digestFailed fileName=\(fileName, privacy: .public) error=\(String(describing: error), privacy: .public)")
                 continue
             }
         }
-        cachedReady = fresh
+        // Race-tolerant update: a concurrent worker that completes between
+        // hydrate's last await and this assignment must not be clobbered.
+        // Drop only the fileNames in the hydration set that are no longer
+        // in the cache (the "evicted" case), then union in the fresh ones.
+        // Entries outside `fileNames` are not the hydration target — leave them.
+        for fileName in fileNames where !fresh.contains(fileName) {
+            cachedReady.remove(fileName)
+        }
+        cachedReady.formUnion(fresh)
     }
 
     /// Drop the in-flight set and ephemeral live-progress states. Leaves
