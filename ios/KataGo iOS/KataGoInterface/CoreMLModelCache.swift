@@ -781,6 +781,30 @@ extension CoreMLModelCache {
             converterVersion: converterVersion,
             osMajorVersion: osMajor)
     }
+
+    /// Returns the digest the next engine launch would compute for these
+    /// inputs, or nil if the source file is not present on disk. Production
+    /// callers use the persisted `BackendSettings` for the model to choose
+    /// the primitive arguments so the projection matches what the launch
+    /// path computes via `cacheKey(forSourcePath:...)`.
+    public static func projectedDigest(
+        forSourcePath sourcePath: String,
+        nnXLen: Int32, nnYLen: Int32,
+        requireExactNNLen: Bool, useFP16: Bool, maxBatchSize: Int,
+        downloadedHasher: @Sendable (URL) async throws -> String
+    ) async throws -> String? {
+        // Built-in models live in the bundle; downloaded models live under
+        // Documents/. A missing file is the "model not yet downloaded" case
+        // and should yield nil, not throw.
+        if !FileManager.default.fileExists(atPath: sourcePath) { return nil }
+        let key = try await cacheKey(
+            forSourcePath: sourcePath,
+            nnXLen: nnXLen, nnYLen: nnYLen,
+            requireExactNNLen: requireExactNNLen,
+            useFP16: useFP16, maxBatchSize: maxBatchSize,
+            downloadedHasher: downloadedHasher)
+        return key.digest
+    }
 }
 
 // MARK: - Shared singleton + startup

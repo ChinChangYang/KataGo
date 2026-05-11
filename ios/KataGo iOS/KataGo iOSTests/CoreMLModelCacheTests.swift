@@ -411,4 +411,33 @@ struct CoreMLModelCacheTests {
         }
         #expect(result == false)
     }
+
+    @Test func projectedDigestReturnsNilForMissingFile() async throws {
+        let missingPath = URL.temporaryDirectory.appendingPathComponent("does-not-exist-\(UUID()).bin.gz").path
+        let result = try await CoreMLModelCache.projectedDigest(
+            forSourcePath: missingPath,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            downloadedHasher: { _ in "stub" })
+        #expect(result == nil)
+    }
+
+    @Test func projectedDigestMatchesCacheKeyDigest() async throws {
+        let tmpFile = URL.temporaryDirectory.appendingPathComponent("\(UUID()).bin.gz")
+        try Data("dummy".utf8).write(to: tmpFile)
+
+        let key = try await CoreMLModelCache.cacheKey(
+            forSourcePath: tmpFile.path,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            downloadedHasher: { _ in "stub-hash" })
+
+        let projected = try await CoreMLModelCache.projectedDigest(
+            forSourcePath: tmpFile.path,
+            nnXLen: 19, nnYLen: 19,
+            requireExactNNLen: false, useFP16: true, maxBatchSize: 1,
+            downloadedHasher: { _ in "stub-hash" })
+
+        #expect(projected == key.digest)
+    }
 }
