@@ -74,11 +74,12 @@ struct AppLaunchPrecompileSweepTests {
         await runCacheEmptySweep(scheduler: scheduler)
         try await Task.sleep(for: .milliseconds(50))
 
-        // Neither target is .ready, but both are in-flight. The sweep
-        // calls scheduleForModel anyway; scheduleForModel's inFlight
-        // dedup is what blocks the worker from being invoked again.
+        // The switch in runCacheEmptySweep skips .queued and .compiling
+        // directly — scheduleForModel is never called for either target.
+        // scheduleForModel's inFlight set provides a defense-in-depth
+        // backstop if the gating condition is ever relaxed.
         // What we assert here is the user-visible outcome: the worker
-        // is not run a second time.
+        // is not invoked a second time.
         #expect(await counter.count("default_model.bin.gz") == 0)
         #expect(await counter.count("b18c384nbt-humanv0.bin.gz") == 0)
     }

@@ -19,9 +19,12 @@ private let autoWarmFileNames: [String] = [
 ]
 
 /// Cache-empty sweep. For each auto-warm target whose status is not
-/// `.ready`, enqueue a precompile. Runs after `scheduler.hydrate(...)`
-/// in the app's scene `.task`. `scheduleForModel`'s `inFlight` dedup
-/// makes repeated calls (e.g. scene reactivation) cheap, and the
+/// `.ready`, `.queued`, or `.compiling`, enqueue a precompile. Runs
+/// after `scheduler.hydrate(...)` in the app's scene `.task`. The
+/// gating switch skips in-flight targets at the helper boundary;
+/// `scheduleForModel`'s `inFlight` set is a defense-in-depth backstop.
+/// On scene reactivation a target's status may be `.idle` again, in
+/// which case the call lands but is deduped by `inFlight`. The
 /// bundle-version rewarm in `ModelRunnerView.onAppear` cooperates via
 /// the same dedup path.
 @MainActor
