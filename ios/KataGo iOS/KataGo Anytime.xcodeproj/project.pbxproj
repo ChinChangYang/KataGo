@@ -180,6 +180,8 @@
 		AE574ABD9822214B5255D39E /* RootViewBundleUpgradeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A8C40769F7BCFDF7F1F74DD /* RootViewBundleUpgradeTests.swift */; };
 		CC00000000000000F6000001 /* CoreMLCacheReadinessProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */; };
 		CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */; };
+		CC00000000000000F7000001 /* CoreMLCacheReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */; };
+		CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */; };
 		AF34464DB9EC1C9A75AB28D2 /* EngineLaunchStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DCD4E8F88B177855C19A2D1 /* EngineLaunchStatus.swift */; };
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
@@ -746,6 +748,8 @@
 		8A8C40769F7BCFDF7F1F74DD /* RootViewBundleUpgradeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RootViewBundleUpgradeTests.swift; path = "KataGo iOSTests/RootViewBundleUpgradeTests.swift"; sourceTree = SOURCE_ROOT; };
 		CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjection.swift; path = "KataGo iOS/CoreMLCacheReadinessProjection.swift"; sourceTree = SOURCE_ROOT; };
 		CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjectionTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessProjectionTests.swift"; sourceTree = SOURCE_ROOT; };
+		CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadiness.swift; path = "KataGo iOS/CoreMLCacheReadiness.swift"; sourceTree = SOURCE_ROOT; };
+		CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessTests.swift"; sourceTree = SOURCE_ROOT; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8DE9BEBFBBE6A427CA92E372 /* ascii.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ascii.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/ascii.cc"; sourceTree = SOURCE_ROOT; };
 		8E3859F17AD2C41596120DB5 /* randen.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen.cc"; sourceTree = SOURCE_ROOT; };
@@ -1893,6 +1897,8 @@
 				8A8C40769F7BCFDF7F1F74DD /* RootViewBundleUpgradeTests.swift */,
 				CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */,
 				CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */,
+				CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */,
+				CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */,
 				14C24BD9B0A52714EC305D25 /* CoreMLComputeHandleLoader.swift */,
 			);
 			sourceTree = "<group>";
@@ -2792,6 +2798,7 @@
 				FBA842ECAA9762811F3067F8 /* PrecompileScheduler.swift in Sources */,
 				6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */,
 				CC00000000000000F6000001 /* CoreMLCacheReadinessProjection.swift in Sources */,
+				CC00000000000000F7000001 /* CoreMLCacheReadiness.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2812,6 +2819,7 @@
 				57304D90A4E5D0F2A36C113F /* PrecompileSchedulerTests.swift in Sources */,
 				AE574ABD9822214B5255D39E /* RootViewBundleUpgradeTests.swift in Sources */,
 				CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */,
+				CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -26,7 +26,7 @@ struct ProjectionInputs: Equatable {
     let maxBatchSize: Int
 }
 
-typealias ProjectionResolver = (_ fileName: String) -> ProjectionInputs?
+typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
 
 /// Production resolver. Walks `NeuralNetworkModel.allCases` to find
 /// the named model, computes its `BackendSettings`, and maps to the
@@ -101,7 +101,7 @@ func makeProjectionResolver() -> ProjectionResolver {
 /// `CoreMLCacheReadiness` to ask `CoreMLModelCache.hasEntry(digest:)`
 /// whether a given fileName is currently cached on disk.
 /// Returns nil when the file is not downloaded.
-func makeProjectionDigestFor() -> (String) async throws -> String? {
+func makeProjectionDigestFor() -> @Sendable (String) async throws -> String? {
     let resolver = makeProjectionResolver()
     return { fileName in
         guard let inputs = resolver(fileName) else { return nil }
