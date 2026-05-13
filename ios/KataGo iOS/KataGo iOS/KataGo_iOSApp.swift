@@ -51,7 +51,6 @@ struct KataGo_iOSApp: App {
                     .environment(cacheReadiness)
                     .environment(engineLaunchStatus)
                     .task {
-                        await CoreMLModelCache.shared.start()
                         await cacheReadiness.start()
                         let knownFileNames = NeuralNetworkModel.allCases.map(\.fileName)
                         await cacheReadiness.update(forFileNames: knownFileNames)
@@ -63,7 +62,6 @@ struct KataGo_iOSApp: App {
                     .environment(cacheReadiness)
                     .environment(engineLaunchStatus)
                     .task {
-                        await CoreMLModelCache.shared.start()
                         await cacheReadiness.start()
                         let knownFileNames = NeuralNetworkModel.allCases.map(\.fileName)
                         await cacheReadiness.update(forFileNames: knownFileNames)
