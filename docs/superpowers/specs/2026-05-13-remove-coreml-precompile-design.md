@@ -1,4 +1,4 @@
-# Remove Core ML Precompile, Keep Lazy Cache and Footer
+# Remove Core ML Precompile, Keep Lazy Cache, Footer, and Cached-Row Checkmark
 
 **Date:** 2026-05-13
 **Status:** Draft
@@ -9,15 +9,20 @@
 
 ## Goal
 
-Simplify the Core ML cache subsystem in KataGo Anytime by removing the background **precompile** system and its per-model UI surface. Keep the on-disk Core ML cache (it is populated lazily on first use), and keep the picker **footer** showing cache stats with a Clear button.
+Simplify the Core ML cache subsystem in KataGo Anytime by removing the background **precompile** system, while keeping:
 
-After this change:
+- The on-disk Core ML cache (populated lazily on first model use).
+- The picker **footer** with per-partition counts, size, and a **Clear** button.
+- The per-row **green checkmark** for models that are currently cached on disk.
 
-- Model picker rows show **no badges** (no green checkmark, no spinner, no clock icon).
-- Model picker still shows a **footer**: `Main: N of 4 · <size>` and `Human SL: N of 4 · <size>` plus a **Clear** button.
-- The footer **live-updates** when a lazy compile populates the cache (it subscribes to `CoreMLModelCache.indexEvents`).
-- No work runs at launch or scene-phase transitions to "warm" Core ML.
-- First selection of a never-compiled model performs the compile inline during model load (one-time cost). Subsequent loads hit the disk cache.
+What goes away:
+
+- `PrecompileScheduler` and all its scheduling/queueing/worker code.
+- Launch-time and scene-phase precompile sweeps.
+- The post-download and bundle-version-bump rewarm hooks.
+- The transient row states (spinner during compile, clock when queued). Without background work to indicate, only the steady-state "cached / not cached" signal remains.
+
+After this change, the cache fills lazily on first selection of each model. The green checkmark appears on a row as soon as the cache contains an entry for that model under the current backend settings; it updates live by subscribing to `CoreMLModelCache.indexEvents`.
 
 ## Non-Goals
 
@@ -28,25 +33,37 @@ After this change:
 
 ## Architecture
 
-### Components that stay
+### Components that stay (unchanged)
 
-| Component | Role | Change |
-|---|---|---|
-| `CoreMLModelCache` | Disk cache of compiled `.mlmodelc/` keyed by digest; LRU per partition | Drop `warm()` and any helpers only used by the scheduler; **keep** `urlForKey`, `statsByCategory()`, `indexEvents: AsyncStream<Void>`, eviction, persistence |
-| `CoreMLComputeHandleLoader` | Resolves a `MLModel` for the engine; on cache miss, compiles inline via `missCallback` | Unchanged |
-| `convertOnCooperativePool` / C++ bridge | Performs the actual `.bin.gz` → `.mlmodelc` conversion | Unchanged |
-| `CoreMLCacheFooterView` | Picker footer with stats + Clear button | Drop the `scheduler` dependency; subscribe to `CoreMLModelCache.shared.indexEvents` directly; on Clear, wipe cache and refresh — do **not** rewarm |
+| Component | Role |
+|---|---|
+| `CoreMLModelCache` | Disk cache of compiled `.mlmodelc/` keyed by digest; LRU per partition. Exposes `urlForKey`, `statsByCategory()`, `indexEvents: AsyncStream<Void>`. |
+| `CoreMLComputeHandleLoader` | Resolves a `MLModel` for the engine; on cache miss, compiles inline via `missCallback`. |
+| `convertOnCooperativePool` / C++ bridge | Performs the actual `.bin.gz` → `.mlmodelc` conversion. |
+
+### Components that stay (modified)
+
+| Component | Change |
+|---|---|
+| `CoreMLModelCache` | Drop `warm()` (used only by the removed scheduler) and any helpers only the scheduler consumed. Keep everything else listed above. Update docstrings that mention `PrecompileScheduler` / `cachedReady`. |
+| `CoreMLCacheFooterView` | Drop `scheduler` property. Subscribe to `CoreMLModelCache.shared.indexEvents` directly. On Clear: wipe cache and refresh — **do not** rewarm. |
+
+### Components added (small, replace scheduler's UI role)
+
+| New file | Role |
+|---|---|
+| `ios/KataGo iOS/KataGo iOS/CoreMLCacheReadinessProjection.swift` | Renamed from `PrecompileProjection.swift`. Pure logic: given a filename and current backend settings, derive the cache key the loader would use, then ask the cache if that entry exists on disk. No scheduling, no state. |
+| `ios/KataGo iOS/KataGo iOS/CoreMLCacheReadiness.swift` | `@Observable` class exposing `readyFileNames: Set<String>` and `func update(forFileNames: [String]) async`. The picker calls `update(forFileNames:)` whenever its model list changes (initial `.task`, downloads completing, deletions). Internally the object owns a `.task` that subscribes to `CoreMLModelCache.shared.indexEvents` and re-runs the projection against the **last-known** filename list on every yield. Injected via `@Environment`. Replaces the scheduler's role of feeding the per-row badge. |
 
 ### Components removed entirely
 
-- `PrecompileScheduler` — the precompile worker queue and `cachedReady` projection.
-- `PrecompileProjection` — the projection helper used only by `PrecompileScheduler.hydrate(...)`.
-- `runCacheEmptySweep` and `runPrecompileWorker` in `KataGo_iOSApp.swift`.
-- The `@State` scheduler, its `.environment(...)` injection, and the scenePhase hooks that invoke `runCacheEmptySweep`.
+- `ios/KataGo iOS/KataGo iOS/PrecompileScheduler.swift`
+- `runCacheEmptySweep`, `runPrecompileWorker` (functions in `KataGo_iOSApp.swift`)
+- The `@State precompileScheduler` declaration, `.environment(scheduler)` injection, and the two scenePhase hooks invoking `runCacheEmptySweep`.
 - The post-download `scheduleForModel` hook in `ModelPickerView`.
-- The `scheduleBuiltIn()` re-warm in `ModelRunnerView` triggered on bundle version change.
+- The `scheduleBuiltIn()` re-warm in `ModelRunnerView` on bundle-version change.
 - The two `scheduleForModel` calls in `BackendConfigSheet`.
-- The per-row `badge(for:)` function in `ModelPickerView` and all icon variants (`.ready`, `.compiling`, `.queued`).
+- The `.compiling` (spinner) and `.queued` (clock) variants of the per-row badge. Only the `.ready` (green checkmark) state survives.
 
 ## Data Flow After the Change
 
@@ -57,45 +74,67 @@ User taps a model in picker
       → CoreMLModelCache.urlForKey(digest, fileName, missCallback)
         → on hit:  return cached .mlmodelc URL          (fast)
         → on miss: missCallback runs convertOnCooperativePool()
-                   → C++ bridge → .mlmodelc written under <root>/models/<digest>/<epoch>.mlmodelc/
+                   → C++ bridge → .mlmodelc written
                    → index.json updated → indexEvents.yield()
       → MLModel(contentsOf: ...)
 
+CoreMLCacheReadiness (mounted at app level via .environment)
+  ModelPickerView.onAppear / on-list-change → readiness.update(forFileNames: currentList)
+  readiness internal task {
+    for await _ in CoreMLModelCache.shared.indexEvents {
+      readyFileNames = projection.computeReady(forFileNames: lastKnownList)
+    }
+  }
+
+ModelPickerView row
+  if readiness.readyFileNames.contains(fileName) {
+      Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+  } // else: no trailing icon
+
 CoreMLCacheFooterView (mounted in picker)
   task { for await _ in CoreMLModelCache.shared.indexEvents { refresh() } }
-  → refresh() calls statsByCategory(), updates "Main: N of 4 · size" labels
+  → refresh() calls statsByCategory(), updates labels
   → Clear button: CoreMLModelCache.shared.clear() → refresh() (no rewarm)
 ```
 
-There is no scheduler in this diagram, and no badge state on picker rows.
+There is no scheduler in this diagram. Two independent subscribers (`CoreMLCacheReadiness` for row badges and `CoreMLCacheFooterView` for footer stats) listen to the same `indexEvents` stream.
 
 ## File-Level Changes
 
 ### Deleted
 
 - `ios/KataGo iOS/KataGo iOS/PrecompileScheduler.swift`
-- `ios/KataGo iOS/KataGo iOS/PrecompileProjection.swift`
 - `ios/KataGo iOS/KataGo iOSTests/AppLaunchPrecompileSweepTests.swift`
 - `ios/KataGo iOS/KataGo iOSTests/PrecompileSchedulerTests.swift`
-- `ios/KataGo iOS/KataGo iOSTests/PrecompileProjectionTests.swift`
 - `ios/KataGo iOS/KataGo iOSUITests/CacheEmptySweepFooterUITests.swift`
+
+### Renamed (same logic, new name, scheduler references removed)
+
+- `ios/KataGo iOS/KataGo iOS/PrecompileProjection.swift` → `CoreMLCacheReadinessProjection.swift`
+- `ios/KataGo iOS/KataGo iOSTests/PrecompileProjectionTests.swift` → `CoreMLCacheReadinessProjectionTests.swift`
+  - Drop any test that asserts integration with `PrecompileScheduler.hydrate(...)`. Keep tests that exercise the projection logic in isolation.
+
+### Added
+
+- `ios/KataGo iOS/KataGo iOS/CoreMLCacheReadiness.swift`
+- `ios/KataGo iOS/KataGo iOSTests/CoreMLCacheReadinessTests.swift`
+  - One test: recompute fires after `indexEvents` yields, and `readyFileNames` reflects the projection result.
 
 ### Modified
 
 - **`ios/KataGo iOS/KataGo iOS/KataGo_iOSApp.swift`**
-  - Remove `runCacheEmptySweep(scheduler:)`.
-  - Remove `runPrecompileWorker(fileName:)`.
-  - Remove the `@State precompileScheduler` declaration.
-  - Remove `.environment(precompileScheduler)` from the scene body.
+  - Remove `runCacheEmptySweep(scheduler:)` and `runPrecompileWorker(fileName:)`.
+  - Remove the `@State precompileScheduler` declaration and `.environment(precompileScheduler)` injection.
   - Remove the two scenePhase hooks that call `runCacheEmptySweep`.
-  - Net: no remaining references to `PrecompileScheduler`.
+  - Add a `@State` instance of `CoreMLCacheReadiness` and inject via `.environment(...)` at the same scope previously used for the scheduler.
 
 - **`ios/KataGo iOS/KataGo iOS/ModelPickerView.swift`**
-  - Remove `@Environment(PrecompileScheduler.self) private var scheduler` from all views in the file.
-  - Remove `badge(for fileName:)` function and its callsites on each row.
-  - Remove the `onDownloadComplete` seam that captures the scheduler and calls `scheduleForModel`.
-  - **Keep** the `CoreMLCacheFooterView` mount in the picker; pass no scheduler (see footer change).
-  - Update SwiftUI previews: drop `@State private var scheduler` and `.environment(scheduler)`.
+  - Replace `@Environment(PrecompileScheduler.self) private var scheduler` with `@Environment(CoreMLCacheReadiness.self) private var readiness` in all views in this file.
+  - Replace the existing `badge(for fileName:)` switch with: if `readiness.readyFileNames.contains(fileName)` show `checkmark.circle.fill` in green; otherwise render nothing. No spinner. No clock.
+  - Call `await readiness.update(forFileNames: currentModelFileNames)` from a `.task(id: modelListHash)` on the picker's outer view so the readiness object always tracks the displayed list.
+  - Remove the `onDownloadComplete` seam that captured the scheduler and called `scheduleForModel`. (Download completion still triggers the picker's existing model-list refresh, which re-fires the `.task(id:)` above and recomputes readiness — no separate hook needed.)
+  - Keep the `CoreMLCacheFooterView` mount in the picker; pass no scheduler.
+  - Update SwiftUI previews: drop scheduler stubs; inject a `CoreMLCacheReadiness` configured with an empty or seeded `readyFileNames` for the relevant preview variants.
 
 - **`ios/KataGo iOS/KataGo iOS/ModelRunnerView.swift`**
   - Remove `@Environment(PrecompileScheduler.self)`.
@@ -103,26 +142,26 @@ There is no scheduler in this diagram, and no badge state on picker rows.
 
 - **`ios/KataGo iOS/KataGo iOS/BackendConfigSheet.swift`**
   - Remove `@Environment(PrecompileScheduler.self)`.
-  - Remove both `scheduleForModel` calls in change handlers.
-  - Remove `.environment(PrecompileScheduler { _ in })` from previews.
+  - Remove both `scheduleForModel` calls in the backend-setting change handlers.
+  - Remove `.environment(PrecompileScheduler { _ in })` from previews. Inject a `CoreMLCacheReadiness` if the preview otherwise crashes on the `@Environment` lookup; otherwise no replacement needed.
 
 - **`ios/KataGo iOS/KataGo iOS/CoreMLCacheFooterView.swift`**
-  - Remove the `let scheduler: PrecompileScheduler` property.
+  - Remove `let scheduler: PrecompileScheduler` property and any callsite arguments that pass it.
   - In `clear()`: call `CoreMLModelCache.shared.clear()` then `refresh()`. Do **not** call `scheduleBuiltIn()`.
-  - Replace the existing refresh trigger with a `.task` that subscribes to `CoreMLModelCache.shared.indexEvents` and calls `refresh()` on each yield. Also call `refresh()` once on appear (initial population) before entering the subscription loop.
+  - Use a `.task` modifier to subscribe to `CoreMLModelCache.shared.indexEvents` and call `refresh()` on each yield. Call `refresh()` once before entering the loop for the initial render.
 
 - **`ios/KataGo iOS/KataGoInterface/CoreMLModelCache.swift`**
-  - Remove `warm()` and any helpers used only by the scheduler (e.g., the in-memory readiness projection feeding `cachedReady`).
-  - **Keep** `urlForKey`, `statsByCategory()`, `indexEvents`, the persistence layer, and eviction.
-  - Update docstrings that reference `PrecompileScheduler` / `cachedReady` to remove those mentions.
+  - Remove `warm()` and any helpers used only by the scheduler.
+  - Keep `urlForKey`, `statsByCategory()`, `indexEvents`, persistence, eviction.
+  - Update docstrings to remove `PrecompileScheduler` / `cachedReady` references.
 
 - **`ios/KataGo iOS/KataGo iOSTests/CoreMLModelCacheTests.swift`**
-  - Remove tests that exercise `warm()` or scheduler-projection helpers.
-  - **Keep** tests covering put/get, eviction per partition, persistence round-trip, `statsByCategory`, and `indexEvents` emission.
+  - Remove tests that exercise `warm()` or scheduler-projection helpers that no longer exist.
+  - Keep tests for put/get, eviction per partition, persistence round-trip, `statsByCategory`, and `indexEvents` emission.
 
 - **`ios/KataGo iOS/KataGo iOSUITests/CoreMLCacheFooterUITests.swift`**
-  - Update post-Clear expectation from `Main: 1 of 4 · ...` (which relied on `scheduleBuiltIn` rewarm) to `Main: 0 of 4 · 0 B` (or analogous zero-size string the footer actually renders).
-  - Keep the pre-Clear assertion that the footer displays expected counts after the user has loaded a model at least once. If a test only validated the rewarm pathway, delete that test.
+  - Update post-Clear expectation from `Main: 1 of 4 · ...` (which relied on `scheduleBuiltIn` rewarm) to `Main: 0 of 4 · 0 B` (or whatever zero-size string the existing formatter produces).
+  - Keep the pre-Clear assertion that the footer displays the expected counts after the user has loaded a model at least once. If a test only validated the rewarm pathway, delete that test.
 
 ### Unchanged (verified during implementation)
 
@@ -134,9 +173,16 @@ There is no scheduler in this diagram, and no badge state on picker rows.
 ## UI Specification
 
 ### Picker rows
-Each row renders only the model's name, source, and any selection state already present. No trailing icon for cache readiness.
+
+Each row renders the model's name, source, any selection state already present, and **one optional trailing icon**:
+
+- If `CoreMLCacheReadiness.readyFileNames` contains the row's filename: `checkmark.circle.fill` in green.
+- Otherwise: no trailing icon. No spinner. No clock.
+
+The checkmark updates live as the cache changes (via the `indexEvents` subscription).
 
 ### Footer
+
 Two lines, vertically stacked, with a trailing **Clear** button (existing layout preserved):
 
 ```
@@ -146,26 +192,28 @@ Human SL: N of 4 · <human-readable size>            [Clear]
 
 - `N` reflects current on-disk entry count in each partition.
 - Size is the sum of bytes for entries in that partition, rendered with the existing formatter.
-- The footer updates whenever `CoreMLModelCache.shared.indexEvents` yields (which the cache emits on insert, evict, and clear).
-- Tapping **Clear** wipes both partitions on disk and immediately refreshes the footer (showing 0 / 0 B). The cache will repopulate naturally as the user loads models.
+- The footer updates whenever `CoreMLModelCache.shared.indexEvents` yields (insert, evict, clear).
+- Tapping **Clear** wipes both partitions on disk and immediately refreshes the footer (showing 0 / 0 B). The cache repopulates naturally as the user loads models.
 
 ## Error Handling
 
-- If the lazy compile fails during model load (existing `CoreMLComputeHandleLoader` retry path), the user sees the existing error surfacing in `ContentView`. No new error paths.
-- If `statsByCategory()` throws (it currently does not), the footer leaves the prior values visible and logs to console. (Behavior carried forward from the current implementation; no new contract.)
+- If the lazy compile fails during model load (existing `CoreMLComputeHandleLoader` retry path), the user sees the existing error surface in `ContentView`. No new error paths.
+- `CoreMLCacheReadiness.recompute()` swallows projection errors and treats them as "not ready" for that filename. Recompute is best-effort UI state; failures do not block engine operation.
 
 ## Performance / Tradeoffs
 
-- **First selection of an uncompiled model:** visible compile delay during model load (typically a few seconds on modern Apple Silicon). On subsequent loads, the cache hits and load is sub-second.
-- **App launch / scene foregrounding:** zero precompile work. Faster cold start; nothing CPU-bound running while the user is on the menu.
-- **Cache stays bounded.** LRU eviction at 4 entries per partition still applies, so size cannot grow unbounded.
+- **First selection of an uncompiled model:** visible compile delay during model load (typically a few seconds on modern Apple Silicon). On subsequent loads, the cache hits and load is sub-second. The row's green checkmark appears as soon as the compile completes.
+- **App launch / scene foregrounding:** zero precompile work. Faster cold start.
+- **Cache stays bounded.** LRU eviction at 4 entries per partition still applies.
+- **`CoreMLCacheReadiness` recompute cost:** O(picker filenames) per `indexEvents` yield. Picker filenames are bounded (well under 20); each projection lookup is a digest computation plus a hash-map probe. Negligible.
 
 ## Testing Strategy
 
-- **Unit (`CoreMLModelCacheTests`)** — verify put/get, eviction per partition, `statsByCategory`, `indexEvents` fires on insert and clear.
-- **UI (`CoreMLCacheFooterUITests`)** — verify footer renders, reflects counts after a lazy compile, and resets to 0 / 0 B after Clear with no rewarm.
+- **Unit (`CoreMLModelCacheTests`)** — put/get, eviction per partition, `statsByCategory`, `indexEvents` fires on insert and clear.
+- **Unit (`CoreMLCacheReadinessProjectionTests`)** — projection returns true iff the digest derived from filename + current backend settings is present on disk; false otherwise.
+- **Unit (`CoreMLCacheReadinessTests`)** — `readyFileNames` updates after `indexEvents` yields; reflects projection results.
+- **UI (`CoreMLCacheFooterUITests`)** — footer renders, reflects counts after a lazy compile, resets to 0 / 0 B after Clear with no rewarm.
 - **Build** — must succeed for iOS Simulator, macOS, and visionOS Simulator (per CLAUDE.md build matrix).
-- **No new tests required for absence of badges**; visual inspection during build verification suffices.
 
 ## Rollout
 
