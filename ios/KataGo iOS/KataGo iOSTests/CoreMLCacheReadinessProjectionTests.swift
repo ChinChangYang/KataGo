@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import KataGo_Anytime
 
-struct PrecompileProjectionTests {
+struct CoreMLCacheReadinessProjectionTests {
     @Test func resolverReturnsNilForUnknownFileName() async throws {
         let inputs = makeProjectionResolver()("definitely-not-a-real-model.bin.gz")
         #expect(inputs == nil)

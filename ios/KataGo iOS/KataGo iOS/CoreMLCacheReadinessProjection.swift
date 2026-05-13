@@ -1,9 +1,11 @@
 //
-//  PrecompileProjection.swift
+//  CoreMLCacheReadinessProjection.swift
 //  KataGo Anytime
 //
 //  App-side mapping from a model `fileName` to the primitive inputs
-//  needed by `CoreMLModelCache.projectedDigest` / `CoreMLModelCache.warm`.
+//  needed by `CoreMLModelCache.projectedDigest`. Used by
+//  `CoreMLCacheReadiness` to decide whether a row's green checkmark
+//  should show in the model picker.
 //
 //  Keeps the `KataGoInterface` framework ignorant of app-target types
 //  like `BackendSettings` and `NeuralNetworkModel`.
@@ -94,12 +96,11 @@ func makeProjectionResolver() -> ProjectionResolver {
     }
 }
 
-/// Wraps the projection resolver into a digest-only closure suitable
-/// for `PrecompileScheduler.hydrate(...)` and `subscribeToCacheEvents(...)`.
-/// Walks `NeuralNetworkModel.allCases` to map a fileName to its source
-/// path + backend settings, then asks `CoreMLModelCache.projectedDigest`
-/// for the digest the next engine launch would compute. Returns nil
-/// when the file is not downloaded (mirrors `projectedDigest`).
+/// Returns a digest-only closure that maps a fileName to the cache
+/// digest the next engine launch would compute. Used by
+/// `CoreMLCacheReadiness` to ask `CoreMLModelCache.hasEntry(digest:)`
+/// whether a given fileName is currently cached on disk.
+/// Returns nil when the file is not downloaded.
 func makeProjectionDigestFor() -> (String) async throws -> String? {
     let resolver = makeProjectionResolver()
     return { fileName in
