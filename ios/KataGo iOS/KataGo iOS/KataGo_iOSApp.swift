@@ -47,6 +47,7 @@ struct KataGo_iOSApp: App {
         },
         cache: .shared,
         digestFor: makeProjectionDigestFor())
+    @State private var cacheReadiness: CoreMLCacheReadiness = CoreMLCacheReadiness()
     @State private var engineLaunchStatus: EngineLaunchStatus
 
     init() {
@@ -84,12 +85,16 @@ struct KataGo_iOSApp: App {
             Window("KataGo Anytime", id: "KataGo Anytime") {
                 ModelRunnerView()
                     .environment(precompileScheduler)
+                    .environment(cacheReadiness)
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
                             .union(autoWarmFileNames)
                         let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
+                        await cacheReadiness.start()
+                        await cacheReadiness.update(
+                            forFileNames: Array(knownFileNames))
                         await precompileScheduler.hydrate(
                             from: .shared,
                             fileNames: knownFileNames,
@@ -105,12 +110,16 @@ struct KataGo_iOSApp: App {
             WindowGroup {
                 ModelRunnerView()
                     .environment(precompileScheduler)
+                    .environment(cacheReadiness)
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
                             .union(autoWarmFileNames)
                         let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
+                        await cacheReadiness.start()
+                        await cacheReadiness.update(
+                            forFileNames: Array(knownFileNames))
                         await precompileScheduler.hydrate(
                             from: .shared,
                             fileNames: knownFileNames,
