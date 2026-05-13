@@ -52,7 +52,18 @@ if [ "${BUNDLE_VERSION}" != "${XCODE_BUILD}" ]; then
     sed -i '' "s/${BUNDLE_VERSION}/${XCODE_BUILD}/g" "${BUNDLE_PATH}/ExportMetadata.plist"
 fi
 
-xcodebuild -importComponent metalToolchain -importPath "${BUNDLE_PATH}"
+# Tolerate "already installed" — Xcode Cloud sometimes pre-imports the toolchain
+# at the system level, and `-importComponent` then errors out. Treat that as success.
+if ! IMPORT_OUTPUT=$(xcodebuild -importComponent metalToolchain -importPath "${BUNDLE_PATH}" 2>&1); then
+    echo "${IMPORT_OUTPUT}"
+    if echo "${IMPORT_OUTPUT}" | grep -q "already installed"; then
+        echo "Metal Toolchain already installed; continuing."
+    else
+        exit 1
+    fi
+else
+    echo "${IMPORT_OUTPUT}"
+fi
 
 # Download built-in 18b network (Metal backend converts to CoreML on-the-fly)
 DEFAULT_MODEL_GZ="default_model.bin.gz"
