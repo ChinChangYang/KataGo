@@ -484,8 +484,7 @@ extension CoreMLModelCache {
     /// Cache-hit-or-compile entry point. Returns a `PinnedCacheURL` token
     /// that must be `release()`ed by the caller (deinit is a safety net).
     /// `priority` controls the inner compile task's priority — engine
-    /// launches default to `.userInitiated`; `PrecompileScheduler` passes
-    /// `.utility` (Task 14).
+    /// launches default to `.userInitiated`.
     public func urlForKey(
         digest: String,
         priority: TaskPriority = .userInitiated,

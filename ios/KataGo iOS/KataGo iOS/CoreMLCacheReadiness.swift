@@ -3,8 +3,7 @@
 //  KataGo Anytime
 //
 //  Per-filename "is the Core ML cache populated for this model?"
-//  signal consumed by the model picker's green checkmark. Replaces
-//  the old PrecompileScheduler's `cachedReady` set.
+//  signal consumed by the model picker's green checkmark.
 //
 
 import Foundation
