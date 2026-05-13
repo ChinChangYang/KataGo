@@ -284,8 +284,8 @@ extension CoreMLModelCache {
     }
 
     /// Index-only lookup. Returns true iff a non-tombstoned entry exists
-    /// for `digest` in memory. No I/O. Used by `PrecompileScheduler`'s
-    /// `cachedReady` projection.
+    /// for `digest` in memory. No I/O. Used by `CoreMLCacheReadiness`
+    /// to decide whether to show the picker's green checkmark.
     public func hasEntry(digest: String) -> Bool {
         guard let entry = entries[digest] else { return false }
         let key = DigestEpoch(digest: digest, epoch: entry.epoch)
@@ -625,14 +625,9 @@ extension CoreMLModelCache {
 // MARK: - clearAll
 
 extension CoreMLModelCache {
-    /// Wipe the entire cache. Cancel in-flight compile tasks, delete the
-    /// cache root, re-establish the invariant tree, write a fresh empty
-    /// index, and reset all in-memory state.
-    ///
-    /// Caller is responsible for kicking any re-warm (per spec: clearAll
-    /// has no opinion on which model is currently selected). Production
-    /// callers (the Clear Cache button) follow this with
-    /// `PrecompileScheduler.scheduleBuiltIn()`.
+    /// Wipes the cache and emits an indexEvents tick. Caller is
+    /// responsible for deciding whether any post-wipe action is needed.
+    /// The cache repopulates lazily on the next model load.
     public func clearAll() async {
         for task in inFlight.values { task.cancel() }
         try? FileManager.default.removeItem(at: cacheRoot)
@@ -806,38 +801,6 @@ extension CoreMLModelCache {
         return key.digest
     }
 
-    /// Compute the projected digest and warm the cache. On miss, the
-    /// provided callback is invoked exactly once and the resulting
-    /// `.mlmodelc` is committed via the standard install path. On hit,
-    /// nothing runs. Either way the pin is released immediately because
-    /// `warm` has no consumer for the URL; the on-disk entry persists.
-    ///
-    /// Returns early without throwing if the source file is missing
-    /// (mirrors `projectedDigest`'s nil case — pre-download is not an
-    /// error).
-    public func warm(
-        forSourcePath sourcePath: String,
-        nnXLen: Int32, nnYLen: Int32,
-        requireExactNNLen: Bool, useFP16: Bool, maxBatchSize: Int,
-        sourceFileName: String?,
-        downloadedHasher: @Sendable @escaping (URL) async throws -> String,
-        missCallback: @Sendable @escaping () async throws -> URL
-    ) async throws {
-        guard let digest = try await Self.projectedDigest(
-            forSourcePath: sourcePath,
-            nnXLen: nnXLen, nnYLen: nnYLen,
-            requireExactNNLen: requireExactNNLen,
-            useFP16: useFP16, maxBatchSize: maxBatchSize,
-            downloadedHasher: downloadedHasher)
-        else { return }
-
-        let pinned = try await urlForKey(
-            digest: digest,
-            priority: .utility,
-            sourceFileName: sourceFileName,
-            missCallback: missCallback)
-        await pinned.release()
-    }
 }
 
 // MARK: - Shared singleton + startup
