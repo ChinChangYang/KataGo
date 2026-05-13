@@ -187,12 +187,14 @@ struct ModelPickerView: View {
     /// sentinel that `ModelRunnerView` persists.
     @Binding var crashedModelTitle: String
 
-    /// Filenames of currently visible / downloaded models. Drives the
-    /// readiness recompute via `.task(id:)`.
+    /// Filenames of the picker's visible model rows. Matches the
+    /// `ForEach` filter below. Drives the readiness recompute via
+    /// `.task(id:)`. Un-downloaded models are passed through; the
+    /// projection silently excludes them by returning nil when the
+    /// source file is absent.
     private var visibleFileNames: [String] {
         NeuralNetworkModel.allCases.compactMap { model in
-            guard model.visible,
-                  model.downloadedURL != nil else { return nil }
+            guard model.visible else { return nil }
             return model.fileName
         }
     }
