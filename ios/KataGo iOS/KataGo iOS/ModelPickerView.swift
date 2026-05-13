@@ -60,7 +60,7 @@ struct ModelDetailView: View {
     @State var isDownloaded = false
     @State private var isShowingConfigSheet = false
     @Binding var selectedModel: NeuralNetworkModel?
-    @Environment(PrecompileScheduler.self) private var scheduler
+    @Environment(CoreMLCacheReadiness.self) private var readiness
 
     func downloadPlayButton(model: NeuralNetworkModel) -> some View {
         Button {
@@ -148,16 +148,15 @@ struct ModelDetailView: View {
                     isDownloaded = false
                 }
             }
-            // Wire the post-download seam: hash the file and schedule
-            // a background precompile so the cache is warm before the
-            // user picks the model.
-            let capturedScheduler = scheduler
-            let capturedFileName = model.fileName
+            // Compute the downloaded file's identity hash so the
+            // first engine launch that selects this model can
+            // construct its cache key without re-hashing on the
+            // hot path. No precompile is scheduled — the cache
+            // populates lazily on first selection.
             downloader.onDownloadComplete = { url in
                 Task.detached(priority: .userInitiated) {
                     _ = try? await BinFileHasher.shared.identityForDownloadedFile(url)
                 }
-                await capturedScheduler.scheduleForModel(fileName: capturedFileName)
             }
         }
         .onChange(of: downloader.isDownloading) { oldValue, newValue in
@@ -177,7 +176,7 @@ struct ModelDetailView: View {
 struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
     @Environment(\.modelContext) private var modelContext
-    @Environment(PrecompileScheduler.self) private var scheduler
+    @Environment(CoreMLCacheReadiness.self) private var readiness
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -187,6 +186,25 @@ struct ModelPickerView: View {
     /// string (via the banner's Dismiss button) clears the crash-loop
     /// sentinel that `ModelRunnerView` persists.
     @Binding var crashedModelTitle: String
+
+    /// Filenames of currently visible / downloaded models. Drives the
+    /// readiness recompute via `.task(id:)`.
+    private var visibleFileNames: [String] {
+        NeuralNetworkModel.allCases.compactMap { model in
+            guard model.visible,
+                  model.downloadedURL != nil else { return nil }
+            return model.fileName
+        }
+    }
+
+    /// Stable identity for `.task(id:)`. SwiftUI restarts the task
+    /// whenever this changes — i.e., when a model is downloaded or
+    /// removed.
+    private var visibleFileNamesHash: Int {
+        var hasher = Hasher()
+        for name in visibleFileNames.sorted() { hasher.combine(name) }
+        return hasher.finalize()
+    }
 
     var body: some View {
         NavigationStack {
@@ -222,10 +240,13 @@ struct ModelPickerView: View {
                 }
 
                 Section {
-                    CoreMLCacheFooterView(scheduler: scheduler)
+                    CoreMLCacheFooterView()
                 }
             }
             .navigationTitle("Select a Model")
+        }
+        .task(id: visibleFileNamesHash) {
+            await readiness.update(forFileNames: visibleFileNames)
         }
         .onOpenURL { url in
             if let result = GameRecord.importGameRecord(from: url, in: modelContext) {
@@ -242,25 +263,10 @@ struct ModelPickerView: View {
 
     @ViewBuilder
     private func badge(for fileName: String) -> some View {
-        let status = scheduler.status[fileName] ?? .idle
-        switch status {
-        case .ready:
+        if readiness.readyFileNames.contains(fileName) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.tint)
+                .foregroundStyle(.green)
                 .accessibilityLabel("Core ML cache ready")
-        case .compiling:
-            ProgressView().controlSize(.small)
-                .accessibilityLabel("Compiling Core ML model")
-        case .queued:
-            Image(systemName: "clock")
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Waiting to compile Core ML model")
-        case .failed:
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundStyle(.orange)
-                .accessibilityLabel("Compile failed; will retry")
-        case .idle:
-            EmptyView()
         }
     }
 
@@ -306,13 +312,13 @@ struct ModelPickerView: View {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var crashedModelTitle = ""
-        @State private var scheduler = PrecompileScheduler { _ in }
+        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel,
                 crashedModelTitle: $crashedModelTitle
             )
-            .environment(scheduler)
+            .environment(readiness)
         }
     }
     return PreviewHost()
@@ -322,13 +328,13 @@ struct ModelPickerView: View {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var crashedModelTitle = "Official KataGo Network"
-        @State private var scheduler = PrecompileScheduler { _ in }
+        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel,
                 crashedModelTitle: $crashedModelTitle
             )
-            .environment(scheduler)
+            .environment(readiness)
         }
     }
     return PreviewHost()
@@ -337,7 +343,7 @@ struct ModelPickerView: View {
 #Preview("Model Detail xSmall") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
-        @State private var scheduler = PrecompileScheduler { _ in }
+        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -346,7 +352,7 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
-            .environment(scheduler)
+            .environment(readiness)
         }
     }
 
@@ -357,7 +363,7 @@ struct ModelPickerView: View {
 #Preview("Model Detail accessibility5") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
-        @State private var scheduler = PrecompileScheduler { _ in }
+        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -366,7 +372,7 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
-            .environment(scheduler)
+            .environment(readiness)
         }
     }
 

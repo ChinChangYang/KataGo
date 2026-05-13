@@ -7,7 +7,6 @@ import SwiftUI
 import KataGoInterface
 
 struct CoreMLCacheFooterView: View {
-    let scheduler: PrecompileScheduler
     @State private var mainCount: Int = 0
     @State private var mainBytes: Int64 = 0
     @State private var auxCount: Int = 0
@@ -43,7 +42,16 @@ struct CoreMLCacheFooterView: View {
             }
         }
         .padding(.vertical, 12)
-        .task { await refresh() }
+        .task {
+            // Initial render uses current on-disk state.
+            await refresh()
+            // Then auto-refresh whenever the cache mutates (lazy
+            // compile inserts, eviction, clearAll).
+            let stream = await CoreMLModelCache.shared.indexEvents
+            for await _ in stream {
+                await refresh()
+            }
+        }
         .confirmationDialog("Clear Core ML Cache?",
                             isPresented: $showConfirm,
                             titleVisibility: .visible) {
@@ -52,7 +60,7 @@ struct CoreMLCacheFooterView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("All \(totalCount) compiled models will be removed. They will recompile on next use. The built-in model will recompile automatically in the background.")
+            Text("All \(totalCount) compiled models will be removed. They will recompile on next use.")
         }
     }
 
@@ -62,11 +70,8 @@ struct CoreMLCacheFooterView: View {
     }
 
     @MainActor private func refresh() async {
-        // Ensure the on-disk index is loaded into memory before reading
-        // stats. On a cold launch nothing else has called `start()` yet —
-        // it's normally invoked from `loadCoreMLHandle` at engine boot —
-        // so without this the footer reports 0 entries even when the cache
-        // on disk is populated from previous runs. `start()` is idempotent.
+        // Ensure the on-disk index is loaded into memory before
+        // reading stats. start() is idempotent.
         await CoreMLModelCache.shared.start()
         let stats = await CoreMLModelCache.shared.statsByCategory()
         mainCount = stats.main.count
@@ -79,18 +84,10 @@ struct CoreMLCacheFooterView: View {
         clearing = true
         defer { clearing = false }
         await CoreMLModelCache.shared.clearAll()
-        UserDefaults.standard.set("", forKey: "CoreMLCache.firstLaunchPrecompileVersion")
-        scheduler.cancelAllPending()
-        // Re-hydrate so cachedReady drops to empty in lockstep with the
-        // footer count zeroing. subscribeToCacheEvents would also fire
-        // from the clearAll tick, but this explicit await guarantees the
-        // badge is consistent by the time `refresh()` reads stats below.
-        let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
-        await scheduler.hydrate(
-            from: .shared,
-            fileNames: knownFileNames,
-            digestFor: makeProjectionDigestFor())
-        await scheduler.scheduleBuiltIn()
+        // clearAll() emits an indexEvents tick, so the task-bound
+        // subscription will refresh us. Call refresh() explicitly too
+        // to guarantee the user sees 0/0 before the next event loop
+        // iteration in case the subscription is mid-iteration.
         await refresh()
     }
 }
