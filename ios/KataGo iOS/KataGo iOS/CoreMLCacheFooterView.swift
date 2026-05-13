@@ -43,11 +43,13 @@ struct CoreMLCacheFooterView: View {
         }
         .padding(.vertical, 12)
         .task {
-            // Initial render uses current on-disk state.
-            await refresh()
-            // Then auto-refresh whenever the cache mutates (lazy
-            // compile inserts, eviction, clearAll).
+            // Subscribe before the initial read so any tick that lands
+            // during refresh() is buffered (bufferingNewest(1)) and
+            // consumed on the first for-await iteration. Reversing the
+            // order would drop ticks that fire between refresh() and
+            // subscription.
             let stream = await CoreMLModelCache.shared.indexEvents
+            await refresh()
             for await _ in stream {
                 await refresh()
             }
