@@ -52,8 +52,6 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         await cacheReadiness.start()
-                        let knownFileNames = NeuralNetworkModel.allCases.map(\.fileName)
-                        await cacheReadiness.update(forFileNames: knownFileNames)
                     }
             }
         #else
@@ -63,8 +61,6 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         await cacheReadiness.start()
-                        let knownFileNames = NeuralNetworkModel.allCases.map(\.fileName)
-                        await cacheReadiness.update(forFileNames: knownFileNames)
                     }
             }
         #endif
