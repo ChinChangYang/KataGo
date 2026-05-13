@@ -39,6 +39,28 @@ typealias ProjectionResolver = (_ fileName: String) -> ProjectionInputs?
 /// cache key.
 func makeProjectionResolver() -> ProjectionResolver {
     return { fileName in
+        // Human SL aux is bundled and shares the built-in's backend
+        // settings (the engine loads them together with the same nnLen
+        // and same fp16/maxBatchSize). Project its digest against the
+        // built-in's settings so the precompiled aux is reused verbatim
+        // when the user selects the built-in.
+        if fileName == "b18c384nbt-humanv0.bin.gz" {
+            guard let bundlePath = Bundle.main.path(
+                    forResource: "b18c384nbt-humanv0",
+                    ofType: "bin.gz"),
+                  let builtIn = NeuralNetworkModel.builtInModel
+            else { return nil }
+            let settings = BackendSettings(model: builtIn)
+            let nnLen = Int32(settings.effectiveMaxBoardLength)
+            return ProjectionInputs(
+                sourcePath: bundlePath,
+                nnXLen: nnLen,
+                nnYLen: nnLen,
+                requireExactNNLen: settings.requireExactNNLen,
+                useFP16: true,
+                maxBatchSize: 1)
+        }
+
         guard let model = NeuralNetworkModel.allCases.first(where: { $0.fileName == fileName })
         else { return nil }
 

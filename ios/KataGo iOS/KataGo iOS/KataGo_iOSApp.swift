@@ -10,6 +10,35 @@ import SwiftData
 import SwiftUI
 import KataGoInterface
 
+/// File names auto-warmed at app launch when their cache entry is
+/// missing. Built-in + bundled human SL aux only — downloaded mains
+/// are handled by `ModelPickerView.downloader.onDownloadComplete`.
+private let autoWarmFileNames: [String] = [
+    "default_model.bin.gz",
+    "b18c384nbt-humanv0.bin.gz"
+]
+
+/// Cache-empty sweep. For each auto-warm target whose status is not
+/// `.ready`, `.queued`, or `.compiling`, enqueue a precompile. Runs
+/// after `scheduler.hydrate(...)` in the app's scene `.task`. The
+/// gating switch skips in-flight targets at the helper boundary;
+/// `scheduleForModel`'s `inFlight` set is a defense-in-depth backstop.
+/// On scene reactivation a target's status may be `.idle` again, in
+/// which case the call lands but is deduped by `inFlight`. The
+/// bundle-version rewarm in `ModelRunnerView.onAppear` cooperates via
+/// the same dedup path.
+@MainActor
+func runCacheEmptySweep(scheduler: PrecompileScheduler) async {
+    for fileName in autoWarmFileNames {
+        switch scheduler.status[fileName] {
+        case .ready, .queued, .compiling:
+            break
+        default:
+            await scheduler.scheduleForModel(fileName: fileName)
+        }
+    }
+}
+
 @main
 struct KataGo_iOSApp: App {
     @State private var precompileScheduler: PrecompileScheduler = PrecompileScheduler(
@@ -58,6 +87,7 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
+                            .union(autoWarmFileNames)
                         let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
                         await precompileScheduler.hydrate(
@@ -68,6 +98,7 @@ struct KataGo_iOSApp: App {
                             .shared,
                             fileNames: knownFileNames,
                             digestFor: digestFor)
+                        await runCacheEmptySweep(scheduler: precompileScheduler)
                     }
             }
         #else
@@ -77,6 +108,7 @@ struct KataGo_iOSApp: App {
                     .environment(engineLaunchStatus)
                     .task {
                         let knownFileNames = Set(NeuralNetworkModel.allCases.map(\.fileName))
+                            .union(autoWarmFileNames)
                         let digestFor = makeProjectionDigestFor()
                         await CoreMLModelCache.shared.start()
                         await precompileScheduler.hydrate(
@@ -87,6 +119,7 @@ struct KataGo_iOSApp: App {
                             .shared,
                             fileNames: knownFileNames,
                             digestFor: digestFor)
+                        await runCacheEmptySweep(scheduler: precompileScheduler)
                     }
             }
         #endif
