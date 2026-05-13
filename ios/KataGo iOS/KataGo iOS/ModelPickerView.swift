@@ -187,25 +187,17 @@ struct ModelPickerView: View {
     /// sentinel that `ModelRunnerView` persists.
     @Binding var crashedModelTitle: String
 
-    /// Filenames of the picker's visible model rows. Matches the
-    /// `ForEach` filter below. Drives the readiness recompute via
-    /// `.task(id:)`. Un-downloaded models are passed through; the
-    /// projection silently excludes them by returning nil when the
-    /// source file is absent.
+    /// Filenames of the picker's visible model rows. Seeds the
+    /// readiness object once on appear. Un-downloaded models are
+    /// passed through; the projection silently excludes them by
+    /// returning nil when the source file is absent. Subsequent
+    /// cache changes (compile, evict, clear) refresh the checkmarks
+    /// via the readiness object's `indexEvents` subscription.
     private var visibleFileNames: [String] {
         NeuralNetworkModel.allCases.compactMap { model in
             guard model.visible else { return nil }
             return model.fileName
         }
-    }
-
-    /// Stable identity for `.task(id:)`. SwiftUI restarts the task
-    /// whenever this changes — i.e., when a model is downloaded or
-    /// removed.
-    private var visibleFileNamesHash: Int {
-        var hasher = Hasher()
-        for name in visibleFileNames.sorted() { hasher.combine(name) }
-        return hasher.finalize()
     }
 
     var body: some View {
@@ -247,7 +239,7 @@ struct ModelPickerView: View {
             }
             .navigationTitle("Select a Model")
         }
-        .task(id: visibleFileNamesHash) {
+        .task {
             await readiness.update(forFileNames: visibleFileNames)
         }
         .onOpenURL { url in
