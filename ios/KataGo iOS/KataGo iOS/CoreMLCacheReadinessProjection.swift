@@ -14,9 +14,9 @@
 import Foundation
 import KataGoInterface
 
-/// Primitive inputs for `CoreMLModelCache.projectedDigest` /
-/// `CoreMLModelCache.warm`. Keeps the framework ignorant of
-/// app-target types like `BackendSettings` and `NeuralNetworkModel`.
+/// Primitive inputs for `CoreMLModelCache.projectedDigest`.
+/// Keeps the framework ignorant of app-target types like
+/// `BackendSettings` and `NeuralNetworkModel`.
 struct ProjectionInputs: Equatable {
     let sourcePath: String
     let nnXLen: Int32
@@ -44,7 +44,7 @@ func makeProjectionResolver() -> ProjectionResolver {
         // Human SL aux is bundled and shares the built-in's backend
         // settings (the engine loads them together with the same nnLen
         // and same fp16/maxBatchSize). Project its digest against the
-        // built-in's settings so the precompiled aux is reused verbatim
+        // built-in's settings so the cached aux entry is reused verbatim
         // when the user selects the built-in.
         if fileName == "b18c384nbt-humanv0.bin.gz" {
             guard let bundlePath = Bundle.main.path(
