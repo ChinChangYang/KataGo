@@ -10,7 +10,6 @@ struct BackendConfigSheet: View {
     @State private var backend: BackendChoice
     @State private var coremlBoardSize: CoreMLBoardSize
     @Environment(\.dismiss) private var dismiss
-    @Environment(PrecompileScheduler.self) private var scheduler
 
     init(model: NeuralNetworkModel) {
         self.model = model
@@ -60,12 +59,10 @@ struct BackendConfigSheet: View {
             .onChange(of: backend) { _, newValue in
                 var settings = BackendSettings(model: model)
                 settings.backend = newValue
-                Task { await scheduler.scheduleForModel(fileName: model.fileName) }
             }
             .onChange(of: coremlBoardSize) { _, newValue in
                 var settings = BackendSettings(model: model)
                 settings.coremlBoardSize = newValue
-                Task { await scheduler.scheduleForModel(fileName: model.fileName) }
             }
         }
     }
@@ -73,5 +70,4 @@ struct BackendConfigSheet: View {
 
 #Preview {
     BackendConfigSheet(model: NeuralNetworkModel.allCases[0])
-        .environment(PrecompileScheduler { _ in })
 }

@@ -1,9 +1,11 @@
 //
-//  PrecompileProjection.swift
+//  CoreMLCacheReadinessProjection.swift
 //  KataGo Anytime
 //
 //  App-side mapping from a model `fileName` to the primitive inputs
-//  needed by `CoreMLModelCache.projectedDigest` / `CoreMLModelCache.warm`.
+//  needed by `CoreMLModelCache.projectedDigest`. Used by
+//  `CoreMLCacheReadiness` to decide whether a row's green checkmark
+//  should show in the model picker.
 //
 //  Keeps the `KataGoInterface` framework ignorant of app-target types
 //  like `BackendSettings` and `NeuralNetworkModel`.
@@ -12,9 +14,9 @@
 import Foundation
 import KataGoInterface
 
-/// Primitive inputs for `CoreMLModelCache.projectedDigest` /
-/// `CoreMLModelCache.warm`. Keeps the framework ignorant of
-/// app-target types like `BackendSettings` and `NeuralNetworkModel`.
+/// Primitive inputs for `CoreMLModelCache.projectedDigest`.
+/// Keeps the framework ignorant of app-target types like
+/// `BackendSettings` and `NeuralNetworkModel`.
 struct ProjectionInputs: Equatable {
     let sourcePath: String
     let nnXLen: Int32
@@ -24,7 +26,7 @@ struct ProjectionInputs: Equatable {
     let maxBatchSize: Int
 }
 
-typealias ProjectionResolver = (_ fileName: String) -> ProjectionInputs?
+typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
 
 /// Production resolver. Walks `NeuralNetworkModel.allCases` to find
 /// the named model, computes its `BackendSettings`, and maps to the
@@ -42,7 +44,7 @@ func makeProjectionResolver() -> ProjectionResolver {
         // Human SL aux is bundled and shares the built-in's backend
         // settings (the engine loads them together with the same nnLen
         // and same fp16/maxBatchSize). Project its digest against the
-        // built-in's settings so the precompiled aux is reused verbatim
+        // built-in's settings so the cached aux entry is reused verbatim
         // when the user selects the built-in.
         if fileName == "b18c384nbt-humanv0.bin.gz" {
             guard let bundlePath = Bundle.main.path(
@@ -94,13 +96,12 @@ func makeProjectionResolver() -> ProjectionResolver {
     }
 }
 
-/// Wraps the projection resolver into a digest-only closure suitable
-/// for `PrecompileScheduler.hydrate(...)` and `subscribeToCacheEvents(...)`.
-/// Walks `NeuralNetworkModel.allCases` to map a fileName to its source
-/// path + backend settings, then asks `CoreMLModelCache.projectedDigest`
-/// for the digest the next engine launch would compute. Returns nil
-/// when the file is not downloaded (mirrors `projectedDigest`).
-func makeProjectionDigestFor() -> (String) async throws -> String? {
+/// Returns a digest-only closure that maps a fileName to the cache
+/// digest the next engine launch would compute. Used by
+/// `CoreMLCacheReadiness` to ask `CoreMLModelCache.hasEntry(digest:)`
+/// whether a given fileName is currently cached on disk.
+/// Returns nil when the file is not downloaded.
+func makeProjectionDigestFor() -> @Sendable (String) async throws -> String? {
     let resolver = makeProjectionResolver()
     return { fileName in
         guard let inputs = resolver(fileName) else { return nil }

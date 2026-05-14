@@ -2,11 +2,20 @@
 //  CoreMLCacheFooterUITests.swift
 //  KataGo iOSUITests
 //
-//  Reproduces the smoke-test Step 2 failure: after launching the
-//  built-in engine, returning to the picker, downloading the smallest
-//  non-built-in model (Lionffen b6c64, ~2.1 MB), and launching the
-//  engine with it, the footer count should advance from "1 of 4" to
-//  "2 of 4". On the current implementation the count stays at "1 of 4".
+//  Tests for the Core ML cache footer in ModelPickerView:
+//
+//  1. testFooterCountIncrementsAfterDownloadedModelLaunch — regression
+//     test for Step 2: after launching the built-in engine, returning to
+//     the picker, downloading the smallest non-built-in model
+//     (Lionffen b6c64, ~2.1 MB), and launching the engine with it, the
+//     footer count should advance. Previously the count stayed at the
+//     baseline because no cache write happened for downloaded models.
+//
+//  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" the
+//     footer immediately shows "Main: 0 of 4 · 0 B" and
+//     "Human SL: 0 of 4 · 0 B". No automatic repopulation occurs; the
+//     cache refills only when the user explicitly loads a model.
+//     The "Clear Cache" button hides once totalCount == 0.
 //
 //  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
 //  for a clean cache state.
@@ -22,6 +31,8 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
+
+    // MARK: - Tests
 
     @MainActor
     func testFooterCountIncrementsAfterDownloadedModelLaunch() throws {
@@ -39,7 +50,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForEngineThenQuit(in: app, label: "built-in")
         waitForPicker(in: app, title: builtInTitle)
 
-        let afterStep1 = readFooter(in: app)
+        let afterStep1 = readMainStats(in: app)
         let countAfterStep1 = parseCount(afterStep1)
         XCTAssertGreaterThanOrEqual(countAfterStep1, 1,
                                     "Step 1: expected at least one compiled model after " +
@@ -55,13 +66,67 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForEngineThenQuit(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
-        let afterStep2 = readFooter(in: app)
+        let afterStep2 = readMainStats(in: app)
         let countAfterStep2 = parseCount(afterStep2)
         XCTAssertGreaterThan(countAfterStep2, countAfterStep1,
                              "Step 2 (bug repro): expected footer count to increase after " +
                              "launching a downloaded model. Step 1 footer: '\(afterStep1)'; " +
                              "Step 2 footer: '\(afterStep2)'")
     }
+
+    /// After dropping PrecompileScheduler, tapping "Clear Cache" wipes the
+    /// cache and leaves the footer at "Main: 0 of 4" / "Human SL: 0 of 4".
+    /// No automatic rewarm occurs. The "Clear Cache" button is hidden once
+    /// totalCount drops to zero.
+    @MainActor
+    func testFooterShowsZeroAfterClear() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Populate the cache by launching the built-in engine once.
+        tapModelRow(in: app, title: builtInTitle)
+        tapDownloadOrPlay(in: app)
+        waitForEngineThenQuit(in: app, label: "built-in")
+        waitForPicker(in: app, title: builtInTitle)
+
+        // Verify the Clear Cache button exists (totalCount > 0).
+        let clearButton = app.buttons["Clear Cache"]
+        XCTAssertTrue(clearButton.waitForExistence(timeout: 15),
+                      "Clear Cache button should be visible when cache has entries")
+
+        // Tap Clear Cache and confirm the destructive action.
+        clearButton.tap()
+        let confirmClear = app.buttons["Clear"]
+        XCTAssertTrue(confirmClear.waitForExistence(timeout: 5),
+                      "Confirmation 'Clear' button did not appear")
+        confirmClear.tap()
+
+        // Footer must now read "Main: 0 of 4" with zero bytes.
+        let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
+        XCTAssertTrue(mainStats.waitForExistence(timeout: 30),
+                      "CoreMLCache.footerMainStats not found after Clear")
+        XCTAssertTrue(mainStats.label.contains("Main: 0 of 4"),
+                      "Expected 'Main: 0 of 4' after Clear, got: '\(mainStats.label)'")
+        XCTAssertTrue(mainStats.label.contains("0 B")
+                      || mainStats.label.contains("Zero bytes"),
+                      "Expected zero-byte size after Clear, got: '\(mainStats.label)'")
+
+        // Human SL partition must also read "Human SL: 0 of 4" with zero bytes.
+        let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
+        XCTAssertTrue(auxStats.waitForExistence(timeout: 30),
+                      "CoreMLCache.footerAuxStats not found after Clear")
+        XCTAssertTrue(auxStats.label.contains("Human SL: 0 of 4"),
+                      "Expected 'Human SL: 0 of 4' after Clear, got: '\(auxStats.label)'")
+        XCTAssertTrue(auxStats.label.contains("0 B")
+                      || auxStats.label.contains("Zero bytes"),
+                      "Expected zero-byte size for Human SL after Clear, got: '\(auxStats.label)'")
+
+        // The Clear Cache button must disappear once totalCount == 0.
+        XCTAssertFalse(clearButton.waitForExistence(timeout: 5),
+                       "Clear Cache button should be hidden when cache is empty")
+    }
+
+    // MARK: - Helpers
 
     /// Parses the "<Label>: N of M" fragment from a footer line.
     private func parseCount(_ label: String) -> Int {
@@ -74,8 +139,6 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                           .prefix { $0.isNumber }
         return Int(digits) ?? -1
     }
-
-    // MARK: - Helpers
 
     private func tapModelRow(in app: XCUIApplication, title: String) {
         let row = app.staticTexts[title]
@@ -152,7 +215,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "Picker did not reappear after Quit")
     }
 
-    private func readFooter(in app: XCUIApplication) -> String {
+    private func readMainStats(in app: XCUIApplication) -> String {
         let footer = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(footer.waitForExistence(timeout: 15),
                       "CoreMLCache.footerMainStats not found")
