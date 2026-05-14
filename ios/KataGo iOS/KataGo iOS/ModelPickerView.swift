@@ -60,7 +60,6 @@ struct ModelDetailView: View {
     @State var isDownloaded = false
     @State private var isShowingConfigSheet = false
     @Binding var selectedModel: NeuralNetworkModel?
-    @Environment(CoreMLCacheReadiness.self) private var readiness
 
     func downloadPlayButton(model: NeuralNetworkModel) -> some View {
         Button {
@@ -337,7 +336,6 @@ struct ModelPickerView: View {
 #Preview("Model Detail xSmall") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
-        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -346,7 +344,6 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
-            .environment(readiness)
         }
     }
 
@@ -357,7 +354,6 @@ struct ModelPickerView: View {
 #Preview("Model Detail accessibility5") {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
-        @State private var readiness = CoreMLCacheReadiness()
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
@@ -366,7 +362,6 @@ struct ModelPickerView: View {
                 ),
                 selectedModel: $selectedModel
             )
-            .environment(readiness)
         }
     }
 
