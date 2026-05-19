@@ -139,9 +139,9 @@ struct ConvLayer {
   const int outChannels;
   const int dilationY;
   const int dilationX;
-  mx::array weights; // OHWI format
   const bool useWinograd;
-  mx::array winogradWeights; // 4x4 domain U, valid only if useWinograd
+  mx::array weights;            // OHWI format (only built when !useWinograd)
+  mx::array winogradWeights;    // 4x4 domain U, valid only if useWinograd
 
   ConvLayer() = delete;
   ConvLayer(const ConvLayer&) = delete;
@@ -155,10 +155,10 @@ struct ConvLayer {
       outChannels(desc.outChannels),
       dilationY(desc.dilationY),
       dilationX(desc.dilationX),
-      weights(toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16)),
       useWinograd(!useFP16 && mlxWinogradEnabled()
                   && convYSize==3 && convXSize==3
                   && dilationY==1 && dilationX==1),
+      weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16)),
       winogradWeights(useWinograd
         ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels)
         : mx::array(0.0f))
