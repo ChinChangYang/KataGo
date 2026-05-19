@@ -121,104 +121,191 @@ namespace MLXWinograd {
 namespace mx = mlx::core;
 
 // Host-side weight transform: OIHW [Cout][Cin][3][3] -> U array
-// laid out [4*4][Cout][Cin] (xi*4+nu outer => channel-fast inner: axis=1).
+// laid out [16, Cin, Cout] so the matmul Stage-2 sees [16,Ntiles,Cin] x [16,Cin,Cout] -> [16,Ntiles,Cout].
 inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
                                      int Cout, int Cin) {
-  std::vector<float> U((size_t)16*Cout*Cin);
-  for(int oc=0;oc<Cout;oc++) for(int ic=0;ic<Cin;ic++) {
-    float g[3][3];
-    for(int a=0;a<3;a++) for(int b=0;b<3;b++)
-      g[a][b]=wOIHW[(((size_t)oc*Cin+ic)*3+a)*3+b];
-    float Um[4][4]; transformWeight(g,Um);
-    for(int a=0;a<4;a++) for(int b=0;b<4;b++)
-      U[((size_t)(a*4+b)*Cout+oc)*Cin+ic]=Um[a][b];
+  std::vector<float> U((size_t)16 * Cin * Cout, 0.0f);
+  for(int oc = 0; oc < Cout; oc++) {
+    for(int ic = 0; ic < Cin; ic++) {
+      float g[3][3];
+      for(int a = 0; a < 3; a++)
+        for(int b = 0; b < 3; b++)
+          g[a][b] = wOIHW[(((size_t)oc * Cin + ic) * 3 + a) * 3 + b];
+      float Um[4][4]; transformWeight(g, Um);
+      for(int a = 0; a < 4; a++)
+        for(int b = 0; b < 4; b++)
+          U[((size_t)(a * 4 + b) * Cin + ic) * Cout + oc] = Um[a][b];
+    }
   }
-  return mx::array(U.data(), {16, Cout, Cin}, mx::float32);
+  return mx::array(U.data(), {16, Cin, Cout}, mx::float32);
 }
 
-// N,H,W,Cin,Cout are supplied as template_args -> substituted by MLX as
-// compile-time constants of the same name in the generated kernel.
-inline constexpr const char* kWinogradSource = R"METAL(
-  uint gid = thread_position_in_grid.x;
-  int Wt = (W + 1) / 2;
-  int Ht = (H + 1) / 2;
-  int tilesPerN = Ht * Wt;
-  int total = N * tilesPerN * Cout;
-  if((int)gid >= total) return;
-  int oc = gid % Cout;
-  int t  = (gid / Cout) % tilesPerN;
-  int n  = gid / (Cout * tilesPerN);
-  int ty = (t / Wt) * 2;
-  int tx = (t % Wt) * 2;
+// F(2,3) input transform kernel: NHWC fp32 input -> [16, Ntiles, C] fp32.
+// One thread per (channel, tile); axis=1 (channel-fast): grid=(C_groups, Ntiles, 1).
+inline constexpr const char* kWinoInputSource = R"METAL(
+    uint c_group  = thread_position_in_grid.x;
+    uint tileIdx  = thread_position_in_grid.y;
 
-  float Macc[4][4];
-  for(int a=0;a<4;a++) for(int b=0;b<4;b++) Macc[a][b]=0.0f;
+    int N_k      = inp_shape[0];
+    int H_k      = inp_shape[1];
+    int W_k      = inp_shape[2];
+    int C_k      = inp_shape[3];
+    int tilesY_k = (H_k + 1) / 2;
+    int tilesX_k = (W_k + 1) / 2;
+    int Ntiles_k = N_k * tilesY_k * tilesX_k;
 
-  for(int ic=0; ic<Cin; ic++) {
+    if ((int)tileIdx >= Ntiles_k) return;
+
+    int rem = (int)tileIdx;
+    int n   = rem / (tilesY_k * tilesX_k); rem -= n * tilesY_k * tilesX_k;
+    int ty  = rem / tilesX_k;
+    int tx  = rem % tilesX_k;
+
+    uint c = c_group;
+    if ((int)c >= C_k) return;
     float d[4][4];
-    for(int a=0;a<4;a++) for(int b=0;b<4;b++) {
-      int iy=ty+a-1, ix=tx+b-1;
-      bool inb = (iy>=0 && iy<H && ix>=0 && ix<W);
-      d[a][b] = inb ? inp[(((n*H+iy)*W+ix)*Cin)+ic] : 0.0f;
+    for (int i = 0; i < 4; i++) {
+      int iy = 2 * ty - 1 + i;
+      for (int j = 0; j < 4; j++) {
+        int ix = 2 * tx - 1 + j;
+        if (iy < 0 || iy >= H_k || ix < 0 || ix >= W_k) {
+          d[i][j] = 0.0f;
+        } else {
+          d[i][j] = inp[((n * H_k + iy) * W_k + ix) * C_k + c];
+        }
+      }
     }
-    const float BT[4][4]={{1,0,-1,0},{0,1,1,0},{0,-1,1,0},{0,1,0,-1}};
-    float Bd[4][4], V[4][4];
-    for(int i=0;i<4;i++) for(int j=0;j<4;j++){
-      float s=0; for(int k=0;k<4;k++) s+=BT[i][k]*d[k][j]; Bd[i][j]=s; }
-    for(int i=0;i<4;i++) for(int j=0;j<4;j++){
-      float s=0; for(int k=0;k<4;k++) s+=Bd[i][k]*BT[j][k]; V[i][j]=s; }
-    for(int a=0;a<4;a++) for(int b=0;b<4;b++) {
-      float u = Uw[(((a*4+b)*Cout)+oc)*Cin + ic];
-      Macc[a][b] += u * V[a][b];
+    float tmp[4][4];
+    for (int j = 0; j < 4; j++) {
+      float v0 = d[0][j], v1 = d[1][j], v2 = d[2][j], v3 = d[3][j];
+      tmp[0][j] = v0 - v2;
+      tmp[1][j] = v1 + v2;
+      tmp[2][j] = v2 - v1;
+      tmp[3][j] = v1 - v3;
     }
-  }
-  const float AT[2][4]={{1,1,1,0},{0,1,-1,-1}};
-  float AM[2][4], Y[2][2];
-  for(int i=0;i<2;i++) for(int j=0;j<4;j++){
-    float s=0; for(int k=0;k<4;k++) s+=AT[i][k]*Macc[k][j]; AM[i][j]=s; }
-  for(int i=0;i<2;i++) for(int j=0;j<2;j++){
-    float s=0; for(int k=0;k<4;k++) s+=AM[i][k]*AT[j][k]; Y[i][j]=s; }
-  for(int a=0;a<2;a++) for(int b=0;b<2;b++) {
-    int oy=ty+a, ox=tx+b;
-    if(oy<H && ox<W) out[(((n*H+oy)*W+ox)*Cout)+oc]=Y[a][b];
-  }
+    for (int r = 0; r < 4; r++) {
+      float u0 = tmp[r][0], u1 = tmp[r][1], u2 = tmp[r][2], u3 = tmp[r][3];
+      float V0 = u0 - u2;
+      float V1 = u1 + u2;
+      float V2 = u2 - u1;
+      float V3 = u1 - u3;
+      int base = ((r * 4 + 0) * Ntiles_k + (int)tileIdx) * C_k + (int)c;
+      outp[base + 0 * Ntiles_k * C_k] = V0;
+      outp[base + 1 * Ntiles_k * C_k] = V1;
+      outp[base + 2 * Ntiles_k * C_k] = V2;
+      outp[base + 3 * Ntiles_k * C_k] = V3;
+    }
 )METAL";
 
+// F(2,3) output untransform kernel: [16, Ntiles, outC] fp32 -> NHWC fp32.
+// One thread per (out-channel, tile); axis=1: grid=(outC_groups, Ntiles, 1).
+// nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
+// exposes *_shape for inputs, not outputs.
+inline constexpr const char* kWinoOutputSource = R"METAL(
+    uint oc_group = thread_position_in_grid.x;
+    uint tileIdx  = thread_position_in_grid.y;
+
+    int Ntiles_k = m_shape[1];
+    int outC_k   = m_shape[2];
+    int H_k      = nhwc[1];
+    int W_k      = nhwc[2];
+    int tilesY_k = (H_k + 1) / 2;
+    int tilesX_k = (W_k + 1) / 2;
+
+    if ((int)tileIdx >= Ntiles_k) return;
+
+    int rem = (int)tileIdx;
+    int n   = rem / (tilesY_k * tilesX_k); rem -= n * tilesY_k * tilesX_k;
+    int ty  = rem / tilesX_k;
+    int tx  = rem % tilesX_k;
+
+    uint oc = oc_group;
+    if ((int)oc >= outC_k) return;
+    float mm[4][4];
+    for (int r = 0; r < 4; r++) {
+      for (int c2 = 0; c2 < 4; c2++) {
+        int p = r * 4 + c2;
+        mm[r][c2] = m[(p * Ntiles_k + (int)tileIdx) * outC_k + (int)oc];
+      }
+    }
+    float tmp[2][4];
+    for (int c2 = 0; c2 < 4; c2++) {
+      float v0 = mm[0][c2], v1 = mm[1][c2], v2 = mm[2][c2], v3 = mm[3][c2];
+      tmp[0][c2] = v0 + v1 + v2;
+      tmp[1][c2] = v1 - v2 - v3;
+    }
+    for (int a = 0; a < 2; a++) {
+      float u0 = tmp[a][0], u1 = tmp[a][1], u2 = tmp[a][2], u3 = tmp[a][3];
+      float Y0 = u0 + u1 + u2;
+      float Y1 = u1 - u2 - u3;
+      int oy0 = 2 * ty + a;
+      if (oy0 < H_k) {
+        int ox0 = 2 * tx + 0;
+        if (ox0 < W_k)
+          outp[((n * H_k + oy0) * W_k + ox0) * outC_k + (int)oc] = Y0;
+        int ox1 = 2 * tx + 1;
+        if (ox1 < W_k)
+          outp[((n * H_k + oy0) * W_k + ox1) * outC_k + (int)oc] = Y1;
+      }
+    }
+)METAL";
+
+// Three-stage Winograd F(2,3) conv: input transform (Metal) -> mx::matmul -> output untransform (Metal).
+// Signature unchanged from prior implementation so ConvLayer needs no changes.
+// Uw layout is [16, Cin, Cout] (matmul rhs); cfg.tg0,cfg.tg1 set threadgroup; vec/axis hardcoded to (1,1)
+// for SP1 minimum — the SP2 autotuner will reintroduce parameterization.
 inline mx::array winogradConv2d(const mx::array& input,
                                 const mx::array& Uw,
                                 int Cout,
                                 const WinogradConfig& cfg) {
-  int N = input.shape(0), H = input.shape(1);
-  int W = input.shape(2), Cin = input.shape(3);
-  int Wt=(W+1)/2, Ht=(H+1)/2;
-  int total = N*Ht*Wt*Cout;
+  int N = input.shape(0);
+  int H = input.shape(1);
+  int W = input.shape(2);
+  int C = input.shape(3);
+  int tilesY = (H + 1) / 2;
+  int tilesX = (W + 1) / 2;
+  int Ntiles = N * tilesY * tilesX;
 
-  auto kernel = mx::fast::metal_kernel(
-    "katago_winograd_f23",
-    /*input_names=*/{"inp","Uw"},
-    /*output_names=*/{"out"},
-    /*source=*/kWinogradSource);
+  // Stage 1: input transform -> [16, Ntiles, C]
+  auto inFn = mx::fast::metal_kernel(
+      "wino_input_transform_f32",
+      /*input_names=*/{"inp"},
+      /*output_names=*/{"outp"},
+      /*source=*/kWinoInputSource);
+  auto inOuts = inFn(
+      /*inputs=*/{input},
+      /*output_shapes=*/{ mx::Shape{16, Ntiles, C} },
+      /*output_dtypes=*/{ mx::float32 },
+      /*grid=*/std::make_tuple(C, Ntiles, 1),
+      /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+      /*template_args=*/{},
+      /*init_value=*/std::nullopt,
+      /*verbose=*/false,
+      /*stream=*/mx::StreamOrDevice{});
+  mx::array t = inOuts[0];
 
-  std::vector<mx::array> inputs = { input, Uw };
-  std::vector<std::pair<std::string, mx::fast::TemplateArg>> templateArgs = {
-    {"N", N}, {"H", H}, {"W", W}, {"Cin", Cin}, {"Cout", Cout}
-  };
-  // Round grid up to a multiple of the threadgroup x-dim; the kernel's
-  // `if((int)gid >= total) return;` masks the surplus threads.
-  int tg = cfg.tg0 > 0 ? cfg.tg0 : 1;
-  int gridX = ((total + tg - 1) / tg) * tg;
-  auto outs = kernel(
-    inputs,
-    /*output_shapes=*/{{N,H,W,Cout}},
-    /*output_dtypes=*/{mx::float32},
-    /*grid=*/std::make_tuple(gridX,1,1),
-    // 1-D kernel: only tg0 is used; cfg.tg1/vec/axis are SP2 autotuner seams.
-    /*threadgroup=*/std::make_tuple(tg,1,1),
-    /*template_args=*/templateArgs,
-    /*init_value=*/std::nullopt,
-    /*verbose=*/false,
-    /*stream=*/{});
-  return outs[0];
+  // Stage 2: batched matmul [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout]
+  mx::array m = mx::matmul(t, Uw);
+
+  // Stage 3: output untransform -> [N, H, W, Cout]
+  int nhwc_arr[4] = {N, H, W, Cout};
+  mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
+  auto outFn = mx::fast::metal_kernel(
+      "wino_output_untransform_f32",
+      /*input_names=*/{"m", "nhwc"},
+      /*output_names=*/{"outp"},
+      /*source=*/kWinoOutputSource);
+  auto outOuts = outFn(
+      /*inputs=*/{m, nhwcArr},
+      /*output_shapes=*/{ mx::Shape{N, H, W, Cout} },
+      /*output_dtypes=*/{ mx::float32 },
+      /*grid=*/std::make_tuple(Cout, Ntiles, 1),
+      /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+      /*template_args=*/{},
+      /*init_value=*/std::nullopt,
+      /*verbose=*/false,
+      /*stream=*/mx::StreamOrDevice{});
+  return outOuts[0];
 }
 
 } // namespace MLXWinograd

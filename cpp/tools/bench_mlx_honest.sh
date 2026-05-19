@@ -14,7 +14,7 @@ run_one() { # $1=label $2=bin -> echoes visits/sec
   log="$("$bin" benchmark -model "$MODEL" -config "$CFG" -t 16 -half-batch-size 2>&1)"
   echo "===== $label =====" >> "$OUT"; echo "$log" >> "$OUT"
   # Pinned -t 16 => exactly one result row; print the parsed line for audit.
-  local line; line="$(echo "$log" | grep -Ei 'visits/s|nnEvals/s' | tail -1)"
+  local line; line="$(echo "$log" | grep -oE 'visits/s = [0-9]+\.[0-9]+' | tail -1)"
   echo "PARSED[$label]: $line" >> "$OUT"
   echo "$line" | grep -oE '[0-9]+\.[0-9]+' | head -1
 }
