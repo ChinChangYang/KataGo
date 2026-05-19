@@ -964,7 +964,7 @@ void Tests::runMLXWinogradTests() {
       maxErr=std::max(maxErr,(double)std::fabs(ref[i]-got[i]));
     cout<<"  dims "<<N<<"x"<<H<<"x"<<W<<"x"<<Cin<<"->"<<Cout
         <<" maxErr="<<maxErr<<endl;
-    testAssert(maxErr < 1e-3);
+    testAssert(maxErr < 1e-4);
   }
   cout << "MLX Winograd F(2,3) CPU reference OK" << endl;
 }

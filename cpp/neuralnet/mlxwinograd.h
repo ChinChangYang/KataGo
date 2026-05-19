@@ -4,7 +4,6 @@
 #ifdef USE_MLX_BACKEND
 
 #include <vector>
-#include <cstring>
 
 namespace MLXWinograd {
 
@@ -19,19 +18,19 @@ struct WinogradConfig {
 };
 
 // F(2,3) 1D transform matrices.
-static constexpr float BT[4][4] = {
+inline constexpr float BT[4][4] = {
   {1.f, 0.f,-1.f, 0.f},
   {0.f, 1.f, 1.f, 0.f},
   {0.f,-1.f, 1.f, 0.f},
   {0.f, 1.f, 0.f,-1.f}
 };
-static constexpr float G[4][3] = {
+inline constexpr float G[4][3] = {
   {1.f, 0.f, 0.f},
   {0.5f,0.5f,0.5f},
   {0.5f,-0.5f,0.5f},
   {0.f, 0.f, 1.f}
 };
-static constexpr float AT[2][4] = {
+inline constexpr float AT[2][4] = {
   {1.f, 1.f, 1.f, 0.f},
   {0.f, 1.f,-1.f,-1.f}
 };
@@ -91,7 +90,7 @@ inline std::vector<float> cpuConv2d3x3(
   for(int ty=0; ty<H; ty+=2)
   for(int tx=0; tx<W; tx+=2) {
     for(int oc=0; oc<Cout; oc++) {
-      float Macc[4][4]={{0}};
+      float Macc[4][4] = {};
       for(int ic=0; ic<Cin; ic++) {
         float d[4][4];
         for(int a=0;a<4;a++) for(int b=0;b<4;b++) {
