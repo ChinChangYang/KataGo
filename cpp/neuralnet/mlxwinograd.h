@@ -11,7 +11,7 @@ namespace MLXWinograd {
 // SP2's autotuner must rediscover these. axis=1 == channel-fast (load-bearing).
 struct WinogradConfig {
   int tg0 = 32;
-  int tg1 = 1;
+  int tg1 = 1;     // reserved for SP2 autotuner; kernel is 1-D, not yet wired in winogradConv2d
   int vec = 1;
   int axis = 1;
   int tileSize = 4; // input tile dim => F(2,3); F(4,3)=6 is a deferred SP2 dim
@@ -138,7 +138,7 @@ inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
 
 // N,H,W,Cin,Cout are supplied as template_args -> substituted by MLX as
 // compile-time constants of the same name in the generated kernel.
-static const char* kWinogradSource = R"METAL(
+inline constexpr const char* kWinogradSource = R"METAL(
   uint gid = thread_position_in_grid.x;
   int Wt = (W + 1) / 2;
   int Ht = (H + 1) / 2;
@@ -212,6 +212,7 @@ inline mx::array winogradConv2d(const mx::array& input,
     /*output_shapes=*/{{N,H,W,Cout}},
     /*output_dtypes=*/{mx::float32},
     /*grid=*/std::make_tuple(gridX,1,1),
+    // 1-D kernel: only tg0 is used; cfg.tg1/vec/axis are SP2 autotuner seams.
     /*threadgroup=*/std::make_tuple(tg,1,1),
     /*template_args=*/templateArgs,
     /*init_value=*/std::nullopt,
