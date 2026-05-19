@@ -919,6 +919,7 @@ void Tests::runNNLayerTests() {
   NeuralNet::globalInitialize();
   int64_t numTestsRun = 0;
   testConvLayer(numTestsRun);
+  runMLXWinogradTests();
   testBatchNormLayer(numTestsRun);
   testResidualBlock(numTestsRun);
   testGlobalPoolingResidualBlock(numTestsRun);
@@ -927,6 +928,49 @@ void Tests::runNNLayerTests() {
   cout << "Done" << endl;
 }
 
+
+#ifdef USE_MLX_BACKEND
+#include "../neuralnet/mlxwinograd.h"
+#include <array>
+#include <random>
+void Tests::runMLXWinogradTests() {
+  cout << "Running MLX Winograd F(2,3) tests" << endl;
+  // Naive direct 3x3 "same" conv NHWC, OIHW weights, as independent oracle.
+  auto direct = [](const vector<float>& in,int N,int H,int W,int Cin,
+                    const vector<float>& w,int Cout){
+    vector<float> out((size_t)N*H*W*Cout,0.f);
+    for(int n=0;n<N;n++)for(int oy=0;oy<H;oy++)for(int ox=0;ox<W;ox++)
+    for(int oc=0;oc<Cout;oc++){ float s=0.f;
+      for(int ic=0;ic<Cin;ic++)for(int a=0;a<3;a++)for(int b=0;b<3;b++){
+        int iy=oy+a-1,ix=ox+b-1;
+        if(iy>=0&&iy<H&&ix>=0&&ix<W)
+          s+=in[(((size_t)n*H+iy)*W+ix)*Cin+ic]
+             *w[(((size_t)oc*Cin+ic)*3+a)*3+b];
+      }
+      out[(((size_t)n*H+oy)*W+ox)*Cout+oc]=s;
+    }
+    return out;
+  };
+  std::mt19937 rng(12345);
+  std::uniform_real_distribution<float> dist(-1.f,1.f);
+  for(auto dims : vector<array<int,5>>{{1,5,5,3,4},{2,19,19,8,16},{1,7,13,4,4}}){
+    int N=dims[0],H=dims[1],W=dims[2],Cin=dims[3],Cout=dims[4];
+    vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=dist(rng);
+    vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=dist(rng);
+    auto ref = direct(in,N,H,W,Cin,w,Cout);
+    auto got = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
+    double maxErr=0.0;
+    for(size_t i=0;i<ref.size();i++)
+      maxErr=std::max(maxErr,(double)std::fabs(ref[i]-got[i]));
+    cout<<"  dims "<<N<<"x"<<H<<"x"<<W<<"x"<<Cin<<"->"<<Cout
+        <<" maxErr="<<maxErr<<endl;
+    testAssert(maxErr < 1e-3);
+  }
+  cout << "MLX Winograd F(2,3) CPU reference OK" << endl;
+}
+#else
+void Tests::runMLXWinogradTests() {}
+#endif
 
 void Tests::runNNSymmetryTests() {
   auto testConfigurations = [&](

@@ -73,6 +73,7 @@ namespace Tests {
 
   //testnn.cpp
   void runNNLayerTests();
+  void runMLXWinogradTests();
   void runNNSymmetryTests();
 
   //testownership.cpp
