@@ -967,6 +967,28 @@ void Tests::runMLXWinogradTests() {
     testAssert(maxErr < 1e-4);
   }
   cout << "MLX Winograd F(2,3) CPU reference OK" << endl;
+
+  // GPU Winograd metal_kernel validated against the Task 1 CPU oracle.
+  {
+    namespace mxc = mlx::core;
+    int N=2,H=19,W=19,Cin=8,Cout=16;
+    std::mt19937 grng(777);
+    std::uniform_real_distribution<float> gdist(-1.f,1.f);
+    vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=gdist(grng);
+    vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=gdist(grng);
+    auto refv = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
+    mxc::array inArr(in.data(),{N,H,W,Cin},mxc::float32);
+    auto Uw = MLXWinograd::makeWinogradWeights(w,Cout,Cin);
+    MLXWinograd::WinogradConfig cfg;
+    mxc::array o = MLXWinograd::winogradConv2d(inArr,Uw,Cout,cfg);
+    mxc::eval(o);
+    const float* od = o.data<float>();
+    double maxErr=0.0;
+    for(size_t i=0;i<refv.size();i++)
+      maxErr=std::max(maxErr,(double)std::fabs(refv[i]-od[i]));
+    cout<<"  MLX-metal winograd maxErr="<<maxErr<<endl;
+    testAssert(maxErr < 2e-3);
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
