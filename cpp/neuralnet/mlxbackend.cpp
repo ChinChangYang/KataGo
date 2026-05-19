@@ -13,6 +13,7 @@
 #include "../neuralnet/nninputs.h"
 #include "../neuralnet/nneval.h"
 #include "../neuralnet/activations.h"
+#include "../neuralnet/mlxwinograd.h"
 #include "../core/global.h"
 #include "../core/test.h"
 
@@ -118,6 +119,16 @@ static mx::array matmulBias(const mx::array& input, const mx::array& weights, co
   return mx::addmm(bias, input, weights, 1.0f, 1.0f);
 }
 
+// Winograd is on by default; KATAGO_MLX_WINOGRAD=0 forces mx::conv2d
+// (A/B correctness testing and runtime safety valve).
+static bool mlxWinogradEnabled() {
+  static const bool enabled = [](){
+    const char* e = std::getenv("KATAGO_MLX_WINOGRAD");
+    return !(e != nullptr && std::string(e) == "0");
+  }();
+  return enabled;
+}
+
 // Layers --------------------------------------------------------------------------------------------------------------
 
 struct ConvLayer {
@@ -129,6 +140,8 @@ struct ConvLayer {
   const int dilationY;
   const int dilationX;
   mx::array weights; // OHWI format
+  const bool useWinograd;
+  mx::array winogradWeights; // 4x4 domain U, valid only if useWinograd
 
   ConvLayer() = delete;
   ConvLayer(const ConvLayer&) = delete;
@@ -142,10 +155,20 @@ struct ConvLayer {
       outChannels(desc.outChannels),
       dilationY(desc.dilationY),
       dilationX(desc.dilationX),
-      weights(toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16))
+      weights(toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16)),
+      useWinograd(!useFP16 && mlxWinogradEnabled()
+                  && convYSize==3 && convXSize==3
+                  && dilationY==1 && dilationX==1),
+      winogradWeights(useWinograd
+        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels)
+        : mx::array(0.0f))
   {}
 
   mx::array apply(const mx::array& input) const {
+    if(useWinograd) {
+      MLXWinograd::WinogradConfig cfg; // fp32 tuned defaults {32,1,1,1,4}
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, cfg);
+    }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)
     int padY = (convYSize - 1) * dilationY / 2;
@@ -1011,7 +1034,9 @@ struct ComputeHandle {
   ComputeHandle& operator=(const ComputeHandle&) = delete;
 
   static std::string makeCacheKey(const LoadedModel& loadedModel, bool useFP16) {
-    return loadedModel.modelDesc.name + "-" + loadedModel.modelDesc.sha256 + (useFP16 ? "-fp16" : "-fp32");
+    return loadedModel.modelDesc.name + "-" + loadedModel.modelDesc.sha256
+      + (useFP16 ? "-fp16" : "-fp32")
+      + (mlxWinogradEnabled() ? "-wg" : "-nowg");
   }
 
   ComputeHandle(ComputeContext* ctx, const LoadedModel& loadedModel, bool iNHWC, bool requireExactNNLen_, bool useFP16_)
