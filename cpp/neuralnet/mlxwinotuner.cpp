@@ -608,6 +608,110 @@ jointPassA_Output(int N, int H, int W,
   return jointPassA_collect(scoreFn, "out", logger);
 }
 
+// Common Joint-Pass-B driver: for each top-(wpt, vw) from pass A, sweeps
+// all valid candidates of type CandT (built by `buildCands`), scores each
+// via `scoreFn`, shuffles per-(wpt,vw) group for noise-resistance, and
+// returns the globally-best candidate. Per-candidate dispatch errors are
+// caught and the candidate is silently skipped (not assigned +infinity —
+// i.e. no entry influences `bestMs`).
+//
+// `buildCands` signature: (int wpt, int vw) -> std::vector<CandT>
+//   Returns all valid (tg0, tg1, wpt, vw, go) combos under the given (wpt, vw).
+// `scoreFn` signature:    (const CandT&)    -> double
+//   Returns wall-clock ms. May throw on dispatch error.
+// `defaultCand` is returned when nothing succeeds.
+template <typename CandT, typename BuildFn, typename ScoreFn>
+static CandT
+jointPassB_collect(const std::vector<WptVwScore>& topWptVw,
+                   BuildFn buildCands,
+                   ScoreFn scoreFn,
+                   const CandT& defaultCand,
+                   const char* stageName,
+                   Logger* logger) {
+  CandT best = defaultCand;
+  double bestMs = std::numeric_limits<double>::infinity();
+
+  for(const auto& wv : topWptVw) {
+    std::vector<CandT> cands = buildCands(wv.wpt, wv.vw);
+    // Shuffle for noise-resistance: different runs hit candidates in
+    // different order, reducing clock-warmup bias.
+    shuffleVec(cands, 0xDEADBEEFu ^ (uint32_t)(wv.wpt * 31 + wv.vw));
+
+    for(const auto& c : cands) {
+      double ms;
+      try {
+        ms = scoreFn(c);
+      } catch(const std::exception& e) {
+        if(logger) logger->write(Global::strprintf(
+          "  jointB %s tg0=%d tg1=%d wpt=%d vw=%d FAILED: %s",
+          stageName, c.tg0, c.tg1, c.wpt, c.vw, e.what()));
+        continue;
+      }
+      if(logger) logger->write(Global::strprintf(
+        "  jointB %s tg0=%d tg1=%d wpt=%d vw=%d  meanMs=%.4f",
+        stageName, c.tg0, c.tg1, c.wpt, c.vw, ms));
+      if(ms < bestMs) { bestMs = ms; best = c; }
+    }
+  }
+  return best;
+}
+
+// Joint pass B: for each top-(wpt, vw) from pass A, sweep (tg0, tg1) and
+// retime each. Returns the best (tg0, tg1, wpt, vw) overall for this stage.
+// Per-candidate dispatch errors are caught and the candidate is silently
+// skipped, so the search continues across e.g. M1-variant threadgroup-mem
+// limits without aborting.
+static MLXWinograd::InputTransform
+jointPassB_Input(const std::vector<WptVwScore>& topWptVw,
+                 int N, int H, int W,
+                 const MLXWinogradTuner::ModelInfoForTuning& mi,
+                 MLXWinograd::GridOrder go,
+                 bool full, bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  MLXWinograd::InputTransform defaultCand = {32, 1, 1, 1, go};
+
+  auto buildCands = [&](int wpt, int vw) {
+    std::vector<MLXWinograd::InputTransform> cands;
+    for(int tg0 : inputTg0Values(full))
+    for(int tg1 : inputTg1Values(full)) {
+      if(!isInputCandidateValid(tg0, tg1, wpt, vw, go, mi.trunkNumChannels, Ntiles))
+        continue;
+      cands.push_back({tg0, tg1, wpt, vw, go});
+    }
+    return cands;
+  };
+  auto scoreFn = [&](const MLXWinograd::InputTransform& c) {
+    return scoreInputTransform(c, N, H, W, mi, useFP16);
+  };
+  return jointPassB_collect(topWptVw, buildCands, scoreFn, defaultCand, "inp", logger);
+}
+
+// Same shape for output untransform.
+static MLXWinograd::OutputUntransform
+jointPassB_Output(const std::vector<WptVwScore>& topWptVw,
+                  int N, int H, int W,
+                  const MLXWinogradTuner::ModelInfoForTuning& mi,
+                  MLXWinograd::GridOrder go,
+                  bool full, bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  MLXWinograd::OutputUntransform defaultCand = {32, 1, 1, 1, go};
+
+  auto buildCands = [&](int wpt, int vw) {
+    std::vector<MLXWinograd::OutputUntransform> cands;
+    for(int tg0 : outputTg0Values(full))
+    for(int tg1 : outputTg1Values(full)) {
+      if(!isOutputCandidateValid(tg0, tg1, wpt, vw, go, mi.trunkNumChannels, Ntiles))
+        continue;
+      cands.push_back({tg0, tg1, wpt, vw, go});
+    }
+    return cands;
+  };
+  auto scoreFn = [&](const MLXWinograd::OutputUntransform& c) {
+    return scoreOutputUntransform(c, N, H, W, mi, useFP16);
+  };
+  return jointPassB_collect(topWptVw, buildCands, scoreFn, defaultCand, "out", logger);
+}
+
 } // namespace
 
 static MLXWinograd::InputTransform searchInputTransform(
