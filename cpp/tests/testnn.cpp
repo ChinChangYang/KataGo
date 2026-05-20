@@ -1588,6 +1588,51 @@ void Tests::runMLXWinotunerTests() {
     testAssert(ok_tfast_vw1.isValid());
   }
 
+  // SP4 Task 7: candidate enumeration expanded with validity filtering.
+  {
+    using namespace MLXWinograd;
+    // Cfast, C=64 (divisible by all vw): full Cartesian product over all axes
+    // minus tg0*tg1>1024.
+    auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(
+        /*full*/true, /*C*/64, /*Ntiles*/200, GridOrder::Cfast);
+
+    // Sanity: returns hundreds of valid configs.
+    testAssert(cands.size() > 100);
+    testAssert(cands.size() < 5000);   // bounded by validity filter
+
+    // All candidates satisfy tg0*tg1 <= 1024.
+    for(const auto& c : cands)
+      testAssert(c.tg0 * c.tg1 <= 1024);
+
+    // C=66 with vw>1: should filter out vw=2 (66%2=0 — VW=2 allowed)
+    // and vw=4 (66%4=2 != 0 — VW=4 should NOT appear in candidates).
+    auto cands_C66 = MLXWinogradTuner::buildInputCandidatesForTesting(
+        true, /*C*/66, /*Ntiles*/200, GridOrder::Cfast);
+    for(const auto& c : cands_C66) {
+      if(c.vw == 4)
+        testAssert(false);  // vw=4 candidate should have been filtered out for C=66
+    }
+
+    // Tfast: vw must be 1 (kernel static_assert). All Tfast candidates have vw=1.
+    auto cands_Tfast = MLXWinogradTuner::buildInputCandidatesForTesting(
+        true, 64, 200, GridOrder::Tfast);
+    for(const auto& c : cands_Tfast) {
+      testAssert(c.vw == 1);
+      testAssert(c.gridOrder == GridOrder::Tfast);
+    }
+
+    // Output side: same shape of assertions.
+    auto out_cands = MLXWinogradTuner::buildOutputCandidatesForTesting(
+        true, /*outC*/64, /*Ntiles*/200, GridOrder::Cfast);
+    testAssert(out_cands.size() > 100);
+    for(const auto& c : out_cands)
+      testAssert(c.tg0 * c.tg1 <= 1024);
+
+    std::cout << "  MLX Winograd Task 7 candidate enumeration validity passed ("
+              << cands.size() << " input / " << out_cands.size() << " output candidates Cfast,C=64)"
+              << std::endl;
+  }
+
   // ---- Measurement primitives return finite positive times ----
   // We can't call the static helpers from the test, so we use the public
   // surface that will be wired in Task 4: loadOrAutoTune with reTune=true

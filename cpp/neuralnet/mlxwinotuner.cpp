@@ -404,43 +404,88 @@ struct InputCandidate  { MLXWinograd::InputTransform   cfg; double scoreMs; };
 struct OutputCandidate { MLXWinograd::OutputUntransform cfg; double scoreMs; };
 
 static const std::vector<int>& inputTg0Values(bool full) {
-  static const std::vector<int> v = {1,2,4,8,16,32,64,128};
+  static const std::vector<int> v = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
   (void)full;
   return v;
 }
 static const std::vector<int>& inputTg1Values(bool full) {
-  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
-  static const std::vector<int> vNonFull = {1,2,4,8,16,32};
+  static const std::vector<int> vFull    = {1,2,4,5,8,10,16,20,25,32,40,50,64,100,128};
+  static const std::vector<int> vNonFull = {1,2,4,8,10,16,25,32,50,100};
   return full ? vFull : vNonFull;
 }
 static const std::vector<int>& outputTg0Values(bool full) {
-  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
-  static const std::vector<int> vNonFull = {1,2,8,16,32};
-  return full ? vFull : vNonFull;
+  // Mirror input set — treat tg0 symmetrically.
+  static const std::vector<int> v = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
+  (void)full;
+  return v;
 }
 static const std::vector<int>& outputTg1Values(bool full) {
-  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
-  static const std::vector<int> vNonFull = {1,2,4,16,32};
+  // SP3 non-full inconsistency (skipped 8) is fixed here.
+  static const std::vector<int> vFull    = {1,2,4,5,8,10,16,20,25,32,40,50,64,100,128};
+  static const std::vector<int> vNonFull = {1,2,4,8,10,16,25,32,50,100};
   return full ? vFull : vNonFull;
 }
 
-static std::vector<MLXWinograd::InputTransform> buildInputCandidates(bool full) {
-  std::vector<MLXWinograd::InputTransform> out;
-  for(int tg0 : inputTg0Values(full))
-    for(int tg1 : inputTg1Values(full))
-      if(tg0 * tg1 <= 1024)
-        // TODO(SP4 Task 7): populate wpt, vw, gridOrder — current zero-init would fail isValid()
-        out.push_back({tg0, tg1});
-  return out;
+// New axes from SP4.
+static const std::vector<int>& wptValues() {
+  static const std::vector<int> v = {1, 2, 4, 8};
+  return v;
+}
+static const std::vector<int>& vwValues() {
+  static const std::vector<int> v = {1, 2, 4};
+  return v;
 }
 
-static std::vector<MLXWinograd::OutputUntransform> buildOutputCandidates(bool full) {
+// Returns true iff (tg0, tg1, wpt, vw, gridOrder) is structurally valid
+// AND vw divides the fast-axis dim of the current stage shape.
+static bool isInputCandidateValid(int tg0, int tg1, int wpt, int vw,
+                                  MLXWinograd::GridOrder go,
+                                  int C, int /*Ntiles*/) {
+  if(tg0 <= 0 || tg1 <= 0 || wpt <= 0 || vw <= 0) return false;
+  if(tg0 * tg1 > 1024) return false;
+  if(go == MLXWinograd::GridOrder::Cfast) {
+    if(vw > 1 && (C % vw) != 0) return false;
+  } else {
+    // Tfast: vw must be 1 (kernel static_assert enforces this).
+    if(vw != 1) return false;
+  }
+  return true;
+}
+static bool isOutputCandidateValid(int tg0, int tg1, int wpt, int vw,
+                                   MLXWinograd::GridOrder go,
+                                   int outC, int /*Ntiles*/) {
+  if(tg0 <= 0 || tg1 <= 0 || wpt <= 0 || vw <= 0) return false;
+  if(tg0 * tg1 > 1024) return false;
+  if(go == MLXWinograd::GridOrder::Cfast) {
+    if(vw > 1 && (outC % vw) != 0) return false;
+  } else {
+    if(vw != 1) return false;
+  }
+  return true;
+}
+
+static std::vector<MLXWinograd::InputTransform>
+buildInputCandidates(bool full, int C, int Ntiles, MLXWinograd::GridOrder go) {
+  std::vector<MLXWinograd::InputTransform> out;
+  for(int tg0 : inputTg0Values(full))
+  for(int tg1 : inputTg1Values(full))
+  for(int wpt : wptValues())
+  for(int vw  : vwValues()) {
+    if(!isInputCandidateValid(tg0, tg1, wpt, vw, go, C, Ntiles)) continue;
+    out.push_back({tg0, tg1, wpt, vw, go});
+  }
+  return out;
+}
+static std::vector<MLXWinograd::OutputUntransform>
+buildOutputCandidates(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go) {
   std::vector<MLXWinograd::OutputUntransform> out;
   for(int tg0 : outputTg0Values(full))
-    for(int tg1 : outputTg1Values(full))
-      if(tg0 * tg1 <= 1024)
-        // TODO(SP4 Task 7): populate wpt, vw, gridOrder — current zero-init would fail isValid()
-        out.push_back({tg0, tg1});
+  for(int tg1 : outputTg1Values(full))
+  for(int wpt : wptValues())
+  for(int vw  : vwValues()) {
+    if(!isOutputCandidateValid(tg0, tg1, wpt, vw, go, outC, Ntiles)) continue;
+    out.push_back({tg0, tg1, wpt, vw, go});
+  }
   return out;
 }
 
@@ -457,7 +502,12 @@ static MLXWinograd::InputTransform searchInputTransform(
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
     bool full, bool useFP16, Logger* logger) {
-  auto candidates = buildInputCandidates(full);
+  // TODO(Task 11): the hierarchical driver runs separate enumeration per
+  // (matmulOrient, gridOrder) outer combo. For now we filter vw candidates
+  // using trunkNumChannels only — conservative since all current models have
+  // trunkNumChannels divisible by max VW (4).
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  auto candidates = buildInputCandidates(full, mi.trunkNumChannels, Ntiles, seedCfg.gridOrder);
   shuffleVec(candidates, 0xDEADBEEFu);
   candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
 
@@ -467,8 +517,8 @@ static MLXWinograd::InputTransform searchInputTransform(
     double ms = scoreInputTransform(c, N, H, W, mi, useFP16);
     if(logger != nullptr) {
       logger->write(Global::strprintf(
-          "  inputTransform tg0=%d tg1=%d  meanMs=%.4f",
-          c.tg0, c.tg1, ms));
+          "  inputTransform tg0=%d tg1=%d wpt=%d vw=%d go=%d  meanMs=%.4f",
+          c.tg0, c.tg1, c.wpt, c.vw, (int)c.gridOrder, ms));
     }
     if(ms < bestMs) { bestMs = ms; best = c; }
   }
@@ -480,7 +530,12 @@ static MLXWinograd::OutputUntransform searchOutputUntransform(
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
     bool full, bool useFP16, Logger* logger) {
-  auto candidates = buildOutputCandidates(full);
+  // TODO(Task 11): the hierarchical driver runs separate enumeration per
+  // (matmulOrient, gridOrder) outer combo. For now we filter vw candidates
+  // using trunkNumChannels only — conservative since all current models have
+  // trunkNumChannels divisible by max VW (4).
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  auto candidates = buildOutputCandidates(full, mi.trunkNumChannels, Ntiles, seedCfg.gridOrder);
   shuffleVec(candidates, 0xCAFEBABEu);
   candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
 
@@ -490,8 +545,8 @@ static MLXWinograd::OutputUntransform searchOutputUntransform(
     double ms = scoreOutputUntransform(c, N, H, W, mi, useFP16);
     if(logger != nullptr) {
       logger->write(Global::strprintf(
-          "  outputUntransform tg0=%d tg1=%d  meanMs=%.4f",
-          c.tg0, c.tg1, ms));
+          "  outputUntransform tg0=%d tg1=%d wpt=%d vw=%d go=%d  meanMs=%.4f",
+          c.tg0, c.tg1, c.wpt, c.vw, (int)c.gridOrder, ms));
     }
     if(ms < bestMs) { bestMs = ms; best = c; }
   }
@@ -559,6 +614,15 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
         inBest.tg0, inBest.tg1, outBest.tg0, outBest.tg1, tunerFile.c_str()));
   }
   return result;
+}
+
+std::vector<MLXWinograd::InputTransform>
+MLXWinogradTuner::buildInputCandidatesForTesting(bool full, int C, int Ntiles, MLXWinograd::GridOrder go) {
+  return buildInputCandidates(full, C, Ntiles, go);
+}
+std::vector<MLXWinograd::OutputUntransform>
+MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go) {
+  return buildOutputCandidates(full, outC, Ntiles, go);
 }
 
 #endif // USE_MLX_BACKEND

@@ -65,6 +65,13 @@ namespace MLXWinogradTuner {
     bool useFP16,
     const MLXWinogradTuneParams* seedOverride = nullptr
   );
+
+  // Test-only — exposes the per-model candidate enumeration. Not part of the
+  // stable API; production callers should use loadOrAutoTune.
+  std::vector<MLXWinograd::InputTransform>
+  buildInputCandidatesForTesting(bool full, int C, int Ntiles, MLXWinograd::GridOrder go);
+  std::vector<MLXWinograd::OutputUntransform>
+  buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go);
 }
 
 #endif // USE_MLX_BACKEND
