@@ -49,10 +49,8 @@ namespace MLXWinogradTuner {
   // grid searches, saves the result, and returns it.
   // useFP16: passed to defaultFileName for cache-file naming AND to the
   // search-timing kernels so geometry is measured at the active precision.
-  // seedOverride: when non-null, the search uses these configs as the initial
-  // baseline instead of the SP1 baked defaults {tg0=32, tg1=1}. Used by tests
-  // to verify that the search converges from a bad seed; production callers
-  // pass nullptr.
+  // seedOverride: reserved for API stability; currently ignored by the flat
+  // sweep. Production callers pass nullptr.
   MLXWinogradTuneParams loadOrAutoTune(
     std::string tunerFile,
     const std::string& homeDataDirOverride,
@@ -73,22 +71,8 @@ namespace MLXWinogradTuner {
   std::vector<MLXWinograd::OutputUntransform>
   buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go);
 
-  // Test-only — exposes Joint pass A (wpt, vw) sweep. Not part of the stable API.
-  struct WptVwScoreForTesting { int wpt; int vw; double scoreMs; };
-  std::vector<WptVwScoreForTesting>
-  jointPassA_InputForTesting(int N, int H, int W,
-                             const ModelInfoForTuning& mi,
-                             MLXWinograd::GridOrder go,
-                             bool useFP16);
-  std::vector<WptVwScoreForTesting>
-  jointPassA_OutputForTesting(int N, int H, int W,
-                              const ModelInfoForTuning& mi,
-                              MLXWinograd::GridOrder go,
-                              bool useFP16);
-
-  // Test-only — exposes the per-stage scoring primitives so the bad-seed
-  // convergence test (Task 13) can compare seed and tuned configs
-  // apples-to-apples without depending on the full tuner measurement path.
+  // Test-only — exposes the per-stage scoring primitives so tests can compare
+  // configs apples-to-apples without depending on the full tuner measurement path.
   double scoreInputTransformForTesting(const MLXWinograd::InputTransform& cfg,
                                        int N, int H, int W,
                                        const ModelInfoForTuning& mi,
