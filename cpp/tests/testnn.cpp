@@ -1041,6 +1041,8 @@ void Tests::runMLXWinotunerTests() {
     MLXWinogradTuneParams c; c.outputUntransform.tg1 = -1; testAssert(!c.isValid());
     MLXWinogradTuneParams d; d.inputTransform.tg0 = 1024; d.inputTransform.tg1 = 2;
     testAssert(!d.isValid()); // 2048 > 1024
+    MLXWinogradTuneParams e; e.inputTransform.tg0 = 1024; e.inputTransform.tg1 = 1;
+    testAssert(e.isValid());  // exactly at boundary: 1024 == 1024
   }
 
   cout << "MLX Winograd tuner tests passed" << endl;

@@ -24,12 +24,15 @@ static map<string,int> parseKeyValueLine(const string& fileName, const string& l
   map<string,int> kvs;
   vector<string> tokens = Global::split(line);
   for(const string& tok : tokens) {
-    if(tok.empty()) continue;
     size_t eq = tok.find('=');
     if(eq == string::npos)
       throw IOError("MLXWinogradTuneParams: token without '=' in " + fileName + " line: " + line);
     string k = tok.substr(0, eq);
     string v = tok.substr(eq + 1);
+    if(k.empty())
+      throw IOError("MLXWinogradTuneParams: key-value pair without key in " + fileName + " line: " + line);
+    if(v.empty())
+      throw IOError("MLXWinogradTuneParams: key-value pair without value for key '" + k + "' in " + fileName + " line: " + line);
     if(kvs.count(k) > 0)
       throw IOError("MLXWinogradTuneParams: duplicate key " + k + " in " + fileName);
     try {
