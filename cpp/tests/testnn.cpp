@@ -1192,6 +1192,66 @@ void Tests::runMLXWinotunerTests() {
     testAssert(tWinner <= 1.05 * tOpt);
 
     cout << "MLX Winograd tuner search-works test passed" << endl;
+
+    // ---- Search-works (fp16 arm): same assertions, but the entire timing
+    //      path (makeWinogradWeights + winogradConv2d) runs in fp16. This
+    //      exercises the dtype-threaded kernel end-to-end so a regression
+    //      in the fp16 Winograd path is caught by the search-works test,
+    //      not just the BN/conv layer fp16 tests. Spec §6.
+    cout << "Running MLX Winograd tuner search-works test (fp16)" << endl;
+
+    std::string tmpFileFP16 = "/tmp/katago_mlx_winotuner_searchtest_fp16.txt";
+    std::remove(tmpFileFP16.c_str());
+
+    MLXWinogradTuneParams badSeedFP16;
+    badSeedFP16.inputTransform.tg0 = 1; badSeedFP16.inputTransform.tg1 = 1;
+    badSeedFP16.outputUntransform.tg0 = 1; badSeedFP16.outputUntransform.tg1 = 1;
+    MLXWinogradTuneParams tunedFP16 = MLXWinogradTuner::loadOrAutoTune(
+        tmpFileFP16, /*homeDataDirOverride=*/"", /*gpuName=*/"UnitTestGpu",
+        /*nnXLen=*/W, /*nnYLen=*/H, /*batchSize=*/N,
+        mi, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true,
+        /*useFP16=*/true,
+        /*seedOverride=*/&badSeedFP16);
+
+    // Re-time via fp16 winogradConv2d. Cast the synthetic fp32 input to
+    // fp16, and build the Winograd weights at fp16 too — this matches what
+    // the production fp16 path does inside ConvLayer.
+    mx::array inputFP16 = mx::astype(input, mx::float16);
+    mx::eval(inputFP16);
+    mx::array UwFP16 = MLXWinograd::makeWinogradWeights(
+        wOIHW, mi.trunkNumChannels, mi.trunkNumChannels, /*useFP16=*/true);
+    mx::eval(UwFP16);
+
+    auto timeCfgFP16 = [&](const MLXWinograd::InputTransform& ic,
+                           const MLXWinograd::OutputUntransform& oc) -> double {
+      const int reps = 10;
+      double total = 0;
+      for(int i = 0; i < reps; i++) {
+        auto t0 = std::chrono::steady_clock::now();
+        mx::array out = MLXWinograd::winogradConv2d(inputFP16, UwFP16, mi.trunkNumChannels, ic, oc, /*useFP16=*/true);
+        mx::eval(out);
+        auto t1 = std::chrono::steady_clock::now();
+        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        if(i > 0) total += ms; // discard warmup
+      }
+      return total / (reps - 1);
+    };
+
+    double tWinnerFP16 = timeCfgFP16(tunedFP16.inputTransform, tunedFP16.outputUntransform);
+    double tBadFP16    = timeCfgFP16(badIn, badOut);
+    double tOptFP16    = timeCfgFP16(optIn, optOut);
+
+    cout << Global::strprintf(
+        "  fp16 winner=(%d,%d)/(%d,%d) %.3fms ; bad=(1,1)/(1,1) %.3fms ; opt=(32,1)/(32,1) %.3fms",
+        tunedFP16.inputTransform.tg0, tunedFP16.inputTransform.tg1,
+        tunedFP16.outputUntransform.tg0, tunedFP16.outputUntransform.tg1,
+        tWinnerFP16, tBadFP16, tOptFP16) << endl;
+
+    // Same two assertions as the fp32 arm.
+    testAssert(tWinnerFP16 <= 0.8 * tBadFP16);
+    testAssert(tWinnerFP16 <= 1.05 * tOptFP16);
+
+    cout << "MLX Winograd tuner search-works test (fp16) passed" << endl;
   } else {
     cout << "Skipping MLX Winograd tuner search-works test (set KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST=1 to enable)" << endl;
   }

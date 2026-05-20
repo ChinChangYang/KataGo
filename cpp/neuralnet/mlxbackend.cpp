@@ -958,6 +958,12 @@ struct Model {
     float* scoreValueOut,
     float* ownershipOut
   ) const {
+    // SP3: This raw-output path memcpys policy.data<float>() etc. into the
+    // caller's fp32 buffers. If useFP16==true, .data<float>() yields fp16
+    // bit-patterns reinterpreted as fp32 -> garbage. Use applyCompiled()
+    // (production) which casts outputs back to fp32 inside applyArrays().
+    testAssert(!useFP16);
+
     // When requireExactNNLen=true, all boards are exactly nnXLen x nnYLen,
     // so all mask values are 1 and we can skip mask operations
     const bool useMask = !requireExactNNLen;
