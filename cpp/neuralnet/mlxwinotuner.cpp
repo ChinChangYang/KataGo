@@ -2,7 +2,9 @@
 
 #include "../neuralnet/mlxwinotuner.h"
 
+#include <algorithm>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <map>
 #include <string>
@@ -339,5 +341,165 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
 }
 
 } // namespace
+
+namespace {
+
+struct InputCandidate  { MLXWinograd::InputTransform   cfg; double scoreMs; };
+struct OutputCandidate { MLXWinograd::OutputUntransform cfg; double scoreMs; };
+
+static const std::vector<int>& inputTg0Values(bool full) {
+  static const std::vector<int> v = {1,2,4,8,16,32,64,128};
+  (void)full;
+  return v;
+}
+static const std::vector<int>& inputTg1Values(bool full) {
+  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
+  static const std::vector<int> vNonFull = {1,2,4,8,16,32};
+  return full ? vFull : vNonFull;
+}
+static const std::vector<int>& outputTg0Values(bool full) {
+  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
+  static const std::vector<int> vNonFull = {1,2,8,16,32};
+  return full ? vFull : vNonFull;
+}
+static const std::vector<int>& outputTg1Values(bool full) {
+  static const std::vector<int> vFull    = {1,2,4,8,16,32,64};
+  static const std::vector<int> vNonFull = {1,2,4,16,32};
+  return full ? vFull : vNonFull;
+}
+
+static std::vector<MLXWinograd::InputTransform> buildInputCandidates(bool full,
+    const MLXWinograd::InputTransform& seedCfg) {
+  std::vector<MLXWinograd::InputTransform> out;
+  for(int tg0 : inputTg0Values(full))
+    for(int tg1 : inputTg1Values(full))
+      if(tg0 * tg1 <= 1024)
+        out.push_back({tg0, tg1});
+  if(seedCfg.tg0 > 0 && seedCfg.tg1 > 0 && seedCfg.tg0 * seedCfg.tg1 <= 1024)
+    out.push_back(seedCfg);
+  return out;
+}
+
+static std::vector<MLXWinograd::OutputUntransform> buildOutputCandidates(bool full,
+    const MLXWinograd::OutputUntransform& seedCfg) {
+  std::vector<MLXWinograd::OutputUntransform> out;
+  for(int tg0 : outputTg0Values(full))
+    for(int tg1 : outputTg1Values(full))
+      if(tg0 * tg1 <= 1024)
+        out.push_back({tg0, tg1});
+  if(seedCfg.tg0 > 0 && seedCfg.tg1 > 0 && seedCfg.tg0 * seedCfg.tg1 <= 1024)
+    out.push_back(seedCfg);
+  return out;
+}
+
+template <typename T>
+static void shuffleVec(std::vector<T>& v, uint32_t seed) {
+  std::mt19937 rng(seed);
+  std::shuffle(v.begin(), v.end(), rng);
+}
+
+} // namespace
+
+static MLXWinograd::InputTransform searchInputTransform(
+    const MLXWinograd::InputTransform& seedCfg,
+    int N, int H, int W,
+    const MLXWinogradTuner::ModelInfoForTuning& mi,
+    bool full, Logger* logger) {
+  auto candidates = buildInputCandidates(full, seedCfg);
+  shuffleVec(candidates, 0xDEADBEEFu);
+  candidates.insert(candidates.begin(), seedCfg);  // anchor: time the seed twice
+
+  MLXWinograd::InputTransform best = seedCfg;
+  double bestMs = std::numeric_limits<double>::infinity();
+  for(const auto& c : candidates) {
+    double ms = scoreInputTransform(c, N, H, W, mi);
+    if(logger != nullptr) {
+      logger->write(Global::strprintf(
+          "  inputTransform tg0=%d tg1=%d  meanMs=%.4f",
+          c.tg0, c.tg1, ms));
+    }
+    if(ms < bestMs) { bestMs = ms; best = c; }
+  }
+  return best;
+}
+
+static MLXWinograd::OutputUntransform searchOutputUntransform(
+    const MLXWinograd::OutputUntransform& seedCfg,
+    int N, int H, int W,
+    const MLXWinogradTuner::ModelInfoForTuning& mi,
+    bool full, Logger* logger) {
+  auto candidates = buildOutputCandidates(full, seedCfg);
+  shuffleVec(candidates, 0xCAFEBABEu);
+  candidates.insert(candidates.begin(), seedCfg);
+
+  MLXWinograd::OutputUntransform best = seedCfg;
+  double bestMs = std::numeric_limits<double>::infinity();
+  for(const auto& c : candidates) {
+    double ms = scoreOutputUntransform(c, N, H, W, mi);
+    if(logger != nullptr) {
+      logger->write(Global::strprintf(
+          "  outputUntransform tg0=%d tg1=%d  meanMs=%.4f",
+          c.tg0, c.tg1, ms));
+    }
+    if(ms < bestMs) { bestMs = ms; best = c; }
+  }
+  return best;
+}
+
+MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
+    string tunerFile,
+    const string& homeDataDirOverride,
+    const string& gpuName,
+    int nnXLen, int nnYLen, int batchSize,
+    ModelInfoForTuning modelInfo,
+    Logger* logger,
+    bool full,
+    bool reTune) {
+  if(tunerFile.empty()) {
+    string dir = defaultDirectory(true, homeDataDirOverride);
+    tunerFile = dir + "/" + defaultFileName(gpuName, nnXLen, nnYLen,
+                                            modelInfo.trunkNumChannels,
+                                            modelInfo.modelVersion);
+  }
+
+  if(!reTune && FileUtils::exists(tunerFile)) {
+    try {
+      MLXWinogradTuneParams loaded = MLXWinogradTuneParams::load(tunerFile);
+      if(loaded.isValid()) {
+        if(logger != nullptr)
+          logger->write("Loaded MLX Winograd tuning parameters from " + tunerFile);
+        return loaded;
+      }
+    } catch(const IOError& e) {
+      if(logger != nullptr)
+        logger->write(std::string("MLX Winograd tune file unusable, retuning: ") + e.what());
+    }
+  }
+
+  if(logger != nullptr) {
+    logger->write("Performing autotuning for MLX Winograd transforms");
+    logger->write("Tuning input transform (this may take ~30 seconds)...");
+  }
+
+  MLXWinograd::InputTransform    inSeed;    // {tg0=32, tg1=1}
+  MLXWinograd::OutputUntransform outSeed;   // {tg0=32, tg1=1}
+  MLXWinograd::InputTransform   inBest =
+      searchInputTransform(inSeed, batchSize, nnYLen, nnXLen, modelInfo, full, logger);
+  if(logger != nullptr) logger->write("Tuning output untransform...");
+  MLXWinograd::OutputUntransform outBest =
+      searchOutputUntransform(outSeed, batchSize, nnYLen, nnXLen, modelInfo, full, logger);
+
+  MLXWinogradTuneParams result;
+  result.inputTransform    = inBest;
+  result.outputUntransform = outBest;
+
+  MLXWinogradTuneParams::save(tunerFile, result);
+  if(logger != nullptr) {
+    logger->write(Global::strprintf(
+        "MLX Winograd tuning done: inputTransform=(%d,%d) outputUntransform=(%d,%d), saved to %s",
+        inBest.tg0, inBest.tg1, outBest.tg0, outBest.tg1, tunerFile.c_str()));
+  }
+  return result;
+}
 
 #endif // USE_MLX_BACKEND

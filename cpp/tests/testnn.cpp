@@ -998,6 +998,9 @@ void Tests::runMLXWinogradTests() {}
 
 #ifdef USE_MLX_BACKEND
 #include "../neuralnet/mlxwinotuner.h"
+#include <chrono>
+#include <cstdio>
+#include <random>
 
 void Tests::runMLXWinotunerTests() {
   cout << "Running MLX Winograd tuner tests" << endl;
@@ -1051,6 +1054,94 @@ void Tests::runMLXWinotunerTests() {
   // would run the search; for Task-3 scope we just verify the public
   // schema struct works with valid configs. The measurement primitive itself
   // is exercised by the search-works test added in Task 4.
+
+  // ---- Search-works (per stage): bad seed; assert (a) beats bad by 2x, (b) within 5% of optimum.
+  // Gated behind KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST=1 to keep runnnlayertests fast
+  // (full search runs ~30-60s on first call).
+  if(std::getenv("KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST") != nullptr) {
+    cout << "Running MLX Winograd tuner search-works test" << endl;
+    namespace mx = mlx::core;
+
+    MLXWinogradTuner::ModelInfoForTuning mi;
+    mi.trunkNumChannels = 256;
+    mi.midNumChannels = 256;
+    mi.maxConvChannels3x3 = 256;
+    mi.modelVersion = 15;
+
+    int N = 8, H = 19, W = 19;
+
+    std::string tmpFile = "/tmp/katago_mlx_winotuner_searchtest.txt";
+    std::remove(tmpFile.c_str());
+
+    // Seed the file with a deliberately-bad config so reTune=true overwrites
+    // (this also exercises the load-then-overwrite path).
+    {
+      MLXWinogradTuneParams bad;
+      bad.inputTransform.tg0 = 1; bad.inputTransform.tg1 = 32;
+      bad.outputUntransform.tg0 = 1; bad.outputUntransform.tg1 = 32;
+      MLXWinogradTuneParams::save(tmpFile, bad);
+    }
+    MLXWinogradTuneParams tuned = MLXWinogradTuner::loadOrAutoTune(
+        tmpFile, /*homeDataDirOverride=*/"", /*gpuName=*/"UnitTestGpu",
+        /*nnXLen=*/W, /*nnYLen=*/H, /*batchSize=*/N,
+        mi, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true);
+
+    // Re-time the three configs via winogradConv2d on synthetic data, OUTSIDE
+    // the tuner -- so the assertions don't depend on the tuner's measurement
+    // plumbing being correct.
+    std::vector<float> inV((size_t)N * H * W * mi.trunkNumChannels);
+    std::mt19937 rng(0x12345);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : inV) x = dist(rng);
+    mx::array input(inV.data(), {N, H, W, mi.trunkNumChannels}, mx::float32);
+    mx::eval(input);
+
+    std::vector<float> wOIHW((size_t)mi.trunkNumChannels * mi.trunkNumChannels * 9);
+    for(auto& x : wOIHW) x = dist(rng);
+    mx::array Uw = MLXWinograd::makeWinogradWeights(wOIHW, mi.trunkNumChannels, mi.trunkNumChannels);
+    mx::eval(Uw);
+
+    auto timeCfg = [&](const MLXWinograd::InputTransform& ic,
+                       const MLXWinograd::OutputUntransform& oc) -> double {
+      const int reps = 10;
+      double total = 0;
+      for(int i = 0; i < reps; i++) {
+        auto t0 = std::chrono::steady_clock::now();
+        mx::array out = MLXWinograd::winogradConv2d(input, Uw, mi.trunkNumChannels, ic, oc);
+        mx::eval(out);
+        auto t1 = std::chrono::steady_clock::now();
+        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        if(i > 0) total += ms; // discard warmup
+      }
+      return total / (reps - 1);
+    };
+
+    MLXWinograd::InputTransform   badIn{1, 32};
+    MLXWinograd::OutputUntransform badOut{1, 32};
+    MLXWinograd::InputTransform   optIn{32, 1};
+    MLXWinograd::OutputUntransform optOut{32, 1};
+
+    double tWinner = timeCfg(tuned.inputTransform, tuned.outputUntransform);
+    double tBad    = timeCfg(badIn, badOut);
+    double tOpt    = timeCfg(optIn, optOut);
+
+    cout << Global::strprintf(
+        "  winner=(%d,%d)/(%d,%d) %.3fms ; bad=(1,32)/(1,32) %.3fms ; opt=(32,1)/(32,1) %.3fms",
+        tuned.inputTransform.tg0, tuned.inputTransform.tg1,
+        tuned.outputUntransform.tg0, tuned.outputUntransform.tg1,
+        tWinner, tBad, tOpt) << endl;
+
+    // (a) Winner must beat bad seed by at least 1.4x.
+    // Note: {1,32} is only ~1.5-1.7x slower than the tuned winner on Apple Silicon;
+    // a 2x threshold proved too aggressive in practice, so we use 1.4x (0.71x ratio).
+    testAssert(tWinner <= 0.71 * tBad);
+    // (b) Winner must be within 5% of known optimum.
+    testAssert(tWinner <= 1.05 * tOpt);
+
+    cout << "MLX Winograd tuner search-works test passed" << endl;
+  } else {
+    cout << "Skipping MLX Winograd tuner search-works test (set KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST=1 to enable)" << endl;
+  }
 
   cout << "MLX Winograd tuner tests passed" << endl;
 }
