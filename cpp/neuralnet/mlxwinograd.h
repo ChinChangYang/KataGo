@@ -121,7 +121,8 @@ namespace mx = mlx::core;
 // Host-side weight transform: OIHW [Cout][Cin][3][3] -> U array
 // laid out [16, Cin, Cout] so the matmul Stage-2 sees [16,Ntiles,Cin] x [16,Cin,Cout] -> [16,Ntiles,Cout].
 inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
-                                     int Cout, int Cin) {
+                                     int Cout, int Cin,
+                                     bool useFP16 = false) {
   std::vector<float> U((size_t)16 * Cin * Cout, 0.0f);
   for(int oc = 0; oc < Cout; oc++) {
     for(int ic = 0; ic < Cin; ic++) {
@@ -135,10 +136,13 @@ inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
           U[((size_t)(a * 4 + b) * Cin + ic) * Cout + oc] = Um[a][b];
     }
   }
-  return mx::array(U.data(), {16, Cin, Cout}, mx::float32);
+  mx::array arr(U.data(), {16, Cin, Cout}, mx::float32);
+  if(useFP16) return mx::astype(arr, mx::float16);
+  return arr;
 }
 
-// F(2,3) input transform kernel: NHWC fp32 input -> [16, Ntiles, C] fp32.
+// F(2,3) input transform kernel: NHWC T input -> [16, Ntiles, C] T.
+// T is float or half, selected at JIT-instantiation time via template_args {{"T", dtype}}.
 // One thread per (channel, tile); axis=1 (channel-fast): grid=(C_groups, Ntiles, 1).
 inline constexpr const char* kWinoInputSource = R"METAL(
     uint c_group  = thread_position_in_grid.x;
@@ -161,32 +165,32 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 
     uint c = c_group;
     if ((int)c >= C_k) return;
-    float d[4][4];
+    T d[4][4];
     for (int i = 0; i < 4; i++) {
       int iy = 2 * ty - 1 + i;
       for (int j = 0; j < 4; j++) {
         int ix = 2 * tx - 1 + j;
         if (iy < 0 || iy >= H_k || ix < 0 || ix >= W_k) {
-          d[i][j] = 0.0f;
+          d[i][j] = (T)0.0f;
         } else {
           d[i][j] = inp[((n * H_k + iy) * W_k + ix) * C_k + c];
         }
       }
     }
-    float tmp[4][4];
+    T tmp[4][4];
     for (int j = 0; j < 4; j++) {
-      float v0 = d[0][j], v1 = d[1][j], v2 = d[2][j], v3 = d[3][j];
+      T v0 = d[0][j], v1 = d[1][j], v2 = d[2][j], v3 = d[3][j];
       tmp[0][j] = v0 - v2;
       tmp[1][j] = v1 + v2;
       tmp[2][j] = v2 - v1;
       tmp[3][j] = v1 - v3;
     }
     for (int r = 0; r < 4; r++) {
-      float u0 = tmp[r][0], u1 = tmp[r][1], u2 = tmp[r][2], u3 = tmp[r][3];
-      float V0 = u0 - u2;
-      float V1 = u1 + u2;
-      float V2 = u2 - u1;
-      float V3 = u1 - u3;
+      T u0 = tmp[r][0], u1 = tmp[r][1], u2 = tmp[r][2], u3 = tmp[r][3];
+      T V0 = u0 - u2;
+      T V1 = u1 + u2;
+      T V2 = u2 - u1;
+      T V3 = u1 - u3;
       int base = ((r * 4 + 0) * Ntiles_k + (int)tileIdx) * C_k + (int)c;
       outp[base + 0 * Ntiles_k * C_k] = V0;
       outp[base + 1 * Ntiles_k * C_k] = V1;
@@ -195,7 +199,8 @@ inline constexpr const char* kWinoInputSource = R"METAL(
     }
 )METAL";
 
-// F(2,3) output untransform kernel: [16, Ntiles, outC] fp32 -> NHWC fp32.
+// F(2,3) output untransform kernel: [16, Ntiles, outC] T -> NHWC T.
+// T is float or half, selected at JIT-instantiation time via template_args {{"T", dtype}}.
 // One thread per (out-channel, tile); axis=1: grid=(outC_groups, Ntiles, 1).
 // nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
 // exposes *_shape for inputs, not outputs.
@@ -219,23 +224,23 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
 
     uint oc = oc_group;
     if ((int)oc >= outC_k) return;
-    float mm[4][4];
+    T mm[4][4];
     for (int r = 0; r < 4; r++) {
       for (int c2 = 0; c2 < 4; c2++) {
         int p = r * 4 + c2;
         mm[r][c2] = m[(p * Ntiles_k + (int)tileIdx) * outC_k + (int)oc];
       }
     }
-    float tmp[2][4];
+    T tmp[2][4];
     for (int c2 = 0; c2 < 4; c2++) {
-      float v0 = mm[0][c2], v1 = mm[1][c2], v2 = mm[2][c2], v3 = mm[3][c2];
+      T v0 = mm[0][c2], v1 = mm[1][c2], v2 = mm[2][c2], v3 = mm[3][c2];
       tmp[0][c2] = v0 + v1 + v2;
       tmp[1][c2] = v1 - v2 - v3;
     }
     for (int a = 0; a < 2; a++) {
-      float u0 = tmp[a][0], u1 = tmp[a][1], u2 = tmp[a][2], u3 = tmp[a][3];
-      float Y0 = u0 + u1 + u2;
-      float Y1 = u1 - u2 - u3;
+      T u0 = tmp[a][0], u1 = tmp[a][1], u2 = tmp[a][2], u3 = tmp[a][3];
+      T Y0 = u0 + u1 + u2;
+      T Y1 = u1 - u2 - u3;
       int oy0 = 2 * ty + a;
       if (oy0 < H_k) {
         int ox0 = 2 * tx + 0;
@@ -252,7 +257,8 @@ inline mx::array winogradConv2d(const mx::array& input,
                                 const mx::array& Uw,
                                 int Cout,
                                 const InputTransform& inCfg,
-                                const OutputUntransform& outCfg) {
+                                const OutputUntransform& outCfg,
+                                bool useFP16 = false) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -261,42 +267,53 @@ inline mx::array winogradConv2d(const mx::array& input,
   int tilesX = (W + 1) / 2;
   int Ntiles = N * tilesY * tilesX;
 
+  const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
+  const char* inKernelName  = useFP16 ? "wino_input_transform_f16"
+                                      : "wino_input_transform_f32";
+  const char* outKernelName = useFP16 ? "wino_output_untransform_f16"
+                                      : "wino_output_untransform_f32";
+  std::vector<std::pair<std::string, mx::fast::TemplateArg>> templArgs = {
+    {"T", dtype}
+  };
+
   // Stage 1: input transform -> [16, Ntiles, C]
   auto inFn = mx::fast::metal_kernel(
-      "wino_input_transform_f32",
+      inKernelName,
       /*input_names=*/{"inp"},
       /*output_names=*/{"outp"},
       /*source=*/kWinoInputSource);
   auto inOuts = inFn(
       /*inputs=*/{input},
       /*output_shapes=*/{ mx::Shape{16, Ntiles, C} },
-      /*output_dtypes=*/{ mx::float32 },
+      /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(C, Ntiles, 1),
       /*threadgroup=*/std::make_tuple(inCfg.tg0, inCfg.tg1, 1),
-      /*template_args=*/{},
+      /*template_args=*/templArgs,
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
   mx::array t = inOuts[0];
 
   // Stage 2: batched matmul [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout]
+  // MLX steel gemm uses AccumType=float (static-asserted in mma.h:772) when
+  // T=half, so fp32 accumulation is automatic.
   mx::array m = mx::matmul(t, Uw);
 
   // Stage 3: output untransform -> [N, H, W, Cout]
   int nhwc_arr[4] = {N, H, W, Cout};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
   auto outFn = mx::fast::metal_kernel(
-      "wino_output_untransform_f32",
+      outKernelName,
       /*input_names=*/{"m", "nhwc"},
       /*output_names=*/{"outp"},
       /*source=*/kWinoOutputSource);
   auto outOuts = outFn(
       /*inputs=*/{m, nhwcArr},
       /*output_shapes=*/{ mx::Shape{N, H, W, Cout} },
-      /*output_dtypes=*/{ mx::float32 },
+      /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(Cout, Ntiles, 1),
       /*threadgroup=*/std::make_tuple(outCfg.tg0, outCfg.tg1, 1),
-      /*template_args=*/{},
+      /*template_args=*/templArgs,
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});

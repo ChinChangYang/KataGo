@@ -991,6 +991,36 @@ void Tests::runMLXWinogradTests() {
     cout<<"  MLX-metal winograd maxErr="<<maxErr<<endl;
     testAssert(maxErr < 2e-3);
   }
+
+  // FP16 Winograd: input/weights/output all fp16, compared against fp32 CPU oracle.
+  // Tolerance ~5e-2 covers (a) fp16 input quantization, (b) fp16 weight quantization,
+  // (c) fp16 transform/store rounding. The matmul itself accumulates in fp32 (MLX
+  // steel gemm default), so the dominant error is the storage round-trip.
+  {
+    namespace mxc = mlx::core;
+    int N=2,H=19,W=19,Cin=8,Cout=16;
+    std::mt19937 grng(778);
+    std::uniform_real_distribution<float> gdist(-1.f,1.f);
+    vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=gdist(grng);
+    vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=gdist(grng);
+    auto refv = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
+    mxc::array inArrF32(in.data(),{N,H,W,Cin},mxc::float32);
+    mxc::array inArr = mxc::astype(inArrF32, mxc::float16);
+    auto Uw = MLXWinograd::makeWinogradWeights(w,Cout,Cin,/*useFP16=*/true);
+    MLXWinograd::InputTransform inCfg;
+    MLXWinograd::OutputUntransform outCfg;
+    mxc::array o = MLXWinograd::winogradConv2d(inArr,Uw,Cout,inCfg,outCfg,/*useFP16=*/true);
+    mxc::eval(o);
+    testAssert(o.dtype() == mxc::float16);
+    mxc::array oF32 = mxc::astype(o, mxc::float32);
+    mxc::eval(oF32);
+    const float* od = oF32.data<float>();
+    double maxErr=0.0;
+    for(size_t i=0;i<refv.size();i++)
+      maxErr=std::max(maxErr,(double)std::fabs(refv[i]-od[i]));
+    cout<<"  MLX-metal winograd FP16 maxErr="<<maxErr<<endl;
+    testAssert(maxErr < 5e-2);
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
