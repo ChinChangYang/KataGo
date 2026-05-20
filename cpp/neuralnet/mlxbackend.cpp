@@ -227,17 +227,20 @@ struct BatchNormLayer {
   const string name;
   const int numChannels;
   const int activation;
-  mx::array mergedScale; // Shape: [C]
-  mx::array mergedBias;  // Shape: [C]
+  const bool useFP16;
+  mx::array mergedScale; // Shape: [C], always fp32 (SP3)
+  mx::array mergedBias;  // Shape: [C], always fp32 (SP3)
 
   BatchNormLayer() = delete;
   BatchNormLayer(const BatchNormLayer&) = delete;
   BatchNormLayer& operator=(const BatchNormLayer&) = delete;
 
-  static mx::array createArray1D(const std::vector<float>& data, int size, bool useFP16) {
+  // SP3: mergedScale/mergedBias storage is always fp32 to preserve dynamic
+  // range across the 25-block-deep b18c384 chain. The `useFP16` parameter
+  // is intentionally ignored. See spec §3 item 4.
+  static mx::array createArray1D(const std::vector<float>& data, int size, bool /*useFP16*/) {
     mx::Shape shape = {size};
-    mx::array arr = mx::array(data.data(), shape, mx::float32);
-    return toComputeDtype(arr, useFP16);
+    return mx::array(data.data(), shape, mx::float32);
   }
 
   static std::vector<float> getMergedScale(const BatchNormLayerDesc& desc) {
@@ -267,23 +270,30 @@ struct BatchNormLayer {
     return mergedBias;
   }
 
-  BatchNormLayer(const BatchNormLayerDesc& desc, int activationType, bool useFP16 = false)
+  BatchNormLayer(const BatchNormLayerDesc& desc, int activationType, bool useFP16_ = false)
     : name(desc.name),
       numChannels(desc.numChannels),
       activation(activationType),
-      mergedScale(createArray1D(getMergedScale(desc), desc.numChannels, useFP16)),
-      mergedBias(createArray1D(getMergedBias(desc), desc.numChannels, useFP16))
+      useFP16(useFP16_),
+      mergedScale(createArray1D(getMergedScale(desc), desc.numChannels, useFP16_)),
+      mergedBias(createArray1D(getMergedBias(desc), desc.numChannels, useFP16_))
   {}
 
   mx::array apply(const mx::array& input, const mx::array& mask, bool useMask) const {
-    // input: NHWC [N, H, W, C]
-    // mask: NHW1 [N, H, W, 1]
-    // BN: output = input * scale + bias
+    // input: NHWC [N, H, W, C] in compute dtype (fp16 or fp32).
+    // mask: NHW1 [N, H, W, 1] in compute dtype.
+    // mergedScale/mergedBias are always fp32; MLX type promotion lifts the
+    // multiply-add-activation chain to fp32 automatically (selective fp32
+    // accumulation, spec §3 item 4 — defense against inf/nan in deep stacks).
+    // Mask multiply runs while activated is still fp32 (safe because mask is
+    // binary 0/1, so fp32*fp16 and fp16*fp16 round to bit-equal results).
+    // The single trailing astype-to-fp16 covers both useMask branches.
     mx::array normalized = input * mergedScale + mergedBias;
     mx::array activated = applyActivation(normalized, activation);
-    // Apply mask (zero out padded regions) - skip when useMask=false
     if(useMask)
-      return activated * mask;
+      activated = activated * mask;
+    // Cast back to fp16 so downstream layers see the expected compute dtype.
+    if(useFP16) activated = mx::astype(activated, mx::float16);
     return activated;
   }
 };
@@ -1648,6 +1658,43 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
 
   memcpy(outputBuffer.data(), output.data<float>(), numOutputFloats * sizeof(float));
   return true;
+}
+
+// SP3 Task 2: directly-asserting unit test for BatchNormLayer fp16 mode.
+// Declared here because BatchNormLayer is not in any public header.
+// Forward-declared by tests/testnn.cpp via `void runMLXBatchNormFP16Test_SP3();`.
+void runMLXBatchNormFP16Test_SP3() {
+  namespace mxc = mx;  // reuse the file-scope alias from line 29
+  using std::cout;
+  using std::endl;
+
+  int N=1,H=5,W=5,C=4;
+  std::vector<float> mean(C, 0.0f), variance(C, 1.0f), scale(C, 1.0f), bias(C, 0.0f);
+  BatchNormLayerDesc bnDesc;
+  bnDesc.name = "bnSP3Test";
+  bnDesc.numChannels = C;
+  bnDesc.epsilon = 1e-5f;
+  bnDesc.mean = mean;
+  bnDesc.variance = variance;
+  bnDesc.scale = scale;
+  bnDesc.bias = bias;
+  BatchNormLayer bn(bnDesc, ACTIVATION_IDENTITY, /*useFP16=*/true);
+
+  // mergedScale/mergedBias must be fp32 even in fp16 mode.
+  testAssert(bn.mergedScale.dtype() == mxc::float32);
+  testAssert(bn.mergedBias.dtype()  == mxc::float32);
+
+  // apply() must return fp16 when useFP16=true.
+  std::vector<float> inV((size_t)N*H*W*C, 0.5f);
+  std::vector<float> maskV((size_t)N*H*W*1, 1.0f);
+  mxc::array inArrF32(inV.data(), {N,H,W,C}, mxc::float32);
+  mxc::array inArr = mxc::astype(inArrF32, mxc::float16);
+  mxc::array maskArrF32(maskV.data(), {N,H,W,1}, mxc::float32);
+  mxc::array maskArr = mxc::astype(maskArrF32, mxc::float16);
+  mxc::array out = bn.apply(inArr, maskArr, /*useMask=*/true);
+  mxc::eval(out);
+  testAssert(out.dtype() == mxc::float16);
+  cout << "  BatchNormLayer fp16: mergedScale/Bias fp32, output fp16 OK" << endl;
 }
 
 #endif // USE_MLX_BACKEND
