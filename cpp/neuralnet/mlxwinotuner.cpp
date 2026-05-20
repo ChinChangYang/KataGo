@@ -3,6 +3,7 @@
 #include "../neuralnet/mlxwinotuner.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <limits>
@@ -816,63 +817,49 @@ refineOutput(MLXWinograd::OutputUntransform winner,
   return winner;
 }
 
+// End-to-end timing of one (matmulOrient, gridOrder, inCfg, outCfg) combo.
+// Runs the full winogradConv2d once after warmup. Used as the outer-level
+// tiebreaker across the 4 (matmulOrient × gridOrder) combos in
+// loadOrAutoTune.
+static double
+timeOneEndToEnd(const MLXWinograd::InputTransform& inCfg,
+                const MLXWinograd::OutputUntransform& outCfg,
+                MLXWinograd::MatmulOrient orient,
+                int N, int H, int W,
+                const MLXWinogradTuner::ModelInfoForTuning& mi,
+                bool useFP16) {
+  int C = mi.trunkNumChannels, Cout = mi.trunkNumChannels;
+  mx::array inp = makeRandomInput(N, H, W, C, 0x11111111u, useFP16);
+  std::vector<float> w_data((size_t)Cout * C * 9);
+  std::mt19937 rng(0x22222222u);
+  std::uniform_real_distribution<float> dist(-1, 1);
+  for(auto& x : w_data) x = dist(rng);
+  mx::array Uw = MLXWinograd::makeWinogradWeights(w_data, Cout, C, useFP16, orient);
+  mx::eval(inp); mx::eval(Uw);
+
+  // Warmup.
+  {
+    auto out = MLXWinograd::winogradConv2d(inp, Uw, Cout, inCfg, outCfg, useFP16, orient);
+    mx::eval(out);
+  }
+  // Timed: 5 reps, return median. End-to-end is the sole tiebreaker among
+  // the 4 outer (orient, gridOrder) combos; 1 rep is too noisy on Apple
+  // Silicon (~5-15% command-buffer jitter). Median of 5 trades ~4 extra
+  // dispatches for stability — negligible in the ~80s overall budget.
+  const int kReps = 5;
+  std::array<double, kReps> reps;
+  for(int i = 0; i < kReps; i++) {
+    auto out = MLXWinograd::winogradConv2d(inp, Uw, Cout, inCfg, outCfg, useFP16, orient);
+    auto t0 = std::chrono::steady_clock::now();
+    mx::eval(out);
+    auto t1 = std::chrono::steady_clock::now();
+    reps[i] = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  }
+  std::sort(reps.begin(), reps.end());
+  return reps[kReps / 2];  // median
+}
+
 } // namespace
-
-static MLXWinograd::InputTransform searchInputTransform(
-    const MLXWinograd::InputTransform& seedCfg,
-    int N, int H, int W,
-    const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool full, bool useFP16, Logger* logger) {
-  // TODO(Task 11): the hierarchical driver runs separate enumeration per
-  // (matmulOrient, gridOrder) outer combo. For now we filter vw candidates
-  // using trunkNumChannels only — conservative since all current models have
-  // trunkNumChannels divisible by max VW (4).
-  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
-  auto candidates = buildInputCandidates(full, mi.trunkNumChannels, Ntiles, seedCfg.gridOrder);
-  shuffleVec(candidates, 0xDEADBEEFu);
-  candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
-
-  MLXWinograd::InputTransform best = seedCfg;
-  double bestMs = std::numeric_limits<double>::infinity();
-  for(const auto& c : candidates) {
-    double ms = scoreInputTransform(c, N, H, W, mi, useFP16);
-    if(logger != nullptr) {
-      logger->write(Global::strprintf(
-          "  inputTransform tg0=%d tg1=%d wpt=%d vw=%d go=%d  meanMs=%.4f",
-          c.tg0, c.tg1, c.wpt, c.vw, (int)c.gridOrder, ms));
-    }
-    if(ms < bestMs) { bestMs = ms; best = c; }
-  }
-  return best;
-}
-
-static MLXWinograd::OutputUntransform searchOutputUntransform(
-    const MLXWinograd::OutputUntransform& seedCfg,
-    int N, int H, int W,
-    const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool full, bool useFP16, Logger* logger) {
-  // TODO(Task 11): the hierarchical driver runs separate enumeration per
-  // (matmulOrient, gridOrder) outer combo. For now we filter vw candidates
-  // using trunkNumChannels only — conservative since all current models have
-  // trunkNumChannels divisible by max VW (4).
-  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
-  auto candidates = buildOutputCandidates(full, mi.trunkNumChannels, Ntiles, seedCfg.gridOrder);
-  shuffleVec(candidates, 0xCAFEBABEu);
-  candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
-
-  MLXWinograd::OutputUntransform best = seedCfg;
-  double bestMs = std::numeric_limits<double>::infinity();
-  for(const auto& c : candidates) {
-    double ms = scoreOutputUntransform(c, N, H, W, mi, useFP16);
-    if(logger != nullptr) {
-      logger->write(Global::strprintf(
-          "  outputUntransform tg0=%d tg1=%d wpt=%d vw=%d go=%d  meanMs=%.4f",
-          c.tg0, c.tg1, c.wpt, c.vw, (int)c.gridOrder, ms));
-    }
-    if(ms < bestMs) { bestMs = ms; best = c; }
-  }
-  return best;
-}
 
 MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     string tunerFile,
@@ -889,51 +876,117 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     string dir = defaultDirectory(true, homeDataDirOverride);
     tunerFile = dir + "/" + defaultFileName(gpuName, nnXLen, nnYLen,
                                             modelInfo.trunkNumChannels,
-                                            modelInfo.modelVersion,
-                                            useFP16);
+                                            modelInfo.modelVersion, useFP16);
   }
 
   if(!reTune && FileUtils::exists(tunerFile)) {
     try {
       MLXWinogradTuneParams loaded = MLXWinogradTuneParams::load(tunerFile);
       if(loaded.isValid()) {
-        if(logger != nullptr)
-          logger->write("Loaded MLX Winograd tuning parameters from " + tunerFile);
+        if(logger) logger->write("Loaded MLX Winograd tuning parameters from " + tunerFile);
         return loaded;
       }
     } catch(const IOError& e) {
-      if(logger != nullptr)
-        logger->write(std::string("MLX Winograd tune file unusable, retuning: ") + e.what());
+      if(logger) logger->write(std::string("MLX Winograd tune file unusable, retuning: ") + e.what());
     }
   }
 
-  if(logger != nullptr) {
-    logger->write("Performing autotuning for MLX Winograd transforms");
-    logger->write("Tuning input transform (this may take ~30 seconds)...");
+  if(logger) logger->write(
+      "Performing SP4 hierarchical autotuning for MLX Winograd (one-time, ~80s)");
+
+  // Test-only path: seedOverride bypasses Joint A/B; runs refinement only.
+  if(seedOverride != nullptr) {
+    if(logger) logger->write("seedOverride supplied — skipping joint passes, refinement only");
+    MLXWinograd::InputTransform   inRef  =
+        refineInput(seedOverride->inputTransform, batchSize, nnYLen, nnXLen,
+                    modelInfo, full, useFP16, logger);
+    MLXWinograd::OutputUntransform outRef =
+        refineOutput(seedOverride->outputUntransform, batchSize, nnYLen, nnXLen,
+                     modelInfo, full, useFP16, logger);
+    MLXWinogradTuneParams r;
+    r.inputTransform    = inRef;
+    r.outputUntransform = outRef;
+    r.gridOrder         = seedOverride->gridOrder;
+    r.matmulOrient      = seedOverride->matmulOrient;
+    MLXWinogradTuneParams::save(tunerFile, r);
+    return r;
   }
 
-  MLXWinograd::InputTransform    inSeed;    // default {tg0=32, tg1=1}
-  MLXWinograd::OutputUntransform outSeed;   // default {tg0=32, tg1=1}
-  if(seedOverride != nullptr) {
-    inSeed  = seedOverride->inputTransform;
-    outSeed = seedOverride->outputUntransform;
+  // Hierarchical search: outer (matmulOrient × gridOrder) → inner per-stage.
+  struct OuterResult {
+    MLXWinograd::MatmulOrient orient;
+    MLXWinograd::GridOrder    go;
+    MLXWinograd::InputTransform    inCfg;
+    MLXWinograd::OutputUntransform outCfg;
+    double endToEndMs;
+  };
+  std::vector<OuterResult> outerResults;
+
+  const std::vector<MLXWinograd::MatmulOrient> orients = {
+    MLXWinograd::MatmulOrient::Std, MLXWinograd::MatmulOrient::Tpd
+  };
+  const std::vector<MLXWinograd::GridOrder> gridOrders = {
+    MLXWinograd::GridOrder::Cfast, MLXWinograd::GridOrder::Tfast
+  };
+  for(MLXWinograd::MatmulOrient orient : orients) {
+    for(MLXWinograd::GridOrder go : gridOrders) {
+      if(logger) logger->write(Global::strprintf(
+          "Outer combo: matmulOrient=%d gridOrder=%d", (int)orient, (int)go));
+
+      // Joint pass A: (wpt, vw) at SP3-default (tg0=32, tg1=1).
+      auto topInWv  = jointPassA_Input(batchSize, nnYLen, nnXLen, modelInfo, go, useFP16, logger);
+      auto topOutWv = jointPassA_Output(batchSize, nnYLen, nnXLen, modelInfo, go, useFP16, logger);
+
+      // Joint pass B: (tg0, tg1) over each top-3 (wpt, vw).
+      MLXWinograd::InputTransform   inBest  =
+          jointPassB_Input(topInWv,  batchSize, nnYLen, nnXLen, modelInfo, go, full, useFP16, logger);
+      MLXWinograd::OutputUntransform outBest =
+          jointPassB_Output(topOutWv, batchSize, nnYLen, nnXLen, modelInfo, go, full, useFP16, logger);
+
+      // Refinement.
+      inBest  = refineInput(inBest,   batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
+      outBest = refineOutput(outBest, batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
+
+      // End-to-end timing for this outer combo.
+      double e2e;
+      try {
+        e2e = timeOneEndToEnd(inBest, outBest, orient,
+                              batchSize, nnYLen, nnXLen, modelInfo, useFP16);
+      } catch(const std::exception& e) {
+        if(logger) logger->write(std::string("end-to-end timing failed: ") + e.what());
+        e2e = std::numeric_limits<double>::infinity();
+      }
+      if(logger) logger->write(Global::strprintf(
+          "Outer combo result: orient=%d go=%d  endToEnd=%.4fms", (int)orient, (int)go, e2e));
+      outerResults.push_back({orient, go, inBest, outBest, e2e});
+    }
   }
-  MLXWinograd::InputTransform   inBest =
-      searchInputTransform(inSeed, batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
-  if(logger != nullptr) logger->write("Tuning output untransform...");
-  MLXWinograd::OutputUntransform outBest =
-      searchOutputUntransform(outSeed, batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
+
+  // Pick the best outer combo by end-to-end time.
+  auto bestIt = std::min_element(
+      outerResults.begin(), outerResults.end(),
+      [](const OuterResult& a, const OuterResult& b){ return a.endToEndMs < b.endToEndMs; });
+  if(bestIt == outerResults.end())
+    throw StringError("MLX Winograd tuner: all outer combos failed");
 
   MLXWinogradTuneParams result;
-  result.inputTransform    = inBest;
-  result.outputUntransform = outBest;
+  result.inputTransform    = bestIt->inCfg;
+  result.outputUntransform = bestIt->outCfg;
+  result.gridOrder         = bestIt->go;
+  result.matmulOrient      = bestIt->orient;
 
   MLXWinogradTuneParams::save(tunerFile, result);
-  if(logger != nullptr) {
-    logger->write(Global::strprintf(
-        "MLX Winograd tuning done: inputTransform=(%d,%d) outputUntransform=(%d,%d), saved to %s",
-        inBest.tg0, inBest.tg1, outBest.tg0, outBest.tg1, tunerFile.c_str()));
-  }
+  if(logger) logger->write(Global::strprintf(
+      "MLX Winograd SP4 tuning done: orient=%d go=%d "
+      "inputTransform=(tg0=%d,tg1=%d,wpt=%d,vw=%d) "
+      "outputUntransform=(tg0=%d,tg1=%d,wpt=%d,vw=%d) "
+      "endToEnd=%.4fms saved to %s",
+      (int)result.matmulOrient, (int)result.gridOrder,
+      result.inputTransform.tg0, result.inputTransform.tg1,
+      result.inputTransform.wpt, result.inputTransform.vw,
+      result.outputUntransform.tg0, result.outputUntransform.tg1,
+      result.outputUntransform.wpt, result.outputUntransform.vw,
+      bestIt->endToEndMs, tunerFile.c_str()));
   return result;
 }
 

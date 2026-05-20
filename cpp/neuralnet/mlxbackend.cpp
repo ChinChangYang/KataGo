@@ -203,6 +203,10 @@ struct ConvLayer {
                   && convYSize==3 && convXSize==3
                   && dilationY==1 && dilationX==1),
       weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
+      // TODO(SP4 Task 12): wire tuneParams.matmulOrient through ConvLayer.
+      // Currently hardcoded to Std — when the tuner picks Tpd this layer
+      // produces wrong results. Task 12 must propagate the orient from
+      // MLXWinogradTuneParams to both this call AND the winogradConv2d call below.
       winogradWeights(useWinograd
         ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_, MLXWinograd::MatmulOrient::Std)
         : mx::array(0.0f))
@@ -212,6 +216,8 @@ struct ConvLayer {
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
+      // TODO(SP4 Task 12): pass tuneParams.matmulOrient here (matching the
+      // filter packing above). Both call sites must use the same orient.
       return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16,
                                          MLXWinograd::MatmulOrient::Std);
     }
@@ -1130,6 +1136,9 @@ struct ComputeHandle {
   ComputeHandle(const ComputeHandle&) = delete;
   ComputeHandle& operator=(const ComputeHandle&) = delete;
 
+  // TODO(SP4 Task 12): include tuneParams.matmulOrient and tuneParams.gridOrder
+  // in the cache key. Currently two tunes with different orient/go but matching
+  // tg0/tg1 values would collide in the ComputeHandle cache.
   static std::string makeCacheKey(const LoadedModel& loadedModel,
                                   const MLXWinogradTuneParams& tuneParams,
                                   bool useFP16) {
