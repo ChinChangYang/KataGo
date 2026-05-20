@@ -9,7 +9,7 @@
 
 Enable Winograd F(2,3) in fp16 mode on the MLX backend, with selective fp32 accumulation at the matmul reduction step. Land a config-default policy that flips `mlxUseFP16 = auto` to mean fp16, gated on a strict two-arm acceptance test.
 
-The phrase "selective fp32 accumulation" is precise: storage is fp16, kernel-internal arithmetic in the two Winograd transform kernels is fp16, but the batched matmul over `Cin` (the only reduction with overflow risk) accumulates in fp32. MLX's steel gemm uses `AccumType = float` by default with a static assert — we get the fp32 accumulator for free, no explicit cast needed.
+The phrase "selective fp32 accumulation" is precise. Storage is fp16, kernel-internal arithmetic in the two Winograd transform kernels is fp16, but two sites must compute in fp32: (a) the batched matmul over `Cin`, where MLX's steel gemm already does fp32 accumulation by default (no code change); and (b) the BatchNorm intermediate `mergedScale * input + mergedBias` plus its activation, because a 25-block deep b18c384 chain with fp16 BN overflows to `inf` and Mish then produces `nan`. §3 specifies both sites.
 
 ## 2. Scope
 
@@ -30,7 +30,7 @@ The phrase "selective fp32 accumulation" is precise: storage is fp16, kernel-int
 
 Single point of dtype dispatch lives at the `ComputeHandle` layer (already does). Everything below — `Model`, `ResidualBlock`, `ConvLayer`, `MatMulLayer`, `BatchNormLayer` — already accepts `bool useFP16`. SP3 only changes the *Winograd* layer's behavior when the flag is true.
 
-Three changes in dependency order:
+Four changes in dependency order:
 
 1. **`mlxwinograd.h` — kernel templatization.**
    - `kWinoInputSource` and `kWinoOutputSource` swap `float` → `T` for storage-typed locals (input tile `d[4][4]`, output `V0..V3`, etc.). Compile-time literals stay `float` — Metal implicitly converts to `T` on assign.
@@ -49,17 +49,32 @@ Three changes in dependency order:
    - `loadOrAutoTune(...)` signature gains `bool useFP16`, threads it through to `defaultFileName` and to the search timing kernel (which calls `winogradConv2d` with the right dtype so geometry is measured at the active precision).
    - Anchor seed `{32,1}/{32,1}` stays — for fp16 the search rediscovers an fp16-optimal geometry from this anchor; the anchor doesn't have to be fp16-optimal.
 
-**Selective fp32 accumulation — where it actually lives:**
-- Matmul stage (`mx::matmul(V_fp16, U_fp16)`): MLX's `/opt/homebrew/include/mlx/backend/metal/kernels/steel/gemm/gemm.h:35` uses `AccumType = typename AccumHelper<T>::accum_type`, `transforms.h:58` defines `typedef float accum_type`, and `mma.h:772` static-asserts `is_same_v<AccumType, float>`. Fp32 accumulation is automatic; no code change.
-- Input/output transform kernels: 4-element fp16 sum chains. No overflow risk.
-- BatchNorm `mergedScale * input + mergedBias`: fp16, unchanged from pre-SP3.
+4. **`mlxbackend.cpp` BatchNormLayer — fp32 intermediate (REQUIRED for accuracy gate).**
+   - `BatchNormLayer::createArray1D` always returns fp32 storage for `mergedScale` and `mergedBias`, ignoring the `useFP16` flag.
+   - `BatchNormLayer::apply` appends `mx::astype(result, mx::float16)` when fp16 mode is active, so the layer's *output* is fp16 (matching downstream layer expectations) but the multiply-add-activation chain runs in fp32 by natural type promotion.
+   - This is what makes the first `testgpuerror` run pass; see "Selective fp32 accumulation" below for the rationale.
 
-**Data flow (steady state):**
+**Selective fp32 accumulation — where it actually lives (three required sites):**
+
+1. **Matmul stage** (`mx::matmul(V_fp16, U_fp16)`): MLX's `/opt/homebrew/include/mlx/backend/metal/kernels/steel/gemm/gemm.h:35` uses `AccumType = typename AccumHelper<T>::accum_type`, `transforms.h:58` defines `typedef float accum_type`, and `mma.h:772` static-asserts `is_same_v<AccumType, float>`. Fp32 accumulation is automatic; no code change.
+
+2. **Input/output transform kernels**: 4-element fp16 sum chains, bounded coefficients. No overflow risk; storage and ALU both fp16.
+
+3. **BatchNorm fp32 intermediate (REQUIRED, not optional)**: BN computes `input * mergedScale + mergedBias` followed by activation (Mish includes `softplus = log1p(exp(x))` which can produce large intermediates). In a 25-block-deep b18c384 residual chain, the fp16 product can overflow to `inf` and the activation cascade then produces `nan`. **`mergedScale` and `mergedBias` are stored as fp32 even in fp16 mode**, which naturally promotes `input * mergedScale + mergedBias` to fp32 by MLX's type promotion; activation runs in fp32; the result is cast back to fp16 explicitly (`mx::astype`) before mask-multiply and the residual add. Equivalent in spirit to PyTorch AMP's policy of keeping normalization stats and activation chains in fp32. This is what makes the *first* `testgpuerror` run pass — without it, the first run will report nonfinite outputs.
+
+   Implementation: change `BatchNormLayer::createArray1D` to ignore the `useFP16` flag (always fp32 storage), and add an explicit `mx::astype(activated, mx::float16)` at the end of `BatchNormLayer::apply` when fp16 mode is active. Memory overhead: ~6 KB per BN layer (fp32 vs fp16 for `mergedScale`/`mergedBias`), negligible.
+
+**Data flow (steady state, one residual block):**
 ```
 fp16 NHWC input
+  → [BN-1: fp32 mergedScale/bias, fp32 multiply+bias, fp32 activation, cast → fp16]
+  → fp16 NHWC
   → [inputTransform kernel, T=half] → fp16 [16, Ntiles, C]
   → [mx::matmul, fp16 in, fp32 accum, fp16 out] → fp16 [16, Ntiles, Cout]
-  → [outputUntransform kernel, T=half] → fp16 NHWC output
+  → [outputUntransform kernel, T=half] → fp16 NHWC
+  → [BN-2: fp32 accum, cast → fp16]
+  → [Conv-2 Winograd: same three stages, fp16 storage, fp32 matmul accum]
+  → fp16 residual add → next block
 ```
 
 ## 4. Components & Files
@@ -68,14 +83,15 @@ fp16 NHWC input
 |------|--------|
 | `cpp/neuralnet/mlxwinograd.h` | Templatize kernel sources on `T`; `winogradConv2d` and `makeWinogradWeights` gain `bool useFP16`; kernel names suffixed `_f16`/`_f32` |
 | `cpp/neuralnet/mlxbackend.cpp` | Drop `!useFP16` gate on `useWinograd`; thread `useFP16` through `ConvLayer::apply` → `winogradConv2d` and through `makeWinogradWeights`; update header comment |
+| `cpp/neuralnet/mlxbackend.cpp` (BatchNormLayer) | Force `mergedScale` and `mergedBias` storage to fp32 regardless of `useFP16`; add `mx::astype(result, mx::float16)` at end of `apply()` when fp16 mode active. Required for accuracy gate, not optional. |
 | `cpp/neuralnet/mlxwinotuner.h` | Add `bool useFP16` param to `defaultFileName(...)`, `loadOrAutoTune(...)` |
 | `cpp/neuralnet/mlxwinotuner.cpp` | Filename: append `_fp16`/`_fp32` before `.txt`; pass dtype into the timing path so the search times kernels at the active precision |
 | `cpp/neuralnet/mlxbackend.cpp` (ComputeHandle ctor) | Pass `useFP16` into `loadOrAutoTune`; the existing `mlxWinotunerEnabled() && !useFP16` gate becomes `mlxWinotunerEnabled()` (tune at every precision) |
 | `cpp/neuralnet/mlxbackend.cpp` (line 1319) | Final commit (gated on acceptance) flips `Auto` resolution: `(... == True)` → `(... != False)` |
 | `cpp/tests/testnn.cpp` | Extend `Tests::runMLXWinotunerTests()` with fp16 round-trip; extend Winograd layer tests with an fp16 axis |
 | `cpp/configs/gtp_example.cfg` | Update the `mlxUseFP16 = auto` comment to reflect new policy ("auto enables fp16 Winograd via SP3") |
-| `cpp/tools/bench_mlx_honest.sh` | New env-var hooks `BENCH_MLX_FP16=1`, `BENCH_METAL_FP16=1` that materialize a temp config with the right `*UseFP16` line |
-| `cpp/tools/bench_sp3_acceptance.sh` (new) | Orchestrates both gate arms back-to-back, plus `testgpuerror` |
+| `cpp/tools/bench_mlx_honest.sh` | New env-var hooks `BENCH_MLX_FP16=1`, `BENCH_METAL_FP16=1` that materialize a temp config with the right `*UseFP16` line. Replace independent-CIs output block with paired-t on per-rep deltas: print `d_i` line per rep, then `Paired d̄ ± t·SE (95% CI)` summary and the lower CI bound used by the gate. |
+| `cpp/tools/bench_sp3_acceptance.sh` (new) | Orchestrates both gate arms back-to-back, plus `testgpuerror`. Parses paired-t CI lower bound from each arm's stdout. PASS iff Arm A lower ≥ 0 AND Arm B lower > 0 AND accuracy passes. |
 
 **Test surface:**
 - `runnnlayertests` adds an fp16 axis to `testEvaluateConvLayer`, `testEvaluateResidualBlock`, `testEvaluateGlobalPoolingResidualBlock`.
@@ -152,8 +168,10 @@ bench_sp3_acceptance.sh
   → testgpuerror -model b18c384nbt-uec.bin.gz -config gtp_example.cfg
                  -reference-file eigen_reference_b18.json
                  with mlxUseFP16=true
-  → Report: { armA: {metalFp16Mean, mlxFp16Mean, delta, CI, pass},
-              armB: {mlxFp32Mean, mlxFp16Mean, delta, CI, pass},
+  → Per-rep deltas d_i = throughput_B(rep_i) - throughput_A(rep_i) collected.
+  → Paired-t 95% CI on d̄ computed (one-sample t on the deltas, N-1 dof).
+  → Report: { armA: {N, mean_A, mean_B, d̄, s_d, SE, CI_lower, CI_upper, pass = (CI_lower ≥ 0)},
+              armB: {N, mean_A, mean_B, d̄, s_d, SE, CI_lower, CI_upper, pass = (CI_lower > 0)},
               accuracy: {winrateError, scoreError, pass} }
   → Overall PASS iff all three pass
 ```
@@ -169,8 +187,8 @@ bench_sp3_acceptance.sh
 **Auto-resolution change is a user-visible default flip.** The final commit changes `mlxbackend.cpp:1319` from `useFP16Mode == enabled_t::True` to `useFP16Mode != enabled_t::False`. Any user with `mlxUseFP16 = auto` (or commented-out, which defaults to auto) starts running fp16 on next launch. Documented in the `gtp_example.cfg` block. Users who require fp32 set `mlxUseFP16 = false` explicitly. The flip lives in a *separate, final commit* gated on the acceptance gate — clean revert target.
 
 **Accuracy edge cases.**
-- The b18c384 model has 25 residual blocks deep; fp16 round-trip error compounds. The matmul fp32 accumulation contains this, but the BatchNorm and activation chains stay fp16. Empirical validation via `testgpuerror`'s tolerances (< 0.1% winrate, < 0.01 score) is the only end-to-end check.
-- If `testgpuerror` fails, the response is *not* to widen tolerances. The remedy is: cast `BatchNormLayer::apply`'s intermediate `mergedScale * x + mergedBias + activation` chain to fp32, store fp16. Conservative fallback only if needed.
+- The b18c384 model is 25 residual blocks deep; fp16 round-trip error compounds and Mish's `softplus = log1p(exp(x))` can produce large intermediates. The §3 BN fp32-accumulation requirement is the engineered defense; the matmul fp32 accumulator further contains the per-conv reduction. Empirical validation via `testgpuerror`'s tolerances (< 0.1% winrate, < 0.01 score) is the end-to-end check that both defenses hold across the chain.
+- If `testgpuerror` still fails after the §3 BN fp32 path is implemented, the response is *not* to widen tolerances. The escalation is: keep value-head logits in fp32 (cast back only after the last MatMul), or — worst case — find and cast the specific layer where the first nonfinite/large-error sample originates. Document any escalation as a spec amendment.
 
 **Tuner search-works test for fp16.** SP2's existing `runMLXWinotunerTests` search-works test runs at fp32 (anchor seed `{1,1}` proves the search beats a bad seed). For SP3, we replicate with `useFP16=true`. Same threshold (`≤ 0.8 × bad-seed`), same `≤ 1.05 × optimum`. The threshold's hardware basis (Apple Silicon coalesces sub-SIMD threadgroups) is precision-independent.
 
@@ -188,21 +206,35 @@ SP3 PASSES if and only if all three of the following hold on Apple Silicon (M-se
 
 These tolerances mirror CLAUDE.md's documented working tolerance for a proper cross-backend test.
 
-### 7.2 Arm A — MLX-fp16 ≥ Metal-fp16
+### Statistical methodology — paired-t on per-rep deltas
 
-`bench_sp3_acceptance.sh` Arm A reports MLX-fp16 mean throughput ≥ Metal-fp16 mean throughput.
+The honest harness runs A/B/A/B/... interleaved with the same warmup-discard, channel-rotation, and thermal-cooldown discipline used in SP1/SP2. The output is N paired observations (rep i records throughput of both backends back-to-back, sharing thermal state). For arm with backends `B` (the SP3 candidate) and `A` (the comparator):
 
-CI-aware: lower CI bound of MLX-fp16 ≥ lower CI bound of Metal-fp16, OR delta of means > sum of CI half-widths.
+- Let `d_i = throughput_B(rep_i) - throughput_A(rep_i)` for i = 1..N (warmup rep 0 discarded).
+- Sample mean `d̄ = mean(d_i)`, sample stdev `s_d = stdev(d_i, ddof=1)`.
+- Standard error `SE = s_d / sqrt(N)`.
+- Paired-t 95% CI on the mean delta: `d̄ ± t_{0.025, N-1} * SE`.
+- Lower bound: `d̄ − t_{0.025, N-1} * SE`.
 
-### 7.3 Arm B — MLX-fp16 > MLX-fp32 (SP2 baseline, strict)
+Paired-t controls for thermal drift and any per-rep environmental noise that moves both backends together. Independent CIs throw away the pairing's variance reduction.
 
-`bench_sp3_acceptance.sh` Arm B reports MLX-fp16 mean throughput strictly greater than MLX-fp32 mean throughput.
+With N=7 (six measured reps after discard), `t_{0.025, 5} ≈ 2.571`. With larger N use the standard table or the harness's `scipy.stats.t.ppf` equivalent.
 
-CI-aware: lower CI bound of MLX-fp16 > upper CI bound of MLX-fp32 (strict, non-overlapping CIs).
+### 7.2 Arm A — MLX-fp16 ≥ Metal-fp16 (paired-t, parity)
+
+`bench_sp3_acceptance.sh` Arm A pairs `d_i = MLX_fp16_i − Metal_fp16_i`.
+
+PASS iff **lower bound of the paired-t 95% CI on `d̄` ≥ 0** (one-sided interpretation acceptable; we use the lower bound of the two-sided 95% CI, which corresponds to a one-sided 97.5% lower bound — strictly more conservative than a one-sided 95% gate).
+
+### 7.3 Arm B — MLX-fp16 > MLX-fp32 (paired-t, strict)
+
+`bench_sp3_acceptance.sh` Arm B pairs `d_i = MLX_fp16_i − MLX_fp32_i`.
+
+PASS iff **lower bound of the paired-t 95% CI on `d̄` > 0** (strict; the CI must lie entirely above zero).
 
 ### Asymmetry rationale
 
-Arm B is the *justification* for the engineering effort. If fp16 doesn't strictly improve over fp32 on MLX with non-overlapping CIs, there's no reason to default users to fp16 — fp32 is more accurate at no perf cost. Arm A is *parity*: MLX-fp16 must be competitive with Apple's Metal at the same precision tier, not necessarily strictly faster. Allowing Arm A to be ≥ (rather than >) lets us merge if MLX-fp16 lands within Metal-fp16's CI band — a tie worth taking given the architectural cost already paid.
+Arm B is the *justification* for the engineering effort. If fp16 doesn't strictly improve over fp32 on MLX with the paired-t CI lying above zero, there's no reason to default users to fp16 — fp32 is more accurate at no perf cost. Arm A is *parity*: MLX-fp16 must be competitive with Apple's Metal at the same precision tier, not necessarily strictly faster. Allowing Arm A's gate at `≥ 0` (rather than `> 0`) lets the gate pass when the paired CI brackets zero — a measured tie, worth taking given the architectural cost already paid.
 
 ### Calibration discipline (inherited from SP2)
 
