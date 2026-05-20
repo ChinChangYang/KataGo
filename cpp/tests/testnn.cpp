@@ -1145,6 +1145,57 @@ void Tests::runMLXWinogradTests() {
     }
     cout << "  MLX Winograd WPT tail-guard coverage (Ntiles=100, WPT=8) passed" << endl;
   }
+
+  // SP4 Task 4: VW=1, 2, 4 must produce bit-identical fp16 output (Cfast).
+  // C=64 is divisible by 4 — VW=4 valid.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0x9ABCu);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp = mx::astype(mx::array(in_data.data(), {2, 19, 19, 64}, mx::float32), mx::float16);
+
+    std::vector<float> w_data((size_t)64*64*9, 0.5f);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Std);
+
+    auto runWith = [&](int vw_in, int vw_out) {
+      InputTransform    inCfg;  inCfg.vw  = vw_in;
+      OutputUntransform outCfg; outCfg.vw = vw_out;
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, true, MatmulOrient::Std);
+      mx::eval(out);
+      return out;
+    };
+
+    mx::array out_v1   = runWith(1, 1);
+    mx::array out_v2in = runWith(2, 1);
+    mx::array out_v4in = runWith(4, 1);
+    mx::array out_v2ou = runWith(1, 2);
+    mx::array out_v4ou = runWith(1, 4);
+
+    // Cast to fp32 and compare bit-for-bit (no FP-op reordering — only channel
+    // sequencing differs across VW, so equality must hold exactly).
+    mx::array out_v1_fp32   = mx::astype(out_v1,   mx::float32);
+    mx::array out_v2in_fp32 = mx::astype(out_v2in, mx::float32);
+    mx::array out_v4in_fp32 = mx::astype(out_v4in, mx::float32);
+    mx::array out_v2ou_fp32 = mx::astype(out_v2ou, mx::float32);
+    mx::array out_v4ou_fp32 = mx::astype(out_v4ou, mx::float32);
+    mx::eval(out_v1_fp32, out_v2in_fp32, out_v4in_fp32, out_v2ou_fp32, out_v4ou_fp32);
+    const float* p1  = out_v1_fp32.data<float>();
+    const float* p2i = out_v2in_fp32.data<float>();
+    const float* p4i = out_v4in_fp32.data<float>();
+    const float* p2o = out_v2ou_fp32.data<float>();
+    const float* p4o = out_v4ou_fp32.data<float>();
+    size_t n = (size_t)2 * 19 * 19 * 64;
+    for(size_t i = 0; i < n; i++) {
+      testAssert(p1[i] == p2i[i]);
+      testAssert(p1[i] == p4i[i]);
+      testAssert(p1[i] == p2o[i]);
+      testAssert(p1[i] == p4o[i]);
+    }
+    cout << "  MLX Winograd VW bit-for-bit equivalence (1/2/4 fp16, Cfast) passed" << endl;
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
