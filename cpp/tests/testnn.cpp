@@ -1055,7 +1055,9 @@ void Tests::runMLXWinotunerTests() {
   // schema struct works with valid configs. The measurement primitive itself
   // is exercised by the search-works test added in Task 4.
 
-  // ---- Search-works (per stage): bad seed; assert (a) beats bad by 2x, (b) within 5% of optimum.
+  // ---- Search-works (per stage): bad seed; assert (a) beats bad by >=25% (tWinner <= 0.8 * tBad),
+  //      (b) within 5% of optimum (tWinner <= 1.05 * tOpt). 0.8 threshold matches the amended
+  //      spec §7.1(a) — Apple Silicon's SIMD coalescing limits the practical dynamic range to ~1.5x.
   // Gated behind KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST=1 to keep runnnlayertests fast
   // (full search runs ~30-60s on first call).
   if(std::getenv("KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST") != nullptr) {
@@ -1073,18 +1075,17 @@ void Tests::runMLXWinotunerTests() {
     std::string tmpFile = "/tmp/katago_mlx_winotuner_searchtest.txt";
     std::remove(tmpFile.c_str());
 
-    // Seed the file with a deliberately-bad config so reTune=true overwrites
-    // (this also exercises the load-then-overwrite path).
-    {
-      MLXWinogradTuneParams bad;
-      bad.inputTransform.tg0 = 1; bad.inputTransform.tg1 = 1;
-      bad.outputUntransform.tg0 = 1; bad.outputUntransform.tg1 = 1;
-      MLXWinogradTuneParams::save(tmpFile, bad);
-    }
+    // Pass the bad seed explicitly via seedOverride so the search's prepended
+    // anchor is genuinely bad — this lets assertion (a) catch the broken
+    // "returns anchor unchanged" failure mode.
+    MLXWinogradTuneParams badSeed;
+    badSeed.inputTransform.tg0 = 1; badSeed.inputTransform.tg1 = 1;
+    badSeed.outputUntransform.tg0 = 1; badSeed.outputUntransform.tg1 = 1;
     MLXWinogradTuneParams tuned = MLXWinogradTuner::loadOrAutoTune(
         tmpFile, /*homeDataDirOverride=*/"", /*gpuName=*/"UnitTestGpu",
         /*nnXLen=*/W, /*nnYLen=*/H, /*batchSize=*/N,
-        mi, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true);
+        mi, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true,
+        /*seedOverride=*/&badSeed);
 
     // Re-time the three configs via winogradConv2d on synthetic data, OUTSIDE
     // the tuner -- so the assertions don't depend on the tuner's measurement

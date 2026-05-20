@@ -37,6 +37,10 @@ namespace MLXWinogradTuner {
 
   // Loads existing tune file if present and valid; otherwise runs the two
   // grid searches, saves the result, and returns it. Defined in Task 4.
+  // seedOverride: when non-null, the search uses these configs as the initial
+  // baseline instead of the SP1 baked defaults {tg0=32, tg1=1}. Used by tests
+  // to verify that the search converges from a bad seed; production callers
+  // pass nullptr.
   MLXWinogradTuneParams loadOrAutoTune(
     std::string tunerFile,
     const std::string& homeDataDirOverride,
@@ -45,7 +49,8 @@ namespace MLXWinogradTuner {
     ModelInfoForTuning modelInfo,
     Logger* logger,
     bool full,
-    bool reTune
+    bool reTune,
+    const MLXWinogradTuneParams* seedOverride = nullptr
   );
 }
 

@@ -24,7 +24,8 @@
 using namespace std;
 
 static const int MLX_WINO_TUNER_VERSION = 1;
-static const char* MLX_WINO_TUNEPARAMS_VERSION_LINE = "VERSION=1";
+static const std::string MLX_WINO_TUNEPARAMS_VERSION_LINE =
+    "VERSION=" + std::to_string(MLX_WINO_TUNER_VERSION);
 
 // Mirrors OpenCLTuner's readDescKeyValues: parse "KEY=VALUE KEY=VALUE ..." line into a map.
 static map<string,int> parseKeyValueLine(const string& fileName, const string& line) {
@@ -92,7 +93,7 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
     throw IOError("MLXWinogradTuneParams::load: no content in " + filename);
   if(lines[0] != MLX_WINO_TUNEPARAMS_VERSION_LINE)
     throw IOError("MLXWinogradTuneParams::load: expected first line to be "
-                  + string(MLX_WINO_TUNEPARAMS_VERSION_LINE) + " in " + filename);
+                  + MLX_WINO_TUNEPARAMS_VERSION_LINE + " in " + filename);
   if(lines.size() != 3)
     throw IOError("MLXWinogradTuneParams::load: expected 3 non-comment lines in " + filename);
 
@@ -368,27 +369,21 @@ static const std::vector<int>& outputTg1Values(bool full) {
   return full ? vFull : vNonFull;
 }
 
-static std::vector<MLXWinograd::InputTransform> buildInputCandidates(bool full,
-    const MLXWinograd::InputTransform& seedCfg) {
+static std::vector<MLXWinograd::InputTransform> buildInputCandidates(bool full) {
   std::vector<MLXWinograd::InputTransform> out;
   for(int tg0 : inputTg0Values(full))
     for(int tg1 : inputTg1Values(full))
       if(tg0 * tg1 <= 1024)
         out.push_back({tg0, tg1});
-  if(seedCfg.tg0 > 0 && seedCfg.tg1 > 0 && seedCfg.tg0 * seedCfg.tg1 <= 1024)
-    out.push_back(seedCfg);
   return out;
 }
 
-static std::vector<MLXWinograd::OutputUntransform> buildOutputCandidates(bool full,
-    const MLXWinograd::OutputUntransform& seedCfg) {
+static std::vector<MLXWinograd::OutputUntransform> buildOutputCandidates(bool full) {
   std::vector<MLXWinograd::OutputUntransform> out;
   for(int tg0 : outputTg0Values(full))
     for(int tg1 : outputTg1Values(full))
       if(tg0 * tg1 <= 1024)
         out.push_back({tg0, tg1});
-  if(seedCfg.tg0 > 0 && seedCfg.tg1 > 0 && seedCfg.tg0 * seedCfg.tg1 <= 1024)
-    out.push_back(seedCfg);
   return out;
 }
 
@@ -405,9 +400,9 @@ static MLXWinograd::InputTransform searchInputTransform(
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
     bool full, Logger* logger) {
-  auto candidates = buildInputCandidates(full, seedCfg);
+  auto candidates = buildInputCandidates(full);
   shuffleVec(candidates, 0xDEADBEEFu);
-  candidates.insert(candidates.begin(), seedCfg);  // anchor: time the seed twice
+  candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
 
   MLXWinograd::InputTransform best = seedCfg;
   double bestMs = std::numeric_limits<double>::infinity();
@@ -428,9 +423,9 @@ static MLXWinograd::OutputUntransform searchOutputUntransform(
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
     bool full, Logger* logger) {
-  auto candidates = buildOutputCandidates(full, seedCfg);
+  auto candidates = buildOutputCandidates(full);
   shuffleVec(candidates, 0xCAFEBABEu);
-  candidates.insert(candidates.begin(), seedCfg);
+  candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
 
   MLXWinograd::OutputUntransform best = seedCfg;
   double bestMs = std::numeric_limits<double>::infinity();
@@ -454,7 +449,8 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     ModelInfoForTuning modelInfo,
     Logger* logger,
     bool full,
-    bool reTune) {
+    bool reTune,
+    const MLXWinogradTuneParams* seedOverride) {
   if(tunerFile.empty()) {
     string dir = defaultDirectory(true, homeDataDirOverride);
     tunerFile = dir + "/" + defaultFileName(gpuName, nnXLen, nnYLen,
@@ -481,8 +477,12 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     logger->write("Tuning input transform (this may take ~30 seconds)...");
   }
 
-  MLXWinograd::InputTransform    inSeed;    // {tg0=32, tg1=1}
-  MLXWinograd::OutputUntransform outSeed;   // {tg0=32, tg1=1}
+  MLXWinograd::InputTransform    inSeed;    // default {tg0=32, tg1=1}
+  MLXWinograd::OutputUntransform outSeed;   // default {tg0=32, tg1=1}
+  if(seedOverride != nullptr) {
+    inSeed  = seedOverride->inputTransform;
+    outSeed = seedOverride->outputUntransform;
+  }
   MLXWinograd::InputTransform   inBest =
       searchInputTransform(inSeed, batchSize, nnYLen, nnXLen, modelInfo, full, logger);
   if(logger != nullptr) logger->write("Tuning output untransform...");
