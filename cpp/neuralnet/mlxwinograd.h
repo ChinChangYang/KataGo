@@ -179,7 +179,6 @@ inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
 //   Tfast: (Ntiles,     ceil(C/WPT),      1)
 inline constexpr const char* kWinoInputSource = R"METAL(
     static_assert(WPT >= 1 && VW >= 1, "WPT and VW must be positive");
-    static_assert(MATMUL_ORIENT == 0, "MATMUL_ORIENT != 0 (Tpd) lands in SP4 Task 6");
     // Tfast (GRID_ORDER=1) does not support VW>1.
     static_assert(GRID_ORDER == 0 || VW == 1, "Tfast (GRID_ORDER=1) requires VW=1");
 
@@ -235,11 +234,21 @@ inline constexpr const char* kWinoInputSource = R"METAL(
             T V1 = u1 + u2;
             T V2 = u2 - u1;
             T V3 = u1 - u3;
-            int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
-            outp[base + 0 * Ntiles_k * C_k] = V0;
-            outp[base + 1 * Ntiles_k * C_k] = V1;
-            outp[base + 2 * Ntiles_k * C_k] = V2;
-            outp[base + 3 * Ntiles_k * C_k] = V3;
+            if (MATMUL_ORIENT == 0) {
+              // Std: outp [16, Ntiles, C] — C is the fast axis.
+              int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
+              outp[base + 0 * Ntiles_k * C_k] = V0;
+              outp[base + 1 * Ntiles_k * C_k] = V1;
+              outp[base + 2 * Ntiles_k * C_k] = V2;
+              outp[base + 3 * Ntiles_k * C_k] = V3;
+            } else {
+              // Tpd: outp [16, C, Ntiles] — Ntiles is the fast axis.
+              int base = ((r * 4 + 0) * C_k + c) * Ntiles_k + tileIdx;
+              outp[base + 0 * C_k * Ntiles_k] = V0;
+              outp[base + 1 * C_k * Ntiles_k] = V1;
+              outp[base + 2 * C_k * Ntiles_k] = V2;
+              outp[base + 3 * C_k * Ntiles_k] = V3;
+            }
           }
         }
       }
@@ -285,11 +294,21 @@ inline constexpr const char* kWinoInputSource = R"METAL(
           T V1 = u1 + u2;
           T V2 = u2 - u1;
           T V3 = u1 - u3;
-          int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
-          outp[base + 0 * Ntiles_k * C_k] = V0;
-          outp[base + 1 * Ntiles_k * C_k] = V1;
-          outp[base + 2 * Ntiles_k * C_k] = V2;
-          outp[base + 3 * Ntiles_k * C_k] = V3;
+          if (MATMUL_ORIENT == 0) {
+            // Std: outp [16, Ntiles, C] — C is the fast axis.
+            int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
+            outp[base + 0 * Ntiles_k * C_k] = V0;
+            outp[base + 1 * Ntiles_k * C_k] = V1;
+            outp[base + 2 * Ntiles_k * C_k] = V2;
+            outp[base + 3 * Ntiles_k * C_k] = V3;
+          } else {
+            // Tpd: outp [16, C, Ntiles] — Ntiles is the fast axis.
+            int base = ((r * 4 + 0) * C_k + c) * Ntiles_k + tileIdx;
+            outp[base + 0 * C_k * Ntiles_k] = V0;
+            outp[base + 1 * C_k * Ntiles_k] = V1;
+            outp[base + 2 * C_k * Ntiles_k] = V2;
+            outp[base + 3 * C_k * Ntiles_k] = V3;
+          }
         }
       }
     }
@@ -310,12 +329,13 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 // exposes *_shape for inputs, not outputs.
 inline constexpr const char* kWinoOutputSource = R"METAL(
     static_assert(WPT >= 1 && VW >= 1, "WPT and VW must be positive");
-    static_assert(MATMUL_ORIENT == 0, "MATMUL_ORIENT != 0 (Tpd) lands in SP4 Task 6");
     // Tfast (GRID_ORDER=1) does not support VW>1.
     static_assert(GRID_ORDER == 0 || VW == 1, "Tfast (GRID_ORDER=1) requires VW=1");
 
-    int Ntiles_k = m_shape[1];
-    int outC_k   = m_shape[2];
+    // Std: m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2]
+    // Tpd: m shape [16, outC, Ntiles] — outC=m_shape[1], Ntiles=m_shape[2]
+    int Ntiles_k = (MATMUL_ORIENT == 0) ? m_shape[1] : m_shape[2];
+    int outC_k   = (MATMUL_ORIENT == 0) ? m_shape[2] : m_shape[1];
     int H_k      = nhwc[1];
     int W_k      = nhwc[2];
     int tilesY_k = (H_k + 1) / 2;
@@ -343,7 +363,9 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
           for (int r = 0; r < 4; r++) {
             for (int c2 = 0; c2 < 4; c2++) {
               int p = r * 4 + c2;
-              mm[r][c2] = m[(p * Ntiles_k + tileIdx) * outC_k + oc];
+              mm[r][c2] = (MATMUL_ORIENT == 0)
+                ? m[(p * Ntiles_k + tileIdx) * outC_k + oc]
+                : m[(p * outC_k   + oc)      * Ntiles_k + tileIdx];
             }
           }
           T tmp[2][4];
@@ -389,7 +411,9 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
         for (int r = 0; r < 4; r++) {
           for (int c2 = 0; c2 < 4; c2++) {
             int p = r * 4 + c2;
-            mm[r][c2] = m[(p * Ntiles_k + tileIdx) * outC_k + oc];
+            mm[r][c2] = (MATMUL_ORIENT == 0)
+              ? m[(p * Ntiles_k + tileIdx) * outC_k + oc]
+              : m[(p * outC_k   + oc)      * Ntiles_k + tileIdx];
           }
         }
         T tmp[2][4];

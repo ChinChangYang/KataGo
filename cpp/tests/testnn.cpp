@@ -1271,6 +1271,144 @@ void Tests::runMLXWinogradTests() {
     }
     std::cout << "  MLX Winograd Tfast tail-guard coverage (C=67, WPT=8) passed" << std::endl;
   }
+
+  // SP4 Task 6: matmulOrient Std and Tpd must produce numerically equivalent
+  // end-to-end output (rtol/atol < 1e-4). They cannot be bit-identical
+  // because the matmul axis swap changes reduction order.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0xCAFEu);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
+
+    std::vector<float> w_data((size_t)64*64*9);
+    for(auto& x : w_data) x = dist(rng);
+
+    InputTransform inCfg;   // defaults: tg0=32, tg1=1, wpt=1, vw=1, Cfast
+    OutputUntransform outCfg;
+
+    // Std baseline.
+    mx::array UwStd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+    mx::array outStd = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, false, MatmulOrient::Std);
+
+    // Tpd: same input/filter, different layout.
+    mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Tpd);
+    mx::array outTpd = winogradConv2d(inp, UwTpd, 64, inCfg, outCfg, false, MatmulOrient::Tpd);
+
+    mx::eval(outStd); mx::eval(outTpd);
+
+    const float* pStd = outStd.data<float>();
+    const float* pTpd = outTpd.data<float>();
+    size_t n = (size_t)2 * 19 * 19 * 64;
+    float maxRel = 0.0f;
+    float maxAbs = 0.0f;
+    for(size_t i = 0; i < n; i++) {
+      float diff = std::fabs(pStd[i] - pTpd[i]);
+      float rel  = diff / (std::fabs(pStd[i]) + 1e-7f);
+      if(diff > maxAbs) maxAbs = diff;
+      if(rel  > maxRel) maxRel = rel;
+    }
+    std::cout << "  MLX Winograd Std vs Tpd  maxAbs=" << maxAbs
+              << " maxRel=" << maxRel << std::endl;
+    testAssert(maxAbs < 1e-4f);  // generous fp32 tolerance for k=64 reduction
+    testAssert(maxRel < 1e-4f);
+    std::cout << "  MLX Winograd matmulOrient Std vs Tpd numerical equivalence passed" << std::endl;
+  }
+
+  // SP4 Task 6: matmulOrient Std vs Tpd at fp16. K=64 reduction gives ~1e-3
+  // relative error in fp16; use 1e-2 tolerance.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0xC0DE16u);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp = mx::astype(mx::array(in_data.data(), {2, 19, 19, 64}, mx::float32), mx::float16);
+
+    std::vector<float> w_data((size_t)64*64*9);
+    for(auto& x : w_data) x = dist(rng);
+
+    InputTransform inCfg;
+    OutputUntransform outCfg;
+
+    mx::array UwStd = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Std);
+    mx::array outStd_fp16 = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, true, MatmulOrient::Std);
+
+    mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Tpd);
+    mx::array outTpd_fp16 = winogradConv2d(inp, UwTpd, 64, inCfg, outCfg, true, MatmulOrient::Tpd);
+
+    // Cast to fp32 for comparison.
+    mx::array outStd_fp32 = mx::astype(outStd_fp16, mx::float32);
+    mx::array outTpd_fp32 = mx::astype(outTpd_fp16, mx::float32);
+    mx::eval(outStd_fp32); mx::eval(outTpd_fp32);
+
+    const float* pStd = outStd_fp32.data<float>();
+    const float* pTpd = outTpd_fp32.data<float>();
+    size_t n = (size_t)2 * 19 * 19 * 64;
+    float maxAbs = 0.0f, maxRel = 0.0f;
+    for(size_t i = 0; i < n; i++) {
+      float diff = std::fabs(pStd[i] - pTpd[i]);
+      float rel  = diff / (std::fabs(pStd[i]) + 1e-7f);
+      if(diff > maxAbs) maxAbs = diff;
+      if(rel  > maxRel) maxRel = rel;
+    }
+    std::cout << "  MLX Winograd fp16 Std vs Tpd  maxAbs=" << maxAbs
+              << " maxRel=" << maxRel << std::endl;
+    testAssert(maxAbs < 1e-2f);
+    testAssert(maxRel < 1e-2f);
+    std::cout << "  MLX Winograd fp16 matmulOrient Std vs Tpd numerical equivalence passed" << std::endl;
+  }
+
+  // SP4 Task 6: Tfast × Tpd combined — verifies the full 4-way kernel
+  // branching (Cfast×Std, Cfast×Tpd, Tfast×Std, Tfast×Tpd) is covered.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0xBADF00Du);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
+
+    std::vector<float> w_data((size_t)64*64*9);
+    for(auto& x : w_data) x = dist(rng);
+
+    // Baseline: Cfast × Std.
+    {
+      InputTransform inCfg;
+      OutputUntransform outCfg;
+      mx::array UwStd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+      mx::array outBaseline = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, false, MatmulOrient::Std);
+
+      // Tfast × Tpd: gridOrder=Tfast on both stages, matmulOrient=Tpd.
+      InputTransform inT;     inT.gridOrder  = GridOrder::Tfast;
+      OutputUntransform outT; outT.gridOrder = GridOrder::Tfast;
+      mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Tpd);
+      mx::array outTfastTpd = winogradConv2d(inp, UwTpd, 64, inT, outT, false, MatmulOrient::Tpd);
+
+      mx::eval(outBaseline); mx::eval(outTfastTpd);
+
+      const float* pB = outBaseline.data<float>();
+      const float* pTT = outTfastTpd.data<float>();
+      size_t n = (size_t)2 * 19 * 19 * 64;
+      float maxAbs = 0.0f, maxRel = 0.0f;
+      for(size_t i = 0; i < n; i++) {
+        float diff = std::fabs(pB[i] - pTT[i]);
+        float rel  = diff / (std::fabs(pB[i]) + 1e-7f);
+        if(diff > maxAbs) maxAbs = diff;
+        if(rel  > maxRel) maxRel = rel;
+      }
+      std::cout << "  MLX Winograd Cfast×Std vs Tfast×Tpd  maxAbs=" << maxAbs
+                << " maxRel=" << maxRel << std::endl;
+      testAssert(maxAbs < 1e-4f);
+      testAssert(maxRel < 1e-4f);
+      std::cout << "  MLX Winograd 4-way kernel branching coverage passed" << std::endl;
+    }
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
