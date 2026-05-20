@@ -937,6 +937,7 @@ void Tests::runNNLayerTests() {
 // SP3 Task 2: BatchNormLayer is internal to mlxbackend.cpp; its fp16 test
 // is defined there and forward-declared here.
 void runMLXBatchNormFP16Test_SP3();
+void runMLXConvLayerFP16WinogradTest_SP3();
 void Tests::runMLXWinogradTests() {
   cout << "Running MLX Winograd F(2,3) tests" << endl;
   // Naive direct 3x3 "same" conv NHWC, OIHW weights, as independent oracle.
@@ -1026,6 +1027,7 @@ void Tests::runMLXWinogradTests() {
   }
 
   runMLXBatchNormFP16Test_SP3();
+  runMLXConvLayerFP16WinogradTest_SP3();
 }
 #else
 void Tests::runMLXWinogradTests() {}

@@ -165,7 +165,7 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
         /*output_dtypes=*/{ mx::float32 },
         /*grid=*/std::make_tuple(channels, Ntiles, 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{},
+        /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -179,7 +179,7 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
       /*output_dtypes=*/{ mx::float32 },
       /*grid=*/std::make_tuple(channels, Ntiles, 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{},
+      /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -211,7 +211,7 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
         /*output_dtypes=*/{ mx::float32 },
         /*grid=*/std::make_tuple(outC, m.shape(1), 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{},
+        /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -225,7 +225,7 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
       /*output_dtypes=*/{ mx::float32 },
       /*grid=*/std::make_tuple(outC, m.shape(1), 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{},
+      /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});

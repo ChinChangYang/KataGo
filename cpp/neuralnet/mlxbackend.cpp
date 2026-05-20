@@ -25,6 +25,8 @@
 #include <mutex>
 #include <map>
 #include <tuple>
+#include <random>
+#include <cmath>
 
 namespace mx = mlx::core;
 
@@ -171,11 +173,12 @@ struct ConvLayer {
   const int outChannels;
   const int dilationY;
   const int dilationX;
+  const bool useFP16;
   const bool useWinograd;
   mx::array weights;            // OHWI format (only built when !useWinograd)
   mx::array winogradWeights;    // 4x4 domain U, valid only if useWinograd
-  MLXWinograd::InputTransform    winoInCfg;
-  MLXWinograd::OutputUntransform winoOutCfg;
+  const MLXWinograd::InputTransform    winoInCfg;
+  const MLXWinograd::OutputUntransform winoOutCfg;
 
   ConvLayer() = delete;
   ConvLayer(const ConvLayer&) = delete;
@@ -184,7 +187,7 @@ struct ConvLayer {
   ConvLayer(const ConvLayerDesc& desc,
             const MLXWinograd::InputTransform& inCfg,
             const MLXWinograd::OutputUntransform& outCfg,
-            bool useFP16 = false)
+            bool useFP16_ = false)
     : name(desc.name),
       convYSize(desc.convYSize),
       convXSize(desc.convXSize),
@@ -192,12 +195,14 @@ struct ConvLayer {
       outChannels(desc.outChannels),
       dilationY(desc.dilationY),
       dilationX(desc.dilationX),
-      useWinograd(!useFP16 && mlxWinogradEnabled()
+      useFP16(useFP16_),
+      // SP3: `!useFP16` gate removed — Winograd path now runs in fp16 too.
+      useWinograd(mlxWinogradEnabled()
                   && convYSize==3 && convXSize==3
                   && dilationY==1 && dilationX==1),
-      weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16)),
+      weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
       winogradWeights(useWinograd
-        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels)
+        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_)
         : mx::array(0.0f))
       ,winoInCfg(inCfg)
       ,winoOutCfg(outCfg)
@@ -205,7 +210,7 @@ struct ConvLayer {
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
-      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg);
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16);
     }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)
@@ -1695,6 +1700,51 @@ void runMLXBatchNormFP16Test_SP3() {
   mxc::eval(out);
   testAssert(out.dtype() == mxc::float16);
   cout << "  BatchNormLayer fp16: mergedScale/Bias fp32, output fp16 OK" << endl;
+}
+
+// SP3 Task 3: directly-asserting unit test for ConvLayer fp16 Winograd path.
+// Declared here because ConvLayer is not in any public header.
+// Forward-declared by tests/testnn.cpp via `void runMLXConvLayerFP16WinogradTest_SP3();`.
+void runMLXConvLayerFP16WinogradTest_SP3() {
+  namespace mxc = mx;  // reuse the file-scope alias from line 29
+  using std::cout;
+  using std::endl;
+
+  int N=1,H=19,W=19,Cin=8,Cout=16;
+  std::mt19937 grng(779);
+  std::uniform_real_distribution<float> gdist(-1.f,1.f);
+  std::vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=gdist(grng);
+  std::vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=gdist(grng);
+  auto refv = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
+
+  ConvLayerDesc convDesc;
+  convDesc.name = "convSP3FP16Test";
+  convDesc.convYSize = 3;
+  convDesc.convXSize = 3;
+  convDesc.inChannels = Cin;
+  convDesc.outChannels = Cout;
+  convDesc.dilationY = 1;
+  convDesc.dilationX = 1;
+  convDesc.weights = w;
+
+  MLXWinograd::InputTransform inCfg;
+  MLXWinograd::OutputUntransform outCfg;
+  ConvLayer conv(convDesc, inCfg, outCfg, /*useFP16=*/true);
+  testAssert(conv.useWinograd);  // SP3 gate dropped: fp16 still picks Winograd
+
+  mxc::array inArrF32(in.data(),{N,H,W,Cin},mxc::float32);
+  mxc::array inArr = mxc::astype(inArrF32, mxc::float16);
+  mxc::array o = conv.apply(inArr);
+  mxc::eval(o);
+  testAssert(o.dtype() == mxc::float16);
+  mxc::array oF32 = mxc::astype(o, mxc::float32);
+  mxc::eval(oF32);
+  const float* od = oF32.data<float>();
+  double maxErr=0.0;
+  for(size_t i=0;i<refv.size();i++)
+    maxErr=std::max(maxErr,(double)std::fabs(refv[i]-od[i]));
+  cout<<"  ConvLayer fp16 winograd maxErr="<<maxErr<<endl;
+  testAssert(maxErr < 5e-2);
 }
 
 #endif // USE_MLX_BACKEND
