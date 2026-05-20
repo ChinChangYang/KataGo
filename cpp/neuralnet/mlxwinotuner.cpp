@@ -120,15 +120,18 @@ string MLXWinogradTuner::defaultDirectory(bool makeDir, const string& homeDataDi
 
 string MLXWinogradTuner::defaultFileName(const string& gpuName,
                                          int nnXLen, int nnYLen,
-                                         int trunkNumChannels, int modelVersion) {
+                                         int trunkNumChannels, int modelVersion,
+                                         bool useFP16) {
   string clean;
   for(char c : gpuName) {
     if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
       clean += c;
   }
-  return Global::strprintf("tunemlxwino%d_gpu%s_x%d_y%d_c%d_mv%d.txt",
+  const char* dtypeSuffix = useFP16 ? "_fp16" : "_fp32";
+  return Global::strprintf("tunemlxwino%d_gpu%s_x%d_y%d_c%d_mv%d%s.txt",
                            MLX_WINO_TUNER_VERSION, clean.c_str(),
-                           nnXLen, nnYLen, trunkNumChannels, modelVersion);
+                           nnXLen, nnYLen, trunkNumChannels, modelVersion,
+                           dtypeSuffix);
 }
 
 // MLXWinogradTuner::loadOrAutoTune is defined in Task 4 once the search loop exists.
@@ -141,7 +144,8 @@ namespace {
 // Mirrors the inner-loop shape of winogradConv2d's stage 1, but issues only
 // the input-transform kernel so we can score it in isolation. Returns wall ms.
 static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
-                                    const mx::array& input, int channels) {
+                                    const mx::array& input, int channels,
+                                    bool useFP16) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -149,8 +153,12 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
   int tilesX = (W + 1) / 2;
   int Ntiles = N * tilesY * tilesX;
 
+  const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
+  const char* kernelName = useFP16 ? "wino_input_transform_f16_tune"
+                                   : "wino_input_transform_f32_tune";
+
   auto fn = mx::fast::metal_kernel(
-      "wino_input_transform_f32_tune",
+      kernelName,
       /*input_names=*/{"inp"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoInputSource);
@@ -162,10 +170,10 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
     auto warmOuts = fn(
         /*inputs=*/{input},
         /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
-        /*output_dtypes=*/{ mx::float32 },
+        /*output_dtypes=*/{ dtype },
         /*grid=*/std::make_tuple(channels, Ntiles, 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
+        /*template_args=*/{ {"T", dtype} },
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -176,10 +184,10 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
   auto outs = fn(
       /*inputs=*/{input},
       /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
-      /*output_dtypes=*/{ mx::float32 },
+      /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(channels, Ntiles, 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
+      /*template_args=*/{ {"T", dtype} },
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -191,12 +199,17 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
 
 // Same shape for output untransform: synthetic [16, Ntiles, outC] -> [N,H,W,outC].
 static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
-                                       const mx::array& m, int N, int H, int W, int outC) {
+                                       const mx::array& m, int N, int H, int W, int outC,
+                                       bool useFP16) {
   int nhwc_arr[4] = {N, H, W, outC};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
 
+  const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
+  const char* kernelName = useFP16 ? "wino_output_untransform_f16_tune"
+                                   : "wino_output_untransform_f32_tune";
+
   auto fn = mx::fast::metal_kernel(
-      "wino_output_untransform_f32_tune",
+      kernelName,
       /*input_names=*/{"m", "nhwc"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoOutputSource);
@@ -208,10 +221,10 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
     auto warmOuts = fn(
         /*inputs=*/{m, nhwcArr},
         /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
-        /*output_dtypes=*/{ mx::float32 },
+        /*output_dtypes=*/{ dtype },
         /*grid=*/std::make_tuple(outC, m.shape(1), 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
+        /*template_args=*/{ {"T", dtype} },
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -222,10 +235,10 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
   auto outs = fn(
       /*inputs=*/{m, nhwcArr},
       /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
-      /*output_dtypes=*/{ mx::float32 },
+      /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(outC, m.shape(1), 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{ {"T", mx::float32} },  // SP3 Task 4 will thread useFP16
+      /*template_args=*/{ {"T", dtype} },
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -235,22 +248,30 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
   return std::chrono::duration<double, std::milli>(t1 - t0).count();
 }
 
-// Random NHWC fp32 input tensor for the input-transform timing harness.
-static mx::array makeRandomInput(int N, int H, int W, int C, uint32_t seed) {
+// Random NHWC input tensor for the input-transform timing harness.
+// When useFP16, astype the fp32 source to fp16 so the timed kernel measures
+// the active precision.
+static mx::array makeRandomInput(int N, int H, int W, int C, uint32_t seed, bool useFP16) {
   std::vector<float> v((size_t)N * H * W * C);
   std::mt19937 rng(seed);
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
   for(auto& x : v) x = dist(rng);
-  return mx::array(v.data(), {N, H, W, C}, mx::float32);
+  mx::array arr(v.data(), {N, H, W, C}, mx::float32);
+  if(useFP16) return mx::astype(arr, mx::float16);
+  return arr;
 }
 
-// Random [16, Ntiles, outC] fp32 tensor for the output-untransform timing harness.
-static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed) {
+// Random [16, Ntiles, outC] tensor for the output-untransform timing harness.
+// When useFP16, astype the fp32 source to fp16 so the timed kernel measures
+// the active precision.
+static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed, bool useFP16) {
   std::vector<float> v((size_t)16 * Ntiles * outC);
   std::mt19937 rng(seed);
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
   for(auto& x : v) x = dist(rng);
-  return mx::array(v.data(), {16, Ntiles, outC}, mx::float32);
+  mx::array arr(v.data(), {16, Ntiles, outC}, mx::float32);
+  if(useFP16) return mx::astype(arr, mx::float16);
+  return arr;
 }
 
 // Score one input-transform candidate. Mirrors OpenCL line 2172-2206:
@@ -258,10 +279,11 @@ static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed) {
 // with weight 0; remaining 19 reps weighted into a mean wall-clock time.
 static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
                                   int N, int H, int W,
-                                  const MLXWinogradTuner::ModelInfoForTuning& mi) {
-  mx::array inTrunk = makeRandomInput(N, H, W, mi.trunkNumChannels, 0xA1A1A1A1u);
-  mx::array inMid   = makeRandomInput(N, H, W, mi.midNumChannels,   0xB2B2B2B2u);
-  mx::array inMax   = makeRandomInput(N, H, W, mi.maxConvChannels3x3, 0xC3C3C3C3u);
+                                  const MLXWinogradTuner::ModelInfoForTuning& mi,
+                                  bool useFP16) {
+  mx::array inTrunk = makeRandomInput(N, H, W, mi.trunkNumChannels, 0xA1A1A1A1u, useFP16);
+  mx::array inMid   = makeRandomInput(N, H, W, mi.midNumChannels,   0xB2B2B2B2u, useFP16);
+  mx::array inMax   = makeRandomInput(N, H, W, mi.maxConvChannels3x3, 0xC3C3C3C3u, useFP16);
   mx::eval(inTrunk); mx::eval(inMid); mx::eval(inMax);
 
   const int reps = 20;
@@ -289,7 +311,7 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
     const mx::array& inp = (slot == 0) ? inTrunk
                          : (slot == 1) ? inMid
                          :               inMax;
-    double ms = timeOneInputTransform(cfg, inp, channels);
+    double ms = timeOneInputTransform(cfg, inp, channels, useFP16);
     totalMs += ms * weight;
     totalWeight += weight;
   }
@@ -299,14 +321,15 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
 // Score one output-untransform candidate. Same rotation/warmup structure.
 static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
                                      int N, int H, int W,
-                                     const MLXWinogradTuner::ModelInfoForTuning& mi) {
+                                     const MLXWinogradTuner::ModelInfoForTuning& mi,
+                                     bool useFP16) {
   int tilesY = (H + 1) / 2;
   int tilesX = (W + 1) / 2;
   int Ntiles = N * tilesY * tilesX;
 
-  mx::array mTrunk = makeRandomMatmulOut(Ntiles, mi.trunkNumChannels,   0xD4D4D4D4u);
-  mx::array mMid   = makeRandomMatmulOut(Ntiles, mi.midNumChannels,     0xE5E5E5E5u);
-  mx::array mMax   = makeRandomMatmulOut(Ntiles, mi.maxConvChannels3x3, 0xF6F6F6F6u);
+  mx::array mTrunk = makeRandomMatmulOut(Ntiles, mi.trunkNumChannels,   0xD4D4D4D4u, useFP16);
+  mx::array mMid   = makeRandomMatmulOut(Ntiles, mi.midNumChannels,     0xE5E5E5E5u, useFP16);
+  mx::array mMax   = makeRandomMatmulOut(Ntiles, mi.maxConvChannels3x3, 0xF6F6F6F6u, useFP16);
   mx::eval(mTrunk); mx::eval(mMid); mx::eval(mMax);
 
   const int reps = 20;
@@ -334,7 +357,7 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
     const mx::array& mIn = (slot == 0) ? mTrunk
                          : (slot == 1) ? mMid
                          :               mMax;
-    double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC);
+    double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC, useFP16);
     totalMs += ms * weight;
     totalWeight += weight;
   }
@@ -399,7 +422,7 @@ static MLXWinograd::InputTransform searchInputTransform(
     const MLXWinograd::InputTransform& seedCfg,
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool full, Logger* logger) {
+    bool full, bool useFP16, Logger* logger) {
   auto candidates = buildInputCandidates(full);
   shuffleVec(candidates, 0xDEADBEEFu);
   candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
@@ -407,7 +430,7 @@ static MLXWinograd::InputTransform searchInputTransform(
   MLXWinograd::InputTransform best = seedCfg;
   double bestMs = std::numeric_limits<double>::infinity();
   for(const auto& c : candidates) {
-    double ms = scoreInputTransform(c, N, H, W, mi);
+    double ms = scoreInputTransform(c, N, H, W, mi, useFP16);
     if(logger != nullptr) {
       logger->write(Global::strprintf(
           "  inputTransform tg0=%d tg1=%d  meanMs=%.4f",
@@ -422,7 +445,7 @@ static MLXWinograd::OutputUntransform searchOutputUntransform(
     const MLXWinograd::OutputUntransform& seedCfg,
     int N, int H, int W,
     const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool full, Logger* logger) {
+    bool full, bool useFP16, Logger* logger) {
   auto candidates = buildOutputCandidates(full);
   shuffleVec(candidates, 0xCAFEBABEu);
   candidates.insert(candidates.begin(), seedCfg);  // anchor: ensure seed is timed first as the reference baseline
@@ -430,7 +453,7 @@ static MLXWinograd::OutputUntransform searchOutputUntransform(
   MLXWinograd::OutputUntransform best = seedCfg;
   double bestMs = std::numeric_limits<double>::infinity();
   for(const auto& c : candidates) {
-    double ms = scoreOutputUntransform(c, N, H, W, mi);
+    double ms = scoreOutputUntransform(c, N, H, W, mi, useFP16);
     if(logger != nullptr) {
       logger->write(Global::strprintf(
           "  outputUntransform tg0=%d tg1=%d  meanMs=%.4f",
@@ -450,12 +473,14 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     Logger* logger,
     bool full,
     bool reTune,
+    bool useFP16,
     const MLXWinogradTuneParams* seedOverride) {
   if(tunerFile.empty()) {
     string dir = defaultDirectory(true, homeDataDirOverride);
     tunerFile = dir + "/" + defaultFileName(gpuName, nnXLen, nnYLen,
                                             modelInfo.trunkNumChannels,
-                                            modelInfo.modelVersion);
+                                            modelInfo.modelVersion,
+                                            useFP16);
   }
 
   if(!reTune && FileUtils::exists(tunerFile)) {
@@ -484,10 +509,10 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     outSeed = seedOverride->outputUntransform;
   }
   MLXWinograd::InputTransform   inBest =
-      searchInputTransform(inSeed, batchSize, nnYLen, nnXLen, modelInfo, full, logger);
+      searchInputTransform(inSeed, batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
   if(logger != nullptr) logger->write("Tuning output untransform...");
   MLXWinograd::OutputUntransform outBest =
-      searchOutputUntransform(outSeed, batchSize, nnYLen, nnXLen, modelInfo, full, logger);
+      searchOutputUntransform(outSeed, batchSize, nnYLen, nnXLen, modelInfo, full, useFP16, logger);
 
   MLXWinogradTuneParams result;
   result.inputTransform    = inBest;

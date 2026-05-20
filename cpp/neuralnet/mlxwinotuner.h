@@ -33,10 +33,13 @@ namespace MLXWinogradTuner {
   std::string defaultDirectory(bool makeDir, const std::string& homeDataDirOverride);
   std::string defaultFileName(const std::string& gpuName,
                               int nnXLen, int nnYLen,
-                              int trunkNumChannels, int modelVersion);
+                              int trunkNumChannels, int modelVersion,
+                              bool useFP16);
 
   // Loads existing tune file if present and valid; otherwise runs the two
-  // grid searches, saves the result, and returns it. Defined in Task 4.
+  // grid searches, saves the result, and returns it.
+  // useFP16: passed to defaultFileName for cache-file naming AND to the
+  // search-timing kernels so geometry is measured at the active precision.
   // seedOverride: when non-null, the search uses these configs as the initial
   // baseline instead of the SP1 baked defaults {tg0=32, tg1=1}. Used by tests
   // to verify that the search converges from a bad seed; production callers
@@ -50,6 +53,7 @@ namespace MLXWinogradTuner {
     Logger* logger,
     bool full,
     bool reTune,
+    bool useFP16,
     const MLXWinogradTuneParams* seedOverride = nullptr
   );
 }

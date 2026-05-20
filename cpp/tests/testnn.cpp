@@ -1061,6 +1061,22 @@ void Tests::runMLXWinotunerTests() {
     testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
   }
 
+  // SP3 Task 4: dtype-aware cache filenames must coexist in the same directory
+  // without collision. Verify defaultFileName gains a _fp16/_fp32 suffix.
+  {
+    std::string nameF32 = MLXWinogradTuner::defaultFileName(
+      "AppleSilicon", 19, 19, 384, 13, /*useFP16=*/false);
+    std::string nameF16 = MLXWinogradTuner::defaultFileName(
+      "AppleSilicon", 19, 19, 384, 13, /*useFP16=*/true);
+    testAssert(nameF32 != nameF16);
+    testAssert(nameF32.find("_fp32") != std::string::npos);
+    testAssert(nameF16.find("_fp16") != std::string::npos);
+    testAssert(nameF32.size() >= 4 && nameF32.substr(nameF32.size()-4) == ".txt");
+    testAssert(nameF16.size() >= 4 && nameF16.substr(nameF16.size()-4) == ".txt");
+    cout << "  defaultFileName dtype suffix OK: "
+         << nameF32 << " vs " << nameF16 << endl;
+  }
+
   // ---- Corrupt-version rejection ----
   {
     std::string tmp = "/tmp/katago_mlx_winotuner_badversion.txt";
@@ -1122,6 +1138,7 @@ void Tests::runMLXWinotunerTests() {
         tmpFile, /*homeDataDirOverride=*/"", /*gpuName=*/"UnitTestGpu",
         /*nnXLen=*/W, /*nnYLen=*/H, /*batchSize=*/N,
         mi, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true,
+        /*useFP16=*/false,
         /*seedOverride=*/&badSeed);
 
     // Re-time the three configs via winogradConv2d on synthetic data, OUTSIDE
@@ -1136,7 +1153,7 @@ void Tests::runMLXWinotunerTests() {
 
     std::vector<float> wOIHW((size_t)mi.trunkNumChannels * mi.trunkNumChannels * 9);
     for(auto& x : wOIHW) x = dist(rng);
-    mx::array Uw = MLXWinograd::makeWinogradWeights(wOIHW, mi.trunkNumChannels, mi.trunkNumChannels);
+    mx::array Uw = MLXWinograd::makeWinogradWeights(wOIHW, mi.trunkNumChannels, mi.trunkNumChannels, /*useFP16=*/false);
     mx::eval(Uw);
 
     auto timeCfg = [&](const MLXWinograd::InputTransform& ic,
@@ -1145,7 +1162,7 @@ void Tests::runMLXWinotunerTests() {
       double total = 0;
       for(int i = 0; i < reps; i++) {
         auto t0 = std::chrono::steady_clock::now();
-        mx::array out = MLXWinograd::winogradConv2d(input, Uw, mi.trunkNumChannels, ic, oc);
+        mx::array out = MLXWinograd::winogradConv2d(input, Uw, mi.trunkNumChannels, ic, oc, /*useFP16=*/false);
         mx::eval(out);
         auto t1 = std::chrono::steady_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();

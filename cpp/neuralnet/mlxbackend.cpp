@@ -1167,6 +1167,7 @@ struct ComputeHandle {
           context->logger,
           /*full=*/mlxWinotunerFull(),
           /*reTune=*/mlxWinotunerForce(),
+          /*useFP16=*/false,
           /*seedOverride=*/nullptr);
     }
 
