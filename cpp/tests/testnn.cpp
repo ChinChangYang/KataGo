@@ -1416,6 +1416,8 @@ void Tests::runMLXWinogradTests() {}
 
 #ifdef USE_MLX_BACKEND
 #include "../neuralnet/mlxwinotuner.h"
+#include "../core/fileutils.h"
+#include "../core/makedir.h"
 #include <chrono>
 #include <cstdio>
 #include <random>
@@ -1878,6 +1880,68 @@ void Tests::runMLXWinotunerTests() {
       testAssert(improved);
       cout << "  MLX Winograd SP4 bad-seed convergence test passed" << endl;
       std::remove(tmpSP4.c_str());
+    }
+
+    // SP4 Task 14: a v1-format (SP3) cache file is left untouched when SP4
+    // looks for a v2 cache. The filename pattern includes the VERSION, so
+    // SP3 (v1) caches and SP4 (v2) caches naturally live at different paths.
+    {
+      // Use a unique tmp directory so we don't clobber the developer's real cache.
+      std::string tmpDir = "/tmp/sp4_cache_test_dir";
+      // Best-effort cleanup of stale state from prior runs.
+      std::string mlxSubdir = tmpDir + "/mlxwinotuning";
+      MakeDir::make(tmpDir);
+      MakeDir::make(mlxSubdir);
+
+      // Place a fake v1-format file at the v1-named path.
+      // defaultFileName uses MLX_WINO_TUNER_VERSION (=2) in the name, so a
+      // v1 file lives at tunemlxwino1_... — a different path than the v2 file.
+      std::string v1Path = mlxSubdir + "/tunemlxwino1_gpugputest_x19_y19_c64_mv14_fp32.txt";
+      {
+        std::ofstream f(v1Path);
+        f << "VERSION=1\n#inputTransform\ntg0=32 tg1=1\n#outputUntransform\ntg0=32 tg1=1\n";
+      }
+      testAssert(FileUtils::exists(v1Path));
+
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels = 64;
+      mi.midNumChannels = 64;
+      mi.maxConvChannels3x3 = 64;
+      mi.modelVersion = 14;
+
+      // Use a seedOverride so the tuner only runs refinement (fast path).
+      MLXWinogradTuneParams seed;
+      seed.inputTransform    = {32, 1, 1, 1, MLXWinograd::GridOrder::Cfast};
+      seed.outputUntransform = {32, 1, 1, 1, MLXWinograd::GridOrder::Cfast};
+      seed.gridOrder    = MLXWinograd::GridOrder::Cfast;
+      seed.matmulOrient = MLXWinograd::MatmulOrient::Std;
+
+      Logger logger;
+      (void)MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/"",
+          /*homeDataDirOverride=*/tmpDir,
+          /*gpuName=*/"gputest", 19, 19, /*batchSize*/1,
+          mi, &logger, /*full=*/false, /*reTune=*/false, /*useFP16=*/false,
+          &seed);
+
+      // v1 file: still on disk, untouched.
+      testAssert(FileUtils::exists(v1Path));
+
+      // v2 file: freshly written at the v2-named path.
+      std::string v2Path = mlxSubdir + "/tunemlxwino2_gpugputest_x19_y19_c64_mv14_fp32.txt";
+      testAssert(FileUtils::exists(v2Path));
+
+      // v2 file: parseable and valid.
+      MLXWinogradTuneParams reloaded = MLXWinogradTuneParams::load(v2Path);
+      testAssert(reloaded.isValid());
+
+      // Cleanup.
+      std::remove(v1Path.c_str());
+      std::remove(v2Path.c_str());
+      FileUtils::tryRemoveFile(mlxSubdir);
+      FileUtils::tryRemoveFile(tmpDir);
+
+      cout << "  MLX Winograd SP4 cache version-mismatch test passed" << endl;
     }
   } else {
     cout << "Skipping MLX Winograd SP4 bad-seed convergence test (set KATAGO_MLX_WINOTUNER_RUN_SP4_BADSEED_TEST=1 to enable)" << endl;
