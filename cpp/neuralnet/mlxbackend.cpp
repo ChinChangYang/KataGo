@@ -166,8 +166,10 @@ struct ConvLayer {
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
-      MLXWinograd::WinogradConfig cfg; // fp32 tuned defaults {32,1,1,1,4}
-      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, cfg);
+      // SP2: per-stage tuned configs (default = SP1 baked values).
+      MLXWinograd::InputTransform   inCfg;   // {tg0=32, tg1=1}
+      MLXWinograd::OutputUntransform outCfg; // {tg0=32, tg1=1}
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, inCfg, outCfg);
     }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)

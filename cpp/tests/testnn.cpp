@@ -979,8 +979,9 @@ void Tests::runMLXWinogradTests() {
     auto refv = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
     mxc::array inArr(in.data(),{N,H,W,Cin},mxc::float32);
     auto Uw = MLXWinograd::makeWinogradWeights(w,Cout,Cin);
-    MLXWinograd::WinogradConfig cfg;
-    mxc::array o = MLXWinograd::winogradConv2d(inArr,Uw,Cout,cfg);
+    MLXWinograd::InputTransform inCfg;
+    MLXWinograd::OutputUntransform outCfg;
+    mxc::array o = MLXWinograd::winogradConv2d(inArr,Uw,Cout,inCfg,outCfg);
     mxc::eval(o);
     const float* od = o.data<float>();
     double maxErr=0.0;

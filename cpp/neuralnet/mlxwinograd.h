@@ -7,15 +7,13 @@
 
 namespace MLXWinograd {
 
-// Tuned launch/layout config. SP1 bakes the known-tuned fp32 defaults;
-// SP2's autotuner must rediscover these. axis=1 == channel-fast (load-bearing).
-struct WinogradConfig {
-  int tg0 = 32;
-  int tg1 = 1;     // reserved for SP2 autotuner; kernel is 1-D, not yet wired in winogradConv2d
-  int vec = 1;
-  int axis = 1;
-  int tileSize = 4; // input tile dim => F(2,3); F(4,3)=6 is a deferred SP2 dim
-};
+// Per-stage launch-geometry configs. SP2 tunes these via grid search;
+// defaults are the SP1 baked-in known-tuned fp32 values that the tuner must
+// rediscover. Each stage is searched independently (mirrors OpenCL's
+// tuneTransform / tuneUntransform split). vec/axis/tileSize were SP1 seams
+// that were never tuned and are removed (dead-code cleanup, not regression).
+struct InputTransform   { int tg0 = 32; int tg1 = 1; };
+struct OutputUntransform { int tg0 = 32; int tg1 = 1; };
 
 // F(2,3) 1D transform matrices.
 inline constexpr float BT[4][4] = {
@@ -250,14 +248,11 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
     }
 )METAL";
 
-// Three-stage Winograd F(2,3) conv: input transform (Metal) -> mx::matmul -> output untransform (Metal).
-// Signature unchanged from prior implementation so ConvLayer needs no changes.
-// Uw layout is [16, Cin, Cout] (matmul rhs); cfg.tg0,cfg.tg1 set threadgroup; vec/axis hardcoded to (1,1)
-// for SP1 minimum — the SP2 autotuner will reintroduce parameterization.
 inline mx::array winogradConv2d(const mx::array& input,
                                 const mx::array& Uw,
                                 int Cout,
-                                const WinogradConfig& cfg) {
+                                const InputTransform& inCfg,
+                                const OutputUntransform& outCfg) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -277,7 +272,7 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*output_shapes=*/{ mx::Shape{16, Ntiles, C} },
       /*output_dtypes=*/{ mx::float32 },
       /*grid=*/std::make_tuple(C, Ntiles, 1),
-      /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+      /*threadgroup=*/std::make_tuple(inCfg.tg0, inCfg.tg1, 1),
       /*template_args=*/{},
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
@@ -300,7 +295,7 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*output_shapes=*/{ mx::Shape{N, H, W, Cout} },
       /*output_dtypes=*/{ mx::float32 },
       /*grid=*/std::make_tuple(Cout, Ntiles, 1),
-      /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+      /*threadgroup=*/std::make_tuple(outCfg.tg0, outCfg.tg1, 1),
       /*template_args=*/{},
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
