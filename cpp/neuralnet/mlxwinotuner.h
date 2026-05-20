@@ -72,6 +72,19 @@ namespace MLXWinogradTuner {
   buildInputCandidatesForTesting(bool full, int C, int Ntiles, MLXWinograd::GridOrder go);
   std::vector<MLXWinograd::OutputUntransform>
   buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go);
+
+  // Test-only — exposes Joint pass A (wpt, vw) sweep. Not part of the stable API.
+  struct WptVwScoreForTesting { int wpt; int vw; double scoreMs; };
+  std::vector<WptVwScoreForTesting>
+  jointPassA_InputForTesting(int N, int H, int W,
+                             const ModelInfoForTuning& mi,
+                             MLXWinograd::GridOrder go,
+                             bool useFP16);
+  std::vector<WptVwScoreForTesting>
+  jointPassA_OutputForTesting(int N, int H, int W,
+                              const ModelInfoForTuning& mi,
+                              MLXWinograd::GridOrder go,
+                              bool useFP16);
 }
 
 #endif // USE_MLX_BACKEND

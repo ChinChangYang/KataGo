@@ -3,6 +3,7 @@
 #include "../neuralnet/mlxwinotuner.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -495,6 +496,118 @@ static void shuffleVec(std::vector<T>& v, uint32_t seed) {
   std::shuffle(v.begin(), v.end(), rng);
 }
 
+struct WptVwScore {
+  int wpt;
+  int vw;
+  double scoreMs;
+};
+
+// SP4 Joint Pass A: when top-3 (wpt, vw) configs cluster within this
+// relative tolerance of the best, collapse to top-1 to save Joint B
+// retiming effort. 2% empirically distinguishes "tied" from "real lead".
+static constexpr double kJointPassACollapseThreshold = 0.02;
+
+// Common Joint-Pass-A driver: sweeps (wpt, vw), scores each via the
+// provided lambda (which is responsible for validity filtering and
+// per-candidate exception handling and logging), then picks top-3 and
+// optionally collapses to top-1 if scores cluster within
+// kJointPassACollapseThreshold.
+//
+// The lambda receives (wpt, vw) and returns scoreMs (+infinity on error
+// or invalid candidate). The lambda is also expected to write to the
+// logger if non-null.
+//
+// If top3.size() < 3 (rare — fewer valid candidates than 3), the collapse
+// check still applies pairwise — top3.back() is the worst of however-many
+// remain. Degenerate all-failed sweeps (all infinities) are not collapsed
+// because best > 0 && isfinite(best) is false.
+template <typename ScoreFn>
+static std::vector<WptVwScore>
+jointPassA_collect(ScoreFn scoreFn, const char* stageName, Logger* logger) {
+  std::vector<WptVwScore> scored;
+  for(int wpt : wptValues())
+  for(int vw  : vwValues()) {
+    double ms = scoreFn(wpt, vw);  // returns +infinity if invalid or failed
+    scored.push_back({wpt, vw, ms});
+  }
+  std::sort(scored.begin(), scored.end(),
+            [](const WptVwScore& a, const WptVwScore& b){ return a.scoreMs < b.scoreMs; });
+  std::vector<WptVwScore> top3;
+  for(size_t i = 0; i < scored.size() && top3.size() < 3; i++)
+    top3.push_back(scored[i]);
+  // Collapse to top-1 when the spread among top-3 is below threshold.
+  // Guarded: only collapse when best is finite and positive (degenerate
+  // all-failed sweeps keep size-3 of infinities so the caller can detect).
+  if(top3.size() > 1) {
+    double best = top3[0].scoreMs;
+    if(best > 0 && std::isfinite(best) &&
+       (top3.back().scoreMs - best) / best < kJointPassACollapseThreshold) {
+      top3.resize(1);
+      if(logger) logger->write(Global::strprintf(
+        "  jointA %s top-3 within %.0f%% — collapsing to top-1",
+        stageName, kJointPassACollapseThreshold * 100.0));
+    }
+  }
+  return top3;
+}
+
+// Joint pass A: at SP3-default (tg0=32, tg1=1), sweep all valid (wpt, vw)
+// pairs for the input transform under the given gridOrder. Returns top-3
+// by score ascending. If top-3 cluster within kJointPassACollapseThreshold
+// of best, collapses to top-1.
+static std::vector<WptVwScore>
+jointPassA_Input(int N, int H, int W,
+                 const MLXWinogradTuner::ModelInfoForTuning& mi,
+                 MLXWinograd::GridOrder go,
+                 bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  auto scoreFn = [&](int wpt, int vw) -> double {
+    if(!isInputCandidateValid(/*tg0*/32, /*tg1*/1, wpt, vw, go,
+                              mi.trunkNumChannels, Ntiles))
+      return std::numeric_limits<double>::infinity();
+    MLXWinograd::InputTransform cfg = {32, 1, wpt, vw, go};
+    double ms;
+    try {
+      ms = scoreInputTransform(cfg, N, H, W, mi, useFP16);
+    } catch(const std::exception& e) {
+      if(logger) logger->write(Global::strprintf(
+        "  jointA inp wpt=%d vw=%d FAILED: %s", wpt, vw, e.what()));
+      return std::numeric_limits<double>::infinity();
+    }
+    if(logger) logger->write(Global::strprintf(
+      "  jointA inp wpt=%d vw=%d  meanMs=%.4f", wpt, vw, ms));
+    return ms;
+  };
+  return jointPassA_collect(scoreFn, "inp", logger);
+}
+
+// Same shape for output untransform.
+static std::vector<WptVwScore>
+jointPassA_Output(int N, int H, int W,
+                  const MLXWinogradTuner::ModelInfoForTuning& mi,
+                  MLXWinograd::GridOrder go,
+                  bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  auto scoreFn = [&](int wpt, int vw) -> double {
+    if(!isOutputCandidateValid(/*tg0*/32, /*tg1*/1, wpt, vw, go,
+                               mi.trunkNumChannels, Ntiles))
+      return std::numeric_limits<double>::infinity();
+    MLXWinograd::OutputUntransform cfg = {32, 1, wpt, vw, go};
+    double ms;
+    try {
+      ms = scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
+    } catch(const std::exception& e) {
+      if(logger) logger->write(Global::strprintf(
+        "  jointA out wpt=%d vw=%d FAILED: %s", wpt, vw, e.what()));
+      return std::numeric_limits<double>::infinity();
+    }
+    if(logger) logger->write(Global::strprintf(
+      "  jointA out wpt=%d vw=%d  meanMs=%.4f", wpt, vw, ms));
+    return ms;
+  };
+  return jointPassA_collect(scoreFn, "out", logger);
+}
+
 } // namespace
 
 static MLXWinograd::InputTransform searchInputTransform(
@@ -623,6 +736,30 @@ MLXWinogradTuner::buildInputCandidatesForTesting(bool full, int C, int Ntiles, M
 std::vector<MLXWinograd::OutputUntransform>
 MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go) {
   return buildOutputCandidates(full, outC, Ntiles, go);
+}
+
+std::vector<MLXWinogradTuner::WptVwScoreForTesting>
+MLXWinogradTuner::jointPassA_InputForTesting(
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    MLXWinograd::GridOrder go,
+    bool useFP16) {
+  auto top = jointPassA_Input(N, H, W, mi, go, useFP16, nullptr);
+  std::vector<WptVwScoreForTesting> out;
+  for(auto& s : top) out.push_back({s.wpt, s.vw, s.scoreMs});
+  return out;
+}
+
+std::vector<MLXWinogradTuner::WptVwScoreForTesting>
+MLXWinogradTuner::jointPassA_OutputForTesting(
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    MLXWinograd::GridOrder go,
+    bool useFP16) {
+  auto top = jointPassA_Output(N, H, W, mi, go, useFP16, nullptr);
+  std::vector<WptVwScoreForTesting> out;
+  for(auto& s : top) out.push_back({s.wpt, s.vw, s.scoreMs});
+  return out;
 }
 
 #endif // USE_MLX_BACKEND

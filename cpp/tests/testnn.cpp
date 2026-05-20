@@ -1633,6 +1633,37 @@ void Tests::runMLXWinotunerTests() {
               << std::endl;
   }
 
+  // SP4 Task 8: Joint pass A returns top-3 (wpt, vw) configs sorted ascending.
+  {
+    MLXWinogradTuner::ModelInfoForTuning mi;
+    mi.trunkNumChannels = 64;
+    mi.midNumChannels = 64;
+    mi.maxConvChannels3x3 = 64;
+    mi.modelVersion = 14;
+
+    auto top3 = MLXWinogradTuner::jointPassA_InputForTesting(
+        /*N*/1, /*H*/19, /*W*/19, mi,
+        MLXWinograd::GridOrder::Cfast,
+        /*useFP16*/false);
+    testAssert(top3.size() <= 3);
+    testAssert(top3.size() >= 1);
+    // Sorted ascending by score (best first).
+    for(size_t i = 1; i < top3.size(); i++)
+      testAssert(top3[i-1].scoreMs <= top3[i].scoreMs);
+    std::cout << "  MLX Winograd Joint pass A (input) returned top-"
+              << top3.size() << " (wpt, vw) configs sorted ascending" << std::endl;
+
+    auto top3_out = MLXWinogradTuner::jointPassA_OutputForTesting(
+        /*N*/1, /*H*/19, /*W*/19, mi,
+        MLXWinograd::GridOrder::Cfast, /*useFP16*/false);
+    testAssert(top3_out.size() <= 3);
+    testAssert(top3_out.size() >= 1);
+    for(size_t i = 1; i < top3_out.size(); i++)
+      testAssert(top3_out[i-1].scoreMs <= top3_out[i].scoreMs);
+    std::cout << "  MLX Winograd Joint pass A (output) returned top-"
+              << top3_out.size() << " (wpt, vw) configs sorted ascending" << std::endl;
+  }
+
   // ---- Measurement primitives return finite positive times ----
   // We can't call the static helpers from the test, so we use the public
   // surface that will be wired in Task 4: loadOrAutoTune with reTune=true
