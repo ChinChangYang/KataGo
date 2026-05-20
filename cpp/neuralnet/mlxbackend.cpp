@@ -4,7 +4,9 @@
  * MLX backend for KataGo.
  * Uses Apple's MLX framework for neural network inference on Apple Silicon.
  * Supports FP16 (half precision) and FP32 computation with NHWC memory layout.
- * FP32 is used by default (FP16 does not improve performance on MLX).
+ * FP16 Winograd uses selective fp32 accumulation at the matmul reduction and
+ * BatchNorm intermediate (spec docs/superpowers/specs/2026-05-20-mlx-winograd-fp16-design.md).
+ * `mlxUseFP16 = auto` resolves to fp16 after SP3 acceptance lands.
  */
 
 #include "../neuralnet/nninterface.h"
@@ -1145,8 +1147,10 @@ struct ComputeHandle {
       compiledFuncs()
   {
     // Determine tuner params: either run the autotuner, or use baked SP1 defaults.
+    // SP3: tuner runs at every precision so fp16 gets its own cache file
+    // (_fp16.txt suffix). See spec §3 item 3.
     MLXWinogradTuneParams tuneParams;
-    if(mlxWinogradEnabled() && mlxWinotunerEnabled() && !useFP16_) {
+    if(mlxWinogradEnabled() && mlxWinotunerEnabled()) {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels   = loadedModel.modelDesc.trunk.trunkNumChannels;
       mi.midNumChannels     = loadedModel.modelDesc.trunk.midNumChannels;
@@ -1167,7 +1171,7 @@ struct ComputeHandle {
           context->logger,
           /*full=*/mlxWinotunerFull(),
           /*reTune=*/mlxWinotunerForce(),
-          /*useFP16=*/false,
+          /*useFP16=*/useFP16_,
           /*seedOverride=*/nullptr);
     }
 
@@ -1331,7 +1335,8 @@ ComputeHandle* NeuralNet::createComputeHandle(
   int gpuIdxForThisThread,
   int serverThreadIdx
 ) {
-  // Determine FP16 mode: default to FP32 (FP16 doesn't improve performance on MLX)
+  // Determine FP16 mode. Auto currently resolves to fp32; SP3 Task 8 will
+  // flip Auto -> fp16 after the acceptance gate (see spec §7).
   bool useFP16 = (context->useFP16Mode == enabled_t::True);
 
   if(logger != NULL) {
