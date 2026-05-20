@@ -177,9 +177,14 @@ namespace {
 // One stage-1 (input transform) timed run on a synthetic [N,H,W,C] tensor.
 // Mirrors the inner-loop shape of winogradConv2d's stage 1, but issues only
 // the input-transform kernel so we can score it in isolation. Returns wall ms.
-static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
-                                    const mx::array& input, int channels,
-                                    bool useFP16) {
+// matmulOrient is used only to determine output shape and MATMUL_ORIENT arg;
+// for per-stage tuning it defaults to Std (the orientation does not materially
+// affect input-transform throughput, which is what we want to optimise here).
+static double timeOneInputTransform(
+    const MLXWinograd::InputTransform& cfg,
+    const mx::array& input, int channels,
+    bool useFP16,
+    MLXWinograd::MatmulOrient mo = MLXWinograd::MatmulOrient::Std) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -188,26 +193,55 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
   int Ntiles = N * tilesY * tilesX;
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
-  const char* kernelName = useFP16 ? "wino_input_transform_f16_tune"
-                                   : "wino_input_transform_f32_tune";
+
+  // Kernel name encodes all SP4 axes so the Metal JIT cache sees a unique entry
+  // per (dtype, wpt, vw, gridOrder, matmulOrient) combination.
+  std::string kernelName =
+      std::string(useFP16 ? "wino_input_transform_f16" : "wino_input_transform_f32")
+      + "_w" + std::to_string(cfg.wpt)
+      + "_v" + std::to_string(cfg.vw)
+      + "_g" + std::to_string((int)cfg.gridOrder)
+      + "_o" + std::to_string((int)mo)
+      + "_tune";
 
   auto fn = mx::fast::metal_kernel(
-      kernelName,
+      kernelName.c_str(),
       /*input_names=*/{"inp"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoInputSource);
 
+  // Output shape depends on matmulOrient: Std → [16, Ntiles, C], Tpd → [16, C, Ntiles].
+  mx::Shape outShape = (mo == MLXWinograd::MatmulOrient::Std)
+      ? mx::Shape{16, Ntiles, channels}
+      : mx::Shape{16, channels, Ntiles};
+
+  // Grid depends on gridOrder: Cfast → (ceil(C/vw), ceil(Ntiles/wpt), 1),
+  //                             Tfast → (Ntiles, ceil(C/wpt), 1).
+  int gridX = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
+      ? ((channels + cfg.vw - 1) / cfg.vw)
+      : Ntiles;
+  int gridY = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
+      ? ((Ntiles + cfg.wpt - 1) / cfg.wpt)
+      : ((channels + cfg.wpt - 1) / cfg.wpt);
+
+  std::vector<std::pair<std::string, mx::fast::TemplateArg>> tmplArgs = {
+    {"T",             dtype},
+    {"WPT",           cfg.wpt},
+    {"VW",            cfg.vw},
+    {"GRID_ORDER",    (int)cfg.gridOrder},
+    {"MATMUL_ORIENT", (int)mo}
+  };
+
   // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
-  // (cfg.tg0, cfg.tg1) before the timed eval. Defensive against any per-call
-  // JIT or runtime overhead.
+  // config before the timed eval.
   {
     auto warmOuts = fn(
         /*inputs=*/{input},
-        /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
+        /*output_shapes=*/{ outShape },
         /*output_dtypes=*/{ dtype },
-        /*grid=*/std::make_tuple(channels, Ntiles, 1),
+        /*grid=*/std::make_tuple(gridX, gridY, 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{ {"T", dtype} },
+        /*template_args=*/tmplArgs,
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -217,11 +251,11 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
   // Timed pass — build fresh lazy node and eval it.
   auto outs = fn(
       /*inputs=*/{input},
-      /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
+      /*output_shapes=*/{ outShape },
       /*output_dtypes=*/{ dtype },
-      /*grid=*/std::make_tuple(channels, Ntiles, 1),
+      /*grid=*/std::make_tuple(gridX, gridY, 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{ {"T", dtype} },
+      /*template_args=*/tmplArgs,
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -232,33 +266,66 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
 }
 
 // Same shape for output untransform: synthetic [16, Ntiles, outC] -> [N,H,W,outC].
-static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
-                                       const mx::array& m, int N, int H, int W, int outC,
-                                       bool useFP16) {
+// m is always Std-layout ([16, Ntiles, outC]) because makeRandomMatmulOut creates
+// that shape; MATMUL_ORIENT is therefore always passed as Std. This is consistent
+// across all callers of scoreOutputUntransform and does not materially affect
+// output-untransform throughput measurement.
+static double timeOneOutputUntransform(
+    const MLXWinograd::OutputUntransform& cfg,
+    const mx::array& m, int N, int H, int W, int outC,
+    bool useFP16) {
+  int tilesY = (H + 1) / 2;
+  int tilesX = (W + 1) / 2;
+  int Ntiles = N * tilesY * tilesX;
+
   int nhwc_arr[4] = {N, H, W, outC};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
-  const char* kernelName = useFP16 ? "wino_output_untransform_f16_tune"
-                                   : "wino_output_untransform_f32_tune";
+
+  // Kernel name encodes all SP4 axes so the Metal JIT cache sees a unique entry
+  // per (dtype, wpt, vw, gridOrder, matmulOrient) combination. matmulOrient=Std.
+  std::string kernelName =
+      std::string(useFP16 ? "wino_output_untransform_f16" : "wino_output_untransform_f32")
+      + "_w" + std::to_string(cfg.wpt)
+      + "_v" + std::to_string(cfg.vw)
+      + "_g" + std::to_string((int)cfg.gridOrder)
+      + "_o0"   // matmulOrient=Std (0) — matches makeRandomMatmulOut layout
+      + "_tune";
 
   auto fn = mx::fast::metal_kernel(
-      kernelName,
+      kernelName.c_str(),
       /*input_names=*/{"m", "nhwc"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoOutputSource);
 
+  // Grid depends on gridOrder: Cfast → (ceil(outC/vw), ceil(Ntiles/wpt), 1),
+  //                             Tfast → (Ntiles, ceil(outC/wpt), 1).
+  int gridX = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
+      ? ((outC + cfg.vw - 1) / cfg.vw)
+      : Ntiles;
+  int gridY = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
+      ? ((Ntiles + cfg.wpt - 1) / cfg.wpt)
+      : ((outC  + cfg.wpt - 1) / cfg.wpt);
+
+  std::vector<std::pair<std::string, mx::fast::TemplateArg>> tmplArgs = {
+    {"T",             dtype},
+    {"WPT",           cfg.wpt},
+    {"VW",            cfg.vw},
+    {"GRID_ORDER",    (int)cfg.gridOrder},
+    {"MATMUL_ORIENT", 0}   // Std — matches makeRandomMatmulOut layout
+  };
+
   // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
-  // (cfg.tg0, cfg.tg1) before the timed eval. Defensive against any per-call
-  // JIT or runtime overhead.
+  // config before the timed eval.
   {
     auto warmOuts = fn(
         /*inputs=*/{m, nhwcArr},
         /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
         /*output_dtypes=*/{ dtype },
-        /*grid=*/std::make_tuple(outC, m.shape(1), 1),
+        /*grid=*/std::make_tuple(gridX, gridY, 1),
         /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-        /*template_args=*/{ {"T", dtype} },
+        /*template_args=*/tmplArgs,
         /*init_value=*/std::nullopt,
         /*verbose=*/false,
         /*stream=*/mx::StreamOrDevice{});
@@ -270,9 +337,9 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
       /*inputs=*/{m, nhwcArr},
       /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
       /*output_dtypes=*/{ dtype },
-      /*grid=*/std::make_tuple(outC, m.shape(1), 1),
+      /*grid=*/std::make_tuple(gridX, gridY, 1),
       /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
-      /*template_args=*/{ {"T", dtype} },
+      /*template_args=*/tmplArgs,
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -307,6 +374,15 @@ static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed, bool u
   if(useFP16) return mx::astype(arr, mx::float16);
   return arr;
 }
+
+// TODO(future): scoreInputTransform always times candidates under
+// MATMUL_ORIENT=Std even when called from the Tpd outer arm of
+// loadOrAutoTune. The outer end-to-end timing correctly measures Tpd
+// performance and picks the winning (orient, gridOrder) combo, but the
+// per-stage Joint A/B/refine within the Tpd arm may pick configs that
+// are optimal for Std-layout writes. Threading matmulOrient through here
+// would let per-stage search be orient-aware (modest tuner-quality
+// improvement on Tpd; no correctness impact).
 
 // Score one input-transform candidate. Mirrors OpenCL line 2172-2206:
 // 20 reps rotating across {trunk, mid, max} channel counts; rep 0 is warmup
@@ -351,6 +427,15 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
   }
   return totalMs / totalWeight;
 }
+
+// TODO(future): scoreOutputUntransform always times candidates under
+// MATMUL_ORIENT=Std even when called from the Tpd outer arm of
+// loadOrAutoTune. The outer end-to-end timing correctly measures Tpd
+// performance and picks the winning (orient, gridOrder) combo, but the
+// per-stage Joint A/B/refine within the Tpd arm may pick configs that
+// are optimal for Std-layout reads. Threading matmulOrient through here
+// would let per-stage search be orient-aware (modest tuner-quality
+// improvement on Tpd; no correctness impact).
 
 // Score one output-untransform candidate. Same rotation/warmup structure.
 static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
@@ -1021,6 +1106,22 @@ MLXWinogradTuner::jointPassA_OutputForTesting(
   std::vector<WptVwScoreForTesting> out;
   for(auto& s : top) out.push_back({s.wpt, s.vw, s.scoreMs});
   return out;
+}
+
+double MLXWinogradTuner::scoreInputTransformForTesting(
+    const MLXWinograd::InputTransform& cfg,
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    bool useFP16) {
+  return scoreInputTransform(cfg, N, H, W, mi, useFP16);
+}
+
+double MLXWinogradTuner::scoreOutputUntransformForTesting(
+    const MLXWinograd::OutputUntransform& cfg,
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    bool useFP16) {
+  return scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
 }
 
 #endif // USE_MLX_BACKEND

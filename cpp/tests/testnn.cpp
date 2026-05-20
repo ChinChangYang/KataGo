@@ -1819,6 +1819,70 @@ void Tests::runMLXWinotunerTests() {
     cout << "Skipping MLX Winograd tuner search-works test (set KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST=1 to enable)" << endl;
   }
 
+  // ---- SP4 Task 13: bad-seed convergence test.
+  // Gated behind KATAGO_MLX_WINOTUNER_RUN_SP4_BADSEED_TEST=1 (separate from
+  // the SP2 search-works test so it can run without the heavier SP2 timing).
+  // Seed: (tg0=1, tg1=1, wpt=8, vw=1, Tfast) — tiny threadgroup, large WPT,
+  // Tfast (tiles-fast) grid order. loadOrAutoTune's seedOverride path runs
+  // refinement-only from this bad seed. Asserts the resulting config beats
+  // the seed by >=30% on at least one stage (input OR output).
+  if(std::getenv("KATAGO_MLX_WINOTUNER_RUN_SP4_BADSEED_TEST") != nullptr ||
+     std::getenv("KATAGO_MLX_WINOTUNER_RUN_SEARCH_TEST") != nullptr) {
+    cout << "Running MLX Winograd tuner SP4 bad-seed convergence test" << endl;
+    {
+      // Use the same batch×channel shape as the SP2 search-works test so the
+      // kernel is large enough for the seed's poor SIMD utilisation to show
+      // up as a measurable timing gap.
+      MLXWinogradTuner::ModelInfoForTuning miSP4;
+      miSP4.trunkNumChannels = 256;
+      miSP4.midNumChannels = 256;
+      miSP4.maxConvChannels3x3 = 256;
+      miSP4.modelVersion = 15;
+
+      const int NSP4 = 8;  // batch size for scoring
+
+      MLXWinogradTuneParams seedSP4;
+      seedSP4.gridOrder    = MLXWinograd::GridOrder::Tfast;
+      seedSP4.matmulOrient = MLXWinograd::MatmulOrient::Std;
+      seedSP4.inputTransform    = {1, 1, 8, 1, MLXWinograd::GridOrder::Tfast};
+      seedSP4.outputUntransform = {1, 1, 8, 1, MLXWinograd::GridOrder::Tfast};
+      testAssert(seedSP4.isValid());
+
+      std::string tmpSP4 = "/tmp/mlxwino_sp4_badseed_test.txt";
+      std::remove(tmpSP4.c_str());
+      MLXWinogradTuneParams tunedSP4 = MLXWinogradTuner::loadOrAutoTune(
+          tmpSP4, /*homeDataDirOverride=*/"", /*gpuName=*/"testgpu",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/NSP4,
+          miSP4, /*logger=*/nullptr, /*full=*/false, /*reTune=*/true,
+          /*useFP16=*/false,
+          /*seedOverride=*/&seedSP4);
+      testAssert(tunedSP4.isValid());
+
+      double seedInMs   = MLXWinogradTuner::scoreInputTransformForTesting(
+          seedSP4.inputTransform,   NSP4, 19, 19, miSP4, false);
+      double tunedInMs  = MLXWinogradTuner::scoreInputTransformForTesting(
+          tunedSP4.inputTransform,  NSP4, 19, 19, miSP4, false);
+      double seedOutMs  = MLXWinogradTuner::scoreOutputUntransformForTesting(
+          seedSP4.outputUntransform,   NSP4, 19, 19, miSP4, false);
+      double tunedOutMs = MLXWinogradTuner::scoreOutputUntransformForTesting(
+          tunedSP4.outputUntransform,  NSP4, 19, 19, miSP4, false);
+
+      cout << "  SP4 bad-seed convergence:"
+           << " input " << seedInMs << "ms -> " << tunedInMs << "ms"
+           << ", output " << seedOutMs << "ms -> " << tunedOutMs << "ms" << endl;
+
+      // Tuner must beat the bad seed by >=30% on at least one stage.
+      bool improved =
+          (tunedInMs  < 0.7 * seedInMs) ||
+          (tunedOutMs < 0.7 * seedOutMs);
+      testAssert(improved);
+      cout << "  MLX Winograd SP4 bad-seed convergence test passed" << endl;
+      std::remove(tmpSP4.c_str());
+    }
+  } else {
+    cout << "Skipping MLX Winograd SP4 bad-seed convergence test (set KATAGO_MLX_WINOTUNER_RUN_SP4_BADSEED_TEST=1 to enable)" << endl;
+  }
+
   cout << "MLX Winograd tuner tests passed" << endl;
 }
 #else

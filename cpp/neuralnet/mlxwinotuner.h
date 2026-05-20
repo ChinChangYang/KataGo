@@ -85,6 +85,18 @@ namespace MLXWinogradTuner {
                               const ModelInfoForTuning& mi,
                               MLXWinograd::GridOrder go,
                               bool useFP16);
+
+  // Test-only — exposes the per-stage scoring primitives so the bad-seed
+  // convergence test (Task 13) can compare seed and tuned configs
+  // apples-to-apples without depending on the full tuner measurement path.
+  double scoreInputTransformForTesting(const MLXWinograd::InputTransform& cfg,
+                                       int N, int H, int W,
+                                       const ModelInfoForTuning& mi,
+                                       bool useFP16);
+  double scoreOutputUntransformForTesting(const MLXWinograd::OutputUntransform& cfg,
+                                          int N, int H, int W,
+                                          const ModelInfoForTuning& mi,
+                                          bool useFP16);
 }
 
 #endif // USE_MLX_BACKEND
