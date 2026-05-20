@@ -14,6 +14,7 @@
 #include "../neuralnet/nneval.h"
 #include "../neuralnet/activations.h"
 #include "../neuralnet/mlxwinograd.h"
+#include "../neuralnet/mlxwinotuner.h"
 #include "../core/global.h"
 #include "../core/test.h"
 
@@ -129,6 +130,37 @@ static bool mlxWinogradEnabled() {
   return enabled;
 }
 
+// Tuner is on by default; KATAGO_MLX_WINOTUNER=0 forces baked SP1 defaults.
+static bool mlxWinotunerEnabled() {
+  static const bool enabled = [](){
+    const char* e = std::getenv("KATAGO_MLX_WINOTUNER");
+    return !(e != nullptr && std::string(e) == "0");
+  }();
+  return enabled;
+}
+// KATAGO_MLX_WINOTUNER_FORCE=1 ignores cache file, retunes and overwrites.
+static bool mlxWinotunerForce() {
+  static const bool force = [](){
+    const char* e = std::getenv("KATAGO_MLX_WINOTUNER_FORCE");
+    return (e != nullptr && std::string(e) == "1");
+  }();
+  return force;
+}
+// KATAGO_MLX_WINOTUNER_FULL=1 uses the wider grid ranges.
+static bool mlxWinotunerFull() {
+  static const bool full = [](){
+    const char* e = std::getenv("KATAGO_MLX_WINOTUNER_FULL");
+    return (e != nullptr && std::string(e) == "1");
+  }();
+  return full;
+}
+// GPU name for the tuner cache filename.
+// mlx::core::metal::device_info() is declared in the header but not exported
+// in all libmlx builds; fall back to a fixed string.
+static std::string mlxGpuName() {
+  return "AppleSilicon";
+}
+
 // Layers --------------------------------------------------------------------------------------------------------------
 
 struct ConvLayer {
@@ -142,12 +174,17 @@ struct ConvLayer {
   const bool useWinograd;
   mx::array weights;            // OHWI format (only built when !useWinograd)
   mx::array winogradWeights;    // 4x4 domain U, valid only if useWinograd
+  MLXWinograd::InputTransform    winoInCfg;
+  MLXWinograd::OutputUntransform winoOutCfg;
 
   ConvLayer() = delete;
   ConvLayer(const ConvLayer&) = delete;
   ConvLayer& operator=(const ConvLayer&) = delete;
 
-  ConvLayer(const ConvLayerDesc& desc, bool useFP16 = false)
+  ConvLayer(const ConvLayerDesc& desc,
+            const MLXWinograd::InputTransform& inCfg,
+            const MLXWinograd::OutputUntransform& outCfg,
+            bool useFP16 = false)
     : name(desc.name),
       convYSize(desc.convYSize),
       convXSize(desc.convXSize),
@@ -162,14 +199,13 @@ struct ConvLayer {
       winogradWeights(useWinograd
         ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels)
         : mx::array(0.0f))
+      ,winoInCfg(inCfg)
+      ,winoOutCfg(outCfg)
   {}
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
-      // SP2: per-stage tuned configs (default = SP1 baked values).
-      MLXWinograd::InputTransform   inCfg;   // {tg0=32, tg1=1}
-      MLXWinograd::OutputUntransform outCfg; // {tg0=32, tg1=1}
-      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, inCfg, outCfg);
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg);
     }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)
@@ -372,12 +408,15 @@ struct ResidualBlock {
   ResidualBlock(const ResidualBlock&) = delete;
   ResidualBlock& operator=(const ResidualBlock&) = delete;
 
-  ResidualBlock(const ResidualBlockDesc& desc, bool useFP16 = false)
+  ResidualBlock(const ResidualBlockDesc& desc,
+                const MLXWinograd::InputTransform& inCfg,
+                const MLXWinograd::OutputUntransform& outCfg,
+                bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      regularConv(desc.regularConv, useFP16),
+      regularConv(desc.regularConv, inCfg, outCfg, useFP16),
       midBN(desc.midBN, desc.midActivation.activation, useFP16),
-      finalConv(desc.finalConv, useFP16)
+      finalConv(desc.finalConv, inCfg, outCfg, useFP16)
   {}
 
   mx::array apply(const mx::array& input, const mx::array& mask, bool useMask) const {
@@ -404,15 +443,18 @@ struct GlobalPoolingResidualBlock {
   GlobalPoolingResidualBlock(const GlobalPoolingResidualBlock&) = delete;
   GlobalPoolingResidualBlock& operator=(const GlobalPoolingResidualBlock&) = delete;
 
-  GlobalPoolingResidualBlock(const GlobalPoolingResidualBlockDesc& desc, bool useFP16 = false)
+  GlobalPoolingResidualBlock(const GlobalPoolingResidualBlockDesc& desc,
+                             const MLXWinograd::InputTransform& inCfg,
+                             const MLXWinograd::OutputUntransform& outCfg,
+                             bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      regularConv(desc.regularConv, useFP16),
-      gpoolConv(desc.gpoolConv, useFP16),
+      regularConv(desc.regularConv, inCfg, outCfg, useFP16),
+      gpoolConv(desc.gpoolConv, inCfg, outCfg, useFP16),
       gpoolBN(desc.gpoolBN, desc.gpoolActivation.activation, useFP16),
       gpoolToBiasMul(desc.gpoolToBiasMul, useFP16),
       midBN(desc.midBN, desc.midActivation.activation, useFP16),
-      finalConv(desc.finalConv, useFP16)
+      finalConv(desc.finalConv, inCfg, outCfg, useFP16)
   {}
 
   mx::array apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const {
@@ -454,14 +496,23 @@ struct BlockVariant {
   unique_ptr<GlobalPoolingResidualBlock> globalPooling;
   unique_ptr<NestedBottleneckResidualBlock> nestedBottleneck;
 
-  BlockVariant(const ResidualBlockDesc& desc, bool useFP16 = false)
-    : type(REGULAR), regular(make_unique<ResidualBlock>(desc, useFP16)) {}
+  BlockVariant(const ResidualBlockDesc& desc,
+               const MLXWinograd::InputTransform& inCfg,
+               const MLXWinograd::OutputUntransform& outCfg,
+               bool useFP16 = false)
+    : type(REGULAR), regular(make_unique<ResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
-  BlockVariant(const GlobalPoolingResidualBlockDesc& desc, bool useFP16 = false)
-    : type(GLOBAL_POOLING), globalPooling(make_unique<GlobalPoolingResidualBlock>(desc, useFP16)) {}
+  BlockVariant(const GlobalPoolingResidualBlockDesc& desc,
+               const MLXWinograd::InputTransform& inCfg,
+               const MLXWinograd::OutputUntransform& outCfg,
+               bool useFP16 = false)
+    : type(GLOBAL_POOLING), globalPooling(make_unique<GlobalPoolingResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
   // Forward declaration - defined after NestedBottleneckResidualBlock
-  BlockVariant(const NestedBottleneckResidualBlockDesc& desc, bool useFP16);
+  BlockVariant(const NestedBottleneckResidualBlockDesc& desc,
+               const MLXWinograd::InputTransform& inCfg,
+               const MLXWinograd::OutputUntransform& outCfg,
+               bool useFP16);
 
   mx::array apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const;
 };
@@ -478,20 +529,23 @@ struct NestedBottleneckResidualBlock {
   NestedBottleneckResidualBlock(const NestedBottleneckResidualBlock&) = delete;
   NestedBottleneckResidualBlock& operator=(const NestedBottleneckResidualBlock&) = delete;
 
-  NestedBottleneckResidualBlock(const NestedBottleneckResidualBlockDesc& desc, bool useFP16 = false)
+  NestedBottleneckResidualBlock(const NestedBottleneckResidualBlockDesc& desc,
+                                const MLXWinograd::InputTransform& inCfg,
+                                const MLXWinograd::OutputUntransform& outCfg,
+                                bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      preConv(desc.preConv, useFP16),
+      preConv(desc.preConv, inCfg, outCfg, useFP16),
       postBN(desc.postBN, desc.postActivation.activation, useFP16),
-      postConv(desc.postConv, useFP16)
+      postConv(desc.postConv, inCfg, outCfg, useFP16)
   {
     for(size_t i = 0; i < desc.blocks.size(); i++) {
       int blockKind = desc.blocks[i].first;
       if(blockKind == ORDINARY_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), useFP16);
+        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == GLOBAL_POOLING_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), useFP16);
+        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
     }
   }
@@ -512,8 +566,11 @@ struct NestedBottleneckResidualBlock {
 };
 
 // Define BlockVariant constructor for NestedBottleneckResidualBlock now that it's complete
-BlockVariant::BlockVariant(const NestedBottleneckResidualBlockDesc& desc, bool useFP16)
-  : type(NESTED_BOTTLENECK), nestedBottleneck(make_unique<NestedBottleneckResidualBlock>(desc, useFP16)) {}
+BlockVariant::BlockVariant(const NestedBottleneckResidualBlockDesc& desc,
+                           const MLXWinograd::InputTransform& inCfg,
+                           const MLXWinograd::OutputUntransform& outCfg,
+                           bool useFP16)
+  : type(NESTED_BOTTLENECK), nestedBottleneck(make_unique<NestedBottleneckResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
 mx::array BlockVariant::apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const {
   switch(type) {
@@ -581,10 +638,13 @@ struct Trunk {
   Trunk(const Trunk&) = delete;
   Trunk& operator=(const Trunk&) = delete;
 
-  Trunk(const TrunkDesc& desc, bool useFP16 = false)
+  Trunk(const TrunkDesc& desc,
+        const MLXWinograd::InputTransform& inCfg,
+        const MLXWinograd::OutputUntransform& outCfg,
+        bool useFP16 = false)
     : name(desc.name),
       trunkNumChannels(desc.trunkNumChannels),
-      initialConv(desc.initialConv, useFP16),
+      initialConv(desc.initialConv, inCfg, outCfg, useFP16),
       initialMatMul(desc.initialMatMul, useFP16),
       trunkTipBN(desc.trunkTipBN, desc.trunkTipActivation.activation, useFP16)
   {
@@ -595,13 +655,13 @@ struct Trunk {
     for(size_t i = 0; i < desc.blocks.size(); i++) {
       int blockKind = desc.blocks[i].first;
       if(blockKind == ORDINARY_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), useFP16);
+        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == GLOBAL_POOLING_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), useFP16);
+        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == NESTED_BOTTLENECK_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<NestedBottleneckResidualBlockDesc*>(desc.blocks[i].second.get()), useFP16);
+        blocks.emplace_back(*static_cast<NestedBottleneckResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
     }
   }
@@ -664,15 +724,18 @@ struct PolicyHead {
   PolicyHead(const PolicyHead&) = delete;
   PolicyHead& operator=(const PolicyHead&) = delete;
 
-  PolicyHead(const PolicyHeadDesc& desc, bool useFP16 = false)
+  PolicyHead(const PolicyHeadDesc& desc,
+             const MLXWinograd::InputTransform& inCfg,
+             const MLXWinograd::OutputUntransform& outCfg,
+             bool useFP16 = false)
     : name(desc.name),
       modelVersion(desc.modelVersion),
-      p1Conv(desc.p1Conv, useFP16),
-      g1Conv(desc.g1Conv, useFP16),
+      p1Conv(desc.p1Conv, inCfg, outCfg, useFP16),
+      g1Conv(desc.g1Conv, inCfg, outCfg, useFP16),
       g1BN(desc.g1BN, desc.g1Activation.activation, useFP16),
       gpoolToBiasMul(desc.gpoolToBiasMul, useFP16),
       p1BN(desc.p1BN, desc.p1Activation.activation, useFP16),
-      p2Conv(desc.p2Conv, useFP16),
+      p2Conv(desc.p2Conv, inCfg, outCfg, useFP16),
       gpoolToPassMul(desc.gpoolToPassMul, useFP16)
   {}
 
@@ -729,10 +792,13 @@ struct ValueHead {
   ValueHead(const ValueHead&) = delete;
   ValueHead& operator=(const ValueHead&) = delete;
 
-  ValueHead(const ValueHeadDesc& desc, bool useFP16 = false)
+  ValueHead(const ValueHeadDesc& desc,
+            const MLXWinograd::InputTransform& inCfg,
+            const MLXWinograd::OutputUntransform& outCfg,
+            bool useFP16 = false)
     : name(desc.name),
       modelVersion(desc.modelVersion),
-      v1Conv(desc.v1Conv, useFP16),
+      v1Conv(desc.v1Conv, inCfg, outCfg, useFP16),
       v1BN(desc.v1BN, desc.v1Activation.activation, useFP16),
       v2Mul(desc.v2Mul, useFP16),
       v2Bias(desc.v2Bias, useFP16),
@@ -741,7 +807,7 @@ struct ValueHead {
       v3Bias(desc.v3Bias, useFP16),
       sv3Mul(desc.sv3Mul, useFP16),
       sv3Bias(desc.sv3Bias, useFP16),
-      vOwnershipConv(desc.vOwnershipConv, useFP16)
+      vOwnershipConv(desc.vOwnershipConv, inCfg, outCfg, useFP16)
   {}
 
   std::tuple<mx::array, mx::array, mx::array> apply(
@@ -792,7 +858,7 @@ struct Model {
   Model(const Model&) = delete;
   Model& operator=(const Model&) = delete;
 
-  Model(const ModelDesc& desc, bool useFP16_ = false)
+  Model(const ModelDesc& desc, const MLXWinogradTuneParams& tuneParams, bool useFP16_ = false)
     : name(desc.name),
       modelVersion(desc.modelVersion),
       numInputChannels(desc.numInputChannels),
@@ -803,9 +869,9 @@ struct Model {
       numScoreValueChannels(desc.numScoreValueChannels),
       numOwnershipChannels(desc.numOwnershipChannels),
       useFP16(useFP16_),
-      trunk(desc.trunk, useFP16_),
-      policyHead(desc.policyHead, useFP16_),
-      valueHead(desc.valueHead, useFP16_)
+      trunk(desc.trunk, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_),
+      policyHead(desc.policyHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_),
+      valueHead(desc.valueHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_)
   {}
 
   // Apply model inference with mx::array inputs directly (for compiled execution)
@@ -995,6 +1061,8 @@ struct ComputeContext {
   const int nnXLen;
   const int nnYLen;
   const enabled_t useFP16Mode;
+  std::string homeDataDirOverride;
+  Logger* logger;
 
   std::mutex cachedModelsMutex;
   std::map<std::string, std::shared_ptr<const Model>> cachedModels;
@@ -1004,10 +1072,13 @@ struct ComputeContext {
   ComputeContext(const ComputeContext&) = delete;
   ComputeContext& operator=(const ComputeContext&) = delete;
 
-  ComputeContext(int nnX, int nnY, enabled_t fp16Mode)
+  ComputeContext(int nnX, int nnY, enabled_t fp16Mode,
+                 const std::string& homeDataDirOverride_, Logger* logger_)
     : nnXLen(nnX),
       nnYLen(nnY),
       useFP16Mode(fp16Mode),
+      homeDataDirOverride(homeDataDirOverride_),
+      logger(logger_),
       cachedModelsMutex(),
       cachedModels(),
       cachedModelsRefCount()
@@ -1038,7 +1109,8 @@ struct ComputeHandle {
   static std::string makeCacheKey(const LoadedModel& loadedModel, bool useFP16) {
     return loadedModel.modelDesc.name + "-" + loadedModel.modelDesc.sha256
       + (useFP16 ? "-fp16" : "-fp32")
-      + (mlxWinogradEnabled() ? "-wg" : "-nowg");
+      + (mlxWinogradEnabled() ? "-wg" : "-nowg")
+      + (mlxWinotunerEnabled() && !useFP16 ? "-tuned" : "-untuned");
   }
 
   ComputeHandle(ComputeContext* ctx, const LoadedModel& loadedModel, bool iNHWC, bool requireExactNNLen_, bool useFP16_)
@@ -1052,14 +1124,39 @@ struct ComputeHandle {
       compiledFuncsMutex(),
       compiledFuncs()
   {
-    {
-      std::lock_guard<std::mutex> lock(context->cachedModelsMutex);
-      if(context->cachedModels.find(modelCacheKey) == context->cachedModels.end()) {
-        context->cachedModels[modelCacheKey] = std::make_shared<const Model>(loadedModel.modelDesc, useFP16);
-      }
-      model = context->cachedModels[modelCacheKey];
-      context->cachedModelsRefCount[modelCacheKey] += 1;
+    // Determine tuner params: either run the autotuner, or use baked SP1 defaults.
+    MLXWinogradTuneParams tuneParams;
+    if(mlxWinogradEnabled() && mlxWinotunerEnabled() && !useFP16_) {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels   = loadedModel.modelDesc.trunk.trunkNumChannels;
+      mi.midNumChannels     = loadedModel.modelDesc.trunk.midNumChannels;
+      mi.maxConvChannels3x3 = std::max({
+          loadedModel.modelDesc.trunk.trunkNumChannels,
+          loadedModel.modelDesc.trunk.midNumChannels,
+          loadedModel.modelDesc.trunk.regularNumChannels,
+          loadedModel.modelDesc.trunk.gpoolNumChannels
+      });
+      mi.modelVersion = loadedModel.modelDesc.modelVersion;
+      tuneParams = MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/"",
+          context->homeDataDirOverride,
+          mlxGpuName(),
+          context->nnXLen, context->nnYLen,
+          /*batchSize=*/8,
+          mi,
+          context->logger,
+          /*full=*/mlxWinotunerFull(),
+          /*reTune=*/mlxWinotunerForce(),
+          /*seedOverride=*/nullptr);
     }
+
+    std::lock_guard<std::mutex> lock(context->cachedModelsMutex);
+    if(context->cachedModels.find(modelCacheKey) == context->cachedModels.end()) {
+      context->cachedModels[modelCacheKey] =
+          std::make_shared<const Model>(loadedModel.modelDesc, tuneParams, useFP16_);
+    }
+    model = context->cachedModels[modelCacheKey];
+    context->cachedModelsRefCount[modelCacheKey] += 1;
   }
 
   ~ComputeHandle() {
@@ -1184,9 +1281,7 @@ ComputeContext* NeuralNet::createComputeContext(
   const LoadedModel* loadedModel
 ) {
   (void)gpuIdxs;
-  (void)logger;
   (void)openCLTunerFile;
-  (void)homeDataDirOverride;
   (void)openCLReTunePerBoardSize;
   (void)loadedModel;
 
@@ -1195,7 +1290,7 @@ ComputeContext* NeuralNet::createComputeContext(
   if(!useNHWC)
     throw StringError("MLX backend: useNHWC = false not supported");
 
-  ComputeContext* context = new ComputeContext(nnXLen, nnYLen, useFP16Mode);
+  ComputeContext* context = new ComputeContext(nnXLen, nnYLen, useFP16Mode, homeDataDirOverride, logger);
   return context;
 }
 
@@ -1428,7 +1523,9 @@ bool NeuralNet::testEvaluateConv(
   size_t numOutputFloats = (size_t)batchSize * nnXLen * nnYLen * desc->outChannels;
   outputBuffer.resize(numOutputFloats);
 
-  ConvLayer layer(*desc, useFP16);
+  MLXWinograd::InputTransform   defaultInCfg;
+  MLXWinograd::OutputUntransform defaultOutCfg;
+  ConvLayer layer(*desc, defaultInCfg, defaultOutCfg, useFP16);
   mx::Shape inputShape = {batchSize, nnYLen, nnXLen, desc->inChannels};
   mx::array input = mx::array(inputBuffer.data(), inputShape, mx::float32);
   mx::array computeInput = toComputeDtype(input, useFP16);
@@ -1491,7 +1588,9 @@ bool NeuralNet::testEvaluateResidualBlock(
   size_t numOutputFloats = (size_t)batchSize * nnXLen * nnYLen * desc->preBN.numChannels;
   outputBuffer.resize(numOutputFloats);
 
-  ResidualBlock block(*desc, useFP16);
+  MLXWinograd::InputTransform   defaultInCfg;
+  MLXWinograd::OutputUntransform defaultOutCfg;
+  ResidualBlock block(*desc, defaultInCfg, defaultOutCfg, useFP16);
   mx::Shape inputShape = {batchSize, nnYLen, nnXLen, desc->preBN.numChannels};
   mx::Shape maskShape = {batchSize, nnYLen, nnXLen, 1};
   mx::array input = mx::array(inputBuffer.data(), inputShape, mx::float32);
@@ -1524,7 +1623,9 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
   size_t numOutputFloats = (size_t)batchSize * nnXLen * nnYLen * desc->preBN.numChannels;
   outputBuffer.resize(numOutputFloats);
 
-  GlobalPoolingResidualBlock block(*desc, useFP16);
+  MLXWinograd::InputTransform   defaultInCfg;
+  MLXWinograd::OutputUntransform defaultOutCfg;
+  GlobalPoolingResidualBlock block(*desc, defaultInCfg, defaultOutCfg, useFP16);
   mx::Shape inputShape = {batchSize, nnYLen, nnXLen, desc->preBN.numChannels};
   mx::Shape maskShape = {batchSize, nnYLen, nnXLen, 1};
   mx::array input = mx::array(inputBuffer.data(), inputShape, mx::float32);
