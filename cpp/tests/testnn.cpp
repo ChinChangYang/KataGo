@@ -1196,6 +1196,81 @@ void Tests::runMLXWinogradTests() {
     }
     cout << "  MLX Winograd VW bit-for-bit equivalence (1/2/4 fp16, Cfast) passed" << endl;
   }
+
+  // SP4 Task 5: GridOrder::Cfast and GridOrder::Tfast must produce
+  // bit-identical fp32 output. They differ only in which thread does which
+  // (c, tileIdx) pair; the on-disk layout is unchanged.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0xDEADu);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
+
+    std::vector<float> w_data((size_t)64*64*9);
+    for(auto& x : w_data) x = dist(rng);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+
+    auto runWith = [&](GridOrder go_in, GridOrder go_out) {
+      InputTransform    inC;  inC.gridOrder  = go_in;
+      OutputUntransform outC; outC.gridOrder = go_out;
+      mx::array out = winogradConv2d(inp, Uw, 64, inC, outC, false, MatmulOrient::Std);
+      mx::eval(out);
+      return out;
+    };
+
+    // Both stages Cfast (baseline).
+    mx::array out_cc = runWith(GridOrder::Cfast, GridOrder::Cfast);
+    // Both stages Tfast — kernels swap thread mapping, output must match.
+    mx::array out_tt = runWith(GridOrder::Tfast, GridOrder::Tfast);
+
+    const float* pcc = out_cc.data<float>();
+    const float* ptt = out_tt.data<float>();
+    size_t n = (size_t)2 * 19 * 19 * 64;
+    for(size_t i = 0; i < n; i++) {
+      testAssert(pcc[i] == ptt[i]);
+    }
+    std::cout << "  MLX Winograd Cfast vs Tfast bit-for-bit equivalence passed" << std::endl;
+  }
+
+  // SP4 Task 5 tail-guard coverage: Tfast with C=67 (not divisible by WPT=8).
+  // Last thread group has only 3 channels (67 % 8 = 3); the tail-guard
+  // `if (c >= C_k) break;` fires for the other 5 iterations.
+  // We verify Tfast still matches Cfast for this shape.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)1*19*19*67);
+    std::mt19937 rng(0xFEEDu);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp(in_data.data(), {1, 19, 19, 67}, mx::float32);
+
+    std::vector<float> w_data((size_t)67*67*9);
+    for(auto& x : w_data) x = dist(rng);
+    mx::array Uw = makeWinogradWeights(w_data, 67, 67, false, MatmulOrient::Std);
+
+    auto runWith = [&](GridOrder go, int wpt) {
+      InputTransform    inC;  inC.gridOrder  = go;  inC.wpt  = wpt;
+      OutputUntransform outC; outC.gridOrder = go;  outC.wpt = wpt;
+      mx::array out = winogradConv2d(inp, Uw, 67, inC, outC, false, MatmulOrient::Std);
+      mx::eval(out);
+      return out;
+    };
+
+    mx::array out_cfast = runWith(GridOrder::Cfast, 1);
+    mx::array out_tfast = runWith(GridOrder::Tfast, 8);  // Tfast with WPT=8, C=67 not divisible.
+
+    const float* pc = out_cfast.data<float>();
+    const float* pt = out_tfast.data<float>();
+    size_t n = (size_t)1 * 19 * 19 * 67;
+    for(size_t i = 0; i < n; i++) {
+      testAssert(pc[i] == pt[i]);
+    }
+    std::cout << "  MLX Winograd Tfast tail-guard coverage (C=67, WPT=8) passed" << std::endl;
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
@@ -1349,6 +1424,30 @@ void Tests::runMLXWinotunerTests() {
     bad_go.inputTransform.gridOrder = GridOrder::Tfast;
     // global is still Cfast — mismatch.
     testAssert(!bad_go.isValid());
+
+    // SP4 Task 5: Tfast (GRID_ORDER=1) requires VW=1.
+    // Build a valid Tfast baseline with all gridOrders set consistently.
+    MLXWinogradTuneParams ok_tfast;
+    ok_tfast.gridOrder                    = GridOrder::Tfast;
+    ok_tfast.inputTransform.gridOrder     = GridOrder::Tfast;
+    ok_tfast.outputUntransform.gridOrder  = GridOrder::Tfast;
+    testAssert(ok_tfast.isValid());
+
+    // VW=2 on input side is invalid for Tfast.
+    MLXWinogradTuneParams bad_tfast_vw = ok_tfast;
+    bad_tfast_vw.inputTransform.vw = 2;
+    testAssert(!bad_tfast_vw.isValid());
+
+    // VW=4 on output side is invalid for Tfast.
+    MLXWinogradTuneParams bad_tfast_vw2 = ok_tfast;
+    bad_tfast_vw2.outputUntransform.vw = 4;
+    testAssert(!bad_tfast_vw2.isValid());
+
+    // Tfast with VW=1 on both stages is valid.
+    MLXWinogradTuneParams ok_tfast_vw1 = ok_tfast;
+    ok_tfast_vw1.inputTransform.vw    = 1;
+    ok_tfast_vw1.outputUntransform.vw = 1;
+    testAssert(ok_tfast_vw1.isValid());
   }
 
   // ---- Measurement primitives return finite positive times ----

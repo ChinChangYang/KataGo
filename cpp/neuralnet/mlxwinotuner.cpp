@@ -69,6 +69,13 @@ bool MLXWinogradTuneParams::isValid() const {
   // Stage-shared invariant: both stages' gridOrder must match the global.
   if(inputTransform.gridOrder    != gridOrder) return false;
   if(outputUntransform.gridOrder != gridOrder) return false;
+  // SP4: Tfast (GRID_ORDER=1) requires VW=1 in the kernels. Reject any
+  // candidate that violates this — surfaces the constraint earlier than
+  // the Metal JIT static_assert.
+  if(gridOrder == MLXWinograd::GridOrder::Tfast) {
+    if(inputTransform.vw  != 1) return false;
+    if(outputUntransform.vw != 1) return false;
+  }
   return true;
 }
 
