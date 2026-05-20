@@ -920,6 +920,7 @@ void Tests::runNNLayerTests() {
   int64_t numTestsRun = 0;
   testConvLayer(numTestsRun);
   runMLXWinogradTests();
+  runMLXWinotunerTests();
   testBatchNormLayer(numTestsRun);
   testResidualBlock(numTestsRun);
   testGlobalPoolingResidualBlock(numTestsRun);
@@ -993,6 +994,61 @@ void Tests::runMLXWinogradTests() {
 }
 #else
 void Tests::runMLXWinogradTests() {}
+#endif
+
+#ifdef USE_MLX_BACKEND
+#include "../neuralnet/mlxwinotuner.h"
+
+void Tests::runMLXWinotunerTests() {
+  cout << "Running MLX Winograd tuner tests" << endl;
+
+  // ---- File round-trip ----
+  {
+    MLXWinogradTuneParams written;
+    written.inputTransform.tg0 = 64;
+    written.inputTransform.tg1 = 2;
+    written.outputUntransform.tg0 = 16;
+    written.outputUntransform.tg1 = 4;
+    testAssert(written.isValid());
+
+    std::string tmp = "/tmp/katago_mlx_winotuner_roundtrip.txt";
+    MLXWinogradTuneParams::save(tmp, written);
+    MLXWinogradTuneParams readBack = MLXWinogradTuneParams::load(tmp);
+
+    testAssert(readBack.inputTransform.tg0 == written.inputTransform.tg0);
+    testAssert(readBack.inputTransform.tg1 == written.inputTransform.tg1);
+    testAssert(readBack.outputUntransform.tg0 == written.outputUntransform.tg0);
+    testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
+  }
+
+  // ---- Corrupt-version rejection ----
+  {
+    std::string tmp = "/tmp/katago_mlx_winotuner_badversion.txt";
+    {
+      std::ofstream f(tmp);
+      f << "VERSION=999\n#inputTransform\ntg0=32 tg1=1\n#outputUntransform\ntg0=32 tg1=1\n";
+    }
+    bool threw = false;
+    try { (void)MLXWinogradTuneParams::load(tmp); }
+    catch(const IOError&) { threw = true; }
+    testAssert(threw);
+  }
+
+  // ---- isValid edges ----
+  {
+    MLXWinogradTuneParams a; testAssert(a.isValid());          // defaults
+    MLXWinogradTuneParams b; b.inputTransform.tg0 = 0;  testAssert(!b.isValid());
+    MLXWinogradTuneParams c; c.outputUntransform.tg1 = -1; testAssert(!c.isValid());
+    MLXWinogradTuneParams d; d.inputTransform.tg0 = 1024; d.inputTransform.tg1 = 2;
+    testAssert(!d.isValid()); // 2048 > 1024
+  }
+
+  cout << "MLX Winograd tuner tests passed" << endl;
+}
+#else
+void Tests::runMLXWinotunerTests() {
+  cout << "MLX backend not built; skipping MLX Winograd tuner tests" << endl;
+}
 #endif
 
 void Tests::runNNSymmetryTests() {
