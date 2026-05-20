@@ -1094,7 +1094,7 @@ struct ComputeHandle {
   bool inputsUseNHWC;
   bool requireExactNNLen;
   bool useFP16;
-  const std::string modelCacheKey;
+  std::string modelCacheKey;  // assigned in ctor body after loadOrAutoTune
   std::shared_ptr<const Model> model;
   const int modelVersion;
 
@@ -1106,11 +1106,16 @@ struct ComputeHandle {
   ComputeHandle(const ComputeHandle&) = delete;
   ComputeHandle& operator=(const ComputeHandle&) = delete;
 
-  static std::string makeCacheKey(const LoadedModel& loadedModel, bool useFP16) {
+  static std::string makeCacheKey(const LoadedModel& loadedModel,
+                                  const MLXWinogradTuneParams& tuneParams,
+                                  bool useFP16) {
     return loadedModel.modelDesc.name + "-" + loadedModel.modelDesc.sha256
       + (useFP16 ? "-fp16" : "-fp32")
       + (mlxWinogradEnabled() ? "-wg" : "-nowg")
-      + (mlxWinotunerEnabled() && !useFP16 ? "-tuned" : "-untuned");
+      + "-it" + std::to_string(tuneParams.inputTransform.tg0)
+      + "x"   + std::to_string(tuneParams.inputTransform.tg1)
+      + "-ou" + std::to_string(tuneParams.outputUntransform.tg0)
+      + "x"   + std::to_string(tuneParams.outputUntransform.tg1);
   }
 
   ComputeHandle(ComputeContext* ctx, const LoadedModel& loadedModel, bool iNHWC, bool requireExactNNLen_, bool useFP16_)
@@ -1118,7 +1123,7 @@ struct ComputeHandle {
       inputsUseNHWC(iNHWC),
       requireExactNNLen(requireExactNNLen_),
       useFP16(useFP16_),
-      modelCacheKey(makeCacheKey(loadedModel, useFP16_)),
+      modelCacheKey(),
       model(nullptr),
       modelVersion(loadedModel.modelDesc.modelVersion),
       compiledFuncsMutex(),
@@ -1149,6 +1154,8 @@ struct ComputeHandle {
           /*reTune=*/mlxWinotunerForce(),
           /*seedOverride=*/nullptr);
     }
+
+    modelCacheKey = makeCacheKey(loadedModel, tuneParams, useFP16_);
 
     std::lock_guard<std::mutex> lock(context->cachedModelsMutex);
     if(context->cachedModels.find(modelCacheKey) == context->cachedModels.end()) {
