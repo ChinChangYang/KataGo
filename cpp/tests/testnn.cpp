@@ -1061,6 +1061,90 @@ void Tests::runMLXWinogradTests() {
     testAssert(smokeMaxErr < 1e-4);
     cout << "  MLX Winograd kernel-plumbing smoke test passed (value maxErr=" << smokeMaxErr << ")" << endl;
   }
+
+  // SP4 Task 3: WPT=1, 4, 8 must produce bit-identical output (fp32).
+  // Realistic shape: N=2, H=W=19, C=64 -> Ntiles = 2*10*10 = 200.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)2*19*19*64);
+    std::mt19937 rng(0x1234u);
+    std::uniform_real_distribution<float> fdist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = fdist(rng);
+    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
+
+    std::vector<float> w_data((size_t)64*64*9, 1.0f);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+
+    auto runWith = [&](int wpt_in, int wpt_out) {
+      InputTransform    inCfg;  inCfg.wpt  = wpt_in;
+      OutputUntransform outCfg; outCfg.wpt = wpt_out;
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false, MatmulOrient::Std);
+      mx::eval(out);
+      return out;
+    };
+
+    // Vary input WPT, output stays at WPT=1.
+    mx::array out_w1   = runWith(1, 1);
+    mx::array out_w4   = runWith(4, 1);
+    mx::array out_w8   = runWith(8, 1);
+    // Vary output WPT, input stays at WPT=1.
+    mx::array out_ow4  = runWith(1, 4);
+    mx::array out_ow8  = runWith(1, 8);
+
+    // Compare bit-for-bit (no FP-ordering change — only thread loop unroll differs).
+    const float* p1   = out_w1.data<float>();
+    const float* p4   = out_w4.data<float>();
+    const float* p8   = out_w8.data<float>();
+    const float* po4  = out_ow4.data<float>();
+    const float* po8  = out_ow8.data<float>();
+    size_t n = (size_t)2 * 19 * 19 * 64;
+    for(size_t i = 0; i < n; i++) {
+      testAssert(p1[i] == p4[i]);
+      testAssert(p1[i] == p8[i]);
+      testAssert(p1[i] == po4[i]);
+      testAssert(p1[i] == po8[i]);
+    }
+    cout << "  MLX Winograd WPT bit-for-bit equivalence (1/4/8) passed" << endl;
+  }
+
+  // SP4 Task 3 tail-guard coverage: Ntiles=100 (N=1, H=W=19) is NOT
+  // divisible by WPT=8, so the last thread along the slow axis has
+  // tileIdx in {96..103}; iterations 100..103 must hit the break.
+  {
+    using namespace MLXWinograd;
+    namespace mx = mlx::core;
+    std::vector<float> in_data((size_t)1*19*19*64);
+    std::mt19937 rng(0xBEEFu);
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    for(auto& x : in_data) x = dist(rng);
+    mx::array inp(in_data.data(), {1, 19, 19, 64}, mx::float32);
+
+    std::vector<float> w_data((size_t)64*64*9, 1.0f);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+
+    auto runWith = [&](int wpt_in, int wpt_out) {
+      InputTransform    inCfg;  inCfg.wpt  = wpt_in;
+      OutputUntransform outCfg; outCfg.wpt = wpt_out;
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false, MatmulOrient::Std);
+      mx::eval(out);
+      return out;
+    };
+
+    mx::array out_w1   = runWith(1, 1);
+    mx::array out_w8in  = runWith(8, 1);  // input WPT=8 with Ntiles%WPT != 0
+    mx::array out_w8out = runWith(1, 8);  // output WPT=8 with Ntiles%WPT != 0
+
+    const float* p1   = out_w1.data<float>();
+    const float* p8i  = out_w8in.data<float>();
+    const float* p8o  = out_w8out.data<float>();
+    size_t n = (size_t)1 * 19 * 19 * 64;
+    for(size_t i = 0; i < n; i++) {
+      testAssert(p1[i] == p8i[i]);
+      testAssert(p1[i] == p8o[i]);
+    }
+    cout << "  MLX Winograd WPT tail-guard coverage (Ntiles=100, WPT=8) passed" << endl;
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
