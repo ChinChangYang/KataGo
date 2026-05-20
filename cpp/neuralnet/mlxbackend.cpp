@@ -1335,9 +1335,12 @@ ComputeHandle* NeuralNet::createComputeHandle(
   int gpuIdxForThisThread,
   int serverThreadIdx
 ) {
-  // Determine FP16 mode. Auto currently resolves to fp32; SP3 Task 8 will
-  // flip Auto -> fp16 after the acceptance gate (see spec §7).
-  bool useFP16 = (context->useFP16Mode == enabled_t::True);
+  // SP3: Auto resolves to fp16 (gated on acceptance: MLX-fp16 paired-t beat
+  // both Metal-fp16 and MLX-fp32 with non-overlapping CIs, and testgpuerror
+  // accuracy exit=0). Users who need bit-for-bit fp32 reproducibility set
+  // `mlxUseFP16 = false` explicitly. See the traceability commit for the
+  // exact gate numbers.
+  bool useFP16 = (context->useFP16Mode != enabled_t::False);
 
   if(logger != NULL) {
     logger->write("MLX backend thread " + Global::intToString(serverThreadIdx) + ": Model version " + Global::intToString(loadedModel->modelDesc.modelVersion));
