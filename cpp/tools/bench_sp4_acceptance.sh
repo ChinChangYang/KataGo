@@ -98,7 +98,7 @@ echo "SP4 acceptance summary"
 echo "  Arm A (SP4-MLX-fp16 - SP3-MLX-fp16) CI_lower = $CI_A   [$PASS_A]"
 echo "  Wall-time (cold-start tuner) = ${WT_SECS}s              [$PASS_WT]"
 echo "  Accuracy: testgpuerror exit = $ACC_EXIT                 [$PASS_ACC]"
-echo "  (thresholds baked into cpp/tests/testnnevalcanary.cpp checkStats99/checkStatsMax)"
+echo "  (testgpuerror's own internal thresholds — see cpp/command/testgpuerror.cpp)"
 echo "==========================================="
 
 if [[ "$PASS_A" == "PASS" && "$PASS_WT" == "PASS" && "$PASS_ACC" == "PASS" ]]; then

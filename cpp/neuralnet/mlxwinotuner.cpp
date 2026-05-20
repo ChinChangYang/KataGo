@@ -168,8 +168,6 @@ string MLXWinogradTuner::defaultFileName(const string& gpuName,
                            dtypeSuffix);
 }
 
-// MLXWinogradTuner::loadOrAutoTune is defined in Task 4 once the search loop exists.
-
 namespace mx = mlx::core;
 
 namespace {
@@ -486,9 +484,6 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
 } // namespace
 
 namespace {
-
-struct InputCandidate  { MLXWinograd::InputTransform   cfg; double scoreMs; };
-struct OutputCandidate { MLXWinograd::OutputUntransform cfg; double scoreMs; };
 
 static const std::vector<int>& inputTg0Values(bool full) {
   static const std::vector<int> v = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
