@@ -11,13 +11,22 @@ class Logger;
 struct MLXWinogradTuneParams {
   MLXWinograd::InputTransform    inputTransform;
   MLXWinograd::OutputUntransform outputUntransform;
+  MLXWinograd::GridOrder         gridOrder    = MLXWinograd::GridOrder::Cfast;
+  MLXWinograd::MatmulOrient      matmulOrient = MLXWinograd::MatmulOrient::Std;
 
-  // tg0 * tg1 <= 1024 (Metal threadgroup-thread cap) for both stages,
-  // and all values strictly positive.
+  // tg0 * tg1 <= 1024, all positive, gridOrder of both stages must match
+  // the global. vw must divide the fast-axis dim of the current model —
+  // that check happens at candidate-enumeration time, not here.
   bool isValid() const;
 
-  // Plain-text persistence mirroring OpenCLTuneParams::save/load:
-  // VERSION line at top, '#section' comments, 'KEY=VALUE KEY=VALUE' lines.
+  // VERSION=2 plain-text persistence. Format:
+  //   VERSION=2
+  //   #global
+  //   gridOrder=<0|1> matmulOrient=<0|1>
+  //   #inputTransform
+  //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
+  //   #outputUntransform
+  //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
   static void save(const std::string& filename, const MLXWinogradTuneParams& params);
   static MLXWinogradTuneParams load(const std::string& filename);
 };

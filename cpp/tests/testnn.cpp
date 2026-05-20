@@ -1061,6 +1061,64 @@ void Tests::runMLXWinotunerTests() {
     testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
   }
 
+  // ---- SP4 v2 round-trip: all 6 axes (wpt, vw, gridOrder, matmulOrient) ----
+  {
+    using namespace MLXWinograd;
+    MLXWinogradTuneParams p;
+    p.inputTransform.tg0         = 48;
+    p.inputTransform.tg1         = 10;
+    p.inputTransform.wpt         = 4;
+    p.inputTransform.vw          = 4;
+    p.inputTransform.gridOrder   = GridOrder::Cfast;
+    p.outputUntransform.tg0      = 32;
+    p.outputUntransform.tg1      = 8;
+    p.outputUntransform.wpt      = 2;
+    p.outputUntransform.vw       = 2;
+    p.outputUntransform.gridOrder = GridOrder::Cfast;
+    p.gridOrder                  = GridOrder::Cfast;
+    p.matmulOrient               = MatmulOrient::Std;
+
+    testAssert(p.isValid());
+    std::string tmp = "/tmp/mlxwino_sp4_roundtrip.txt";
+    MLXWinogradTuneParams::save(tmp, p);
+    MLXWinogradTuneParams loaded = MLXWinogradTuneParams::load(tmp);
+
+    testAssert(loaded.inputTransform.tg0         == 48);
+    testAssert(loaded.inputTransform.tg1         == 10);
+    testAssert(loaded.inputTransform.wpt         == 4);
+    testAssert(loaded.inputTransform.vw          == 4);
+    testAssert(loaded.inputTransform.gridOrder   == GridOrder::Cfast);
+    testAssert(loaded.outputUntransform.tg0      == 32);
+    testAssert(loaded.outputUntransform.tg1      == 8);
+    testAssert(loaded.outputUntransform.wpt      == 2);
+    testAssert(loaded.outputUntransform.vw       == 2);
+    testAssert(loaded.outputUntransform.gridOrder == GridOrder::Cfast);
+    testAssert(loaded.gridOrder                  == GridOrder::Cfast);
+    testAssert(loaded.matmulOrient               == MatmulOrient::Std);
+    std::remove(tmp.c_str());
+    cout << "  SP4 v2 roundtrip (all 6 axes) OK" << endl;
+
+    // Second roundtrip — exercises non-zero enum values to catch
+    // signed/cast errors in (int) <-> enum serialization.
+    {
+      MLXWinogradTuneParams p2;
+      p2.inputTransform    = InputTransform   {16, 4, 2, 1, GridOrder::Tfast};
+      p2.outputUntransform = OutputUntransform{16, 4, 2, 1, GridOrder::Tfast};
+      p2.gridOrder    = GridOrder::Tfast;
+      p2.matmulOrient = MatmulOrient::Tpd;
+      testAssert(p2.isValid());
+      std::string tmp2 = "/tmp/mlxwino_sp4_roundtrip_v2.txt";
+      MLXWinogradTuneParams::save(tmp2, p2);
+      MLXWinogradTuneParams loaded2 = MLXWinogradTuneParams::load(tmp2);
+      testAssert(loaded2.gridOrder    == GridOrder::Tfast);
+      testAssert(loaded2.matmulOrient == MatmulOrient::Tpd);
+      testAssert(loaded2.inputTransform.gridOrder    == GridOrder::Tfast);
+      testAssert(loaded2.outputUntransform.gridOrder == GridOrder::Tfast);
+      std::remove(tmp2.c_str());
+      cout << "  SP4 v2 roundtrip (non-zero enum values) OK" << endl;
+    }
+  }
+
   // SP3 Task 4: dtype-aware cache filenames must coexist in the same directory
   // without collision. Verify defaultFileName gains a _fp16/_fp32 suffix.
   {
@@ -1099,6 +1157,30 @@ void Tests::runMLXWinotunerTests() {
     testAssert(!d.isValid()); // 2048 > 1024
     MLXWinogradTuneParams e; e.inputTransform.tg0 = 1024; e.inputTransform.tg1 = 1;
     testAssert(e.isValid());  // exactly at boundary: 1024 == 1024
+  }
+
+  // ---- SP4-added isValid() invariants ----
+  {
+    using namespace MLXWinograd;
+    // Defaults are valid.
+    MLXWinogradTuneParams ok;
+    testAssert(ok.isValid());
+
+    // wpt < 1 is invalid.
+    MLXWinogradTuneParams bad_wpt = ok;
+    bad_wpt.inputTransform.wpt = 0;
+    testAssert(!bad_wpt.isValid());
+
+    // vw < 1 is invalid.
+    MLXWinogradTuneParams bad_vw = ok;
+    bad_vw.outputUntransform.vw = 0;
+    testAssert(!bad_vw.isValid());
+
+    // Per-stage gridOrder must match the global.
+    MLXWinogradTuneParams bad_go = ok;
+    bad_go.inputTransform.gridOrder = GridOrder::Tfast;
+    // global is still Cfast — mismatch.
+    testAssert(!bad_go.isValid());
   }
 
   // ---- Measurement primitives return finite positive times ----

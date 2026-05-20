@@ -23,7 +23,7 @@
 
 using namespace std;
 
-static const int MLX_WINO_TUNER_VERSION = 1;
+static const int MLX_WINO_TUNER_VERSION = 2;
 static const std::string MLX_WINO_TUNEPARAMS_VERSION_LINE =
     "VERSION=" + std::to_string(MLX_WINO_TUNER_VERSION);
 
@@ -64,6 +64,11 @@ bool MLXWinogradTuneParams::isValid() const {
   if(outputUntransform.tg0 <= 0 || outputUntransform.tg1 <= 0) return false;
   if(inputTransform.tg0 * inputTransform.tg1 > 1024) return false;
   if(outputUntransform.tg0 * outputUntransform.tg1 > 1024) return false;
+  if(inputTransform.wpt < 1 || outputUntransform.wpt < 1) return false;
+  if(inputTransform.vw  < 1 || outputUntransform.vw  < 1) return false;
+  // Stage-shared invariant: both stages' gridOrder must match the global.
+  if(inputTransform.gridOrder    != gridOrder) return false;
+  if(outputUntransform.gridOrder != gridOrder) return false;
   return true;
 }
 
@@ -71,12 +76,21 @@ void MLXWinogradTuneParams::save(const string& filename, const MLXWinogradTunePa
   ofstream out;
   FileUtils::open(out, filename);
   out << MLX_WINO_TUNEPARAMS_VERSION_LINE << "\n";
-  out << "#inputTransform" << "\n";
+  out << "#global\n";
+  out << "gridOrder=" << (int)params.gridOrder
+      << " matmulOrient=" << (int)params.matmulOrient << "\n";
+  out << "#inputTransform\n";
   out << "tg0=" << params.inputTransform.tg0
-      << " tg1=" << params.inputTransform.tg1 << "\n";
-  out << "#outputUntransform" << "\n";
+      << " tg1=" << params.inputTransform.tg1
+      << " wpt=" << params.inputTransform.wpt
+      << " vw="  << params.inputTransform.vw
+      << " gridOrder=" << (int)params.inputTransform.gridOrder << "\n";
+  out << "#outputUntransform\n";
   out << "tg0=" << params.outputUntransform.tg0
-      << " tg1=" << params.outputUntransform.tg1 << "\n";
+      << " tg1=" << params.outputUntransform.tg1
+      << " wpt=" << params.outputUntransform.wpt
+      << " vw="  << params.outputUntransform.vw
+      << " gridOrder=" << (int)params.outputUntransform.gridOrder << "\n";
   out.flush();
   out.close();
 }
@@ -94,19 +108,30 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
   if(lines[0] != MLX_WINO_TUNEPARAMS_VERSION_LINE)
     throw IOError("MLXWinogradTuneParams::load: expected first line to be "
                   + MLX_WINO_TUNEPARAMS_VERSION_LINE + " in " + filename);
-  if(lines.size() != 3)
-    throw IOError("MLXWinogradTuneParams::load: expected 3 non-comment lines in " + filename);
+  if(lines.size() != 4)
+    throw IOError("MLXWinogradTuneParams::load: expected 4 non-comment lines in " + filename);
 
   MLXWinogradTuneParams params;
   {
     map<string,int> kvs = parseKeyValueLine(filename, lines[1]);
-    params.inputTransform.tg0 = requireKey(kvs, "tg0", filename);
-    params.inputTransform.tg1 = requireKey(kvs, "tg1", filename);
+    params.gridOrder    = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
+    params.matmulOrient = (MLXWinograd::MatmulOrient)requireKey(kvs, "matmulOrient", filename);
   }
   {
     map<string,int> kvs = parseKeyValueLine(filename, lines[2]);
+    params.inputTransform.tg0 = requireKey(kvs, "tg0", filename);
+    params.inputTransform.tg1 = requireKey(kvs, "tg1", filename);
+    params.inputTransform.wpt = requireKey(kvs, "wpt", filename);
+    params.inputTransform.vw  = requireKey(kvs, "vw",  filename);
+    params.inputTransform.gridOrder = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
+  }
+  {
+    map<string,int> kvs = parseKeyValueLine(filename, lines[3]);
     params.outputUntransform.tg0 = requireKey(kvs, "tg0", filename);
     params.outputUntransform.tg1 = requireKey(kvs, "tg1", filename);
+    params.outputUntransform.wpt = requireKey(kvs, "wpt", filename);
+    params.outputUntransform.vw  = requireKey(kvs, "vw",  filename);
+    params.outputUntransform.gridOrder = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
   }
   return params;
 }
@@ -397,6 +422,7 @@ static std::vector<MLXWinograd::InputTransform> buildInputCandidates(bool full) 
   for(int tg0 : inputTg0Values(full))
     for(int tg1 : inputTg1Values(full))
       if(tg0 * tg1 <= 1024)
+        // TODO(SP4 Task 7): populate wpt, vw, gridOrder — current zero-init would fail isValid()
         out.push_back({tg0, tg1});
   return out;
 }
@@ -406,6 +432,7 @@ static std::vector<MLXWinograd::OutputUntransform> buildOutputCandidates(bool fu
   for(int tg0 : outputTg0Values(full))
     for(int tg1 : outputTg1Values(full))
       if(tg0 * tg1 <= 1024)
+        // TODO(SP4 Task 7): populate wpt, vw, gridOrder — current zero-init would fail isValid()
         out.push_back({tg0, tg1});
   return out;
 }

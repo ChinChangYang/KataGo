@@ -7,13 +7,26 @@
 
 namespace MLXWinograd {
 
-// Per-stage launch-geometry configs. SP2 tunes these via grid search;
-// defaults are the SP1 baked-in known-tuned fp32 values that the tuner must
-// rediscover. Each stage is searched independently (mirrors OpenCL's
-// tuneTransform / tuneUntransform split). vec/axis/tileSize were SP1 seams
-// that were never tuned and are removed (dead-code cleanup, not regression).
-struct InputTransform   { int tg0 = 32; int tg1 = 1; };
-struct OutputUntransform { int tg0 = 32; int tg1 = 1; };
+enum class GridOrder    : int { Cfast = 0, Tfast = 1 };
+enum class MatmulOrient : int { Std = 0, Tpd = 1 };
+
+// Per-stage launch-geometry configs. SP2 tunes (tg0, tg1); SP4 adds
+// (wpt, vw, gridOrder). The matmulOrient axis is global, not per-stage,
+// and lives on MLXWinogradTuneParams.
+struct InputTransform {
+  int tg0 = 32;
+  int tg1 = 1;
+  int wpt = 1;            // tiles per thread; {1, 2, 4, 8}
+  int vw  = 1;            // vector width; {1, 2, 4}
+  GridOrder gridOrder = GridOrder::Cfast;
+};
+struct OutputUntransform {
+  int tg0 = 32;
+  int tg1 = 1;
+  int wpt = 1;
+  int vw  = 1;
+  GridOrder gridOrder = GridOrder::Cfast;
+};
 
 // F(2,3) 1D transform matrices.
 inline constexpr float BT[4][4] = {
