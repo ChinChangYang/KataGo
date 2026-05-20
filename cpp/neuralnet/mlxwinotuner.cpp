@@ -132,10 +132,11 @@ string MLXWinogradTuner::defaultFileName(const string& gpuName,
 
 namespace mx = mlx::core;
 
+namespace {
+
 // One stage-1 (input transform) timed run on a synthetic [N,H,W,C] tensor.
 // Mirrors the inner-loop shape of winogradConv2d's stage 1, but issues only
 // the input-transform kernel so we can score it in isolation. Returns wall ms.
-[[maybe_unused]]
 static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
                                     const mx::array& input, int channels) {
   int N = input.shape(0);
@@ -150,6 +151,25 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
       /*input_names=*/{"inp"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoInputSource);
+
+  // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
+  // (cfg.tg0, cfg.tg1) before the timed eval. Defensive against any per-call
+  // JIT or runtime overhead.
+  {
+    auto warmOuts = fn(
+        /*inputs=*/{input},
+        /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
+        /*output_dtypes=*/{ mx::float32 },
+        /*grid=*/std::make_tuple(channels, Ntiles, 1),
+        /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+        /*template_args=*/{},
+        /*init_value=*/std::nullopt,
+        /*verbose=*/false,
+        /*stream=*/mx::StreamOrDevice{});
+    mx::eval(warmOuts[0]);
+  }
+
+  // Timed pass — build fresh lazy node and eval it.
   auto outs = fn(
       /*inputs=*/{input},
       /*output_shapes=*/{ mx::Shape{16, Ntiles, channels} },
@@ -160,7 +180,6 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
-
   auto t0 = std::chrono::steady_clock::now();
   mx::eval(outs[0]);
   auto t1 = std::chrono::steady_clock::now();
@@ -168,7 +187,6 @@ static double timeOneInputTransform(const MLXWinograd::InputTransform& cfg,
 }
 
 // Same shape for output untransform: synthetic [16, Ntiles, outC] -> [N,H,W,outC].
-[[maybe_unused]]
 static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
                                        const mx::array& m, int N, int H, int W, int outC) {
   int nhwc_arr[4] = {N, H, W, outC};
@@ -179,6 +197,25 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
       /*input_names=*/{"m", "nhwc"},
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoOutputSource);
+
+  // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
+  // (cfg.tg0, cfg.tg1) before the timed eval. Defensive against any per-call
+  // JIT or runtime overhead.
+  {
+    auto warmOuts = fn(
+        /*inputs=*/{m, nhwcArr},
+        /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
+        /*output_dtypes=*/{ mx::float32 },
+        /*grid=*/std::make_tuple(outC, m.shape(1), 1),
+        /*threadgroup=*/std::make_tuple(cfg.tg0, cfg.tg1, 1),
+        /*template_args=*/{},
+        /*init_value=*/std::nullopt,
+        /*verbose=*/false,
+        /*stream=*/mx::StreamOrDevice{});
+    mx::eval(warmOuts[0]);
+  }
+
+  // Timed pass — build fresh lazy node and eval it.
   auto outs = fn(
       /*inputs=*/{m, nhwcArr},
       /*output_shapes=*/{ mx::Shape{N, H, W, outC} },
@@ -189,7 +226,6 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
-
   auto t0 = std::chrono::steady_clock::now();
   mx::eval(outs[0]);
   auto t1 = std::chrono::steady_clock::now();
@@ -197,7 +233,6 @@ static double timeOneOutputUntransform(const MLXWinograd::OutputUntransform& cfg
 }
 
 // Random NHWC fp32 input tensor for the input-transform timing harness.
-[[maybe_unused]]
 static mx::array makeRandomInput(int N, int H, int W, int C, uint32_t seed) {
   std::vector<float> v((size_t)N * H * W * C);
   std::mt19937 rng(seed);
@@ -207,7 +242,6 @@ static mx::array makeRandomInput(int N, int H, int W, int C, uint32_t seed) {
 }
 
 // Random [16, Ntiles, outC] fp32 tensor for the output-untransform timing harness.
-[[maybe_unused]]
 static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed) {
   std::vector<float> v((size_t)16 * Ntiles * outC);
   std::mt19937 rng(seed);
@@ -219,7 +253,6 @@ static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed) {
 // Score one input-transform candidate. Mirrors OpenCL line 2172-2206:
 // 20 reps rotating across {trunk, mid, max} channel counts; rep 0 is warmup
 // with weight 0; remaining 19 reps weighted into a mean wall-clock time.
-[[maybe_unused]]
 static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
                                   int N, int H, int W,
                                   const MLXWinogradTuner::ModelInfoForTuning& mi) {
@@ -232,24 +265,27 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
   double totalMs = 0.0;
   double totalWeight = 0.0;
   for(int i = 0; i < reps; i++) {
-    int channels;
+    int slot;
     double weight;
     switch(i % 10) {
-      case 0: channels = mi.trunkNumChannels;     weight = 0; break; // warmup
-      case 1: channels = mi.trunkNumChannels;     weight = 1; break;
-      case 2: channels = mi.midNumChannels;       weight = 1; break;
-      case 3: channels = mi.maxConvChannels3x3;   weight = 1; break;
-      case 4: channels = mi.trunkNumChannels;     weight = 1; break;
-      case 5: channels = mi.midNumChannels;       weight = 1; break;
-      case 6: channels = mi.maxConvChannels3x3;   weight = 1; break;
-      case 7: channels = mi.trunkNumChannels;     weight = 1; break;
-      case 8: channels = mi.midNumChannels;       weight = 1; break;
-      case 9: channels = mi.maxConvChannels3x3;   weight = 1; break;
-      default: channels = mi.trunkNumChannels;    weight = 1; break;
+      case 0: slot = 0; weight = 0; break;
+      case 1: slot = 0; weight = 1; break;
+      case 2: slot = 1; weight = 1; break;
+      case 3: slot = 2; weight = 1; break;
+      case 4: slot = 0; weight = 1; break;
+      case 5: slot = 1; weight = 1; break;
+      case 6: slot = 2; weight = 1; break;
+      case 7: slot = 0; weight = 1; break;
+      case 8: slot = 1; weight = 1; break;
+      case 9: slot = 2; weight = 1; break;
+      default: ASSERT_UNREACHABLE; slot = 0; weight = 0; break;
     }
-    const mx::array& inp =
-      (channels == mi.trunkNumChannels) ? inTrunk :
-      (channels == mi.midNumChannels)   ? inMid   : inMax;
+    int channels = (slot == 0) ? mi.trunkNumChannels
+                 : (slot == 1) ? mi.midNumChannels
+                 :               mi.maxConvChannels3x3;
+    const mx::array& inp = (slot == 0) ? inTrunk
+                         : (slot == 1) ? inMid
+                         :               inMax;
     double ms = timeOneInputTransform(cfg, inp, channels);
     totalMs += ms * weight;
     totalWeight += weight;
@@ -258,7 +294,6 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
 }
 
 // Score one output-untransform candidate. Same rotation/warmup structure.
-[[maybe_unused]]
 static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
                                      int N, int H, int W,
                                      const MLXWinogradTuner::ModelInfoForTuning& mi) {
@@ -275,29 +310,34 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
   double totalMs = 0.0;
   double totalWeight = 0.0;
   for(int i = 0; i < reps; i++) {
-    int outC;
+    int slot;
     double weight;
     switch(i % 10) {
-      case 0: outC = mi.trunkNumChannels;     weight = 0; break;
-      case 1: outC = mi.trunkNumChannels;     weight = 1; break;
-      case 2: outC = mi.midNumChannels;       weight = 1; break;
-      case 3: outC = mi.maxConvChannels3x3;   weight = 1; break;
-      case 4: outC = mi.trunkNumChannels;     weight = 1; break;
-      case 5: outC = mi.midNumChannels;       weight = 1; break;
-      case 6: outC = mi.maxConvChannels3x3;   weight = 1; break;
-      case 7: outC = mi.trunkNumChannels;     weight = 1; break;
-      case 8: outC = mi.midNumChannels;       weight = 1; break;
-      case 9: outC = mi.maxConvChannels3x3;   weight = 1; break;
-      default: outC = mi.trunkNumChannels;    weight = 1; break;
+      case 0: slot = 0; weight = 0; break;
+      case 1: slot = 0; weight = 1; break;
+      case 2: slot = 1; weight = 1; break;
+      case 3: slot = 2; weight = 1; break;
+      case 4: slot = 0; weight = 1; break;
+      case 5: slot = 1; weight = 1; break;
+      case 6: slot = 2; weight = 1; break;
+      case 7: slot = 0; weight = 1; break;
+      case 8: slot = 1; weight = 1; break;
+      case 9: slot = 2; weight = 1; break;
+      default: ASSERT_UNREACHABLE; slot = 0; weight = 0; break;
     }
-    const mx::array& mIn =
-      (outC == mi.trunkNumChannels) ? mTrunk :
-      (outC == mi.midNumChannels)   ? mMid   : mMax;
+    int outC = (slot == 0) ? mi.trunkNumChannels
+             : (slot == 1) ? mi.midNumChannels
+             :               mi.maxConvChannels3x3;
+    const mx::array& mIn = (slot == 0) ? mTrunk
+                         : (slot == 1) ? mMid
+                         :               mMax;
     double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC);
     totalMs += ms * weight;
     totalWeight += weight;
   }
   return totalMs / totalWeight;
 }
+
+} // namespace
 
 #endif // USE_MLX_BACKEND
