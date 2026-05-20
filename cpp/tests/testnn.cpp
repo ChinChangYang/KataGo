@@ -1028,6 +1028,39 @@ void Tests::runMLXWinogradTests() {
 
   runMLXBatchNormFP16Test_SP3();
   runMLXConvLayerFP16WinogradTest_SP3();
+
+  // SP4 Task 2: smoke test — verify MatmulOrient::Std plumbing.
+  // Trivial 4x4x1 input, 1 output channel, all-ones filter.
+  {
+    namespace mxc = mlx::core;
+    std::vector<float> in_data(16, 1.0f);
+    mxc::array inp(in_data.data(), {1, 4, 4, 1}, mxc::float32);
+    std::vector<float> w_data(9, 1.0f);
+    auto Uw = MLXWinograd::makeWinogradWeights(w_data, /*Cout*/1, /*Cin*/1,
+                                               /*useFP16*/false,
+                                               MLXWinograd::MatmulOrient::Std);
+    MLXWinograd::InputTransform    inCfg;
+    MLXWinograd::OutputUntransform outCfg;
+    mxc::array out = MLXWinograd::winogradConv2d(inp, Uw, /*Cout*/1, inCfg, outCfg,
+                                                 /*useFP16*/false,
+                                                 MLXWinograd::MatmulOrient::Std);
+    mxc::eval(out);
+    testAssert(out.shape().size() == 4);
+    testAssert(out.shape(0) == 1);
+    testAssert(out.shape(1) == 4);
+    testAssert(out.shape(2) == 4);
+    testAssert(out.shape(3) == 1);
+    // Verify expected values for all-ones input × all-ones 3x3 filter (same padding).
+    // Uses cpuConv2d3x3 as the CPU reference to avoid hard-coding per-pixel expected values.
+    auto ref = MLXWinograd::cpuConv2d3x3(in_data, /*N*/1, /*H*/4, /*W*/4, /*Cin*/1,
+                                          w_data, /*Cout*/1);
+    const float* op = out.data<float>();
+    double smokeMaxErr = 0.0;
+    for(int idx = 0; idx < 16; idx++)
+      smokeMaxErr = std::max(smokeMaxErr, (double)std::fabs(op[idx] - ref[idx]));
+    testAssert(smokeMaxErr < 1e-4);
+    cout << "  MLX Winograd kernel-plumbing smoke test passed (value maxErr=" << smokeMaxErr << ")" << endl;
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}

@@ -204,7 +204,7 @@ struct ConvLayer {
                   && dilationY==1 && dilationX==1),
       weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
       winogradWeights(useWinograd
-        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_)
+        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_, MLXWinograd::MatmulOrient::Std)
         : mx::array(0.0f))
       ,winoInCfg(inCfg)
       ,winoOutCfg(outCfg)
@@ -212,7 +212,8 @@ struct ConvLayer {
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
-      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16);
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16,
+                                         MLXWinograd::MatmulOrient::Std);
     }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)
