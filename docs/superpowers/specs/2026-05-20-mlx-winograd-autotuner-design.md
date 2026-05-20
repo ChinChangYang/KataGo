@@ -235,12 +235,31 @@ no-cfg-plumbing pattern):
 
 `Tests::runMLXWinotunerTests()`, called from `runnnlayertests`:
 
-1. **Search-converges test (per stage):** seed `currentConfig` at a
-   deliberately-bad value — input `{tg0=1, tg1=32}`, output `{tg0=1, tg1=32}` —
-   run each stage's grid search, assert the winner's measured weighted-mean
-   time is within **5 %** of `{tg0=32, tg1=1}`'s measured weighted-mean time for
-   that stage. (The 5 % band allows for ties — multiple configs may be
-   equivalently fast within noise.)
+1. **Search-works test (per stage)** — verifies the search actually runs and
+   picks well, not that it "converges" (exhaustive grid doesn't converge — it
+   visits every candidate regardless of seed). The grid already contains
+   `{tg0=32, tg1=1}` by construction, so a single assertion against the optimum's
+   time would be satisfiable by a broken search that only times the baseline.
+   Two independent assertions instead:
+
+   a. **Beats the bad seed by ≥ 2×.** Seed `currentConfig` at the deliberately
+      bad `{tg0=1, tg1=32}` for each stage; run the grid search; independently
+      measure `time({tg0=1, tg1=32})` outside the tuner (so the assertion
+      doesn't depend on the tuner's own measurement plumbing being correct);
+      independently measure `time(tunerResult)` the same way. Assert
+      `time(tunerResult) ≤ 0.5 × time({tg0=1, tg1=32})`. This fails if the
+      search returns `currentConfig` unchanged (the most common kind of broken
+      search loop — silent compile/validity errors, dropped candidates, etc.).
+
+   b. **Within 5 % of the known optimum.** Independently measure
+      `time({tg0=32, tg1=1})`. Assert `time(tunerResult) ≤ 1.05 ×
+      time({tg0=32, tg1=1})`. This fails if the search picks a random
+      mid-grid config rather than the fastest. The 5 % band allows for ties
+      and run-to-run noise.
+
+   Both assertions must hold per stage. A broken-only-times-baseline search
+   fails (a); a broken-picks-random search fails (b); only a correct search
+   passes both.
 2. **File round-trip test:** instantiate `MLXWinogradTuneParams` with non-default
    values, `save(tmpfile)`, `load(tmpfile)`, assert exact field equality. Then
    write a corrupted `VERSION=999` file and assert `load` throws `IOError`.
