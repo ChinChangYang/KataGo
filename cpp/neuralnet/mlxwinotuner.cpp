@@ -7,6 +7,7 @@
 #include <cmath>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <map>
 #include <string>
@@ -937,6 +938,89 @@ timeOneEndToEnd(const MLXWinograd::InputTransform& inCfg,
   }
   std::sort(reps.begin(), reps.end());
   return reps[kReps / 2];  // median
+}
+
+// Flat sweep over (tg0, tg1, wpt, vw, gridOrder) for the input transform.
+// Replaces SP4's Joint-A/B/refine cascade. Returns the best (lowest-time)
+// candidate that passes isInputCandidateValid; nullopt if no candidate is
+// valid (defensive -- should not happen for a real model).
+[[maybe_unused]] static std::optional<MLXWinograd::InputTransform>
+flatSweepInput(int N, int H, int W,
+               const MLXWinogradTuner::ModelInfoForTuning& mi,
+               bool useFP16, bool full, Logger* logger) {
+  using GO = MLXWinograd::GridOrder;
+  const int C  = mi.maxConvChannels3x3;
+  const int tilesY = (H + 1) / 2;
+  const int tilesX = (W + 1) / 2;
+  const int Ntiles = N * tilesY * tilesX;
+
+  std::optional<MLXWinograd::InputTransform> best;
+  double bestTime = std::numeric_limits<double>::infinity();
+  int considered = 0, valid = 0;
+
+  for(GO go : {GO::Cfast, GO::Tfast}) {
+    auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(full, C, Ntiles, go);
+    for(const auto& cand : cands) {
+      considered++;
+      if(!isInputCandidateValid(cand.tg0, cand.tg1, cand.wpt, cand.vw, cand.gridOrder, C, Ntiles)) continue;
+      valid++;
+      double t = scoreInputTransform(cand, N, H, W, mi, useFP16);
+      if(t < bestTime) { bestTime = t; best = cand; }
+    }
+  }
+  if(logger) {
+    logger->write("MLX tuner flatSweepInput: considered=" + std::to_string(considered)
+                  + " valid=" + std::to_string(valid)
+                  + (best
+                     ? " best=tg0=" + std::to_string(best->tg0)
+                       + " tg1=" + std::to_string(best->tg1)
+                       + " wpt=" + std::to_string(best->wpt)
+                       + " vw="  + std::to_string(best->vw)
+                       + " gridOrder=" + std::to_string((int)best->gridOrder)
+                       + " time_ms=" + Global::strprintf("%.3f", bestTime)
+                     : " best=none"));
+  }
+  return best;
+}
+
+// Flat sweep over (tg0, tg1, wpt) for the output untransform. Output VW
+// and gridOrder are not searched in SP5 (kernel will hardcode them in
+// Tasks 3-4).
+[[maybe_unused]] static std::optional<MLXWinograd::OutputUntransform>
+flatSweepOutput(int N, int H, int W,
+                const MLXWinogradTuner::ModelInfoForTuning& mi,
+                bool useFP16, bool full, Logger* logger) {
+  using GO = MLXWinograd::GridOrder;
+  const int outC = mi.midNumChannels;  // output untransform reads from matmul output
+  const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
+
+  std::optional<MLXWinograd::OutputUntransform> best;
+  double bestTime = std::numeric_limits<double>::infinity();
+  int considered = 0, valid = 0;
+
+  // Iterate only Cfast (Task 4 will drop the output gridOrder axis entirely).
+  // We pin gridOrder=Cfast and vw=1 here to match the post-SP5 kernel monomorph.
+  auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles, GO::Cfast);
+  for(auto cand : cands) {
+    cand.vw = 1;
+    cand.gridOrder = GO::Cfast;
+    considered++;
+    if(!isOutputCandidateValid(cand.tg0, cand.tg1, cand.wpt, cand.vw, cand.gridOrder, outC, Ntiles)) continue;
+    valid++;
+    double t = scoreOutputUntransform(cand, N, H, W, mi, useFP16);
+    if(t < bestTime) { bestTime = t; best = cand; }
+  }
+  if(logger) {
+    logger->write("MLX tuner flatSweepOutput: considered=" + std::to_string(considered)
+                  + " valid=" + std::to_string(valid)
+                  + (best
+                     ? " best=tg0=" + std::to_string(best->tg0)
+                       + " tg1=" + std::to_string(best->tg1)
+                       + " wpt=" + std::to_string(best->wpt)
+                       + " time_ms=" + Global::strprintf("%.3f", bestTime)
+                     : " best=none"));
+  }
+  return best;
 }
 
 } // namespace
