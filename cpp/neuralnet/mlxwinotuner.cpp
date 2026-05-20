@@ -712,6 +712,110 @@ jointPassB_Output(const std::vector<WptVwScore>& topWptVw,
   return jointPassB_collect(topWptVw, buildCands, scoreFn, defaultCand, "out", logger);
 }
 
+// Refinement: coordinate-descent around the Joint-Pass-B winner. For each
+// axis (tg0, tg1, wpt, vw), sweep all values holding others fixed and
+// accept the swap if it improves time. One pass per axis (no iteration).
+// Skips invalid configs via the model-aware validity filter.
+static MLXWinograd::InputTransform
+refineInput(MLXWinograd::InputTransform winner,
+            int N, int H, int W,
+            const MLXWinogradTuner::ModelInfoForTuning& mi,
+            bool full, bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  double bestMs;
+  try {
+    bestMs = scoreInputTransform(winner, N, H, W, mi, useFP16);
+  } catch(const std::exception&) {
+    // Winner itself failed — leave it as-is; refinement can't help.
+    bestMs = std::numeric_limits<double>::infinity();
+  }
+  if(logger) logger->write(Global::strprintf(
+      "  refine inp baseline tg0=%d tg1=%d wpt=%d vw=%d  meanMs=%.4f",
+      winner.tg0, winner.tg1, winner.wpt, winner.vw, bestMs));
+
+  auto trySwap = [&](MLXWinograd::InputTransform cand, const char* axis) {
+    if(!isInputCandidateValid(cand.tg0, cand.tg1, cand.wpt, cand.vw,
+                              cand.gridOrder, mi.trunkNumChannels, Ntiles))
+      return;
+    double ms;
+    try { ms = scoreInputTransform(cand, N, H, W, mi, useFP16); }
+    catch(const std::exception& e) {
+      if(logger) logger->write(Global::strprintf(
+        "  refine inp [%s] tg0=%d tg1=%d wpt=%d vw=%d FAILED: %s",
+        axis, cand.tg0, cand.tg1, cand.wpt, cand.vw, e.what()));
+      return;
+    }
+    if(logger) logger->write(Global::strprintf(
+      "  refine inp [%s] tg0=%d tg1=%d wpt=%d vw=%d  meanMs=%.4f",
+      axis, cand.tg0, cand.tg1, cand.wpt, cand.vw, ms));
+    if(ms < bestMs) { bestMs = ms; winner = cand; }
+  };
+
+  for(int tg0 : inputTg0Values(full)) if(tg0 != winner.tg0) {
+    auto cand = winner; cand.tg0 = tg0; trySwap(cand, "tg0");
+  }
+  for(int tg1 : inputTg1Values(full)) if(tg1 != winner.tg1) {
+    auto cand = winner; cand.tg1 = tg1; trySwap(cand, "tg1");
+  }
+  for(int wpt : wptValues()) if(wpt != winner.wpt) {
+    auto cand = winner; cand.wpt = wpt; trySwap(cand, "wpt");
+  }
+  for(int vw : vwValues()) if(vw != winner.vw) {
+    auto cand = winner; cand.vw = vw; trySwap(cand, "vw");
+  }
+  return winner;
+}
+
+// Same shape for output.
+static MLXWinograd::OutputUntransform
+refineOutput(MLXWinograd::OutputUntransform winner,
+             int N, int H, int W,
+             const MLXWinogradTuner::ModelInfoForTuning& mi,
+             bool full, bool useFP16, Logger* logger) {
+  int Ntiles = N * ((H+1)/2) * ((W+1)/2);
+  double bestMs;
+  try {
+    bestMs = scoreOutputUntransform(winner, N, H, W, mi, useFP16);
+  } catch(const std::exception&) {
+    bestMs = std::numeric_limits<double>::infinity();
+  }
+  if(logger) logger->write(Global::strprintf(
+      "  refine out baseline tg0=%d tg1=%d wpt=%d vw=%d  meanMs=%.4f",
+      winner.tg0, winner.tg1, winner.wpt, winner.vw, bestMs));
+
+  auto trySwap = [&](MLXWinograd::OutputUntransform cand, const char* axis) {
+    if(!isOutputCandidateValid(cand.tg0, cand.tg1, cand.wpt, cand.vw,
+                               cand.gridOrder, mi.trunkNumChannels, Ntiles))
+      return;
+    double ms;
+    try { ms = scoreOutputUntransform(cand, N, H, W, mi, useFP16); }
+    catch(const std::exception& e) {
+      if(logger) logger->write(Global::strprintf(
+        "  refine out [%s] tg0=%d tg1=%d wpt=%d vw=%d FAILED: %s",
+        axis, cand.tg0, cand.tg1, cand.wpt, cand.vw, e.what()));
+      return;
+    }
+    if(logger) logger->write(Global::strprintf(
+      "  refine out [%s] tg0=%d tg1=%d wpt=%d vw=%d  meanMs=%.4f",
+      axis, cand.tg0, cand.tg1, cand.wpt, cand.vw, ms));
+    if(ms < bestMs) { bestMs = ms; winner = cand; }
+  };
+
+  for(int tg0 : outputTg0Values(full)) if(tg0 != winner.tg0) {
+    auto cand = winner; cand.tg0 = tg0; trySwap(cand, "tg0");
+  }
+  for(int tg1 : outputTg1Values(full)) if(tg1 != winner.tg1) {
+    auto cand = winner; cand.tg1 = tg1; trySwap(cand, "tg1");
+  }
+  for(int wpt : wptValues()) if(wpt != winner.wpt) {
+    auto cand = winner; cand.wpt = wpt; trySwap(cand, "wpt");
+  }
+  for(int vw : vwValues()) if(vw != winner.vw) {
+    auto cand = winner; cand.vw = vw; trySwap(cand, "vw");
+  }
+  return winner;
+}
+
 } // namespace
 
 static MLXWinograd::InputTransform searchInputTransform(
