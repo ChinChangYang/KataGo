@@ -561,6 +561,8 @@ flatSweepInput(int N, int H, int W,
     std::string deltaStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
+      // %+.1f always emits a sign; the gated log-format test regex relies on
+      // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
     } else {
       deltaStr = "nan";
@@ -612,6 +614,8 @@ flatSweepOutput(int N, int H, int W,
     std::string deltaStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
+      // %+.1f always emits a sign; the gated log-format test regex relies on
+      // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
     } else {
       deltaStr = "nan";
@@ -1008,6 +1012,11 @@ void runMLXWinotunerTests() {
     // opt into the SP5 Task 10 sweep cost also get this check. Note
     // this runs an INDEPENDENT loadOrAutoTune sweep — total cost when
     // the gate is set is roughly 2x the pre-Task-3 cost.
+    //
+    // Coverage scope: input stage only. flatSweepOutput's baseline_ms
+    // is format-checked by Test 1 but not consistency-checked here.
+    // The output kernel uses a different scoring function and default
+    // struct (OutputUntransform{}); a symmetric check is deferred.
     const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
