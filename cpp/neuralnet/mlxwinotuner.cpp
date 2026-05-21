@@ -992,6 +992,74 @@ void runMLXWinotunerTests() {
     }
   }
 
+  {
+    // Baseline anchor — Test 2: baseline-consistency gated check.
+    // Asserts that the baseline_ms value printed by flatSweepInput
+    // matches an independent re-score of the default-constructed
+    // InputTransform within a 25% relative-error budget.
+    //
+    // parsedBaseline is a single 20-rep weighted mean (one call into
+    // scoreInputTransform). minOf3 is the min of three such weighted
+    // means — systematically biased slightly low relative to a single
+    // mean due to selection bias (~5-10% on this hardware), on top of
+    // the ~10% per-sample noise floor. The 25% budget covers both.
+    //
+    // Reuses the KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST gate so users who
+    // opt into the SP5 Task 10 sweep cost also get this check. Note
+    // this runs an INDEPENDENT loadOrAutoTune sweep — total cost when
+    // the gate is set is roughly 2x the pre-Task-3 cost.
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      std::string tmpTunerFile = "/tmp/baseline_anchor_consistency.txt";
+      std::remove(tmpTunerFile.c_str());
+
+      std::ostringstream captured;
+      Logger logger(nullptr, /*logToStdoutDefault=*/false,
+                    /*logToStderrDefault=*/false, /*logTimeDefault=*/false,
+                    /*logConfigContents=*/false);
+      logger.addOStream(captured);
+
+      (void)MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/tmpTunerFile,
+          /*homeDataDirOverride=*/"",
+          /*gpuName=*/"AppleSilicon",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/1,
+          mi,
+          /*logger=*/&logger,
+          /*full=*/false,
+          /*reTune=*/true,
+          /*useFP16=*/true);
+
+      const std::string log = captured.str();
+      std::smatch m;
+      std::regex baselineRe(R"(flatSweepInput:[^\n]*baseline_ms=([0-9]+\.[0-9]+))");
+      testAssert(std::regex_search(log, m, baselineRe));
+      const double parsedBaseline = std::stod(m[1].str());
+
+      double minOf3 = std::numeric_limits<double>::infinity();
+      for(int rep = 0; rep < 3; rep++) {
+        double t = MLXWinogradTuner::scoreInputTransformForTesting(
+            MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+        if(t < minOf3) minOf3 = t;
+      }
+
+      const double relErr = std::abs(parsedBaseline - minOf3) / minOf3;
+      testAssert(relErr < 0.25);
+      std::cout << "  baseline-consistency (gated) OK"
+                << " parsed=" << parsedBaseline
+                << " minOf3=" << minOf3
+                << " relErr=" << relErr << std::endl;
+
+      std::remove(tmpTunerFile.c_str());
+    }
+  }
+
   cout << "MLX Winograd tuner tests passed" << endl;
 }
 
