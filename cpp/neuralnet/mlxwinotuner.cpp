@@ -722,8 +722,7 @@ flatSweepInput(int N, int H, int W,
   using GO = MLXWinograd::GridOrder;
   // Candidate enumeration's vw-divisibility filter uses C as the most
   // restrictive channel count the kernel will encounter. Use the max of the
-  // model's actual 3x3 input distribution; equivalent to the old
-  // maxConvChannels3x3 for typical models.
+  // model's actual 3x3 input channel distribution.
   int C = 0;
   for(const auto& [ch, n] : mi.conv3x3InputHistogram) C = std::max(C, ch);
   assert(C > 0);
@@ -1050,12 +1049,12 @@ MLXWinogradTuner::buildConv3x3Histograms(const ModelDesc& modelDesc) {
 }
 
 std::string MLXWinogradTuner::formatConv3x3Distribution(const ModelDesc& modelDesc) {
-  // Refactored to share the walker/filter with the tuner; previously
-  // built the histograms inline. Walk-once semantics at the call site
-  // (mlxbackend.cpp) — that file calls buildConv3x3Histograms once and
-  // passes the result to both the tuner and (optionally) the line
-  // formatter. This wrapper remains for tests and any caller that only
-  // wants the formatted line.
+  // Convenience wrapper for callers that want the formatted line directly
+  // from a ModelDesc. The histogram is built here and (separately) again by
+  // mlxbackend.cpp for the tuner's ModelInfoForTuning — two walks per model
+  // load. This is acceptable because model load happens once per process;
+  // a single-walk refactor would tangle the mlxbackend call site without
+  // measurable savings.
   auto [inVec, outVec] = MLXWinogradTuner::buildConv3x3Histograms(modelDesc);
   std::map<int,int> inMap(inVec.begin(), inVec.end());
   std::map<int,int> outMap(outVec.begin(), outVec.end());
@@ -1417,8 +1416,6 @@ void runMLXWinotunerTests() {
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels    = 64;
-      mi.midNumChannels      = 64;
-      mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
       // Synthetic single-shape histogram for the toy C=64 test model.
       mi.conv3x3InputHistogram  = {{64, 1}};
@@ -1477,8 +1474,6 @@ void runMLXWinotunerTests() {
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels    = 64;
-      mi.midNumChannels      = 64;
-      mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
       // Synthetic single-shape histogram for the toy C=64 test model.
       mi.conv3x3InputHistogram  = {{64, 1}};
@@ -1552,8 +1547,6 @@ void runMLXWinotunerTests() {
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels    = 64;
-      mi.midNumChannels      = 64;
-      mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
       // Synthetic single-shape histogram for the toy C=64 test model.
       mi.conv3x3InputHistogram  = {{64, 1}};
@@ -1604,15 +1597,15 @@ void runMLXWinotunerTests() {
   }
 
   {
-    // Per-slot numeric consistency — Test 2 from the shape-diagnostic spec.
-    // Asserts the trunk_ms value printed by flatSweepInput is in the same
-    // ballpark as an independent reference measurement of the default
-    // InputTransform{} on the same trunk slot.
+    // Per-shape numeric consistency — Test 2 from the shape-diagnostic spec.
+    // Asserts the dominant-shape median printed by flatSweepInput
+    // (shape_ms=c<C>:<ms>) is in the same ballpark as an independent
+    // reference measurement of the default InputTransform{} on that shape.
     //
-    // IMPORTANT — cross-config comparison: parsedTrunkMs is measured by
+    // IMPORTANT — cross-config comparison: parsedDominantMs is measured by
     // flatSweepInput on the WINNER configuration (whatever the sweep
     // selected). minOf3 is computed on the DEFAULT InputTransform{} via
-    // three independent scoreInputTransformPerSlotForTesting calls. These
+    // three independent scoreInputTransformPerShapeForTesting calls. These
     // are not the same config, so the relative-error budget is necessarily
     // loose. The budget covers:
     //   - winner-vs-default speed gap (sweep can find configs 10-40%
@@ -1628,15 +1621,13 @@ void runMLXWinotunerTests() {
     // KATAGO_MLX_WINOTUNER_RUN_LOG_FORMAT_TEST) but not consistency-
     // checked here — symmetric output check is deferred.
     //
-    // Gate is new (KATAGO_MLX_WINOTUNER_RUN_PER_SLOT_TEST) and separate
+    // Gate is new (KATAGO_MLX_WINOTUNER_RUN_PER_SHAPE_TEST) and separate
     // from the baseline-anchor gate above; this test runs an additional
     // tuner sweep.
-    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_PER_SLOT_TEST");
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_PER_SHAPE_TEST");
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels    = 64;
-      mi.midNumChannels      = 64;
-      mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
       // Synthetic single-shape histogram for the toy C=64 test model.
       mi.conv3x3InputHistogram  = {{64, 1}};
@@ -1666,7 +1657,7 @@ void runMLXWinotunerTests() {
       std::smatch m;
       std::regex trunkRe(R"(flatSweepInput:[^\n]*shape_ms=c[0-9]+:([0-9]+\.[0-9]+))");
       testAssert(std::regex_search(log, m, trunkRe));
-      const double parsedTrunkMs = std::stod(m[1].str());
+      const double parsedDominantMs = std::stod(m[1].str());
 
       // Per-shape consistency: parse the dominant shape's median from
       // the flatSweepInput log line (which used scoreInputTransformPerShape
@@ -1687,12 +1678,12 @@ void runMLXWinotunerTests() {
       // dominant (index 0) per-shape median across the 3 runs.
       double minOf3 = std::min({r1[0].second, r2[0].second, r3[0].second});
 
-      const double relErr = std::abs(parsedTrunkMs - minOf3) / minOf3;
+      const double relErr = std::abs(parsedDominantMs - minOf3) / minOf3;
       // 50% budget — see comment block above for rationale on the loose
       // bound (cross-config comparison + selection bias + noise).
       testAssert(relErr < 0.50);
-      std::cout << "  per-slot trunk consistency (gated) OK"
-                << " parsed=" << parsedTrunkMs
+      std::cout << "  per-shape dominant consistency (gated) OK"
+                << " parsed=" << parsedDominantMs
                 << " minOf3=" << minOf3
                 << " relErr=" << relErr << std::endl;
 
@@ -1711,8 +1702,6 @@ void runMLXWinotunerTests() {
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels    = 64;
-      mi.midNumChannels      = 64;
-      mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
       // Synthetic single-shape histogram for the toy C=64 test model.
       mi.conv3x3InputHistogram  = {{64, 1}};

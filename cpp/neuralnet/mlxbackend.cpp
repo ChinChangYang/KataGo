@@ -1200,18 +1200,7 @@ struct ComputeHandle {
       }
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels   = loadedModel.modelDesc.trunk.trunkNumChannels;
-      mi.midNumChannels     = loadedModel.modelDesc.trunk.midNumChannels;
-      mi.maxConvChannels3x3 = std::max({
-          loadedModel.modelDesc.trunk.trunkNumChannels,
-          loadedModel.modelDesc.trunk.midNumChannels,
-          loadedModel.modelDesc.trunk.regularNumChannels,
-          loadedModel.modelDesc.trunk.gpoolNumChannels
-      });
-      mi.modelVersion = loadedModel.modelDesc.modelVersion;
-      // Adaptive-scoring inputs: compute the 3x3 conv distribution once at
-      // load time and pass it to the tuner. Task 5 will remove the
-      // mid/maxConvChannels3x3 assignments above once scoring no longer
-      // reads them.
+      mi.modelVersion       = loadedModel.modelDesc.modelVersion;
       auto [inHist, outHist] =
           MLXWinogradTuner::buildConv3x3Histograms(loadedModel.modelDesc);
       mi.conv3x3InputHistogram  = std::move(inHist);

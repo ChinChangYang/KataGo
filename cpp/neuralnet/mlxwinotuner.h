@@ -35,14 +35,8 @@ struct MLXWinogradTuneParams {
 
 namespace MLXWinogradTuner {
   struct ModelInfoForTuning {
-    int trunkNumChannels;
-    int midNumChannels;
-    int maxConvChannels3x3;
-    int modelVersion;
-    // Adaptive-scoring inputs (spec §ModelInfoForTuning Final Form). Both
-    // fields are (channel_count, occurrence_count) lists for 3x3 convs of
-    // the loaded model; populated by mlxbackend.cpp at load time via
-    // buildConv3x3Histograms. Unsorted; planShapeRotation owns selection.
+    int trunkNumChannels;   // cache file key
+    int modelVersion;       // cache file key
     std::vector<std::pair<int,int>> conv3x3InputHistogram;
     std::vector<std::pair<int,int>> conv3x3OutputHistogram;
   };
