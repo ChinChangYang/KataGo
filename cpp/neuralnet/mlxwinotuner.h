@@ -18,14 +18,12 @@ struct MLXWinogradTuneParams {
   // that check happens at candidate-enumeration time, not here.
   bool isValid() const;
 
-  // VERSION=2 plain-text persistence. Format:
-  //   VERSION=2
+  // VERSION=3 plain-text persistence. Format:
+  //   VERSION=3
   //   #inputTransform
   //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
   //   #outputUntransform
   //   tg0=<int> tg1=<int> wpt=<int>
-  // (SP5 Tasks 3-6 done: output vw, gridOrder, matmulOrient, and the global
-  //  gridOrder section are all dropped; v3 schema bump pending in Task 7.)
   static void save(const std::string& filename, const MLXWinogradTuneParams& params);
   static MLXWinogradTuneParams load(const std::string& filename);
 };

@@ -26,7 +26,7 @@
 
 using namespace std;
 
-static const int MLX_WINO_TUNER_VERSION = 2;
+static const int MLX_WINO_TUNER_VERSION = 3;
 static const std::string MLX_WINO_TUNEPARAMS_VERSION_LINE =
     "VERSION=" + std::to_string(MLX_WINO_TUNER_VERSION);
 
