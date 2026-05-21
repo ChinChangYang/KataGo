@@ -1157,7 +1157,6 @@ struct ComputeHandle {
       + "-ou" + std::to_string(tuneParams.outputUntransform.tg0)
       + "x"   + std::to_string(tuneParams.outputUntransform.tg1)
       + "x"   + std::to_string(tuneParams.outputUntransform.wpt)
-      + "g"   + std::to_string((int)tuneParams.outputUntransform.gridOrder)
       + "-or" + std::to_string((int)tuneParams.matmulOrient)
       + "-go" + std::to_string((int)tuneParams.gridOrder);
   }

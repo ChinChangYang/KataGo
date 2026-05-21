@@ -69,9 +69,9 @@ bool MLXWinogradTuneParams::isValid() const {
   if(outputUntransform.tg0 * outputUntransform.tg1 > 1024) return false;
   if(inputTransform.wpt < 1 || outputUntransform.wpt < 1) return false;
   if(inputTransform.vw  < 1) return false;
-  // Stage-shared invariant: both stages' gridOrder must match the global.
+  // Stage-shared invariant: input gridOrder must match the global. Output
+  // gridOrder is gone after SP5 Task 4 (output kernel is Cfast monomorphic).
   if(inputTransform.gridOrder    != gridOrder) return false;
-  if(outputUntransform.gridOrder != gridOrder) return false;
   // SP4: Tfast (GRID_ORDER=1) requires VW=1 in the kernels. Reject any
   // input candidate that violates this — surfaces the constraint earlier
   // than the Metal JIT static_assert. (SP5 Task 3: output VW is gone.)
@@ -97,8 +97,7 @@ void MLXWinogradTuneParams::save(const string& filename, const MLXWinogradTunePa
   out << "#outputUntransform\n";
   out << "tg0=" << params.outputUntransform.tg0
       << " tg1=" << params.outputUntransform.tg1
-      << " wpt=" << params.outputUntransform.wpt
-      << " gridOrder=" << (int)params.outputUntransform.gridOrder << "\n";
+      << " wpt=" << params.outputUntransform.wpt << "\n";
   out.flush();
   out.close();
 }
@@ -138,7 +137,6 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
     params.outputUntransform.tg0 = requireKey(kvs, "tg0", filename);
     params.outputUntransform.tg1 = requireKey(kvs, "tg1", filename);
     params.outputUntransform.wpt = requireKey(kvs, "wpt", filename);
-    params.outputUntransform.gridOrder = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
   }
   return params;
 }
@@ -280,12 +278,12 @@ static double timeOneOutputUntransform(
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
   // Kernel name encodes all axes the output kernel still depends on so the
-  // Metal JIT cache sees a unique entry per (dtype, wpt, gridOrder, matmulOrient)
-  // combination. matmulOrient=Std. (SP5 Task 3: VW dropped from output kernel.)
+  // Metal JIT cache sees a unique entry per (dtype, wpt, matmulOrient)
+  // combination. matmulOrient=Std. (SP5 Task 3: VW dropped from output kernel.
+  // SP5 Task 4: GRID_ORDER dropped — output kernel is Cfast-only.)
   std::string kernelName =
       std::string(useFP16 ? "wino_output_untransform_f16" : "wino_output_untransform_f32")
       + "_w" + std::to_string(cfg.wpt)
-      + "_g" + std::to_string((int)cfg.gridOrder)
       + "_o0"   // matmulOrient=Std (0) — matches makeRandomMatmulOut layout
       + "_tune";
 
@@ -295,19 +293,13 @@ static double timeOneOutputUntransform(
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoOutputSource);
 
-  // Grid depends on gridOrder: Cfast → (outC, ceil(Ntiles/wpt), 1),
-  //                             Tfast → (Ntiles, ceil(outC/wpt), 1).
-  int gridX = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
-      ? outC
-      : Ntiles;
-  int gridY = (cfg.gridOrder == MLXWinograd::GridOrder::Cfast)
-      ? ((Ntiles + cfg.wpt - 1) / cfg.wpt)
-      : ((outC  + cfg.wpt - 1) / cfg.wpt);
+  // Cfast-only grid: (outC, ceil(Ntiles/wpt), 1).
+  int gridX = outC;
+  int gridY = (Ntiles + cfg.wpt - 1) / cfg.wpt;
 
   std::vector<std::pair<std::string, mx::fast::TemplateArg>> tmplArgs = {
     {"T",             dtype},
     {"WPT",           cfg.wpt},
-    {"GRID_ORDER",    (int)cfg.gridOrder},
     {"MATMUL_ORIENT", 0}   // Std — matches makeRandomMatmulOut layout
   };
 
@@ -514,8 +506,8 @@ static bool isInputCandidateValid(int tg0, int tg1, int wpt, int vw,
 }
 // SP5 Task 3: output kernel is VW=1 monomorphic — no vw parameter, no
 // vw-divisibility check on outC.
+// SP5 Task 4: output kernel is Cfast monomorphic — no gridOrder parameter.
 static bool isOutputCandidateValid(int tg0, int tg1, int wpt,
-                                   MLXWinograd::GridOrder /*go*/,
                                    int /*outC*/, int /*Ntiles*/) {
   if(tg0 <= 0 || tg1 <= 0 || wpt <= 0) return false;
   if(tg0 * tg1 > 1024) return false;
@@ -535,13 +527,13 @@ buildInputCandidates(bool full, int C, int Ntiles, MLXWinograd::GridOrder go) {
   return out;
 }
 static std::vector<MLXWinograd::OutputUntransform>
-buildOutputCandidates(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go) {
+buildOutputCandidates(bool full, int outC, int Ntiles) {
   std::vector<MLXWinograd::OutputUntransform> out;
   for(int tg0 : outputTg0Values(full))
   for(int tg1 : outputTg1Values(full))
   for(int wpt : wptValues()) {
-    if(!isOutputCandidateValid(tg0, tg1, wpt, go, outC, Ntiles)) continue;
-    out.push_back({tg0, tg1, wpt, go});
+    if(!isOutputCandidateValid(tg0, tg1, wpt, outC, Ntiles)) continue;
+    out.push_back({tg0, tg1, wpt});
   }
   return out;
 }
@@ -564,12 +556,12 @@ flatSweepInput(int N, int H, int W,
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
 
-  // Task 2 transitional: pin input gridOrder to Cfast because the output stage
-  // also pins Cfast (its gridOrder field is deleted in Task 4) and isValid()
-  // requires both stages' gridOrder to match the global. Task 4 will delete
-  // the global gridOrder consistency check and restore the {Cfast, Tfast}
-  // iteration here, so the input gridOrder axis ends up searched again.
-  for(GO go : {GO::Cfast}) {
+  // SP5 Task 4: the output gridOrder check in isValid() is gone (output kernel
+  // is Cfast-monomorphic), so the input gridOrder axis can again be searched
+  // over both Cfast and Tfast. The global ↔ input gridOrder consistency check
+  // is satisfied later by `result.gridOrder = bestIn->gridOrder` in
+  // loadOrAutoTune.
+  for(GO go : {GO::Cfast, GO::Tfast}) {
     auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(full, C, Ntiles, go);
     for(const auto& cand : cands) {
       considered++;
@@ -592,13 +584,12 @@ flatSweepInput(int N, int H, int W,
 }
 
 // Flat sweep over (tg0, tg1, wpt) for the output untransform. Output VW
-// and gridOrder are not searched in SP5 (kernel will hardcode them in
-// Tasks 3-4).
+// and gridOrder are not searched: the kernel is monomorphic on VW=1 (SP5
+// Task 3) and Cfast (SP5 Task 4).
 static std::optional<MLXWinograd::OutputUntransform>
 flatSweepOutput(int N, int H, int W,
                 const MLXWinogradTuner::ModelInfoForTuning& mi,
                 bool useFP16, bool full, Logger* logger) {
-  using GO = MLXWinograd::GridOrder;
   const int outC = mi.midNumChannels;  // output untransform reads from matmul output
   const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
@@ -606,9 +597,9 @@ flatSweepOutput(int N, int H, int W,
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
 
-  // Iterate only Cfast (Task 4 will drop the output gridOrder axis entirely).
-  // The output kernel is VW=1 monomorphic (SP5 Task 3) so VW is not searched.
-  auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles, GO::Cfast);
+  // Output kernel is VW=1 monomorphic (SP5 Task 3) and Cfast monomorphic
+  // (SP5 Task 4), so neither VW nor gridOrder is searched here.
+  auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles);
   for(auto cand : cands) {
     considered++;
     double t = scoreOutputUntransform(cand, N, H, W, mi, useFP16);
@@ -699,8 +690,8 @@ MLXWinogradTuner::buildInputCandidatesForTesting(bool full, int C, int Ntiles, M
   return buildInputCandidates(full, C, Ntiles, go);
 }
 std::vector<MLXWinograd::OutputUntransform>
-MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go) {
-  return buildOutputCandidates(full, outC, Ntiles, go);
+MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntiles) {
+  return buildOutputCandidates(full, outC, Ntiles);
 }
 
 double MLXWinogradTuner::scoreInputTransformForTesting(

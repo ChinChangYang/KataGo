@@ -24,7 +24,6 @@ struct OutputUntransform {
   int tg0 = 32;
   int tg1 = 1;
   int wpt = 1;
-  GridOrder gridOrder = GridOrder::Cfast;
 };
 
 // F(2,3) 1D transform matrices.
@@ -318,14 +317,13 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
 //   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
-//   GRID_ORDER     — 0=Cfast (Cout is fast axis), 1=Tfast (Ntiles fast) (Task 5+)
 //   MATMUL_ORIENT  — 0=Std, 1=Tpd (Task 6+; controls input layout)
-// Grid:
-//   Cfast: (Cout, ceil(Ntiles/WPT), 1)
-//   Tfast: (Ntiles, ceil(Cout/WPT), 1)
+// Grid (Cfast-only after SP5 Task 4): (Cout, ceil(Ntiles/WPT), 1)
 // nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
 // exposes *_shape for inputs, not outputs.
 // SP5 Task 3: VW template arg dropped — output kernel is monomorphic on VW=1.
+// SP5 Task 4: GRID_ORDER template arg dropped — output kernel is monomorphic
+// on Cfast (empirical sensitivity sweep showed <1% delta).
 inline constexpr const char* kWinoOutputSource = R"METAL(
     static_assert(WPT >= 1, "WPT must be positive");
 
@@ -338,69 +336,21 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
     int tilesY_k = (H_k + 1) / 2;
     int tilesX_k = (W_k + 1) / 2;
 
-    if (GRID_ORDER == 0) {
-      // Cfast: grid x = Cout, grid y = ceil(Ntiles/WPT).
-      uint oc_group = thread_position_in_grid.x;
-      uint t_group  = thread_position_in_grid.y;
+    // Cfast: grid x = Cout, grid y = ceil(Ntiles/WPT).
+    uint oc_group = thread_position_in_grid.x;
+    uint t_group  = thread_position_in_grid.y;
 
-      for (int w = 0; w < WPT; w++) {
-        int tileIdx = (int)t_group * WPT + w;
-        if (tileIdx >= Ntiles_k) break;
-
-        int rem = tileIdx;
-        int n   = rem / (tilesY_k * tilesX_k); rem -= n * tilesY_k * tilesX_k;
-        int ty  = rem / tilesX_k;
-        int tx  = rem % tilesX_k;
-
-        {
-          int oc = (int)oc_group;
-          if (oc >= outC_k) break;
-
-          T mm[4][4];
-          for (int r = 0; r < 4; r++) {
-            for (int c2 = 0; c2 < 4; c2++) {
-              int p = r * 4 + c2;
-              mm[r][c2] = (MATMUL_ORIENT == 0)
-                ? m[(p * Ntiles_k + tileIdx) * outC_k + oc]
-                : m[(p * outC_k   + oc)      * Ntiles_k + tileIdx];
-            }
-          }
-          T tmp[2][4];
-          for (int c2 = 0; c2 < 4; c2++) {
-            T v0 = mm[0][c2], v1 = mm[1][c2], v2 = mm[2][c2], v3 = mm[3][c2];
-            tmp[0][c2] = v0 + v1 + v2;
-            tmp[1][c2] = v1 - v2 - v3;
-          }
-          for (int a = 0; a < 2; a++) {
-            T u0 = tmp[a][0], u1 = tmp[a][1], u2 = tmp[a][2], u3 = tmp[a][3];
-            T Y0 = u0 + u1 + u2;
-            T Y1 = u1 - u2 - u3;
-            int oy0 = 2 * ty + a;
-            if (oy0 < H_k) {
-              int ox0 = 2 * tx + 0;
-              if (ox0 < W_k)
-                outp[((n * H_k + oy0) * W_k + ox0) * outC_k + oc] = Y0;
-              int ox1 = 2 * tx + 1;
-              if (ox1 < W_k)
-                outp[((n * H_k + oy0) * W_k + ox1) * outC_k + oc] = Y1;
-            }
-          }
-        }
-      }
-    } else {
-      // Tfast: grid x = Ntiles, grid y = ceil(Cout/WPT).
-      uint t_group_  = thread_position_in_grid.x;
-      uint oc_group_ = thread_position_in_grid.y;
-      int tileIdx = (int)t_group_;
-      if (tileIdx >= Ntiles_k) return;
+    for (int w = 0; w < WPT; w++) {
+      int tileIdx = (int)t_group * WPT + w;
+      if (tileIdx >= Ntiles_k) break;
 
       int rem = tileIdx;
       int n   = rem / (tilesY_k * tilesX_k); rem -= n * tilesY_k * tilesX_k;
       int ty  = rem / tilesX_k;
       int tx  = rem % tilesX_k;
 
-      for (int w = 0; w < WPT; w++) {
-        int oc = (int)oc_group_ * WPT + w;
+      {
+        int oc = (int)oc_group;
         if (oc >= outC_k) break;
 
         T mm[4][4];
@@ -460,15 +410,15 @@ inline mx::array winogradConv2d(const mx::array& input,
          + "_g" + std::to_string((int)go)
          + "_o" + std::to_string((int)matmulOrient);
   };
-  // Output kernel is monomorphic on VW=1 (SP5 Task 3); drop the _v fragment.
-  auto outSuffix = [&](const char* base, int wpt, GridOrder go) {
+  // Output kernel is monomorphic on VW=1 (SP5 Task 3) and on GRID_ORDER=Cfast
+  // (SP5 Task 4); drop the _v and _g fragments.
+  auto outSuffix = [&](const char* base, int wpt) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
          + "_w" + std::to_string(wpt)
-         + "_g" + std::to_string((int)go)
          + "_o" + std::to_string((int)matmulOrient);
   };
   std::string inName  = inSuffix ("wino_input_transform",    inCfg.wpt,  inCfg.vw,  inCfg.gridOrder);
-  std::string outName = outSuffix("wino_output_untransform", outCfg.wpt,            outCfg.gridOrder);
+  std::string outName = outSuffix("wino_output_untransform", outCfg.wpt);
 
   auto makeInTemplateArgs = [&](int wpt, int vw, GridOrder go) {
     return std::vector<std::pair<std::string, mx::fast::TemplateArg>>{
@@ -479,11 +429,10 @@ inline mx::array winogradConv2d(const mx::array& input,
       {"MATMUL_ORIENT", (int)matmulOrient}
     };
   };
-  auto makeOutTemplateArgs = [&](int wpt, GridOrder go) {
+  auto makeOutTemplateArgs = [&](int wpt) {
     return std::vector<std::pair<std::string, mx::fast::TemplateArg>>{
       {"T",             dtype},
       {"WPT",           wpt},
-      {"GRID_ORDER",    (int)go},
       {"MATMUL_ORIENT", (int)matmulOrient}
     };
   };
@@ -532,15 +481,12 @@ inline mx::array winogradConv2d(const mx::array& input,
     : mx::matmul(Uw, t);
 
   // Stage 3: output untransform -> [N, H, W, Cout]
-  // Grid x = Cout (Cfast) or Ntiles (Tfast). Output kernel is VW=1 monomorphic.
+  // Output kernel is VW=1 monomorphic (SP5 Task 3) and Cfast monomorphic
+  // (SP5 Task 4). Grid x = Cout, grid y = ceil(Ntiles / WPT).
   int nhwc_arr[4] = {N, H, W, Cout};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
-  int gridX_out = (outCfg.gridOrder == GridOrder::Cfast)
-    ? Cout
-    : Ntiles;
-  int gridY_out = (outCfg.gridOrder == GridOrder::Cfast)
-    ? ((Ntiles + outCfg.wpt - 1) / outCfg.wpt)
-    : ((Cout   + outCfg.wpt - 1) / outCfg.wpt);
+  int gridX_out = Cout;
+  int gridY_out = (Ntiles + outCfg.wpt - 1) / outCfg.wpt;
 
   auto outFn = mx::fast::metal_kernel(
       outName.c_str(),
@@ -553,7 +499,7 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(gridX_out, gridY_out, 1),
       /*threadgroup=*/std::make_tuple(outCfg.tg0, outCfg.tg1, 1),
-      /*template_args=*/makeOutTemplateArgs(outCfg.wpt, outCfg.gridOrder),
+      /*template_args=*/makeOutTemplateArgs(outCfg.wpt),
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});

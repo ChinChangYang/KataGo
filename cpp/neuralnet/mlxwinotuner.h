@@ -14,8 +14,9 @@ struct MLXWinogradTuneParams {
   MLXWinograd::GridOrder         gridOrder    = MLXWinograd::GridOrder::Cfast;
   MLXWinograd::MatmulOrient      matmulOrient = MLXWinograd::MatmulOrient::Std;
 
-  // tg0 * tg1 <= 1024, all positive, gridOrder of both stages must match
-  // the global. vw must divide the fast-axis dim of the current model —
+  // tg0 * tg1 <= 1024, all positive, input gridOrder must match the global
+  // (output kernel is Cfast-monomorphic after SP5 Task 4).
+  // vw must divide the fast-axis dim of the current model —
   // that check happens at candidate-enumeration time, not here.
   bool isValid() const;
 
@@ -26,8 +27,9 @@ struct MLXWinogradTuneParams {
   //   #inputTransform
   //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
   //   #outputUntransform
-  //   tg0=<int> tg1=<int> wpt=<int> gridOrder=<0|1>
-  // (SP5 Task 3 drops output vw; v3 bump comes in Task 7.)
+  //   tg0=<int> tg1=<int> wpt=<int>
+  // (SP5 Tasks 3-4 done: output vw and gridOrder dropped;
+  //  v3 schema bump pending in Task 7.)
   static void save(const std::string& filename, const MLXWinogradTuneParams& params);
   static MLXWinogradTuneParams load(const std::string& filename);
 };
@@ -70,7 +72,7 @@ namespace MLXWinogradTuner {
   std::vector<MLXWinograd::InputTransform>
   buildInputCandidatesForTesting(bool full, int C, int Ntiles, MLXWinograd::GridOrder go);
   std::vector<MLXWinograd::OutputUntransform>
-  buildOutputCandidatesForTesting(bool full, int outC, int Ntiles, MLXWinograd::GridOrder go);
+  buildOutputCandidatesForTesting(bool full, int outC, int Ntiles);
 
   // Test-only — exposes the per-stage scoring primitives so tests can compare
   // configs apples-to-apples without depending on the full tuner measurement path.
