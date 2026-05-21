@@ -3,6 +3,7 @@
 
 #ifdef USE_MLX_BACKEND
 
+#include <array>
 #include <string>
 #include "../neuralnet/mlxwinograd.h"
 
@@ -75,6 +76,22 @@ namespace MLXWinogradTuner {
                                        const ModelInfoForTuning& mi,
                                        bool useFP16);
   double scoreOutputUntransformForTesting(const MLXWinograd::OutputUntransform& cfg,
+                                          int N, int H, int W,
+                                          const ModelInfoForTuning& mi,
+                                          bool useFP16);
+
+  // Test-only — per-slot median scoring primitives. Same 20-rep rotation
+  // as scoreInputTransformForTesting / scoreOutputUntransformForTesting,
+  // but reports median-of-6 reps per slot ({trunk, mid, max} in that
+  // index order) instead of a single weighted mean. Used by the
+  // diagnostic log fields and the gated per-slot consistency test.
+  std::array<double,3>
+  scoreInputTransformPerSlotForTesting(const MLXWinograd::InputTransform& cfg,
+                                       int N, int H, int W,
+                                       const ModelInfoForTuning& mi,
+                                       bool useFP16);
+  std::array<double,3>
+  scoreOutputUntransformPerSlotForTesting(const MLXWinograd::OutputUntransform& cfg,
                                           int N, int H, int W,
                                           const ModelInfoForTuning& mi,
                                           bool useFP16);

@@ -432,6 +432,133 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
   return totalMs / totalWeight;
 }
 
+// Per-slot timing breakdown for diagnostic logging. Same 20-rep rotation
+// as scoreInputTransform but reports median-of-6 reps per slot (no
+// weighting). Robust to per-call jitter; used to compare against the
+// sweep's weighted-mean estimator in the flat-sweep log lines.
+struct PerSlotTimes { double trunkMs; double midMs; double maxMs; };
+
+// 6-element median: upper of two middle values (index 3 of sorted 0..5).
+// Deterministic; avoids float averaging. std::nth_element partially sorts
+// in O(n).
+static double medianOf6(std::array<double,6> a) {
+  std::nth_element(a.begin(), a.begin() + 3, a.end());
+  return a[3];
+}
+
+static PerSlotTimes scoreInputTransformPerSlot(
+    const MLXWinograd::InputTransform& cfg,
+    int N, int H, int W,
+    const MLXWinogradTuner::ModelInfoForTuning& mi,
+    bool useFP16) {
+  mx::array inTrunk = makeRandomInput(N, H, W, mi.trunkNumChannels,    0xA1A1A1A1u, useFP16);
+  mx::array inMid   = makeRandomInput(N, H, W, mi.midNumChannels,      0xB2B2B2B2u, useFP16);
+  mx::array inMax   = makeRandomInput(N, H, W, mi.maxConvChannels3x3,  0xC3C3C3C3u, useFP16);
+  mx::eval(inTrunk); mx::eval(inMid); mx::eval(inMax);
+
+  std::array<double,6> trunkReps{}, midReps{}, maxReps{};
+  int trunkIdx = 0, midIdx = 0, maxIdx = 0;
+
+  const int reps = 20;
+  for(int i = 0; i < reps; i++) {
+    if(i % 10 == 0) {
+      // Warmup — measure but discard (matches scoreInputTransform's weight=0 rep).
+      (void)timeOneInputTransform(cfg, inTrunk, mi.trunkNumChannels, useFP16);
+      continue;
+    }
+    int slot;
+    switch(i % 10) {
+      case 1: case 4: case 7: slot = 0; break;
+      case 2: case 5: case 8: slot = 1; break;
+      case 3: case 6: case 9: slot = 2; break;
+      default: ASSERT_UNREACHABLE; slot = 0; break;
+    }
+    int channels = (slot == 0) ? mi.trunkNumChannels
+                 : (slot == 1) ? mi.midNumChannels
+                 :               mi.maxConvChannels3x3;
+    const mx::array& inp = (slot == 0) ? inTrunk
+                         : (slot == 1) ? inMid
+                         :               inMax;
+    double ms = timeOneInputTransform(cfg, inp, channels, useFP16);
+    if(slot == 0)      trunkReps[trunkIdx++] = ms;
+    else if(slot == 1) midReps[midIdx++]     = ms;
+    else               maxReps[maxIdx++]     = ms;
+  }
+
+  // Postcondition: the rep schedule (reps=20, two warmups, 3-per-decade
+  // slot rotation) must produce exactly 6 writes per slot, matching the
+  // std::array<double,6> capacity. Asserting this here catches a silent
+  // out-of-bounds write if reps is ever changed without resizing.
+  assert(trunkIdx == 6 && midIdx == 6 && maxIdx == 6);
+
+  // Defensive: if a slot's median is non-finite (e.g. an aborted measurement
+  // producing NaN), clamp to 0 so %.3f doesn't emit "nan" and break the
+  // log-format regex consumers downstream.
+  auto clamp = [](double x) { return std::isfinite(x) ? x : 0.0; };
+  return PerSlotTimes{
+    clamp(medianOf6(trunkReps)),
+    clamp(medianOf6(midReps)),
+    clamp(medianOf6(maxReps))
+  };
+}
+
+// Symmetric for output untransform — same rotation, median-of-6 per slot.
+static PerSlotTimes scoreOutputUntransformPerSlot(
+    const MLXWinograd::OutputUntransform& cfg,
+    int N, int H, int W,
+    const MLXWinogradTuner::ModelInfoForTuning& mi,
+    bool useFP16) {
+  int tilesY = (H + 1) / 2;
+  int tilesX = (W + 1) / 2;
+  int Ntiles = N * tilesY * tilesX;
+
+  mx::array mTrunk = makeRandomMatmulOut(Ntiles, mi.trunkNumChannels,    0xD4D4D4D4u, useFP16);
+  mx::array mMid   = makeRandomMatmulOut(Ntiles, mi.midNumChannels,      0xE5E5E5E5u, useFP16);
+  mx::array mMax   = makeRandomMatmulOut(Ntiles, mi.maxConvChannels3x3,  0xF6F6F6F6u, useFP16);
+  mx::eval(mTrunk); mx::eval(mMid); mx::eval(mMax);
+
+  std::array<double,6> trunkReps{}, midReps{}, maxReps{};
+  int trunkIdx = 0, midIdx = 0, maxIdx = 0;
+
+  const int reps = 20;
+  for(int i = 0; i < reps; i++) {
+    if(i % 10 == 0) {
+      (void)timeOneOutputUntransform(cfg, mTrunk, N, H, W, mi.trunkNumChannels, useFP16);
+      continue;
+    }
+    int slot;
+    switch(i % 10) {
+      case 1: case 4: case 7: slot = 0; break;
+      case 2: case 5: case 8: slot = 1; break;
+      case 3: case 6: case 9: slot = 2; break;
+      default: ASSERT_UNREACHABLE; slot = 0; break;
+    }
+    int outC = (slot == 0) ? mi.trunkNumChannels
+             : (slot == 1) ? mi.midNumChannels
+             :               mi.maxConvChannels3x3;
+    const mx::array& mIn = (slot == 0) ? mTrunk
+                         : (slot == 1) ? mMid
+                         :               mMax;
+    double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC, useFP16);
+    if(slot == 0)      trunkReps[trunkIdx++] = ms;
+    else if(slot == 1) midReps[midIdx++]     = ms;
+    else               maxReps[maxIdx++]     = ms;
+  }
+
+  // Postcondition: the rep schedule (reps=20, two warmups, 3-per-decade
+  // slot rotation) must produce exactly 6 writes per slot, matching the
+  // std::array<double,6> capacity. Asserting this here catches a silent
+  // out-of-bounds write if reps is ever changed without resizing.
+  assert(trunkIdx == 6 && midIdx == 6 && maxIdx == 6);
+
+  auto clamp = [](double x) { return std::isfinite(x) ? x : 0.0; };
+  return PerSlotTimes{
+    clamp(medianOf6(trunkReps)),
+    clamp(medianOf6(midReps)),
+    clamp(medianOf6(maxReps))
+  };
+}
+
 } // namespace
 
 namespace {
@@ -721,6 +848,24 @@ double MLXWinogradTuner::scoreOutputUntransformForTesting(
     const ModelInfoForTuning& mi,
     bool useFP16) {
   return scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
+}
+
+std::array<double,3> MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
+    const MLXWinograd::InputTransform& cfg,
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    bool useFP16) {
+  PerSlotTimes t = scoreInputTransformPerSlot(cfg, N, H, W, mi, useFP16);
+  return {t.trunkMs, t.midMs, t.maxMs};
+}
+
+std::array<double,3> MLXWinogradTuner::scoreOutputUntransformPerSlotForTesting(
+    const MLXWinograd::OutputUntransform& cfg,
+    int N, int H, int W,
+    const ModelInfoForTuning& mi,
+    bool useFP16) {
+  PerSlotTimes t = scoreOutputUntransformPerSlot(cfg, N, H, W, mi, useFP16);
+  return {t.trunkMs, t.midMs, t.maxMs};
 }
 
 void runMLXWinotunerTests() {
@@ -1066,6 +1211,42 @@ void runMLXWinotunerTests() {
                 << " relErr=" << relErr << std::endl;
 
       std::remove(tmpTunerFile.c_str());
+    }
+  }
+
+  {
+    // Per-slot scoring smoke test: verify that scoreInputTransformPerSlot
+    // and scoreOutputUntransformPerSlot return three finite positive values
+    // each for a default-constructed InputTransform/OutputUntransform on a
+    // tiny shape. Gated under the same env var as the other GPU-touching
+    // tests; ungated CI shouldn't pay for GPU work.
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      std::array<double,3> in = MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
+          MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+      for(double v : in) {
+        testAssert(std::isfinite(v));
+        testAssert(v > 0.0);
+        testAssert(v < 1000.0);  // sanity: <1s per call on Apple Silicon
+      }
+
+      std::array<double,3> out = MLXWinogradTuner::scoreOutputUntransformPerSlotForTesting(
+          MLXWinograd::OutputUntransform{}, 1, 19, 19, mi, true);
+      for(double v : out) {
+        testAssert(std::isfinite(v));
+        testAssert(v > 0.0);
+        testAssert(v < 1000.0);
+      }
+      std::cout << "  per-slot scoring smoke (gated) OK"
+                << " in={" << in[0] << "," << in[1] << "," << in[2] << "}"
+                << " out={" << out[0] << "," << out[1] << "," << out[2] << "}"
+                << std::endl;
     }
   }
 
