@@ -559,9 +559,8 @@ static PerSlotTimes scoreOutputUntransformPerSlot(
   };
 }
 
-} // namespace
-
-namespace {
+// (namespace continues below — per-slot helpers and flat-sweep helpers share
+// the same anonymous namespace so the former are visible to the latter.)
 
 static const std::vector<int>& inputTg0Values(bool full) {
   static const std::vector<int> v = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
@@ -686,13 +685,26 @@ flatSweepInput(int N, int H, int W,
   }
   if(logger) {
     std::string deltaStr;
+    std::string perSlotStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
       // %+.1f always emits a sign; the gated log-format test regex relies on
       // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
+
+      // Re-measure the winner with per-slot median timing. ~30 ms extra GPU
+      // work per stage; negligible vs the ~40s total sweep wall-time. Fields
+      // are diagnostic only — winner selection above used the symmetric
+      // weighted-mean score; this is for noise/bias analysis.
+      PerSlotTimes ps = scoreInputTransformPerSlot(*best, N, H, W, mi, useFP16);
+      perSlotStr = " trunk_ms=" + Global::strprintf("%.3f", ps.trunkMs)
+                 + " mid_ms="   + Global::strprintf("%.3f", ps.midMs)
+                 + " max_ms="   + Global::strprintf("%.3f", ps.maxMs);
     } else {
       deltaStr = "nan";
+      // best=none branch: omit per-slot fields (matches existing degenerate
+      // log shape; spec §4 / §Error handling).
+      perSlotStr = "";
     }
     logger->write("MLX tuner flatSweepInput: considered=" + std::to_string(considered)
                   + (best
@@ -704,7 +716,8 @@ flatSweepInput(int N, int H, int W,
                        + " time_ms=" + Global::strprintf("%.3f", bestTime)
                      : " best=none")
                   + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
-                  + " delta_pct=" + deltaStr);
+                  + " delta_pct=" + deltaStr
+                  + perSlotStr);
   }
   return best;
 }
@@ -739,13 +752,22 @@ flatSweepOutput(int N, int H, int W,
   }
   if(logger) {
     std::string deltaStr;
+    std::string perSlotStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
       // %+.1f always emits a sign; the gated log-format test regex relies on
       // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
+
+      // Re-measure the winner with per-slot median timing. Symmetric to
+      // flatSweepInput. ~30 ms extra GPU work.
+      PerSlotTimes ps = scoreOutputUntransformPerSlot(*best, N, H, W, mi, useFP16);
+      perSlotStr = " trunk_ms=" + Global::strprintf("%.3f", ps.trunkMs)
+                 + " mid_ms="   + Global::strprintf("%.3f", ps.midMs)
+                 + " max_ms="   + Global::strprintf("%.3f", ps.maxMs);
     } else {
       deltaStr = "nan";
+      perSlotStr = "";
     }
     logger->write("MLX tuner flatSweepOutput: considered=" + std::to_string(considered)
                   + (best
@@ -755,7 +777,8 @@ flatSweepOutput(int N, int H, int W,
                        + " time_ms=" + Global::strprintf("%.3f", bestTime)
                      : " best=none")
                   + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
-                  + " delta_pct=" + deltaStr);
+                  + " delta_pct=" + deltaStr
+                  + perSlotStr);
   }
   return best;
 }
@@ -1127,13 +1150,15 @@ void runMLXWinotunerTests() {
       // The regex matches the non-degenerate path only (best != nullopt). The
       // best=none / delta_pct=nan branch is unreachable for the synthetic 19x19
       // C=64 problem this test runs against (hundreds of valid candidates).
+      // Updated for shape diagnostic: regex now requires the per-slot
+      // median fields appended by flatSweepInput.
       std::regex inputRe(
-          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+)");
+          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ trunk_ms=[0-9]+\.[0-9]+ mid_ms=[0-9]+\.[0-9]+ max_ms=[0-9]+\.[0-9]+)");
       testAssert(std::regex_search(log, inputRe));
       std::cout << "  flatSweepInput log-format (gated) OK" << std::endl;
 
       std::regex outputRe(
-          R"(MLX tuner flatSweepOutput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+)");
+          R"(MLX tuner flatSweepOutput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ trunk_ms=[0-9]+\.[0-9]+ mid_ms=[0-9]+\.[0-9]+ max_ms=[0-9]+\.[0-9]+)");
       testAssert(std::regex_search(log, outputRe));
       std::cout << "  flatSweepOutput log-format (gated) OK" << std::endl;
 
