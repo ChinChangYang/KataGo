@@ -9,10 +9,10 @@ namespace MLXWinograd {
 
 enum class GridOrder    : int { Cfast = 0, Tfast = 1 };
 
-// Per-stage launch-geometry configs. SP2 tunes (tg0, tg1); SP4 adds
-// (wpt, vw, gridOrder). SP5 removed output vw (Task 3), output gridOrder
-// (Task 4), and global matmulOrient (Task 5) — matmul orientation is now
-// monomorphic on Std; output kernel is monomorphic on VW=1 and Cfast.
+// Per-stage launch-geometry configs. Input transform exposes
+// (tg0, tg1, wpt, vw, gridOrder); output untransform exposes (tg0, tg1, wpt).
+// The output kernel is monomorphic on VW=1, GRID_ORDER=Cfast, and the
+// matmul layout is monomorphic on Std for both stages.
 struct InputTransform {
   int tg0 = 32;
   int tg1 = 1;
@@ -159,13 +159,12 @@ inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
 }
 
 // F(2,3) input transform kernel: NHWC T input -> [16, Ntiles, C] T output.
-// SP5 Task 5: MATMUL_ORIENT template arg removed — output layout is monomorphic
-// on Std ([16, Ntiles, C]).
+// The matmul layout is monomorphic on Std ([16, Ntiles, C]).
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
-//   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
-//   VW             — vector width for packed loads (Tasks 4+; 1 = SP3)
-//   GRID_ORDER     — 0=Cfast (C is fast axis), 1=Tfast (Ntiles fast) (Task 5+)
+//   WPT            — tiles per thread
+//   VW             — vector width for packed loads
+//   GRID_ORDER     — 0=Cfast (C is fast axis), 1=Tfast (Ntiles fast)
 // Grid:
 //   Cfast: (ceil(C/VW), ceil(Ntiles/WPT), 1)
 //   Tfast: (Ntiles,     ceil(C/WPT),      1)
@@ -291,15 +290,13 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 // F(2,3) output untransform kernel: [16, Ntiles, outC] T input -> NHWC T output.
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
-//   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
-// Grid (Cfast-only after SP5 Task 4): (Cout, ceil(Ntiles/WPT), 1)
+//   WPT            — tiles per thread
+// Grid: (Cout, ceil(Ntiles/WPT), 1).
 // nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
 // exposes *_shape for inputs, not outputs.
-// SP5 Task 3: VW template arg dropped — output kernel is monomorphic on VW=1.
-// SP5 Task 4: GRID_ORDER template arg dropped — output kernel is monomorphic
-// on Cfast (empirical sensitivity sweep showed <1% delta).
-// SP5 Task 5: MATMUL_ORIENT template arg dropped — output kernel is monomorphic
-// on Std (input shape [16, Ntiles, outC]).
+// The output kernel is monomorphic on VW=1, GRID_ORDER=Cfast, and matmul
+// layout=Std. (GRID_ORDER=Cfast was chosen from an empirical sensitivity
+// sweep showing <1% delta vs Tfast; the other two are structural.)
 inline constexpr const char* kWinoOutputSource = R"METAL(
     static_assert(WPT >= 1, "WPT must be positive");
 
