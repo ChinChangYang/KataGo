@@ -4,10 +4,12 @@
 #ifdef USE_MLX_BACKEND
 
 #include <array>
+#include <map>
 #include <string>
 #include "../neuralnet/mlxwinograd.h"
 
 class Logger;
+struct ModelDesc;
 
 struct MLXWinogradTuneParams {
   MLXWinograd::InputTransform    inputTransform;
@@ -95,6 +97,24 @@ namespace MLXWinogradTuner {
                                           int N, int H, int W,
                                           const ModelInfoForTuning& mi,
                                           bool useFP16);
+
+  // Conv-3x3 shape distribution log: one-line summary of the model's 3x3
+  // conv shape mix, computed at model load and printed alongside the tuner
+  // log so operators can correlate cached winners with the per-pass shape
+  // distribution the cache was tuned for. Pure formatter is exposed for
+  // testability; wrapper does the descriptor walk.
+  //
+  // formatConv3x3DistributionLine: pure function — given pre-computed
+  // histograms keyed by channel count, returns the log line. No I/O.
+  std::string formatConv3x3DistributionLine(
+      int total,
+      const std::map<int,int>& inputChannelCounts,
+      const std::map<int,int>& outputChannelCounts);
+
+  // formatConv3x3Distribution: walks modelDesc.iterConvLayers, accumulates
+  // input/output channel histograms over 3x3 convs only, calls the
+  // formatter. Single line; safe to log on every model load.
+  std::string formatConv3x3Distribution(const ModelDesc& modelDesc);
 }
 
 #endif // USE_MLX_BACKEND

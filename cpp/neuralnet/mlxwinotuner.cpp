@@ -1,6 +1,7 @@
 #ifdef USE_MLX_BACKEND
 
 #include "../neuralnet/mlxwinotuner.h"
+#include "../neuralnet/desc.h"
 
 #include <algorithm>
 #include <array>
@@ -891,8 +892,95 @@ std::array<double,3> MLXWinogradTuner::scoreOutputUntransformPerSlotForTesting(
   return {t.trunkMs, t.midMs, t.maxMs};
 }
 
+std::string MLXWinogradTuner::formatConv3x3DistributionLine(
+    int total,
+    const std::map<int,int>& inputChannelCounts,
+    const std::map<int,int>& outputChannelCounts) {
+  // Build a deterministic ordering: pairs sorted descending by invocation
+  // count, ties broken by channel count descending. Truncate each histogram
+  // to top-10 with a trailing ",..." guard for pathological models.
+  auto serialize = [](const std::map<int,int>& counts) -> std::string {
+    if(counts.empty()) return "{}";
+    std::vector<std::pair<int,int>> pairs(counts.begin(), counts.end());
+    std::sort(pairs.begin(), pairs.end(),
+              [](const std::pair<int,int>& a, const std::pair<int,int>& b) {
+                if(a.second != b.second) return a.second > b.second;
+                return a.first > b.first;
+              });
+    constexpr size_t kMax = 10;
+    bool truncated = pairs.size() > kMax;
+    if(truncated) pairs.resize(kMax);
+
+    std::string s;
+    for(size_t i = 0; i < pairs.size(); i++) {
+      if(i > 0) s += ",";
+      s += std::to_string(pairs[i].first) + ":" + std::to_string(pairs[i].second);
+    }
+    if(truncated) s += ",...";
+    return s;
+  };
+
+  return "MLX tuner conv3x3 distribution: total=" + std::to_string(total)
+       + " input_c="  + serialize(inputChannelCounts)
+       + " output_c=" + serialize(outputChannelCounts);
+}
+
+std::string MLXWinogradTuner::formatConv3x3Distribution(const ModelDesc& modelDesc) {
+  std::map<int,int> inputC, outputC;
+  int total = 0;
+  modelDesc.iterConvLayers([&](const ConvLayerDesc& c) {
+    if(c.convXSize == 3 && c.convYSize == 3) {
+      total++;
+      inputC[c.inChannels]++;
+      outputC[c.outChannels]++;
+    }
+  });
+  return formatConv3x3DistributionLine(total, inputC, outputC);
+}
+
 void runMLXWinotunerTests() {
   cout << "Running MLX Winograd tuner tests" << endl;
+
+  {
+    // Conv-3x3 distribution formatter — pure-function test. Verifies the
+    // log-line format directly without any descriptor walk or GPU work.
+    // Order convention (spec §3a): pairs sorted descending by invocation
+    // count, ties broken by channel count descending.
+
+    // Case A: two distinct shapes, each appearing once. Tie on count, so
+    // tie-break by channel count descending: 64 before 32.
+    {
+      std::map<int,int> inputC  = {{32, 1}, {64, 1}};
+      std::map<int,int> outputC = {{32, 1}, {64, 1}};
+      std::string line = MLXWinogradTuner::formatConv3x3DistributionLine(2, inputC, outputC);
+      testAssert(line.find("MLX tuner conv3x3 distribution:") != std::string::npos);
+      testAssert(line.find("total=2") != std::string::npos);
+      testAssert(line.find("input_c=64:1,32:1") != std::string::npos);
+      testAssert(line.find("output_c=64:1,32:1") != std::string::npos);
+    }
+
+    // Case B: asymmetric counts. 384 appears 36 times, 192 once. Sort by
+    // count descending, so 384 first regardless of channel-count order.
+    {
+      std::map<int,int> inputC  = {{384, 36}, {192, 1}};
+      std::map<int,int> outputC = {{384, 37}};
+      std::string line = MLXWinogradTuner::formatConv3x3DistributionLine(37, inputC, outputC);
+      testAssert(line.find("total=37") != std::string::npos);
+      testAssert(line.find("input_c=384:36,192:1") != std::string::npos);
+      testAssert(line.find("output_c=384:37") != std::string::npos);
+    }
+
+    // Case C: empty model — no 3x3 convs. Spec §Error handling: print the
+    // line with explicit "{}" markers; don't suppress.
+    {
+      std::map<int,int> empty;
+      std::string line = MLXWinogradTuner::formatConv3x3DistributionLine(0, empty, empty);
+      testAssert(line.find("total=0") != std::string::npos);
+      testAssert(line.find("input_c={}") != std::string::npos);
+      testAssert(line.find("output_c={}") != std::string::npos);
+    }
+    std::cout << "  conv3x3 distribution formatter OK" << std::endl;
+  }
 
   // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
   {
