@@ -1210,6 +1210,12 @@ struct ComputeHandle {
           context->homeDataDirOverride,
           mlxGpuName(),
           context->nnXLen, context->nnYLen,
+          // Tuner times the Winograd input/output transform kernels at this
+          // batch size only (the matmul stage is untuned). Probed re-tuning
+          // at 8/16/32/64: the winning configs do differ per batch size, but
+          // end-to-end throughput stayed flat within ~1.5% run-to-run noise.
+          // OpenCL's tuner pins a single batch size too. Not worth
+          // parameterizing.
           /*batchSize=*/8,
           mi,
           context->logger,
