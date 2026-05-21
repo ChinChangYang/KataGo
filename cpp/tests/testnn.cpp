@@ -1349,6 +1349,8 @@ void Tests::runMLXWinogradTests() {}
 #include "../core/makedir.h"
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include <random>
 
 void Tests::runMLXWinotunerTests() {
@@ -1531,6 +1533,63 @@ void Tests::runMLXWinotunerTests() {
   // would run the search; for Task-3 scope we just verify the public
   // schema struct works with valid configs. The measurement primitive itself
   // is exercised by the search-works test added in Task 4.
+
+  {
+    // SP5 Task 10 — Gated flat-sweep convergence test.
+    // Runs the production flat sweep on a small synthetic problem and asserts
+    // that the winner is isValid and that its timing is no worse than the
+    // SP1 baked default (tg0=32, tg1=1, wpt=1, vw=1, Cfast).
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      // loadOrAutoTune rewrites an empty tunerFile to a default cache path,
+      // so use an explicit temp path and remove it after to avoid touching
+      // the user's cache directory.
+      std::string tmpTunerFile = "/tmp/sp5_task10_sweep_cache.txt";
+      std::remove(tmpTunerFile.c_str());
+
+      MLXWinogradTuneParams tuned = MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/tmpTunerFile,
+          /*homeDataDirOverride=*/"",
+          /*gpuName=*/"AppleSilicon",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/1,
+          mi,
+          /*logger=*/nullptr,
+          /*full=*/false,
+          /*reTune=*/true,
+          /*useFP16=*/true);
+      testAssert(tuned.isValid());
+
+      // Score the baked default and the tuned winner via scoreInputTransform.
+      // tuned.time <= baked.time (within noise).
+      MLXWinograd::InputTransform baked{};
+      baked.tg0 = 32; baked.tg1 = 1; baked.wpt = 1; baked.vw = 1;
+      baked.gridOrder = MLXWinograd::GridOrder::Cfast;
+      auto bestOf5 = [&](const MLXWinograd::InputTransform& cfg) -> double {
+        double best = std::numeric_limits<double>::infinity();
+        for(int rep = 0; rep < 5; rep++) {
+          double t = MLXWinogradTuner::scoreInputTransformForTesting(
+              cfg, 1, 19, 19, mi, true);
+          if(t < best) best = t;
+        }
+        return best;
+      };
+      double bakedMs = bestOf5(baked);
+      double tunedMs = bestOf5(tuned.inputTransform);
+      // Allow 10% noise budget.
+      testAssert(tunedMs <= bakedMs * 1.10);
+      std::cout << "  SP5 flat-sweep convergence (gated) OK"
+                << " bakedMs=" << bakedMs
+                << " tunedMs=" << tunedMs << std::endl;
+
+      std::remove(tmpTunerFile.c_str());
+    }
+  }
 
   cout << "MLX Winograd tuner tests passed" << endl;
 }
