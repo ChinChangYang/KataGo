@@ -590,6 +590,12 @@ flatSweepOutput(int N, int H, int W,
   const int outC = mi.midNumChannels;  // output untransform reads from matmul output
   const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
+  // Score the SP1 baked default (default-constructed = {tg0=32, tg1=1, wpt=1})
+  // so the sweep log carries a baseline the operator can compare the winner
+  // against. Symmetric to flatSweepInput.
+  const double baselineMs =
+      scoreOutputUntransform(MLXWinograd::OutputUntransform{}, N, H, W, mi, useFP16);
+
   std::optional<MLXWinograd::OutputUntransform> best;
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
@@ -603,13 +609,22 @@ flatSweepOutput(int N, int H, int W,
     if(t < bestTime) { bestTime = t; best = cand; }
   }
   if(logger) {
+    std::string deltaStr;
+    if(best && baselineMs >= 1e-9) {
+      double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
+      deltaStr = Global::strprintf("%+.1f", deltaPct);
+    } else {
+      deltaStr = "nan";
+    }
     logger->write("MLX tuner flatSweepOutput: considered=" + std::to_string(considered)
                   + (best
                      ? " best=tg0=" + std::to_string(best->tg0)
                        + " tg1=" + std::to_string(best->tg1)
                        + " wpt=" + std::to_string(best->wpt)
                        + " time_ms=" + Global::strprintf("%.3f", bestTime)
-                     : " best=none"));
+                     : " best=none")
+                  + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
+                  + " delta_pct=" + deltaStr);
   }
   return best;
 }
@@ -964,9 +979,14 @@ void runMLXWinotunerTests() {
       // best=none / delta_pct=nan branch is unreachable for the synthetic 19x19
       // C=64 problem this test runs against (hundreds of valid candidates).
       std::regex inputRe(
-          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+]?[0-9]+\.[0-9]+)");
+          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+)");
       testAssert(std::regex_search(log, inputRe));
       std::cout << "  flatSweepInput log-format (gated) OK" << std::endl;
+
+      std::regex outputRe(
+          R"(MLX tuner flatSweepOutput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+)");
+      testAssert(std::regex_search(log, outputRe));
+      std::cout << "  flatSweepOutput log-format (gated) OK" << std::endl;
 
       std::remove(tmpTunerFile.c_str());
     }
