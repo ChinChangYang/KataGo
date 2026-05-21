@@ -1328,6 +1328,88 @@ void runMLXWinotunerTests() {
   }
 
   {
+    // Per-slot numeric consistency — Test 2 from the shape-diagnostic spec.
+    // Asserts the trunk_ms value printed by flatSweepInput is in the same
+    // ballpark as an independent reference measurement of the default
+    // InputTransform{} on the same trunk slot.
+    //
+    // IMPORTANT — cross-config comparison: parsedTrunkMs is measured by
+    // flatSweepInput on the WINNER configuration (whatever the sweep
+    // selected). minOf3 is computed on the DEFAULT InputTransform{} via
+    // three independent scoreInputTransformPerSlotForTesting calls. These
+    // are not the same config, so the relative-error budget is necessarily
+    // loose. The budget covers:
+    //   - winner-vs-default speed gap (sweep can find configs 10-40%
+    //     faster than default on some shapes/hardware)
+    //   - selection bias on the min-of-3 reference (~5-10% low vs single)
+    //   - per-call noise floor (~10%)
+    // The 50% budget is intentionally conservative; this is a sanity-check
+    // that measurement is roughly working, not a tight precision check.
+    // Tighter precision checks belong in same-config stability tests.
+    //
+    // Coverage scope: input stage only. flatSweepOutput's per-slot fields
+    // are format-checked by the log-format test (Task 2 / gate
+    // KATAGO_MLX_WINOTUNER_RUN_LOG_FORMAT_TEST) but not consistency-
+    // checked here — symmetric output check is deferred.
+    //
+    // Gate is new (KATAGO_MLX_WINOTUNER_RUN_PER_SLOT_TEST) and separate
+    // from the baseline-anchor gate above; this test runs an additional
+    // tuner sweep.
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_PER_SLOT_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      std::string tmpTunerFile = "/tmp/per_slot_consistency.txt";
+      std::remove(tmpTunerFile.c_str());
+
+      std::ostringstream captured;
+      Logger logger(nullptr, /*logToStdoutDefault=*/false,
+                    /*logToStderrDefault=*/false, /*logTimeDefault=*/false,
+                    /*logConfigContents=*/false);
+      logger.addOStream(captured);
+
+      (void)MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/tmpTunerFile,
+          /*homeDataDirOverride=*/"",
+          /*gpuName=*/"AppleSilicon",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/1,
+          mi,
+          /*logger=*/&logger,
+          /*full=*/false,
+          /*reTune=*/true,
+          /*useFP16=*/true);
+
+      const std::string log = captured.str();
+      std::smatch m;
+      std::regex trunkRe(R"(flatSweepInput:[^\n]*trunk_ms=([0-9]+\.[0-9]+))");
+      testAssert(std::regex_search(log, m, trunkRe));
+      const double parsedTrunkMs = std::stod(m[1].str());
+
+      double minOf3 = std::numeric_limits<double>::infinity();
+      for(int rep = 0; rep < 3; rep++) {
+        std::array<double,3> t = MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
+            MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+        if(t[0] < minOf3) minOf3 = t[0];  // index 0 = trunk
+      }
+
+      const double relErr = std::abs(parsedTrunkMs - minOf3) / minOf3;
+      // 50% budget — see comment block above for rationale on the loose
+      // bound (cross-config comparison + selection bias + noise).
+      testAssert(relErr < 0.50);
+      std::cout << "  per-slot trunk consistency (gated) OK"
+                << " parsed=" << parsedTrunkMs
+                << " minOf3=" << minOf3
+                << " relErr=" << relErr << std::endl;
+
+      std::remove(tmpTunerFile.c_str());
+    }
+  }
+
+  {
     // Per-slot scoring smoke test: verify that scoreInputTransformPerSlot
     // and scoreOutputUntransformPerSlot return three finite positive values
     // each for a default-constructed InputTransform/OutputUntransform on a
