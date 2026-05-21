@@ -933,6 +933,8 @@ void Tests::runNNLayerTests() {
 #ifdef USE_MLX_BACKEND
 #include "../neuralnet/mlxwinograd.h"
 #include <array>
+#include <cstring>
+#include <iomanip>
 #include <random>
 // SP3 Task 2: BatchNormLayer is internal to mlxbackend.cpp; its fp16 test
 // is defined there and forward-declared here.
@@ -1268,6 +1270,74 @@ void Tests::runMLXWinogradTests() {
   // SP5 Task 5: matmulOrient axis removed end-to-end. The Std-vs-Tpd
   // equivalence tests and the Tfast×Tpd combined-branching test have been
   // deleted along with the enum.
+
+  {
+    // SP5 Task 9 — Output kernel is monomorphic on VW=1, GRID_ORDER=Cfast.
+    // Run a full conv via winogradConv2d with a deterministic input and weight
+    // tensor; assert the output is finite and matches a stable reference
+    // checksum (sum of absolute values to 4 decimal places). This catches:
+    //   - stale Tfast read paths in the output kernel
+    //   - stale VW>1 vector-load paths
+    //   - Std-only weight layout not consistent with kernel reads
+    namespace mx = mlx::core;
+    using namespace MLXWinograd;
+
+    const int N = 1, H = 8, W = 8, Cin = 8, Cout = 8;
+
+    // Deterministic input: i*0.01.
+    std::vector<float> inData(N * H * W * Cin);
+    for(size_t i = 0; i < inData.size(); i++) inData[i] = (float)i * 0.01f;
+    mx::array input(inData.data(), {N, H, W, Cin}, mx::float32);
+
+    // Deterministic 3x3 weights: (oc*Cin*9 + ic*9 + k)*0.001.
+    std::vector<float> wData(Cout * Cin * 9);
+    for(size_t i = 0; i < wData.size(); i++) wData[i] = (float)i * 0.001f;
+    // makeWinogradWeights takes raw [Cout, Cin, 3, 3] flattened and produces
+    // the transformed [16, Cin, Cout] tensor (Std-only after Task 5).
+    mx::array U = makeWinogradWeights(wData, Cout, Cin, /*useFP16=*/false);
+
+    // Output config: Std post-SP5 OutputUntransform has tg0/tg1/wpt only.
+    InputTransform inCfg{};
+    inCfg.tg0 = 32; inCfg.tg1 = 1; inCfg.wpt = 1; inCfg.vw = 1;
+    inCfg.gridOrder = GridOrder::Cfast;
+    OutputUntransform outCfg{};
+    outCfg.tg0 = 16; outCfg.tg1 = 4; outCfg.wpt = 1;
+
+    mx::array out = winogradConv2d(input, U, Cout, inCfg, outCfg);
+    mx::eval(out);
+
+    // Output shape must be [N, H, W, Cout].
+    testAssert(out.shape(0) == N);
+    testAssert(out.shape(1) == H);
+    testAssert(out.shape(2) == W);
+    testAssert(out.shape(3) == Cout);
+
+    // Pull data; assert all finite.
+    std::vector<float> outData(out.size());
+    out.eval();
+    std::memcpy(outData.data(), out.data<float>(), outData.size() * sizeof(float));
+    for(float v : outData) testAssert(std::isfinite(v));
+
+    // Stable checksum: sum of absolute values. This is a regression check —
+    // a change in numerics suggests a kernel-template mismatch (e.g., output
+    // kernel reads channels via VW>1 path that no longer exists, producing
+    // UB-flavored garbage).
+    double sumAbs = 0.0;
+    for(float v : outData) sumAbs += std::abs(v);
+    // Recompute this expected value once after the test is first written —
+    // it captures the deterministic conv result for the inputs above. The
+    // test passes thereafter as a regression check, not a correctness check.
+    // Tolerance: 0.5% to absorb minor reordering noise from MLX graph rewrites.
+    double expectedSumAbs = 22788.156637847424;  // captured 2026-05-21
+    if(expectedSumAbs < 0) {
+      // First run: print and skip the comparison so the developer can fill in.
+      std::cout << "SP5 Task 9 first-run sumAbs = "
+                << std::setprecision(17) << sumAbs << "\n";
+    } else {
+      testAssert(std::abs(sumAbs - expectedSumAbs) / expectedSumAbs < 0.005);
+    }
+    std::cout << "  Output-kernel monomorphic smoke test OK" << std::endl;
+  }
 }
 #else
 void Tests::runMLXWinogradTests() {}
