@@ -1706,7 +1706,7 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
 
 // SP3 Task 2: directly-asserting unit test for BatchNormLayer fp16 mode.
 // Declared here because BatchNormLayer is not in any public header.
-// Forward-declared by tests/testnn.cpp via `void runMLXBatchNormFP16Test_SP3();`.
+// Called from runMLXWinogradTests() (same TU).
 void runMLXBatchNormFP16Test_SP3() {
   namespace mxc = mx;  // reuse the file-scope alias from line 29
   using std::cout;
@@ -1743,7 +1743,7 @@ void runMLXBatchNormFP16Test_SP3() {
 
 // SP3 Task 3: directly-asserting unit test for ConvLayer fp16 Winograd path.
 // Declared here because ConvLayer is not in any public header.
-// Forward-declared by tests/testnn.cpp via `void runMLXConvLayerFP16WinogradTest_SP3();`.
+// Called from runMLXWinogradTests() (same TU).
 void runMLXConvLayerFP16WinogradTest_SP3() {
   namespace mxc = mx;  // reuse the file-scope alias from line 29
   using std::cout;
