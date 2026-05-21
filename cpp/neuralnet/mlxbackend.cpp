@@ -104,9 +104,22 @@ static mx::array toComputeDtype(const mx::array& arr, bool useFP16) {
 }
 
 // Mish activation: x * tanh(softplus(x)) = x * tanh(log(1 + exp(x)))
+//
+// Numerical stability: softplus is computed via logaddexp(0, x), which MLX
+// implements as max(0, x) + log1p(exp(-|x|)) (see mlx/backend/cpu/binary_ops.h
+// LogAddExp). The exp argument is always in (-inf, 0], so exp(-|x|) lies in
+// (0, 1] and cannot overflow in either FP32 or FP16. This is why MLX does
+// not need the ACTIVATION_MISH_SCALE8 variant that CUDA/OpenCL/TensorRT apply
+// at model load (desc.cpp:applyScale8ToReduceActivations, cudabackend.cpp:2128,
+// trtbackend.cpp:86, openclbackend.cpp:116) to keep Mish inside FP16
+// representable range: those backends compute softplus via a path that
+// overflows for x >~ 11 in FP16 (since exp(11.09) >~ 65504 = FP16 max).
+// Cross-backend validation against an Eigen FP32 reference confirms FP16
+// MLX is within typical half-precision tolerance with no Mish-overflow
+// artifacts (see testgpuerror workflow in CLAUDE.md).
 static mx::array applyMish(const mx::array& x) {
-  // softplus(x) = log(1 + exp(x)) = log(exp(0) + exp(x)) = logaddexp(0, x)
-  // logaddexp handles numerical stability internally
+  // softplus(x) = log(1 + exp(x)) = log(exp(0) + exp(x)) = logaddexp(0, x).
+  // MLX's logaddexp uses max(0,x) + log1p(exp(-|x|)) -- overflow-free.
   mx::array softplus = mx::logaddexp(mx::array(0.0f), x);
   return x * mx::tanh(softplus);
 }
@@ -118,6 +131,16 @@ static mx::array applyActivation(const mx::array& x, int activationType) {
       return mx::maximum(x, mx::array(0.0f));
     case ACTIVATION_MISH:
       return applyMish(x);
+    case ACTIVATION_MISH_SCALE8:
+      // ACTIVATION_MISH_SCALE8 is an FP16-numerics workaround applied in-place
+      // at model load by CUDA/OpenCL/TensorRT (see desc.cpp:applyScale8To-
+      // ReduceActivations). MLX does not call that transform because its
+      // logaddexp-based softplus is already overflow-free in FP16 (see
+      // applyMish above), so we should never see this enum here. If a model
+      // ever ships with MISH_SCALE8 baked in on disk, fail loudly rather than
+      // silently fall through to identity. Mirrors Eigen/Metal behavior.
+      testAssert(false);
+      return x;  // unreached; satisfies compiler
     case ACTIVATION_IDENTITY:
     default:
       return x;
