@@ -1831,20 +1831,24 @@ void runMLXWinogradTests() {
     }
     return out;
   };
-  std::mt19937 rng(12345);
-  std::uniform_real_distribution<float> dist(-1.f,1.f);
-  for(auto dims : vector<array<int,5>>{{1,5,5,3,4},{2,19,19,8,16},{1,7,13,4,4}}){
-    int N=dims[0],H=dims[1],W=dims[2],Cin=dims[3],Cout=dims[4];
-    vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=dist(rng);
-    vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=dist(rng);
-    auto ref = direct(in,N,H,W,Cin,w,Cout);
-    auto got = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
-    double maxErr=0.0;
-    for(size_t i=0;i<ref.size();i++)
-      maxErr=std::max(maxErr,(double)std::fabs(ref[i]-got[i]));
-    cout<<"  dims "<<N<<"x"<<H<<"x"<<W<<"x"<<Cin<<"->"<<Cout
-        <<" maxErr="<<maxErr<<endl;
-    testAssert(maxErr < 1e-4);
+  // Scope `rng`/`dist` to this CPU-oracle loop so they don't shadow same-named
+  // locals in the per-test blocks below.
+  {
+    std::mt19937 rng(12345);
+    std::uniform_real_distribution<float> dist(-1.f,1.f);
+    for(auto dims : vector<array<int,5>>{{1,5,5,3,4},{2,19,19,8,16},{1,7,13,4,4}}){
+      int N=dims[0],H=dims[1],W=dims[2],Cin=dims[3],Cout=dims[4];
+      vector<float> in((size_t)N*H*W*Cin); for(auto&x:in)x=dist(rng);
+      vector<float> w((size_t)Cout*Cin*9); for(auto&x:w)x=dist(rng);
+      auto ref = direct(in,N,H,W,Cin,w,Cout);
+      auto got = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
+      double maxErr=0.0;
+      for(size_t i=0;i<ref.size();i++)
+        maxErr=std::max(maxErr,(double)std::fabs(ref[i]-got[i]));
+      cout<<"  dims "<<N<<"x"<<H<<"x"<<W<<"x"<<Cin<<"->"<<Cout
+          <<" maxErr="<<maxErr<<endl;
+      testAssert(maxErr < 1e-4);
+    }
   }
   cout << "MLX Winograd F(2,3) CPU reference OK" << endl;
 
