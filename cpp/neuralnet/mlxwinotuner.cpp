@@ -17,6 +17,7 @@
 #include "../core/global.h"
 #include "../core/logger.h"
 #include "../core/makedir.h"
+#include "../core/test.h"
 #include "../dataio/homedata.h"
 
 #include "mlx/mlx.h"
@@ -682,6 +683,228 @@ double MLXWinogradTuner::scoreOutputUntransformForTesting(
     const ModelInfoForTuning& mi,
     bool useFP16) {
   return scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
+}
+
+void runMLXWinotunerTests() {
+  cout << "Running MLX Winograd tuner tests" << endl;
+
+  // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
+  {
+    // SP5 Task 8 — v3 roundtrip: write -> load -> compare all 8 fields. Two
+    // cases for input gridOrder: Cfast and Tfast. (Tfast forces vw=1 per
+    // isValid invariant.)
+    using namespace MLXWinograd;
+    for(auto inGo : {GridOrder::Cfast, GridOrder::Tfast}) {
+      MLXWinogradTuneParams p;
+      p.inputTransform.tg0 = 32;
+      p.inputTransform.tg1 = 1;
+      p.inputTransform.wpt = 2;
+      p.inputTransform.vw  = (inGo == GridOrder::Cfast) ? 2 : 1;
+      p.inputTransform.gridOrder = inGo;
+      p.outputUntransform.tg0 = 32;
+      p.outputUntransform.tg1 = 8;
+      p.outputUntransform.wpt = 1;
+      testAssert(p.isValid());
+
+      std::string tmpFile = "/tmp/sp5_v3_roundtrip_" + std::to_string((int)inGo) + ".txt";
+      MLXWinogradTuneParams::save(tmpFile, p);
+      MLXWinogradTuneParams q = MLXWinogradTuneParams::load(tmpFile);
+      testAssert(q.inputTransform.tg0 == p.inputTransform.tg0);
+      testAssert(q.inputTransform.tg1 == p.inputTransform.tg1);
+      testAssert(q.inputTransform.wpt == p.inputTransform.wpt);
+      testAssert(q.inputTransform.vw  == p.inputTransform.vw);
+      testAssert(q.inputTransform.gridOrder == p.inputTransform.gridOrder);
+      testAssert(q.outputUntransform.tg0 == p.outputUntransform.tg0);
+      testAssert(q.outputUntransform.tg1 == p.outputUntransform.tg1);
+      testAssert(q.outputUntransform.wpt == p.outputUntransform.wpt);
+      testAssert(q.isValid());
+      std::remove(tmpFile.c_str());
+    }
+    cout << "  v3 roundtrip (Cfast + Tfast) OK" << endl;
+  }
+
+  // SP3 Task 4: dtype-aware cache filenames must coexist in the same directory
+  // without collision. Verify defaultFileName gains a _fp16/_fp32 suffix.
+  {
+    std::string nameF32 = MLXWinogradTuner::defaultFileName(
+      "AppleSilicon", 19, 19, 384, 13, /*useFP16=*/false);
+    std::string nameF16 = MLXWinogradTuner::defaultFileName(
+      "AppleSilicon", 19, 19, 384, 13, /*useFP16=*/true);
+    testAssert(nameF32 != nameF16);
+    testAssert(nameF32.find("_fp32") != std::string::npos);
+    testAssert(nameF16.find("_fp16") != std::string::npos);
+    testAssert(nameF32.size() >= 4 && nameF32.substr(nameF32.size()-4) == ".txt");
+    testAssert(nameF16.size() >= 4 && nameF16.substr(nameF16.size()-4) == ".txt");
+    cout << "  defaultFileName dtype suffix OK: "
+         << nameF32 << " vs " << nameF16 << endl;
+  }
+
+  // ---- Corrupt-version rejection ----
+  {
+    std::string tmp = "/tmp/katago_mlx_winotuner_badversion.txt";
+    {
+      std::ofstream f(tmp);
+      f << "VERSION=999\n#inputTransform\ntg0=32 tg1=1\n#outputUntransform\ntg0=32 tg1=1\n";
+    }
+    bool threw = false;
+    try { (void)MLXWinogradTuneParams::load(tmp); }
+    catch(const IOError&) { threw = true; }
+    testAssert(threw);
+  }
+
+  // ---- v3 isValid invariants ----
+  {
+    // SP5 Task 8 — v3 isValid invariants.
+    using namespace MLXWinograd;
+    auto basePass = [&]() {
+      MLXWinogradTuneParams p;
+      p.inputTransform = {32, 1, 1, 2, GridOrder::Cfast};
+      p.outputUntransform = {32, 2, 1};
+      return p;
+    };
+
+    // Baseline passes.
+    testAssert(basePass().isValid());
+
+    // tg0 <= 0 fails.
+    { auto p = basePass(); p.inputTransform.tg0 = 0;  testAssert(!p.isValid()); }
+    { auto p = basePass(); p.outputUntransform.tg0 = -1; testAssert(!p.isValid()); }
+
+    // tg0 * tg1 > 1024 fails.
+    { auto p = basePass(); p.inputTransform.tg0 = 64; p.inputTransform.tg1 = 32;
+      testAssert(!p.isValid()); }
+
+    // wpt < 1 fails.
+    { auto p = basePass(); p.inputTransform.wpt = 0;  testAssert(!p.isValid()); }
+    { auto p = basePass(); p.outputUntransform.wpt = 0; testAssert(!p.isValid()); }
+
+    // vw < 1 fails on input.
+    { auto p = basePass(); p.inputTransform.vw = 0;   testAssert(!p.isValid()); }
+
+    // Tfast on input forces vw=1.
+    { auto p = basePass();
+      p.inputTransform.gridOrder = GridOrder::Tfast;
+      p.inputTransform.vw = 2;
+      testAssert(!p.isValid()); }
+    { auto p = basePass();
+      p.inputTransform.gridOrder = GridOrder::Tfast;
+      p.inputTransform.vw = 1;
+      testAssert(p.isValid()); }
+
+    cout << "  v3 isValid invariants OK" << endl;
+  }
+
+  // SP4 Task 7: candidate enumeration expanded with validity filtering.
+  {
+    using namespace MLXWinograd;
+    // Cfast, C=64 (divisible by all vw): full Cartesian product over all axes
+    // minus tg0*tg1>1024.
+    auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(
+        /*full*/true, /*C*/64, /*Ntiles*/200, GridOrder::Cfast);
+
+    // Sanity: returns hundreds of valid configs.
+    testAssert(cands.size() > 100);
+    testAssert(cands.size() < 5000);   // bounded by validity filter
+
+    // All candidates satisfy tg0*tg1 <= 1024.
+    for(const auto& c : cands)
+      testAssert(c.tg0 * c.tg1 <= 1024);
+
+    // C=66 with vw>1: should filter out vw=2 (66%2=0 — VW=2 allowed)
+    // and vw=4 (66%4=2 != 0 — VW=4 should NOT appear in candidates).
+    auto cands_C66 = MLXWinogradTuner::buildInputCandidatesForTesting(
+        true, /*C*/66, /*Ntiles*/200, GridOrder::Cfast);
+    for(const auto& c : cands_C66) {
+      if(c.vw == 4)
+        testAssert(false);  // vw=4 candidate should have been filtered out for C=66
+    }
+
+    // Tfast: vw must be 1 (kernel static_assert). All Tfast candidates have vw=1.
+    auto cands_Tfast = MLXWinogradTuner::buildInputCandidatesForTesting(
+        true, 64, 200, GridOrder::Tfast);
+    for(const auto& c : cands_Tfast) {
+      testAssert(c.vw == 1);
+      testAssert(c.gridOrder == GridOrder::Tfast);
+    }
+
+    // Output side: same shape of assertions. (SP5 Task 4: gridOrder param
+    // dropped from buildOutputCandidatesForTesting — output is Cfast-only.)
+    auto out_cands = MLXWinogradTuner::buildOutputCandidatesForTesting(
+        true, /*outC*/64, /*Ntiles*/200);
+    testAssert(out_cands.size() > 100);
+    for(const auto& c : out_cands)
+      testAssert(c.tg0 * c.tg1 <= 1024);
+
+    std::cout << "  MLX Winograd Task 7 candidate enumeration validity passed ("
+              << cands.size() << " input / " << out_cands.size() << " output candidates C=64)"
+              << std::endl;
+  }
+
+  // ---- Measurement primitives return finite positive times ----
+  // We can't call the static helpers from the test, so we use the public
+  // surface that will be wired in Task 4: loadOrAutoTune with reTune=true
+  // would run the search; for Task-3 scope we just verify the public
+  // schema struct works with valid configs. The measurement primitive itself
+  // is exercised by the search-works test added in Task 4.
+
+  {
+    // SP5 Task 10 — Gated flat-sweep convergence test.
+    // Runs the production flat sweep on a small synthetic problem and asserts
+    // that the winner is isValid and that its timing is no worse than the
+    // SP1 baked default (tg0=32, tg1=1, wpt=1, vw=1, Cfast).
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      // loadOrAutoTune rewrites an empty tunerFile to a default cache path,
+      // so use an explicit temp path and remove it after to avoid touching
+      // the user's cache directory.
+      std::string tmpTunerFile = "/tmp/sp5_task10_sweep_cache.txt";
+      std::remove(tmpTunerFile.c_str());
+
+      MLXWinogradTuneParams tuned = MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/tmpTunerFile,
+          /*homeDataDirOverride=*/"",
+          /*gpuName=*/"AppleSilicon",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/1,
+          mi,
+          /*logger=*/nullptr,
+          /*full=*/false,
+          /*reTune=*/true,
+          /*useFP16=*/true);
+      testAssert(tuned.isValid());
+
+      // Score the baked default and the tuned winner via scoreInputTransform.
+      // tuned.time <= baked.time (within noise).
+      MLXWinograd::InputTransform baked{};
+      baked.tg0 = 32; baked.tg1 = 1; baked.wpt = 1; baked.vw = 1;
+      baked.gridOrder = MLXWinograd::GridOrder::Cfast;
+      auto bestOf5 = [&](const MLXWinograd::InputTransform& cfg) -> double {
+        double best = std::numeric_limits<double>::infinity();
+        for(int rep = 0; rep < 5; rep++) {
+          double t = MLXWinogradTuner::scoreInputTransformForTesting(
+              cfg, 1, 19, 19, mi, true);
+          if(t < best) best = t;
+        }
+        return best;
+      };
+      double bakedMs = bestOf5(baked);
+      double tunedMs = bestOf5(tuned.inputTransform);
+      // Allow 10% noise budget.
+      testAssert(tunedMs <= bakedMs * 1.10);
+      std::cout << "  SP5 flat-sweep convergence (gated) OK"
+                << " bakedMs=" << bakedMs
+                << " tunedMs=" << tunedMs << std::endl;
+
+      std::remove(tmpTunerFile.c_str());
+    }
+  }
+
+  cout << "MLX Winograd tuner tests passed" << endl;
 }
 
 #endif // USE_MLX_BACKEND
