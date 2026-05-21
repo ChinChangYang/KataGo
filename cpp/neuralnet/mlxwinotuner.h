@@ -6,6 +6,7 @@
 #include <array>
 #include <map>
 #include <string>
+#include <vector>
 #include "../neuralnet/mlxwinograd.h"
 
 class Logger;
@@ -38,6 +39,28 @@ namespace MLXWinogradTuner {
     int maxConvChannels3x3;
     int modelVersion;
   };
+
+  // Per-shape rep allocation produced by planShapeRotation. The tuner loops
+  // over a vector<ShapePlan> when scoring a candidate: each entry contributes
+  // `weight * median(time over `measureReps` reps at this channel count)` to
+  // the total score.
+  struct ShapePlan {
+    int channels;     // C value to time
+    int measureReps;  // number of timing reps (does not include warmup)
+    double weight;    // normalized score weight, Σ weights == 1.0
+  };
+
+  // Pure, deterministic. Given (channel, count) pairs, returns the planned
+  // rotation per spec §Selection Rule:
+  //   1. work_i = count_i * channels_i; sort desc by work; take top-3.
+  //   2. drop shapes with work < 3% of the post-top3 total work; renormalize.
+  //   3. weight_i = work_i / total_work after renormalization.
+  //   4. allocate 19 measureReps proportionally; bump any below 3 up to 3,
+  //      taking the deficit from the dominant shape; repair rounding so the
+  //      dominant absorbs the +/-1 to make Σ measureReps == 19 exactly.
+  // Asserts on empty input.
+  std::vector<ShapePlan> planShapeRotationForTesting(
+      const std::vector<std::pair<int,int>>& histogram);
 
   std::string defaultDirectory(bool makeDir, const std::string& homeDataDirOverride);
   std::string defaultFileName(const std::string& gpuName,

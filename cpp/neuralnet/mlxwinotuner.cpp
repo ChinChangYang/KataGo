@@ -447,6 +447,110 @@ static double medianOf6(std::array<double,6> a) {
   return a[3];
 }
 
+// Selection-and-allocation policy for the work-weighted shape rotation.
+// Pure function. Inputs: list of (channels, occurrence_count) pairs from the
+// model's 3x3 conv distribution. Output: vector<ShapePlan> sorted desc by
+// weight, with Σ measureReps == 19 and Σ weight ≈ 1.0.
+//
+// Spec §Selection Rule constants:
+static constexpr int    kTotalReps         = 20;
+static constexpr int    kWarmupReps        = 1;
+static constexpr int    kMeasureReps       = kTotalReps - kWarmupReps;  // 19
+static constexpr size_t kMaxShapes         = 3;
+static constexpr double kWorkFractionFloor = 0.03;
+static constexpr int    kRepFloor          = 3;
+
+static std::vector<MLXWinogradTuner::ShapePlan>
+planShapeRotation(const std::vector<std::pair<int,int>>& histogram) {
+  // Spec §Degenerate Cases: empty histogram is a model-corruption signal we
+  // surface, not silently mask.
+  assert(!histogram.empty());
+
+  // Step 1: compute work = count * channels; sort desc by work; take top-K.
+  struct Entry { int channels; long long work; };
+  std::vector<Entry> entries;
+  entries.reserve(histogram.size());
+  for(const auto& [c, n] : histogram) {
+    if(c <= 0 || n <= 0) continue;
+    entries.push_back({c, static_cast<long long>(c) * static_cast<long long>(n)});
+  }
+  assert(!entries.empty());
+
+  std::sort(entries.begin(), entries.end(),
+            [](const Entry& a, const Entry& b) {
+              if(a.work != b.work) return a.work > b.work;
+              return a.channels > b.channels;  // tie-break: larger C first
+            });
+  if(entries.size() > kMaxShapes)
+    entries.resize(kMaxShapes);
+
+  // Step 2: threshold against post-top-K total work; recompute total.
+  long long totalWork = 0;
+  for(const auto& e : entries) totalWork += e.work;
+  assert(totalWork > 0);
+  entries.erase(
+      std::remove_if(entries.begin(), entries.end(),
+          [totalWork](const Entry& e) {
+            return static_cast<double>(e.work) / static_cast<double>(totalWork)
+                   < kWorkFractionFloor;
+          }),
+      entries.end());
+  // Dominant survives (it's the largest; if its share < 3% then total<dominant/0.03
+  // which is impossible). So entries is non-empty.
+  assert(!entries.empty());
+
+  totalWork = 0;
+  for(const auto& e : entries) totalWork += e.work;
+
+  // Step 3: normalize weights.
+  std::vector<MLXWinogradTuner::ShapePlan> plan;
+  plan.reserve(entries.size());
+  for(const auto& e : entries) {
+    MLXWinogradTuner::ShapePlan sp;
+    sp.channels = e.channels;
+    sp.weight = static_cast<double>(e.work) / static_cast<double>(totalWork);
+    sp.measureReps = 0;  // assigned below
+    plan.push_back(sp);
+  }
+
+  // Step 4: allocate kMeasureReps with floor.
+  if(plan.size() == 1) {
+    plan[0].measureReps = kMeasureReps;
+    return plan;
+  }
+
+  // Tentative round-to-nearest allocation.
+  for(auto& sp : plan) {
+    sp.measureReps = static_cast<int>(std::lround(sp.weight * kMeasureReps));
+  }
+
+  // Floor-bump: any minor shape below kRepFloor gets bumped, deficit out of dominant.
+  for(size_t i = 1; i < plan.size(); i++) {
+    if(plan[i].measureReps < kRepFloor) {
+      int deficit = kRepFloor - plan[i].measureReps;
+      plan[i].measureReps += deficit;
+      plan[0].measureReps -= deficit;
+    }
+  }
+
+  // Rounding repair: dominant absorbs +/-1 so Σ == kMeasureReps.
+  int sum = 0;
+  for(const auto& sp : plan) sum += sp.measureReps;
+  plan[0].measureReps += (kMeasureReps - sum);
+
+  // Final invariants. The dominant-underflow assert here will fire only for
+  // numShapes > 6 (3*kRepFloor + 1 > kMeasureReps), which is unreachable
+  // given kMaxShapes = 3.
+  assert(plan[0].measureReps >= kRepFloor);
+#ifndef NDEBUG
+  int finalSum = 0;
+  for(const auto& sp : plan) finalSum += sp.measureReps;
+  assert(finalSum == kMeasureReps);
+#endif
+
+  return plan;
+}
+
 static PerSlotTimes scoreInputTransformPerSlot(
     const MLXWinograd::InputTransform& cfg,
     int N, int H, int W,
@@ -858,6 +962,12 @@ MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntile
   return buildOutputCandidates(full, outC, Ntiles);
 }
 
+std::vector<MLXWinogradTuner::ShapePlan>
+MLXWinogradTuner::planShapeRotationForTesting(
+    const std::vector<std::pair<int,int>>& histogram) {
+  return planShapeRotation(histogram);
+}
+
 double MLXWinogradTuner::scoreInputTransformForTesting(
     const MLXWinograd::InputTransform& cfg,
     int N, int H, int W,
@@ -980,6 +1090,82 @@ void runMLXWinotunerTests() {
       testAssert(line.find("output_c={}") != std::string::npos);
     }
     std::cout << "  conv3x3 distribution formatter OK" << std::endl;
+  }
+
+  {
+    // planShapeRotation — pure-function tests. Verifies the selection rule
+    // (top-3, 3% threshold, 3-rep floor, proportional remainder) directly
+    // without any GPU work. Spec §Selection Rule.
+
+    // Case A: single shape — entire budget on that shape, weight = 1.0.
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting({{192, 72}});
+      testAssert(plan.size() == 1);
+      testAssert(plan[0].channels == 192);
+      testAssert(plan[0].measureReps == 19);
+      testAssert(std::abs(plan[0].weight - 1.0) < 1e-9);
+    }
+
+    // Case B: two shapes both above threshold (b18c384nbt-like, after the
+    // 22:1 entry has already been dropped by threshold). Expected:
+    // work = 192*72, 128*5 = 13824, 640; weights 0.956, 0.044;
+    // round(0.956*19)=18, round(0.044*19)=1; floor bumps 1->3; dominant 18-2=16.
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting({{192, 72}, {128, 5}});
+      testAssert(plan.size() == 2);
+      testAssert(plan[0].channels == 192);
+      testAssert(plan[1].channels == 128);
+      testAssert(plan[0].measureReps == 16);
+      testAssert(plan[1].measureReps == 3);
+      testAssert(plan[0].measureReps + plan[1].measureReps == 19);
+      testAssert(std::abs(plan[0].weight + plan[1].weight - 1.0) < 1e-9);
+      testAssert(plan[0].weight > plan[1].weight);
+    }
+
+    // Case C: minor shape below 3% threshold — dropped entirely, dominant
+    // absorbs all 19 reps. Histogram: 192:72 (work 13824, 95.5%), 22:1 (work 22, 0.15%).
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting({{192, 72}, {22, 1}});
+      testAssert(plan.size() == 1);
+      testAssert(plan[0].channels == 192);
+      testAssert(plan[0].measureReps == 19);
+      testAssert(std::abs(plan[0].weight - 1.0) < 1e-9);
+    }
+
+    // Case D: four shapes — top-3 cut drops the 4th, then threshold drops
+    // one more. Input: 384:60, 192:8, 128:5, 64:5. After top-3: drop 64:5.
+    // work remaining = 23040, 1536, 640; total 25216; 128's share = 2.54% < 3%
+    // -> drop 128. Final: 384 (93.75%) + 192 (6.25%). reps: round(0.9375*19)=18,
+    // round(0.0625*19)=1; floor bumps 1->3; dominant 18-2=16.
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting(
+          {{384, 60}, {192, 8}, {128, 5}, {64, 5}});
+      testAssert(plan.size() == 2);
+      testAssert(plan[0].channels == 384);
+      testAssert(plan[1].channels == 192);
+      testAssert(plan[0].measureReps == 16);
+      testAssert(plan[1].measureReps == 3);
+    }
+
+    // Case E: three shapes all above threshold. Input: 200:10, 100:10, 50:10.
+    // work = 2000, 1000, 500; total 3500; shares 57.1%, 28.6%, 14.3% (all >3%).
+    // reps: round(0.571*19)=11, round(0.286*19)=5, round(0.143*19)=3.
+    // Sum = 19 exactly (no rounding repair needed). All >= floor of 3.
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting(
+          {{200, 10}, {100, 10}, {50, 10}});
+      testAssert(plan.size() == 3);
+      testAssert(plan[0].channels == 200);
+      testAssert(plan[1].channels == 100);
+      testAssert(plan[2].channels == 50);
+      int total = plan[0].measureReps + plan[1].measureReps + plan[2].measureReps;
+      testAssert(total == 19);
+      testAssert(plan[2].measureReps >= 3);
+      testAssert(plan[0].measureReps >= plan[1].measureReps);
+      testAssert(plan[1].measureReps >= plan[2].measureReps);
+    }
+
+    std::cout << "  planShapeRotation OK" << std::endl;
   }
 
   // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
