@@ -89,48 +89,42 @@ addition; no production code path changes.
 ## Commit 2 — De-tag SP/Task historical references
 
 **Files:** `cpp/neuralnet/mlxbackend.cpp`, `cpp/neuralnet/mlxwinograd.h`,
-`cpp/neuralnet/mlxwinotuner.h`
+`cpp/neuralnet/mlxwinotuner.cpp`, `cpp/neuralnet/mlxwinotuner.h`.
 
-**Principle:** Keep the invariant the comment documents, drop the
-internal-stage label. Where the entire comment is pure history with no
-surviving invariant, delete it.
+**Scope:** All SP/Task historical references across the four MLX
+backend files — production code, kernel-source string literals, and
+test-runner self-documenting comments. A full enumeration during
+planning found ~80 sites total: ~30 in `mlxbackend.cpp` (production +
+test runners at the bottom), ~25 in `mlxwinograd.h` (struct preambles
++ Metal kernel headers), ~25 in `mlxwinotuner.cpp` (scoring kernels +
+test runners), and 1 in `mlxwinotuner.h`. The plan document enumerates
+every site; this spec defines the principle.
 
-**Concrete sites (single-line in-place edits):**
+**Principle (rules of engagement):**
 
-- `mlxbackend.cpp:9` — drop `after SP3 acceptance lands`.
-- `mlxbackend.cpp:167` — drop `SP1` from `baked SP1 defaults`.
-- `mlxbackend.cpp:231` — reword `SP3: !useFP16 gate removed` to
-  `Winograd path runs in fp16 too (no !useFP16 gate).`
-- `mlxbackend.cpp:268-269` — strip trailing `(SP3)` from two
-  `always fp32` comments.
-- `mlxwinograd.h:134` — `SP5 Task 5: matmulOrient axis removed; only
-  the Std layout remains.` → `Output layout: Std only.`
-- `mlxwinograd.h:162-163` — `SP5 Task 5: MATMUL_ORIENT template arg
-  removed — output layout is monomorphic on Std ([16, Ntiles, C]).`
-  → `The matmul layout is monomorphic on Std ([16, Ntiles, C]).`
-- `mlxwinograd.h:166-168` — drop `(Tasks 3+; 1 = SP3 behavior)`,
-  `(Tasks 4+; 1 = SP3)`, `(Task 5+)` parentheticals from template-arg
-  docs.
-- `mlxwinograd.h:229, 280, 306, 335` — strip trailing
-  `(SP5 Task 5: Std only.)` from four kernel-source comments.
-- `mlxwinograd.h:294-302` — covered by Commit 3's Block 3 rewrite.
-- `mlxwinograd.h:379` — delete redundant
-  `SP5 Task 5: matmulOrient axis removed; no _o suffix needed.`
-- `mlxwinograd.h:386-387` — `Output kernel is monomorphic on VW=1
-  (SP5 Task 3), GRID_ORDER=Cfast (SP5 Task 4), and MATMUL_ORIENT=Std
-  (SP5 Task 5).` → drop parenthetical tags.
-- `mlxwinograd.h:410, 439` — strip trailing
-  `(SP5 Task 5: Std only.)`.
-- `mlxwinograd.h:445-446` — drop `(SP5 Task 3)` and `(SP5 Task 4)`
-  parentheticals.
-- `mlxwinotuner.h:21` — `companion after SP5 Task 6; output kernel is
-  Cfast-monomorphic after Task 4` → `companion; output kernel is
-  Cfast-monomorphic`.
+1. **Keep the invariant, drop the stage label.** If a comment states an
+   invariant ("output kernel is monomorphic on VW=1"), keep it. Strip
+   the parenthetical or prefix that names *when* the invariant became
+   true ("SP5 Task 3:", "(SP4 Task 5 / SP5 Task 4)", "after Task 5+").
+2. **Pure-history comments get deleted.** If the comment is entirely
+   "SPx Task N: <axis> removed" and the surrounding code already
+   reflects that the axis is gone, the comment carries no surviving
+   information and should be deleted.
+3. **Test-comment SP/Task tags are stage labels, not invariants.**
+   `// SP4 Task 3: WPT=1, 4, 8 must produce bit-identical output.` has
+   "WPT=1, 4, 8 must produce bit-identical output" as the invariant
+   (the test's purpose); "SP4 Task 3" is the stage label. Strip.
+4. **Specific engineering rationale survives.** "(empirical sensitivity
+   sweep showed <1% delta)" stays even when its SP/Task tag is
+   dropped. The rationale is engineering judgment that a future
+   contributor would otherwise have to re-derive.
+5. **Block comments at `mlxwinograd.h:12-15`, `:161-171`, `:291-302`
+   are out of scope for Commit 2.** They need full rewrite, not
+   in-place de-tag — that's Commit 3.
 
-**Out of scope for Commit 2:** the larger block comments at
-`mlxwinograd.h:12-15`, `mlxwinograd.h:161-171`, and
-`mlxwinograd.h:291-302` — those need a full rewrite (Commit 3), not
-in-place de-tag.
+The plan document enumerates every site with concrete before/after
+text so the implementer doesn't have to apply the principle from
+scratch.
 
 **Risk:** Comment-only diff. No build/test impact.
 
