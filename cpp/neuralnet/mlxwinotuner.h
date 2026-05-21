@@ -11,6 +11,7 @@
 
 class Logger;
 struct ModelDesc;
+struct ConvLayerDesc;
 
 struct MLXWinogradTuneParams {
   MLXWinograd::InputTransform    inputTransform;
@@ -138,6 +139,28 @@ namespace MLXWinogradTuner {
   // input/output channel histograms over 3x3 convs only, calls the
   // formatter. Single line; safe to log on every model load.
   std::string formatConv3x3Distribution(const ModelDesc& modelDesc);
+
+  // Pure core of the conv-3x3 histogram build: filters to 3x3, returns
+  // (channels, count) vectors for inputs and outputs. Decoupled from
+  // ModelDesc so it can be tested without synthesizing the
+  // copy-deleted/stream-constructed ModelDesc hierarchy.
+  //
+  // NOTE on the pointer signature: ConvLayerDesc has a deleted copy ctor
+  // (desc.h:29), so we cannot collect them by value. The shim collects
+  // pointers to descriptors owned by the ModelDesc; the test constructs
+  // descriptors in a local vector via emplace_back and passes pointers.
+  // All pointers must be non-null and outlive the call.
+  std::pair<std::vector<std::pair<int,int>>,
+            std::vector<std::pair<int,int>>>
+  buildConv3x3HistogramsFromConvsForTesting(
+      const std::vector<const ConvLayerDesc*>& convs);
+
+  // ModelDesc shim. Walks modelDesc.iterConvLayers into a pointer vector
+  // and delegates to the pure core above. Used by mlxbackend.cpp at model
+  // load.
+  std::pair<std::vector<std::pair<int,int>>,
+            std::vector<std::pair<int,int>>>
+  buildConv3x3Histograms(const ModelDesc& modelDesc);
 }
 
 #endif // USE_MLX_BACKEND

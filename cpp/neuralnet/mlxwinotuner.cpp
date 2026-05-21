@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <deque>
 #include <fstream>
 #include <limits>
 #include <optional>
@@ -1035,17 +1036,58 @@ std::string MLXWinogradTuner::formatConv3x3DistributionLine(
        + " output_c=" + serialize(outputChannelCounts);
 }
 
-std::string MLXWinogradTuner::formatConv3x3Distribution(const ModelDesc& modelDesc) {
+// Pure core: filter to 3x3 convs and emit (channels, count) histograms.
+// Decoupled from ModelDesc so it's testable without synthesizing the
+// copy-deleted ModelDesc hierarchy. Takes pointers because ConvLayerDesc
+// has a deleted copy ctor; pointers must be non-null and outlive the call.
+static std::pair<std::vector<std::pair<int,int>>,
+                 std::vector<std::pair<int,int>>>
+buildConv3x3HistogramsFromConvs(const std::vector<const ConvLayerDesc*>& convs) {
   std::map<int,int> inputC, outputC;
-  int total = 0;
-  modelDesc.iterConvLayers([&](const ConvLayerDesc& c) {
-    if(c.convXSize == 3 && c.convYSize == 3) {
-      total++;
-      inputC[c.inChannels]++;
-      outputC[c.outChannels]++;
+  for(const ConvLayerDesc* c : convs) {
+    if(c->convXSize == 3 && c->convYSize == 3) {
+      inputC[c->inChannels]++;
+      outputC[c->outChannels]++;
     }
-  });
-  return formatConv3x3DistributionLine(total, inputC, outputC);
+  }
+  std::vector<std::pair<int,int>> inVec(inputC.begin(), inputC.end());
+  std::vector<std::pair<int,int>> outVec(outputC.begin(), outputC.end());
+  return {std::move(inVec), std::move(outVec)};
+}
+
+std::pair<std::vector<std::pair<int,int>>,
+          std::vector<std::pair<int,int>>>
+MLXWinogradTuner::buildConv3x3HistogramsFromConvsForTesting(
+    const std::vector<const ConvLayerDesc*>& convs) {
+  return buildConv3x3HistogramsFromConvs(convs);
+}
+
+// ModelDesc shim. Walks iterConvLayers, collects pointers to the
+// descriptors owned by modelDesc, and delegates to the pure core. Used
+// by mlxbackend.cpp at model load. The returned histograms reference no
+// memory from modelDesc — only ints — so the descriptor lifetime
+// requirement is local to this call.
+std::pair<std::vector<std::pair<int,int>>,
+          std::vector<std::pair<int,int>>>
+MLXWinogradTuner::buildConv3x3Histograms(const ModelDesc& modelDesc) {
+  std::vector<const ConvLayerDesc*> convs;
+  modelDesc.iterConvLayers([&](const ConvLayerDesc& c) { convs.push_back(&c); });
+  return buildConv3x3HistogramsFromConvs(convs);
+}
+
+std::string MLXWinogradTuner::formatConv3x3Distribution(const ModelDesc& modelDesc) {
+  // Refactored to share the walker/filter with the tuner; previously
+  // built the histograms inline. Walk-once semantics at the call site
+  // (mlxbackend.cpp) — that file calls buildConv3x3Histograms once and
+  // passes the result to both the tuner and (optionally) the line
+  // formatter. This wrapper remains for tests and any caller that only
+  // wants the formatted line.
+  auto [inVec, outVec] = MLXWinogradTuner::buildConv3x3Histograms(modelDesc);
+  std::map<int,int> inMap(inVec.begin(), inVec.end());
+  std::map<int,int> outMap(outVec.begin(), outVec.end());
+  int total = 0;
+  for(const auto& kv : outVec) total += kv.second;  // total = #3x3 convs
+  return formatConv3x3DistributionLine(total, inMap, outMap);
 }
 
 void runMLXWinotunerTests() {
@@ -1166,6 +1208,71 @@ void runMLXWinotunerTests() {
     }
 
     std::cout << "  planShapeRotation OK" << std::endl;
+  }
+
+  {
+    // buildConv3x3HistogramsFromConvs — pure-function test on the conv
+    // filter+histogram. Constructs ConvLayerDesc instances directly
+    // (default-constructible per desc.h:25). ConvLayerDesc has a deleted
+    // copy ctor (desc.h:29), so we build the descriptors in a deque
+    // (stable addresses, no copies on growth) and pass pointers to the
+    // helper. Does not touch ModelDesc.
+
+    auto initConv = [](ConvLayerDesc& c, int kY, int kX, int inC, int outC) {
+      c.convYSize  = kY;
+      c.convXSize  = kX;
+      c.inChannels = inC;
+      c.outChannels = outC;
+    };
+
+    // Four layers: only the two 3x3 layers should contribute.
+    std::deque<ConvLayerDesc> storage;
+    std::vector<const ConvLayerDesc*> convs;
+    storage.emplace_back(); initConv(storage.back(), 1, 1, 10, 10); convs.push_back(&storage.back());  // 1x1 — filtered
+    storage.emplace_back(); initConv(storage.back(), 3, 3, 20, 30); convs.push_back(&storage.back());  // input_c[20]++, output_c[30]++
+    storage.emplace_back(); initConv(storage.back(), 3, 3, 30, 30); convs.push_back(&storage.back());  // input_c[30]++, output_c[30]++
+    storage.emplace_back(); initConv(storage.back(), 5, 5, 40, 40); convs.push_back(&storage.back());  // 5x5 — filtered
+
+    auto [inHist, outHist] =
+        MLXWinogradTuner::buildConv3x3HistogramsFromConvsForTesting(convs);
+
+    // Convert to maps for order-independent comparison.
+    std::map<int,int> inMap(inHist.begin(), inHist.end());
+    std::map<int,int> outMap(outHist.begin(), outHist.end());
+
+    testAssert(inMap.size() == 2);
+    testAssert(inMap[20] == 1);
+    testAssert(inMap[30] == 1);
+    testAssert(inMap.count(10) == 0);  // 1x1 didn't leak through
+    testAssert(inMap.count(40) == 0);  // 5x5 didn't leak through
+
+    testAssert(outMap.size() == 1);
+    testAssert(outMap[30] == 2);
+    testAssert(outMap.count(10) == 0);
+    testAssert(outMap.count(40) == 0);
+
+    // Asymmetric 3x3 (e.g. 3x1) must also be filtered — the kernel is
+    // strictly square-3.
+    std::deque<ConvLayerDesc> asymStorage;
+    std::vector<const ConvLayerDesc*> asym;
+    asymStorage.emplace_back(); initConv(asymStorage.back(), 3, 1, 16, 16); asym.push_back(&asymStorage.back());
+    asymStorage.emplace_back(); initConv(asymStorage.back(), 1, 3, 16, 16); asym.push_back(&asymStorage.back());
+    asymStorage.emplace_back(); initConv(asymStorage.back(), 3, 3, 16, 16); asym.push_back(&asymStorage.back());
+    auto [inA, outA] =
+        MLXWinogradTuner::buildConv3x3HistogramsFromConvsForTesting(asym);
+    testAssert(inA.size() == 1 && inA[0].first == 16 && inA[0].second == 1);
+    testAssert(outA.size() == 1 && outA[0].first == 16 && outA[0].second == 1);
+
+    // Empty input → empty histograms (no assert; this is just the pure
+    // core. The mlxbackend.cpp call site asserts non-empty after a real
+    // model walk; see Step 4.2 comment).
+    std::vector<const ConvLayerDesc*> empty;
+    auto [inE, outE] =
+        MLXWinogradTuner::buildConv3x3HistogramsFromConvsForTesting(empty);
+    testAssert(inE.empty());
+    testAssert(outE.empty());
+
+    std::cout << "  buildConv3x3HistogramsFromConvs OK" << std::endl;
   }
 
   // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
