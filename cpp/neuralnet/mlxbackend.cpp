@@ -5,7 +5,7 @@
  * Uses Apple's MLX framework for neural network inference on Apple Silicon.
  * Supports FP16 (half precision) and FP32 computation with NHWC memory layout.
  * FP16 Winograd uses selective fp32 accumulation at the matmul reduction and
- * BatchNorm intermediate (spec docs/superpowers/specs/2026-05-20-mlx-winograd-fp16-design.md).
+ * BatchNorm intermediate for numerical stability.
  * `mlxUseFP16 = auto` resolves to fp16.
  */
 
