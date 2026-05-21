@@ -131,7 +131,7 @@ namespace mx = mlx::core;
 
 // Host-side weight transform: OIHW [Cout][Cin][3][3] -> U array.
 // Layout: [16, Cin, Cout] — Cout fast (matmul sees [16,Ntiles,Cin] x [16,Cin,Cout] -> [16,Ntiles,Cout]).
-// SP5 Task 5: matmulOrient axis removed; only the Std layout remains.
+// Output layout: Std only.
 inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
                                      int Cout, int Cin,
                                      bool useFP16 = false) {
@@ -226,7 +226,7 @@ inline constexpr const char* kWinoInputSource = R"METAL(
             T V1 = u1 + u2;
             T V2 = u2 - u1;
             T V3 = u1 - u3;
-            // outp [16, Ntiles, C] — C is the fast axis. (SP5 Task 5: Std only.)
+            // outp [16, Ntiles, C] — C is the fast axis.
             int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
             outp[base + 0 * Ntiles_k * C_k] = V0;
             outp[base + 1 * Ntiles_k * C_k] = V1;
@@ -277,7 +277,7 @@ inline constexpr const char* kWinoInputSource = R"METAL(
           T V1 = u1 + u2;
           T V2 = u2 - u1;
           T V3 = u1 - u3;
-          // outp [16, Ntiles, C] — C is the fast axis. (SP5 Task 5: Std only.)
+          // outp [16, Ntiles, C] — C is the fast axis.
           int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
           outp[base + 0 * Ntiles_k * C_k] = V0;
           outp[base + 1 * Ntiles_k * C_k] = V1;
@@ -303,7 +303,7 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 inline constexpr const char* kWinoOutputSource = R"METAL(
     static_assert(WPT >= 1, "WPT must be positive");
 
-    // m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2] (SP5 Task 5: Std only.)
+    // m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2].
     int Ntiles_k = m_shape[1];
     int outC_k   = m_shape[2];
     int H_k      = nhwc[1];
@@ -332,7 +332,7 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
         for (int r = 0; r < 4; r++) {
           for (int c2 = 0; c2 < 4; c2++) {
             int p = r * 4 + c2;
-            // m shape [16, Ntiles, outC] (SP5 Task 5: Std only.)
+            // m shape [16, Ntiles, outC].
             mm[r][c2] = m[(p * Ntiles_k + tileIdx) * outC_k + oc];
           }
         }
@@ -376,15 +376,14 @@ inline mx::array winogradConv2d(const mx::array& input,
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
-  // SP5 Task 5: matmulOrient axis removed; no _o suffix needed.
   auto inSuffix = [&](const char* base, int wpt, int vw, GridOrder go) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
          + "_w" + std::to_string(wpt)
          + "_v" + std::to_string(vw)
          + "_g" + std::to_string((int)go);
   };
-  // Output kernel is monomorphic on VW=1 (SP5 Task 3), GRID_ORDER=Cfast
-  // (SP5 Task 4), and MATMUL_ORIENT=Std (SP5 Task 5).
+  // Output kernel is monomorphic on VW=1, GRID_ORDER=Cfast,
+  // and MATMUL_ORIENT=Std.
   auto outSuffix = [&](const char* base, int wpt) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
          + "_w" + std::to_string(wpt);
@@ -407,7 +406,7 @@ inline mx::array winogradConv2d(const mx::array& input,
     };
   };
 
-  // Stage 1: input transform. Output shape: [16, Ntiles, C] (SP5 Task 5: Std only.)
+  // Stage 1: input transform. Output shape: [16, Ntiles, C].
   mx::Shape inOutShape = {16, Ntiles, C};
 
   // Grid: when gridOrder=Cfast the fast axis is C (grid x=C, y=Ntiles/WPT).
@@ -436,14 +435,14 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*stream=*/mx::StreamOrDevice{});
   mx::array t = inOuts[0];
 
-  // Stage 2: matmul. [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout] (SP5 Task 5: Std only.)
+  // Stage 2: matmul. [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout].
   // MLX steel gemm uses AccumType=float (static-asserted in mma.h:772) when
   // T=half, so fp32 accumulation is automatic.
   mx::array m = mx::matmul(t, Uw);
 
   // Stage 3: output untransform -> [N, H, W, Cout]
-  // Output kernel is VW=1 monomorphic (SP5 Task 3) and Cfast monomorphic
-  // (SP5 Task 4). Grid x = Cout, grid y = ceil(Ntiles / WPT).
+  // Output kernel is VW=1 monomorphic and Cfast monomorphic.
+  // Grid x = Cout, grid y = ceil(Ntiles / WPT).
   int nhwc_arr[4] = {N, H, W, Cout};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
   int gridX_out = Cout;

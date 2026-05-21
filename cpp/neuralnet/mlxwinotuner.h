@@ -18,7 +18,7 @@ struct MLXWinogradTuneParams {
   MLXWinograd::OutputUntransform outputUntransform;
 
   // tg0 * tg1 <= 1024, all positive. Input gridOrder stands alone (no global
-  // companion after SP5 Task 6; output kernel is Cfast-monomorphic after Task 4).
+  // companion; output kernel is Cfast-monomorphic).
   // vw must divide the fast-axis dim of the current model —
   // that check happens at candidate-enumeration time, not here.
   bool isValid() const;

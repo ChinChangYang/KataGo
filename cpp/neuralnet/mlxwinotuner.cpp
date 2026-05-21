@@ -74,10 +74,10 @@ bool MLXWinogradTuneParams::isValid() const {
   if(outputUntransform.tg0 * outputUntransform.tg1 > 1024) return false;
   if(inputTransform.wpt < 1 || outputUntransform.wpt < 1) return false;
   if(inputTransform.vw  < 1) return false;
-  // SP4: Tfast (GRID_ORDER=1) requires VW=1 in the kernels. Reject any
-  // input candidate that violates this — surfaces the constraint earlier
-  // than the Metal JIT static_assert. (SP5 Task 3: output VW is gone.
-  // SP5 Task 6: global gridOrder is gone; input gridOrder stands alone.)
+  // Tfast (GRID_ORDER=1) requires VW=1 in the kernels. Reject any input
+  // candidate that violates this — surfaces the constraint earlier than
+  // the Metal JIT static_assert. (Output VW is gone; global gridOrder
+  // is gone; input gridOrder stands alone.)
   if(inputTransform.gridOrder == MLXWinograd::GridOrder::Tfast
      && inputTransform.vw != 1) return false;
   return true;
@@ -165,7 +165,7 @@ namespace {
 // One stage-1 (input transform) timed run on a synthetic [N,H,W,C] tensor.
 // Mirrors the inner-loop shape of winogradConv2d's stage 1, but issues only
 // the input-transform kernel so we can score it in isolation. Returns wall ms.
-// SP5 Task 5: matmulOrient axis removed — input kernel always writes Std layout.
+// Input kernel always writes Std layout (matmulOrient axis is gone).
 static double timeOneInputTransform(
     const MLXWinograd::InputTransform& cfg,
     const mx::array& input, int channels,
@@ -194,7 +194,7 @@ static double timeOneInputTransform(
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoInputSource);
 
-  // Output shape: [16, Ntiles, C] (SP5 Task 5: Std only.)
+  // Output shape: [16, Ntiles, C] (Std only).
   mx::Shape outShape = {16, Ntiles, channels};
 
   // Grid depends on gridOrder: Cfast → (ceil(C/vw), ceil(Ntiles/wpt), 1),
@@ -247,7 +247,7 @@ static double timeOneInputTransform(
 }
 
 // Same shape for output untransform: synthetic [16, Ntiles, outC] -> [N,H,W,outC].
-// SP5 Task 5: matmulOrient axis removed — m is always Std-layout ([16, Ntiles, outC]).
+// m is always Std-layout ([16, Ntiles, outC]).
 static double timeOneOutputUntransform(
     const MLXWinograd::OutputUntransform& cfg,
     const mx::array& m, int N, int H, int W, int outC,
@@ -262,9 +262,8 @@ static double timeOneOutputUntransform(
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
   // Kernel name encodes the still-live axes so the Metal JIT cache sees a
-  // unique entry per (dtype, wpt) combination. (SP5 Task 3: VW dropped.
-  // SP5 Task 4: GRID_ORDER dropped — output kernel is Cfast-only.
-  // SP5 Task 5: MATMUL_ORIENT dropped — output kernel is Std-only.)
+  // unique entry per (dtype, wpt) combination. (Output kernel is VW=1
+  // monomorphic, Cfast monomorphic, and Std-only.)
   std::string kernelName =
       std::string(useFP16 ? "wino_output_untransform_f16" : "wino_output_untransform_f32")
       + "_w" + std::to_string(cfg.wpt)
@@ -649,14 +648,14 @@ static const std::vector<int>& outputTg0Values(bool full) {
   return v;
 }
 static const std::vector<int>& outputTg1Values(bool full) {
-  // SP3 non-full inconsistency (skipped 8) is fixed here.
+  // Symmetric with full set (the 8 entry is preserved in non-full).
   static const std::vector<int> vFull    = {1,2,4,5,8,10,16,20,25,32,40,50,64,100,128};
   static const std::vector<int> vNonFull = {1,2,4,8,10,16,25,32,50,100};
   return full ? vFull : vNonFull;
 }
 
-// New axes from SP4. After SP5: wptValues() is used by both stages;
-// vwValues() is input-only (output kernel is VW=1 monomorphic).
+// wptValues() is used by both stages; vwValues() is input-only
+// (output kernel is VW=1 monomorphic).
 static const std::vector<int>& wptValues() {
   static const std::vector<int> v = {1, 2, 4, 8};
   return v;
@@ -681,9 +680,9 @@ static bool isInputCandidateValid(int tg0, int tg1, int wpt, int vw,
   }
   return true;
 }
-// SP5 Task 3: output kernel is VW=1 monomorphic — no vw parameter, no
-// vw-divisibility check on outC.
-// SP5 Task 4: output kernel is Cfast monomorphic — no gridOrder parameter.
+// Output kernel is VW=1 monomorphic — no vw parameter, no
+// vw-divisibility check on outC. Output kernel is also Cfast monomorphic
+// — no gridOrder parameter.
 static bool isOutputCandidateValid(int tg0, int tg1, int wpt,
                                    int /*outC*/, int /*Ntiles*/) {
   if(tg0 <= 0 || tg1 <= 0 || wpt <= 0) return false;
@@ -716,7 +715,7 @@ buildOutputCandidates(bool full, int outC, int Ntiles) {
 }
 
 // Flat sweep over (tg0, tg1, wpt, vw, gridOrder) for the input transform.
-// Replaces SP4's Joint-A/B/refine cascade. Returns the best (lowest-time)
+// Returns the best (lowest-time)
 // candidate that passes isInputCandidateValid; nullopt if no candidate is
 // valid (defensive -- should not happen for a real model).
 static std::optional<MLXWinograd::InputTransform>
@@ -734,10 +733,10 @@ flatSweepInput(int N, int H, int W,
   const int tilesX = (W + 1) / 2;
   const int Ntiles = N * tilesY * tilesX;
 
-  // Score the SP1 baked default (default-constructed = {tg0=32, tg1=1, wpt=1,
+  // Score the baked default (default-constructed = {tg0=32, tg1=1, wpt=1,
   // vw=1, gridOrder=Cfast}) so the sweep log carries a baseline the operator
   // can compare the winner against. Always adopted-winner; no fallback.
-  // SP1 defaults satisfy isInputCandidateValid for any (C, Ntiles) because
+  // The defaults satisfy isInputCandidateValid for any (C, Ntiles) because
   // vw=1 divides every channel count; see mlxwinograd.h for the struct defaults.
   const double baselineMs =
       scoreInputTransform(MLXWinograd::InputTransform{}, N, H, W, mi, useFP16);
@@ -746,10 +745,10 @@ flatSweepInput(int N, int H, int W,
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
 
-  // SP5 Task 4: the output gridOrder check in isValid() is gone (output kernel
-  // is Cfast-monomorphic), so the input gridOrder axis can again be searched
-  // over both Cfast and Tfast. SP5 Task 6: the global gridOrder field is also
-  // gone — input gridOrder stands alone, no cross-stage consistency to enforce.
+  // The output gridOrder check in isValid() is gone (output kernel is
+  // Cfast-monomorphic), so the input gridOrder axis can be searched over
+  // both Cfast and Tfast. The global gridOrder field is also gone —
+  // input gridOrder stands alone, no cross-stage consistency to enforce.
   for(GO go : {GO::Cfast, GO::Tfast}) {
     auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(full, C, Ntiles, go);
     for(const auto& cand : cands) {
@@ -799,8 +798,8 @@ flatSweepInput(int N, int H, int W,
 }
 
 // Flat sweep over (tg0, tg1, wpt) for the output untransform. Output VW
-// and gridOrder are not searched: the kernel is monomorphic on VW=1 (SP5
-// Task 3) and Cfast (SP5 Task 4).
+// and gridOrder are not searched: the kernel is monomorphic on VW=1 and
+// Cfast.
 static std::optional<MLXWinograd::OutputUntransform>
 flatSweepOutput(int N, int H, int W,
                 const MLXWinogradTuner::ModelInfoForTuning& mi,
@@ -814,7 +813,7 @@ flatSweepOutput(int N, int H, int W,
   assert(outC > 0);
   const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
-  // Score the SP1 baked default (default-constructed = {tg0=32, tg1=1, wpt=1})
+  // Score the baked default (default-constructed = {tg0=32, tg1=1, wpt=1})
   // so the sweep log carries a baseline the operator can compare the winner
   // against. Symmetric to flatSweepInput.
   const double baselineMs =
@@ -824,8 +823,8 @@ flatSweepOutput(int N, int H, int W,
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
 
-  // Output kernel is VW=1 monomorphic (SP5 Task 3) and Cfast monomorphic
-  // (SP5 Task 4), so neither VW nor gridOrder is searched here.
+  // Output kernel is VW=1 monomorphic and Cfast monomorphic, so neither
+  // VW nor gridOrder is searched here.
   auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles);
   for(auto cand : cands) {
     considered++;
@@ -918,7 +917,7 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   MLXWinogradTuneParams result;
   result.inputTransform    = *bestIn;
   result.outputUntransform = *bestOut;
-  // SP5 Task 6: global gridOrder is deleted; input gridOrder stands alone.
+  // Global gridOrder is deleted; input gridOrder stands alone.
 
   if(!result.isValid())
     throw StringError("MLXWinogradTuner: flat sweep result failed isValid()");
@@ -1276,7 +1275,7 @@ void runMLXWinotunerTests() {
 
   // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
   {
-    // SP5 Task 8 — v3 roundtrip: write -> load -> compare all 8 fields. Two
+    // v3 roundtrip: write -> load -> compare all 8 fields. Two
     // cases for input gridOrder: Cfast and Tfast. (Tfast forces vw=1 per
     // isValid invariant.)
     using namespace MLXWinograd;
@@ -1309,7 +1308,7 @@ void runMLXWinotunerTests() {
     cout << "  v3 roundtrip (Cfast + Tfast) OK" << endl;
   }
 
-  // SP3 Task 4: dtype-aware cache filenames must coexist in the same directory
+  // dtype-aware cache filenames must coexist in the same directory
   // without collision. Verify defaultFileName gains a _fp16/_fp32 suffix.
   {
     std::string nameF32 = MLXWinogradTuner::defaultFileName(
@@ -1340,7 +1339,7 @@ void runMLXWinotunerTests() {
 
   // ---- v3 isValid invariants ----
   {
-    // SP5 Task 8 — v3 isValid invariants.
+    // v3 isValid invariants.
     using namespace MLXWinograd;
     auto basePass = [&]() {
       MLXWinogradTuneParams p;
@@ -1380,7 +1379,7 @@ void runMLXWinotunerTests() {
     cout << "  v3 isValid invariants OK" << endl;
   }
 
-  // SP4 Task 7: candidate enumeration expanded with validity filtering.
+  // Candidate enumeration with validity filtering.
   {
     using namespace MLXWinograd;
     // Cfast, C=64 (divisible by all vw): full Cartesian product over all axes
@@ -1413,31 +1412,30 @@ void runMLXWinotunerTests() {
       testAssert(c.gridOrder == GridOrder::Tfast);
     }
 
-    // Output side: same shape of assertions. (SP5 Task 4: gridOrder param
-    // dropped from buildOutputCandidatesForTesting — output is Cfast-only.)
+    // Output side: same shape of assertions. (gridOrder is not a parameter
+    // of buildOutputCandidatesForTesting — output is Cfast-only.)
     auto out_cands = MLXWinogradTuner::buildOutputCandidatesForTesting(
         true, /*outC*/64, /*Ntiles*/200);
     testAssert(out_cands.size() > 100);
     for(const auto& c : out_cands)
       testAssert(c.tg0 * c.tg1 <= 1024);
 
-    std::cout << "  MLX Winograd Task 7 candidate enumeration validity passed ("
+    std::cout << "  MLX Winograd candidate enumeration validity passed ("
               << cands.size() << " input / " << out_cands.size() << " output candidates C=64)"
               << std::endl;
   }
 
   // ---- Measurement primitives return finite positive times ----
   // We can't call the static helpers from the test, so we use the public
-  // surface that will be wired in Task 4: loadOrAutoTune with reTune=true
-  // would run the search; for Task-3 scope we just verify the public
-  // schema struct works with valid configs. The measurement primitive itself
-  // is exercised by the search-works test added in Task 4.
+  // surface: loadOrAutoTune with reTune=true runs the search and we verify
+  // that the public schema struct works with valid configs. The measurement
+  // primitive itself is exercised by the search-works test below.
 
   {
-    // SP5 Task 10 — Gated flat-sweep convergence test.
+    // Gated flat-sweep convergence test.
     // Runs the production flat sweep on a small synthetic problem and asserts
     // that the winner is isValid and that its timing is no worse than the
-    // SP1 baked default (tg0=32, tg1=1, wpt=1, vw=1, Cfast).
+    // baked default (tg0=32, tg1=1, wpt=1, vw=1, Cfast).
     const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
@@ -1483,7 +1481,7 @@ void runMLXWinotunerTests() {
       double tunedMs = bestOf5(tuned.inputTransform);
       // Allow 10% noise budget.
       testAssert(tunedMs <= bakedMs * 1.10);
-      std::cout << "  SP5 flat-sweep convergence (gated) OK"
+      std::cout << "  flat-sweep convergence (gated) OK"
                 << " bakedMs=" << bakedMs
                 << " tunedMs=" << tunedMs << std::endl;
 
@@ -1561,7 +1559,7 @@ void runMLXWinotunerTests() {
     // the ~10% per-sample noise floor. The 25% budget covers both.
     //
     // Reuses the KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST gate so users who
-    // opt into the SP5 Task 10 sweep cost also get this check. Note
+    // opt into the sweep-convergence cost also get this check. Note
     // this runs an INDEPENDENT loadOrAutoTune sweep — total cost when
     // the gate is set is roughly 2x the pre-Task-3 cost.
     //
@@ -1643,7 +1641,7 @@ void runMLXWinotunerTests() {
     // Tighter precision checks belong in same-config stability tests.
     //
     // Coverage scope: input stage only. flatSweepOutput's per-shape fields
-    // are format-checked by the log-format test (Task 2 / gate
+    // are format-checked by the log-format test (gate
     // KATAGO_MLX_WINOTUNER_RUN_LOG_FORMAT_TEST) but not consistency-
     // checked here — symmetric output check is deferred.
     //

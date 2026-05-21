@@ -6,7 +6,7 @@
  * Supports FP16 (half precision) and FP32 computation with NHWC memory layout.
  * FP16 Winograd uses selective fp32 accumulation at the matmul reduction and
  * BatchNorm intermediate (spec docs/superpowers/specs/2026-05-20-mlx-winograd-fp16-design.md).
- * `mlxUseFP16 = auto` resolves to fp16 after SP3 acceptance lands.
+ * `mlxUseFP16 = auto` resolves to fp16.
  */
 
 #include "../neuralnet/nninterface.h"
@@ -32,7 +32,7 @@
 #include <cmath>
 
 // Test-only free functions. runMLXWinogradTests is defined at the bottom of
-// this file (alongside runMLXBatchNormFP16Test_SP3 / runMLXConvLayerFP16WinogradTest_SP3).
+// this file (alongside runMLXBatchNormFP16Test / runMLXConvLayerFP16WinogradTest).
 // runMLXWinotunerTests is defined in mlxwinotuner.cpp.
 void runMLXWinogradTests();
 void runMLXWinotunerTests();
@@ -164,7 +164,7 @@ static bool mlxWinogradEnabled() {
   return enabled;
 }
 
-// Tuner is on by default; KATAGO_MLX_WINOTUNER=0 forces baked SP1 defaults.
+// Tuner is on by default; KATAGO_MLX_WINOTUNER=0 forces baked defaults.
 static bool mlxWinotunerEnabled() {
   static const bool enabled = [](){
     const char* e = std::getenv("KATAGO_MLX_WINOTUNER");
@@ -228,7 +228,7 @@ struct ConvLayer {
       dilationY(desc.dilationY),
       dilationX(desc.dilationX),
       useFP16(useFP16_),
-      // SP3: `!useFP16` gate removed — Winograd path now runs in fp16 too.
+      // Winograd path runs in fp16 too (no `!useFP16` gate).
       useWinograd(mlxWinogradEnabled()
                   && convYSize==3 && convXSize==3
                   && dilationY==1 && dilationX==1),
@@ -265,16 +265,16 @@ struct BatchNormLayer {
   const int numChannels;
   const int activation;
   const bool useFP16;
-  mx::array mergedScale; // Shape: [C], always fp32 (SP3)
-  mx::array mergedBias;  // Shape: [C], always fp32 (SP3)
+  mx::array mergedScale; // Shape: [C], always fp32
+  mx::array mergedBias;  // Shape: [C], always fp32
 
   BatchNormLayer() = delete;
   BatchNormLayer(const BatchNormLayer&) = delete;
   BatchNormLayer& operator=(const BatchNormLayer&) = delete;
 
-  // SP3: mergedScale/mergedBias storage is always fp32 to preserve dynamic
+  // mergedScale/mergedBias storage is always fp32 to preserve dynamic
   // range across the 25-block-deep b18c384 chain. The `useFP16` parameter
-  // is intentionally ignored. See spec §3 item 4.
+  // is intentionally ignored.
   static mx::array createArray1D(const std::vector<float>& data, int size, bool /*useFP16*/) {
     mx::Shape shape = {size};
     return mx::array(data.data(), shape, mx::float32);
@@ -988,7 +988,7 @@ struct Model {
     float* scoreValueOut,
     float* ownershipOut
   ) const {
-    // SP3: This raw-output path memcpys policy.data<float>() etc. into the
+    // This raw-output path memcpys policy.data<float>() etc. into the
     // caller's fp32 buffers. If useFP16==true, .data<float>() yields fp16
     // bit-patterns reinterpreted as fp32 -> garbage. Use applyCompiled()
     // (production) which casts outputs back to fp32 inside applyArrays().
@@ -1186,9 +1186,9 @@ struct ComputeHandle {
       compiledFuncsMutex(),
       compiledFuncs()
   {
-    // Determine tuner params: either run the autotuner, or use baked SP1 defaults.
-    // SP3: tuner runs at every precision so fp16 gets its own cache file
-    // (_fp16.txt suffix). See spec §3 item 3.
+    // Determine tuner params: either run the autotuner, or use baked defaults.
+    // Tuner runs at every precision so fp16 gets its own cache file
+    // (_fp16.txt suffix).
     MLXWinogradTuneParams tuneParams;
     if(mlxWinogradEnabled() && mlxWinotunerEnabled()) {
       // Shape diagnostic: print the model's 3x3 conv shape distribution before
@@ -1379,11 +1379,11 @@ ComputeHandle* NeuralNet::createComputeHandle(
   int gpuIdxForThisThread,
   int serverThreadIdx
 ) {
-  // SP3: Auto resolves to fp16 (gated on acceptance: MLX-fp16 paired-t beat
-  // both Metal-fp16 and MLX-fp32 with non-overlapping CIs, and testgpuerror
-  // accuracy exit=0). Users who need bit-for-bit fp32 reproducibility set
-  // `mlxUseFP16 = false` explicitly. See the traceability commit for the
-  // exact gate numbers.
+  // Auto resolves to fp16. The original acceptance gate (MLX-fp16 paired-t
+  // beat both Metal-fp16 and MLX-fp32 with non-overlapping CIs, and
+  // testgpuerror accuracy exit=0) is preserved in the traceability commit.
+  // Users who need bit-for-bit fp32 reproducibility set `mlxUseFP16 = false`
+  // explicitly.
   bool useFP16 = (context->useFP16Mode != enabled_t::False);
 
   if(logger != NULL) {
@@ -1731,10 +1731,10 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
   return true;
 }
 
-// SP3 Task 2: directly-asserting unit test for BatchNormLayer fp16 mode.
+// Directly-asserting unit test for BatchNormLayer fp16 mode.
 // Declared here because BatchNormLayer is not in any public header.
 // Called from runMLXWinogradTests() (same TU).
-void runMLXBatchNormFP16Test_SP3() {
+void runMLXBatchNormFP16Test() {
   namespace mxc = mx;  // reuse the file-scope alias from line 29
   using std::cout;
   using std::endl;
@@ -1768,10 +1768,10 @@ void runMLXBatchNormFP16Test_SP3() {
   cout << "  BatchNormLayer fp16: mergedScale/Bias fp32, output fp16 OK" << endl;
 }
 
-// SP3 Task 3: directly-asserting unit test for ConvLayer fp16 Winograd path.
+// Directly-asserting unit test for ConvLayer fp16 Winograd path.
 // Declared here because ConvLayer is not in any public header.
 // Called from runMLXWinogradTests() (same TU).
-void runMLXConvLayerFP16WinogradTest_SP3() {
+void runMLXConvLayerFP16WinogradTest() {
   namespace mxc = mx;  // reuse the file-scope alias from line 29
   using std::cout;
   using std::endl;
@@ -1796,7 +1796,7 @@ void runMLXConvLayerFP16WinogradTest_SP3() {
   MLXWinograd::InputTransform inCfg;
   MLXWinograd::OutputUntransform outCfg;
   ConvLayer conv(convDesc, inCfg, outCfg, /*useFP16=*/true);
-  testAssert(conv.useWinograd);  // SP3 gate dropped: fp16 still picks Winograd
+  testAssert(conv.useWinograd);  // fp16 still picks Winograd
 
   mxc::array inArrF32(in.data(),{N,H,W,Cin},mxc::float32);
   mxc::array inArr = mxc::astype(inArrF32, mxc::float16);
@@ -1848,7 +1848,7 @@ void runMLXWinogradTests() {
   }
   cout << "MLX Winograd F(2,3) CPU reference OK" << endl;
 
-  // GPU Winograd metal_kernel validated against the Task 1 CPU oracle.
+  // GPU Winograd metal_kernel validated against the CPU oracle.
   {
     namespace mxc = mlx::core;
     int N=2,H=19,W=19,Cin=8,Cout=16;
@@ -1901,10 +1901,10 @@ void runMLXWinogradTests() {
     testAssert(maxErr < 5e-2);
   }
 
-  runMLXBatchNormFP16Test_SP3();
-  runMLXConvLayerFP16WinogradTest_SP3();
+  runMLXBatchNormFP16Test();
+  runMLXConvLayerFP16WinogradTest();
 
-  // SP4 Task 2 / SP5 Task 5: smoke test — verify Winograd plumbing.
+  // Smoke test — verify Winograd plumbing.
   // Trivial 4x4x1 input, 1 output channel, all-ones filter.
   {
     namespace mxc = mlx::core;
@@ -1935,7 +1935,7 @@ void runMLXWinogradTests() {
     cout << "  MLX Winograd kernel-plumbing smoke test passed (value maxErr=" << smokeMaxErr << ")" << endl;
   }
 
-  // SP4 Task 3: WPT=1, 4, 8 must produce bit-identical output (fp32).
+  // WPT=1, 4, 8 must produce bit-identical output (fp32).
   // Realistic shape: N=2, H=W=19, C=64 -> Ntiles = 2*10*10 = 200.
   {
     using namespace MLXWinograd;
@@ -1981,7 +1981,7 @@ void runMLXWinogradTests() {
     cout << "  MLX Winograd WPT bit-for-bit equivalence (1/4/8) passed" << endl;
   }
 
-  // SP4 Task 3 tail-guard coverage: Ntiles=100 (N=1, H=W=19) is NOT
+  // Tail-guard coverage: Ntiles=100 (N=1, H=W=19) is NOT
   // divisible by WPT=8, so the last thread along the slow axis has
   // tileIdx in {96..103}; iterations 100..103 must hit the break.
   {
@@ -2019,9 +2019,9 @@ void runMLXWinogradTests() {
     cout << "  MLX Winograd WPT tail-guard coverage (Ntiles=100, WPT=8) passed" << endl;
   }
 
-  // SP4 Task 4 / SP5 Task 3: input VW=1, 2, 4 must produce bit-identical fp16
-  // output (Cfast). C=64 is divisible by 4 — VW=4 valid. Output VW removed in
-  // SP5 Task 3 (output kernel is VW=1 monomorphic).
+  // Input VW=1, 2, 4 must produce bit-identical fp16 output (Cfast). C=64
+  // is divisible by 4 — VW=4 valid. Output VW is gone (kernel is VW=1
+  // monomorphic).
   {
     using namespace MLXWinograd;
     namespace mx = mlx::core;
@@ -2063,11 +2063,10 @@ void runMLXWinogradTests() {
     cout << "  MLX Winograd input-VW bit-for-bit equivalence (1/2/4 fp16, Cfast) passed" << endl;
   }
 
-  // SP4 Task 5 / SP5 Task 4: input-stage GridOrder::Cfast and GridOrder::Tfast
-  // must produce bit-identical fp32 output. They differ only in which thread
-  // does which (c, tileIdx) pair; the on-disk layout is unchanged. The output
-  // kernel is Cfast-monomorphic after SP5 Task 4, so only the input gridOrder
-  // is varied here.
+  // Input-stage GridOrder::Cfast and GridOrder::Tfast must produce
+  // bit-identical fp32 output. They differ only in which thread does which
+  // (c, tileIdx) pair; the on-disk layout is unchanged. The output kernel
+  // is Cfast-monomorphic, so only the input gridOrder is varied here.
   {
     using namespace MLXWinograd;
     namespace mx = mlx::core;
@@ -2103,7 +2102,7 @@ void runMLXWinogradTests() {
     std::cout << "  MLX Winograd input-stage Cfast vs Tfast bit-for-bit equivalence passed" << std::endl;
   }
 
-  // SP4 Task 5 / SP5 Task 4 tail-guard coverage: input Tfast with C=67 (not
+  // Tail-guard coverage: input Tfast with C=67 (not
   // divisible by WPT=8). Last thread group has only 3 channels (67 % 8 = 3);
   // the tail-guard `if (c >= C_k) break;` fires for the other 5 iterations.
   // We verify input Tfast still matches input Cfast for this shape.
@@ -2140,12 +2139,8 @@ void runMLXWinogradTests() {
     std::cout << "  MLX Winograd input-stage Tfast tail-guard coverage (C=67, WPT=8) passed" << std::endl;
   }
 
-  // SP5 Task 5: matmulOrient axis removed end-to-end. The Std-vs-Tpd
-  // equivalence tests and the Tfast×Tpd combined-branching test have been
-  // deleted along with the enum.
-
   {
-    // SP5 Task 9 — Output kernel is monomorphic on VW=1, GRID_ORDER=Cfast.
+    // Output kernel is monomorphic on VW=1, GRID_ORDER=Cfast.
     // Run a full conv via winogradConv2d with a deterministic input and weight
     // tensor; assert the output is finite and matches a stable reference
     // checksum (sum of absolute values to 4 decimal places). This catches:
@@ -2166,10 +2161,10 @@ void runMLXWinogradTests() {
     std::vector<float> wData(Cout * Cin * 9);
     for(size_t i = 0; i < wData.size(); i++) wData[i] = (float)i * 0.001f;
     // makeWinogradWeights takes raw [Cout, Cin, 3, 3] flattened and produces
-    // the transformed [16, Cin, Cout] tensor (Std-only after Task 5).
+    // the transformed [16, Cin, Cout] tensor (Std-only).
     mx::array U = makeWinogradWeights(wData, Cout, Cin, /*useFP16=*/false);
 
-    // Output config: Std post-SP5 OutputUntransform has tg0/tg1/wpt only.
+    // Output config: Std OutputUntransform has tg0/tg1/wpt only.
     InputTransform inCfg{};
     inCfg.tg0 = 32; inCfg.tg1 = 1; inCfg.wpt = 1; inCfg.vw = 1;
     inCfg.gridOrder = GridOrder::Cfast;
