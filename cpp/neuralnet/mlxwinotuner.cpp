@@ -25,6 +25,7 @@
 #include "mlx/fast.h"
 #include <chrono>
 #include <random>
+#include <regex>
 
 using namespace std;
 
@@ -532,6 +533,14 @@ flatSweepInput(int N, int H, int W,
   const int tilesX = (W + 1) / 2;
   const int Ntiles = N * tilesY * tilesX;
 
+  // Score the SP1 baked default (default-constructed = {tg0=32, tg1=1, wpt=1,
+  // vw=1, gridOrder=Cfast}) so the sweep log carries a baseline the operator
+  // can compare the winner against. Always adopted-winner; no fallback.
+  // SP1 defaults satisfy isInputCandidateValid for any (C, Ntiles) because
+  // vw=1 divides every channel count; see mlxwinograd.h for the struct defaults.
+  const double baselineMs =
+      scoreInputTransform(MLXWinograd::InputTransform{}, N, H, W, mi, useFP16);
+
   std::optional<MLXWinograd::InputTransform> best;
   double bestTime = std::numeric_limits<double>::infinity();
   int considered = 0;
@@ -549,6 +558,13 @@ flatSweepInput(int N, int H, int W,
     }
   }
   if(logger) {
+    std::string deltaStr;
+    if(best && baselineMs >= 1e-9) {
+      double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
+      deltaStr = Global::strprintf("%+.1f", deltaPct);
+    } else {
+      deltaStr = "nan";
+    }
     logger->write("MLX tuner flatSweepInput: considered=" + std::to_string(considered)
                   + (best
                      ? " best=tg0=" + std::to_string(best->tg0)
@@ -557,7 +573,9 @@ flatSweepInput(int N, int H, int W,
                        + " vw="  + std::to_string(best->vw)
                        + " gridOrder=" + std::to_string((int)best->gridOrder)
                        + " time_ms=" + Global::strprintf("%.3f", bestTime)
-                     : " best=none"));
+                     : " best=none")
+                  + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
+                  + " delta_pct=" + deltaStr);
   }
   return best;
 }
@@ -900,6 +918,55 @@ void runMLXWinotunerTests() {
       std::cout << "  SP5 flat-sweep convergence (gated) OK"
                 << " bakedMs=" << bakedMs
                 << " tunedMs=" << tunedMs << std::endl;
+
+      std::remove(tmpTunerFile.c_str());
+    }
+  }
+
+  {
+    // Baseline anchor — Test 1: log-format gated check (input stage).
+    // Asserts that flatSweepInput's log line carries the new baseline_ms and
+    // delta_pct fields with the documented format. Gated because the synthetic
+    // sweep takes a few seconds; opt in with the env var below.
+    const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_LOG_FORMAT_TEST");
+    if(gate != nullptr && std::string(gate) == "1") {
+      MLXWinogradTuner::ModelInfoForTuning mi;
+      mi.trunkNumChannels    = 64;
+      mi.midNumChannels      = 64;
+      mi.maxConvChannels3x3  = 64;
+      mi.modelVersion        = 11;
+
+      std::string tmpTunerFile = "/tmp/baseline_anchor_log_format.txt";
+      std::remove(tmpTunerFile.c_str());
+
+      std::ostringstream captured;
+      Logger logger(nullptr, /*logToStdoutDefault=*/false,
+                    /*logToStderrDefault=*/false, /*logTimeDefault=*/false,
+                    /*logConfigContents=*/false);
+      logger.addOStream(captured);
+
+      (void)MLXWinogradTuner::loadOrAutoTune(
+          /*tunerFile=*/tmpTunerFile,
+          /*homeDataDirOverride=*/"",
+          /*gpuName=*/"AppleSilicon",
+          /*nnXLen=*/19, /*nnYLen=*/19, /*batchSize=*/1,
+          mi,
+          /*logger=*/&logger,
+          /*full=*/false,
+          /*reTune=*/true,
+          /*useFP16=*/true);
+
+      const std::string log = captured.str();
+      // Logger::writeLocked prefixes each line with ": " when logTime=false, so
+      // `log` reads ": MLX tuner ...". std::regex_search is anchor-free so the
+      // ": " prefix is transparent; only the substring match matters here.
+      // The regex matches the non-degenerate path only (best != nullopt). The
+      // best=none / delta_pct=nan branch is unreachable for the synthetic 19x19
+      // C=64 problem this test runs against (hundreds of valid candidates).
+      std::regex inputRe(
+          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+]?[0-9]+\.[0-9]+)");
+      testAssert(std::regex_search(log, inputRe));
+      std::cout << "  flatSweepInput log-format (gated) OK" << std::endl;
 
       std::remove(tmpTunerFile.c_str());
     }
