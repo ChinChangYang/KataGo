@@ -10,8 +10,9 @@ namespace MLXWinograd {
 enum class GridOrder    : int { Cfast = 0, Tfast = 1 };
 
 // Per-stage launch-geometry configs. SP2 tunes (tg0, tg1); SP4 adds
-// (wpt, vw, gridOrder). SP5 Task 5 removed the global matmulOrient axis
-// — the matmul orientation is now monomorphic on Std.
+// (wpt, vw, gridOrder). SP5 removed output vw (Task 3), output gridOrder
+// (Task 4), and global matmulOrient (Task 5) — matmul orientation is now
+// monomorphic on Std; output kernel is monomorphic on VW=1 and Cfast.
 struct InputTransform {
   int tg0 = 32;
   int tg1 = 1;

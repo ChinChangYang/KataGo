@@ -934,7 +934,6 @@ void Tests::runNNLayerTests() {
 #include "../neuralnet/mlxwinograd.h"
 #include <array>
 #include <cstring>
-#include <iomanip>
 #include <random>
 // SP3 Task 2: BatchNormLayer is internal to mlxbackend.cpp; its fp16 test
 // is defined there and forward-declared here.
@@ -1328,14 +1327,8 @@ void Tests::runMLXWinogradTests() {
     // it captures the deterministic conv result for the inputs above. The
     // test passes thereafter as a regression check, not a correctness check.
     // Tolerance: 0.5% to absorb minor reordering noise from MLX graph rewrites.
-    double expectedSumAbs = 22788.156637847424;  // captured 2026-05-21
-    if(expectedSumAbs < 0) {
-      // First run: print and skip the comparison so the developer can fill in.
-      std::cout << "SP5 Task 9 first-run sumAbs = "
-                << std::setprecision(17) << sumAbs << "\n";
-    } else {
-      testAssert(std::abs(sumAbs - expectedSumAbs) / expectedSumAbs < 0.005);
-    }
+    constexpr double expectedSumAbs = 22788.156637847424;  // captured 2026-05-21
+    testAssert(std::abs(sumAbs - expectedSumAbs) / expectedSumAbs < 0.005);
     std::cout << "  Output-kernel monomorphic smoke test OK" << std::endl;
   }
 }

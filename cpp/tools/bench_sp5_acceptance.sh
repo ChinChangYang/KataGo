@@ -2,7 +2,7 @@
 # SP5 acceptance gate: three sub-gates.
 #
 # Arm A: SP4-fp16 (pre-SP5 binary) vs SP5-fp16 (this binary). Paired-t test.
-#         Pass: CI_lower(SP5 - SP4) >= -2% (SP5 not worse than SP4 by >2%).
+#         Pass: CI_lower(SP5 - SP4) >= -2 nps (absolute floor, not percent).
 # Wall-time: cold-start tuner with cache cleared via `trash` < 120s.
 # Accuracy: testgpuerror with mlxUseFP16=true vs eigen reference, exit 0.
 #

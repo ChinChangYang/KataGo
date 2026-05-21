@@ -456,7 +456,8 @@ static const std::vector<int>& outputTg1Values(bool full) {
   return full ? vFull : vNonFull;
 }
 
-// New axes from SP4.
+// New axes from SP4. After SP5: wptValues() is used by both stages;
+// vwValues() is input-only (output kernel is VW=1 monomorphic).
 static const std::vector<int>& wptValues() {
   static const std::vector<int> v = {1, 2, 4, 8};
   return v;
