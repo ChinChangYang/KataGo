@@ -69,15 +69,12 @@ bool MLXWinogradTuneParams::isValid() const {
   if(outputUntransform.tg0 * outputUntransform.tg1 > 1024) return false;
   if(inputTransform.wpt < 1 || outputUntransform.wpt < 1) return false;
   if(inputTransform.vw  < 1) return false;
-  // Stage-shared invariant: input gridOrder must match the global. Output
-  // gridOrder is gone after SP5 Task 4 (output kernel is Cfast monomorphic).
-  if(inputTransform.gridOrder    != gridOrder) return false;
   // SP4: Tfast (GRID_ORDER=1) requires VW=1 in the kernels. Reject any
   // input candidate that violates this — surfaces the constraint earlier
-  // than the Metal JIT static_assert. (SP5 Task 3: output VW is gone.)
-  if(gridOrder == MLXWinograd::GridOrder::Tfast) {
-    if(inputTransform.vw  != 1) return false;
-  }
+  // than the Metal JIT static_assert. (SP5 Task 3: output VW is gone.
+  // SP5 Task 6: global gridOrder is gone; input gridOrder stands alone.)
+  if(inputTransform.gridOrder == MLXWinograd::GridOrder::Tfast
+     && inputTransform.vw != 1) return false;
   return true;
 }
 
@@ -85,8 +82,6 @@ void MLXWinogradTuneParams::save(const string& filename, const MLXWinogradTunePa
   ofstream out;
   FileUtils::open(out, filename);
   out << MLX_WINO_TUNEPARAMS_VERSION_LINE << "\n";
-  out << "#global\n";
-  out << "gridOrder=" << (int)params.gridOrder << "\n";
   out << "#inputTransform\n";
   out << "tg0=" << params.inputTransform.tg0
       << " tg1=" << params.inputTransform.tg1
@@ -114,16 +109,12 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
   if(lines[0] != MLX_WINO_TUNEPARAMS_VERSION_LINE)
     throw IOError("MLXWinogradTuneParams::load: expected first line to be "
                   + MLX_WINO_TUNEPARAMS_VERSION_LINE + " in " + filename);
-  if(lines.size() != 4)
-    throw IOError("MLXWinogradTuneParams::load: expected 4 non-comment lines in " + filename);
+  if(lines.size() != 3)
+    throw IOError("MLXWinogradTuneParams::load: expected 3 non-comment lines in " + filename);
 
   MLXWinogradTuneParams params;
   {
     map<string,int> kvs = parseKeyValueLine(filename, lines[1]);
-    params.gridOrder    = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
-  }
-  {
-    map<string,int> kvs = parseKeyValueLine(filename, lines[2]);
     params.inputTransform.tg0 = requireKey(kvs, "tg0", filename);
     params.inputTransform.tg1 = requireKey(kvs, "tg1", filename);
     params.inputTransform.wpt = requireKey(kvs, "wpt", filename);
@@ -131,7 +122,7 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
     params.inputTransform.gridOrder = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
   }
   {
-    map<string,int> kvs = parseKeyValueLine(filename, lines[3]);
+    map<string,int> kvs = parseKeyValueLine(filename, lines[2]);
     params.outputUntransform.tg0 = requireKey(kvs, "tg0", filename);
     params.outputUntransform.tg1 = requireKey(kvs, "tg1", filename);
     params.outputUntransform.wpt = requireKey(kvs, "wpt", filename);
@@ -544,9 +535,8 @@ flatSweepInput(int N, int H, int W,
 
   // SP5 Task 4: the output gridOrder check in isValid() is gone (output kernel
   // is Cfast-monomorphic), so the input gridOrder axis can again be searched
-  // over both Cfast and Tfast. The global ↔ input gridOrder consistency check
-  // is satisfied later by `result.gridOrder = bestIn->gridOrder` in
-  // loadOrAutoTune.
+  // over both Cfast and Tfast. SP5 Task 6: the global gridOrder field is also
+  // gone — input gridOrder stands alone, no cross-stage consistency to enforce.
   for(GO go : {GO::Cfast, GO::Tfast}) {
     auto cands = MLXWinogradTuner::buildInputCandidatesForTesting(full, C, Ntiles, go);
     for(const auto& cand : cands) {
@@ -655,8 +645,7 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   MLXWinogradTuneParams result;
   result.inputTransform    = *bestIn;
   result.outputUntransform = *bestOut;
-  // (Global gridOrder still lives on the struct after Task 5; Task 6 deletes it.)
-  result.gridOrder    = bestIn->gridOrder;
+  // SP5 Task 6: global gridOrder is deleted; input gridOrder stands alone.
 
   if(!result.isValid())
     throw StringError("MLXWinogradTuner: flat sweep result failed isValid()");

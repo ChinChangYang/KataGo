@@ -1142,8 +1142,7 @@ struct ComputeHandle {
       + "g"   + std::to_string((int)tuneParams.inputTransform.gridOrder)
       + "-ou" + std::to_string(tuneParams.outputUntransform.tg0)
       + "x"   + std::to_string(tuneParams.outputUntransform.tg1)
-      + "x"   + std::to_string(tuneParams.outputUntransform.wpt)
-      + "-go" + std::to_string((int)tuneParams.gridOrder);
+      + "x"   + std::to_string(tuneParams.outputUntransform.wpt);
   }
 
   ComputeHandle(ComputeContext* ctx, const LoadedModel& loadedModel, bool iNHWC, bool requireExactNNLen_, bool useFP16_)
