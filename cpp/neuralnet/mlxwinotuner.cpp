@@ -756,7 +756,7 @@ flatSweepInput(int N, int H, int W,
   }
   if(logger) {
     std::string deltaStr;
-    std::string perSlotStr;
+    std::string perShapeStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
       // %+.1f always emits a sign; the gated log-format test regex relies on
@@ -766,17 +766,17 @@ flatSweepInput(int N, int H, int W,
       // Per-shape median timing on the winner — diagnostic only; winner
       // selection above used the weighted score from scoreInputTransform.
       auto perShape = scoreInputTransformPerShape(*best, N, H, W, mi, useFP16);
-      perSlotStr = " shape_ms=";
+      perShapeStr = " shape_ms=";
       for(size_t i = 0; i < perShape.size(); i++) {
-        if(i > 0) perSlotStr += ",";
-        perSlotStr += "c" + std::to_string(perShape[i].first)
+        if(i > 0) perShapeStr += ",";
+        perShapeStr += "c" + std::to_string(perShape[i].first)
                     + ":" + Global::strprintf("%.3f", perShape[i].second);
       }
     } else {
       deltaStr = "nan";
-      // best=none branch: omit per-slot fields (matches existing degenerate
+      // best=none branch: omit per-shape fields (matches existing degenerate
       // log shape; spec §4 / §Error handling).
-      perSlotStr = "";
+      perShapeStr = "";
     }
     logger->write("MLX tuner flatSweepInput: considered=" + std::to_string(considered)
                   + (best
@@ -789,7 +789,7 @@ flatSweepInput(int N, int H, int W,
                      : " best=none")
                   + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
                   + " delta_pct=" + deltaStr
-                  + perSlotStr);
+                  + perShapeStr);
   }
   return best;
 }
@@ -830,7 +830,7 @@ flatSweepOutput(int N, int H, int W,
   }
   if(logger) {
     std::string deltaStr;
-    std::string perSlotStr;
+    std::string perShapeStr;
     if(best && baselineMs >= 1e-9) {
       double deltaPct = (bestTime - baselineMs) / baselineMs * 100.0;
       // %+.1f always emits a sign; the gated log-format test regex relies on
@@ -838,15 +838,15 @@ flatSweepOutput(int N, int H, int W,
       deltaStr = Global::strprintf("%+.1f", deltaPct);
 
       auto perShape = scoreOutputUntransformPerShape(*best, N, H, W, mi, useFP16);
-      perSlotStr = " shape_ms=";
+      perShapeStr = " shape_ms=";
       for(size_t i = 0; i < perShape.size(); i++) {
-        if(i > 0) perSlotStr += ",";
-        perSlotStr += "c" + std::to_string(perShape[i].first)
+        if(i > 0) perShapeStr += ",";
+        perShapeStr += "c" + std::to_string(perShape[i].first)
                     + ":" + Global::strprintf("%.3f", perShape[i].second);
       }
     } else {
       deltaStr = "nan";
-      perSlotStr = "";
+      perShapeStr = "";
     }
     logger->write("MLX tuner flatSweepOutput: considered=" + std::to_string(considered)
                   + (best
@@ -857,7 +857,7 @@ flatSweepOutput(int N, int H, int W,
                      : " best=none")
                   + " baseline_ms=" + Global::strprintf("%.3f", baselineMs)
                   + " delta_pct=" + deltaStr
-                  + perSlotStr);
+                  + perShapeStr);
   }
   return best;
 }
@@ -1506,7 +1506,7 @@ void runMLXWinotunerTests() {
       // The regex matches the non-degenerate path only (best != nullopt). The
       // best=none / delta_pct=nan branch is unreachable for the synthetic 19x19
       // C=64 problem this test runs against (hundreds of valid candidates).
-      // Updated for shape diagnostic: regex now requires the per-slot
+      // Updated for shape diagnostic: regex now requires the per-shape
       // median fields appended by flatSweepInput.
       std::regex inputRe(
           R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ shape_ms=c[0-9]+:[0-9]+\.[0-9]+(?:,c[0-9]+:[0-9]+\.[0-9]+)*)");
@@ -1616,7 +1616,7 @@ void runMLXWinotunerTests() {
     // that measurement is roughly working, not a tight precision check.
     // Tighter precision checks belong in same-config stability tests.
     //
-    // Coverage scope: input stage only. flatSweepOutput's per-slot fields
+    // Coverage scope: input stage only. flatSweepOutput's per-shape fields
     // are format-checked by the log-format test (Task 2 / gate
     // KATAGO_MLX_WINOTUNER_RUN_LOG_FORMAT_TEST) but not consistency-
     // checked here — symmetric output check is deferred.
@@ -1633,7 +1633,7 @@ void runMLXWinotunerTests() {
       mi.conv3x3InputHistogram  = {{64, 1}};
       mi.conv3x3OutputHistogram = {{64, 1}};
 
-      std::string tmpTunerFile = "/tmp/per_slot_consistency.txt";
+      std::string tmpTunerFile = "/tmp/per_shape_consistency.txt";
       std::remove(tmpTunerFile.c_str());
 
       std::ostringstream captured;

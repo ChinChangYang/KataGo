@@ -135,9 +135,9 @@ namespace MLXWinogradTuner {
       const std::map<int,int>& inputChannelCounts,
       const std::map<int,int>& outputChannelCounts);
 
-  // formatConv3x3Distribution: walks modelDesc.iterConvLayers, accumulates
-  // input/output channel histograms over 3x3 convs only, calls the
-  // formatter. Single line; safe to log on every model load.
+  // formatConv3x3Distribution: delegates to buildConv3x3Histograms, then
+  // rebuilds maps and calls formatConv3x3DistributionLine. Single line;
+  // safe to log on every model load.
   std::string formatConv3x3Distribution(const ModelDesc& modelDesc);
 
   // Pure core of the conv-3x3 histogram build: filters to 3x3, returns
