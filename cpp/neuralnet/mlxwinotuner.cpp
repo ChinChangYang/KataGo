@@ -1446,6 +1446,9 @@ void runMLXWinotunerTests() {
       mi.midNumChannels      = 64;
       mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
+      // Synthetic single-shape histogram for the toy C=64 test model.
+      mi.conv3x3InputHistogram  = {{64, 1}};
+      mi.conv3x3OutputHistogram = {{64, 1}};
 
       // loadOrAutoTune rewrites an empty tunerFile to a default cache path,
       // so use an explicit temp path and remove it after to avoid touching
@@ -1503,6 +1506,9 @@ void runMLXWinotunerTests() {
       mi.midNumChannels      = 64;
       mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
+      // Synthetic single-shape histogram for the toy C=64 test model.
+      mi.conv3x3InputHistogram  = {{64, 1}};
+      mi.conv3x3OutputHistogram = {{64, 1}};
 
       std::string tmpTunerFile = "/tmp/baseline_anchor_log_format.txt";
       std::remove(tmpTunerFile.c_str());
@@ -1575,6 +1581,9 @@ void runMLXWinotunerTests() {
       mi.midNumChannels      = 64;
       mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
+      // Synthetic single-shape histogram for the toy C=64 test model.
+      mi.conv3x3InputHistogram  = {{64, 1}};
+      mi.conv3x3OutputHistogram = {{64, 1}};
 
       std::string tmpTunerFile = "/tmp/baseline_anchor_consistency.txt";
       std::remove(tmpTunerFile.c_str());
@@ -1655,6 +1664,9 @@ void runMLXWinotunerTests() {
       mi.midNumChannels      = 64;
       mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
+      // Synthetic single-shape histogram for the toy C=64 test model.
+      mi.conv3x3InputHistogram  = {{64, 1}};
+      mi.conv3x3OutputHistogram = {{64, 1}};
 
       std::string tmpTunerFile = "/tmp/per_slot_consistency.txt";
       std::remove(tmpTunerFile.c_str());
@@ -1715,6 +1727,9 @@ void runMLXWinotunerTests() {
       mi.midNumChannels      = 64;
       mi.maxConvChannels3x3  = 64;
       mi.modelVersion        = 11;
+      // Synthetic single-shape histogram for the toy C=64 test model.
+      mi.conv3x3InputHistogram  = {{64, 1}};
+      mi.conv3x3OutputHistogram = {{64, 1}};
 
       std::array<double,3> in = MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
           MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);

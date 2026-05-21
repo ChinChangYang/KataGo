@@ -39,6 +39,12 @@ namespace MLXWinogradTuner {
     int midNumChannels;
     int maxConvChannels3x3;
     int modelVersion;
+    // Adaptive-scoring inputs (spec §ModelInfoForTuning Final Form). Both
+    // fields are (channel_count, occurrence_count) lists for 3x3 convs of
+    // the loaded model; populated by mlxbackend.cpp at load time via
+    // buildConv3x3Histograms. Unsorted; planShapeRotation owns selection.
+    std::vector<std::pair<int,int>> conv3x3InputHistogram;
+    std::vector<std::pair<int,int>> conv3x3OutputHistogram;
   };
 
   // Per-shape rep allocation produced by planShapeRotation. The tuner loops
