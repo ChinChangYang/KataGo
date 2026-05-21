@@ -1349,25 +1349,6 @@ void Tests::runMLXWinogradTests() {}
 void Tests::runMLXWinotunerTests() {
   cout << "Running MLX Winograd tuner tests" << endl;
 
-  // ---- File round-trip ----
-  {
-    MLXWinogradTuneParams written;
-    written.inputTransform.tg0 = 64;
-    written.inputTransform.tg1 = 2;
-    written.outputUntransform.tg0 = 16;
-    written.outputUntransform.tg1 = 4;
-    testAssert(written.isValid());
-
-    std::string tmp = "/tmp/katago_mlx_winotuner_roundtrip.txt";
-    MLXWinogradTuneParams::save(tmp, written);
-    MLXWinogradTuneParams readBack = MLXWinogradTuneParams::load(tmp);
-
-    testAssert(readBack.inputTransform.tg0 == written.inputTransform.tg0);
-    testAssert(readBack.inputTransform.tg1 == written.inputTransform.tg1);
-    testAssert(readBack.outputUntransform.tg0 == written.outputUntransform.tg0);
-    testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
-  }
-
   // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
   {
     // SP5 Task 8 — v3 roundtrip: write -> load -> compare all 8 fields. Two
