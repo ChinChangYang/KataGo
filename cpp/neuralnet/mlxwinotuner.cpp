@@ -566,6 +566,8 @@ scoreInputTransformPerShape(const MLXWinograd::InputTransform& cfg,
     mx::eval(inputs.back());
     seed = seed * 1664525u + 1013904223u;
   }
+
+  // Warmup: 1 rep on dominant, discarded.
   (void)timeOneInputTransform(cfg, inputs[0], plan[0].channels, useFP16);
 
   std::vector<std::pair<int,double>> out;
@@ -605,6 +607,8 @@ scoreOutputUntransformPerShape(const MLXWinograd::OutputUntransform& cfg,
     mx::eval(matmulOuts.back());
     seed = seed * 1664525u + 1013904223u;
   }
+
+  // Warmup: 1 rep on dominant, discarded.
   (void)timeOneOutputUntransform(cfg, matmulOuts[0], N, H, W,
                                  plan[0].channels, useFP16);
 
@@ -724,7 +728,7 @@ flatSweepInput(int N, int H, int W,
   // restrictive channel count the kernel will encounter. Use the max of the
   // model's actual 3x3 input channel distribution.
   int C = 0;
-  for(const auto& [ch, n] : mi.conv3x3InputHistogram) C = std::max(C, ch);
+  for(const auto& p : mi.conv3x3InputHistogram) C = std::max(C, p.first);
   assert(C > 0);
   const int tilesY = (H + 1) / 2;
   const int tilesX = (W + 1) / 2;
@@ -806,7 +810,7 @@ flatSweepOutput(int N, int H, int W,
   // pass a representative value. Use the max of the model's actual 3x3
   // output distribution.
   int outC = 0;
-  for(const auto& [ch, n] : mi.conv3x3OutputHistogram) outC = std::max(outC, ch);
+  for(const auto& p : mi.conv3x3OutputHistogram) outC = std::max(outC, p.first);
   assert(outC > 0);
   const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
@@ -1180,6 +1184,26 @@ void runMLXWinotunerTests() {
       testAssert(plan[1].measureReps >= plan[2].measureReps);
     }
 
+    // Case F: 2 shapes with equal work and complementary 0.5 shares —
+    // exercises the rounding-repair branch. Input: 200:1, 100:2 (work
+    // 200, 200; tied; tie-break by larger C → plan[0]=C=200). Each
+    // share is 0.5; lround(0.5*19) = lround(9.5) = 10 each (lround
+    // rounds halves away from zero); pre-repair sum = 20; repair:
+    // dominant absorbs delta = 19 - 20 = -1; final (9, 10). Both
+    // measureReps stay ≥ kRepFloor=3 so floor-bump is a no-op.
+    {
+      auto plan = MLXWinogradTuner::planShapeRotationForTesting(
+          {{200, 1}, {100, 2}});
+      testAssert(plan.size() == 2);
+      testAssert(plan[0].channels == 200);
+      testAssert(plan[1].channels == 100);
+      testAssert(plan[0].measureReps + plan[1].measureReps == 19);
+      testAssert(plan[0].measureReps == 9);
+      testAssert(plan[1].measureReps == 10);
+      testAssert(plan[0].measureReps >= 3);
+      testAssert(plan[1].measureReps >= 3);
+    }
+
     std::cout << "  planShapeRotation OK" << std::endl;
   }
 
@@ -1238,7 +1262,9 @@ void runMLXWinotunerTests() {
 
     // Empty input → empty histograms (no assert; this is just the pure
     // core. The mlxbackend.cpp call site asserts non-empty after a real
-    // model walk; see Step 4.2 comment).
+    // model walk; mlxbackend.cpp pre-computes the histogram at model
+    // load and stores it on ModelInfoForTuning so the tuner does not
+    // re-walk the descriptor).
     std::vector<const ConvLayerDesc*> empty;
     auto [inE, outE] =
         MLXWinogradTuner::buildConv3x3HistogramsFromConvsForTesting(empty);
