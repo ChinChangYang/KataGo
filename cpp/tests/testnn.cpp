@@ -1029,7 +1029,7 @@ void Tests::runMLXWinogradTests() {
   runMLXBatchNormFP16Test_SP3();
   runMLXConvLayerFP16WinogradTest_SP3();
 
-  // SP4 Task 2: smoke test — verify MatmulOrient::Std plumbing.
+  // SP4 Task 2 / SP5 Task 5: smoke test — verify Winograd plumbing.
   // Trivial 4x4x1 input, 1 output channel, all-ones filter.
   {
     namespace mxc = mlx::core;
@@ -1037,13 +1037,11 @@ void Tests::runMLXWinogradTests() {
     mxc::array inp(in_data.data(), {1, 4, 4, 1}, mxc::float32);
     std::vector<float> w_data(9, 1.0f);
     auto Uw = MLXWinograd::makeWinogradWeights(w_data, /*Cout*/1, /*Cin*/1,
-                                               /*useFP16*/false,
-                                               MLXWinograd::MatmulOrient::Std);
+                                               /*useFP16*/false);
     MLXWinograd::InputTransform    inCfg;
     MLXWinograd::OutputUntransform outCfg;
     mxc::array out = MLXWinograd::winogradConv2d(inp, Uw, /*Cout*/1, inCfg, outCfg,
-                                                 /*useFP16*/false,
-                                                 MLXWinograd::MatmulOrient::Std);
+                                                 /*useFP16*/false);
     mxc::eval(out);
     testAssert(out.shape().size() == 4);
     testAssert(out.shape(0) == 1);
@@ -1074,12 +1072,12 @@ void Tests::runMLXWinogradTests() {
     mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
 
     std::vector<float> w_data((size_t)64*64*9, 1.0f);
-    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false);
 
     auto runWith = [&](int wpt_in, int wpt_out) {
       InputTransform    inCfg;  inCfg.wpt  = wpt_in;
       OutputUntransform outCfg; outCfg.wpt = wpt_out;
-      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false, MatmulOrient::Std);
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false);
       mx::eval(out);
       return out;
     };
@@ -1121,12 +1119,12 @@ void Tests::runMLXWinogradTests() {
     mx::array inp(in_data.data(), {1, 19, 19, 64}, mx::float32);
 
     std::vector<float> w_data((size_t)64*64*9, 1.0f);
-    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false);
 
     auto runWith = [&](int wpt_in, int wpt_out) {
       InputTransform    inCfg;  inCfg.wpt  = wpt_in;
       OutputUntransform outCfg; outCfg.wpt = wpt_out;
-      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false, MatmulOrient::Std);
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, false);
       mx::eval(out);
       return out;
     };
@@ -1159,12 +1157,12 @@ void Tests::runMLXWinogradTests() {
     mx::array inp = mx::astype(mx::array(in_data.data(), {2, 19, 19, 64}, mx::float32), mx::float16);
 
     std::vector<float> w_data((size_t)64*64*9, 0.5f);
-    mx::array Uw = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Std);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, true);
 
     auto runWith = [&](int vw_in) {
       InputTransform    inCfg;  inCfg.vw  = vw_in;
       OutputUntransform outCfg;
-      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, true, MatmulOrient::Std);
+      mx::array out = winogradConv2d(inp, Uw, 64, inCfg, outCfg, true);
       mx::eval(out);
       return out;
     };
@@ -1206,12 +1204,12 @@ void Tests::runMLXWinogradTests() {
 
     std::vector<float> w_data((size_t)64*64*9);
     for(auto& x : w_data) x = dist(rng);
-    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
+    mx::array Uw = makeWinogradWeights(w_data, 64, 64, false);
 
     auto runWith = [&](GridOrder go_in) {
       InputTransform    inC;  inC.gridOrder  = go_in;
       OutputUntransform outC;
-      mx::array out = winogradConv2d(inp, Uw, 64, inC, outC, false, MatmulOrient::Std);
+      mx::array out = winogradConv2d(inp, Uw, 64, inC, outC, false);
       mx::eval(out);
       return out;
     };
@@ -1245,12 +1243,12 @@ void Tests::runMLXWinogradTests() {
 
     std::vector<float> w_data((size_t)67*67*9);
     for(auto& x : w_data) x = dist(rng);
-    mx::array Uw = makeWinogradWeights(w_data, 67, 67, false, MatmulOrient::Std);
+    mx::array Uw = makeWinogradWeights(w_data, 67, 67, false);
 
     auto runWith = [&](GridOrder go, int wpt) {
       InputTransform    inC;  inC.gridOrder  = go;  inC.wpt  = wpt;
       OutputUntransform outC; outC.wpt = wpt;
-      mx::array out = winogradConv2d(inp, Uw, 67, inC, outC, false, MatmulOrient::Std);
+      mx::array out = winogradConv2d(inp, Uw, 67, inC, outC, false);
       mx::eval(out);
       return out;
     };
@@ -1267,144 +1265,9 @@ void Tests::runMLXWinogradTests() {
     std::cout << "  MLX Winograd input-stage Tfast tail-guard coverage (C=67, WPT=8) passed" << std::endl;
   }
 
-  // SP4 Task 6: matmulOrient Std and Tpd must produce numerically equivalent
-  // end-to-end output (rtol/atol < 1e-4). They cannot be bit-identical
-  // because the matmul axis swap changes reduction order.
-  {
-    using namespace MLXWinograd;
-    namespace mx = mlx::core;
-    std::vector<float> in_data((size_t)2*19*19*64);
-    std::mt19937 rng(0xCAFEu);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-    for(auto& x : in_data) x = dist(rng);
-    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
-
-    std::vector<float> w_data((size_t)64*64*9);
-    for(auto& x : w_data) x = dist(rng);
-
-    InputTransform inCfg;   // defaults: tg0=32, tg1=1, wpt=1, vw=1, Cfast
-    OutputUntransform outCfg;
-
-    // Std baseline.
-    mx::array UwStd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
-    mx::array outStd = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, false, MatmulOrient::Std);
-
-    // Tpd: same input/filter, different layout.
-    mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Tpd);
-    mx::array outTpd = winogradConv2d(inp, UwTpd, 64, inCfg, outCfg, false, MatmulOrient::Tpd);
-
-    mx::eval(outStd); mx::eval(outTpd);
-
-    const float* pStd = outStd.data<float>();
-    const float* pTpd = outTpd.data<float>();
-    size_t n = (size_t)2 * 19 * 19 * 64;
-    float maxRel = 0.0f;
-    float maxAbs = 0.0f;
-    for(size_t i = 0; i < n; i++) {
-      float diff = std::fabs(pStd[i] - pTpd[i]);
-      float rel  = diff / (std::fabs(pStd[i]) + 1e-7f);
-      if(diff > maxAbs) maxAbs = diff;
-      if(rel  > maxRel) maxRel = rel;
-    }
-    std::cout << "  MLX Winograd Std vs Tpd  maxAbs=" << maxAbs
-              << " maxRel=" << maxRel << std::endl;
-    testAssert(maxAbs < 1e-4f);  // generous fp32 tolerance for k=64 reduction
-    testAssert(maxRel < 1e-4f);
-    std::cout << "  MLX Winograd matmulOrient Std vs Tpd numerical equivalence passed" << std::endl;
-  }
-
-  // SP4 Task 6: matmulOrient Std vs Tpd at fp16. K=64 reduction gives ~1e-3
-  // relative error in fp16; use 1e-2 tolerance.
-  {
-    using namespace MLXWinograd;
-    namespace mx = mlx::core;
-    std::vector<float> in_data((size_t)2*19*19*64);
-    std::mt19937 rng(0xC0DE16u);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-    for(auto& x : in_data) x = dist(rng);
-    mx::array inp = mx::astype(mx::array(in_data.data(), {2, 19, 19, 64}, mx::float32), mx::float16);
-
-    std::vector<float> w_data((size_t)64*64*9);
-    for(auto& x : w_data) x = dist(rng);
-
-    InputTransform inCfg;
-    OutputUntransform outCfg;
-
-    mx::array UwStd = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Std);
-    mx::array outStd_fp16 = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, true, MatmulOrient::Std);
-
-    mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, true, MatmulOrient::Tpd);
-    mx::array outTpd_fp16 = winogradConv2d(inp, UwTpd, 64, inCfg, outCfg, true, MatmulOrient::Tpd);
-
-    // Cast to fp32 for comparison.
-    mx::array outStd_fp32 = mx::astype(outStd_fp16, mx::float32);
-    mx::array outTpd_fp32 = mx::astype(outTpd_fp16, mx::float32);
-    mx::eval(outStd_fp32); mx::eval(outTpd_fp32);
-
-    const float* pStd = outStd_fp32.data<float>();
-    const float* pTpd = outTpd_fp32.data<float>();
-    size_t n = (size_t)2 * 19 * 19 * 64;
-    float maxAbs = 0.0f, maxRel = 0.0f;
-    for(size_t i = 0; i < n; i++) {
-      float diff = std::fabs(pStd[i] - pTpd[i]);
-      float rel  = diff / (std::fabs(pStd[i]) + 1e-7f);
-      if(diff > maxAbs) maxAbs = diff;
-      if(rel  > maxRel) maxRel = rel;
-    }
-    std::cout << "  MLX Winograd fp16 Std vs Tpd  maxAbs=" << maxAbs
-              << " maxRel=" << maxRel << std::endl;
-    testAssert(maxAbs < 1e-2f);
-    testAssert(maxRel < 1e-2f);
-    std::cout << "  MLX Winograd fp16 matmulOrient Std vs Tpd numerical equivalence passed" << std::endl;
-  }
-
-  // SP4 Task 6 / SP5 Task 4: input Tfast × Tpd combined — verifies the full
-  // kernel branching (Cfast×Std baseline vs input-Tfast×Tpd) is covered.
-  // Output gridOrder is gone after SP5 Task 4 (output kernel is Cfast-only).
-  {
-    using namespace MLXWinograd;
-    namespace mx = mlx::core;
-    std::vector<float> in_data((size_t)2*19*19*64);
-    std::mt19937 rng(0xBADF00Du);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-    for(auto& x : in_data) x = dist(rng);
-    mx::array inp(in_data.data(), {2, 19, 19, 64}, mx::float32);
-
-    std::vector<float> w_data((size_t)64*64*9);
-    for(auto& x : w_data) x = dist(rng);
-
-    // Baseline: Cfast × Std.
-    {
-      InputTransform inCfg;
-      OutputUntransform outCfg;
-      mx::array UwStd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Std);
-      mx::array outBaseline = winogradConv2d(inp, UwStd, 64, inCfg, outCfg, false, MatmulOrient::Std);
-
-      // input-Tfast × Tpd: gridOrder=Tfast on the input stage, matmulOrient=Tpd.
-      InputTransform inT;     inT.gridOrder  = GridOrder::Tfast;
-      OutputUntransform outT;
-      mx::array UwTpd = makeWinogradWeights(w_data, 64, 64, false, MatmulOrient::Tpd);
-      mx::array outTfastTpd = winogradConv2d(inp, UwTpd, 64, inT, outT, false, MatmulOrient::Tpd);
-
-      mx::eval(outBaseline); mx::eval(outTfastTpd);
-
-      const float* pB = outBaseline.data<float>();
-      const float* pTT = outTfastTpd.data<float>();
-      size_t n = (size_t)2 * 19 * 19 * 64;
-      float maxAbs = 0.0f, maxRel = 0.0f;
-      for(size_t i = 0; i < n; i++) {
-        float diff = std::fabs(pB[i] - pTT[i]);
-        float rel  = diff / (std::fabs(pB[i]) + 1e-7f);
-        if(diff > maxAbs) maxAbs = diff;
-        if(rel  > maxRel) maxRel = rel;
-      }
-      std::cout << "  MLX Winograd Cfast×Std vs Tfast×Tpd  maxAbs=" << maxAbs
-                << " maxRel=" << maxRel << std::endl;
-      testAssert(maxAbs < 1e-4f);
-      testAssert(maxRel < 1e-4f);
-      std::cout << "  MLX Winograd 4-way kernel branching coverage passed" << std::endl;
-    }
-  }
+  // SP5 Task 5: matmulOrient axis removed end-to-end. The Std-vs-Tpd
+  // equivalence tests and the Tfast×Tpd combined-branching test have been
+  // deleted along with the enum.
 }
 #else
 void Tests::runMLXWinogradTests() {}
@@ -1440,8 +1303,8 @@ void Tests::runMLXWinotunerTests() {
     testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
   }
 
-  // ---- v2 round-trip: tg0/tg1/wpt/vw (input), tg0/tg1/wpt (output), gridOrder, matmulOrient ----
-  // Output gridOrder is gone after SP5 Task 4 (output kernel is Cfast-only).
+  // ---- v2 round-trip: tg0/tg1/wpt/vw (input), tg0/tg1/wpt (output), gridOrder ----
+  // SP5 Tasks 3-5: output vw/gridOrder/matmulOrient dropped from the schema.
   {
     using namespace MLXWinograd;
     MLXWinogradTuneParams p;
@@ -1454,7 +1317,6 @@ void Tests::runMLXWinotunerTests() {
     p.outputUntransform.tg1      = 8;
     p.outputUntransform.wpt      = 2;
     p.gridOrder                  = GridOrder::Cfast;
-    p.matmulOrient               = MatmulOrient::Std;
 
     testAssert(p.isValid());
     std::string tmp = "/tmp/mlxwino_sp4_roundtrip.txt";
@@ -1470,7 +1332,6 @@ void Tests::runMLXWinotunerTests() {
     testAssert(loaded.outputUntransform.tg1      == 8);
     testAssert(loaded.outputUntransform.wpt      == 2);
     testAssert(loaded.gridOrder                  == GridOrder::Cfast);
-    testAssert(loaded.matmulOrient               == MatmulOrient::Std);
     std::remove(tmp.c_str());
     cout << "  SP4 v2 roundtrip (current axes) OK" << endl;
 
@@ -1481,13 +1342,11 @@ void Tests::runMLXWinotunerTests() {
       p2.inputTransform    = InputTransform   {16, 4, 2, 1, GridOrder::Tfast};
       p2.outputUntransform = OutputUntransform{16, 4, 2};
       p2.gridOrder    = GridOrder::Tfast;
-      p2.matmulOrient = MatmulOrient::Tpd;
       testAssert(p2.isValid());
       std::string tmp2 = "/tmp/mlxwino_sp4_roundtrip_v2.txt";
       MLXWinogradTuneParams::save(tmp2, p2);
       MLXWinogradTuneParams loaded2 = MLXWinogradTuneParams::load(tmp2);
       testAssert(loaded2.gridOrder    == GridOrder::Tfast);
-      testAssert(loaded2.matmulOrient == MatmulOrient::Tpd);
       testAssert(loaded2.inputTransform.gridOrder    == GridOrder::Tfast);
       std::remove(tmp2.c_str());
       cout << "  SP4 v2 roundtrip (non-zero enum values) OK" << endl;

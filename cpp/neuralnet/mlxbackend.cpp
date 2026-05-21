@@ -181,7 +181,6 @@ struct ConvLayer {
   mx::array winogradWeights;    // 4x4 domain U, valid only if useWinograd
   const MLXWinograd::InputTransform    winoInCfg;
   const MLXWinograd::OutputUntransform winoOutCfg;
-  const MLXWinograd::MatmulOrient      matmulOrient;
 
   ConvLayer() = delete;
   ConvLayer(const ConvLayer&) = delete;
@@ -190,8 +189,7 @@ struct ConvLayer {
   ConvLayer(const ConvLayerDesc& desc,
             const MLXWinograd::InputTransform& inCfg,
             const MLXWinograd::OutputUntransform& outCfg,
-            bool useFP16_ = false,
-            MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+            bool useFP16_ = false)
     : name(desc.name),
       convYSize(desc.convYSize),
       convXSize(desc.convXSize),
@@ -206,17 +204,15 @@ struct ConvLayer {
                   && dilationY==1 && dilationX==1),
       weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
       winogradWeights(useWinograd
-        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_, orient)
+        ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_)
         : mx::array(0.0f))
       ,winoInCfg(inCfg)
       ,winoOutCfg(outCfg)
-      ,matmulOrient(orient)
   {}
 
   mx::array apply(const mx::array& input) const {
     if(useWinograd) {
-      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16,
-                                         matmulOrient);
+      return MLXWinograd::winogradConv2d(input, winogradWeights, outChannels, winoInCfg, winoOutCfg, useFP16);
     }
     // MLX conv2d: input NHWC, weights OHWI
     // Compute padding to maintain spatial dimensions (same padding)
@@ -432,13 +428,12 @@ struct ResidualBlock {
   ResidualBlock(const ResidualBlockDesc& desc,
                 const MLXWinograd::InputTransform& inCfg,
                 const MLXWinograd::OutputUntransform& outCfg,
-                bool useFP16 = false,
-                MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+                bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      regularConv(desc.regularConv, inCfg, outCfg, useFP16, orient),
+      regularConv(desc.regularConv, inCfg, outCfg, useFP16),
       midBN(desc.midBN, desc.midActivation.activation, useFP16),
-      finalConv(desc.finalConv, inCfg, outCfg, useFP16, orient)
+      finalConv(desc.finalConv, inCfg, outCfg, useFP16)
   {}
 
   mx::array apply(const mx::array& input, const mx::array& mask, bool useMask) const {
@@ -468,16 +463,15 @@ struct GlobalPoolingResidualBlock {
   GlobalPoolingResidualBlock(const GlobalPoolingResidualBlockDesc& desc,
                              const MLXWinograd::InputTransform& inCfg,
                              const MLXWinograd::OutputUntransform& outCfg,
-                             bool useFP16 = false,
-                             MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+                             bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      regularConv(desc.regularConv, inCfg, outCfg, useFP16, orient),
-      gpoolConv(desc.gpoolConv, inCfg, outCfg, useFP16, orient),
+      regularConv(desc.regularConv, inCfg, outCfg, useFP16),
+      gpoolConv(desc.gpoolConv, inCfg, outCfg, useFP16),
       gpoolBN(desc.gpoolBN, desc.gpoolActivation.activation, useFP16),
       gpoolToBiasMul(desc.gpoolToBiasMul, useFP16),
       midBN(desc.midBN, desc.midActivation.activation, useFP16),
-      finalConv(desc.finalConv, inCfg, outCfg, useFP16, orient)
+      finalConv(desc.finalConv, inCfg, outCfg, useFP16)
   {}
 
   mx::array apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const {
@@ -522,23 +516,20 @@ struct BlockVariant {
   BlockVariant(const ResidualBlockDesc& desc,
                const MLXWinograd::InputTransform& inCfg,
                const MLXWinograd::OutputUntransform& outCfg,
-               bool useFP16 = false,
-               MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
-    : type(REGULAR), regular(make_unique<ResidualBlock>(desc, inCfg, outCfg, useFP16, orient)) {}
+               bool useFP16 = false)
+    : type(REGULAR), regular(make_unique<ResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
   BlockVariant(const GlobalPoolingResidualBlockDesc& desc,
                const MLXWinograd::InputTransform& inCfg,
                const MLXWinograd::OutputUntransform& outCfg,
-               bool useFP16 = false,
-               MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
-    : type(GLOBAL_POOLING), globalPooling(make_unique<GlobalPoolingResidualBlock>(desc, inCfg, outCfg, useFP16, orient)) {}
+               bool useFP16 = false)
+    : type(GLOBAL_POOLING), globalPooling(make_unique<GlobalPoolingResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
   // Forward declaration - defined after NestedBottleneckResidualBlock
   BlockVariant(const NestedBottleneckResidualBlockDesc& desc,
                const MLXWinograd::InputTransform& inCfg,
                const MLXWinograd::OutputUntransform& outCfg,
-               bool useFP16,
-               MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std);
+               bool useFP16);
 
   mx::array apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const;
 };
@@ -558,21 +549,20 @@ struct NestedBottleneckResidualBlock {
   NestedBottleneckResidualBlock(const NestedBottleneckResidualBlockDesc& desc,
                                 const MLXWinograd::InputTransform& inCfg,
                                 const MLXWinograd::OutputUntransform& outCfg,
-                                bool useFP16 = false,
-                                MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+                                bool useFP16 = false)
     : name(desc.name),
       preBN(desc.preBN, desc.preActivation.activation, useFP16),
-      preConv(desc.preConv, inCfg, outCfg, useFP16, orient),
+      preConv(desc.preConv, inCfg, outCfg, useFP16),
       postBN(desc.postBN, desc.postActivation.activation, useFP16),
-      postConv(desc.postConv, inCfg, outCfg, useFP16, orient)
+      postConv(desc.postConv, inCfg, outCfg, useFP16)
   {
     for(size_t i = 0; i < desc.blocks.size(); i++) {
       int blockKind = desc.blocks[i].first;
       if(blockKind == ORDINARY_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16, orient);
+        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == GLOBAL_POOLING_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16, orient);
+        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
     }
   }
@@ -596,9 +586,8 @@ struct NestedBottleneckResidualBlock {
 BlockVariant::BlockVariant(const NestedBottleneckResidualBlockDesc& desc,
                            const MLXWinograd::InputTransform& inCfg,
                            const MLXWinograd::OutputUntransform& outCfg,
-                           bool useFP16,
-                           MLXWinograd::MatmulOrient orient)
-  : type(NESTED_BOTTLENECK), nestedBottleneck(make_unique<NestedBottleneckResidualBlock>(desc, inCfg, outCfg, useFP16, orient)) {}
+                           bool useFP16)
+  : type(NESTED_BOTTLENECK), nestedBottleneck(make_unique<NestedBottleneckResidualBlock>(desc, inCfg, outCfg, useFP16)) {}
 
 mx::array BlockVariant::apply(const mx::array& input, const mx::array& mask, const mx::array& maskSum, bool useMask) const {
   switch(type) {
@@ -669,11 +658,10 @@ struct Trunk {
   Trunk(const TrunkDesc& desc,
         const MLXWinograd::InputTransform& inCfg,
         const MLXWinograd::OutputUntransform& outCfg,
-        bool useFP16 = false,
-        MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+        bool useFP16 = false)
     : name(desc.name),
       trunkNumChannels(desc.trunkNumChannels),
-      initialConv(desc.initialConv, inCfg, outCfg, useFP16, orient),
+      initialConv(desc.initialConv, inCfg, outCfg, useFP16),
       initialMatMul(desc.initialMatMul, useFP16),
       trunkTipBN(desc.trunkTipBN, desc.trunkTipActivation.activation, useFP16)
   {
@@ -684,13 +672,13 @@ struct Trunk {
     for(size_t i = 0; i < desc.blocks.size(); i++) {
       int blockKind = desc.blocks[i].first;
       if(blockKind == ORDINARY_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16, orient);
+        blocks.emplace_back(*static_cast<ResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == GLOBAL_POOLING_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16, orient);
+        blocks.emplace_back(*static_cast<GlobalPoolingResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
       else if(blockKind == NESTED_BOTTLENECK_BLOCK_KIND) {
-        blocks.emplace_back(*static_cast<NestedBottleneckResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16, orient);
+        blocks.emplace_back(*static_cast<NestedBottleneckResidualBlockDesc*>(desc.blocks[i].second.get()), inCfg, outCfg, useFP16);
       }
     }
   }
@@ -756,16 +744,15 @@ struct PolicyHead {
   PolicyHead(const PolicyHeadDesc& desc,
              const MLXWinograd::InputTransform& inCfg,
              const MLXWinograd::OutputUntransform& outCfg,
-             bool useFP16 = false,
-             MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+             bool useFP16 = false)
     : name(desc.name),
       modelVersion(desc.modelVersion),
-      p1Conv(desc.p1Conv, inCfg, outCfg, useFP16, orient),
-      g1Conv(desc.g1Conv, inCfg, outCfg, useFP16, orient),
+      p1Conv(desc.p1Conv, inCfg, outCfg, useFP16),
+      g1Conv(desc.g1Conv, inCfg, outCfg, useFP16),
       g1BN(desc.g1BN, desc.g1Activation.activation, useFP16),
       gpoolToBiasMul(desc.gpoolToBiasMul, useFP16),
       p1BN(desc.p1BN, desc.p1Activation.activation, useFP16),
-      p2Conv(desc.p2Conv, inCfg, outCfg, useFP16, orient),
+      p2Conv(desc.p2Conv, inCfg, outCfg, useFP16),
       gpoolToPassMul(desc.gpoolToPassMul, useFP16)
   {}
 
@@ -825,11 +812,10 @@ struct ValueHead {
   ValueHead(const ValueHeadDesc& desc,
             const MLXWinograd::InputTransform& inCfg,
             const MLXWinograd::OutputUntransform& outCfg,
-            bool useFP16 = false,
-            MLXWinograd::MatmulOrient orient = MLXWinograd::MatmulOrient::Std)
+            bool useFP16 = false)
     : name(desc.name),
       modelVersion(desc.modelVersion),
-      v1Conv(desc.v1Conv, inCfg, outCfg, useFP16, orient),
+      v1Conv(desc.v1Conv, inCfg, outCfg, useFP16),
       v1BN(desc.v1BN, desc.v1Activation.activation, useFP16),
       v2Mul(desc.v2Mul, useFP16),
       v2Bias(desc.v2Bias, useFP16),
@@ -838,7 +824,7 @@ struct ValueHead {
       v3Bias(desc.v3Bias, useFP16),
       sv3Mul(desc.sv3Mul, useFP16),
       sv3Bias(desc.sv3Bias, useFP16),
-      vOwnershipConv(desc.vOwnershipConv, inCfg, outCfg, useFP16, orient)
+      vOwnershipConv(desc.vOwnershipConv, inCfg, outCfg, useFP16)
   {}
 
   std::tuple<mx::array, mx::array, mx::array> apply(
@@ -900,9 +886,9 @@ struct Model {
       numScoreValueChannels(desc.numScoreValueChannels),
       numOwnershipChannels(desc.numOwnershipChannels),
       useFP16(useFP16_),
-      trunk(desc.trunk, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_, tuneParams.matmulOrient),
-      policyHead(desc.policyHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_, tuneParams.matmulOrient),
-      valueHead(desc.valueHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_, tuneParams.matmulOrient)
+      trunk(desc.trunk, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_),
+      policyHead(desc.policyHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_),
+      valueHead(desc.valueHead, tuneParams.inputTransform, tuneParams.outputUntransform, useFP16_)
   {}
 
   // Apply model inference with mx::array inputs directly (for compiled execution)
@@ -1157,7 +1143,6 @@ struct ComputeHandle {
       + "-ou" + std::to_string(tuneParams.outputUntransform.tg0)
       + "x"   + std::to_string(tuneParams.outputUntransform.tg1)
       + "x"   + std::to_string(tuneParams.outputUntransform.wpt)
-      + "-or" + std::to_string((int)tuneParams.matmulOrient)
       + "-go" + std::to_string((int)tuneParams.gridOrder);
   }
 

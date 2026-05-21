@@ -8,11 +8,10 @@
 namespace MLXWinograd {
 
 enum class GridOrder    : int { Cfast = 0, Tfast = 1 };
-enum class MatmulOrient : int { Std = 0, Tpd = 1 };
 
 // Per-stage launch-geometry configs. SP2 tunes (tg0, tg1); SP4 adds
-// (wpt, vw, gridOrder). The matmulOrient axis is global, not per-stage,
-// and lives on MLXWinogradTuneParams.
+// (wpt, vw, gridOrder). SP5 Task 5 removed the global matmulOrient axis
+// — the matmul orientation is now monomorphic on Std.
 struct InputTransform {
   int tg0 = 32;
   int tg1 = 1;
@@ -130,12 +129,11 @@ namespace MLXWinograd {
 namespace mx = mlx::core;
 
 // Host-side weight transform: OIHW [Cout][Cin][3][3] -> U array.
-// Std layout: [16, Cin, Cout] — Cout fast (matmul sees [16,Ntiles,Cin] x [16,Cin,Cout] -> [16,Ntiles,Cout]).
-// Tpd layout: [16, Cout, Cin] — Cin fast (matmul sees [16,Cout,Cin] x [16,Cin,Ntiles] -> [16,Cout,Ntiles]).
+// Layout: [16, Cin, Cout] — Cout fast (matmul sees [16,Ntiles,Cin] x [16,Cin,Cout] -> [16,Ntiles,Cout]).
+// SP5 Task 5: matmulOrient axis removed; only the Std layout remains.
 inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
                                      int Cout, int Cin,
-                                     bool useFP16 = false,
-                                     MatmulOrient orient = MatmulOrient::Std) {
+                                     bool useFP16 = false) {
   std::vector<float> U((size_t)16 * Cin * Cout, 0.0f);
   for(int oc = 0; oc < Cout; oc++) {
     for(int ic = 0; ic < Cin; ic++) {
@@ -146,32 +144,27 @@ inline mx::array makeWinogradWeights(const std::vector<float>& wOIHW,
       float Um[4][4]; transformWeight(g, Um);
       for(int a = 0; a < 4; a++) {
         for(int b = 0; b < 4; b++) {
-          // Std: [16, Cin, Cout] — Cout fast
-          // Tpd: [16, Cout, Cin] — Cin fast
-          size_t idx = (orient == MatmulOrient::Std)
-            ? ((size_t)(a * 4 + b) * Cin  + ic) * Cout + oc
-            : ((size_t)(a * 4 + b) * Cout + oc) * Cin  + ic;
+          // [16, Cin, Cout] — Cout fast
+          size_t idx = ((size_t)(a * 4 + b) * Cin + ic) * Cout + oc;
           U[idx] = Um[a][b];
         }
       }
     }
   }
-  mx::Shape shape = (orient == MatmulOrient::Std)
-    ? mx::Shape{16, Cin, Cout}
-    : mx::Shape{16, Cout, Cin};
+  mx::Shape shape = {16, Cin, Cout};
   mx::array arr(U.data(), shape, mx::float32);
   if(useFP16) return mx::astype(arr, mx::float16);
   return arr;
 }
 
-// F(2,3) input transform kernel: NHWC T input -> [16, Ntiles, C] (Std) or
-// [16, C, Ntiles] (Tpd) T output.
+// F(2,3) input transform kernel: NHWC T input -> [16, Ntiles, C] T output.
+// SP5 Task 5: MATMUL_ORIENT template arg removed — output layout is monomorphic
+// on Std ([16, Ntiles, C]).
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
 //   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
 //   VW             — vector width for packed loads (Tasks 4+; 1 = SP3)
 //   GRID_ORDER     — 0=Cfast (C is fast axis), 1=Tfast (Ntiles fast) (Task 5+)
-//   MATMUL_ORIENT  — 0=Std, 1=Tpd (Task 6+; controls output layout)
 // Grid:
 //   Cfast: (ceil(C/VW), ceil(Ntiles/WPT), 1)
 //   Tfast: (Ntiles,     ceil(C/WPT),      1)
@@ -232,21 +225,12 @@ inline constexpr const char* kWinoInputSource = R"METAL(
             T V1 = u1 + u2;
             T V2 = u2 - u1;
             T V3 = u1 - u3;
-            if (MATMUL_ORIENT == 0) {
-              // Std: outp [16, Ntiles, C] — C is the fast axis.
-              int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
-              outp[base + 0 * Ntiles_k * C_k] = V0;
-              outp[base + 1 * Ntiles_k * C_k] = V1;
-              outp[base + 2 * Ntiles_k * C_k] = V2;
-              outp[base + 3 * Ntiles_k * C_k] = V3;
-            } else {
-              // Tpd: outp [16, C, Ntiles] — Ntiles is the fast axis.
-              int base = ((r * 4 + 0) * C_k + c) * Ntiles_k + tileIdx;
-              outp[base + 0 * C_k * Ntiles_k] = V0;
-              outp[base + 1 * C_k * Ntiles_k] = V1;
-              outp[base + 2 * C_k * Ntiles_k] = V2;
-              outp[base + 3 * C_k * Ntiles_k] = V3;
-            }
+            // outp [16, Ntiles, C] — C is the fast axis. (SP5 Task 5: Std only.)
+            int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
+            outp[base + 0 * Ntiles_k * C_k] = V0;
+            outp[base + 1 * Ntiles_k * C_k] = V1;
+            outp[base + 2 * Ntiles_k * C_k] = V2;
+            outp[base + 3 * Ntiles_k * C_k] = V3;
           }
         }
       }
@@ -292,45 +276,35 @@ inline constexpr const char* kWinoInputSource = R"METAL(
           T V1 = u1 + u2;
           T V2 = u2 - u1;
           T V3 = u1 - u3;
-          if (MATMUL_ORIENT == 0) {
-            // Std: outp [16, Ntiles, C] — C is the fast axis.
-            int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
-            outp[base + 0 * Ntiles_k * C_k] = V0;
-            outp[base + 1 * Ntiles_k * C_k] = V1;
-            outp[base + 2 * Ntiles_k * C_k] = V2;
-            outp[base + 3 * Ntiles_k * C_k] = V3;
-          } else {
-            // Tpd: outp [16, C, Ntiles] — Ntiles is the fast axis.
-            int base = ((r * 4 + 0) * C_k + c) * Ntiles_k + tileIdx;
-            outp[base + 0 * C_k * Ntiles_k] = V0;
-            outp[base + 1 * C_k * Ntiles_k] = V1;
-            outp[base + 2 * C_k * Ntiles_k] = V2;
-            outp[base + 3 * C_k * Ntiles_k] = V3;
-          }
+          // outp [16, Ntiles, C] — C is the fast axis. (SP5 Task 5: Std only.)
+          int base = ((r * 4 + 0) * Ntiles_k + tileIdx) * C_k + c;
+          outp[base + 0 * Ntiles_k * C_k] = V0;
+          outp[base + 1 * Ntiles_k * C_k] = V1;
+          outp[base + 2 * Ntiles_k * C_k] = V2;
+          outp[base + 3 * Ntiles_k * C_k] = V3;
         }
       }
     }
 )METAL";
 
-// F(2,3) output untransform kernel: [16, Ntiles, outC] (Std) or
-// [16, outC, Ntiles] (Tpd) T input -> NHWC T output.
+// F(2,3) output untransform kernel: [16, Ntiles, outC] T input -> NHWC T output.
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
 //   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
-//   MATMUL_ORIENT  — 0=Std, 1=Tpd (Task 6+; controls input layout)
 // Grid (Cfast-only after SP5 Task 4): (Cout, ceil(Ntiles/WPT), 1)
 // nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
 // exposes *_shape for inputs, not outputs.
 // SP5 Task 3: VW template arg dropped — output kernel is monomorphic on VW=1.
 // SP5 Task 4: GRID_ORDER template arg dropped — output kernel is monomorphic
 // on Cfast (empirical sensitivity sweep showed <1% delta).
+// SP5 Task 5: MATMUL_ORIENT template arg dropped — output kernel is monomorphic
+// on Std (input shape [16, Ntiles, outC]).
 inline constexpr const char* kWinoOutputSource = R"METAL(
     static_assert(WPT >= 1, "WPT must be positive");
 
-    // Std: m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2]
-    // Tpd: m shape [16, outC, Ntiles] — outC=m_shape[1], Ntiles=m_shape[2]
-    int Ntiles_k = (MATMUL_ORIENT == 0) ? m_shape[1] : m_shape[2];
-    int outC_k   = (MATMUL_ORIENT == 0) ? m_shape[2] : m_shape[1];
+    // m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2] (SP5 Task 5: Std only.)
+    int Ntiles_k = m_shape[1];
+    int outC_k   = m_shape[2];
     int H_k      = nhwc[1];
     int W_k      = nhwc[2];
     int tilesY_k = (H_k + 1) / 2;
@@ -357,9 +331,8 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
         for (int r = 0; r < 4; r++) {
           for (int c2 = 0; c2 < 4; c2++) {
             int p = r * 4 + c2;
-            mm[r][c2] = (MATMUL_ORIENT == 0)
-              ? m[(p * Ntiles_k + tileIdx) * outC_k + oc]
-              : m[(p * outC_k   + oc)      * Ntiles_k + tileIdx];
+            // m shape [16, Ntiles, outC] (SP5 Task 5: Std only.)
+            mm[r][c2] = m[(p * Ntiles_k + tileIdx) * outC_k + oc];
           }
         }
         T tmp[2][4];
@@ -391,8 +364,7 @@ inline mx::array winogradConv2d(const mx::array& input,
                                 int Cout,
                                 const InputTransform& inCfg,
                                 const OutputUntransform& outCfg,
-                                bool useFP16 = false,
-                                MatmulOrient matmulOrient = MatmulOrient::Std) {
+                                bool useFP16 = false) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -403,19 +375,18 @@ inline mx::array winogradConv2d(const mx::array& input,
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
+  // SP5 Task 5: matmulOrient axis removed; no _o suffix needed.
   auto inSuffix = [&](const char* base, int wpt, int vw, GridOrder go) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
          + "_w" + std::to_string(wpt)
          + "_v" + std::to_string(vw)
-         + "_g" + std::to_string((int)go)
-         + "_o" + std::to_string((int)matmulOrient);
+         + "_g" + std::to_string((int)go);
   };
-  // Output kernel is monomorphic on VW=1 (SP5 Task 3) and on GRID_ORDER=Cfast
-  // (SP5 Task 4); drop the _v and _g fragments.
+  // Output kernel is monomorphic on VW=1 (SP5 Task 3), GRID_ORDER=Cfast
+  // (SP5 Task 4), and MATMUL_ORIENT=Std (SP5 Task 5).
   auto outSuffix = [&](const char* base, int wpt) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
-         + "_w" + std::to_string(wpt)
-         + "_o" + std::to_string((int)matmulOrient);
+         + "_w" + std::to_string(wpt);
   };
   std::string inName  = inSuffix ("wino_input_transform",    inCfg.wpt,  inCfg.vw,  inCfg.gridOrder);
   std::string outName = outSuffix("wino_output_untransform", outCfg.wpt);
@@ -425,25 +396,18 @@ inline mx::array winogradConv2d(const mx::array& input,
       {"T",             dtype},
       {"WPT",           wpt},
       {"VW",            vw},
-      {"GRID_ORDER",    (int)go},
-      {"MATMUL_ORIENT", (int)matmulOrient}
+      {"GRID_ORDER",    (int)go}
     };
   };
   auto makeOutTemplateArgs = [&](int wpt) {
     return std::vector<std::pair<std::string, mx::fast::TemplateArg>>{
       {"T",             dtype},
-      {"WPT",           wpt},
-      {"MATMUL_ORIENT", (int)matmulOrient}
+      {"WPT",           wpt}
     };
   };
 
-  // Stage 1: input transform.
-  // Output shape depends on matmulOrient:
-  //   Std: [16, Ntiles, C]
-  //   Tpd: [16, C, Ntiles]
-  mx::Shape inOutShape = (matmulOrient == MatmulOrient::Std)
-    ? mx::Shape{16, Ntiles, C}
-    : mx::Shape{16, C, Ntiles};
+  // Stage 1: input transform. Output shape: [16, Ntiles, C] (SP5 Task 5: Std only.)
+  mx::Shape inOutShape = {16, Ntiles, C};
 
   // Grid: when gridOrder=Cfast the fast axis is C (grid x=C, y=Ntiles/WPT).
   // When gridOrder=Tfast we swap. WPT>1 reduces the slow-axis dim.
@@ -471,14 +435,10 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*stream=*/mx::StreamOrDevice{});
   mx::array t = inOuts[0];
 
-  // Stage 2: matmul.
-  // Std: [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout]
-  // Tpd: [16,Cout,Cin] @ [16,Cin,Ntiles] -> [16,Cout,Ntiles]
+  // Stage 2: matmul. [16,Ntiles,C] @ [16,C,Cout] -> [16,Ntiles,Cout] (SP5 Task 5: Std only.)
   // MLX steel gemm uses AccumType=float (static-asserted in mma.h:772) when
   // T=half, so fp32 accumulation is automatic.
-  mx::array m = (matmulOrient == MatmulOrient::Std)
-    ? mx::matmul(t, Uw)
-    : mx::matmul(Uw, t);
+  mx::array m = mx::matmul(t, Uw);
 
   // Stage 3: output untransform -> [N, H, W, Cout]
   // Output kernel is VW=1 monomorphic (SP5 Task 3) and Cfast monomorphic

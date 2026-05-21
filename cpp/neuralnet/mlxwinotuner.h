@@ -12,7 +12,6 @@ struct MLXWinogradTuneParams {
   MLXWinograd::InputTransform    inputTransform;
   MLXWinograd::OutputUntransform outputUntransform;
   MLXWinograd::GridOrder         gridOrder    = MLXWinograd::GridOrder::Cfast;
-  MLXWinograd::MatmulOrient      matmulOrient = MLXWinograd::MatmulOrient::Std;
 
   // tg0 * tg1 <= 1024, all positive, input gridOrder must match the global
   // (output kernel is Cfast-monomorphic after SP5 Task 4).
@@ -23,12 +22,12 @@ struct MLXWinogradTuneParams {
   // VERSION=2 plain-text persistence. Format:
   //   VERSION=2
   //   #global
-  //   gridOrder=<0|1> matmulOrient=<0|1>
+  //   gridOrder=<0|1>
   //   #inputTransform
   //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
   //   #outputUntransform
   //   tg0=<int> tg1=<int> wpt=<int>
-  // (SP5 Tasks 3-4 done: output vw and gridOrder dropped;
+  // (SP5 Tasks 3-5 done: output vw, gridOrder, and matmulOrient dropped;
   //  v3 schema bump pending in Task 7.)
   static void save(const std::string& filename, const MLXWinogradTuneParams& params);
   static MLXWinogradTuneParams load(const std::string& filename);

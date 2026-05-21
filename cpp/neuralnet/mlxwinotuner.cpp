@@ -86,8 +86,7 @@ void MLXWinogradTuneParams::save(const string& filename, const MLXWinogradTunePa
   FileUtils::open(out, filename);
   out << MLX_WINO_TUNEPARAMS_VERSION_LINE << "\n";
   out << "#global\n";
-  out << "gridOrder=" << (int)params.gridOrder
-      << " matmulOrient=" << (int)params.matmulOrient << "\n";
+  out << "gridOrder=" << (int)params.gridOrder << "\n";
   out << "#inputTransform\n";
   out << "tg0=" << params.inputTransform.tg0
       << " tg1=" << params.inputTransform.tg1
@@ -122,7 +121,6 @@ MLXWinogradTuneParams MLXWinogradTuneParams::load(const string& filename) {
   {
     map<string,int> kvs = parseKeyValueLine(filename, lines[1]);
     params.gridOrder    = (MLXWinograd::GridOrder)requireKey(kvs, "gridOrder", filename);
-    params.matmulOrient = (MLXWinograd::MatmulOrient)requireKey(kvs, "matmulOrient", filename);
   }
   {
     map<string,int> kvs = parseKeyValueLine(filename, lines[2]);
@@ -171,14 +169,11 @@ namespace {
 // One stage-1 (input transform) timed run on a synthetic [N,H,W,C] tensor.
 // Mirrors the inner-loop shape of winogradConv2d's stage 1, but issues only
 // the input-transform kernel so we can score it in isolation. Returns wall ms.
-// matmulOrient is used only to determine output shape and MATMUL_ORIENT arg;
-// for per-stage tuning it defaults to Std (the orientation does not materially
-// affect input-transform throughput, which is what we want to optimise here).
+// SP5 Task 5: matmulOrient axis removed — input kernel always writes Std layout.
 static double timeOneInputTransform(
     const MLXWinograd::InputTransform& cfg,
     const mx::array& input, int channels,
-    bool useFP16,
-    MLXWinograd::MatmulOrient mo = MLXWinograd::MatmulOrient::Std) {
+    bool useFP16) {
   int N = input.shape(0);
   int H = input.shape(1);
   int W = input.shape(2);
@@ -188,14 +183,13 @@ static double timeOneInputTransform(
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
-  // Kernel name encodes all SP4 axes so the Metal JIT cache sees a unique entry
-  // per (dtype, wpt, vw, gridOrder, matmulOrient) combination.
+  // Kernel name encodes the still-live axes so the Metal JIT cache sees a
+  // unique entry per (dtype, wpt, vw, gridOrder) combination.
   std::string kernelName =
       std::string(useFP16 ? "wino_input_transform_f16" : "wino_input_transform_f32")
       + "_w" + std::to_string(cfg.wpt)
       + "_v" + std::to_string(cfg.vw)
       + "_g" + std::to_string((int)cfg.gridOrder)
-      + "_o" + std::to_string((int)mo)
       + "_tune";
 
   auto fn = mx::fast::metal_kernel(
@@ -204,10 +198,8 @@ static double timeOneInputTransform(
       /*output_names=*/{"outp"},
       /*source=*/MLXWinograd::kWinoInputSource);
 
-  // Output shape depends on matmulOrient: Std → [16, Ntiles, C], Tpd → [16, C, Ntiles].
-  mx::Shape outShape = (mo == MLXWinograd::MatmulOrient::Std)
-      ? mx::Shape{16, Ntiles, channels}
-      : mx::Shape{16, channels, Ntiles};
+  // Output shape: [16, Ntiles, C] (SP5 Task 5: Std only.)
+  mx::Shape outShape = {16, Ntiles, channels};
 
   // Grid depends on gridOrder: Cfast → (ceil(C/vw), ceil(Ntiles/wpt), 1),
   //                             Tfast → (Ntiles, ceil(C/wpt), 1).
@@ -222,8 +214,7 @@ static double timeOneInputTransform(
     {"T",             dtype},
     {"WPT",           cfg.wpt},
     {"VW",            cfg.vw},
-    {"GRID_ORDER",    (int)cfg.gridOrder},
-    {"MATMUL_ORIENT", (int)mo}
+    {"GRID_ORDER",    (int)cfg.gridOrder}
   };
 
   // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
@@ -260,10 +251,7 @@ static double timeOneInputTransform(
 }
 
 // Same shape for output untransform: synthetic [16, Ntiles, outC] -> [N,H,W,outC].
-// m is always Std-layout ([16, Ntiles, outC]) because makeRandomMatmulOut creates
-// that shape; MATMUL_ORIENT is therefore always passed as Std. This is consistent
-// across all callers of scoreOutputUntransform and does not materially affect
-// output-untransform throughput measurement.
+// SP5 Task 5: matmulOrient axis removed — m is always Std-layout ([16, Ntiles, outC]).
 static double timeOneOutputUntransform(
     const MLXWinograd::OutputUntransform& cfg,
     const mx::array& m, int N, int H, int W, int outC,
@@ -277,14 +265,13 @@ static double timeOneOutputUntransform(
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
-  // Kernel name encodes all axes the output kernel still depends on so the
-  // Metal JIT cache sees a unique entry per (dtype, wpt, matmulOrient)
-  // combination. matmulOrient=Std. (SP5 Task 3: VW dropped from output kernel.
-  // SP5 Task 4: GRID_ORDER dropped — output kernel is Cfast-only.)
+  // Kernel name encodes the still-live axes so the Metal JIT cache sees a
+  // unique entry per (dtype, wpt) combination. (SP5 Task 3: VW dropped.
+  // SP5 Task 4: GRID_ORDER dropped — output kernel is Cfast-only.
+  // SP5 Task 5: MATMUL_ORIENT dropped — output kernel is Std-only.)
   std::string kernelName =
       std::string(useFP16 ? "wino_output_untransform_f16" : "wino_output_untransform_f32")
       + "_w" + std::to_string(cfg.wpt)
-      + "_o0"   // matmulOrient=Std (0) — matches makeRandomMatmulOut layout
       + "_tune";
 
   auto fn = mx::fast::metal_kernel(
@@ -299,8 +286,7 @@ static double timeOneOutputUntransform(
 
   std::vector<std::pair<std::string, mx::fast::TemplateArg>> tmplArgs = {
     {"T",             dtype},
-    {"WPT",           cfg.wpt},
-    {"MATMUL_ORIENT", 0}   // Std — matches makeRandomMatmulOut layout
+    {"WPT",           cfg.wpt}
   };
 
   // Untimed warmup: ensures pipeline-state + lazy-graph caches are hot for THIS
@@ -669,10 +655,8 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   MLXWinogradTuneParams result;
   result.inputTransform    = *bestIn;
   result.outputUntransform = *bestOut;
-  // (Global gridOrder and matmulOrient still live on the struct in Task 2; we
-  // set defaults. Tasks 5-6 delete those fields entirely.)
+  // (Global gridOrder still lives on the struct after Task 5; Task 6 deletes it.)
   result.gridOrder    = bestIn->gridOrder;
-  result.matmulOrient = MLXWinograd::MatmulOrient::Std;
 
   if(!result.isValid())
     throw StringError("MLXWinogradTuner: flat sweep result failed isValid()");
