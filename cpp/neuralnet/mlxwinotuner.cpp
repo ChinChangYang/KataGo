@@ -344,51 +344,60 @@ static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed, bool u
   return arr;
 }
 
-// Score one input-transform candidate. Mirrors OpenCL line 2172-2206:
-// 20 reps rotating across {trunk, mid, max} channel counts; rep 0 is warmup
-// with weight 0; remaining 19 reps weighted into a mean wall-clock time.
+// Forward decl: planShapeRotation is defined further down in this anonymous
+// namespace alongside its policy constants, but the scoring functions above
+// reference it. Pure function; safe to forward-declare.
+static std::vector<MLXWinogradTuner::ShapePlan>
+planShapeRotation(const std::vector<std::pair<int,int>>& histogram);
+
+// Score one input-transform candidate. Adaptive rotation over the model's
+// actual 3x3 conv input-channel distribution: planShapeRotation produces a
+// list of (channels, measureReps, weight) entries; per shape we time
+// `measureReps + 1` reps (1 warmup discarded for the dominant only) and
+// take the median, weighted into the final score by `weight`.
 static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
                                   int N, int H, int W,
                                   const MLXWinogradTuner::ModelInfoForTuning& mi,
                                   bool useFP16) {
-  mx::array inTrunk = makeRandomInput(N, H, W, mi.trunkNumChannels, 0xA1A1A1A1u, useFP16);
-  mx::array inMid   = makeRandomInput(N, H, W, mi.midNumChannels,   0xB2B2B2B2u, useFP16);
-  mx::array inMax   = makeRandomInput(N, H, W, mi.maxConvChannels3x3, 0xC3C3C3C3u, useFP16);
-  mx::eval(inTrunk); mx::eval(inMid); mx::eval(inMax);
+  auto plan = planShapeRotation(mi.conv3x3InputHistogram);
+  assert(!plan.empty());
 
-  const int reps = 20;
-  double totalMs = 0.0;
-  double totalWeight = 0.0;
-  for(int i = 0; i < reps; i++) {
-    int slot;
-    double weight;
-    switch(i % 10) {
-      case 0: slot = 0; weight = 0; break;
-      case 1: slot = 0; weight = 1; break;
-      case 2: slot = 1; weight = 1; break;
-      case 3: slot = 2; weight = 1; break;
-      case 4: slot = 0; weight = 1; break;
-      case 5: slot = 1; weight = 1; break;
-      case 6: slot = 2; weight = 1; break;
-      case 7: slot = 0; weight = 1; break;
-      case 8: slot = 1; weight = 1; break;
-      case 9: slot = 2; weight = 1; break;
-      default: ASSERT_UNREACHABLE; slot = 0; weight = 0; break;
-    }
-    int channels = (slot == 0) ? mi.trunkNumChannels
-                 : (slot == 1) ? mi.midNumChannels
-                 :               mi.maxConvChannels3x3;
-    const mx::array& inp = (slot == 0) ? inTrunk
-                         : (slot == 1) ? inMid
-                         :               inMax;
-    double ms = timeOneInputTransform(cfg, inp, channels, useFP16);
-    totalMs += ms * weight;
-    totalWeight += weight;
+  // Pre-build one random input array per planned shape. Warmup is one extra
+  // measurement on the dominant (plan[0]) that is discarded.
+  std::vector<mx::array> inputs;
+  inputs.reserve(plan.size());
+  uint32_t seed = 0xA1A1A1A1u;
+  for(const auto& sp : plan) {
+    inputs.push_back(makeRandomInput(N, H, W, sp.channels, seed, useFP16));
+    mx::eval(inputs.back());
+    seed = seed * 1664525u + 1013904223u;  // distinct seed per shape
   }
-  return totalMs / totalWeight;
+
+  // Warmup: 1 rep on dominant, discarded.
+  (void)timeOneInputTransform(cfg, inputs[0], plan[0].channels, useFP16);
+
+  double score = 0.0;
+  for(size_t i = 0; i < plan.size(); i++) {
+    std::vector<double> samples;
+    samples.reserve(plan[i].measureReps);
+    for(int r = 0; r < plan[i].measureReps; r++) {
+      double ms = timeOneInputTransform(cfg, inputs[i], plan[i].channels, useFP16);
+      samples.push_back(ms);
+    }
+    // Median (upper of two middles for even sizes; identical to nth_element
+    // at index size/2). Spec §Score formula.
+    std::nth_element(samples.begin(),
+                     samples.begin() + samples.size() / 2,
+                     samples.end());
+    double median = samples[samples.size() / 2];
+    if(!std::isfinite(median)) median = 0.0;  // defensive — never emit nan
+    score += plan[i].weight * median;
+  }
+  return score;
 }
 
-// Score one output-untransform candidate. Same rotation/warmup structure.
+// Score one output-untransform candidate. Symmetric to scoreInputTransform:
+// adaptive rotation over the model's 3x3 conv output-channel distribution.
 static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
                                      int N, int H, int W,
                                      const MLXWinogradTuner::ModelInfoForTuning& mi,
@@ -397,55 +406,39 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
   int tilesX = (W + 1) / 2;
   int Ntiles = N * tilesY * tilesX;
 
-  mx::array mTrunk = makeRandomMatmulOut(Ntiles, mi.trunkNumChannels,   0xD4D4D4D4u, useFP16);
-  mx::array mMid   = makeRandomMatmulOut(Ntiles, mi.midNumChannels,     0xE5E5E5E5u, useFP16);
-  mx::array mMax   = makeRandomMatmulOut(Ntiles, mi.maxConvChannels3x3, 0xF6F6F6F6u, useFP16);
-  mx::eval(mTrunk); mx::eval(mMid); mx::eval(mMax);
+  auto plan = planShapeRotation(mi.conv3x3OutputHistogram);
+  assert(!plan.empty());
 
-  const int reps = 20;
-  double totalMs = 0.0;
-  double totalWeight = 0.0;
-  for(int i = 0; i < reps; i++) {
-    int slot;
-    double weight;
-    switch(i % 10) {
-      case 0: slot = 0; weight = 0; break;
-      case 1: slot = 0; weight = 1; break;
-      case 2: slot = 1; weight = 1; break;
-      case 3: slot = 2; weight = 1; break;
-      case 4: slot = 0; weight = 1; break;
-      case 5: slot = 1; weight = 1; break;
-      case 6: slot = 2; weight = 1; break;
-      case 7: slot = 0; weight = 1; break;
-      case 8: slot = 1; weight = 1; break;
-      case 9: slot = 2; weight = 1; break;
-      default: ASSERT_UNREACHABLE; slot = 0; weight = 0; break;
-    }
-    int outC = (slot == 0) ? mi.trunkNumChannels
-             : (slot == 1) ? mi.midNumChannels
-             :               mi.maxConvChannels3x3;
-    const mx::array& mIn = (slot == 0) ? mTrunk
-                         : (slot == 1) ? mMid
-                         :               mMax;
-    double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC, useFP16);
-    totalMs += ms * weight;
-    totalWeight += weight;
+  std::vector<mx::array> matmulOuts;
+  matmulOuts.reserve(plan.size());
+  uint32_t seed = 0xD4D4D4D4u;
+  for(const auto& sp : plan) {
+    matmulOuts.push_back(makeRandomMatmulOut(Ntiles, sp.channels, seed, useFP16));
+    mx::eval(matmulOuts.back());
+    seed = seed * 1664525u + 1013904223u;
   }
-  return totalMs / totalWeight;
-}
 
-// Per-slot timing breakdown for diagnostic logging. Same 20-rep rotation
-// as scoreInputTransform but reports median-of-6 reps per slot (no
-// weighting). Robust to per-call jitter; used to compare against the
-// sweep's weighted-mean estimator in the flat-sweep log lines.
-struct PerSlotTimes { double trunkMs; double midMs; double maxMs; };
+  // Warmup: 1 rep on dominant, discarded.
+  (void)timeOneOutputUntransform(cfg, matmulOuts[0], N, H, W,
+                                 plan[0].channels, useFP16);
 
-// 6-element median: upper of two middle values (index 3 of sorted 0..5).
-// Deterministic; avoids float averaging. std::nth_element partially sorts
-// in O(n).
-static double medianOf6(std::array<double,6> a) {
-  std::nth_element(a.begin(), a.begin() + 3, a.end());
-  return a[3];
+  double score = 0.0;
+  for(size_t i = 0; i < plan.size(); i++) {
+    std::vector<double> samples;
+    samples.reserve(plan[i].measureReps);
+    for(int r = 0; r < plan[i].measureReps; r++) {
+      double ms = timeOneOutputUntransform(cfg, matmulOuts[i], N, H, W,
+                                           plan[i].channels, useFP16);
+      samples.push_back(ms);
+    }
+    std::nth_element(samples.begin(),
+                     samples.begin() + samples.size() / 2,
+                     samples.end());
+    double median = samples[samples.size() / 2];
+    if(!std::isfinite(median)) median = 0.0;
+    score += plan[i].weight * median;
+  }
+  return score;
 }
 
 // Selection-and-allocation policy for the work-weighted shape rotation.
@@ -552,121 +545,88 @@ planShapeRotation(const std::vector<std::pair<int,int>>& histogram) {
   return plan;
 }
 
-static PerSlotTimes scoreInputTransformPerSlot(
-    const MLXWinograd::InputTransform& cfg,
-    int N, int H, int W,
-    const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool useFP16) {
-  mx::array inTrunk = makeRandomInput(N, H, W, mi.trunkNumChannels,    0xA1A1A1A1u, useFP16);
-  mx::array inMid   = makeRandomInput(N, H, W, mi.midNumChannels,      0xB2B2B2B2u, useFP16);
-  mx::array inMax   = makeRandomInput(N, H, W, mi.maxConvChannels3x3,  0xC3C3C3C3u, useFP16);
-  mx::eval(inTrunk); mx::eval(inMid); mx::eval(inMax);
+// Per-shape median timing for diagnostic logging. Same rotation/plan as the
+// scoring functions; reports one (channels, median_ms) entry per planned
+// shape instead of a single weighted score. Used by the flat-sweep log's
+// "shape_ms=" field and the gated per-shape consistency test.
 
-  std::array<double,6> trunkReps{}, midReps{}, maxReps{};
-  int trunkIdx = 0, midIdx = 0, maxIdx = 0;
+static std::vector<std::pair<int,double>>
+scoreInputTransformPerShape(const MLXWinograd::InputTransform& cfg,
+                            int N, int H, int W,
+                            const MLXWinogradTuner::ModelInfoForTuning& mi,
+                            bool useFP16) {
+  auto plan = planShapeRotation(mi.conv3x3InputHistogram);
+  assert(!plan.empty());
 
-  const int reps = 20;
-  for(int i = 0; i < reps; i++) {
-    if(i % 10 == 0) {
-      // Warmup — measure but discard (matches scoreInputTransform's weight=0 rep).
-      (void)timeOneInputTransform(cfg, inTrunk, mi.trunkNumChannels, useFP16);
-      continue;
-    }
-    int slot;
-    switch(i % 10) {
-      case 1: case 4: case 7: slot = 0; break;
-      case 2: case 5: case 8: slot = 1; break;
-      case 3: case 6: case 9: slot = 2; break;
-      default: ASSERT_UNREACHABLE; slot = 0; break;
-    }
-    int channels = (slot == 0) ? mi.trunkNumChannels
-                 : (slot == 1) ? mi.midNumChannels
-                 :               mi.maxConvChannels3x3;
-    const mx::array& inp = (slot == 0) ? inTrunk
-                         : (slot == 1) ? inMid
-                         :               inMax;
-    double ms = timeOneInputTransform(cfg, inp, channels, useFP16);
-    if(slot == 0)      trunkReps[trunkIdx++] = ms;
-    else if(slot == 1) midReps[midIdx++]     = ms;
-    else               maxReps[maxIdx++]     = ms;
+  std::vector<mx::array> inputs;
+  inputs.reserve(plan.size());
+  uint32_t seed = 0xA1A1A1A1u;
+  for(const auto& sp : plan) {
+    inputs.push_back(makeRandomInput(N, H, W, sp.channels, seed, useFP16));
+    mx::eval(inputs.back());
+    seed = seed * 1664525u + 1013904223u;
   }
+  (void)timeOneInputTransform(cfg, inputs[0], plan[0].channels, useFP16);
 
-  // Postcondition: the rep schedule (reps=20, two warmups, 3-per-decade
-  // slot rotation) must produce exactly 6 writes per slot, matching the
-  // std::array<double,6> capacity. Asserting this here catches a silent
-  // out-of-bounds write if reps is ever changed without resizing.
-  assert(trunkIdx == 6 && midIdx == 6 && maxIdx == 6);
-
-  // Defensive: if a slot's median is non-finite (e.g. an aborted measurement
-  // producing NaN), clamp to 0 so %.3f doesn't emit "nan" and break the
-  // log-format regex consumers downstream.
-  auto clamp = [](double x) { return std::isfinite(x) ? x : 0.0; };
-  return PerSlotTimes{
-    clamp(medianOf6(trunkReps)),
-    clamp(medianOf6(midReps)),
-    clamp(medianOf6(maxReps))
-  };
+  std::vector<std::pair<int,double>> out;
+  out.reserve(plan.size());
+  for(size_t i = 0; i < plan.size(); i++) {
+    std::vector<double> samples;
+    samples.reserve(plan[i].measureReps);
+    for(int r = 0; r < plan[i].measureReps; r++) {
+      samples.push_back(
+          timeOneInputTransform(cfg, inputs[i], plan[i].channels, useFP16));
+    }
+    std::nth_element(samples.begin(),
+                     samples.begin() + samples.size() / 2,
+                     samples.end());
+    double median = samples[samples.size() / 2];
+    if(!std::isfinite(median)) median = 0.0;
+    out.emplace_back(plan[i].channels, median);
+  }
+  return out;
 }
 
-// Symmetric for output untransform — same rotation, median-of-6 per slot.
-static PerSlotTimes scoreOutputUntransformPerSlot(
-    const MLXWinograd::OutputUntransform& cfg,
-    int N, int H, int W,
-    const MLXWinogradTuner::ModelInfoForTuning& mi,
-    bool useFP16) {
-  int tilesY = (H + 1) / 2;
-  int tilesX = (W + 1) / 2;
-  int Ntiles = N * tilesY * tilesX;
+static std::vector<std::pair<int,double>>
+scoreOutputUntransformPerShape(const MLXWinograd::OutputUntransform& cfg,
+                               int N, int H, int W,
+                               const MLXWinogradTuner::ModelInfoForTuning& mi,
+                               bool useFP16) {
+  int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
-  mx::array mTrunk = makeRandomMatmulOut(Ntiles, mi.trunkNumChannels,    0xD4D4D4D4u, useFP16);
-  mx::array mMid   = makeRandomMatmulOut(Ntiles, mi.midNumChannels,      0xE5E5E5E5u, useFP16);
-  mx::array mMax   = makeRandomMatmulOut(Ntiles, mi.maxConvChannels3x3,  0xF6F6F6F6u, useFP16);
-  mx::eval(mTrunk); mx::eval(mMid); mx::eval(mMax);
+  auto plan = planShapeRotation(mi.conv3x3OutputHistogram);
+  assert(!plan.empty());
 
-  std::array<double,6> trunkReps{}, midReps{}, maxReps{};
-  int trunkIdx = 0, midIdx = 0, maxIdx = 0;
-
-  const int reps = 20;
-  for(int i = 0; i < reps; i++) {
-    if(i % 10 == 0) {
-      (void)timeOneOutputUntransform(cfg, mTrunk, N, H, W, mi.trunkNumChannels, useFP16);
-      continue;
-    }
-    int slot;
-    switch(i % 10) {
-      case 1: case 4: case 7: slot = 0; break;
-      case 2: case 5: case 8: slot = 1; break;
-      case 3: case 6: case 9: slot = 2; break;
-      default: ASSERT_UNREACHABLE; slot = 0; break;
-    }
-    int outC = (slot == 0) ? mi.trunkNumChannels
-             : (slot == 1) ? mi.midNumChannels
-             :               mi.maxConvChannels3x3;
-    const mx::array& mIn = (slot == 0) ? mTrunk
-                         : (slot == 1) ? mMid
-                         :               mMax;
-    double ms = timeOneOutputUntransform(cfg, mIn, N, H, W, outC, useFP16);
-    if(slot == 0)      trunkReps[trunkIdx++] = ms;
-    else if(slot == 1) midReps[midIdx++]     = ms;
-    else               maxReps[maxIdx++]     = ms;
+  std::vector<mx::array> matmulOuts;
+  matmulOuts.reserve(plan.size());
+  uint32_t seed = 0xD4D4D4D4u;
+  for(const auto& sp : plan) {
+    matmulOuts.push_back(makeRandomMatmulOut(Ntiles, sp.channels, seed, useFP16));
+    mx::eval(matmulOuts.back());
+    seed = seed * 1664525u + 1013904223u;
   }
+  (void)timeOneOutputUntransform(cfg, matmulOuts[0], N, H, W,
+                                 plan[0].channels, useFP16);
 
-  // Postcondition: the rep schedule (reps=20, two warmups, 3-per-decade
-  // slot rotation) must produce exactly 6 writes per slot, matching the
-  // std::array<double,6> capacity. Asserting this here catches a silent
-  // out-of-bounds write if reps is ever changed without resizing.
-  assert(trunkIdx == 6 && midIdx == 6 && maxIdx == 6);
-
-  auto clamp = [](double x) { return std::isfinite(x) ? x : 0.0; };
-  return PerSlotTimes{
-    clamp(medianOf6(trunkReps)),
-    clamp(medianOf6(midReps)),
-    clamp(medianOf6(maxReps))
-  };
+  std::vector<std::pair<int,double>> out;
+  out.reserve(plan.size());
+  for(size_t i = 0; i < plan.size(); i++) {
+    std::vector<double> samples;
+    samples.reserve(plan[i].measureReps);
+    for(int r = 0; r < plan[i].measureReps; r++) {
+      samples.push_back(
+          timeOneOutputUntransform(cfg, matmulOuts[i], N, H, W,
+                                   plan[i].channels, useFP16));
+    }
+    std::nth_element(samples.begin(),
+                     samples.begin() + samples.size() / 2,
+                     samples.end());
+    double median = samples[samples.size() / 2];
+    if(!std::isfinite(median)) median = 0.0;
+    out.emplace_back(plan[i].channels, median);
+  }
+  return out;
 }
-
-// (namespace continues below — per-slot helpers and flat-sweep helpers share
-// the same anonymous namespace so the former are visible to the latter.)
 
 static const std::vector<int>& inputTg0Values(bool full) {
   static const std::vector<int> v = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
@@ -760,7 +720,13 @@ flatSweepInput(int N, int H, int W,
                const MLXWinogradTuner::ModelInfoForTuning& mi,
                bool useFP16, bool full, Logger* logger) {
   using GO = MLXWinograd::GridOrder;
-  const int C  = mi.maxConvChannels3x3;
+  // Candidate enumeration's vw-divisibility filter uses C as the most
+  // restrictive channel count the kernel will encounter. Use the max of the
+  // model's actual 3x3 input distribution; equivalent to the old
+  // maxConvChannels3x3 for typical models.
+  int C = 0;
+  for(const auto& [ch, n] : mi.conv3x3InputHistogram) C = std::max(C, ch);
+  assert(C > 0);
   const int tilesY = (H + 1) / 2;
   const int tilesX = (W + 1) / 2;
   const int Ntiles = N * tilesY * tilesX;
@@ -798,14 +764,15 @@ flatSweepInput(int N, int H, int W,
       // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
 
-      // Re-measure the winner with per-slot median timing. ~30 ms extra GPU
-      // work per stage; negligible vs the ~40s total sweep wall-time. Fields
-      // are diagnostic only — winner selection above used the symmetric
-      // weighted-mean score; this is for noise/bias analysis.
-      PerSlotTimes ps = scoreInputTransformPerSlot(*best, N, H, W, mi, useFP16);
-      perSlotStr = " trunk_ms=" + Global::strprintf("%.3f", ps.trunkMs)
-                 + " mid_ms="   + Global::strprintf("%.3f", ps.midMs)
-                 + " max_ms="   + Global::strprintf("%.3f", ps.maxMs);
+      // Per-shape median timing on the winner — diagnostic only; winner
+      // selection above used the weighted score from scoreInputTransform.
+      auto perShape = scoreInputTransformPerShape(*best, N, H, W, mi, useFP16);
+      perSlotStr = " shape_ms=";
+      for(size_t i = 0; i < perShape.size(); i++) {
+        if(i > 0) perSlotStr += ",";
+        perSlotStr += "c" + std::to_string(perShape[i].first)
+                    + ":" + Global::strprintf("%.3f", perShape[i].second);
+      }
     } else {
       deltaStr = "nan";
       // best=none branch: omit per-slot fields (matches existing degenerate
@@ -835,7 +802,13 @@ static std::optional<MLXWinograd::OutputUntransform>
 flatSweepOutput(int N, int H, int W,
                 const MLXWinogradTuner::ModelInfoForTuning& mi,
                 bool useFP16, bool full, Logger* logger) {
-  const int outC = mi.midNumChannels;  // output untransform reads from matmul output
+  // Output-untransform candidate enumeration doesn't filter on outC
+  // (isOutputCandidateValid ignores it — VW=1 monomorphic), but we still
+  // pass a representative value. Use the max of the model's actual 3x3
+  // output distribution.
+  int outC = 0;
+  for(const auto& [ch, n] : mi.conv3x3OutputHistogram) outC = std::max(outC, ch);
+  assert(outC > 0);
   const int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
   // Score the SP1 baked default (default-constructed = {tg0=32, tg1=1, wpt=1})
@@ -865,12 +838,13 @@ flatSweepOutput(int N, int H, int W,
       // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
 
-      // Re-measure the winner with per-slot median timing. Symmetric to
-      // flatSweepInput. ~30 ms extra GPU work.
-      PerSlotTimes ps = scoreOutputUntransformPerSlot(*best, N, H, W, mi, useFP16);
-      perSlotStr = " trunk_ms=" + Global::strprintf("%.3f", ps.trunkMs)
-                 + " mid_ms="   + Global::strprintf("%.3f", ps.midMs)
-                 + " max_ms="   + Global::strprintf("%.3f", ps.maxMs);
+      auto perShape = scoreOutputUntransformPerShape(*best, N, H, W, mi, useFP16);
+      perSlotStr = " shape_ms=";
+      for(size_t i = 0; i < perShape.size(); i++) {
+        if(i > 0) perSlotStr += ",";
+        perSlotStr += "c" + std::to_string(perShape[i].first)
+                    + ":" + Global::strprintf("%.3f", perShape[i].second);
+      }
     } else {
       deltaStr = "nan";
       perSlotStr = "";
@@ -985,22 +959,22 @@ double MLXWinogradTuner::scoreOutputUntransformForTesting(
   return scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
 }
 
-std::array<double,3> MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
+std::vector<std::pair<int,double>>
+MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
     const MLXWinograd::InputTransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
     bool useFP16) {
-  PerSlotTimes t = scoreInputTransformPerSlot(cfg, N, H, W, mi, useFP16);
-  return {t.trunkMs, t.midMs, t.maxMs};
+  return scoreInputTransformPerShape(cfg, N, H, W, mi, useFP16);
 }
 
-std::array<double,3> MLXWinogradTuner::scoreOutputUntransformPerSlotForTesting(
+std::vector<std::pair<int,double>>
+MLXWinogradTuner::scoreOutputUntransformPerShapeForTesting(
     const MLXWinograd::OutputUntransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
     bool useFP16) {
-  PerSlotTimes t = scoreOutputUntransformPerSlot(cfg, N, H, W, mi, useFP16);
-  return {t.trunkMs, t.midMs, t.maxMs};
+  return scoreOutputUntransformPerShape(cfg, N, H, W, mi, useFP16);
 }
 
 std::string MLXWinogradTuner::formatConv3x3DistributionLine(
@@ -1540,12 +1514,12 @@ void runMLXWinotunerTests() {
       // Updated for shape diagnostic: regex now requires the per-slot
       // median fields appended by flatSweepInput.
       std::regex inputRe(
-          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ trunk_ms=[0-9]+\.[0-9]+ mid_ms=[0-9]+\.[0-9]+ max_ms=[0-9]+\.[0-9]+)");
+          R"(MLX tuner flatSweepInput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ vw=[0-9]+ gridOrder=[01] time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ shape_ms=c[0-9]+:[0-9]+\.[0-9]+(?:,c[0-9]+:[0-9]+\.[0-9]+)*)");
       testAssert(std::regex_search(log, inputRe));
       std::cout << "  flatSweepInput log-format (gated) OK" << std::endl;
 
       std::regex outputRe(
-          R"(MLX tuner flatSweepOutput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ trunk_ms=[0-9]+\.[0-9]+ mid_ms=[0-9]+\.[0-9]+ max_ms=[0-9]+\.[0-9]+)");
+          R"(MLX tuner flatSweepOutput: considered=[0-9]+ best=tg0=[0-9]+ tg1=[0-9]+ wpt=[0-9]+ time_ms=[0-9]+\.[0-9]+ baseline_ms=[0-9]+\.[0-9]+ delta_pct=[-+][0-9]+\.[0-9]+ shape_ms=c[0-9]+:[0-9]+\.[0-9]+(?:,c[0-9]+:[0-9]+\.[0-9]+)*)");
       testAssert(std::regex_search(log, outputRe));
       std::cout << "  flatSweepOutput log-format (gated) OK" << std::endl;
 
@@ -1690,16 +1664,28 @@ void runMLXWinotunerTests() {
 
       const std::string log = captured.str();
       std::smatch m;
-      std::regex trunkRe(R"(flatSweepInput:[^\n]*trunk_ms=([0-9]+\.[0-9]+))");
+      std::regex trunkRe(R"(flatSweepInput:[^\n]*shape_ms=c[0-9]+:([0-9]+\.[0-9]+))");
       testAssert(std::regex_search(log, m, trunkRe));
       const double parsedTrunkMs = std::stod(m[1].str());
 
-      double minOf3 = std::numeric_limits<double>::infinity();
-      for(int rep = 0; rep < 3; rep++) {
-        std::array<double,3> t = MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
-            MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
-        if(t[0] < minOf3) minOf3 = t[0];  // index 0 = trunk
-      }
+      // Per-shape consistency: parse the dominant shape's median from
+      // the flatSweepInput log line (which used scoreInputTransformPerShape
+      // on the winner) and compare against scoreInputTransformPerShapeForTesting
+      // on the default InputTransform. Cross-config (winner vs default)
+      // so a wide relErr bound (<0.50) is appropriate; see spec §Testing.
+      std::vector<std::pair<int,double>> r1 =
+          MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
+              MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+      std::vector<std::pair<int,double>> r2 =
+          MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
+              MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+      std::vector<std::pair<int,double>> r3 =
+          MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
+              MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+      testAssert(!r1.empty() && !r2.empty() && !r3.empty());
+      // Each result has the same shapes in the same order; take the
+      // dominant (index 0) per-shape median across the 3 runs.
+      double minOf3 = std::min({r1[0].second, r2[0].second, r3[0].second});
 
       const double relErr = std::abs(parsedTrunkMs - minOf3) / minOf3;
       // 50% budget — see comment block above for rationale on the loose
@@ -1715,11 +1701,12 @@ void runMLXWinotunerTests() {
   }
 
   {
-    // Per-slot scoring smoke test: verify that scoreInputTransformPerSlot
-    // and scoreOutputUntransformPerSlot return three finite positive values
-    // each for a default-constructed InputTransform/OutputUntransform on a
-    // tiny shape. Gated under the same env var as the other GPU-touching
-    // tests; ungated CI shouldn't pay for GPU work.
+    // Per-shape scoring smoke test: verify that scoreInputTransformPerShape
+    // and scoreOutputUntransformPerShape return finite positive values for
+    // each planned shape with a default-constructed
+    // InputTransform/OutputUntransform on a tiny shape. Gated under the same
+    // env var as the other GPU-touching tests; ungated CI shouldn't pay for
+    // GPU work.
     const char* gate = std::getenv("KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST");
     if(gate != nullptr && std::string(gate) == "1") {
       MLXWinogradTuner::ModelInfoForTuning mi;
@@ -1731,24 +1718,30 @@ void runMLXWinotunerTests() {
       mi.conv3x3InputHistogram  = {{64, 1}};
       mi.conv3x3OutputHistogram = {{64, 1}};
 
-      std::array<double,3> in = MLXWinogradTuner::scoreInputTransformPerSlotForTesting(
-          MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
-      for(double v : in) {
+      std::vector<std::pair<int,double>> in =
+          MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
+              MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);
+      testAssert(!in.empty());
+      for(const auto& [c, v] : in) {
+        testAssert(c > 0);
         testAssert(std::isfinite(v));
         testAssert(v > 0.0);
         testAssert(v < 1000.0);  // sanity: <1s per call on Apple Silicon
       }
 
-      std::array<double,3> out = MLXWinogradTuner::scoreOutputUntransformPerSlotForTesting(
-          MLXWinograd::OutputUntransform{}, 1, 19, 19, mi, true);
-      for(double v : out) {
+      std::vector<std::pair<int,double>> out =
+          MLXWinogradTuner::scoreOutputUntransformPerShapeForTesting(
+              MLXWinograd::OutputUntransform{}, 1, 19, 19, mi, true);
+      testAssert(!out.empty());
+      for(const auto& [c, v] : out) {
+        testAssert(c > 0);
         testAssert(std::isfinite(v));
         testAssert(v > 0.0);
         testAssert(v < 1000.0);
       }
-      std::cout << "  per-slot scoring smoke (gated) OK"
-                << " in={" << in[0] << "," << in[1] << "," << in[2] << "}"
-                << " out={" << out[0] << "," << out[1] << "," << out[2] << "}"
+      std::cout << "  per-shape scoring smoke (gated) OK"
+                << " in[0]=c" << in[0].first << ":" << in[0].second
+                << " out[0]=c" << out[0].first << ":" << out[0].second
                 << std::endl;
     }
   }

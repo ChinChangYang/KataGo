@@ -112,21 +112,21 @@ namespace MLXWinogradTuner {
                                           const ModelInfoForTuning& mi,
                                           bool useFP16);
 
-  // Test-only — per-slot median scoring primitives. Same 20-rep rotation
-  // as scoreInputTransformForTesting / scoreOutputUntransformForTesting,
-  // but reports median-of-6 reps per slot ({trunk, mid, max} in that
-  // index order) instead of a single weighted mean. Used by the
-  // diagnostic log fields and the gated per-slot consistency test.
-  std::array<double,3>
-  scoreInputTransformPerSlotForTesting(const MLXWinograd::InputTransform& cfg,
-                                       int N, int H, int W,
-                                       const ModelInfoForTuning& mi,
-                                       bool useFP16);
-  std::array<double,3>
-  scoreOutputUntransformPerSlotForTesting(const MLXWinograd::OutputUntransform& cfg,
-                                          int N, int H, int W,
-                                          const ModelInfoForTuning& mi,
-                                          bool useFP16);
+  // Per-shape median timing for diagnostic logging. Same rotation as the
+  // scoring functions, but reports median per planned shape instead of a
+  // single weighted score. One entry per shape in planShapeRotation's
+  // output, in the same order (dominant first). Used by the flat-sweep
+  // log "shape_ms=" field and the gated per-shape consistency test.
+  std::vector<std::pair<int,double>>
+  scoreInputTransformPerShapeForTesting(const MLXWinograd::InputTransform& cfg,
+                                        int N, int H, int W,
+                                        const ModelInfoForTuning& mi,
+                                        bool useFP16);
+  std::vector<std::pair<int,double>>
+  scoreOutputUntransformPerShapeForTesting(const MLXWinograd::OutputUntransform& cfg,
+                                           int N, int H, int W,
+                                           const ModelInfoForTuning& mi,
+                                           bool useFP16);
 
   // Conv-3x3 shape distribution log: one-line summary of the model's 3x3
   // conv shape mix, computed at model load and printed alongside the tuner
