@@ -1191,6 +1191,13 @@ struct ComputeHandle {
     // (_fp16.txt suffix). See spec §3 item 3.
     MLXWinogradTuneParams tuneParams;
     if(mlxWinogradEnabled() && mlxWinotunerEnabled()) {
+      // Shape diagnostic: print the model's 3x3 conv shape distribution before
+      // calling the tuner so the log carries this signal on every load, including
+      // cache-hit runs where loadOrAutoTune short-circuits. Spec §3a.
+      if(context->logger != NULL) {
+        context->logger->write(
+            MLXWinogradTuner::formatConv3x3Distribution(loadedModel.modelDesc));
+      }
       MLXWinogradTuner::ModelInfoForTuning mi;
       mi.trunkNumChannels   = loadedModel.modelDesc.trunk.trunkNumChannels;
       mi.midNumChannels     = loadedModel.modelDesc.trunk.midNumChannels;
