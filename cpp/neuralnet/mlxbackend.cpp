@@ -1564,6 +1564,19 @@ bool NeuralNet::testEvaluateConv(
   const vector<float>& inputBuffer,
   vector<float>& outputBuffer
 ) {
+  // Run MLX-specific aux tests (Winograd kernel + tuner) exactly once per
+  // process, on the first invocation of testEvaluateConv. This is the
+  // MLX-side hook reachable from Tests::runNNLayerTests through
+  // testConvLayer, allowing testnn.cpp to stay backend-agnostic.
+  // The flag is set BEFORE the calls so a propagating exception does not
+  // cause the aux tests to re-run on subsequent conv configs.
+  static bool ranMLXAuxTests = false;
+  if(!ranMLXAuxTests) {
+    ranMLXAuxTests = true;
+    runMLXWinogradTests();
+    runMLXWinotunerTests();
+  }
+
   if(!useNHWC) {
     return false; // MLX only supports NHWC
   }
