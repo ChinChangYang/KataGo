@@ -26,7 +26,8 @@ struct MLXWinogradTuneParams {
   //   #inputTransform
   //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
   //   #outputUntransform
-  //   tg0=<int> tg1=<int> wpt=<int> vw=<int> gridOrder=<0|1>
+  //   tg0=<int> tg1=<int> wpt=<int> gridOrder=<0|1>
+  // (SP5 Task 3 drops output vw; v3 bump comes in Task 7.)
   static void save(const std::string& filename, const MLXWinogradTuneParams& params);
   static MLXWinogradTuneParams load(const std::string& filename);
 };

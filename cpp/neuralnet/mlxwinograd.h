@@ -24,7 +24,6 @@ struct OutputUntransform {
   int tg0 = 32;
   int tg1 = 1;
   int wpt = 1;
-  int vw  = 1;
   GridOrder gridOrder = GridOrder::Cfast;
 };
 
@@ -319,18 +318,16 @@ inline constexpr const char* kWinoInputSource = R"METAL(
 // Template args (JIT-substituted via MLX template_args):
 //   T              — float or half (precision)
 //   WPT            — tiles per thread (Tasks 3+; 1 = SP3 behavior)
-//   VW             — vector width for packed loads (Tasks 4+; 1 = SP3)
 //   GRID_ORDER     — 0=Cfast (Cout is fast axis), 1=Tfast (Ntiles fast) (Task 5+)
 //   MATMUL_ORIENT  — 0=Std, 1=Tpd (Task 6+; controls input layout)
 // Grid:
-//   Cfast: (ceil(Cout/VW), ceil(Ntiles/WPT), 1)
-//   Tfast: (Ntiles,        ceil(Cout/WPT),   1)
+//   Cfast: (Cout, ceil(Ntiles/WPT), 1)
+//   Tfast: (Ntiles, ceil(Cout/WPT), 1)
 // nhwc input array carries the [N,H,W,outC] dims because metal_kernel only
 // exposes *_shape for inputs, not outputs.
+// SP5 Task 3: VW template arg dropped — output kernel is monomorphic on VW=1.
 inline constexpr const char* kWinoOutputSource = R"METAL(
-    static_assert(WPT >= 1 && VW >= 1, "WPT and VW must be positive");
-    // Tfast (GRID_ORDER=1) does not support VW>1.
-    static_assert(GRID_ORDER == 0 || VW == 1, "Tfast (GRID_ORDER=1) requires VW=1");
+    static_assert(WPT >= 1, "WPT must be positive");
 
     // Std: m shape [16, Ntiles, outC] — Ntiles=m_shape[1], outC=m_shape[2]
     // Tpd: m shape [16, outC, Ntiles] — outC=m_shape[1], Ntiles=m_shape[2]
@@ -342,7 +339,7 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
     int tilesX_k = (W_k + 1) / 2;
 
     if (GRID_ORDER == 0) {
-      // Cfast: grid x = ceil(Cout/VW), grid y = ceil(Ntiles/WPT).
+      // Cfast: grid x = Cout, grid y = ceil(Ntiles/WPT).
       uint oc_group = thread_position_in_grid.x;
       uint t_group  = thread_position_in_grid.y;
 
@@ -355,8 +352,8 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
         int ty  = rem / tilesX_k;
         int tx  = rem % tilesX_k;
 
-        for (int vc = 0; vc < VW; vc++) {
-          int oc = (int)oc_group * VW + vc;
+        {
+          int oc = (int)oc_group;
           if (oc >= outC_k) break;
 
           T mm[4][4];
@@ -391,8 +388,7 @@ inline constexpr const char* kWinoOutputSource = R"METAL(
         }
       }
     } else {
-      // Tfast: grid x = Ntiles, grid y = ceil(Cout/WPT). VW must be 1
-      // (enforced by the static_assert above).
+      // Tfast: grid x = Ntiles, grid y = ceil(Cout/WPT).
       uint t_group_  = thread_position_in_grid.x;
       uint oc_group_ = thread_position_in_grid.y;
       int tileIdx = (int)t_group_;
@@ -457,21 +453,36 @@ inline mx::array winogradConv2d(const mx::array& input,
 
   const mx::Dtype dtype = useFP16 ? mx::float16 : mx::float32;
 
-  auto suffix = [&](const char* base, int wpt, int vw, GridOrder go) {
+  auto inSuffix = [&](const char* base, int wpt, int vw, GridOrder go) {
     return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
          + "_w" + std::to_string(wpt)
          + "_v" + std::to_string(vw)
          + "_g" + std::to_string((int)go)
          + "_o" + std::to_string((int)matmulOrient);
   };
-  std::string inName  = suffix("wino_input_transform",    inCfg.wpt,  inCfg.vw,  inCfg.gridOrder);
-  std::string outName = suffix("wino_output_untransform", outCfg.wpt, outCfg.vw, outCfg.gridOrder);
+  // Output kernel is monomorphic on VW=1 (SP5 Task 3); drop the _v fragment.
+  auto outSuffix = [&](const char* base, int wpt, GridOrder go) {
+    return std::string(base) + "_" + (useFP16 ? "f16" : "f32")
+         + "_w" + std::to_string(wpt)
+         + "_g" + std::to_string((int)go)
+         + "_o" + std::to_string((int)matmulOrient);
+  };
+  std::string inName  = inSuffix ("wino_input_transform",    inCfg.wpt,  inCfg.vw,  inCfg.gridOrder);
+  std::string outName = outSuffix("wino_output_untransform", outCfg.wpt,            outCfg.gridOrder);
 
-  auto makeTemplateArgs = [&](int wpt, int vw, GridOrder go) {
+  auto makeInTemplateArgs = [&](int wpt, int vw, GridOrder go) {
     return std::vector<std::pair<std::string, mx::fast::TemplateArg>>{
       {"T",             dtype},
       {"WPT",           wpt},
       {"VW",            vw},
+      {"GRID_ORDER",    (int)go},
+      {"MATMUL_ORIENT", (int)matmulOrient}
+    };
+  };
+  auto makeOutTemplateArgs = [&](int wpt, GridOrder go) {
+    return std::vector<std::pair<std::string, mx::fast::TemplateArg>>{
+      {"T",             dtype},
+      {"WPT",           wpt},
       {"GRID_ORDER",    (int)go},
       {"MATMUL_ORIENT", (int)matmulOrient}
     };
@@ -505,7 +516,7 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(gridX_in, gridY_in, 1),
       /*threadgroup=*/std::make_tuple(inCfg.tg0, inCfg.tg1, 1),
-      /*template_args=*/makeTemplateArgs(inCfg.wpt, inCfg.vw, inCfg.gridOrder),
+      /*template_args=*/makeInTemplateArgs(inCfg.wpt, inCfg.vw, inCfg.gridOrder),
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
@@ -521,10 +532,11 @@ inline mx::array winogradConv2d(const mx::array& input,
     : mx::matmul(Uw, t);
 
   // Stage 3: output untransform -> [N, H, W, Cout]
+  // Grid x = Cout (Cfast) or Ntiles (Tfast). Output kernel is VW=1 monomorphic.
   int nhwc_arr[4] = {N, H, W, Cout};
   mx::array nhwcArr(nhwc_arr, {4}, mx::int32);
   int gridX_out = (outCfg.gridOrder == GridOrder::Cfast)
-    ? ((Cout + outCfg.vw - 1) / outCfg.vw)
+    ? Cout
     : Ntiles;
   int gridY_out = (outCfg.gridOrder == GridOrder::Cfast)
     ? ((Ntiles + outCfg.wpt - 1) / outCfg.wpt)
@@ -541,7 +553,7 @@ inline mx::array winogradConv2d(const mx::array& input,
       /*output_dtypes=*/{ dtype },
       /*grid=*/std::make_tuple(gridX_out, gridY_out, 1),
       /*threadgroup=*/std::make_tuple(outCfg.tg0, outCfg.tg1, 1),
-      /*template_args=*/makeTemplateArgs(outCfg.wpt, outCfg.vw, outCfg.gridOrder),
+      /*template_args=*/makeOutTemplateArgs(outCfg.wpt, outCfg.gridOrder),
       /*init_value=*/std::nullopt,
       /*verbose=*/false,
       /*stream=*/mx::StreamOrDevice{});
