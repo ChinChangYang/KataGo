@@ -1303,51 +1303,39 @@ void Tests::runMLXWinotunerTests() {
     testAssert(readBack.outputUntransform.tg1 == written.outputUntransform.tg1);
   }
 
-  // ---- v2 round-trip: tg0/tg1/wpt/vw (input), tg0/tg1/wpt (output), gridOrder ----
-  // SP5 Tasks 3-6: output vw/gridOrder/matmulOrient and the global gridOrder
-  // have all been dropped from the schema.
+  // ---- v3 round-trip: tg0/tg1/wpt/vw/gridOrder (input), tg0/tg1/wpt (output) ----
   {
+    // SP5 Task 8 — v3 roundtrip: write -> load -> compare all 8 fields. Two
+    // cases for input gridOrder: Cfast and Tfast. (Tfast forces vw=1 per
+    // isValid invariant.)
     using namespace MLXWinograd;
-    MLXWinogradTuneParams p;
-    p.inputTransform.tg0         = 48;
-    p.inputTransform.tg1         = 10;
-    p.inputTransform.wpt         = 4;
-    p.inputTransform.vw          = 4;
-    p.inputTransform.gridOrder   = GridOrder::Cfast;
-    p.outputUntransform.tg0      = 32;
-    p.outputUntransform.tg1      = 8;
-    p.outputUntransform.wpt      = 2;
+    for(auto inGo : {GridOrder::Cfast, GridOrder::Tfast}) {
+      MLXWinogradTuneParams p;
+      p.inputTransform.tg0 = 32;
+      p.inputTransform.tg1 = 1;
+      p.inputTransform.wpt = 2;
+      p.inputTransform.vw  = (inGo == GridOrder::Cfast) ? 2 : 1;
+      p.inputTransform.gridOrder = inGo;
+      p.outputUntransform.tg0 = 32;
+      p.outputUntransform.tg1 = 8;
+      p.outputUntransform.wpt = 1;
+      testAssert(p.isValid());
 
-    testAssert(p.isValid());
-    std::string tmp = "/tmp/mlxwino_sp4_roundtrip.txt";
-    MLXWinogradTuneParams::save(tmp, p);
-    MLXWinogradTuneParams loaded = MLXWinogradTuneParams::load(tmp);
-
-    testAssert(loaded.inputTransform.tg0         == 48);
-    testAssert(loaded.inputTransform.tg1         == 10);
-    testAssert(loaded.inputTransform.wpt         == 4);
-    testAssert(loaded.inputTransform.vw          == 4);
-    testAssert(loaded.inputTransform.gridOrder   == GridOrder::Cfast);
-    testAssert(loaded.outputUntransform.tg0      == 32);
-    testAssert(loaded.outputUntransform.tg1      == 8);
-    testAssert(loaded.outputUntransform.wpt      == 2);
-    std::remove(tmp.c_str());
-    cout << "  SP4 v2 roundtrip (current axes) OK" << endl;
-
-    // Second roundtrip — exercises non-zero enum values to catch
-    // signed/cast errors in (int) <-> enum serialization.
-    {
-      MLXWinogradTuneParams p2;
-      p2.inputTransform    = InputTransform   {16, 4, 2, 1, GridOrder::Tfast};
-      p2.outputUntransform = OutputUntransform{16, 4, 2};
-      testAssert(p2.isValid());
-      std::string tmp2 = "/tmp/mlxwino_sp4_roundtrip_v2.txt";
-      MLXWinogradTuneParams::save(tmp2, p2);
-      MLXWinogradTuneParams loaded2 = MLXWinogradTuneParams::load(tmp2);
-      testAssert(loaded2.inputTransform.gridOrder    == GridOrder::Tfast);
-      std::remove(tmp2.c_str());
-      cout << "  SP4 v2 roundtrip (non-zero enum values) OK" << endl;
+      std::string tmpFile = "/tmp/sp5_v3_roundtrip_" + std::to_string((int)inGo) + ".txt";
+      MLXWinogradTuneParams::save(tmpFile, p);
+      MLXWinogradTuneParams q = MLXWinogradTuneParams::load(tmpFile);
+      testAssert(q.inputTransform.tg0 == p.inputTransform.tg0);
+      testAssert(q.inputTransform.tg1 == p.inputTransform.tg1);
+      testAssert(q.inputTransform.wpt == p.inputTransform.wpt);
+      testAssert(q.inputTransform.vw  == p.inputTransform.vw);
+      testAssert(q.inputTransform.gridOrder == p.inputTransform.gridOrder);
+      testAssert(q.outputUntransform.tg0 == p.outputUntransform.tg0);
+      testAssert(q.outputUntransform.tg1 == p.outputUntransform.tg1);
+      testAssert(q.outputUntransform.wpt == p.outputUntransform.wpt);
+      testAssert(q.isValid());
+      std::remove(tmpFile.c_str());
     }
+    cout << "  v3 roundtrip (Cfast + Tfast) OK" << endl;
   }
 
   // SP3 Task 4: dtype-aware cache filenames must coexist in the same directory
@@ -1379,58 +1367,46 @@ void Tests::runMLXWinotunerTests() {
     testAssert(threw);
   }
 
-  // ---- isValid edges ----
+  // ---- v3 isValid invariants ----
   {
-    MLXWinogradTuneParams a; testAssert(a.isValid());          // defaults
-    MLXWinogradTuneParams b; b.inputTransform.tg0 = 0;  testAssert(!b.isValid());
-    MLXWinogradTuneParams c; c.outputUntransform.tg1 = -1; testAssert(!c.isValid());
-    MLXWinogradTuneParams d; d.inputTransform.tg0 = 1024; d.inputTransform.tg1 = 2;
-    testAssert(!d.isValid()); // 2048 > 1024
-    MLXWinogradTuneParams e; e.inputTransform.tg0 = 1024; e.inputTransform.tg1 = 1;
-    testAssert(e.isValid());  // exactly at boundary: 1024 == 1024
-  }
-
-  // ---- SP4-added isValid() invariants ----
-  {
+    // SP5 Task 8 — v3 isValid invariants.
     using namespace MLXWinograd;
-    // Defaults are valid.
-    MLXWinogradTuneParams ok;
-    testAssert(ok.isValid());
+    auto basePass = [&]() {
+      MLXWinogradTuneParams p;
+      p.inputTransform = {32, 1, 1, 2, GridOrder::Cfast};
+      p.outputUntransform = {32, 2, 1};
+      return p;
+    };
 
-    // wpt < 1 is invalid.
-    MLXWinogradTuneParams bad_wpt = ok;
-    bad_wpt.inputTransform.wpt = 0;
-    testAssert(!bad_wpt.isValid());
+    // Baseline passes.
+    testAssert(basePass().isValid());
 
-    // input vw < 1 is invalid. (Output VW was removed in SP5 Task 3.)
-    MLXWinogradTuneParams bad_vw = ok;
-    bad_vw.inputTransform.vw = 0;
-    testAssert(!bad_vw.isValid());
+    // tg0 <= 0 fails.
+    { auto p = basePass(); p.inputTransform.tg0 = 0;  testAssert(!p.isValid()); }
+    { auto p = basePass(); p.outputUntransform.tg0 = -1; testAssert(!p.isValid()); }
 
-    // SP5 Task 6: the global gridOrder field is gone — input gridOrder stands
-    // alone with no cross-stage consistency check. Setting input gridOrder to
-    // Tfast (with input VW=1 default) is now valid on its own.
-    MLXWinogradTuneParams ok_input_tfast = ok;
-    ok_input_tfast.inputTransform.gridOrder = GridOrder::Tfast;
-    // Defaults give input.vw=1, so Tfast+VW=1 invariant is satisfied.
-    testAssert(ok_input_tfast.isValid());
+    // tg0 * tg1 > 1024 fails.
+    { auto p = basePass(); p.inputTransform.tg0 = 64; p.inputTransform.tg1 = 32;
+      testAssert(!p.isValid()); }
 
-    // SP4 Task 5: Tfast (GRID_ORDER=1) requires VW=1.
-    // Build a valid Tfast baseline (output kernel is Cfast-monomorphic — has
-    // no gridOrder). SP5 Task 6: no global gridOrder either.
-    MLXWinogradTuneParams ok_tfast;
-    ok_tfast.inputTransform.gridOrder     = GridOrder::Tfast;
-    testAssert(ok_tfast.isValid());
+    // wpt < 1 fails.
+    { auto p = basePass(); p.inputTransform.wpt = 0;  testAssert(!p.isValid()); }
+    { auto p = basePass(); p.outputUntransform.wpt = 0; testAssert(!p.isValid()); }
 
-    // VW=2 on input side is invalid for Tfast.
-    MLXWinogradTuneParams bad_tfast_vw = ok_tfast;
-    bad_tfast_vw.inputTransform.vw = 2;
-    testAssert(!bad_tfast_vw.isValid());
+    // vw < 1 fails on input.
+    { auto p = basePass(); p.inputTransform.vw = 0;   testAssert(!p.isValid()); }
 
-    // Tfast with input VW=1 is valid. (Output VW was removed in SP5 Task 3.)
-    MLXWinogradTuneParams ok_tfast_vw1 = ok_tfast;
-    ok_tfast_vw1.inputTransform.vw    = 1;
-    testAssert(ok_tfast_vw1.isValid());
+    // Tfast on input forces vw=1.
+    { auto p = basePass();
+      p.inputTransform.gridOrder = GridOrder::Tfast;
+      p.inputTransform.vw = 2;
+      testAssert(!p.isValid()); }
+    { auto p = basePass();
+      p.inputTransform.gridOrder = GridOrder::Tfast;
+      p.inputTransform.vw = 1;
+      testAssert(p.isValid()); }
+
+    cout << "  v3 isValid invariants OK" << endl;
   }
 
   // SP4 Task 7: candidate enumeration expanded with validity filtering.
