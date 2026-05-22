@@ -169,14 +169,15 @@ elseif(USE_BACKEND STREQUAL "MLX")
     message(FATAL_ERROR "USE_BACKEND=MLX requires Apple Silicon (arm64). Detected processor: ${CMAKE_SYSTEM_PROCESSOR}. On Intel Macs, use USE_BACKEND=EIGEN or USE_BACKEND=METAL.")
   endif()
 
+  set(MLX_MIN_VERSION "0.18")
   set(MLX_ROOT "" CACHE PATH "Optional path to MLX CMake package (for pip-only installs; leave empty to use CMake's default search, then fall back to 'python -m mlx --cmake-dir')")
 
   if(MLX_ROOT)
-    find_package(MLX 0.18 CONFIG REQUIRED HINTS "${MLX_ROOT}")
+    find_package(MLX ${MLX_MIN_VERSION} CONFIG REQUIRED HINTS "${MLX_ROOT}")
   else()
     # Homebrew installs MLX's CMake config to /opt/homebrew/share/cmake/MLX/,
     # which is on CMake's default search path — try that first.
-    find_package(MLX 0.18 CONFIG QUIET)
+    find_package(MLX ${MLX_MIN_VERSION} CONFIG QUIET)
     if(MLX_FOUND)
       message(STATUS "Found MLX ${MLX_VERSION} at ${MLX_LIBRARY}")
     else()
@@ -200,7 +201,7 @@ elseif(USE_BACKEND STREQUAL "MLX")
           "Python stderr:\n${MLX_PY_ERROR}")
       endif()
       message(STATUS "MLX auto-detected via Python at: ${MLX_ROOT_DETECTED}")
-      find_package(MLX 0.18 CONFIG REQUIRED HINTS "${MLX_ROOT_DETECTED}")
+      find_package(MLX ${MLX_MIN_VERSION} CONFIG REQUIRED HINTS "${MLX_ROOT_DETECTED}")
     endif()
   endif()
 
