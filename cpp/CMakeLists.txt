@@ -170,40 +170,12 @@ elseif(USE_BACKEND STREQUAL "MLX")
   endif()
 
   set(MLX_MIN_VERSION "0.18")
-  set(MLX_ROOT "" CACHE PATH "Optional path to MLX CMake package (for pip-only installs; leave empty to use CMake's default search, then fall back to 'python -m mlx --cmake-dir')")
+  set(MLX_ROOT "" CACHE PATH "Optional path to MLX's CMake package; leave empty to use CMake's default search (e.g. Homebrew's /opt/homebrew/share/cmake/MLX/)")
 
-  if(MLX_ROOT)
-    find_package(MLX ${MLX_MIN_VERSION} CONFIG REQUIRED HINTS "${MLX_ROOT}")
-  else()
-    # Homebrew installs MLX's CMake config to /opt/homebrew/share/cmake/MLX/,
-    # which is on CMake's default search path — try that first.
-    find_package(MLX ${MLX_MIN_VERSION} CONFIG QUIET)
-    if(MLX_FOUND)
-      message(STATUS "Found MLX ${MLX_VERSION} at ${MLX_LIBRARY}")
-    else()
-      # Fallback for pip-only installs where CMake files ship inside the package dir.
-      find_package(Python 3.9 COMPONENTS Interpreter QUIET)
-      if(NOT Python_FOUND)
-        message(FATAL_ERROR "USE_BACKEND=MLX: MLX not found in CMake's default search paths and Python 3.9+ is unavailable to probe a pip install. Install via 'brew install mlx', 'pip install mlx', or pass -DMLX_ROOT=/path/to/mlx/cmake explicitly.")
-      endif()
-      execute_process(
-        COMMAND "${Python_EXECUTABLE}" -m mlx --cmake-dir
-        OUTPUT_VARIABLE MLX_ROOT_DETECTED
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE MLX_PY_RESULT
-        ERROR_VARIABLE MLX_PY_ERROR
-      )
-      if(NOT MLX_PY_RESULT EQUAL 0 OR MLX_ROOT_DETECTED STREQUAL "")
-        message(FATAL_ERROR
-          "USE_BACKEND=MLX: MLX not found in CMake's default search paths, and '${Python_EXECUTABLE} -m mlx --cmake-dir' also failed.\n"
-          "Install via:  brew install mlx   OR   ${Python_EXECUTABLE} -m pip install mlx\n"
-          "Or pass -DMLX_ROOT=/path/to/mlx/cmake explicitly.\n"
-          "Python stderr:\n${MLX_PY_ERROR}")
-      endif()
-      message(STATUS "MLX auto-detected via Python at: ${MLX_ROOT_DETECTED}")
-      find_package(MLX ${MLX_MIN_VERSION} CONFIG REQUIRED HINTS "${MLX_ROOT_DETECTED}")
-    endif()
-  endif()
+  # Homebrew installs MLX's CMake config to /opt/homebrew/share/cmake/MLX/, which is
+  # on CMake's default search path. MLX_ROOT, when set, is added as an extra hint.
+  find_package(MLX ${MLX_MIN_VERSION} CONFIG REQUIRED HINTS "${MLX_ROOT}")
+  message(STATUS "Found MLX ${MLX_VERSION} at ${MLX_LIBRARY}")
 
   set(NEURALNET_BACKEND_SOURCES
     neuralnet/mlxbackend.cpp
