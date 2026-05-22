@@ -52,7 +52,7 @@ namespace MLXWinogradTuner {
   };
 
   // Pure, deterministic. Given (channel, count) pairs, returns the planned
-  // rotation per spec §Selection Rule:
+  // rotation:
   //   1. work_i = count_i * channels_i; sort desc by work; take top-3.
   //   2. drop shapes with work < 3% of the post-top3 total work; renormalize.
   //   3. weight_i = work_i / total_work after renormalization.

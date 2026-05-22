@@ -321,7 +321,7 @@ struct BatchNormLayer {
     // mask: NHW1 [N, H, W, 1] in compute dtype.
     // mergedScale/mergedBias are always fp32; MLX type promotion lifts the
     // multiply-add-activation chain to fp32 automatically (selective fp32
-    // accumulation, spec §3 item 4 — defense against inf/nan in deep stacks).
+    // accumulation — defense against inf/nan in deep stacks).
     // Mask multiply runs while activated is still fp32 (safe because mask is
     // binary 0/1, so fp32*fp16 and fp16*fp16 round to bit-equal results).
     // The single trailing astype-to-fp16 covers both useMask branches.
@@ -1193,7 +1193,7 @@ struct ComputeHandle {
     if(mlxWinogradEnabled() && mlxWinotunerEnabled()) {
       // Shape diagnostic: print the model's 3x3 conv shape distribution before
       // calling the tuner so the log carries this signal on every load, including
-      // cache-hit runs where loadOrAutoTune short-circuits. Spec §3a.
+      // cache-hit runs where loadOrAutoTune short-circuits.
       if(context->logger != NULL) {
         context->logger->write(
             MLXWinogradTuner::formatConv3x3Distribution(loadedModel.modelDesc));
@@ -1748,7 +1748,7 @@ void runMLXBatchNormFP16Test() {
   int N=1,H=5,W=5,C=4;
   std::vector<float> mean(C, 0.0f), variance(C, 1.0f), scale(C, 1.0f), bias(C, 0.0f);
   BatchNormLayerDesc bnDesc;
-  bnDesc.name = "bnSP3Test";
+  bnDesc.name = "bnFP16Test";
   bnDesc.numChannels = C;
   bnDesc.epsilon = 1e-5f;
   bnDesc.mean = mean;
@@ -1790,7 +1790,7 @@ void runMLXConvLayerFP16WinogradTest() {
   auto refv = MLXWinograd::cpuConv2d3x3(in,N,H,W,Cin,w,Cout);
 
   ConvLayerDesc convDesc;
-  convDesc.name = "convSP3FP16Test";
+  convDesc.name = "convFP16WinogradTest";
   convDesc.convYSize = 3;
   convDesc.convXSize = 3;
   convDesc.inChannels = Cin;

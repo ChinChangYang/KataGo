@@ -352,8 +352,9 @@ planShapeRotation(const std::vector<std::pair<int,int>>& histogram);
 // Score one input-transform candidate. Adaptive rotation over the model's
 // actual 3x3 conv input-channel distribution: planShapeRotation produces a
 // list of (channels, measureReps, weight) entries; per shape we time
-// `measureReps + 1` reps (1 warmup discarded for the dominant only) and
-// take the median, weighted into the final score by `weight`.
+// `measureReps` reps and take the median, weighted into the final score by
+// `weight`. The dominant shape (plan[0]) additionally gets one warmup rep
+// that is discarded.
 static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
                                   int N, int H, int W,
                                   const MLXWinogradTuner::ModelInfoForTuning& mi,
@@ -384,7 +385,7 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
       samples.push_back(ms);
     }
     // Median (upper of two middles for even sizes; identical to nth_element
-    // at index size/2). Spec §Score formula.
+    // at index size/2).
     std::nth_element(samples.begin(),
                      samples.begin() + samples.size() / 2,
                      samples.end());
@@ -445,7 +446,7 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
 // model's 3x3 conv distribution. Output: vector<ShapePlan> sorted desc by
 // weight, with Σ measureReps == 19 and Σ weight ≈ 1.0.
 //
-// Spec §Selection Rule constants:
+// Selection-rule constants:
 static constexpr int    kTotalReps         = 20;
 static constexpr int    kWarmupReps        = 1;
 static constexpr int    kMeasureReps       = kTotalReps - kWarmupReps;  // 19
@@ -455,7 +456,7 @@ static constexpr int    kRepFloor          = 3;
 
 static std::vector<MLXWinogradTuner::ShapePlan>
 planShapeRotation(const std::vector<std::pair<int,int>>& histogram) {
-  // Spec §Degenerate Cases: empty histogram is a model-corruption signal we
+  // Degenerate case: empty histogram is a model-corruption signal we
   // surface, not silently mask.
   assert(!histogram.empty());
 
@@ -778,7 +779,7 @@ flatSweepInput(int N, int H, int W,
     } else {
       deltaStr = "nan";
       // best=none branch: omit per-shape fields (matches existing degenerate
-      // log shape; spec §4 / §Error handling).
+      // log shape).
       perShapeStr = "";
     }
     logger->write("MLX tuner flatSweepInput: considered=" + std::to_string(considered)
@@ -1072,7 +1073,7 @@ void runMLXWinotunerTests() {
   {
     // Conv-3x3 distribution formatter — pure-function test. Verifies the
     // log-line format directly without any descriptor walk or GPU work.
-    // Order convention (spec §3a): pairs sorted descending by invocation
+    // Order convention: pairs sorted descending by invocation
     // count, ties broken by channel count descending.
 
     // Case A: two distinct shapes, each appearing once. Tie on count, so
@@ -1098,7 +1099,7 @@ void runMLXWinotunerTests() {
       testAssert(line.find("output_c=384:37") != std::string::npos);
     }
 
-    // Case C: empty model — no 3x3 convs. Spec §Error handling: print the
+    // Case C: empty model — no 3x3 convs. Error handling: print the
     // line with explicit "{}" markers; don't suppress.
     {
       std::map<int,int> empty;
@@ -1113,7 +1114,7 @@ void runMLXWinotunerTests() {
   {
     // planShapeRotation — pure-function tests. Verifies the selection rule
     // (top-3, 3% threshold, 3-rep floor, proportional remainder) directly
-    // without any GPU work. Spec §Selection Rule.
+    // without any GPU work.
 
     // Case A: single shape — entire budget on that shape, weight = 1.0.
     {
@@ -1561,7 +1562,7 @@ void runMLXWinotunerTests() {
     // Reuses the KATAGO_MLX_WINOTUNER_RUN_SWEEP_TEST gate so users who
     // opt into the sweep-convergence cost also get this check. Note
     // this runs an INDEPENDENT loadOrAutoTune sweep — total cost when
-    // the gate is set is roughly 2x the pre-Task-3 cost.
+    // the gate is set is roughly 2x the cost of a single sweep.
     //
     // Coverage scope: input stage only. flatSweepOutput's baseline_ms
     // is format-checked by Test 1 but not consistency-checked here.
@@ -1687,7 +1688,7 @@ void runMLXWinotunerTests() {
       // the flatSweepInput log line (which used scoreInputTransformPerShape
       // on the winner) and compare against scoreInputTransformPerShapeForTesting
       // on the default InputTransform. Cross-config (winner vs default)
-      // so a wide relErr bound (<0.50) is appropriate; see spec §Testing.
+      // so a wide relErr bound (<0.50) is appropriate.
       std::vector<std::pair<int,double>> r1 =
           MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
               MLXWinograd::InputTransform{}, 1, 19, 19, mi, true);

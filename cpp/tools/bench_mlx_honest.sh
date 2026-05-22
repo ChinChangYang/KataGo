@@ -6,7 +6,7 @@
 # Usage:
 #   bench_mlx_honest.sh <bin_A> <bin_B> <model.bin.gz> [reps] [cooldown_s]
 #
-# Env-vars (SP3):
+# Env-vars:
 #   BENCH_A_LABEL    Label printed for backend A (default: "A").
 #   BENCH_B_LABEL    Label printed for backend B (default: "B").
 #   BENCH_A_FP16     If 1, force `*UseFP16 = true` in the config A sees.

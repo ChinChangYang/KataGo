@@ -206,9 +206,7 @@ elseif(USE_BACKEND STREQUAL "MLX")
 
   set(NEURALNET_BACKEND_SOURCES
     neuralnet/mlxbackend.cpp
-    neuralnet/mlxwinograd.h
     neuralnet/mlxwinotuner.cpp
-    neuralnet/mlxwinotuner.h
     )
 elseif(USE_BACKEND STREQUAL "")
   message(WARNING "${ColorBoldRed}WARNING: Using dummy neural net backend, intended for non-neural-net testing only, will fail on any code path requiring a neural net. To use neural net, specify -DUSE_BACKEND=CUDA or -DUSE_BACKEND=TENSORRT or -DUSE_BACKEND=OPENCL or -DUSE_BACKEND=EIGEN to compile with the respective backend.${ColorReset}")
