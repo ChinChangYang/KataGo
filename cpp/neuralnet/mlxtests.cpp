@@ -667,7 +667,7 @@ void runMLXWinotunerTests() {
       p.outputUntransform.wpt = 1;
       testAssert(p.isValid());
 
-      std::string tmpFile = "/tmp/sp5_v3_roundtrip_" + std::to_string((int)inGo) + ".txt";
+      std::string tmpFile = "/tmp/katago_mlx_winotuner_v3_roundtrip_" + std::to_string((int)inGo) + ".txt";
       MLXWinogradTuneParams::save(tmpFile, p);
       MLXWinogradTuneParams q = MLXWinogradTuneParams::load(tmpFile);
       testAssert(q.inputTransform.tg0 == p.inputTransform.tg0);
@@ -824,7 +824,7 @@ void runMLXWinotunerTests() {
       // loadOrAutoTune rewrites an empty tunerFile to a default cache path,
       // so use an explicit temp path and remove it after to avoid touching
       // the user's cache directory.
-      std::string tmpTunerFile = "/tmp/sp5_task10_sweep_cache.txt";
+      std::string tmpTunerFile = "/tmp/katago_mlx_winotuner_sweep_cache.txt";
       std::remove(tmpTunerFile.c_str());
 
       MLXWinogradTuneParams tuned = MLXWinogradTuner::loadOrAutoTune(
