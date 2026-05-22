@@ -31,9 +31,8 @@
 #include <array>
 #include <cmath>
 
-// Test-only free functions. runMLXWinogradTests is defined in mlxtests.cpp;
-// runMLXWinotunerTests is defined in mlxwinotuner.cpp. Both are invoked once
-// per process from testEvaluateConv via the ranMLXAuxTests guard.
+// Test-only free functions, both defined in mlxtests.cpp. Invoked once per
+// process from testEvaluateConv via the ranMLXAuxTests guard.
 void runMLXWinogradTests();
 void runMLXWinotunerTests();
 
