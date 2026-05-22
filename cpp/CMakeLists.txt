@@ -1,17 +1,21 @@
 cmake_minimum_required(VERSION 3.18.2)
 
-# Pre-project MLX setup: CMAKE_OSX_DEPLOYMENT_TARGET must be in effect before
-# project() so the toolchain probe picks up the correct SDK. Global
-# cmake_minimum_required stays at 3.18.2 so non-MLX backends keep building on
-# older CMake; the MLX path enforces 3.27 via the guard below.
+# Pre-project MLX setup. KataGo's MLX path enforces CMake 3.27 via the guard
+# below (MLX itself requires only 3.25 - 3.27 is chosen to match
+# cmake_policy(VERSION 3.27)); the global cmake_minimum_required stays at
+# 3.18.2 so non-MLX backends keep building on older CMake.
+#
+# The OSX deployment target is deliberately NOT pinned here. KataGo links
+# Homebrew's prebuilt libmlx.dylib, whose minos reflects the macOS it was
+# bottled on - that dylib, not this build, sets the real minimum macOS.
+# Pinning a lower value only stamps a misleading minos on the executable and
+# triggers a "linking with dylib built for newer version" linker warning;
+# letting CMake default the target to the build host keeps minos honest.
 if(USE_BACKEND STREQUAL "MLX")
   if(CMAKE_VERSION VERSION_LESS 3.27)
-    message(FATAL_ERROR "USE_BACKEND=MLX requires CMake 3.27 or newer. You have ${CMAKE_VERSION}. Install via: brew install cmake")
+    message(FATAL_ERROR "KataGo's USE_BACKEND=MLX path requires CMake 3.27 or newer. You have ${CMAKE_VERSION}. Install via: brew install cmake")
   endif()
   cmake_policy(VERSION 3.27)
-  if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.3" CACHE STRING "Minimum macOS version (MLX requires >=13.3)" FORCE)
-  endif()
 endif()
 
 if(USE_BACKEND STREQUAL "METAL")
