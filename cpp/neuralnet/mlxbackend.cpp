@@ -891,6 +891,12 @@ struct Model {
   const int numInputGlobalChannels;
   const int numInputMetaChannels;
   const int numPolicyChannels;
+  // Pass-policy output width — `gpoolToPassMul.outChannels` may exceed
+  // numPolicyChannels for human-SL nets (humanv0: 48 vs 2). Only the first 1-2
+  // values are consumed by NNOutput, but the per-row stride in our buffers
+  // must match the real tensor width, otherwise batched memcpy and extraction
+  // truncate and misalign rows beyond row 0.
+  const int numPolicyPassChannels;
   const int numValueChannels;
   const int numScoreValueChannels;
   const int numOwnershipChannels;
@@ -911,6 +917,7 @@ struct Model {
       numInputGlobalChannels(desc.numInputGlobalChannels),
       numInputMetaChannels(desc.numInputMetaChannels),
       numPolicyChannels(desc.numPolicyChannels),
+      numPolicyPassChannels(desc.policyHead.gpoolToPassMul.outChannels),
       numValueChannels(desc.numValueChannels),
       numScoreValueChannels(desc.numScoreValueChannels),
       numOwnershipChannels(desc.numOwnershipChannels),
@@ -1037,7 +1044,7 @@ struct Model {
 
     // Copy results to output buffers
     memcpy(policyOut, policy.data<float>(), batchSize * numPolicyChannels * nnXLen * nnYLen * sizeof(float));
-    memcpy(policyPassOut, policyPass.data<float>(), batchSize * numPolicyChannels * sizeof(float));
+    memcpy(policyPassOut, policyPass.data<float>(), batchSize * numPolicyPassChannels * sizeof(float));
     memcpy(valueOut, value.data<float>(), batchSize * numValueChannels * sizeof(float));
     memcpy(scoreValueOut, scoreValue.data<float>(), batchSize * numScoreValueChannels * sizeof(float));
     memcpy(ownershipOut, ownership.data<float>(), batchSize * numOwnershipChannels * nnXLen * nnYLen * sizeof(float));
@@ -1100,7 +1107,7 @@ struct Model {
 
     // Copy results to output buffers
     memcpy(policyOut, policy.data<float>(), batchSize * numPolicyChannels * nnXLen * nnYLen * sizeof(float));
-    memcpy(policyPassOut, policyPass.data<float>(), batchSize * numPolicyChannels * sizeof(float));
+    memcpy(policyPassOut, policyPass.data<float>(), batchSize * numPolicyPassChannels * sizeof(float));
     memcpy(valueOut, value.data<float>(), batchSize * numValueChannels * sizeof(float));
     memcpy(scoreValueOut, scoreValue.data<float>(), batchSize * numScoreValueChannels * sizeof(float));
     memcpy(ownershipOut, ownership.data<float>(), batchSize * numOwnershipChannels * nnXLen * nnYLen * sizeof(float));
@@ -1293,7 +1300,7 @@ struct InputBuffers {
     singleInputGlobalElts = m.numInputGlobalChannels;
     singleInputMetaElts = m.numInputMetaChannels;
 
-    singlePolicyPassResultElts = (size_t)(m.numPolicyChannels);
+    singlePolicyPassResultElts = (size_t)(m.policyHead.gpoolToPassMul.outChannels);
     singlePolicyResultElts = (size_t)(m.numPolicyChannels * nnXLen * nnYLen);
     singleValueResultElts = (size_t)m.numValueChannels;
     singleScoreValueResultElts = (size_t)m.numScoreValueChannels;
@@ -1482,7 +1489,7 @@ void NeuralNet::getOutput(
     inputBuffers->ownershipResults.data()
   );
 
-  assert(inputBuffers->singlePolicyPassResultElts == numPolicyChannels);
+  assert(inputBuffers->singlePolicyPassResultElts == (size_t)computeHandle->model->numPolicyPassChannels);
   assert(inputBuffers->singlePolicyResultElts == numPolicyChannels * nnXLen * nnYLen);
   assert(outputs.size() == batchSize);
 
@@ -1500,7 +1507,7 @@ void NeuralNet::getOutput(
     assert(output->nnYLen == nnYLen);
     float policyOptimism = (float)inputBufs[row]->policyOptimism;
 
-    const float* policyPassSrcBuf = policyPassData + row * numPolicyChannels;
+    const float* policyPassSrcBuf = policyPassData + row * computeHandle->model->numPolicyPassChannels;
     const float* policySrcBuf = policyData + row * numPolicyChannels * nnXLen * nnYLen;
     float* policyProbs = output->policyProbs;
 
