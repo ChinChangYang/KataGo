@@ -180,35 +180,54 @@ it was converted with `optimize_identity_mask=true`").
 
 ## Testing
 
+The MLX backend recognizes the same gpuIdx convention as Metal:
+`deviceToUseThread0=0` selects `MLX_MUX_GPU`, `deviceToUseThread0=100`
+selects `MLX_MUX_ANE` (`mlxbackend.cpp:56-57`). The existing
+`cpp/rungpuerrortest.sh` already drives many `requireMaxBoardSize=False`
+configurations on multiple board sizes (9, 13, 19, 10x14, "rectangle"),
+which is exactly the surface this bug breaks.
+
 ### Pre-fix repro
 
-`cpp/testgpuerror -reference-file <eigen_reference>.json
--config <ane-config-with-requireExactNNLen=false>.cfg` should show large
-winrate/score drift on the ANE backend versus Eigen.
+Build MLX backend and run the existing script in ANE mode against a
+non-19×19 case with `requireMaxBoardSize=False`. Lines 55-56 of the script
+already cover this:
+
+```
+./katago testgpuerror -model "$MODEL2" -config configs/gtp_example.cfg \
+    -boardsize 13 \
+    -override-config "requireMaxBoardSize=False, deviceToUseThread0=100"
+```
+
+Before the fix this should show large winrate/score/ownership drift on the
+13×13 board versus the Eigen reference; after the fix, drift should fall
+back into the same band as the MLX GPU path on the same model.
 
 ### Post-fix manual validation
 
-1. Rebuild MLX backend: `cd cpp && cmake -G Ninja -DUSE_BACKEND=MLX && ninja`.
-2. Re-run the same `testgpuerror` command and confirm drift is comparable
-   to the GPU/MLX path on the same model (the existing MLX-vs-Eigen budgets
-   recorded in `.claude/MLX_Validation.md`).
-3. Re-run benchmark on the ANE path to confirm no perceptible throughput
-   change (gather is O(B·H·W); forward pass dominates).
-4. Update `.claude/MLX_Validation.md` with the new numbers and date, per the
-   "When to re-run" checklist in `CLAUDE.md`.
+1. Rebuild: `cd cpp && cmake -G Ninja -DUSE_BACKEND=MLX && ninja`.
+2. Run the full sweep in both modes: invoke `rungpuerrortest.sh` adapted
+   for MLX (replace `metalDeviceToUseThread0=100` with
+   `deviceToUseThread0=100`, since MLX uses the generic key). Compare ANE
+   results against the existing references under
+   `cpp/tests/results/gpu_error_reference_files/` produced by the Eigen
+   build.
+3. Run `./katago benchmark` on the ANE path to confirm no perceptible
+   throughput regression (the channel-0 gather is O(B·H·W), bounded by
+   `maxBatchSize * nnYLen * nnXLen` per call — dwarfed by the forward
+   pass).
+4. Update `.claude/MLX_Validation.md` with the new numbers and date, per
+   the "When to re-run" checklist in `CLAUDE.md`.
 
 ### Automated regression
 
-Either:
-
-- Add an ANE-with-requireExactNNLen=false case to
-  `cpp/rungpuerrortest.sh` so the cross-backend sweep covers it; or
-- Add a focused unit test in `cpp/neuralnet/mlxtests.cpp` that runs the ANE
-  path on a board size smaller than the NN frame and asserts the policy
-  matches the GPU path (which is known-good for this case).
-
-The first option is preferred because it folds into the existing validation
-workflow and exercises the full inference path end-to-end.
+Adapt `cpp/rungpuerrortest.sh` so the MLX backend can drive it the same
+way the Metal backend does today — the cleanest hook is changing the
+`ane`-mode `EXTRA_OVERRIDE` to use `deviceToUseThread0=100` instead of
+`metalDeviceToUseThread0=100` (the generic key works for both backends).
+This folds MLX-ANE coverage into the existing cross-backend sweep without
+a parallel script. No changes needed to `mlxtests.cpp` — the bug is in
+the production dispatch path, not in any unit-level layer.
 
 ## Rollout
 
