@@ -214,13 +214,21 @@ in the testing plan confirms there's no perceptible regression.
 
 ### Pre-fix repro (must fail before, pass after)
 
+The cross-backend `rungpuerrortest.sh` script in `cpp/` drives `testgpuerror`
+against the Eigen references already on disk under
+`cpp/tests/results/gpu_error_reference_files/` (naming pattern
+`<model-basename>_size<board>.txt`). For an isolated quick repro, the
+b18c384nbt v11 model with its 19×19 reference is the smallest
+self-contained invocation:
+
 ```bash
 cd cpp && cmake -G Ninja -DUSE_BACKEND=MLX && ninja
 ./katago testgpuerror \
-  -model kata1-b18c384nbt-s9996604416-d4316597426.bin.gz \
+  -model models/kata1-b18c384nbt-s5832081920-d3223508649.bin.gz \
   -config configs/gtp_example.cfg \
-  -reference-file tests/results/gpu_error_reference_files/eigen_kata1-b18c384nbt-s9996604416-d4316597426_default.txt \
-  -override-config "deviceToUseThread0=100"
+  -boardsize 19 \
+  -override-config "requireMaxBoardSize=True, deviceToUseThread0=100" \
+  -reference-file tests/results/gpu_error_reference_files/kata1-b18c384nbt-s5832081920-d3223508649.bin.gz_size19.txt
 ```
 
 Pre-fix: max winrate error in tens of percent (the layout bug dominates,
