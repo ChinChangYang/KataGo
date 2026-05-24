@@ -1479,6 +1479,13 @@ struct InputBuffers {
   std::vector<float> globalInput;
   std::vector<float> metaInput;
   std::vector<float> userInputMaskBuffer;
+  // NCHW staging buffer for the ANE/CoreML dispatch path. The Swift
+  // CoreMLComputeHandle.apply() allocates MLMultiArray with shape
+  // [1, C, H, W] and memcpys each row's bytes, so it strictly requires
+  // NCHW. spatialInput stays NHWC for the MLX/GPU path; rows are
+  // transposed into this buffer inside getOutput before dispatch. The
+  // MLX/GPU path never reads this buffer.
+  std::vector<float> userInputBufferNCHW;
   std::vector<float> policyResults;
   std::vector<float> policyPassResults;
   std::vector<float> valueResults;
@@ -1519,6 +1526,7 @@ struct InputBuffers {
     scoreValueResults.resize(singleScoreValueResultElts * maxBatchSize);
     ownershipResults.resize(singleOwnershipResultElts * maxBatchSize);
     userInputMaskBuffer.resize(singleMaskElts * maxBatchSize);
+    userInputBufferNCHW.resize(singleInputElts * maxBatchSize);
   }
 
   ~InputBuffers() {}
@@ -1747,35 +1755,52 @@ void NeuralNet::getOutput(
 
     SymmetryHelpers::copyInputsWithSymmetry(rowSpatial, rowSpatialInput, 1, nnYLen, nnXLen, numSpatialFeatures, computeHandle->inputsUseNHWC, inputBufs[nIdx]->symmetry);
 
-    // Extract mask (channel 0) from NHWC spatial input into the dedicated
-    // contiguous buffer required by the Swift CoreMLComputeHandle ABI on
-    // the ANE path. One strided gather over numInputChannels; dwarfed by
-    // the forward pass. The MLX/GPU path slices channel 0 itself via
-    // mx::slice and does not read this buffer.
+    // ANE/CoreML path needs an NCHW spatial buffer because the Swift
+    // CoreMLComputeHandle.apply() allocates MLMultiArray with shape
+    // [1, C, H, W] and raw memcpys C*H*W floats per row. spatialInput
+    // is NHWC (required by the MLX/GPU path's mx::array shape), so we
+    // transpose each row into userInputBufferNCHW here. The validity
+    // mask (channel 0) sits at the start of the converted row, so it
+    // collapses to a contiguous memcpy into userInputMaskBuffer.
     //
     // When the mlpackage was converted with optimize_identity_mask=true
-    // (i.e., requireExactNNLen=true) the ANE model ignores this buffer,
-    // but populating it unconditionally avoids a silent-misprediction
-    // footgun when optimize_identity_mask=false.
-    {
-      const int numChannels = computeHandle->numInputChannels;
+    // (i.e., requireExactNNLen=true) the ANE model ignores the mask
+    // buffer, but populating it unconditionally costs essentially
+    // nothing (one memcpy of H*W floats) and avoids a silent-
+    // misprediction footgun when optimize_identity_mask=false.
+    //
+    // The MLX/GPU path slices channel 0 itself via mx::slice and does
+    // not read userInputMaskBuffer or userInputBufferNCHW.
+    if(computeHandle->coremlOnlyHandle) {
+      const int C = computeHandle->numInputChannels;
+      const size_t HW = inputBuffers->singleMaskElts;  // nnXLen * nnYLen
+      float* rowNCHW = inputBuffers->userInputBufferNCHW.data()
+                     + inputBuffers->singleInputElts * nIdx;
+      const float* rowNHWC = rowSpatialInput;  // [H*W, C]
+      for(int c = 0; c < C; c++) {
+        float* dstCh = rowNCHW + (size_t)c * HW;
+        for(size_t hw = 0; hw < HW; hw++) {
+          dstCh[hw] = rowNHWC[hw * C + c];
+        }
+      }
       float* dstMask = inputBuffers->userInputMaskBuffer.data()
                      + inputBuffers->singleMaskElts * nIdx;
-      const float* srcSpatial = rowSpatialInput;  // already NHWC, ch 0 first
-      for(size_t i = 0; i < inputBuffers->singleMaskElts; i++) {
-        dstMask[i] = srcSpatial[i * numChannels];
-      }
+      std::memcpy(dstMask, rowNCHW, HW * sizeof(float));
     }
   }
 
   // Dispatch to appropriate path based on mux mode.
   if(computeHandle->coremlOnlyHandle) {
-    // ANE path: dispatch through the Swift CoreMLComputeHandle. Same call
-    // shape Metal uses at metalbackend.cpp:1007. The mask buffer is
-    // populated per row in the loop above; the mlpackage ignores it iff it
-    // was converted with optimize_identity_mask=true.
+    // ANE path: dispatch through the Swift CoreMLComputeHandle. Swift
+    // creates MLMultiArray(shape: [1, C, H, W]) per row and memcpys
+    // C*H*W floats — strict NCHW. We pass userInputBufferNCHW (rows
+    // transposed from NHWC in the loop above) instead of spatialInput.
+    // The mask is the contiguous H*W float prefix of each NCHW row,
+    // already lifted into userInputMaskBuffer above. The mlpackage
+    // ignores the mask buffer iff it was converted with
+    // optimize_identity_mask=true.
     computeHandle->coremlOnlyHandle.get().apply(
-      inputBuffers->spatialInput.data(),
+      inputBuffers->userInputBufferNCHW.data(),
       inputBuffers->globalInput.data(),
       inputBuffers->metaInput.data(),  // always non-null (resized to at least 1 in InputBuffers ctor)
       inputBuffers->userInputMaskBuffer.data(),
