@@ -56,6 +56,13 @@ using namespace std;
 static constexpr int MLX_MUX_GPU = 0;    // MLX/GPU - default
 static constexpr int MLX_MUX_ANE = 100;  // CoreML on CPU+ANE via katagocoreml + KataGoSwift
 
+// Serializes ComputeHandle construction across server threads. The CoreML
+// converter (katagocoreml::KataGoConverter::convert) holds process-global
+// MIL writer state that is not reentrant; without this lock, 2+ ANE threads
+// racing at startup corrupt the .mlpackage and throw "Metadata written to
+// different offset than expected." Mirrors metalbackend.cpp:442.
+static std::mutex computeHandleMutex;
+
 //------------------------------------------------------------------------------
 // CoreML Model Conversion - reuses katagocoreml library, mirrors metalbackend.cpp
 //------------------------------------------------------------------------------
@@ -1697,6 +1704,8 @@ ComputeHandle* NeuralNet::createComputeHandle(
   if(!inputsUseNHWC)
     throw StringError("MLX backend: inputsUseNHWC = false unsupported");
 
+  // Serialize handle construction: see computeHandleMutex declaration above.
+  std::lock_guard<std::mutex> lock(computeHandleMutex);
   return new ComputeHandle(context, *loadedModel, inputsUseNHWC, requireExactNNLen, useFP16,
                            gpuIdx, maxBatchSize, serverThreadIdx);
 }
