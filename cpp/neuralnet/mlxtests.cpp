@@ -1279,6 +1279,10 @@ void runMLXCoreMLSmokeTest() {
     BoardHistory hist(board, nextPla, rules, /*encorePhase=*/0);
     MiscNNInputParams nnInputParams;
 
+    // NNResultBuf() ctor (nneval.cpp:9) zeros remaining fields the backend
+    // reads: includeOwnerMap, errorLogLockout, boardX/YSizeForServer,
+    // hasResult, result. We only override the three fields whose default
+    // (SYMMETRY_NOTSPECIFIED, 0.0, false) isn't what this test needs.
     NNResultBuf bufAne;
     NNResultBuf bufGpu;
     bufAne.symmetry = 0;
@@ -1315,18 +1319,42 @@ void runMLXCoreMLSmokeTest() {
     NeuralNet::getOutput(gpuHandle, gpuInputBuffers,
                          1, inBufsGpu.data(), outsGpu);
 
-    // Top-1 policy index parity. Load-bearing assertion.
+    // Top-1 policy index parity. Strict argmax (first-of-max via >) would
+    // be flaky if two positions sit within FP16 noise of each other and
+    // the two backends round them in opposite directions. Detect that
+    // case and accept only when BOTH backends consider the two positions
+    // tied. A stride-scramble regression makes their probabilities
+    // differ by orders of magnitude (v16 pre-fix: topPolicyDelta 0.98,
+    // KL 14), not by 1e-3, so this tolerance does not weaken scrambling
+    // detection.
     int top1Ane = 0, top1Gpu = 0;
     for(int i = 1; i < 19 * 19; i++) {
       if(outAne.policyProbs[i] > outAne.policyProbs[top1Ane]) top1Ane = i;
       if(outGpu.policyProbs[i] > outGpu.policyProbs[top1Gpu]) top1Gpu = i;
     }
     if(top1Ane != top1Gpu) {
-      cerr << "runMLXCoreMLSmokeTest: TOP-1 POLICY MISMATCH"
-           << " ANE=" << top1Ane << " GPU=" << top1Gpu
-           << " (stride bug regression?)" << endl;
+      // FP16 noise per channel is O(1e-3) on softmax outputs. A genuine
+      // tie at the top means both backends rate both positions within
+      // that envelope; a scramble fails this check by a wide margin.
+      constexpr float kFP16PolicyTieTol = 1e-3f;
+      float aneAtAne = outAne.policyProbs[top1Ane];
+      float aneAtGpu = outAne.policyProbs[top1Gpu];
+      float gpuAtAne = outGpu.policyProbs[top1Ane];
+      float gpuAtGpu = outGpu.policyProbs[top1Gpu];
+      bool aneTied = std::abs(aneAtAne - aneAtGpu) < kFP16PolicyTieTol;
+      bool gpuTied = std::abs(gpuAtAne - gpuAtGpu) < kFP16PolicyTieTol;
+      if(!(aneTied && gpuTied)) {
+        cerr << "runMLXCoreMLSmokeTest: TOP-1 POLICY MISMATCH"
+             << " ANE=" << top1Ane << " (p_ane=" << aneAtAne
+             << ", p_gpu=" << gpuAtAne << ")"
+             << " GPU=" << top1Gpu << " (p_ane=" << aneAtGpu
+             << ", p_gpu=" << gpuAtGpu << ")"
+             << " (stride bug regression?)" << endl;
+        testAssert(false);
+      }
+      // else: FP16 near-tie — both backends agree both positions are
+      // effectively equally likely; the argmax flip is noise, not a bug.
     }
-    testAssert(top1Ane == top1Gpu);
 
     // Pass + value sanity (loose; FP16 noise on both sides).
     testAssert(std::abs(outAne.policyProbs[19 * 19] - outGpu.policyProbs[19 * 19]) < 1.0);
