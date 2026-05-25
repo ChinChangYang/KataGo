@@ -1885,12 +1885,23 @@ void NeuralNet::getOutput(
     const float* policySrcBuf = policyData + row * numPolicyChannels * nnXLen * nnYLen;
     float* policyProbs = output->policyProbs;
 
-    // Handle policy optimism (version >= 12)
+    // Handle policy optimism (version >= 12). The optimism mix uses
+    // channel 0 (p) and channel 1 (pOpt) of the policy output; v16+
+    // channels 2-3 are ignored here, matching MetalProcess::processOptimism
+    // in metalbackend.cpp.
+    //
+    // MLX/GPU writes NHWC: channels are interleaved per spatial position.
+    // CoreML/ANE writes NCHW (MLMultiArray shape [1, C, H, W], contiguous
+    // memcpy in metalbackend.swift copyMultiArray): channel 0 occupies the
+    // first HW floats, channel 1 the next HW, etc. Stride differs per path.
     if(numPolicyChannels == 2 || (numPolicyChannels == 4 && modelVersion >= 16)) {
-      // MLX output is NHWC
-      for(int i = 0; i < nnXLen * nnYLen; i++) {
-        float p = policySrcBuf[i * numPolicyChannels];
-        float pOpt = policySrcBuf[i * numPolicyChannels + 1];
+      const int HW = nnXLen * nnYLen;
+      const bool isNCHW = (bool)computeHandle->coremlOnlyHandle;
+      const int strideI   = isNCHW ? 1  : numPolicyChannels;
+      const int strideOpt = isNCHW ? HW : 1;
+      for(int i = 0; i < HW; i++) {
+        float p    = policySrcBuf[i * strideI];
+        float pOpt = policySrcBuf[i * strideI + strideOpt];
         policyProbsTmp[i] = p + (pOpt - p) * policyOptimism;
       }
       SymmetryHelpers::copyOutputsWithSymmetry(policyProbsTmp, policyProbs, 1, nnYLen, nnXLen, inputBufs[row]->symmetry);
