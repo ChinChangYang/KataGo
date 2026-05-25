@@ -1,6 +1,19 @@
 # MLX Per-Thread Default Stream — Design
 
-**Status:** Approved 2026-05-25.
+**Status:** SUPERSEDED 2026-05-25 by
+`2026-05-25-mlx-fp16-weight-materialization-design.md`. The hypothesis
+below — that MLX 0.31.2's `default_stream()` throws on unregistered
+threads — was wrong. `default_stream()` lazy-creates per thread (see
+`mlx/stream.cpp:40-50`); the throw site is
+`metal::get_command_encoder` failing to find an encoder for a stream
+that was created on a *different* thread. The shared `cachedModels`
+hands a Model constructed on thread A to thread B, and any unevaluated
+fp16 weight `AsType` primitives on that Model carry thread A's stream.
+Eager-eval'ing fp16 weights at construction is the fix. The
+implementation following this spec (commit `3b760af2`) was reverted in
+`fb0fcb89` and did not address the actual bug.
+
+**Status (historical):** Approved 2026-05-25.
 
 **Branch:** `mlx-backend-squash`.
 

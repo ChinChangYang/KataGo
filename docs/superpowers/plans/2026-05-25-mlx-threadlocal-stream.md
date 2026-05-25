@@ -1,5 +1,12 @@
 # MLX Per-Thread Default Stream Implementation Plan
 
+> **SUPERSEDED 2026-05-25.** The hypothesis in the linked spec was
+> wrong; the implementation following this plan (commit `3b760af2`)
+> did not fix the crash and was reverted in `fb0fcb89`. The actual
+> root cause and fix are documented in
+> `docs/superpowers/specs/2026-05-25-mlx-fp16-weight-materialization-design.md`.
+> Do not execute the steps below.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stop the 2×GPU + 2×ANE FP16 mux config from crashing with `"There is no Stream(gpu, 0) in current thread."` by registering a per-thread MLX default stream on first use from each NNEvaluator server thread.

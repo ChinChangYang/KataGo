@@ -197,9 +197,30 @@ static mx::array convertConvWeightsOIHWtoOHWI(const vector<float>& weights,
   return mx::array(converted.data(), shape, mx::float32);
 }
 
-// Convert array to compute dtype
+// Convert array to compute dtype. Lazy form for the inference hot path
+// (each call's astype goes into the compiled trace; evaluating eagerly
+// would force a stream sync per inference).
 static mx::array toComputeDtype(const mx::array& arr, bool useFP16) {
   return useFP16 ? mx::astype(arr, mx::float16) : arr;
+}
+
+// Convert array to compute dtype and materialize the result.
+//
+// Use this for STATIC layer weights cached on a shared Model (the
+// `cachedModels` map below shares a single Model instance across all
+// MLX/GPU server threads). Without the eval, fp16 weights are
+// unevaluated AsType primitives stamped with the constructor thread's
+// MLX Stream; any other thread that later evals a compiled graph that
+// captures these weights throws "There is no Stream(gpu, N) in current
+// thread." with N = the constructor thread's stream index. MLX
+// 0.31.2's command encoders live in `thread_local` storage per
+// `metal/device.cpp:819-822`, so a stream created on thread A is
+// unreachable from thread B.
+static mx::array toComputeDtypeMaterialized(const mx::array& arr, bool useFP16) {
+  if(!useFP16) return arr;
+  mx::array result = mx::astype(arr, mx::float16);
+  mx::eval(result);
+  return result;
 }
 
 // Mish activation: x * tanh(softplus(x)) = x * tanh(log(1 + exp(x)))
@@ -331,7 +352,7 @@ struct ConvLayer {
       useWinograd(mlxWinogradEnabled()
                   && convYSize==3 && convXSize==3
                   && dilationY==1 && dilationX==1),
-      weights(useWinograd ? mx::array(0.0f) : toComputeDtype(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
+      weights(useWinograd ? mx::array(0.0f) : toComputeDtypeMaterialized(convertConvWeightsOIHWtoOHWI(desc.weights, outChannels, inChannels, convYSize, convXSize), useFP16_)),
       winogradWeights(useWinograd
         ? MLXWinograd::makeWinogradWeights(desc.weights, outChannels, inChannels, useFP16_)
         : mx::array(0.0f))
@@ -449,7 +470,7 @@ struct MatMulLayer {
       // Original weights: [inC, outC] (column-major)
       mx::Shape shape = {desc.inChannels, desc.outChannels};
       mx::array arr = mx::array(desc.weights.data(), shape, mx::float32);
-      return toComputeDtype(arr, useFP16);
+      return toComputeDtypeMaterialized(arr, useFP16);
     }
     std::vector<float> dummy = {0.0f};
     mx::Shape shape = {1};
@@ -482,7 +503,7 @@ struct MatBiasLayer {
   static mx::array createBias(const MatBiasLayerDesc& desc, bool useFP16) {
     mx::Shape shape = {desc.numChannels};
     mx::array arr = mx::array(desc.weights.data(), shape, mx::float32);
-    return toComputeDtype(arr, useFP16);
+    return toComputeDtypeMaterialized(arr, useFP16);
   }
 
   MatBiasLayer(const MatBiasLayerDesc& desc, bool useFP16 = false)
