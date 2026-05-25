@@ -96,7 +96,9 @@ static const string COREML_MODEL_AUTHOR = "KataGo";
 static const string COREML_MODEL_LICENSE = "See original model file for license terms";
 
 // Convert KataGo model to CoreML in temp directory, returns path to .mlpackage.
-// The caller (Swift side) is responsible for deleting the temp file after loading.
+// The caller (Swift side) is responsible for deleting the temp file after loading:
+// see deleteSourceModel in metalbackend.swift, invoked via `defer` from
+// createCoreMLComputeHandle.
 static string convertModelToTemp(
   const string& modelPath,
   int boardX,
