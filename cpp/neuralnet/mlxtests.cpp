@@ -1279,10 +1279,17 @@ void runMLXCoreMLSmokeTest() {
     BoardHistory hist(board, nextPla, rules, /*encorePhase=*/0);
     MiscNNInputParams nnInputParams;
 
-    // NNResultBuf() ctor (nneval.cpp:9) zeros remaining fields the backend
-    // reads: includeOwnerMap, errorLogLockout, boardX/YSizeForServer,
-    // hasResult, result. We only override the three fields whose default
-    // (SYMMETRY_NOTSPECIFIED, 0.0, false) isn't what this test needs.
+    // NNResultBuf() ctor (nneval.cpp:9) zeros every field. This test
+    // calls NeuralNet::getOutput directly (no NNEvaluator), so the MLX
+    // backend reads only symmetry, policyOptimism, hasRowMeta,
+    // rowSpatialBuf, rowGlobalBuf, and rowMetaBuf from each buf. The
+    // remaining fields (includeOwnerMap, errorLogLockout,
+    // boardX/YSizeForServer, hasResult, result) are NNEvaluator-only
+    // and are zeroed by the ctor. Of the live fields, only symmetry
+    // departs from the ctor default (SYMMETRY_NOTSPECIFIED, which would
+    // ask the backend to pick a random symmetry — wrong for parity).
+    // policyOptimism=0.0 and hasRowMeta=false match ctor defaults but
+    // are set explicitly for the reader.
     NNResultBuf bufAne;
     NNResultBuf bufGpu;
     bufAne.symmetry = 0;
