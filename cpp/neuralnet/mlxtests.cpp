@@ -19,7 +19,13 @@
 
 #include "../neuralnet/mlxwinograd.h"
 #include "../neuralnet/mlxwinotuner.h"
+#include "../neuralnet/nninterface.h"
 #include "../neuralnet/desc.h"
+#include "../neuralnet/nninputs.h"
+#include "../neuralnet/nneval.h"
+#include "../game/board.h"
+#include "../game/boardhistory.h"
+#include "../game/rules.h"
 #include "../core/global.h"
 #include "../core/logger.h"
 #include "../core/test.h"
@@ -48,6 +54,11 @@ namespace mx = mlx::core;
 // ConvLayer classes, so they cannot move here.
 void runMLXBatchNormFP16Test();
 void runMLXConvLayerFP16WinogradTest();
+
+// Defined in mlxbackend.cpp — needs the file-local ComputeHandle and InputBuffers
+// structs. Asserts gpuIdx==MLX_MUX_ANE, coremlOnlyHandle set, model==nullptr,
+// and inputBuffers->maxBatchSize==1.
+void runMLXCoreMLSmokeTestAssertInternals(ComputeHandle* handle, InputBuffers* inputBuffers);
 
 void runMLXWinogradTests() {
   cout << "Running MLX Winograd F(2,3) tests" << endl;
@@ -1136,6 +1147,206 @@ void runMLXWinotunerTests() {
   }
 
   cout << "MLX Winograd tuner tests passed" << endl;
+}
+
+// CoreML/ANE mux construction smoke test. Loads a model, builds a
+// ComputeContext + ANE-only ComputeHandle + InputBuffers, and lets them
+// tear down. Verifies that:
+//   - katagocoreml conversion of the .bin.gz to a .mlpackage succeeds,
+//   - the Swift CoreMLComputeHandle constructs from the .mlpackage,
+//   - the ComputeHandle invariant ("exactly one of {MLX state, CoreML}")
+//     holds for gpuIdx=MLX_MUX_ANE (checked via runMLXCoreMLSmokeTestAssertInternals),
+//   - Swift ARC + the C++ destructors clean up without crashing.
+//
+// Skipped (with a stderr notice and immediate return) if the canonical test
+// model file is not present, so the test is non-blocking on workstations
+// without local models. The shell-script end-to-end smokes in Task 8 are
+// the load-bearing inference-correctness verification.
+void runMLXCoreMLSmokeTest() {
+  // MLX_MUX_ANE == 100 (mlxbackend.cpp file-static constexpr; mirrored here).
+  static constexpr int MLX_MUX_ANE_LOCAL = 100;
+
+  const char* envModel = std::getenv("MLX_COREML_TEST_MODEL");
+  string modelPath = envModel != nullptr
+    ? string(envModel)
+    : (string(std::getenv("HOME") != nullptr ? std::getenv("HOME") : ".") +
+       "/code/KataGo-Models/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz");
+
+  {
+    std::ifstream probe(modelPath);
+    if(!probe.good()) {
+      cerr << "runMLXCoreMLSmokeTest: skipping; model not found at " << modelPath << endl;
+      return;
+    }
+  }
+
+  cerr << "runMLXCoreMLSmokeTest: starting on " << modelPath << endl;
+
+  // Use raw pointers + NeuralNet::free* functions: ComputeContext, ComputeHandle,
+  // InputBuffers, and LoadedModel are incomplete types from nninterface.h's
+  // forward declarations, so unique_ptr<T> with default_delete cannot be used.
+  LoadedModel* loadedModel = NeuralNet::loadModelFile(modelPath, /*expectedSha256=*/"");
+  vector<int> gpuIdxs = {MLX_MUX_ANE_LOCAL};
+  ComputeContext* context = NeuralNet::createComputeContext(
+    gpuIdxs,
+    /*logger=*/nullptr,
+    /*nnXLen=*/19,
+    /*nnYLen=*/19,
+    /*openCLTunerFile=*/"",
+    /*homeDataDirOverride=*/"",
+    /*openCLReTunePerBoardSize=*/false,
+    /*useFP16Mode=*/enabled_t::Auto,
+    /*useNHWCMode=*/enabled_t::Auto,
+    loadedModel);
+
+  // Construction is the assertion: if any step throws, the process dies
+  // with the throw's diagnostic.
+  ComputeHandle* handle = NeuralNet::createComputeHandle(
+    context,
+    loadedModel,
+    /*logger=*/nullptr,
+    /*maxBatchSize=*/1,
+    /*requireExactNNLen=*/true,
+    /*inputsUseNHWC=*/true,
+    /*gpuIdxForThisThread=*/MLX_MUX_ANE_LOCAL,
+    /*serverThreadIdx=*/0);
+
+  // Verify the ANE-path invariants the constructor was supposed to establish.
+  // isUsingFP16 is a public NeuralNet API; struct-internal checks (gpuIdx,
+  // coremlOnlyHandle, model, inputBuffers->maxBatchSize) are delegated to a
+  // helper in mlxbackend.cpp because ComputeHandle and InputBuffers are
+  // file-local there (not in any public header).
+  testAssert(NeuralNet::isUsingFP16(handle) == true);  // useFP16Mode=Auto → true
+
+  InputBuffers* inputBuffers = NeuralNet::createInputBuffers(
+    loadedModel, /*maxBatchSize=*/1, /*nnXLen=*/19, /*nnYLen=*/19);
+
+  runMLXCoreMLSmokeTestAssertInternals(handle, inputBuffers);
+
+  // Cross-path policy parity check.
+  //
+  // The ANE path's policy-optimism postprocessor in mlxbackend.cpp reads
+  // its NCHW source buffer with channel-major strides; the MLX/GPU path
+  // produces NHWC and uses position-major strides. A regression that
+  // uses the wrong strides scrambles the policy completely (empirically
+  // 98% topPolicyDelta on v16 models). This block runs the same input
+  // through both paths and asserts top-1 spatial policy index parity.
+  // FP16-noise-tolerant (rank preserved unless logits are within ~one
+  // nat), scrambling-intolerant.
+  //
+  // Gated on v12+ (numPolicyChannels >= 2; v<12 single-channel branch
+  // does not enter the optimism postprocessor on either path) and on
+  // metaEncoderVersion==0 (backend asserts hasRowMeta matches; setting
+  // hasRowMeta=false here requires a meta-free model).
+  const ModelDesc& modelDesc = NeuralNet::getModelDesc(loadedModel);
+  int modelVersion = modelDesc.modelVersion;
+  if(modelVersion < 12) {
+    cerr << "runMLXCoreMLSmokeTest: parity check skipped; modelVersion="
+         << modelVersion << " (need >= 12 for policy-optimism path)" << endl;
+  } else if(modelDesc.metaEncoderVersion != 0) {
+    cerr << "runMLXCoreMLSmokeTest: parity check skipped; model needs meta"
+         << " inputs (metaEncoderVersion=" << modelDesc.metaEncoderVersion
+         << ")" << endl;
+  } else {
+    // Build a second handle on the MLX/GPU path. Shares the
+    // ComputeContext and LoadedModel with the ANE handle above.
+    ComputeHandle* gpuHandle = NeuralNet::createComputeHandle(
+      context, loadedModel,
+      /*logger=*/nullptr,
+      /*maxBatchSize=*/1,
+      /*requireExactNNLen=*/true,
+      /*inputsUseNHWC=*/true,
+      /*gpuIdxForThisThread=*/0,  // MLX/GPU
+      /*serverThreadIdx=*/1);
+    InputBuffers* gpuInputBuffers = NeuralNet::createInputBuffers(
+      loadedModel, /*maxBatchSize=*/1, /*nnXLen=*/19, /*nnYLen=*/19);
+
+    // Initialize hash + score tables (Board ctor asserts IS_ZOBRIST_INITALIZED;
+    // fillRowV7 reads ScoreValue tables). runnnlayertests does not call these
+    // globally, so do it here. Both functions are idempotent.
+    Board::initHash();
+    ScoreValue::initTables();
+
+    // Deterministic input: empty 19x19 board, Tromp-Taylor rules. Use
+    // NNInputs::fillRowV7 (v12+ all map to inputsVersion=7 per
+    // modelversion.cpp:35-36). Both paths get IDENTICAL byte-for-byte
+    // inputs - zero-filled buffers would fail the model's mask
+    // invariants and produce garbage outputs on both paths, which the
+    // parity check would NOT detect.
+    Board board(19, 19);
+    Player nextPla = P_BLACK;
+    Rules rules = Rules::getTrompTaylorish();
+    BoardHistory hist(board, nextPla, rules, /*encorePhase=*/0);
+    MiscNNInputParams nnInputParams;
+
+    NNResultBuf bufAne;
+    NNResultBuf bufGpu;
+    bufAne.symmetry = 0;
+    bufGpu.symmetry = 0;
+    bufAne.policyOptimism = 0.0;
+    bufGpu.policyOptimism = 0.0;
+    bufAne.hasRowMeta = false;  // safe: parity branch is gated on
+    bufGpu.hasRowMeta = false;  // metaEncoderVersion==0 above.
+    bufAne.rowSpatialBuf.resize(NNInputs::NUM_FEATURES_SPATIAL_V7 * 19 * 19);
+    bufAne.rowGlobalBuf.resize(NNInputs::NUM_FEATURES_GLOBAL_V7);
+    NNInputs::fillRowV7(
+      board, hist, nextPla, nnInputParams,
+      /*nnXLen=*/19, /*nnYLen=*/19, /*useNHWC=*/true,
+      bufAne.rowSpatialBuf.data(), bufAne.rowGlobalBuf.data());
+    bufGpu.rowSpatialBuf = bufAne.rowSpatialBuf;
+    bufGpu.rowGlobalBuf  = bufAne.rowGlobalBuf;
+
+    // NNOutput::policyProbs is a fixed-size float[NNPos::MAX_NN_POLICY_SIZE]
+    // (nninputs.h:148); no heap allocation needed.
+    NNOutput outAne;
+    NNOutput outGpu;
+    outAne.nnXLen = outGpu.nnXLen = 19;
+    outAne.nnYLen = outGpu.nnYLen = 19;
+    outAne.whiteOwnerMap = nullptr;
+    outGpu.whiteOwnerMap = nullptr;
+
+    std::vector<NNResultBuf*> inBufsAne = { &bufAne };
+    std::vector<NNOutput*> outsAne = { &outAne };
+    std::vector<NNResultBuf*> inBufsGpu = { &bufGpu };
+    std::vector<NNOutput*> outsGpu = { &outGpu };
+
+    NeuralNet::getOutput(handle, inputBuffers,
+                         /*numBatchEltsFilled=*/1, inBufsAne.data(), outsAne);
+    NeuralNet::getOutput(gpuHandle, gpuInputBuffers,
+                         1, inBufsGpu.data(), outsGpu);
+
+    // Top-1 policy index parity. Load-bearing assertion.
+    int top1Ane = 0, top1Gpu = 0;
+    for(int i = 1; i < 19 * 19; i++) {
+      if(outAne.policyProbs[i] > outAne.policyProbs[top1Ane]) top1Ane = i;
+      if(outGpu.policyProbs[i] > outGpu.policyProbs[top1Gpu]) top1Gpu = i;
+    }
+    if(top1Ane != top1Gpu) {
+      cerr << "runMLXCoreMLSmokeTest: TOP-1 POLICY MISMATCH"
+           << " ANE=" << top1Ane << " GPU=" << top1Gpu
+           << " (stride bug regression?)" << endl;
+    }
+    testAssert(top1Ane == top1Gpu);
+
+    // Pass + value sanity (loose; FP16 noise on both sides).
+    testAssert(std::abs(outAne.policyProbs[19 * 19] - outGpu.policyProbs[19 * 19]) < 1.0);
+    testAssert(std::abs(outAne.whiteWinProb  - outGpu.whiteWinProb)  < 0.05);
+    testAssert(std::abs(outAne.whiteLossProb - outGpu.whiteLossProb) < 0.05);
+
+    NeuralNet::freeInputBuffers(gpuInputBuffers);
+    NeuralNet::freeComputeHandle(gpuHandle);
+  }
+
+  // Free in reverse-construction order. Swift ARC releases the
+  // CoreMLComputeHandle on the swift::Optional destructor inside
+  // freeComputeHandle. Any leak or double-free shows up as a crash or
+  // sanitizer report on subsequent runs.
+  NeuralNet::freeInputBuffers(inputBuffers);
+  NeuralNet::freeComputeHandle(handle);
+  NeuralNet::freeComputeContext(context);
+  NeuralNet::freeLoadedModel(loadedModel);
+
+  cerr << "runMLXCoreMLSmokeTest: passed" << endl;
 }
 
 #endif // USE_MLX_BACKEND
