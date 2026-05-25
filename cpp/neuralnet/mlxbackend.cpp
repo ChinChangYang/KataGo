@@ -1384,7 +1384,7 @@ struct ComputeHandle {
     if(gpuIdx_ == MLX_MUX_ANE) {
       // ANE path: MLX inference state is intentionally left uninitialized.
       // Enforce the "exactly one path" invariant.
-      bool hasMLX = false;  // model still nullptr; modelCacheKey still empty
+      bool hasMLX = (model != nullptr);
       bool hasCoreML = static_cast<bool>(coremlOnlyHandle);
       if(hasMLX == hasCoreML) {
         throw runtime_error(
