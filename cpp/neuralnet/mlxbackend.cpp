@@ -63,32 +63,6 @@ static constexpr int MLX_MUX_ANE = 100;  // CoreML on CPU+ANE via katagocoreml +
 // different offset than expected." Mirrors metalbackend.cpp:442.
 static std::mutex computeHandleMutex;
 
-// Serializes per-thread stream registration to avoid race conditions during
-// first-time setup on new threads.
-static std::mutex streamMutex;
-
-// Register a per-thread default MLX stream on first call from a given thread.
-// MLX 0.31.2's mx::default_stream(Device) is thread-local and throws if the
-// calling thread never registered one - which is what happens to NNEvaluator's
-// std::thread server threads. Without this, the first MLX/GPU forward pass on
-// a server thread throws "There is no Stream(gpu, 0) in current thread."
-// Giving each server thread its own Stream also enables CPU-side dispatch
-// overlap between threads (each Stream owns its own StreamThread worker).
-static void ensureMLXDefaultStreamForCurrentThread() {
-  thread_local bool initialized = false;
-  if(!initialized) {
-    // Use mutex to serialize stream registration across threads, in case MLX
-    // doesn't like concurrent calls to set_default_stream().
-    std::lock_guard<std::mutex> lock(streamMutex);
-
-    // Double-check after acquiring lock, in case another thread already initialized
-    if(!initialized) {
-      mx::set_default_stream(mx::new_stream(mx::default_device()));
-      initialized = true;
-    }
-  }
-}
-
 //------------------------------------------------------------------------------
 // CoreML Model Conversion - reuses katagocoreml library, mirrors metalbackend.cpp
 //------------------------------------------------------------------------------
@@ -1730,13 +1704,6 @@ ComputeHandle* NeuralNet::createComputeHandle(
   if(!inputsUseNHWC)
     throw StringError("MLX backend: inputsUseNHWC = false unsupported");
 
-  // Register a per-thread MLX default stream before any MLX op runs in the
-  // ctor (model construction, Winograd tuner). ANE threads skip MLX ops, so
-  // we don't pay the cost of an unused stream for them. See helper comment.
-  if(gpuIdx == MLX_MUX_GPU) {
-    ensureMLXDefaultStreamForCurrentThread();
-  }
-
   // Serialize handle construction: see computeHandleMutex declaration above.
   std::lock_guard<std::mutex> lock(computeHandleMutex);
   return new ComputeHandle(context, *loadedModel, inputsUseNHWC, requireExactNNLen, useFP16,
@@ -1758,13 +1725,6 @@ void NeuralNet::getOutput(
   NNResultBuf** inputBufs,
   vector<NNOutput*>& outputs
 ) {
-  // Ensure per-thread MLX stream is registered if this handle uses GPU.
-  // This catches ANY thread that calls getOutput on a GPU handle, regardless
-  // of whether createComputeHandle was called on the same thread.
-  if(computeHandle->gpuIdx == MLX_MUX_GPU) {
-    ensureMLXDefaultStreamForCurrentThread();
-  }
-
   assert(numBatchEltsFilled <= inputBuffers->maxBatchSize);
   assert(numBatchEltsFilled > 0);
   const int batchSize = numBatchEltsFilled;
@@ -1861,7 +1821,6 @@ void NeuralNet::getOutput(
       batchSize);
   } else {
     // GPU path: run the MLX compiled function exactly as before.
-    // Stream is already ensured at function entry for GPU handles.
     const bool useMask = !computeHandle->requireExactNNLen;
     const bool hasMeta = (numMetaFeatures > 0);
     const CompiledInferenceFunc& compiledFunc = computeHandle->getCompiledFunc(batchSize, nnXLen, nnYLen, useMask, hasMeta);
