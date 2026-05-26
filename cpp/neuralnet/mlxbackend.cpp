@@ -30,6 +30,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <map>
 #include <tuple>
 #include <random>
@@ -888,6 +889,15 @@ struct PolicyHead {
   const BatchNormLayer p1BN;
   const ConvLayer p2Conv;
   const MatMulLayer gpoolToPassMul;
+  // v15+ two-layer pass head: gpoolToPassMul (input -> hidden) ->
+  // gpoolToPassBias -> passActivation -> gpoolToPassMul2 (hidden -> output).
+  // Pre-v15 models use a single matmul (gpoolToPassMul: input -> output) and
+  // these three fields stay empty / zero. Mirrors PolicyHeadDesc parsing in
+  // desc.cpp:1289-1299 and Metal's MPSGraph implementation in
+  // metalbackend.cpp:298-315.
+  const std::optional<MatBiasLayer> gpoolToPassBias;
+  const int passActivationType;
+  const std::optional<MatMulLayer> gpoolToPassMul2;
 
   PolicyHead() = delete;
   PolicyHead(const PolicyHead&) = delete;
@@ -905,7 +915,14 @@ struct PolicyHead {
       gpoolToBiasMul(desc.gpoolToBiasMul, useFP16),
       p1BN(desc.p1BN, desc.p1Activation.activation, useFP16),
       p2Conv(desc.p2Conv, inCfg, outCfg, useFP16),
-      gpoolToPassMul(desc.gpoolToPassMul, useFP16)
+      gpoolToPassMul(desc.gpoolToPassMul, useFP16),
+      gpoolToPassBias(desc.modelVersion >= 15
+        ? std::optional<MatBiasLayer>(std::in_place, desc.gpoolToPassBias, useFP16)
+        : std::nullopt),
+      passActivationType(desc.modelVersion >= 15 ? desc.passActivation.activation : 0),
+      gpoolToPassMul2(desc.modelVersion >= 15
+        ? std::optional<MatMulLayer>(std::in_place, desc.gpoolToPassMul2, useFP16)
+        : std::nullopt)
   {}
 
   std::pair<mx::array, mx::array> apply(
@@ -935,8 +952,16 @@ struct PolicyHead {
     // Final policy conv
     mx::array policy = p2Conv.apply(p1Out);
 
-    // Pass policy
+    // Pass policy: pre-v15 is a single matmul (pooled -> output). v15+ is a
+    // two-layer MLP (pooled -> hidden, + bias, activation, hidden -> output).
+    // Mirrors PolicyHeadDesc parsing in desc.cpp:1289-1299 and Metal's MPSGraph
+    // implementation in metalbackend.cpp:298-315.
     mx::array policyPass = gpoolToPassMul.apply(pooledFlat);
+    if(modelVersion >= 15) {
+      policyPass = gpoolToPassBias->apply(policyPass);
+      policyPass = applyActivation(policyPass, passActivationType);
+      policyPass = gpoolToPassMul2->apply(policyPass);
+    }
 
     return {policyPass, policy};
   }
@@ -1014,11 +1039,17 @@ struct Model {
   const int numInputGlobalChannels;
   const int numInputMetaChannels;
   const int numPolicyChannels;
-  // Pass-policy output width — `gpoolToPassMul.outChannels` may exceed
-  // numPolicyChannels for human-SL nets (humanv0: 48 vs 2). Only the first 1-2
-  // values are consumed by NNOutput, but the per-row stride in our buffers
-  // must match the real tensor width, otherwise batched memcpy and extraction
-  // truncate and misalign rows beyond row 0.
+  // Pass-policy output width. For v15+ models the pass head is two-layer:
+  // gpoolToPassMul (input -> hidden) -> bias -> activation -> gpoolToPassMul2
+  // (hidden -> output). The actual final output width — and the per-row stride
+  // Swift's extractOutputs uses for its writes (metalbackend.swift:316:
+  // batchIndex * numPolicyChannels) — is gpoolToPassMul2.outChannels, which by
+  // construction (desc.cpp:1342-1343) equals numPolicyChannels. Pre-v15 models
+  // have a single matmul (gpoolToPassMul: input -> output) and the output width
+  // is gpoolToPassMul.outChannels = numPolicyChannels (desc.cpp:1348-1349).
+  // Using gpoolToPassMul.outChannels for v15+ was the prior bug: it is the
+  // hidden width, not the output width, and rows >= 1 in batched ANE reads
+  // landed on uninitialized memory.
   const int numPolicyPassChannels;
   const int numValueChannels;
   const int numScoreValueChannels;
@@ -1040,7 +1071,9 @@ struct Model {
       numInputGlobalChannels(desc.numInputGlobalChannels),
       numInputMetaChannels(desc.numInputMetaChannels),
       numPolicyChannels(desc.numPolicyChannels),
-      numPolicyPassChannels(desc.policyHead.gpoolToPassMul.outChannels),
+      numPolicyPassChannels(desc.modelVersion >= 15
+                              ? desc.policyHead.gpoolToPassMul2.outChannels
+                              : desc.policyHead.gpoolToPassMul.outChannels),
       numValueChannels(desc.numValueChannels),
       numScoreValueChannels(desc.numScoreValueChannels),
       numOwnershipChannels(desc.numOwnershipChannels),
@@ -1378,7 +1411,14 @@ struct ComputeHandle {
     // Cache ModelDesc fields used by both paths in getOutput.
     numInputChannels = loadedModel.modelDesc.numInputChannels;
     numPolicyChannels = loadedModel.modelDesc.numPolicyChannels;
-    numPolicyPassChannels = loadedModel.modelDesc.policyHead.gpoolToPassMul.outChannels;
+    // See Model::numPolicyPassChannels comment for the v15+ two-layer pass head
+    // rationale: the per-row stride must match the *final* pass output width
+    // (gpoolToPassMul2.outChannels for v15+, gpoolToPassMul.outChannels otherwise),
+    // not the hidden width.
+    numPolicyPassChannels =
+      loadedModel.modelDesc.modelVersion >= 15
+        ? loadedModel.modelDesc.policyHead.gpoolToPassMul2.outChannels
+        : loadedModel.modelDesc.policyHead.gpoolToPassMul.outChannels;
     numValueChannels = loadedModel.modelDesc.numValueChannels;
     numScoreValueChannels = loadedModel.modelDesc.numScoreValueChannels;
     numOwnershipChannels = loadedModel.modelDesc.numOwnershipChannels;
@@ -1530,7 +1570,13 @@ struct InputBuffers {
     singleInputGlobalElts = m.numInputGlobalChannels;
     singleInputMetaElts = m.numInputMetaChannels;
 
-    singlePolicyPassResultElts = (size_t)(m.policyHead.gpoolToPassMul.outChannels);
+    // See Model::numPolicyPassChannels comment: pass output width is
+    // gpoolToPassMul2.outChannels for v15+, gpoolToPassMul.outChannels otherwise.
+    // Must match ComputeHandle::numPolicyPassChannels (assertion in getOutput).
+    singlePolicyPassResultElts = (size_t)(
+      m.modelVersion >= 15
+        ? m.policyHead.gpoolToPassMul2.outChannels
+        : m.policyHead.gpoolToPassMul.outChannels);
     singlePolicyResultElts = (size_t)(m.numPolicyChannels * nnXLen * nnYLen);
     singleValueResultElts = (size_t)m.numValueChannels;
     singleScoreValueResultElts = (size_t)m.numScoreValueChannels;
