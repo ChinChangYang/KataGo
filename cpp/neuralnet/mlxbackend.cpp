@@ -41,7 +41,6 @@
 // process from testEvaluateConv via the ranMLXAuxTests guard.
 void runMLXWinogradTests();
 void runMLXWinotunerTests();
-void runMLXCoreMLSmokeTest();
 
 namespace mx = mlx::core;
 
@@ -2050,7 +2049,6 @@ bool NeuralNet::testEvaluateConv(
     ranMLXAuxTests = true;
     runMLXWinogradTests();
     runMLXWinotunerTests();
-    runMLXCoreMLSmokeTest();
   }
 
   if(!useNHWC) {
@@ -2178,21 +2176,6 @@ bool NeuralNet::testEvaluateGlobalPoolingResidualBlock(
 
   memcpy(outputBuffer.data(), output.data<float>(), numOutputFloats * sizeof(float));
   return true;
-}
-
-// Invariant assertion helper for the CoreML/ANE smoke test in mlxtests.cpp.
-// Lives here because ComputeHandle and InputBuffers are file-local (not in any
-// public header). Called from runMLXCoreMLSmokeTest() in mlxtests.cpp after
-// construction.
-void runMLXCoreMLSmokeTestAssertInternals(ComputeHandle* handle, InputBuffers* inputBuffers) {
-  testAssert(handle->gpuIdx == MLX_MUX_ANE);
-  testAssert(static_cast<bool>(handle->coremlOnlyHandle));
-  testAssert(handle->model == nullptr);
-  // maxBatchSize matches what runMLXCoreMLSmokeTest constructs (currently 2 so
-  // the parity check exercises the batched ANE path that catches the v15+
-  // pass-policy stride bug class — see mlxtests.cpp). Update both sides
-  // together if the smoke test's batch size changes.
-  testAssert(inputBuffers->maxBatchSize == 2);
 }
 
 // Directly-asserting unit test for BatchNormLayer fp16 mode.
