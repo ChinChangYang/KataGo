@@ -596,10 +596,10 @@ void runMLXWinotunerTests() {
   {
     // buildConv3x3HistogramsFromConvs — pure-function test on the conv
     // filter+histogram. Constructs ConvLayerDesc instances directly
-    // (default-constructible per desc.h:25). ConvLayerDesc has a deleted
-    // copy ctor (desc.h:29), so we build the descriptors in a deque
-    // (stable addresses, no copies on growth) and pass pointers to the
-    // helper. Does not touch ModelDesc.
+    // (ConvLayerDesc is default-constructible but has a deleted copy ctor;
+    // see desc.h), so we build the descriptors in a deque (stable addresses,
+    // no copies on growth) and pass pointers to the helper. Does not touch
+    // ModelDesc.
 
     auto initConv = [](ConvLayerDesc& c, int kY, int kX, int inC, int outC) {
       c.convYSize  = kY;
@@ -1274,7 +1274,7 @@ void runMLXCoreMLSmokeTest() {
 
     // Deterministic input: empty 19x19 board, Tromp-Taylor rules. Use
     // NNInputs::fillRowV7 (v12+ all map to inputsVersion=7 per
-    // modelversion.cpp:35-36). Both paths get IDENTICAL byte-for-byte
+    // NNModelVersion::getInputsVersion). Both paths get IDENTICAL byte-for-byte
     // inputs - zero-filled buffers would fail the model's mask
     // invariants and produce garbage outputs on both paths, which the
     // parity check would NOT detect.
@@ -1284,7 +1284,7 @@ void runMLXCoreMLSmokeTest() {
     BoardHistory hist(board, nextPla, rules, /*encorePhase=*/0);
     MiscNNInputParams nnInputParams;
 
-    // NNResultBuf() ctor (nneval.cpp:9) zeros every field. This test
+    // The NNResultBuf default ctor (in nneval.cpp) zeros every field. This test
     // calls NeuralNet::getOutput directly (no NNEvaluator), so the MLX
     // backend reads only symmetry, policyOptimism, hasRowMeta,
     // rowSpatialBuf, rowGlobalBuf, and rowMetaBuf from each buf. The
@@ -1325,7 +1325,7 @@ void runMLXCoreMLSmokeTest() {
     bufGpu1.rowGlobalBuf  = bufAne0.rowGlobalBuf;
 
     // NNOutput::policyProbs is a fixed-size float[NNPos::MAX_NN_POLICY_SIZE]
-    // (nninputs.h:148); no heap allocation needed.
+    // (see NNOutput in nninputs.h); no heap allocation needed.
     NNOutput outAne0, outAne1, outGpu0, outGpu1;
     for(NNOutput* o : {&outAne0, &outAne1, &outGpu0, &outGpu1}) {
       o->nnXLen = 19;

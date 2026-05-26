@@ -61,7 +61,8 @@ static constexpr int MLX_MUX_ANE = 100;  // CoreML on CPU+ANE via katagocoreml +
 // converter (katagocoreml::KataGoConverter::convert) holds process-global
 // MIL writer state that is not reentrant; without this lock, 2+ ANE threads
 // racing at startup corrupt the .mlpackage and throw "Metadata written to
-// different offset than expected." Mirrors metalbackend.cpp:442.
+// different offset than expected." Mirrors metalbackend.cpp's
+// computeHandleMutex.
 static std::mutex computeHandleMutex;
 
 //------------------------------------------------------------------------------
@@ -73,8 +74,8 @@ namespace gfs = ghc::filesystem;
 namespace CoreMLConversion {
 
 // Get temp directory for model conversion. Identical path to Metal's
-// (metalbackend.cpp:28-36) so a .mlpackage produced by either backend can be
-// reused by the other on a same-model run.
+// getTempDirectory() in metalbackend.cpp so a .mlpackage produced by either
+// backend can be reused by the other on a same-model run.
 static string getTempDirectory() {
   gfs::path tempDir = gfs::temp_directory_path() / "katago_coreml";
   std::error_code ec;
@@ -216,8 +217,8 @@ static mx::array toComputeDtype(const mx::array& arr, bool useFP16) {
 // MLX Stream; any other thread that later evals a compiled graph that
 // captures these weights throws "There is no Stream(gpu, N) in current
 // thread." with N = the constructor thread's stream index. MLX
-// 0.31.2's command encoders live in `thread_local` storage per
-// `metal/device.cpp:819-822`, so a stream created on thread A is
+// 0.31.2's command encoders live in `thread_local` storage inside
+// mlx-core's metal/device.cpp, so a stream created on thread A is
 // unreachable from thread B.
 static mx::array toComputeDtypeMaterialized(const mx::array& arr, bool useFP16) {
   if(!useFP16) return arr;
@@ -233,8 +234,8 @@ static mx::array toComputeDtypeMaterialized(const mx::array& arr, bool useFP16) 
 // LogAddExp). The exp argument is always in (-inf, 0], so exp(-|x|) lies in
 // (0, 1] and cannot overflow in either FP32 or FP16. This is why MLX does
 // not need the ACTIVATION_MISH_SCALE8 variant that CUDA/OpenCL/TensorRT apply
-// at model load (desc.cpp:applyScale8ToReduceActivations, cudabackend.cpp:2128,
-// trtbackend.cpp:86, openclbackend.cpp:116) to keep Mish inside FP16
+// at model load (each backend calls modelDesc.applyScale8ToReduceActivations,
+// implemented in desc.cpp) to keep Mish inside FP16
 // representable range: those backends compute softplus via a path that
 // overflows for x >~ 11 in FP16 (since exp(11.09) >~ 65504 = FP16 max).
 // Cross-backend validation against an Eigen FP32 reference confirms FP16
@@ -892,9 +893,9 @@ struct PolicyHead {
   // v15+ two-layer pass head: gpoolToPassMul (input -> hidden) ->
   // gpoolToPassBias -> passActivation -> gpoolToPassMul2 (hidden -> output).
   // Pre-v15 models use a single matmul (gpoolToPassMul: input -> output) and
-  // these three fields stay empty / zero. Mirrors PolicyHeadDesc parsing in
-  // desc.cpp:1289-1299 and Metal's MPSGraph implementation in
-  // metalbackend.cpp:298-315.
+  // these three fields stay empty / zero. Mirrors the v15+ branch of
+  // PolicyHeadDesc::PolicyHeadDesc in desc.cpp and Metal's
+  // policyHeadDescToSwift in metalbackend.cpp.
   const std::optional<MatBiasLayer> gpoolToPassBias;
   const int passActivationType;
   const std::optional<MatMulLayer> gpoolToPassMul2;
@@ -954,8 +955,8 @@ struct PolicyHead {
 
     // Pass policy: pre-v15 is a single matmul (pooled -> output). v15+ is a
     // two-layer MLP (pooled -> hidden, + bias, activation, hidden -> output).
-    // Mirrors PolicyHeadDesc parsing in desc.cpp:1289-1299 and Metal's MPSGraph
-    // implementation in metalbackend.cpp:298-315.
+    // Mirrors the v15+ branch of PolicyHeadDesc::PolicyHeadDesc in desc.cpp
+    // and Metal's policyHeadDescToSwift in metalbackend.cpp.
     mx::array policyPass = gpoolToPassMul.apply(pooledFlat);
     if(modelVersion >= 15) {
       policyPass = gpoolToPassBias->apply(policyPass);
@@ -1042,11 +1043,12 @@ struct Model {
   // Pass-policy output width. For v15+ models the pass head is two-layer:
   // gpoolToPassMul (input -> hidden) -> bias -> activation -> gpoolToPassMul2
   // (hidden -> output). The actual final output width — and the per-row stride
-  // Swift's extractOutputs uses for its writes (metalbackend.swift:316:
-  // batchIndex * numPolicyChannels) — is gpoolToPassMul2.outChannels, which by
-  // construction (desc.cpp:1342-1343) equals numPolicyChannels. Pre-v15 models
-  // have a single matmul (gpoolToPassMul: input -> output) and the output width
-  // is gpoolToPassMul.outChannels = numPolicyChannels (desc.cpp:1348-1349).
+  // extractOutputs in metalbackend.swift uses for its writes
+  // (batchIndex * numPolicyChannels) — is gpoolToPassMul2.outChannels, which
+  // PolicyHeadDesc::PolicyHeadDesc in desc.cpp validates equals
+  // numPolicyChannels. Pre-v15 models have a single matmul (gpoolToPassMul:
+  // input -> output) and the output width is gpoolToPassMul.outChannels =
+  // numPolicyChannels (also validated in PolicyHeadDesc::PolicyHeadDesc).
   // Using gpoolToPassMul.outChannels for v15+ was the prior bug: it is the
   // hidden width, not the output width, and rows >= 1 in batched ANE reads
   // landed on uninitialized memory.
@@ -1275,7 +1277,8 @@ struct Model {
 struct ComputeContext;
 
 //------------------------------------------------------------------------------
-// CoreML/ANE compute handle helpers - mirrors metalbackend.cpp:449-516
+// CoreML/ANE compute handle helpers - mirrors convertAndCreateCoreMLOnlyHandle
+// in metalbackend.cpp
 //------------------------------------------------------------------------------
 
 // Note: KataGoSwift::MetalComputeContext is the Swift-side context type. Its
