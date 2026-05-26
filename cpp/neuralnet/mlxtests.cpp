@@ -56,8 +56,8 @@ void runMLXBatchNormFP16Test();
 void runMLXConvLayerFP16WinogradTest();
 
 // Defined in mlxbackend.cpp — needs the file-local ComputeHandle and InputBuffers
-// structs. Asserts gpuIdx==MLX_MUX_ANE, coremlOnlyHandle set, model==nullptr,
-// and inputBuffers->maxBatchSize==1.
+// structs. Asserts the ANE-path invariants (gpuIdx, coremlOnlyHandle, model,
+// inputBuffers->maxBatchSize); see the definition for the exact expected values.
 void runMLXCoreMLSmokeTestAssertInternals(ComputeHandle* handle, InputBuffers* inputBuffers);
 
 void runMLXWinogradTests() {
@@ -1160,8 +1160,8 @@ void runMLXWinotunerTests() {
 //
 // Skipped (with a stderr notice and immediate return) if the canonical test
 // model file is not present, so the test is non-blocking on workstations
-// without local models. The shell-script end-to-end smokes in Task 8 are
-// the load-bearing inference-correctness verification.
+// without local models. End-to-end inference correctness is verified
+// separately by the testgpuerror shell smokes (see cpp/rungpuerrortest.sh).
 void runMLXCoreMLSmokeTest() {
   // MLX_MUX_ANE == 100 (mlxbackend.cpp file-static constexpr; mirrored here).
   static constexpr int MLX_MUX_ANE_LOCAL = 100;

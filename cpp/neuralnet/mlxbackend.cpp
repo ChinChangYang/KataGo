@@ -2199,7 +2199,7 @@ void runMLXCoreMLSmokeTestAssertInternals(ComputeHandle* handle, InputBuffers* i
 // Declared here because BatchNormLayer is not in any public header.
 // Called from runMLXWinogradTests() in mlxtests.cpp.
 void runMLXBatchNormFP16Test() {
-  namespace mxc = mx;  // reuse the file-scope alias from line 29
+  namespace mxc = mx;  // reuse the file-scope `mx` alias
   using std::cout;
   using std::endl;
 
@@ -2236,7 +2236,7 @@ void runMLXBatchNormFP16Test() {
 // Declared here because ConvLayer is not in any public header.
 // Called from runMLXWinogradTests() in mlxtests.cpp.
 void runMLXConvLayerFP16WinogradTest() {
-  namespace mxc = mx;  // reuse the file-scope alias from line 29
+  namespace mxc = mx;  // reuse the file-scope `mx` alias
   using std::cout;
   using std::endl;
 
