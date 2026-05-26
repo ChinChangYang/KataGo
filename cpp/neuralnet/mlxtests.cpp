@@ -1201,11 +1201,17 @@ void runMLXCoreMLSmokeTest() {
 
   // Construction is the assertion: if any step throws, the process dies
   // with the throw's diagnostic.
+  // maxBatchSize=2 (not 1) so that the parity check below exercises the
+  // batched ANE path where the v15+ pass-policy stride bug fires. Single-batch
+  // calls only ever read row 0, which happens to land inside Swift's writes
+  // regardless of the C++-side stride assumption; rows >= 1 are what catches
+  // the bug class. See docs/superpowers/specs/2026-05-26-mlx-v15plus-pass-
+  // policy-fix-design.md "Symptom 2".
   ComputeHandle* handle = NeuralNet::createComputeHandle(
     context,
     loadedModel,
     /*logger=*/nullptr,
-    /*maxBatchSize=*/1,
+    /*maxBatchSize=*/2,
     /*requireExactNNLen=*/true,
     /*inputsUseNHWC=*/true,
     /*gpuIdxForThisThread=*/MLX_MUX_ANE_LOCAL,
@@ -1219,7 +1225,7 @@ void runMLXCoreMLSmokeTest() {
   testAssert(NeuralNet::isUsingFP16(handle) == true);  // useFP16Mode=Auto → true
 
   InputBuffers* inputBuffers = NeuralNet::createInputBuffers(
-    loadedModel, /*maxBatchSize=*/1, /*nnXLen=*/19, /*nnYLen=*/19);
+    loadedModel, /*maxBatchSize=*/2, /*nnXLen=*/19, /*nnYLen=*/19);
 
   runMLXCoreMLSmokeTestAssertInternals(handle, inputBuffers);
 
@@ -1253,13 +1259,13 @@ void runMLXCoreMLSmokeTest() {
     ComputeHandle* gpuHandle = NeuralNet::createComputeHandle(
       context, loadedModel,
       /*logger=*/nullptr,
-      /*maxBatchSize=*/1,
+      /*maxBatchSize=*/2,
       /*requireExactNNLen=*/true,
       /*inputsUseNHWC=*/true,
       /*gpuIdxForThisThread=*/0,  // MLX/GPU
       /*serverThreadIdx=*/1);
     InputBuffers* gpuInputBuffers = NeuralNet::createInputBuffers(
-      loadedModel, /*maxBatchSize=*/1, /*nnXLen=*/19, /*nnYLen=*/19);
+      loadedModel, /*maxBatchSize=*/2, /*nnXLen=*/19, /*nnYLen=*/19);
 
     // Initialize hash + score tables (Board ctor asserts IS_ZOBRIST_INITALIZED;
     // fillRowV7 reads ScoreValue tables). runnnlayertests does not call these
@@ -1290,68 +1296,77 @@ void runMLXCoreMLSmokeTest() {
     // ask the backend to pick a random symmetry — wrong for parity).
     // policyOptimism=0.0 and hasRowMeta=false match ctor defaults but
     // are set explicitly for the reader.
-    NNResultBuf bufAne;
-    NNResultBuf bufGpu;
-    bufAne.symmetry = 0;
-    bufGpu.symmetry = 0;
-    bufAne.policyOptimism = 0.0;
-    bufGpu.policyOptimism = 0.0;
-    bufAne.hasRowMeta = false;  // safe: parity branch is gated on
-    bufGpu.hasRowMeta = false;  // metaEncoderVersion==0 above.
-    bufAne.rowSpatialBuf.resize(NNInputs::NUM_FEATURES_SPATIAL_V7 * 19 * 19);
-    bufAne.rowGlobalBuf.resize(NNInputs::NUM_FEATURES_GLOBAL_V7);
+    // Two NNResultBufs per path: both filled with the SAME deterministic empty
+    // board. Per-row outputs must be identical within FP16 noise (the model is
+    // deterministic). A stride bug producing different per-row outputs (e.g.,
+    // row 0 correct, row 1 garbage) fails the per-row parity assertions below.
+    NNResultBuf bufAne0, bufAne1;
+    NNResultBuf bufGpu0, bufGpu1;
+    auto initBuf = [&](NNResultBuf& buf) {
+      buf.symmetry = 0;
+      buf.policyOptimism = 0.0;
+      buf.hasRowMeta = false;  // safe: parity branch is gated on
+                               // metaEncoderVersion==0 above.
+      buf.rowSpatialBuf.resize(NNInputs::NUM_FEATURES_SPATIAL_V7 * 19 * 19);
+      buf.rowGlobalBuf.resize(NNInputs::NUM_FEATURES_GLOBAL_V7);
+    };
+    initBuf(bufAne0); initBuf(bufAne1);
+    initBuf(bufGpu0); initBuf(bufGpu1);
+
     NNInputs::fillRowV7(
       board, hist, nextPla, nnInputParams,
       /*nnXLen=*/19, /*nnYLen=*/19, /*useNHWC=*/true,
-      bufAne.rowSpatialBuf.data(), bufAne.rowGlobalBuf.data());
-    bufGpu.rowSpatialBuf = bufAne.rowSpatialBuf;
-    bufGpu.rowGlobalBuf  = bufAne.rowGlobalBuf;
+      bufAne0.rowSpatialBuf.data(), bufAne0.rowGlobalBuf.data());
+    // All four bufs share the same input bytes.
+    bufAne1.rowSpatialBuf = bufAne0.rowSpatialBuf;
+    bufAne1.rowGlobalBuf  = bufAne0.rowGlobalBuf;
+    bufGpu0.rowSpatialBuf = bufAne0.rowSpatialBuf;
+    bufGpu0.rowGlobalBuf  = bufAne0.rowGlobalBuf;
+    bufGpu1.rowSpatialBuf = bufAne0.rowSpatialBuf;
+    bufGpu1.rowGlobalBuf  = bufAne0.rowGlobalBuf;
 
     // NNOutput::policyProbs is a fixed-size float[NNPos::MAX_NN_POLICY_SIZE]
     // (nninputs.h:148); no heap allocation needed.
-    NNOutput outAne;
-    NNOutput outGpu;
-    outAne.nnXLen = outGpu.nnXLen = 19;
-    outAne.nnYLen = outGpu.nnYLen = 19;
-    outAne.whiteOwnerMap = nullptr;
-    outGpu.whiteOwnerMap = nullptr;
+    NNOutput outAne0, outAne1, outGpu0, outGpu1;
+    for(NNOutput* o : {&outAne0, &outAne1, &outGpu0, &outGpu1}) {
+      o->nnXLen = 19;
+      o->nnYLen = 19;
+      o->whiteOwnerMap = nullptr;
+    }
 
-    std::vector<NNResultBuf*> inBufsAne = { &bufAne };
-    std::vector<NNOutput*> outsAne = { &outAne };
-    std::vector<NNResultBuf*> inBufsGpu = { &bufGpu };
-    std::vector<NNOutput*> outsGpu = { &outGpu };
+    std::vector<NNResultBuf*> inBufsAne = { &bufAne0, &bufAne1 };
+    std::vector<NNOutput*> outsAne = { &outAne0, &outAne1 };
+    std::vector<NNResultBuf*> inBufsGpu = { &bufGpu0, &bufGpu1 };
+    std::vector<NNOutput*> outsGpu = { &outGpu0, &outGpu1 };
 
     NeuralNet::getOutput(handle, inputBuffers,
-                         /*numBatchEltsFilled=*/1, inBufsAne.data(), outsAne);
+                         /*numBatchEltsFilled=*/2, inBufsAne.data(), outsAne);
     NeuralNet::getOutput(gpuHandle, gpuInputBuffers,
-                         1, inBufsGpu.data(), outsGpu);
+                         2, inBufsGpu.data(), outsGpu);
 
-    // Top-1 policy index parity. Strict argmax (first-of-max via >) would
-    // be flaky if two positions sit within FP16 noise of each other and
-    // the two backends round them in opposite directions. Detect that
-    // case and accept only when BOTH backends consider the two positions
-    // tied. A stride-scramble regression makes their probabilities
-    // differ by orders of magnitude (v16 pre-fix: topPolicyDelta 0.98,
-    // KL 14), not by 1e-3, so this tolerance does not weaken scrambling
-    // detection.
+    // Top-1 spatial-policy index parity (row 0, cross-backend). Strict argmax
+    // (first-of-max via >) would be flaky if two positions sit within FP16
+    // noise of each other and the two backends round them in opposite
+    // directions. Detect that case and accept only when BOTH backends
+    // consider the two positions tied. A stride-scramble regression makes
+    // their probabilities differ by orders of magnitude (v16 pre-fix:
+    // topPolicyDelta 0.98, KL 14), not by 1e-3, so this tolerance does not
+    // weaken scrambling detection.
     int top1Ane = 0, top1Gpu = 0;
     for(int i = 1; i < 19 * 19; i++) {
-      if(outAne.policyProbs[i] > outAne.policyProbs[top1Ane]) top1Ane = i;
-      if(outGpu.policyProbs[i] > outGpu.policyProbs[top1Gpu]) top1Gpu = i;
+      if(outAne0.policyProbs[i] > outAne0.policyProbs[top1Ane]) top1Ane = i;
+      if(outGpu0.policyProbs[i] > outGpu0.policyProbs[top1Gpu]) top1Gpu = i;
     }
     if(top1Ane != top1Gpu) {
-      // FP16 noise per channel is O(1e-3) on softmax outputs. A genuine
-      // tie at the top means both backends rate both positions within
-      // that envelope; a scramble fails this check by a wide margin.
       constexpr float kFP16PolicyTieTol = 1e-3f;
-      float aneAtAne = outAne.policyProbs[top1Ane];
-      float aneAtGpu = outAne.policyProbs[top1Gpu];
-      float gpuAtAne = outGpu.policyProbs[top1Ane];
-      float gpuAtGpu = outGpu.policyProbs[top1Gpu];
+      float aneAtAne = outAne0.policyProbs[top1Ane];
+      float aneAtGpu = outAne0.policyProbs[top1Gpu];
+      float gpuAtAne = outGpu0.policyProbs[top1Ane];
+      float gpuAtGpu = outGpu0.policyProbs[top1Gpu];
       bool aneTied = std::abs(aneAtAne - aneAtGpu) < kFP16PolicyTieTol;
       bool gpuTied = std::abs(gpuAtAne - gpuAtGpu) < kFP16PolicyTieTol;
       if(!(aneTied && gpuTied)) {
-        cerr << "runMLXCoreMLSmokeTest: TOP-1 POLICY MISMATCH"
+        cerr << "runMLXCoreMLSmokeTest: TOP-1 SPATIAL POLICY MISMATCH"
              << " ANE=" << top1Ane << " (p_ane=" << aneAtAne
              << ", p_gpu=" << gpuAtAne << ")"
              << " GPU=" << top1Gpu << " (p_ane=" << aneAtGpu
@@ -1363,10 +1378,30 @@ void runMLXCoreMLSmokeTest() {
       // effectively equally likely; the argmax flip is noise, not a bug.
     }
 
-    // Pass + value sanity (loose; FP16 noise on both sides).
-    testAssert(std::abs(outAne.policyProbs[19 * 19] - outGpu.policyProbs[19 * 19]) < 1.0);
-    testAssert(std::abs(outAne.whiteWinProb  - outGpu.whiteWinProb)  < 0.05);
-    testAssert(std::abs(outAne.whiteLossProb - outGpu.whiteLossProb) < 0.05);
+    // Per-row parity: identical inputs must produce identical outputs
+    // within FP16 noise. A v15+ pass-policy stride bug (row 0 reads inside
+    // Swift's writes, rows >= 1 read uninitialized memory) makes row 0 vs
+    // row 1 differ by orders of magnitude on the pass position. See
+    // docs/superpowers/specs/2026-05-26-mlx-v15plus-pass-policy-fix-design.md.
+    constexpr int kPassIdx = 19 * 19;
+    constexpr float kFP16ProbTol = 0.05f;
+    auto absDiff = [](float a, float b) { return std::abs(a - b); };
+    testAssert(absDiff(outAne0.policyProbs[kPassIdx], outAne1.policyProbs[kPassIdx]) < kFP16ProbTol);
+    testAssert(absDiff(outGpu0.policyProbs[kPassIdx], outGpu1.policyProbs[kPassIdx]) < kFP16ProbTol);
+
+    // Cross-path pass-position parity: with the v15+ fix in place, MLX/GPU
+    // and MLX/ANE compute the full two-layer pass head; their pass-position
+    // probabilities should agree within FP16 noise (the same tolerance the
+    // existing pass-sanity check below uses, made strict to catch the bug).
+    testAssert(absDiff(outAne0.policyProbs[kPassIdx], outGpu0.policyProbs[kPassIdx]) < kFP16ProbTol);
+    testAssert(absDiff(outAne1.policyProbs[kPassIdx], outGpu1.policyProbs[kPassIdx]) < kFP16ProbTol);
+
+    // Value-head sanity (loose; FP16 noise on both sides). Per-row to also
+    // catch any future cross-row corruption on the value/scoreValue path.
+    testAssert(std::abs(outAne0.whiteWinProb  - outGpu0.whiteWinProb)  < 0.05);
+    testAssert(std::abs(outAne0.whiteLossProb - outGpu0.whiteLossProb) < 0.05);
+    testAssert(std::abs(outAne1.whiteWinProb  - outGpu1.whiteWinProb)  < 0.05);
+    testAssert(std::abs(outAne1.whiteLossProb - outGpu1.whiteLossProb) < 0.05);
 
     NeuralNet::freeInputBuffers(gpuInputBuffers);
     NeuralNet::freeComputeHandle(gpuHandle);

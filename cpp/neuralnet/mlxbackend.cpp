@@ -2185,7 +2185,11 @@ void runMLXCoreMLSmokeTestAssertInternals(ComputeHandle* handle, InputBuffers* i
   testAssert(handle->gpuIdx == MLX_MUX_ANE);
   testAssert(static_cast<bool>(handle->coremlOnlyHandle));
   testAssert(handle->model == nullptr);
-  testAssert(inputBuffers->maxBatchSize == 1);
+  // maxBatchSize matches what runMLXCoreMLSmokeTest constructs (currently 2 so
+  // the parity check exercises the batched ANE path that catches the v15+
+  // pass-policy stride bug class — see mlxtests.cpp). Update both sides
+  // together if the smoke test's batch size changes.
+  testAssert(inputBuffers->maxBatchSize == 2);
 }
 
 // Directly-asserting unit test for BatchNormLayer fp16 mode.
