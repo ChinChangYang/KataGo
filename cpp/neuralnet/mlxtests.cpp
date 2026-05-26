@@ -1205,8 +1205,7 @@ void runMLXCoreMLSmokeTest() {
   // batched ANE path where the v15+ pass-policy stride bug fires. Single-batch
   // calls only ever read row 0, which happens to land inside Swift's writes
   // regardless of the C++-side stride assumption; rows >= 1 are what catches
-  // the bug class. See docs/superpowers/specs/2026-05-26-mlx-v15plus-pass-
-  // policy-fix-design.md "Symptom 2".
+  // the bug class.
   ComputeHandle* handle = NeuralNet::createComputeHandle(
     context,
     loadedModel,
@@ -1381,8 +1380,7 @@ void runMLXCoreMLSmokeTest() {
     // Per-row parity: identical inputs must produce identical outputs
     // within FP16 noise. A v15+ pass-policy stride bug (row 0 reads inside
     // Swift's writes, rows >= 1 read uninitialized memory) makes row 0 vs
-    // row 1 differ by orders of magnitude on the pass position. See
-    // docs/superpowers/specs/2026-05-26-mlx-v15plus-pass-policy-fix-design.md.
+    // row 1 differ by orders of magnitude on the pass position.
     constexpr int kPassIdx = 19 * 19;
     constexpr float kFP16ProbTol = 0.05f;
     auto absDiff = [](float a, float b) { return std::abs(a - b); };

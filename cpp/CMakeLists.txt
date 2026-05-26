@@ -229,9 +229,9 @@ elseif(USE_BACKEND STREQUAL "MLX")
     neuralnet/mlxtests.cpp
     )
 
-  # Build the KataGoSwift static library. Same lines as the METAL branch above
-  # — kept inline (variant 2a) to leave the Metal branch untouched. The library
-  # exposes CoreMLComputeHandle to C++ via the generated KataGoSwift-swift.h.
+  # Build the KataGoSwift static library. Same lines as the METAL branch above,
+  # kept inline to leave the Metal branch untouched. The library exposes
+  # CoreMLComputeHandle to C++ via the generated KataGoSwift-swift.h.
   add_library(KataGoSwift STATIC
     neuralnet/metalbackend.swift
     neuralnet/metallayers.swift)
