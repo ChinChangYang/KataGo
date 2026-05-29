@@ -122,4 +122,27 @@ void Tests::runCoremlConvertDeterminismTest() {
   cout << "runCoremlConvertDeterminismTest passed" << endl;
 }
 
+void Tests::runCoremlConvertGoldenTest() {
+  cout << "Running runCoremlConvertGoldenTest" << endl;
+  // Golden hashes from the converter for g170-b6c96, FP16, 19x19,
+  // optimize_identity_mask=false. model.mlmodel is byte-stable thanks to
+  // deterministic protobuf serialization. DO NOT bump katagocoreml VERSION.
+  const string GOLDEN_WEIGHT_SHA = "4dd744f0907d37bf45287ebf765a124c472f61116dc753bdc48fb6ab3a5599d9";
+  const string GOLDEN_MODEL_SHA  = "923f7ed7b2eba03eaca58068f3a90195444278e956a4f5f361df6dd75ba23316";
+
+  const string model = "tests/models/g170-b6c96-s175395328-d26788732.bin.gz";
+  string pkg;
+  string weightBin = convertToTemp(model, "golden", 19, 19, true, false, pkg);
+  string modelSpec = pkg + "/Data/com.apple.CoreML/model.mlmodel";
+
+  string weightSha = sha256OfFile(weightBin);
+  string modelSha = sha256OfFile(modelSpec);
+  cout << "  weight.bin sha256 = " << weightSha << endl;
+  cout << "  model.mlmodel sha256 = " << modelSha << endl;
+
+  testAssert(weightSha == GOLDEN_WEIGHT_SHA);
+  testAssert(modelSha == GOLDEN_MODEL_SHA);
+  cout << "runCoremlConvertGoldenTest passed" << endl;
+}
+
 #endif // USE_METAL_BACKEND
