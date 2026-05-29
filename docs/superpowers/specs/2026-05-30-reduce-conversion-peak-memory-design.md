@@ -164,15 +164,53 @@ Mac test budget accordingly when implemented.
 - **Ratio-based budget**, model-size-independent: assert
   `peak_RSS < decompressed_size × R` (R ≈ 1.5). **Fails on today's ~3–4× duplication**,
   passes after A1/A2. Written first (TDD): watch it fail, implement until green.
-- Fixture: a small bundled/available test net for the always-on CI assertion. Developer
-  runs the same test locally against the real b40c768 to confirm the absolute peak on a
-  representative net.
+- Fixture: a committed `cpp/tests/models/` net for the always-on CI assertion (e.g.
+  `g170e-b10c128-…bin.gz`, the largest committed binary net, to best stress the ratio).
+  Developer runs the same test locally against the real b40c768 to confirm the absolute
+  peak on a representative net.
 
-### Golden-output equivalence test (guards the A2 parser rewrite)
+### Golden-output equivalence (guards the A1/A2 refactor) — expanded coverage
 
-- Convert a small net; assert the produced **weight blob is byte-identical** to a committed
-  golden hash (and/or identical model spec). Exercises both the binary `@BIN@` and text
-  paths.
+The refactor must produce **byte-identical** output to the pre-refactor converter. Byte
+identity of the weight blob + model spec strictly implies identical inference, so no
+separate numeric/inference comparison is needed for the converter (engine inference tests
+already cover end-to-end).
+
+**Fixtures (already committed under `cpp/tests/models/`):**
+
+- `g170-b6c96-s175395328-d26788732.bin.gz` (binary `@BIN@`) **and**
+  `g170-b6c96-s175395328-d26788732.txt.gz` (text) — the *same* net in both formats.
+- `g170e-b10c128-s1141046784-d204142634.bin.gz` (binary, larger).
+- `g103-b6c96-…txt.gz`, `grun2-b6c96-…txt.gz`, `grun50-b6c96-…txt.gz`,
+  `run4-…b6c96.txt.gz` (older model versions, text) — exercise different version branches.
+
+**Test types:**
+
+1. **Characterization goldens (matrix).** For each committed fixture, across
+   {FP16, FP32} × {19×19, 9×9} × {`optimize_identity_mask` on, off}, assert the refactored
+   converter reproduces a committed golden — **SHA-256 of the weight blob** and **SHA-256
+   of `model.mlmodel`** — generated from the pre-refactor converter at the start of
+   implementation (goldens frozen as step 1, then the refactor must keep them green). The
+   matrix exercises both parser paths, both precisions, the mask-constant/board-size paths,
+   and the `optimize_identity_mask` branch.
+2. **Cross-format equivalence.** Convert `g170-b6c96` from `.bin.gz` (streaming binary path)
+   and from `.txt.gz` (text path); assert **identical weight blob**. Pits the rewritten
+   streaming binary parser directly against the text parser — the core A2 risk — without
+   relying on a frozen golden.
+3. **Determinism.** Convert the same input twice → byte-identical output.
+
+**Equivalence granularity:** weight blob bytes byte-identical (SHA-256); `model.mlmodel`
+protobuf byte-identical (SHA-256), falling back to structural protobuf equality only if
+serialization ordering proves unstable across runs.
+
+**Named coverage gap (no silent gaps).** The committed CI fixtures are old (≈ v8–10,
+ordinary + global-pooling blocks). They do **not** exercise **nested-bottleneck blocks**,
+the **SGF metadata encoder**, or **model versions ≥ 15** — precisely the code paths the
+target b40c768**nbt** uses. Those are covered by a **developer-run (not CI) golden** that
+compares the refactored converter against a pre-refactor baseline on the real b40c768
+(and/or a smaller modern nbt net), committing only the golden hashes. Closing this gap in
+CI requires adding a small modern-architecture fixture (tracked as follow-up); until then
+the developer-run golden is the gate for the nbt/metadata/v16 paths.
 
 ### Existing coverage
 
@@ -204,6 +242,9 @@ target without needing A5. If not, A5 brings the convert peak to ~one layer.
 - `cpp/external/katagocoreml/src/Converter.cpp`
 - `cpp/external/katagocoreml/src/parser/KataGoParser.{hpp,cpp}` (streaming reader, A2)
 - `cpp/external/katagocoreml/CMakeLists.txt` + new `cpp/external/katagocoreml/test/`
+  (peak test + golden matrix + cross-format + determinism; reuses `cpp/tests/models/`
+  fixtures; committed golden hashes). Follow-up: add a small modern-architecture
+  (nested-bottleneck / v15+ / SGF-metadata) fixture to close the named CI coverage gap.
 - `cpp/neuralnet/desc.h` / `desc.cpp` (`ModelDesc::releaseWeights`, A3)
 - `cpp/neuralnet/metalbackend.cpp` (call `releaseWeights` in ANE path, A3)
 - `ios/KataGo iOS/KataGo iOS/KataGo iOS.entitlements` (A4)
