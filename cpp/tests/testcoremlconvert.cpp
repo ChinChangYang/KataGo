@@ -145,4 +145,32 @@ void Tests::runCoremlConvertGoldenTest() {
   cout << "runCoremlConvertGoldenTest passed" << endl;
 }
 
+void Tests::runCoremlConvertPeakMemoryTest() {
+  cout << "Running runCoremlConvertPeakMemoryTest" << endl;
+  const char* envModel = getenv("KATAGO_COREML_PEAK_MODEL");
+  bool strict = (envModel != nullptr);
+  string model = strict ? string(envModel)
+                        : string("tests/models/g170e-b10c128-s1141046784-d204142634.bin.gz");
+
+  size_t decompressed = gzDecompressedSize(model);
+  string pkg;
+  string weightBin = convertToTemp(model, "peak", 19, 19, true, false, pkg);
+  (void)weightBin;
+  size_t peak = peakRssBytes();
+
+  double ratio = (double)peak / (double)decompressed;
+  cout << "  model = " << model << endl;
+  cout << "  decompressed = " << (decompressed / (1024 * 1024)) << " MB" << endl;
+  cout << "  peak RSS     = " << (peak / (1024 * 1024)) << " MB" << endl;
+  cout << "  ratio        = " << ratio << "x" << endl;
+
+  const double R = 1.5;
+  if(strict) {
+    testAssert(ratio < R);
+  } else {
+    testAssert(peak < (size_t)2 * 1024 * 1024 * 1024);
+  }
+  cout << "runCoremlConvertPeakMemoryTest passed" << endl;
+}
+
 #endif // USE_METAL_BACKEND

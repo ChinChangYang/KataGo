@@ -764,7 +764,7 @@ int MainCmds::runcoremlconverttests(const vector<string>& args) {
   Tests::runCoremlConvertCrossFormatTest();
   Tests::runCoremlConvertDeterminismTest();
   Tests::runCoremlConvertGoldenTest();
-  //Tests::runCoremlConvertPeakMemoryTest();
+  Tests::runCoremlConvertPeakMemoryTest();
   cout << "All CoreML converter tests passed" << endl;
   return 0;
 #else
