@@ -88,4 +88,28 @@ void Tests::runCoremlConvertSmokeTest() {
   cout << "runCoremlConvertSmokeTest passed" << endl;
 }
 
+void Tests::runCoremlConvertCrossFormatTest() {
+  cout << "Running runCoremlConvertCrossFormatTest" << endl;
+  const string binModel = "tests/models/g170-b6c96-s175395328-d26788732.bin.gz";
+  const string txtModel = "tests/models/g170-b6c96-s175395328-d26788732.txt.gz";
+  // Full matrix: precision x board size x optimize_identity_mask. For identical
+  // options, the binary-stream parser and the text parser must agree exactly.
+  for(bool fp16 : {true, false}) {
+    for(auto bs : { std::pair<int,int>{19, 19}, std::pair<int,int>{9, 9} }) {
+      for(bool mask : {false, true}) {
+        string tag = string(fp16 ? "fp16" : "fp32") + "_" + to_string(bs.first)
+                   + "_" + (mask ? "mask" : "nomask");
+        string binPkg, txtPkg;
+        string binWeights = convertToTemp(binModel, "xfmt_bin_" + tag, bs.first, bs.second, fp16, mask, binPkg);
+        string txtWeights = convertToTemp(txtModel, "xfmt_txt_" + tag, bs.first, bs.second, fp16, mask, txtPkg);
+        string binHash = sha256OfFile(binWeights);
+        string txtHash = sha256OfFile(txtWeights);
+        cout << "  " << tag << ": bin=" << binHash << " txt=" << txtHash << endl;
+        testAssert(binHash == txtHash);
+      }
+    }
+  }
+  cout << "runCoremlConvertCrossFormatTest passed" << endl;
+}
+
 #endif // USE_METAL_BACKEND

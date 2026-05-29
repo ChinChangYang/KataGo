@@ -761,7 +761,7 @@ int MainCmds::runcoremlconverttests(const vector<string>& args) {
   (void)args;
 #ifdef USE_METAL_BACKEND
   Tests::runCoremlConvertSmokeTest();
-  //Tests::runCoremlConvertCrossFormatTest();
+  Tests::runCoremlConvertCrossFormatTest();
   //Tests::runCoremlConvertDeterminismTest();
   //Tests::runCoremlConvertGoldenTest();
   //Tests::runCoremlConvertPeakMemoryTest();
