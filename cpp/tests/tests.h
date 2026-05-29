@@ -112,6 +112,13 @@ namespace Tests {
 
   //testbook.cpp
   void runBookTests();
+
+  //testcoremlconvert.cpp (METAL backend only)
+  void runCoremlConvertSmokeTest();
+  void runCoremlConvertCrossFormatTest();
+  void runCoremlConvertDeterminismTest();
+  void runCoremlConvertGoldenTest();
+  void runCoremlConvertPeakMemoryTest();
 }
 
 namespace TestCommon {

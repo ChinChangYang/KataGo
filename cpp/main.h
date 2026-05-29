@@ -35,6 +35,7 @@ namespace MainCmds {
   int runownershipspeedtest(const std::vector<std::string>& args);
   int runsleeptest(const std::vector<std::string>& args);
   int runconfigtests(const std::vector<std::string>& args);
+  int runcoremlconverttests(const std::vector<std::string>& args);
 
   int samplesgfs(const std::vector<std::string>& args);
   int dataminesgfs(const std::vector<std::string>& args);

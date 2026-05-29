@@ -282,6 +282,7 @@ add_executable(katago
   tests/testbook.cpp
   tests/testcommon.cpp
   tests/testconfig.cpp
+  tests/testcoremlconvert.cpp
   tests/testmisc.cpp
   tests/testnnevalcanary.cpp
   tests/testrules.cpp
