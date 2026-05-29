@@ -75,19 +75,19 @@ Board sizes: 2x2 to 37x37.
         .init(
             title: "Official KataGo Network",
             description: """
-This is the strongest confidently-rated network in KataGo distributed training. It runs using the Metal backend and may offer faster performance than the built-in model on high-end Macs.
+This is the strongest confidently-rated network in KataGo's distributed training. It runs using the Metal backend, which automatically converts to CoreML for inference on Apple devices. As a 40-block network it is the most accurate option, but it is a large (~824 MB) download and runs slower and uses more power than smaller networks — best suited to capable devices.
 
 This app will irregularly update the URL for the strongest confidently-rated network. If a new network becomes available, you can keep using your current one or manually switch by deleting it and downloading the latest version.
 
-Name: kata1-zhizi-b28c512nbt-muonfd2.
-Uploaded at: 2026-03-22 15:32:56 UTC.
-Elo Rating: 14155.6 ± 13.6 - (3,551 games).
+Name: kata1-zhizi-b40c768nbt-fdx6d.
+Uploaded at: 2026-05-02 17:09:37 UTC.
+Elo Rating: 14501.5 ± 21.6 - (4,296 games).
 
 Board sizes: 2x2 to 37x37.
 """,
-            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-zhizi-b28c512nbt-muonfd2.bin.gz",
+            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-zhizi-b40c768nbt-fdx6d.bin.gz",
             fileName: "official.bin.gz",
-            fileSize: 271_447_864
+            fileSize: 863_846_339
         ),
         .init(
             title: "FD3 Network",
