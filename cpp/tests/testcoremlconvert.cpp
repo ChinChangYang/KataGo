@@ -112,4 +112,14 @@ void Tests::runCoremlConvertCrossFormatTest() {
   cout << "runCoremlConvertCrossFormatTest passed" << endl;
 }
 
+void Tests::runCoremlConvertDeterminismTest() {
+  cout << "Running runCoremlConvertDeterminismTest" << endl;
+  const string model = "tests/models/g170e-b10c128-s1141046784-d204142634.bin.gz";
+  string pkgA, pkgB;
+  string a = convertToTemp(model, "det_a", 19, 19, true, false, pkgA);
+  string b = convertToTemp(model, "det_b", 19, 19, true, false, pkgB);
+  testAssert(sha256OfFile(a) == sha256OfFile(b));
+  cout << "runCoremlConvertDeterminismTest passed" << endl;
+}
+
 #endif // USE_METAL_BACKEND

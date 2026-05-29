@@ -762,7 +762,7 @@ int MainCmds::runcoremlconverttests(const vector<string>& args) {
 #ifdef USE_METAL_BACKEND
   Tests::runCoremlConvertSmokeTest();
   Tests::runCoremlConvertCrossFormatTest();
-  //Tests::runCoremlConvertDeterminismTest();
+  Tests::runCoremlConvertDeterminismTest();
   //Tests::runCoremlConvertGoldenTest();
   //Tests::runCoremlConvertPeakMemoryTest();
   cout << "All CoreML converter tests passed" << endl;
