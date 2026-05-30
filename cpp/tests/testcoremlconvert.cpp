@@ -1,6 +1,6 @@
 #include "../tests/tests.h"
 
-#ifdef USE_METAL_BACKEND
+#ifdef KATAGO_COREML_CONVERT_TESTS
 
 #include <cstdint>
 #include <cstdlib>
@@ -173,4 +173,4 @@ void Tests::runCoremlConvertPeakMemoryTest() {
   cout << "runCoremlConvertPeakMemoryTest passed" << endl;
 }
 
-#endif // USE_METAL_BACKEND
+#endif // KATAGO_COREML_CONVERT_TESTS

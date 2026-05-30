@@ -759,7 +759,7 @@ int MainCmds::runconfigtests(const vector<string>& args) {
 
 int MainCmds::runcoremlconverttests(const vector<string>& args) {
   (void)args;
-#ifdef USE_METAL_BACKEND
+#ifdef KATAGO_COREML_CONVERT_TESTS
   Tests::runCoremlConvertSmokeTest();
   Tests::runCoremlConvertCrossFormatTest();
   Tests::runCoremlConvertDeterminismTest();
@@ -768,7 +768,7 @@ int MainCmds::runcoremlconverttests(const vector<string>& args) {
   cout << "All CoreML converter tests passed" << endl;
   return 0;
 #else
-  cout << "runcoremlconverttests is only available in a METAL backend build" << endl;
+  cout << "runcoremlconverttests is only available in a METAL CMake build" << endl;
   return 0;
 #endif
 }
