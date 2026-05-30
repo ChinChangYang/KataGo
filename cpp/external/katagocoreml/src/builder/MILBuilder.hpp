@@ -80,6 +80,15 @@ private:
                     const std::vector<float>& data,
                     const std::vector<int64_t>& shape);
 
+    void addOwnedConstOp(CoreML::Specification::MILSpec::Block* block,
+                         const std::string& name,
+                         std::vector<float>&& data,
+                         const std::vector<int64_t>& shape);
+
+    void emitConstOp(CoreML::Specification::MILSpec::Block* block,
+                     const std::string& name,
+                     const std::vector<int64_t>& shape);
+
     void addIntArrayConstOp(CoreML::Specification::MILSpec::Block* block,
                             const std::string& name,
                             const std::vector<int32_t>& values);
