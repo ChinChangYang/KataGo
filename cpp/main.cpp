@@ -128,6 +128,8 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::runnnevalcanarytests(subArgs);
   else if(subcommand == "runconfigtests")
     return MainCmds::runconfigtests(subArgs);
+  else if(subcommand == "runcoremlconverttests")
+    return MainCmds::runcoremlconverttests(subArgs);
   else if(subcommand == "samplesgfs")
     return MainCmds::samplesgfs(subArgs);
   else if(subcommand == "dataminesgfs")

@@ -282,6 +282,7 @@ add_executable(katago
   tests/testbook.cpp
   tests/testcommon.cpp
   tests/testconfig.cpp
+  tests/testcoremlconvert.cpp
   tests/testmisc.cpp
   tests/testnnevalcanary.cpp
   tests/testrules.cpp
@@ -400,6 +401,7 @@ elseif(USE_BACKEND STREQUAL "TENSORRT")
   target_link_libraries(katago CUDA::cudart_static ${TENSORRT_LIBRARY})
 elseif(USE_BACKEND STREQUAL "METAL")
   target_compile_definitions(katago PRIVATE USE_METAL_BACKEND)
+  target_compile_definitions(katago PRIVATE KATAGO_COREML_CONVERT_TESTS)
   target_link_libraries(katago KataGoSwift katagocoreml
     ${KATAGOCOREML_DEP_LDFLAGS}
     "-framework MetalPerformanceShaders"
