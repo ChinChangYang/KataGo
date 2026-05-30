@@ -32,6 +32,9 @@ public:
     /// Get weight entries for blob serialization
     const std::vector<WeightEntry>& getWeights() const { return m_ops.getWeights(); }
 
+    /// Get weight entries for blob serialization (mutable; serialization sets blob_offset)
+    std::vector<WeightEntry>& getWeightsMutable() { return m_ops.getWeightsMutable(); }
+
     /// Get board dimensions
     int getBoardXSize() const { return m_board_x_size; }
     int getBoardYSize() const { return m_board_y_size; }
