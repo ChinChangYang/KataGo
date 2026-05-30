@@ -465,7 +465,6 @@
 		E15CEE372DCCF9EA00D78AE3 /* HumanSLModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
 		E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */; };
-		E15E3A262EA8FEDB00B70DE2 /* demoplay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */; };
 		E15E3A292EA8FF2C00B70DE2 /* evalcache.h in Headers */ = {isa = PBXBuildFile; fileRef = E15E3A272EA8FF2C00B70DE2 /* evalcache.h */; };
 		E15E3A2A2EA8FF2C00B70DE2 /* evalcache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
@@ -1058,7 +1057,6 @@
 		E15A220A2EE6AED800708C25 /* GameSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSplitView.swift; sourceTree = "<group>"; };
 		E15CEE362DCCF9B400D78AE3 /* HumanSLModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSLModel.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
-		E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = demoplay.cpp; sourceTree = "<group>"; };
 		E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = startposes.cpp; sourceTree = "<group>"; };
 		E15E3A272EA8FF2C00B70DE2 /* evalcache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = evalcache.h; sourceTree = "<group>"; };
 		E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = evalcache.cpp; sourceTree = "<group>"; };
@@ -1715,7 +1713,6 @@
 		E11838882B081DA800637D44 /* command */ = {
 			isa = PBXGroup;
 			children = (
-				E15E3A232EA8FEDB00B70DE2 /* demoplay.cpp */,
 				E15E3A242EA8FEDB00B70DE2 /* startposes.cpp */,
 				E11838892B081DA800637D44 /* genbook.cpp */,
 				E118388A2B081DA800637D44 /* analysis.cpp */,
@@ -2455,7 +2452,6 @@
 				E118818C2B081E3E00637D44 /* searchupdatehelpers.cpp in Sources */,
 				E11881932B081E3E00637D44 /* search.cpp in Sources */,
 				E15E3A252EA8FEDB00B70DE2 /* startposes.cpp in Sources */,
-				E15E3A262EA8FEDB00B70DE2 /* demoplay.cpp in Sources */,
 				E11881962B081E3E00637D44 /* searchhelpers.cpp in Sources */,
 				E118805B2B081E3900637D44 /* rand.cpp in Sources */,
 				E118804E2B081E3900637D44 /* fileutils.cpp in Sources */,

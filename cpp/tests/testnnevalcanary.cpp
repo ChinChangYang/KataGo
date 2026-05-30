@@ -303,21 +303,21 @@ struct GpuErrorStats {
     }
   }
 
-  double getAverage(std::vector<double>& vec) {
+  double getAverage(const std::vector<double>& vec) {
     double sum = 0;
     for(const double& x: vec)
       sum += x;
     return sum / vec.size();
   }
 
-  double get90Percentile(std::vector<double>& sortedVec) {
+  double get90Percentile(const std::vector<double>& sortedVec) {
     return sortedVec[(sortedVec.size()-1) * 9 / 10];
   }
 
-  double get99Percentile(std::vector<double>& sortedVec) {
+  double get99Percentile(const std::vector<double>& sortedVec) {
     return sortedVec[(sortedVec.size()-1) * 99 / 100];
   }
-  double getMaxPercentile(std::vector<double>& sortedVec) {
+  double getMaxPercentile(const std::vector<double>& sortedVec) {
     return sortedVec[sortedVec.size()-1];
   }
 
@@ -551,7 +551,7 @@ bool Tests::runBackendErrorTest(
         flipIfPassOrWFirst,
         allowGameOver,
         NULL,
-        [&](Sgf::PositionSample& sample, const BoardHistory& hist, const string& comments) {
+        [&](const Sgf::PositionSample& sample, const BoardHistory& hist, const string& comments) {
           (void)sample;
           (void)comments;
           if(!quickTest || filterRand.nextBool(0.3))
@@ -577,7 +577,7 @@ bool Tests::runBackendErrorTest(
     throw StringError("Unknown dataset to test gpu error on: " + boardSizeDataset);
 
   auto evalBoard = [&](NNEvaluator* nnE, const BoardHistory& hist) {
-    Board board = hist.getRecentBoard(0);
+    const Board& board = hist.getRecentBoard(0);
     MiscNNInputParams nnInputParams;
     nnInputParams.symmetry = (int)(BoardHistory::getSituationRulesAndKoHash(board,hist,hist.presumedNextMovePla,0.5).hash0 & 7);
     nnInputParams.policyOptimism = policyOptimismForTest;
@@ -612,6 +612,7 @@ bool Tests::runBackendErrorTest(
 
   if(verbose)
     logger.write("Running evaluations in fp32");
+  fp32.reserve(hists.size());
   for(const BoardHistory& hist: hists)
     fp32.push_back(evalBoard(nnEval32,hist));
 
@@ -630,8 +631,9 @@ bool Tests::runBackendErrorTest(
     std::vector<uint32_t> permutation(maxBatchSize);
     rand.fillShuffledUIntRange(maxBatchSize, permutation.data());
     vector<std::thread> threads;
+    threads.reserve(maxBatchSize);
     for(int i = 0; i<maxBatchSize; i++)
-      threads.push_back(std::thread(runThread,permutation[i]));
+      threads.emplace_back(runThread,permutation[i]);
     for(int i = 0; i<maxBatchSize; i++)
       threads[i].join();
   }
@@ -654,8 +656,9 @@ bool Tests::runBackendErrorTest(
       std::vector<uint32_t> permutation(maxBatchSize);
       rand.fillShuffledUIntRange(maxBatchSize, permutation.data());
       vector<std::thread> threads;
+      threads.reserve(maxBatchSize);
       for(int i = 0; i<maxBatchSize; i++)
-        threads.push_back(std::thread(runThread,permutation[i]));
+        threads.emplace_back(runThread,permutation[i]);
       for(int i = 0; i<maxBatchSize; i++)
         threads[i].join();
     }

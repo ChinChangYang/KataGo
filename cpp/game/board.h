@@ -49,9 +49,9 @@ namespace PlayerIO {
 typedef short Loc;
 namespace Location
 {
-  Loc getLoc(int x, int y, int x_size);
-  int getX(Loc loc, int x_size);
-  int getY(Loc loc, int x_size);
+  inline Loc getLoc(int x, int y, int x_size) { return (Loc)((x+1) + (y+1)*(x_size+1)); }
+  inline int getX(Loc loc, int x_size) { return (loc % (x_size+1)) - 1; }
+  inline int getY(Loc loc, int x_size) { return (loc / (x_size+1)) - 1; }
 
   void getAdjacentOffsets(short adj_offsets[8], int x_size);
   bool isAdjacent(Loc loc0, Loc loc1, int x_size);
@@ -202,7 +202,7 @@ struct Board
   //Check if this location is adjacent a given chain.
   bool isAdjacentToChain(Loc loc, Loc chain) const;
   //Does this connect two pla distinct groups that are not both pass-alive and not within opponent pass-alive area either?
-  bool isNonPassAliveSelfConnection(Loc loc, Player pla, Color* passAliveArea) const;
+  bool isNonPassAliveSelfConnection(Loc loc, Player pla, const Color* passAliveArea) const;
   //Is this board empty?
   bool isEmpty() const;
   //Count the number of stones on the board
@@ -231,7 +231,7 @@ struct Board
   //Same, but sets multiple stones, and only requires that the final configuration contain no zero-liberty groups.
   //If it does contain a zero liberty group, fails and returns false and leaves the board in an arbitrarily changed but valid state.
   //Also returns false if any location is specified more than once.
-  bool setStonesFailIfNoLibs(std::vector<Move> placements);
+  bool setStonesFailIfNoLibs(const std::vector<Move>& placements);
 
   //Attempts to play the specified move. Returns true if successful, returns false if the move was illegal.
   bool playMove(Loc loc, Player pla, bool isMultiStoneSuicideLegal);
@@ -297,12 +297,11 @@ struct Board
   void checkConsistency() const;
   //For the moment, only used in testing since it does extra consistency checks.
   //If we need a version to be used in "prod", we could make an efficient version maybe as operator==.
-  bool isEqualForTesting(const Board& other, bool checkNumCaptures, bool checkSimpleKo) const;
+  bool isEqualForTesting(const Board& other, bool checkNumCaptures = true, bool checkSimpleKo = true) const;
 
-  static Board parseBoard(int xSize, int ySize, const std::string& s);
-  static Board parseBoard(int xSize, int ySize, const std::string& s, char lineDelimiter);
+  static Board parseBoard(int xSize, int ySize, const std::string& s, char lineDelimiter = '\n');
   static void printBoard(std::ostream& out, const Board& board, Loc markLoc, const std::vector<Move>* hist);
-  static std::string toStringSimple(const Board& board, char lineDelimiter);
+  static std::string toStringSimple(const Board& board, char lineDelimiter = '\n');
   static nlohmann::json toJson(const Board& board);
   static Board ofJson(const nlohmann::json& data);
 

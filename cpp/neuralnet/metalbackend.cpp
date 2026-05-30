@@ -5,6 +5,7 @@
 #include "../neuralnet/nninputs.h"
 #include "../neuralnet/nninterface.h"
 #include "../neuralnet/metalbackend.h"
+#include "../core/test.h"
 
 #include <katagocoreml/KataGoConverter.hpp>
 #include <katagocoreml/Version.hpp>
@@ -114,8 +115,11 @@ SWConvLayerDesc convLayerDescToSwift(const ConvLayerDesc* desc) {
 
 /// Converts a BatchNormLayerDesc instance from C++ to Swift
 SWBatchNormLayerDesc batchNormLayerDescToSwift(const BatchNormLayerDesc* desc) {
+  int numChannels = desc->numChannels;
+  testAssert(desc->mergedScale.size() == numChannels);
+  testAssert(desc->mergedBias.size() == numChannels);
   return createSWBatchNormLayerDesc(
-    desc->numChannels,
+    numChannels,
     (float*)desc->mergedScale.data(),
     (float*)desc->mergedBias.data());
 }
@@ -533,9 +537,15 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> createCoreMLOnlyHandleI
   }
 
   if(context->useFP16Mode == enabled_t::False) {
-    cerr << "Metal backend " << serverThreadIdx << ": Warning: ANE mode with FP32 - "
-         << "CoreML FP32 runs on CPU only (no ANE acceleration) and is significantly slower. "
-         << "Consider using GPU mode (metalDeviceToUseThread<N>=0) or setting metalUseFP16=true." << endl;
+    // Honor the user's explicit FP32 request even on an ANE thread: ANE
+    // hardware is FP16-only, so CoreML will fall back to CPU. The result is
+    // correct (and deterministic) FP32 CoreML inference, just much slower
+    // than the GPU path - which is generally what users disabling FP16 for
+    // reference/debug comparison want.
+    cerr << "Metal backend " << serverThreadIdx << ": Note: ANE thread with metalUseFP16=false: "
+         << "the ANE is FP16-only, so CoreML will run this thread on CPU (FP32). "
+         << "This is significantly slower than the GPU path; if you wanted ANE acceleration, "
+         << "remove metalUseFP16=false." << endl;
   }
 
   cerr << "Metal backend " << serverThreadIdx << ": Mux ANE mode - using CoreML (CPU+ANE)" << endl;
@@ -615,10 +625,12 @@ ComputeHandle* NeuralNet::createComputeHandle(
 
   int gpuIdx = (gpuIdxForThisThread == -1) ? 0 : gpuIdxForThisThread;
   if(gpuIdx != METAL_MUX_GPU && gpuIdx != METAL_MUX_ANE) {
-    cerr << "Metal backend: Warning: Unrecognized gpuIdx=" << gpuIdx
-         << ", valid values are " << METAL_MUX_GPU << " (GPU) and " << METAL_MUX_ANE << " (ANE)"
-         << ". Defaulting to GPU mode." << endl;
-    gpuIdx = METAL_MUX_GPU;
+    throw StringError(
+      "Metal backend: Invalid metalDeviceToUseThread value " + std::to_string(gpuIdx) +
+      " for server thread " + std::to_string(serverThreadIdx) +
+      ". The Metal backend only supports " + std::to_string(METAL_MUX_GPU) +
+      " (GPU via MPSGraph) or " + std::to_string(METAL_MUX_ANE) +
+      " (ANE via CoreML).");
   }
   ComputeHandle* handle = nullptr;
 
@@ -656,7 +668,7 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
   maxBatchSize = maxBatchSz;
   policyResultChannels = m.policyHead.p2Conv.outChannels;
 
-  assert(((m.modelVersion < 16) || (policyResultChannels == 4)) &&
+  testAssert(((m.modelVersion < 16) || (policyResultChannels == 4)) &&
          ((m.modelVersion >= 16) || (m.modelVersion < 12) || (policyResultChannels == 2)) &&
          ((m.modelVersion >= 12) || (policyResultChannels == 1)));
 
@@ -673,9 +685,9 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
   singleScoreValuesResultElts = (size_t)m.numScoreValueChannels;
   singleMaskElts = (size_t)nnXLen * nnYLen;
 
-  assert(NNModelVersion::getNumSpatialFeatures(m.modelVersion) == m.numInputChannels);
-  assert(NNModelVersion::getNumGlobalFeatures(m.modelVersion) == m.numInputGlobalChannels);
-  assert(singleValueResultElts == 3);
+  testAssert(NNModelVersion::getNumSpatialFeatures(m.modelVersion) == m.numInputChannels);
+  testAssert(NNModelVersion::getNumGlobalFeatures(m.modelVersion) == m.numInputGlobalChannels);
+  testAssert(singleValueResultElts == 3);
 
   rowSpatialBufferElts = (size_t)maxBatchSz * singleSpatialElts;
   userInputBufferElts = (size_t)maxBatchSize * singleInputElts;
@@ -981,22 +993,49 @@ void MetalProcess::getMetalOutput(
   int numBatchEltsFilled,
   NNResultBuf** inputBufs,
   vector<NNOutput*>& outputs) {
-  assert(numBatchEltsFilled > 0);
+  // Use testAssert (never compiled out) for these load-bearing checks: a
+  // mismatch here would silently feed wrong-shaped input or overflow output
+  // buffers, producing garbage inference results rather than failing.
+  testAssert(numBatchEltsFilled > 0);
 
   int batchSize = numBatchEltsFilled;
 
-  assert(batchSize <= inputBuffers->maxBatchSize);
-  assert((NNModelVersion::getNumSpatialFeatures(gpuHandle->version) * gpuHandle->nnXLen * gpuHandle->nnYLen) <= (int)inputBuffers->singleInputElts);
-  assert(NNModelVersion::getNumGlobalFeatures(gpuHandle->version) == (int)inputBuffers->singleInputGlobalElts);
+  testAssert(batchSize <= inputBuffers->maxBatchSize);
+  testAssert((NNModelVersion::getNumSpatialFeatures(gpuHandle->version) * gpuHandle->nnXLen * gpuHandle->nnYLen) <= (int)inputBuffers->singleInputElts);
+  testAssert(NNModelVersion::getNumGlobalFeatures(gpuHandle->version) == (int)inputBuffers->singleInputGlobalElts);
 
   if(gpuHandle->metaEncoderVersion > 0) {
-    assert(SGFMetadata::METADATA_INPUT_NUM_CHANNELS == (int)inputBuffers->singleInputMetaElts);
+    testAssert(SGFMetadata::METADATA_INPUT_NUM_CHANNELS == (int)inputBuffers->singleInputMetaElts);
   }
 
-  assert(inputBuffers->singleValueResultElts == 3);
+  testAssert(inputBuffers->singleValueResultElts == 3);
 
   for(int row = 0; row < batchSize; row++) {
     MetalProcess::processRowData(row, gpuHandle, inputBuffers, inputBufs);
+  }
+
+  // One-shot defensive check on the mask-optimization invariant.
+  // requireExactNNLen=true causes the MPSGraph build to drop mask multiplies
+  // in BatchNormLayer (see metalbackend.swift optimizeIdentityMask path).
+  // The contract is enforced upstream at nneval.cpp (board size must equal
+  // nnXLen/nnYLen exactly), so the mask channel should be structurally all-1.
+  // We verify this once per handle to fail loudly if a future change to input
+  // encoding ever violates the invariant - silent violation would produce
+  // subtly wrong policy/value with no error.
+  if(gpuHandle->requireExactNNLen && !gpuHandle->maskIdentityChecked) {
+    const size_t maskElts = inputBuffers->singleMaskElts;
+    const float* maskRow = inputBuffers->userInputMaskBuffer;
+    for(size_t i = 0; i < maskElts; i++) {
+      if(maskRow[i] != 1.0f) {
+        throw StringError(
+          "Metal backend: requireExactNNLen=true but mask channel contains a "
+          "non-1 value at index " + std::to_string(i) + " (value=" +
+          std::to_string(maskRow[i]) + "). The mask-optimization fast path "
+          "assumes all positions are valid; running with this mask would "
+          "produce silently wrong inference results.");
+      }
+    }
+    gpuHandle->maskIdentityChecked = true;
   }
 
   // Dispatch to appropriate handle based on mode

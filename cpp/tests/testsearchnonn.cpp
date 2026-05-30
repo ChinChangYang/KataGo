@@ -72,7 +72,7 @@ void Tests::runNNLessSearchTests() {
       }
       vector<pair<Loc,int>> moveLocsAndCountsSorted;
       std::copy(moveLocsAndCounts.begin(),moveLocsAndCounts.end(),std::back_inserter(moveLocsAndCountsSorted));
-      std::sort(moveLocsAndCountsSorted.begin(), moveLocsAndCountsSorted.end(), [](pair<Loc,int> a, pair<Loc,int> b) { return a.second > b.second; });
+      std::sort(moveLocsAndCountsSorted.begin(), moveLocsAndCountsSorted.end(), [](const pair<Loc,int>& a, const pair<Loc,int>& b) { return a.second > b.second; });
 
       for(int i = 0; i<moveLocsAndCountsSorted.size(); i++) {
         cout << Location::toString(moveLocsAndCountsSorted[i].first,board) << " " << moveLocsAndCountsSorted[i].second << endl;
@@ -101,7 +101,7 @@ void Tests::runNNLessSearchTests() {
       //Ugly hack to artifically fill history. Breaks all sorts of invariants, but should work to
       //make the search htink there's some history to choose an intermediate temperature
       for(int i = 0; i<16; i++)
-        search->rootHistory.moveHistory.push_back(Move(Board::NULL_LOC,P_BLACK));
+        search->rootHistory.moveHistory.emplace_back(Board::NULL_LOC,P_BLACK);
 
       search->searchParams.chosenMoveTemperature = 1.0;
       search->searchParams.chosenMoveTemperatureEarly = 0.0;
@@ -1407,7 +1407,7 @@ xxxxxxxxx
     cout << "Search results at 0, 1, 2 visits, and at terminal position" << endl;
     cout << "===================================================================" << endl;
 
-    auto printResults = [](Search* search, bool allowDirectPolicyMoves) {
+    auto printResults = [](const Search* search, bool allowDirectPolicyMoves) {
       ReportedSearchValues values;
       cout << "getRootVisits " << search->getRootVisits() << endl;
       bool suc = search->getRootValues(values);

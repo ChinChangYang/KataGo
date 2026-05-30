@@ -133,7 +133,7 @@ class NNEvaluator {
 
   //Return the "nearest" supported ruleset to desiredRules by this model.
   //Fills supported with true if desiredRules itself was exactly supported, false if some modifications had to be made.
-  Rules getSupportedRules(const Rules& desiredRules, bool& supported);
+  Rules getSupportedRules(const Rules& desiredRules, bool& supported) const;
 
   //Clear all entires cached in the table
   void clearCache();
@@ -143,7 +143,7 @@ class NNEvaluator {
   //logStream is for some error logging, can be NULL.
   //This function is threadsafe.
   void evaluate(
-    Board& board,
+    const Board& board,
     const BoardHistory& history,
     Player nextPlayer,
     const MiscNNInputParams& nnInputParams,
@@ -152,7 +152,7 @@ class NNEvaluator {
     bool includeOwnerMap
   );
   void evaluate(
-    Board& board,
+    const Board& board,
     const BoardHistory& history,
     Player nextPlayer,
     const SGFMetadata* sgfMeta,
@@ -162,7 +162,7 @@ class NNEvaluator {
     bool includeOwnerMap
   );
   std::shared_ptr<NNOutput>* averageMultipleSymmetries(
-    Board& board,
+    const Board& board,
     const BoardHistory& history,
     Player nextPlayer,
     const SGFMetadata* sgfMeta,

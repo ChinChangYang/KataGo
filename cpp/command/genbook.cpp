@@ -61,7 +61,7 @@ static void optimizeSymmetriesInplace(std::vector<SymBookNode>& nodes, Rand* ran
     }
   }
 
-  assert(nodes.size() < 0x7FFFFFFFU);
+  testAssert(nodes.size() < 0x7FFFFFFFU);
   std::vector<uint32_t> perm(nodes.size());
   if(rand != nullptr)
     rand->fillShuffledUIntRange(perm.size(), perm.data());
@@ -179,7 +179,7 @@ static void maybeParseBonusFile(
   const std::string& bonusFile,
   int boardSizeX,
   int boardSizeY,
-  Rules rules,
+  const Rules& rules,
   int repBound,
   double bonusFileScale,
   Logger& logger,
@@ -196,7 +196,7 @@ static void maybeParseBonusFile(
     bool allowGameOver = false;
     Rand seedRand("bonusByHash");
     sgf->iterAllPositions(
-      flipIfPassOrWFirst, allowGameOver, &seedRand, [&](Sgf::PositionSample& unusedSample, const BoardHistory& sgfHist, const string& comments) {
+      flipIfPassOrWFirst, allowGameOver, &seedRand, [&](const Sgf::PositionSample& unusedSample, const BoardHistory& sgfHist, const string& comments) {
         (void)unusedSample;
         if(comments.size() > 0 && (
              comments.find("BONUS") != string::npos ||
@@ -525,8 +525,8 @@ int MainCmds::genbook(const vector<string>& args) {
       if(!bonusInitialBoard.isEqualForTesting(book->getInitialHist().getRecentBoard(0), false, false))
         throw StringError(
           "Book initial board and initial board in bonus sgf file do not match\n" +
-          Board::toStringSimple(book->getInitialHist().getRecentBoard(0),'\n') + "\n" +
-          Board::toStringSimple(bonusInitialBoard,'\n')
+          Board::toStringSimple(book->getInitialHist().getRecentBoard(0)) + "\n" +
+          Board::toStringSimple(bonusInitialBoard)
         );
       if(bonusInitialPla != book->initialPla)
         throw StringError(
@@ -648,7 +648,7 @@ int MainCmds::genbook(const vector<string>& args) {
     avoidMoveUntilByLoc = std::vector<int>(Board::MAX_ARR_SIZE,0);
     isReExpansion = allowReExpansion && constNode.canReExpand() && constNode.recursiveValues().visits <= book->getParams().maxVisitsForReExpansion;
     Player pla = hist.presumedNextMovePla;
-    Board board = hist.getRecentBoard(0);
+    const Board& board = hist.getRecentBoard(0);
     bool hasAtLeastOneLegalNewMove = false;
     for(Loc moveLoc = 0; moveLoc < Board::MAX_ARR_SIZE; moveLoc++) {
       if(hist.isLegal(board,moveLoc,pla)) {
@@ -694,7 +694,7 @@ int MainCmds::genbook(const vector<string>& args) {
   };
 
   auto setNodeThisValuesTerminal = [&](SymBookNode node, const BoardHistory& hist) {
-    assert(hist.isGameFinished);
+    testAssert(hist.isGameFinished);
 
     std::lock_guard<std::mutex> lock(bookMutex);
     BookValues& nodeValues = node.thisValuesNotInBook();
@@ -706,15 +706,15 @@ int MainCmds::genbook(const vector<string>& args) {
     }
     else {
       if(hist.winner == P_WHITE) {
-        assert(hist.finalWhiteMinusBlackScore > 0.0);
+        testAssert(hist.finalWhiteMinusBlackScore > 0.0);
         nodeValues.winLossValue = 1.0;
       }
       else if(hist.winner == P_BLACK) {
-        assert(hist.finalWhiteMinusBlackScore < 0.0);
+        testAssert(hist.finalWhiteMinusBlackScore < 0.0);
         nodeValues.winLossValue = -1.0;
       }
       else {
-        assert(hist.finalWhiteMinusBlackScore == 0.0);
+        testAssert(hist.finalWhiteMinusBlackScore == 0.0);
         nodeValues.winLossValue = 0.0;
       }
       nodeValues.scoreMean = hist.finalWhiteMinusBlackScore;
@@ -746,14 +746,13 @@ int MainCmds::genbook(const vector<string>& args) {
     bool getSuc = search->getPrunedNodeValues(searchNode,remainingSearchValues);
     // Something is bad if this is false, since we should be searching with positive visits
     // or otherwise this searchNode must be a terminal node with visits from a deeper search.
-    assert(getSuc);
-    (void)getSuc;
+    testAssert(getSuc);
+
     double sharpScore = 0.0;
     // cout << "Calling sharpscore " << timer.getSeconds() << endl;
     getSuc = search->getSharpScore(searchNode,sharpScore);
     // cout << "Done sharpscore " << timer.getSeconds() << endl;
-    assert(getSuc);
-    (void)getSuc;
+    testAssert(getSuc);
 
     // cout << "Calling shallowAvg " << timer.getSeconds() << endl;
     std::pair<double,double> errors = search->getShallowAverageShorttermWLAndScoreError(searchNode);
@@ -769,17 +768,17 @@ int MainCmds::genbook(const vector<string>& args) {
 
     // Zero out all the policies for moves we already have, we want the max *remaining* policy
     if(avoidMoveUntilByLoc.size() > 0) {
-      assert(avoidMoveUntilByLoc.size() == Board::MAX_ARR_SIZE);
+      testAssert(avoidMoveUntilByLoc.size() == Board::MAX_ARR_SIZE);
       for(Loc loc = 0; loc<Board::MAX_ARR_SIZE; loc++) {
         if(avoidMoveUntilByLoc[loc] > 0) {
           int pos = search->getPos(loc);
-          assert(pos >= 0 && pos < NNPos::MAX_NN_POLICY_SIZE);
+          testAssert(pos >= 0 && pos < NNPos::MAX_NN_POLICY_SIZE);
           policyProbs[pos] = -1;
         }
       }
     }
     double maxPolicy = getMaxPolicy(policyProbs);
-    assert(maxPolicy >= 0.0);
+    testAssert(maxPolicy >= 0.0);
 
     // LOCK BOOK AND UPDATE -------------------------------------------------------
     std::lock_guard<std::mutex> lock(bookMutex);
@@ -819,7 +818,7 @@ int MainCmds::genbook(const vector<string>& args) {
     }
 
     Player pla = hist.presumedNextMovePla;
-    Board board = hist.getRecentBoard(0);
+    const Board& board = hist.getRecentBoard(0);
     search->setPosition(pla,board,hist);
     search->setRootSymmetryPruningOnly(symmetries);
 
@@ -883,7 +882,7 @@ int MainCmds::genbook(const vector<string>& args) {
     ) {
       throw StringError("Target board history to add to book doesn't start from the same position");
     }
-    assert(hist.moveHistory.size() == 0);
+    testAssert(hist.moveHistory.size() == 0);
 
     for(auto& move: targetHist.moveHistory) {
       // Make sure we don't walk off the edge under this ruleset.
@@ -925,19 +924,19 @@ int MainCmds::genbook(const vector<string>& args) {
         std::shared_ptr<NNOutput> result = PlayUtils::getFullSymmetryNNOutput(board, hist, pla, includeOwnerMap, &params.humanSLProfile, policyEvaluator);
         const float* policyProbs = result->policyProbs;
         float moveLocPolicy = policyProbs[search->getPos(moveLoc)];
-        assert(moveLocPolicy >= 0);
+        testAssert(moveLocPolicy >= 0);
         vector<std::pair<Loc,float>> extraMoveLocsToExpand;
         for(int pos = 0; pos<NNPos::MAX_NN_POLICY_SIZE; pos++) {
           Loc loc = NNPos::posToLoc(pos, board.x_size, board.y_size, result->nnXLen, result->nnYLen);
           if(loc == Board::NULL_LOC || loc == moveLoc)
             continue;
           if(policyProbs[pos] > 0.0 && policyProbs[pos] > 1.5 * moveLocPolicy + 0.05f)
-            extraMoveLocsToExpand.push_back(std::make_pair(loc,policyProbs[pos]));
+            extraMoveLocsToExpand.emplace_back(loc,policyProbs[pos]);
         }
         std::sort(
           extraMoveLocsToExpand.begin(),
           extraMoveLocsToExpand.end(),
-          [](std::pair<Loc,float>& p0, std::pair<Loc,float>& p1) {
+          [](const std::pair<Loc,float>& p0, const std::pair<Loc,float>& p1) {
             return p0.second > p1.second;
           }
         );
@@ -972,9 +971,9 @@ int MainCmds::genbook(const vector<string>& args) {
         }
       }
 
-      assert(node.isMoveInBook(moveLoc));
+      testAssert(node.isMoveInBook(moveLoc));
       node = node.playMove(board,hist,moveLoc);
-      assert(!node.isNull());
+      testAssert(!node.isNull());
       pla = getOpp(pla);
     }
   };
@@ -1001,8 +1000,8 @@ int MainCmds::genbook(const vector<string>& args) {
       return false;
     searchNodesRecursedOn.insert(searchNode);
 
-    assert(searchNode != NULL);
-    assert(searchNode->nextPla == node.pla());
+    testAssert(searchNode != NULL);
+    testAssert(searchNode->nextPla == node.pla());
 
     vector<Loc> locs;
     vector<double> playSelectionValues;
@@ -1083,7 +1082,7 @@ int MainCmds::genbook(const vector<string>& args) {
             // Lock book to add the best child to the book
             bool childIsTransposing;
             {
-              assert(!node.isMoveInBook(moveLoc));
+              testAssert(!node.isMoveInBook(moveLoc));
               child = node.playAndAddMove(nextBoard, nextHist, moveLoc, rawPolicy, childIsTransposing);
               // Somehow child was illegal?
               if(child.isNull()) {
@@ -1186,7 +1185,7 @@ int MainCmds::genbook(const vector<string>& args) {
       BookHash::getHashAndSymmetry(hist, book->repBound, hashRet, symmetryToAlignRet, symmetriesRet, book->bookVersion);
       if(hashRet != node.hash()) {
         ostringstream out;
-        Board board = hist.getRecentBoard(0);
+        const Board& board = hist.getRecentBoard(0);
         Board::printBoard(out, board, Board::NULL_LOC, NULL);
         for(Loc move: moveHistory)
           out << Location::toString(move,book->initialBoard) << " ";
@@ -1207,7 +1206,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
     Search* search = searches[gameThreadIdx];
     Player pla = hist.presumedNextMovePla;
-    Board board = hist.getRecentBoard(0);
+    const Board& board = hist.getRecentBoard(0);
     search->setPosition(pla,board,hist);
     search->setRootSymmetryPruningOnly(symmetries);
 
@@ -1345,8 +1344,8 @@ int MainCmds::genbook(const vector<string>& args) {
           BoardHistory hist;
           std::vector<Loc> moveHistory;
           suc = node.getBoardHistoryReachingHere(hist, moveHistory);
-          assert(suc);
-          (void)suc;
+          if(!suc)
+            throw StringError("Failed to get board history reaching node in book, book may be corrupted");
           addVariationToBookWithoutUpdate(gameThreadIdx, hist, nodesHashesToUpdate);
           int64_t currentVariationsAdded = variationsAdded.fetch_add(1) + 1;
           if(currentVariationsAdded % 400 == 0) {
@@ -1361,8 +1360,9 @@ int MainCmds::genbook(const vector<string>& args) {
       for(SymBookNode node: allNodes)
         positionsToTrace.forcePush(node);
       vector<std::thread> threads;
+      threads.reserve(numGameThreads);
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
-        threads.push_back(std::thread(loopAddingVariations, gameThreadIdx));
+        threads.emplace_back(loopAddingVariations, gameThreadIdx);
       }
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
         threads[gameThreadIdx].join();
@@ -1374,14 +1374,14 @@ int MainCmds::genbook(const vector<string>& args) {
       );
     }
     else {
-      assert(traceSgfFile.size() > 0);
+      testAssert(traceSgfFile.size() > 0);
       std::unique_ptr<Sgf> sgf = Sgf::loadFile(traceSgfFile);
       bool flipIfPassOrWFirst = false;
       bool allowGameOver = false;
       Rand seedRand("bonusByHash");
       int64_t variationsAdded = 0;
       sgf->iterAllPositions(
-        flipIfPassOrWFirst, allowGameOver, &seedRand, [&](Sgf::PositionSample& unusedSample, const BoardHistory& sgfHist, const string& comments) {
+        flipIfPassOrWFirst, allowGameOver, &seedRand, [&](const Sgf::PositionSample& unusedSample, const BoardHistory& sgfHist, const string& comments) {
           (void)unusedSample;
           (void)comments;
           int gameThreadIdx = 0;
@@ -1416,7 +1416,8 @@ int MainCmds::genbook(const vector<string>& args) {
           {
             std::lock_guard<std::mutex> lock(bookMutex);
             node = book->getByHash(hash);
-            assert(!node.isNull());
+            if(node.isNull())
+              throw StringError("Book node not found for hash that should exist, book may be corrupted");
           }
           Search* search = searches[gameThreadIdx];
           searchAndUpdateNodeThisValues(search, node);
@@ -1433,8 +1434,9 @@ int MainCmds::genbook(const vector<string>& args) {
       for(BookHash hash: nodesHashesToUpdate)
         hashesToUpdate.forcePush(hash);
       vector<std::thread> threads;
+      threads.reserve(numGameThreads);
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
-        threads.push_back(std::thread(loopUpdatingHashes, gameThreadIdx));
+        threads.emplace_back(loopUpdatingHashes, gameThreadIdx);
       }
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
         threads[gameThreadIdx].join();
@@ -1493,8 +1495,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
       for(SymBookNode node: nodesToExpand) {
         bool suc = positionsToSearch.forcePush(node);
-        assert(suc);
-        (void)suc;
+        testAssert(suc);
       }
 
       std::vector<SymBookNode> newAndChangedNodes = nodesToExpand;
@@ -1512,8 +1513,9 @@ int MainCmds::genbook(const vector<string>& args) {
       };
 
       vector<std::thread> threads;
+      threads.reserve(numGameThreads);
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
-        threads.push_back(std::thread(loopExpandingNodes, gameThreadIdx));
+        threads.emplace_back(loopExpandingNodes, gameThreadIdx);
       }
       for(int gameThreadIdx = 0; gameThreadIdx<numGameThreads; gameThreadIdx++) {
         threads[gameThreadIdx].join();
@@ -1712,7 +1714,7 @@ int MainCmds::checkbook(const vector<string>& args) {
       logger.write("or else some hash collision or something else is wrong.");
       logger.write("BookHash of node unable to expand: " + constNode.hash().toString());
       ostringstream out;
-      Board board = hist.getRecentBoard(0);
+      const Board& board = hist.getRecentBoard(0);
       Board::printBoard(out, board, Board::NULL_LOC, NULL);
       for(Loc move: moveHistory)
         out << Location::toString(move,book->initialBoard) << " ";
@@ -1729,7 +1731,7 @@ int MainCmds::checkbook(const vector<string>& args) {
       if(hashRet != node.hash()) {
         logger.write("Book failed integrity check, the node with hash " + node.hash().toString() + " when walked to has hash " + hashRet.toString());
         ostringstream out;
-        Board board = hist.getRecentBoard(0);
+        const Board& board = hist.getRecentBoard(0);
         Board::printBoard(out, board, Board::NULL_LOC, NULL);
         for(Loc move: moveHistory)
           out << Location::toString(move,book->initialBoard) << " ";
@@ -1873,7 +1875,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
 
   std::vector<ConstSymBookNode> nodesToExplore;
   std::vector<int> depthsToExplore;
-  nodesToExplore.push_back(book->getRoot());
+  nodesToExplore.emplace_back(book->getRoot());
   depthsToExplore.push_back(0);
 
   logger.write("Beginning book sweep");
@@ -1948,7 +1950,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
         logger.write("BookHash of node unable to expand: " + node.hash().toString());
 
         ostringstream out;
-        Board board = hist.getRecentBoard(0);
+        const Board& board = hist.getRecentBoard(0);
         Board::printBoard(out, board, Board::NULL_LOC, NULL);
         for(Loc move: moveHistory)
           out << Location::toString(move,book->initialBoard) << " ";
@@ -1997,7 +1999,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
       double policySurprise = 0.0;
       double valueSurpriseIrreducible = 0.0;
       double valueSurpriseTotal = 0.0;
-      Board board = hist.getRecentBoard(0);
+      const Board& board = hist.getRecentBoard(0);
       for(int sym = 0; sym<SymmetryHelpers::NUM_SYMMETRIES; sym++) {
         MiscNNInputParams nnInputParams;
         nnInputParams.symmetry = sym;
@@ -2010,7 +2012,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
         if(policySurpriseWeight > 0) {
           if(bestMove != Board::NULL_LOC) {
             double policyProb = buf.result->policyProbs[NNPos::locToPos(bestMove,board.x_size,nnEval->getNNXLen(),nnEval->getNNYLen())];
-            assert(policyProb >= 0.0 && policyProb <= 1.0);
+            testAssert(policyProb >= 0.0 && policyProb <= 1.0);
             policySurprise += -1.0 / (double)SymmetryHelpers::NUM_SYMMETRIES * log(policyProb + 1e-30);
           }
         }
@@ -2062,8 +2064,9 @@ int MainCmds::booktoposes(const vector<string>& args) {
   };
 
   vector<std::thread> threads;
+  threads.reserve(numThreads);
   for(int threadIdx = 0; threadIdx<numThreads; threadIdx++) {
-    threads.push_back(std::thread(processPoses, threadIdx));
+    threads.emplace_back(processPoses, threadIdx);
   }
   for(int threadIdx = 0; threadIdx<numThreads; threadIdx++) {
     threads[threadIdx].join();
@@ -2319,7 +2322,7 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
   {
     std::vector<NodeAndDepthInfo> nodesToExplore;
     std::set<BookHash> visited;
-    nodesToExplore.push_back(NodeAndDepthInfo(book->getRoot(), 0, 0.0, 0.0, 0.0));
+    nodesToExplore.emplace_back(book->getRoot(), 0, 0.0, 0.0, 0.0);
 
     for(size_t i = 0; i<nodesToExplore.size(); i++) {
       NodeAndDepthInfo info = nodesToExplore[i];
@@ -2388,6 +2391,7 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
 
   // Combine all groups into a single vector
   std::vector<ThresholdGroup> allGroups;
+  allGroups.reserve(groupsByThresholdIncreasing.size());
   for(auto& pair : groupsByThresholdIncreasing) {
     allGroups.push_back(pair.second);
   }
@@ -2437,7 +2441,7 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
 
       return cost;
     };
-    auto edgeCost = [&book,&group](ConstSymBookNode node, const BookMove& edgeMove) noexcept -> double {
+    auto edgeCost = [](ConstSymBookNode node, const BookMove& edgeMove) noexcept -> double {
       (void)node;
       (void)edgeMove;
       return 0.0;
@@ -2446,7 +2450,8 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
     for(const NodeAndDepthInfo& info : group.nodesToCheck) {
       ConstSymBookNode node = info.node;
       BookHash nodeHash = node.hash();
-      testAssert(!node.isNull());
+      if(node.isNull())
+        throw StringError("Book node not found for hash that should exist, book may be corrupted");
 
       Book::MinCostResult result = book->computeMinCostToChangeWinLoss(
         node,
@@ -2478,7 +2483,8 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
       BoardHistory hist;
       std::vector<Loc> moveHistory;
       bool suc = optimizedNode.getBoardHistoryReachingHere(hist, moveHistory);
-      testAssert(suc);
+      if(!suc)
+        throw StringError("Failed to get board history reaching node in book, book may be corrupted");
 
       nlohmann::json jsonEntry;
       jsonEntry["hash"] = nodeHash.toString();
@@ -2495,15 +2501,18 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
       jsonEntry["increasing"] = group.increasing;
 
       std::vector<std::string> nodesToChangeList;
+      nodesToChangeList.reserve(result.nodes.size());
       for(const BookHash& h: result.nodes)
         nodesToChangeList.push_back(h.toString());
       jsonEntry["minSetToChange"] = nodesToChangeList;
       std::vector<int> nodesToChangeBranchCountsList;
+      nodesToChangeBranchCountsList.reserve(result.nodes.size());
       for(const BookHash& h: result.nodes)
         nodesToChangeBranchCountsList.push_back(book->getByHash(h).numUniqueMovesInBook());
       jsonEntry["minSetToChangeBranchCounts"] = nodesToChangeBranchCountsList;
 
       std::vector<std::string> moveHistoryStrings;
+      moveHistoryStrings.reserve(moveHistory.size());
       for(Loc move: moveHistory)
         moveHistoryStrings.push_back(Location::toString(move, book->initialBoard));
       jsonEntry["moveHistory"] = moveHistoryStrings;
@@ -2515,9 +2524,11 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
         BoardHistory histToChange;
         std::vector<Loc> moveHistoryToChange;
         bool suc2 = optimizedNodeToChange.getBoardHistoryReachingHere(histToChange, moveHistoryToChange);
-        testAssert(suc2);
+        if(!suc2)
+          throw StringError("Failed to get board history reaching node in book, book may be corrupted");
 
         std::vector<std::string> moveHistoryToChangeStrings;
+        moveHistoryToChangeStrings.reserve(moveHistoryToChange.size());
         for(Loc move : moveHistoryToChange)
           moveHistoryToChangeStrings.push_back(Location::toString(move, book->initialBoard));
         moveHistoryToChangeStringss.push_back(moveHistoryToChangeStrings);
@@ -2545,7 +2556,7 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
           out << Location::toString(move, book->initialBoard) << " ";
         out << "\n";
 
-        Board board = hist.getRecentBoard(0);
+        const Board& board = hist.getRecentBoard(0);
         Board::printBoard(out, board, Board::NULL_LOC, &(hist.moveHistory));
 
         out << ("Num nodes to change: " + Global::intToString((int)result.nodes.size())) << endl;
@@ -2555,7 +2566,8 @@ int MainCmds::findbookbottlenecks(const vector<string>& args) {
           BoardHistory histToChange;
           std::vector<Loc> moveHistoryToChange;
           bool suc2 = optimizedNodeToChange.getBoardHistoryReachingHere(histToChange, moveHistoryToChange);
-          testAssert(suc2);
+          if(!suc2)
+            throw StringError("Failed to get board history reaching node in book, book may be corrupted");
 
           for(Loc move : moveHistoryToChange)
             out << Location::toString(move, book->initialBoard) << " ";

@@ -1,6 +1,7 @@
 #include "../dataio/sgf.h"
 
 #include "../core/fileutils.h"
+#include "../core/test.h"
 #include "../core/sha2.h"
 #include "../dataio/files.h"
 #include "../program/playutils.h"
@@ -205,7 +206,7 @@ void SgfNode::accumPlacements(vector<Move>& moves, int xSize, int ySize) const {
       for(int x = x1; x <= x2; x++) {
         for(int y = y1; y <= y2; y++) {
           Loc loc = Location::getLoc(x,y,xSize);
-          moves.push_back(Move(loc,color));
+          moves.emplace_back(loc,color);
         }
       }
     }
@@ -229,10 +230,10 @@ void SgfNode::accumMoves(vector<Move>& moves, int xSize, int ySize) const {
   if(move.pla == C_BLACK) {
     if((move.x == COORD_MAX && move.y == COORD_MAX) ||
        (move.x == 19 && move.y == 19 && (xSize <= 19 || ySize <= 19))) //handle "tt"
-      moves.push_back(Move(Board::PASS_LOC,move.pla));
+      moves.emplace_back(Board::PASS_LOC,move.pla);
     else {
       if(move.x >= xSize || move.y >= ySize) propertyFail("Move out of bounds: " + Global::intToString(move.x) + "," + Global::intToString(move.y));
-      moves.push_back(Move(Location::getLoc(move.x,move.y,xSize),move.pla));
+      moves.emplace_back(Location::getLoc(move.x,move.y,xSize),move.pla);
     }
   }
   if(props != nullptr && contains(*props,"B")) {
@@ -240,16 +241,16 @@ void SgfNode::accumMoves(vector<Move>& moves, int xSize, int ySize) const {
     size_t len = b.size();
     for(size_t i = 0; i<len; i++) {
       Loc loc = parseSgfLocOrPass(b[i],xSize,ySize);
-      moves.push_back(Move(loc,P_BLACK));
+      moves.emplace_back(loc,P_BLACK);
     }
   }
   if(move.pla == C_WHITE) {
     if((move.x == COORD_MAX && move.y == COORD_MAX) ||
        (move.x == 19 && move.y == 19 && (xSize <= 19 || ySize <= 19))) //handle "tt"
-      moves.push_back(Move(Board::PASS_LOC,move.pla));
+      moves.emplace_back(Board::PASS_LOC,move.pla);
     else {
       if(move.x >= xSize || move.y >= ySize) propertyFail("Move out of bounds: " + Global::intToString(move.x) + "," + Global::intToString(move.y));
-      moves.push_back(Move(Location::getLoc(move.x,move.y,xSize),move.pla));
+      moves.emplace_back(Location::getLoc(move.x,move.y,xSize),move.pla);
     }
   }
   if(props != nullptr && contains(*props,"W")) {
@@ -257,7 +258,7 @@ void SgfNode::accumMoves(vector<Move>& moves, int xSize, int ySize) const {
     size_t len = w.size();
     for(size_t i = 0; i<len; i++) {
       Loc loc = parseSgfLocOrPass(w[i],xSize,ySize);
-      moves.push_back(Move(loc,P_WHITE));
+      moves.emplace_back(loc,P_WHITE);
     }
   }
 }
@@ -319,8 +320,8 @@ Sgf::~Sgf()
 template<typename T>
 T Sgf::traverse(
   T initialValue,
-  std::function<T(T, T)> reduce,
-  std::function<T(const Sgf*, T)> transform
+  const std::function<T(T, T)>& reduce,
+  const std::function<T(const Sgf*, T)>& transform
 ) const {
   std::vector<const Sgf*> stack;
   std::vector<size_t> nextChildIdxStack;
@@ -554,8 +555,7 @@ int Sgf::getRank(Player pla) const {
     rankStr = nodes[0]->getSingleProperty("WR");
   }
   else {
-    assert(false);
-    return Sgf::RANK_UNKNOWN;
+    ASSERT_UNREACHABLE;
   }
   int rank;
   static constexpr int TOP_DAN = 13;
@@ -651,8 +651,7 @@ int Sgf::getRating(Player pla) const {
     ratingStr = nodes[0]->getSingleProperty("WR");
   }
   else {
-    assert(false);
-    propertyFail("Could not find rating in sgf");
+    ASSERT_UNREACHABLE;
   }
 
   int rating;
@@ -674,8 +673,9 @@ string Sgf::getPlayerName(Player pla) const {
       return "";
     return nodes[0]->getSingleProperty("PW");
   }
-  assert(false);
-  return "";
+  else {
+    ASSERT_UNREACHABLE;
+  }
 }
 
 bool Sgf::hasRootProperty(const std::string& property) const {
@@ -755,7 +755,7 @@ void Sgf::loadAllUniquePositions(
   Rand* rand,
   vector<PositionSample>& samples
 ) const {
-  std::function<void(PositionSample&, const BoardHistory&, const string&)> f = [&samples](PositionSample& sample, const BoardHistory& hist, const string& comments) {
+  std::function<void(PositionSample&, const BoardHistory&, const string&)> f = [&samples](const PositionSample& sample, const BoardHistory& hist, const string& comments) {
     (void)hist;
     (void)comments;
     samples.push_back(sample);
@@ -771,7 +771,7 @@ void Sgf::iterAllUniquePositions(
   bool flipIfPassOrWFirst,
   bool allowGameOver,
   Rand* rand,
-  std::function<void(PositionSample&,const BoardHistory&,const std::string&)> f
+  const std::function<void(PositionSample&,const BoardHistory&,const std::string&)>& f
 ) const {
   XYSize size = getXYSize();
   int xSize = size.x;
@@ -798,7 +798,7 @@ void Sgf::iterAllPositions(
   bool flipIfPassOrWFirst,
   bool allowGameOver,
   Rand* rand,
-  std::function<void(PositionSample&,const BoardHistory&,const std::string&)> f
+  const std::function<void(PositionSample&,const BoardHistory&,const std::string&)>& f
 ) const {
   XYSize size = getXYSize();
   int xSize = size.x;
@@ -838,7 +838,7 @@ void Sgf::iterAllPositionsHelper(
   bool isRoot,
   Rand* rand,
   std::vector<std::pair<int64_t,int64_t>>& variationTraceNodesBranch,
-  std::function<void(PositionSample&,const BoardHistory&,const std::string&)> f
+  const std::function<void(PositionSample&,const BoardHistory&,const std::string&)>& f
 ) const {
   vector<Move> buf;
   for(size_t i = 0; i<nodes.size(); i++) {
@@ -948,18 +948,18 @@ void Sgf::iterAllPositionsHelper(
     size_t i = permutation[c];
     std::unique_ptr<Board> copy = std::make_unique<Board>(board);
     std::unique_ptr<BoardHistory> histCopy = std::make_unique<BoardHistory>(hist);
-    variationTraceNodesBranch.push_back(std::make_pair((int64_t)nodes.size(),(int64_t)i));
+    variationTraceNodesBranch.emplace_back((int64_t)nodes.size(),(int64_t)i);
     children[i]->iterAllPositionsHelper(
       *copy,*histCopy,nextPla,rules,xSize,ySize,sampleBuf,uniqueHashes,requireUnique,hashComments,hashParent,flipIfPassOrWFirst,allowGameOver,false,rand,variationTraceNodesBranch,f
     );
-    assert(variationTraceNodesBranch.size() > 0);
+    testAssert(variationTraceNodesBranch.size() > 0);
     variationTraceNodesBranch.erase(variationTraceNodesBranch.begin()+(variationTraceNodesBranch.size()-1));
   }
 }
 
 void Sgf::PositionSample::writePosOfHist(PositionSample& sampleBuf, const BoardHistory& hist, Player nextPla) {
   //Snap the position 5 turns ago so as to include 5 moves of history.
-  assert(BoardHistory::NUM_RECENT_BOARDS > 5);
+  static_assert(BoardHistory::NUM_RECENT_BOARDS > 5, "");
   int turnsAgoToSnap = 0;
   while(turnsAgoToSnap < 5) {
     if(turnsAgoToSnap >= hist.moveHistory.size())
@@ -990,7 +990,7 @@ void Sgf::PositionSample::writePosOfHist(PositionSample& sampleBuf, const BoardH
 }
 
 void Sgf::samplePositionHelper(
-  Board& board, BoardHistory& hist, Player nextPla,
+  const Board& board, const BoardHistory& hist, Player nextPla,
   PositionSample& sampleBuf,
   std::set<Hash128>& uniqueHashes,
   bool requireUnique,
@@ -999,7 +999,7 @@ void Sgf::samplePositionHelper(
   bool flipIfPassOrWFirst,
   bool allowGameOver,
   const std::string& comments,
-  std::function<void(PositionSample&,const BoardHistory&,const std::string&)> f
+  const std::function<void(PositionSample&,const BoardHistory&,const std::string&)>& f
 ) const {
   //If the game is over or there were two consecutive passes, skip
   if(!allowGameOver) {
@@ -1014,7 +1014,8 @@ void Sgf::samplePositionHelper(
   //Hash based on position, player, and simple ko
   Hash128 situationHash = board.pos_hash;
   situationHash ^= Board::ZOBRIST_PLAYER_HASH[nextPla];
-  assert(hist.encorePhase == 0);
+  if(hist.encorePhase != 0)
+    throw StringError("Unexpected encore phase when sampling position from SGF: " + Global::intToString(hist.encorePhase));
   if(board.ko_loc != Board::NULL_LOC)
     situationHash ^= Board::ZOBRIST_KO_LOC_HASH[board.ko_loc];
 
@@ -1049,7 +1050,8 @@ void Sgf::samplePositionHelper(
 }
 
 static uint64_t parseHex64(const string& str) {
-  assert(str.length() == 16);
+  if(str.length() != 16)
+    throw IOError("Could not parse hex string, expected length 16: " + str);
   uint64_t x = 0;
   for(int i = 0; i<16; i++) {
     x *= 16;
@@ -1060,7 +1062,7 @@ static uint64_t parseHex64(const string& str) {
     else if(str[i] >= 'A' && str[i] <= 'F')
       x += str[i] - 'A' + 10;
     else
-      assert(false);
+      throw IOError("Could not parse hex string, invalid hex character: " + str);
   }
   return x;
 }
@@ -1095,8 +1097,10 @@ string Sgf::PositionSample::toJsonLine(const Sgf::PositionSample& sample) {
   data["nextPla"] = PlayerIO::playerToStringShort(sample.nextPla);
   vector<string> moveLocs;
   vector<string> movePlas;
+  moveLocs.reserve(sample.moves.size());
   for(size_t i = 0; i<sample.moves.size(); i++)
     moveLocs.push_back(Location::toString(sample.moves[i].loc,sample.board));
+  movePlas.reserve(sample.moves.size());
   for(size_t i = 0; i<sample.moves.size(); i++)
     movePlas.push_back(PlayerIO::playerToStringShort(sample.moves[i].pla));
 
@@ -1127,7 +1131,7 @@ Sgf::PositionSample Sgf::PositionSample::ofJsonLine(const string& s) {
     for(size_t i = 0; i<moveLocs.size(); i++) {
       Loc moveLoc = Location::ofString(moveLocs[i],sample.board);
       Player movePla = PlayerIO::parsePlayer(movePlas[i]);
-      sample.moves.push_back(Move(moveLoc,movePla));
+      sample.moves.emplace_back(moveLoc,movePla);
     }
     sample.initialTurnNumber = data["initialTurnNumber"].get<int64_t>();
     string hintLocStr = Global::toLower(Global::trim(data["hintLoc"].get<string>()));
@@ -1166,8 +1170,8 @@ Sgf::PositionSample Sgf::PositionSample::getColorFlipped() const {
       Loc loc = Location::getLoc(x,y,other.board.x_size);
       if(other.board.colors[loc] == C_BLACK || other.board.colors[loc] == C_WHITE) {
         bool suc = newBoard.setStoneFailIfNoLibs(loc, getOpp(other.board.colors[loc]));
-        assert(suc);
-        (void)suc;
+        if(!suc)
+          throw StringError("Color-flipped position from SGF has a stone with no liberties");
       }
     }
   }
@@ -1202,7 +1206,7 @@ bool Sgf::PositionSample::tryGetCurrentBoardHistory(const Rules& rules, Player& 
   for(int i = 0; i<numSampleMoves; i++) {
     if(!hist.isLegal(boardCopy,moves[i].loc,moves[i].pla))
       return false;
-    assert(moves[i].pla == pla);
+    testAssert(moves[i].pla == pla);
     hist.makeBoardMoveAssumeLegal(boardCopy,moves[i].loc,moves[i].pla,NULL);
     pla = getOpp(pla);
   }
@@ -1683,7 +1687,7 @@ Rules CompactSgf::getRulesOrFailAllowUnspecified(const Rules& defaultRules) cons
   return rules;
 }
 
-Rules CompactSgf::getRulesOrWarn(const Rules& defaultRules, std::function<void(const string& msg)> f) const {
+Rules CompactSgf::getRulesOrWarn(const Rules& defaultRules, const std::function<void(const string& msg)>& f) const {
   if(!hasRules()) {
     Rules rules = defaultRules;
     if(rootNode.hasProperty("KM")) {
@@ -2021,7 +2025,7 @@ void WriteSgf::writeSgf(
       commentOut << "," << "bTimeUsed=" << gameData->bTimeUsed;
       commentOut << "," << "wTimeUsed=" << gameData->wTimeUsed;
     }
-    assert(endHist.moveHistory.size() <= startTurnIdx + gameData->whiteValueTargetsByTurn.size());
+    testAssert(endHist.moveHistory.size() <= startTurnIdx + gameData->whiteValueTargetsByTurn.size());
   }
 
   if(extraComments.size() > 0) {

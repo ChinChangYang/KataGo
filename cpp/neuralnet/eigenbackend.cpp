@@ -307,8 +307,8 @@ struct ConvLayer {
     if(dilationX != 1 || dilationY != 1)
       throw StringError("Eigen backend: Encountered convolution dilation factors other than 1, not supported");
 
-    assert(convXSize % 2 == 1);
-    assert(convYSize % 2 == 1);
+    testAssert(convXSize % 2 == 1);
+    testAssert(convYSize % 2 == 1);
 
     if((convXSize == 3 && convYSize == 3) || (convXSize == 5 && convYSize == 5)) {
       imagePatchSize = 0; //not used in this branch
@@ -702,8 +702,8 @@ struct BatchNormLayer {
   {
     int numChannels = desc.numChannels;
 
-    assert(desc.mergedScale.size() == numChannels);
-    assert(desc.mergedBias.size() == numChannels);
+    testAssert(desc.mergedScale.size() == numChannels);
+    testAssert(desc.mergedBias.size() == numChannels);
 
     mergedScale.resize(numChannels);
     mergedBias.resize(numChannels);
@@ -1128,17 +1128,17 @@ BlockStack::BlockStack(
     if (descBlocks[i].first == ORDINARY_BLOCK_KIND) {
       ResidualBlockDesc* blockDesc = (ResidualBlockDesc*)descBlocks[i].second.get();
       std::unique_ptr<ResidualBlockIntf> block = std::make_unique<ResidualBlock>(*blockDesc,nnX,nnY);
-      blocks.push_back(make_pair(ORDINARY_BLOCK_KIND, std::move(block)));
+      blocks.emplace_back(ORDINARY_BLOCK_KIND, std::move(block));
     }
     else if (descBlocks[i].first == GLOBAL_POOLING_BLOCK_KIND) {
       GlobalPoolingResidualBlockDesc* blockDesc = (GlobalPoolingResidualBlockDesc*)descBlocks[i].second.get();
       std::unique_ptr<GlobalPoolingResidualBlock> block = std::make_unique<GlobalPoolingResidualBlock>(*blockDesc,nnX,nnY);
-      blocks.push_back(make_pair(GLOBAL_POOLING_BLOCK_KIND, std::move(block)));
+      blocks.emplace_back(GLOBAL_POOLING_BLOCK_KIND, std::move(block));
     }
     else if (descBlocks[i].first == NESTED_BOTTLENECK_BLOCK_KIND) {
       NestedBottleneckResidualBlockDesc* blockDesc = (NestedBottleneckResidualBlockDesc*)descBlocks[i].second.get();
       std::unique_ptr<NestedBottleneckResidualBlock> block = std::make_unique<NestedBottleneckResidualBlock>(*blockDesc,nnX,nnY);
-      blocks.push_back(make_pair(NESTED_BOTTLENECK_BLOCK_KIND, std::move(block)));
+      blocks.emplace_back(NESTED_BOTTLENECK_BLOCK_KIND, std::move(block));
     }
     else {
       ASSERT_UNREACHABLE;
@@ -1645,10 +1645,10 @@ struct InputBuffers {
     singleScoreValueResultElts = (size_t)m.numScoreValueChannels;
     singleOwnershipResultElts = (size_t)m.numOwnershipChannels * nnXLen * nnYLen;
 
-    assert(NNModelVersion::getNumSpatialFeatures(m.modelVersion) == m.numInputChannels);
-    assert(NNModelVersion::getNumGlobalFeatures(m.modelVersion) == m.numInputGlobalChannels);
+    testAssert(NNModelVersion::getNumSpatialFeatures(m.modelVersion) == m.numInputChannels);
+    testAssert(NNModelVersion::getNumGlobalFeatures(m.modelVersion) == m.numInputGlobalChannels);
     if(m.numInputMetaChannels > 0) {
-      assert(SGFMetadata::METADATA_INPUT_NUM_CHANNELS == m.numInputMetaChannels);
+      testAssert(SGFMetadata::METADATA_INPUT_NUM_CHANNELS == m.numInputMetaChannels);
     }
 
     spatialInput = vector<float>(m.numInputChannels * nnXLen * nnYLen * maxBatchSize);
