@@ -461,6 +461,15 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
   bool useFP16 = (context->useFP16Mode != enabled_t::False);
   bool optimizeMask = requireExactNNLen;
 
+  // ANE path only (this function runs solely for METAL_MUX_ANE): the compiled
+  // .mlmodelc carries the weights; the engine's ModelDesc weight arrays are
+  // never read again here. Free them to drop W1 from the conversion peak and
+  // from steady-state RSS. releaseWeights() clears only weight vectors; the
+  // scalar dims read below (and by the ComputeHandle ctor / InputBuffers) stay
+  // valid. NOTE: assumes ANE and GPU/MPSGraph are not mixed for one LoadedModel
+  // (iOS = ANE-only, macOS = GPU-only).
+  const_cast<LoadedModel*>(loadedModel)->modelDesc.releaseWeights();
+
   // Try the cache-aware bridge path first (Task 19).
   // invokeCoreMLBridge returns nil when katago_coreml_bridge is not yet registered
   // (e.g., before KataGoInterface.registerCoreMLBridge() is called), in which case
