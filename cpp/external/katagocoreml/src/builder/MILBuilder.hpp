@@ -29,9 +29,6 @@ public:
     /// @return Unique pointer to MIL Program protobuf
     std::unique_ptr<CoreML::Specification::MILSpec::Program> build();
 
-    /// Get weight entries for blob serialization
-    const std::vector<WeightEntry>& getWeights() const { return m_ops.getWeights(); }
-
     /// Get weight entries for blob serialization (mutable; serialization sets blob_offset)
     std::vector<WeightEntry>& getWeightsMutable() { return m_ops.getWeightsMutable(); }
 

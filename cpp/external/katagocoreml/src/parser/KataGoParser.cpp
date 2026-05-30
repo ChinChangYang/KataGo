@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <fstream>
 #include <stdexcept>
 #include <zlib.h>
 
@@ -51,12 +50,6 @@ int KataGoParser::peekByte() {
         if(!refill()) return -1;
     }
     return (int)m_refill[m_refillPos];
-}
-
-int KataGoParser::getByte() {
-    int c = peekByte();
-    if(c >= 0) m_refillPos++;
-    return c;
 }
 
 void KataGoParser::readExact(uint8_t* dst, size_t n, const std::string& name) {

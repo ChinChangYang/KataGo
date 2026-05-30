@@ -65,9 +65,6 @@ public:
                                     std::vector<float>&& data,
                                     const std::vector<int64_t>& shape);
 
-    /// Get all registered weights
-    const std::vector<WeightEntry>& getWeights() const { return m_weights; }
-
     /// Get all registered weights (mutable; serialization sets blob_offset)
     std::vector<WeightEntry>& getWeightsMutable() { return m_weights; }
 

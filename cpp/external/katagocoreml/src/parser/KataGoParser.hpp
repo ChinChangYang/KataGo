@@ -42,7 +42,6 @@ private:
     // Stream primitives
     bool refill();                   // returns false at EOF
     int  peekByte();                 // -1 at EOF
-    int  getByte();                  // -1 at EOF
     void readExact(uint8_t* dst, size_t n, const std::string& name);
 
     // Low-level reading functions

@@ -19,7 +19,6 @@ using namespace std;
 
 namespace {
 
-// (staged for runCoremlConvertPeakMemoryTest)
 static size_t peakRssBytes() {
   struct rusage usage;
   if(getrusage(RUSAGE_SELF, &usage) != 0)
@@ -37,7 +36,6 @@ static string sha256OfFile(const string& path) {
   return string(hash);
 }
 
-// (staged for runCoremlConvertPeakMemoryTest)
 static size_t gzDecompressedSize(const string& path) {
   gzFile gz = gzopen(path.c_str(), "rb");
   if(!gz)
