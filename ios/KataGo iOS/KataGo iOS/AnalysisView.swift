@@ -182,24 +182,6 @@ struct AnalysisView: View {
 
 // MARK: - Shared Analysis Text Views
 
-func convertToSIUnits(_ number: Int) -> String {
-    let prefixes: [(prefix: String, value: Int)] = [
-        ("T", 1_000_000_000_000),
-        ("G", 1_000_000_000),
-        ("M", 1_000_000),
-        ("k", 1_000)
-    ]
-
-    for (prefix, threshold) in prefixes {
-        if number >= threshold {
-            let result = Double(number) / Double(threshold)
-            return String(format: "%.1f%@", result, prefix)
-        }
-    }
-
-    return "\(number)"
-}
-
 extension View {
     func winrateText(_ winrate: Float) -> some View {
         Text(String(format: "%2.0f%%", (winrate * 100).rounded()))

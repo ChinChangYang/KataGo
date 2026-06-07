@@ -237,11 +237,22 @@ struct KataGoModelTests {
         #expect(analysis.visitsPerSecond == 100)
     }
 
-    @Test func testVisitsPerSecondGuardsZeroElapsedTime() async throws {
+    @Test func testVisitsPerSecondRetainsRateOnZeroElapsedTime() async throws {
         let analysis = Analysis()
-        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
-        analysis.updateVisitsPerSecond(rootVisits: 200, at: 10.0)
-        #expect(analysis.visitsPerSecond == 0)
+        analysis.updateVisitsPerSecond(rootVisits: 0, at: 10.0)   // baseline
+        analysis.updateVisitsPerSecond(rootVisits: 200, at: 11.0) // rate = 200
+        #expect(analysis.visitsPerSecond == 200)
+        analysis.updateVisitsPerSecond(rootVisits: 400, at: 11.0) // same timestamp -> retain previous
+        #expect(analysis.visitsPerSecond == 200)
+    }
+
+    @Test func testVisitsPerSecondRetainsRateWhenNoNewVisits() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)  // baseline
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)  // rate = 100
+        #expect(analysis.visitsPerSecond == 100)
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 13.0)  // no new visits -> retain previous
+        #expect(analysis.visitsPerSecond == 100)
     }
 
     @Test func testVisitsPerSecondClearResets() async throws {

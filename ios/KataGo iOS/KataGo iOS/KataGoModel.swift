@@ -241,6 +241,24 @@ struct OwnershipUnit: Identifiable {
     }
 }
 
+func convertToSIUnits(_ number: Int) -> String {
+    let prefixes: [(prefix: String, value: Int)] = [
+        ("T", 1_000_000_000_000),
+        ("G", 1_000_000_000),
+        ("M", 1_000_000),
+        ("k", 1_000)
+    ]
+
+    for (prefix, threshold) in prefixes {
+        if number >= threshold {
+            let result = Double(number) / Double(threshold)
+            return String(format: "%.1f%@", result, prefix)
+        }
+    }
+
+    return "\(number)"
+}
+
 @Observable
 class Analysis {
     var nextColorForAnalysis = PlayerColor.white
@@ -248,8 +266,8 @@ class Analysis {
     var ownershipUnits: [OwnershipUnit] = []
     var visitsPerSecond: Double = 0
 
-    @ObservationIgnored private var lastRootVisits: Int? = nil
-    @ObservationIgnored private var lastRootVisitsTime: TimeInterval? = nil
+    @ObservationIgnored private var lastRootVisits: Int?
+    @ObservationIgnored private var lastRootVisitsTime: TimeInterval?
 
     var maxVisits: Int? {
         let visits = info.values.map(\.visits)
@@ -320,9 +338,14 @@ class Analysis {
         }
         let deltaVisits = rootVisits - lastRootVisits
         let deltaTime = time - lastRootVisitsTime
-        // A search reset makes visits drop; guard against negative/zero-time garbage.
-        guard deltaVisits >= 0, deltaTime > 0 else {
+        if deltaVisits < 0 {
+            // A search reset (e.g. a new move) dropped the cumulative count.
+            // Rebaseline and clear the rate until we measure the new search.
             visitsPerSecond = 0
+            return
+        }
+        guard deltaVisits > 0, deltaTime > 0 else {
+            // No new visits or no elapsed time: keep the previous rate to avoid flicker.
             return
         }
         visitsPerSecond = Double(deltaVisits) / deltaTime
@@ -330,7 +353,7 @@ class Analysis {
 
     /// SI-formatted display string, e.g. "1.2k visits/s". Reuses `convertToSIUnits`.
     var visitsPerSecondText: String {
-        convertToSIUnits(Int(visitsPerSecond)) + " visits/s"
+        convertToSIUnits(Int(visitsPerSecond.rounded())) + " visits/s"
     }
 
     /// Parses the cumulative root visit count from a kata-analyze line, if present.
