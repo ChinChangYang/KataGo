@@ -184,10 +184,10 @@ struct BoardView: View {
            analysis.visitsPerSecond > 0 {
             Text(analysis.visitsPerSecondText)
                 .font(.system(size: dimensions.squareLength * 0.45, weight: .medium, design: .monospaced))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
                 .padding(.horizontal, dimensions.squareLengthDiv4)
                 .padding(.vertical, dimensions.squareLengthDiv8)
-                .background(.white.opacity(0.6), in: Capsule())
+                .background(.black.opacity(0.55), in: Capsule())
                 .frame(width: dimensions.gobanWidth, height: dimensions.gobanHeight, alignment: .bottomLeading)
                 .position(x: dimensions.gobanStartX + dimensions.gobanWidth / 2,
                           y: dimensions.gobanStartY + dimensions.gobanHeight / 2)
