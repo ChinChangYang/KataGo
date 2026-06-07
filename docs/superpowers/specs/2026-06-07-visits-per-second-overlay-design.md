@@ -16,15 +16,20 @@ readout in the **bottom-left corner** of the Go board, e.g. `1.2k visits/s`.
     counter is only printed by `kata-benchmark`). Surfacing it live would require a
     C++ change to `gtp.cpp`. We chose the Swift-only path, so the displayed quantity
     is genuinely *visits/s* and is labeled as such for honesty.
-- **Corner:** bottom-left.
+- **Placement:** top-right, beside the captured-stone counts, in the strip *above*
+  the board — so it never blocks play. (Revised from the original bottom-left, which
+  sat over the board.)
 - **Label / setting name:** display reads `<rate> visits/s`; the setting is
   "Show visits/s".
+- **Stability:** the number is the **average rate over the analysis session** for the
+  current position (cumulative visits ÷ elapsed time since the session started), which
+  converges and stays stable, rather than a per-report instantaneous delta that jitters.
 
 ## User-visible behavior
 
 - New toggle in **Global Settings**, alongside "Sound effect" and "Haptic feedback".
-- When ON: a small monospaced text in the board's bottom-left corner shows the live
-  rate (SI-formatted, e.g. `1.2k visits/s`).
+- When ON: a small monospaced text in the top-right of the captured-stones strip
+  (above the board) shows the session-average rate (SI-formatted, e.g. `1.2k visits/s`).
 - The overlay hides when analysis is not running or no valid rate has been computed yet.
 - When OFF: nothing is shown.
 
@@ -39,12 +44,14 @@ readout in the **bottom-left corner** of the Go board, e.g. `1.2k visits/s`.
    targeted regex `rootInfo visits (\d+)` run against the whole message. A plain
    `split(separator: "info")` (already used for per-move blocks) would split the
    word "rootInfo" itself, so rootInfo is parsed separately via regex.
-3. **Compute the rate in the model.** Feed `(rootVisits, timestamp)` into the
-   `Analysis` model. It computes `visitsPerSecond = Δvisits / Δtime` using a
-   monotonic clock.
-   - On a search reset (new move → visits count drops), it rebaselines and skips
-     that sample rather than emitting a negative/garbage value.
-   - Guards against zero/negative elapsed time.
+3. **Compute the session average in the model.** Feed `(rootVisits, timestamp)` into
+   the `Analysis` model (monotonic clock). It anchors a *session* at the first sample
+   of each continuous search and reports
+   `visitsPerSecond = (rootVisits − sessionStartVisits) / (now − sessionStartTime)`.
+   Averaging from the session start keeps the number stable as the search runs.
+   - On a search reset (new move/position → cumulative visits drop), it starts a new
+     session and clears the rate until visits accumulate again.
+   - Guards against zero/negative elapsed time (retains the last value).
 
 ## Wiring (mirrors the existing soundEffect / hapticFeedback pattern)
 

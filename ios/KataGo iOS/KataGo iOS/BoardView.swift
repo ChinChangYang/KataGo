@@ -183,14 +183,15 @@ struct BoardView: View {
            gobanState.analysisStatus == .run,
            analysis.visitsPerSecond > 0 {
             Text(analysis.visitsPerSecondText)
-                .font(.system(size: dimensions.squareLength * 0.45, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white)
-                .padding(.horizontal, dimensions.squareLengthDiv4)
-                .padding(.vertical, dimensions.squareLengthDiv8)
-                .background(.black.opacity(0.55), in: Capsule())
-                .frame(width: dimensions.gobanWidth, height: dimensions.gobanHeight, alignment: .bottomLeading)
-                .position(x: dimensions.gobanStartX + dimensions.gobanWidth / 2,
-                          y: dimensions.gobanStartY + dimensions.gobanHeight / 2)
+                .contentTransition(.numericText())
+                .font(.system(size: dimensions.capturedStonesHeight * 0.7, design: .monospaced))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .foregroundStyle(.secondary)
+                .frame(width: dimensions.totalWidth - dimensions.squareLengthDiv2,
+                       height: dimensions.capturedStonesHeight,
+                       alignment: .trailing)
+                .position(x: dimensions.totalWidth / 2, y: dimensions.capturedStonesStartY)
                 .allowsHitTesting(false)
         }
     }
