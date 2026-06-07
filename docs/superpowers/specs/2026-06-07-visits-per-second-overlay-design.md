@@ -70,13 +70,14 @@ readout in the **bottom-left corner** of the Go board, e.g. `1.2k visits/s`.
 
 ## Rendering
 
-- A small view added to `BoardView`'s `ZStack`, positioned in the bottom-left using
-  the `Dimensions` struct (same technique as the coordinate labels / winrate bar:
-  `gobanStartX/Y`, `gobanWidth/Height`, `squareLength`).
-- Visible only when `gobanState.showVisitsPerSecond` is ON **and** analysis is active
-  with a valid (> 0) rate.
-- Folded inline into `BoardView` if it stays a few lines; extracted to a small
-  `SpeedOverlayView` only if that reads more cleanly.
+- The readout is a member of the captured-stones row in `StoneView`: both capture
+  counts and the visits/s text live in one `HStack` (`capturedStonesBar`), centered in
+  the strip above the board. Sharing the row means layout spacing keeps them from
+  overlapping. The text is styled to match the counts (monospaced, `.secondary`).
+- `StoneView` stays decoupled from `Analysis`: it takes an optional `speedText: String?`
+  parameter. `BoardView` owns the gating (`showVisitsPerSecond` ON **and**
+  `analysisStatus == .run` **and** `visitsPerSecond > 0`) and passes the formatted
+  string (or nil to hide). The thumbnail/preview call sites omit it (default nil).
 
 ## Testing
 

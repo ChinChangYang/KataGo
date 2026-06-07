@@ -52,7 +52,8 @@ struct BoardView: View {
                     StoneView(
                         dimensions: dimensions,
                         isClassicStoneStyle: config.isClassicStoneStyle,
-                        verticalFlip: config.verticalFlip
+                        verticalFlip: config.verticalFlip,
+                        speedText: speedText
                     )
 
                     drawNextMove(dimensions: dimensions,
@@ -66,8 +67,6 @@ struct BoardView: View {
                         WinrateBarView(dimensions: dimensions)
                             .transition(.opacity)
                     }
-
-                    speedOverlay(dimensions: dimensions)
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
@@ -177,23 +176,12 @@ struct BoardView: View {
         }
     }
 
-    @ViewBuilder
-    private func speedOverlay(dimensions: Dimensions) -> some View {
-        if gobanState.showVisitsPerSecond,
-           gobanState.analysisStatus == .run,
-           analysis.visitsPerSecond > 0 {
-            Text(analysis.visitsPerSecondText)
-                .contentTransition(.numericText())
-                .font(.system(size: dimensions.capturedStonesHeight * 0.7, design: .monospaced))
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-                .foregroundStyle(.secondary)
-                .frame(width: dimensions.totalWidth - dimensions.squareLengthDiv2,
-                       height: dimensions.capturedStonesHeight,
-                       alignment: .trailing)
-                .position(x: dimensions.totalWidth / 2, y: dimensions.capturedStonesStartY)
-                .allowsHitTesting(false)
-        }
+    /// The visits/s text to show beside the captured-stone counts, or nil when hidden.
+    private var speedText: String? {
+        guard gobanState.showVisitsPerSecond,
+              gobanState.analysisStatus == .run,
+              analysis.visitsPerSecond > 0 else { return nil }
+        return analysis.visitsPerSecondText
     }
 
     private func drawNextMove(dimensions: Dimensions, verticalFlip: Bool) -> some View {
