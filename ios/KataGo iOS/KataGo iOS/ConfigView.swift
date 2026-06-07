@@ -756,6 +756,7 @@ struct ConfigItems: View {
 struct GlobalSettingsView: View {
     @State private var soundEffect: Bool = false
     @State private var hapticFeedback: Bool = false
+    @State private var showVisitsPerSecond: Bool = false
     @Environment(GobanState.self) private var gobanState
 
     var body: some View {
@@ -774,6 +775,14 @@ struct GlobalSettingsView: View {
                 }
                 .onChange(of: hapticFeedback) {
                     gobanState.hapticFeedback = hapticFeedback
+                }
+
+            ConfigBoolItem(title: "Show visits/s", value: $showVisitsPerSecond)
+                .onAppear {
+                    showVisitsPerSecond = gobanState.showVisitsPerSecond
+                }
+                .onChange(of: showVisitsPerSecond) {
+                    gobanState.showVisitsPerSecond = showVisitsPerSecond
                 }
         }
         .navigationTitle("Global Settings")

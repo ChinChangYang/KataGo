@@ -40,6 +40,7 @@ struct GameSplitView: View {
 
     @AppStorage("GlobalSettings.soundEffect") private var globalSoundEffect = false
     @AppStorage("GlobalSettings.hapticFeedback") private var globalHapticFeedback = false
+    @AppStorage("GlobalSettings.showVisitsPerSecond") private var globalShowVisitsPerSecond = false
 
     var body: some View {
         @Bindable var topUIState = topUIState
@@ -92,12 +93,16 @@ struct GameSplitView: View {
         .onAppear {
             gobanState.soundEffect = globalSoundEffect
             gobanState.hapticFeedback = globalHapticFeedback
+            gobanState.showVisitsPerSecond = globalShowVisitsPerSecond
         }
         .onChange(of: gobanState.soundEffect) { _, newValue in
             globalSoundEffect = newValue
         }
         .onChange(of: gobanState.hapticFeedback) { _, newValue in
             globalHapticFeedback = newValue
+        }
+        .onChange(of: gobanState.showVisitsPerSecond) { _, newValue in
+            globalShowVisitsPerSecond = newValue
         }
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)

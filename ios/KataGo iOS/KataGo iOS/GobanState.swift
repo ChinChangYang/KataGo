@@ -31,6 +31,7 @@ class GobanState {
     var pendingMoveTimestamp: Date? = nil
     var soundEffect: Bool = false
     var hapticFeedback: Bool = false
+    var showVisitsPerSecond: Bool = false
 
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
