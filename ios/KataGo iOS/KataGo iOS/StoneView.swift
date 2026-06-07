@@ -21,37 +21,23 @@ struct StoneView: View {
         drawStones(dimensions: dimensions)
 
         if isDrawingCapturedStones {
-            capturedStonesBar(dimensions: dimensions)
+            drawCapturedStones(color: .black,
+                               count: stones.blackStonesCaptured,
+                               xOffset: 0,
+                               dimensions: dimensions)
+            drawCapturedStones(color: .white,
+                               count: stones.whiteStonesCaptured,
+                               xOffset: 1,
+                               dimensions: dimensions)
+
+            if let speedText {
+                drawSpeedText(speedText, dimensions: dimensions)
+            }
             
         }
     }
 
-    private func capturedStonesBar(dimensions: Dimensions) -> some View {
-        HStack(spacing: dimensions.squareLengthDiv2) {
-            capturedStonePair(color: .black,
-                              count: stones.blackStonesCaptured,
-                              dimensions: dimensions)
-            capturedStonePair(color: .white,
-                              count: stones.whiteStonesCaptured,
-                              dimensions: dimensions)
-
-            if let speedText {
-                Text(speedText)
-                    .contentTransition(.numericText())
-                    .font(.system(size: dimensions.capturedStonesHeight * 0.85, design: .monospaced))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
-                    .frame(height: dimensions.capturedStonesHeight)
-                    .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
-            }
-        }
-        .frame(width: dimensions.gobanWidth, height: dimensions.capturedStonesHeight)
-        .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
-                  y: dimensions.capturedStonesStartY)
-    }
-
-    private func capturedStonePair(color: Color, count: Int, dimensions: Dimensions) -> some View {
+    private func drawCapturedStones(color: Color, count: Int, xOffset: CGFloat, dimensions: Dimensions) -> some View {
         HStack {
             Circle()
                 .foregroundStyle(color)
@@ -63,6 +49,25 @@ struct StoneView: View {
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
         }
         .frame(width: dimensions.capturedStonesWidth, height: dimensions.capturedStonesHeight)
+        .position(x: dimensions.getCapturedStoneStartX(xOffset: xOffset),
+                  y: dimensions.capturedStonesStartY)
+    }
+
+    // Shows the visits/s readout centered in the empty gap between the captured-stone
+    // counts. The counts keep their fixed positions, so enabling/disabling the readout
+    // never shifts them.
+    private func drawSpeedText(_ text: String, dimensions: Dimensions) -> some View {
+        let spread = 0.75 * max(dimensions.gobanWidth / 2, dimensions.capturedStonesWidth)
+        let gapWidth = max(0, (2 * spread) - dimensions.capturedStonesWidth)
+        return Text(text)
+            .contentTransition(.numericText())
+            .font(.system(size: dimensions.capturedStonesHeight * 0.85, design: .monospaced))
+            .minimumScaleFactor(0.5)
+            .lineLimit(1)
+            .foregroundStyle(.secondary)
+            .frame(width: gapWidth, height: dimensions.capturedStonesHeight)
+            .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
+                      y: dimensions.capturedStonesStartY)
     }
 
     private func drawClassicStone(x: Int, y: CGFloat, r: Float, g: Float, b: Float, dimensions: Dimensions) -> some View {

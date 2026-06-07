@@ -70,10 +70,13 @@ readout in the **bottom-left corner** of the Go board, e.g. `1.2k visits/s`.
 
 ## Rendering
 
-- The readout is a member of the captured-stones row in `StoneView`: both capture
-  counts and the visits/s text live in one `HStack` (`capturedStonesBar`), centered in
-  the strip above the board. Sharing the row means layout spacing keeps them from
-  overlapping. The text is styled to match the counts (monospaced, `.secondary`).
+- In `StoneView`, the two capture counts keep their original fixed positions
+  (`getCapturedStoneStartX`, black left-of-center, white right-of-center). The visits/s
+  text is drawn in the empty gap *between* them — centered at the board center with its
+  frame width set to exactly that gap (`2·spread − capturedStonesWidth`). This way it
+  shares the captured-stones row without overlapping either count, and enabling or
+  disabling it never shifts the counts. Styled to match the counts (monospaced,
+  `.secondary`).
 - `StoneView` stays decoupled from `Analysis`: it takes an optional `speedText: String?`
   parameter. `BoardView` owns the gating (`showVisitsPerSecond` ON **and**
   `analysisStatus == .run` **and** `visitsPerSecond > 0`) and passes the formatted
