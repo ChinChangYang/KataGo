@@ -358,12 +358,13 @@ struct ContentView: View {
     func maybeCollectAnalysis(message: String) async {
         guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
+            let sampleTime = ProcessInfo.processInfo.systemUptime
+
             let (analysisInfo, lastData) = await collectAnalysisInfo(message: message)
 
             let ownershipUnits = await extractOwnershipUnits(lastData: lastData, nextColorFromShowBoard: player.nextColorFromShowBoard, width: Int(board.width), height: Int(board.height))
 
             let rootVisits = Analysis.parseRootVisits(from: message)
-            let sampleTime = ProcessInfo.processInfo.systemUptime
 
             withAnimation {
                 analysis.info = analysisInfo.reduce([:]) {
