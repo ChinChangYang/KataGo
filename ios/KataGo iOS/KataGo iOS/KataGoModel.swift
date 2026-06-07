@@ -267,7 +267,8 @@ class Analysis {
     var visitsPerSecond: Double = 0
 
     @ObservationIgnored private var lastRootVisits: Int?
-    @ObservationIgnored private var lastRootVisitsTime: TimeInterval?
+    @ObservationIgnored private var sessionStartVisits: Int?
+    @ObservationIgnored private var sessionStartTime: TimeInterval?
 
     var maxVisits: Int? {
         let visits = info.values.map(\.visits)
@@ -322,33 +323,35 @@ class Analysis {
         ownershipUnits = []
         visitsPerSecond = 0
         lastRootVisits = nil
-        lastRootVisitsTime = nil
+        sessionStartVisits = nil
+        sessionStartTime = nil
     }
 
-    /// Updates `visitsPerSecond` from successive cumulative root-visit samples.
+    /// Updates `visitsPerSecond` as the average rate over the current analysis session
+    /// (the continuous search for the current position). Averaging from the start of the
+    /// session keeps the number stable as the search runs, instead of jumping with each
+    /// report's instantaneous delta.
+    ///
     /// `time` must be a monotonic timestamp in seconds (e.g. `ProcessInfo.processInfo.systemUptime`).
+    /// A drop in cumulative `rootVisits` marks a new session (new move / new position).
     func updateVisitsPerSecond(rootVisits: Int, at time: TimeInterval) {
-        defer {
-            lastRootVisits = rootVisits
-            lastRootVisitsTime = time
-        }
-        guard let lastRootVisits, let lastRootVisitsTime else {
-            // First sample after init/clear: establish a baseline, no rate yet.
+        // Continue the current session only when visits keep accumulating.
+        if let lastRootVisits, rootVisits >= lastRootVisits,
+           let sessionStartVisits, let sessionStartTime {
+            let deltaVisits = rootVisits - sessionStartVisits
+            let deltaTime = time - sessionStartTime
+            if deltaVisits > 0, deltaTime > 0 {
+                visitsPerSecond = Double(deltaVisits) / deltaTime
+            }
+            self.lastRootVisits = rootVisits
             return
         }
-        let deltaVisits = rootVisits - lastRootVisits
-        let deltaTime = time - lastRootVisitsTime
-        if deltaVisits < 0 {
-            // A search reset (e.g. a new move) dropped the cumulative count.
-            // Rebaseline and clear the rate until we measure the new search.
-            visitsPerSecond = 0
-            return
-        }
-        guard deltaVisits > 0, deltaTime > 0 else {
-            // No new visits or no elapsed time: keep the previous rate to avoid flicker.
-            return
-        }
-        visitsPerSecond = Double(deltaVisits) / deltaTime
+
+        // First sample, or visits dropped (new search/position): anchor a new session.
+        lastRootVisits = rootVisits
+        sessionStartVisits = rootVisits
+        sessionStartTime = time
+        visitsPerSecond = 0
     }
 
     /// SI-formatted display string, e.g. "1.2k visits/s". Reuses `convertToSIUnits`.

@@ -216,43 +216,54 @@ struct KataGoModelTests {
         #expect(analysis.visitsPerSecond == 0)
     }
 
-    @Test func testVisitsPerSecondComputesRateFromDelta() async throws {
+    @Test func testVisitsPerSecondTwoSampleRate() async throws {
         let analysis = Analysis()
-        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0) // session start
         analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)
         // (300 - 100) / (12 - 10) = 100
         #expect(analysis.visitsPerSecond == 100)
     }
 
-    @Test func testVisitsPerSecondRebaselinesOnReset() async throws {
+    @Test func testVisitsPerSecondAveragesOverSession() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0) // session start
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)
+        #expect(analysis.visitsPerSecond == 100)
+        // Averaged from the session start, not the last delta:
+        // (900 - 100) / (14 - 10) = 200  (an instantaneous rate would be 300).
+        analysis.updateVisitsPerSecond(rootVisits: 900, at: 14.0)
+        #expect(analysis.visitsPerSecond == 200)
+    }
+
+    @Test func testVisitsPerSecondIsStableAgainstSingleSampleSwings() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 0, at: 0.0)     // session start
+        analysis.updateVisitsPerSecond(rootVisits: 1000, at: 10.0) // 1000 / 10 = 100
+        #expect(analysis.visitsPerSecond == 100)
+        // A near-stall report would swing an instantaneous rate to ~1/s, but the
+        // session average barely moves: 1001 / 11 = 91.
+        analysis.updateVisitsPerSecond(rootVisits: 1001, at: 11.0)
+        #expect(analysis.visitsPerSecond == 91)
+    }
+
+    @Test func testVisitsPerSecondResetsOnNewSession() async throws {
         let analysis = Analysis()
         analysis.updateVisitsPerSecond(rootVisits: 500, at: 10.0)
         analysis.updateVisitsPerSecond(rootVisits: 700, at: 11.0)
         #expect(analysis.visitsPerSecond == 200)
-        // New search resets visits to a smaller value -> no negative rate.
+        // A new search drops the cumulative count -> rate clears, session rebaselines.
         analysis.updateVisitsPerSecond(rootVisits: 50, at: 12.0)
         #expect(analysis.visitsPerSecond == 0)
-        // Next sample computes from the new baseline.
+        // Subsequent samples average over the NEW session: (150 - 50) / (13 - 12) = 100.
         analysis.updateVisitsPerSecond(rootVisits: 150, at: 13.0)
         #expect(analysis.visitsPerSecond == 100)
     }
 
-    @Test func testVisitsPerSecondRetainsRateOnZeroElapsedTime() async throws {
+    @Test func testVisitsPerSecondZeroWhenNoTimeElapsedSinceSessionStart() async throws {
         let analysis = Analysis()
-        analysis.updateVisitsPerSecond(rootVisits: 0, at: 10.0)   // baseline
-        analysis.updateVisitsPerSecond(rootVisits: 200, at: 11.0) // rate = 200
-        #expect(analysis.visitsPerSecond == 200)
-        analysis.updateVisitsPerSecond(rootVisits: 400, at: 11.0) // same timestamp -> retain previous
-        #expect(analysis.visitsPerSecond == 200)
-    }
-
-    @Test func testVisitsPerSecondRetainsRateWhenNoNewVisits() async throws {
-        let analysis = Analysis()
-        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)  // baseline
-        analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)  // rate = 100
-        #expect(analysis.visitsPerSecond == 100)
-        analysis.updateVisitsPerSecond(rootVisits: 300, at: 13.0)  // no new visits -> retain previous
-        #expect(analysis.visitsPerSecond == 100)
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0) // session start
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 10.0) // same instant -> no elapsed time
+        #expect(analysis.visitsPerSecond == 0)
     }
 
     @Test func testVisitsPerSecondClearResets() async throws {
