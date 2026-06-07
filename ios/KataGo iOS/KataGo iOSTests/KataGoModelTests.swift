@@ -203,6 +203,77 @@ struct KataGoModelTests {
         #expect(analysis.maxWinrate == nil)
     }
 
+    // MARK: - Analysis visits/s Tests
+
+    @Test func testVisitsPerSecondDefaultsToZero() async throws {
+        let analysis = Analysis()
+        #expect(analysis.visitsPerSecond == 0)
+    }
+
+    @Test func testVisitsPerSecondFirstSampleEstablishesBaseline() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
+        #expect(analysis.visitsPerSecond == 0)
+    }
+
+    @Test func testVisitsPerSecondComputesRateFromDelta() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)
+        // (300 - 100) / (12 - 10) = 100
+        #expect(analysis.visitsPerSecond == 100)
+    }
+
+    @Test func testVisitsPerSecondRebaselinesOnReset() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 500, at: 10.0)
+        analysis.updateVisitsPerSecond(rootVisits: 700, at: 11.0)
+        #expect(analysis.visitsPerSecond == 200)
+        // New search resets visits to a smaller value -> no negative rate.
+        analysis.updateVisitsPerSecond(rootVisits: 50, at: 12.0)
+        #expect(analysis.visitsPerSecond == 0)
+        // Next sample computes from the new baseline.
+        analysis.updateVisitsPerSecond(rootVisits: 150, at: 13.0)
+        #expect(analysis.visitsPerSecond == 100)
+    }
+
+    @Test func testVisitsPerSecondGuardsZeroElapsedTime() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
+        analysis.updateVisitsPerSecond(rootVisits: 200, at: 10.0)
+        #expect(analysis.visitsPerSecond == 0)
+    }
+
+    @Test func testVisitsPerSecondClearResets() async throws {
+        let analysis = Analysis()
+        analysis.updateVisitsPerSecond(rootVisits: 100, at: 10.0)
+        analysis.updateVisitsPerSecond(rootVisits: 300, at: 12.0)
+        #expect(analysis.visitsPerSecond == 100)
+        analysis.clear()
+        #expect(analysis.visitsPerSecond == 0)
+        // After clear, the next sample is a fresh baseline (no rate yet).
+        analysis.updateVisitsPerSecond(rootVisits: 1000, at: 20.0)
+        #expect(analysis.visitsPerSecond == 0)
+    }
+
+    @Test func testVisitsPerSecondText() async throws {
+        let analysis = Analysis()
+        #expect(analysis.visitsPerSecondText == "0 visits/s")
+        analysis.updateVisitsPerSecond(rootVisits: 0, at: 0.0)
+        analysis.updateVisitsPerSecond(rootVisits: 1500, at: 1.0)
+        #expect(analysis.visitsPerSecondText == "1.5k visits/s")
+    }
+
+    @Test func testParseRootVisits() async throws {
+        let message = "info move A1 visits 10 winrate 0.5 rootInfo visits 12345 utility 0.1 winrate 0.5"
+        #expect(Analysis.parseRootVisits(from: message) == 12345)
+    }
+
+    @Test func testParseRootVisitsReturnsNilWhenAbsent() async throws {
+        let message = "info move A1 visits 10 winrate 0.5 scoreLead 1.0"
+        #expect(Analysis.parseRootVisits(from: message) == nil)
+    }
+
     // MARK: - Dimensions Tests
 
     @Test func testDimensionsDefaultInitialization() async throws {

@@ -246,6 +246,10 @@ class Analysis {
     var nextColorForAnalysis = PlayerColor.white
     var info: [BoardPoint: AnalysisInfo] = [:]
     var ownershipUnits: [OwnershipUnit] = []
+    var visitsPerSecond: Double = 0
+
+    @ObservationIgnored private var lastRootVisits: Int? = nil
+    @ObservationIgnored private var lastRootVisitsTime: TimeInterval? = nil
 
     var maxVisits: Int? {
         let visits = info.values.map(\.visits)
@@ -298,6 +302,45 @@ class Analysis {
     func clear() {
         info = [:]
         ownershipUnits = []
+        visitsPerSecond = 0
+        lastRootVisits = nil
+        lastRootVisitsTime = nil
+    }
+
+    /// Updates `visitsPerSecond` from successive cumulative root-visit samples.
+    /// `time` must be a monotonic timestamp in seconds (e.g. `ProcessInfo.processInfo.systemUptime`).
+    func updateVisitsPerSecond(rootVisits: Int, at time: TimeInterval) {
+        defer {
+            lastRootVisits = rootVisits
+            lastRootVisitsTime = time
+        }
+        guard let lastRootVisits, let lastRootVisitsTime else {
+            // First sample after init/clear: establish a baseline, no rate yet.
+            return
+        }
+        let deltaVisits = rootVisits - lastRootVisits
+        let deltaTime = time - lastRootVisitsTime
+        // A search reset makes visits drop; guard against negative/zero-time garbage.
+        guard deltaVisits >= 0, deltaTime > 0 else {
+            visitsPerSecond = 0
+            return
+        }
+        visitsPerSecond = Double(deltaVisits) / deltaTime
+    }
+
+    /// SI-formatted display string, e.g. "1.2k visits/s". Reuses `convertToSIUnits`.
+    var visitsPerSecondText: String {
+        convertToSIUnits(Int(visitsPerSecond)) + " visits/s"
+    }
+
+    /// Parses the cumulative root visit count from a kata-analyze line, if present.
+    /// `rootInfo` (capital I) is unaffected by the lowercase "info" split used elsewhere.
+    static func parseRootVisits(from message: String) -> Int? {
+        let pattern = /rootInfo visits (\d+)/
+        if let match = message.firstMatch(of: pattern) {
+            return Int(match.1)
+        }
+        return nil
     }
 }
 
