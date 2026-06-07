@@ -362,6 +362,9 @@ struct ContentView: View {
 
             let ownershipUnits = await extractOwnershipUnits(lastData: lastData, nextColorFromShowBoard: player.nextColorFromShowBoard, width: Int(board.width), height: Int(board.height))
 
+            let rootVisits = Analysis.parseRootVisits(from: message)
+            let sampleTime = ProcessInfo.processInfo.systemUptime
+
             withAnimation {
                 analysis.info = analysisInfo.reduce([:]) {
                     $0.merging($1) { (current, _) in
@@ -371,6 +374,10 @@ struct ContentView: View {
 
                 analysis.ownershipUnits = ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
+
+                if let rootVisits {
+                    analysis.updateVisitsPerSecond(rootVisits: rootVisits, at: sampleTime)
+                }
 
                 if gobanState.eyeStatus != .book {
                     if let blackWinrate = analysis.blackWinrate {

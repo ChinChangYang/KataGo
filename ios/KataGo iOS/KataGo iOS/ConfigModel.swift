@@ -177,7 +177,7 @@ extension Config {
 
 extension Config {
     func getKataAnalyzeCommand(analysisInterval: Int) -> String {
-        return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
+        return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"
     }
 
     func getKataAnalyzeCommand() -> String {
@@ -191,7 +191,7 @@ extension Config {
     func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
         return [
             "kata-set-param maxTime \(max(maxTime, 0.5))",
-            "kata-search_analyze_cancellable interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"]
+            "kata-search_analyze_cancellable interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"]
     }
 
     func getKataBoardSizeCommand() -> String {
