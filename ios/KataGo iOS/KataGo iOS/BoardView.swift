@@ -66,6 +66,8 @@ struct BoardView: View {
                         WinrateBarView(dimensions: dimensions)
                             .transition(.opacity)
                     }
+
+                    speedOverlay(dimensions: dimensions)
                 }
                 .onTapGesture { location in
                     commentIsFocused = false
@@ -172,6 +174,24 @@ struct BoardView: View {
             if let sc = bookLookup.bestBlackScore {
                 rootScore.black = sc
             }
+        }
+    }
+
+    @ViewBuilder
+    private func speedOverlay(dimensions: Dimensions) -> some View {
+        if gobanState.showVisitsPerSecond,
+           gobanState.analysisStatus == .run,
+           analysis.visitsPerSecond > 0 {
+            Text(analysis.visitsPerSecondText)
+                .font(.system(size: dimensions.squareLength * 0.45, weight: .medium, design: .monospaced))
+                .foregroundStyle(.black)
+                .padding(.horizontal, dimensions.squareLengthDiv4)
+                .padding(.vertical, dimensions.squareLengthDiv8)
+                .background(.white.opacity(0.6), in: Capsule())
+                .frame(width: dimensions.gobanWidth, height: dimensions.gobanHeight, alignment: .bottomLeading)
+                .position(x: dimensions.gobanStartX + dimensions.gobanWidth / 2,
+                          y: dimensions.gobanStartY + dimensions.gobanHeight / 2)
+                .allowsHitTesting(false)
         }
     }
 
