@@ -278,6 +278,26 @@ struct KataGoModelTests {
         #expect(analysis.visitsPerSecond == 0)
     }
 
+    @Test func testVisitsPerSecondResetSessionReanchorsAfterPause() async throws {
+        let analysis = Analysis()
+        // Active session: rate settles at 700 / 10 = 70.
+        analysis.updateVisitsPerSecond(rootVisits: 0, at: 0.0)
+        analysis.updateVisitsPerSecond(rootVisits: 700, at: 10.0)
+        #expect(analysis.visitsPerSecond == 70)
+        // User pauses, then re-enables 60s later. KataGo kept its tree, so the next
+        // sample's cumulative visits are unchanged (700) but the clock has advanced.
+        analysis.resetVisitsPerSecondSession()
+        #expect(analysis.visitsPerSecond == 0)
+        // First sample after enable is a fresh baseline at the resume point.
+        analysis.updateVisitsPerSecond(rootVisits: 700, at: 70.0)
+        #expect(analysis.visitsPerSecond == 0)
+        // Rate is measured from the resume point: (840 - 700) / (72 - 70) = 70 — the
+        // 60s idle pause does NOT drag it down (without the reset it would be
+        // (840 - 0) / (72 - 0) ≈ 11.7).
+        analysis.updateVisitsPerSecond(rootVisits: 840, at: 72.0)
+        #expect(analysis.visitsPerSecond == 70)
+    }
+
     @Test func testVisitsPerSecondText() async throws {
         let analysis = Analysis()
         #expect(analysis.visitsPerSecondText == "0 visits/s")

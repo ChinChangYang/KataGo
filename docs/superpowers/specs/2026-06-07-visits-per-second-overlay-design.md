@@ -51,6 +51,14 @@ readout in the **bottom-left corner** of the Go board, e.g. `1.2k visits/s`.
    Averaging from the session start keeps the number stable as the search runs.
    - On a search reset (new move/position → cumulative visits drop), it starts a new
      session and clears the rate until visits accumulate again.
+   - On **analysis re-enable** (the sparkle button: pause → clear → run), the session
+     is re-anchored via `resetVisitsPerSecondSession()`, called from
+     `startAnalysisAction`. KataGo keeps its search tree across a pause, so cumulative
+     `rootVisits` does *not* drop on resume; without this reset the session would keep
+     its pre-pause start time and divide accumulated visits by an elapsed time that
+     includes the idle pause, making the rate plunge. Re-anchoring measures the rate
+     from the resume point forward. The reset touches only the visits/s state, not the
+     displayed analysis (`info`/`ownershipUnits`).
    - Guards against zero/negative elapsed time (retains the last value).
 
 ## Wiring (mirrors the existing soundEffect / hapticFeedback pattern)

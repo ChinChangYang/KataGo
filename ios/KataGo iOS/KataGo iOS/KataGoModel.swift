@@ -354,6 +354,20 @@ class Analysis {
         visitsPerSecond = 0
     }
 
+    /// Re-anchors the visits/s session so the rate is measured from the next sample
+    /// onward, without disturbing the displayed analysis (`info`/`ownershipUnits`).
+    ///
+    /// Call this when analysis is (re-)enabled. KataGo keeps its search tree across a
+    /// pause, so cumulative `rootVisits` does not drop on resume and the session would
+    /// otherwise keep its pre-pause start time — dividing accumulated visits by an
+    /// elapsed time that includes the idle pause, which makes the rate plunge.
+    func resetVisitsPerSecondSession() {
+        visitsPerSecond = 0
+        lastRootVisits = nil
+        sessionStartVisits = nil
+        sessionStartTime = nil
+    }
+
     /// SI-formatted display string, e.g. "1.2k visits/s". Reuses `convertToSIUnits`.
     var visitsPerSecondText: String {
         convertToSIUnits(Int(visitsPerSecond.rounded())) + " visits/s"

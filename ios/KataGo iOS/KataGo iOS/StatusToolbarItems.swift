@@ -193,6 +193,10 @@ struct StatusToolbarItems: View {
     func startAnalysisAction() {
         gobanState.analysisStatus = .run
 
+        // Measure visits/s from this enable point so a prior pause doesn't inflate
+        // the elapsed-time denominator and drag the displayed rate down.
+        analysis.resetVisitsPerSecondSession()
+
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: player.nextColorForPlayCommand,
