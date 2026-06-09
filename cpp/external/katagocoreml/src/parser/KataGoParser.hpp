@@ -5,18 +5,20 @@
 
 #include "../types/KataGoTypes.hpp"
 #include <array>
+#include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include <zlib.h>
 
 namespace katagocoreml {
 
 /// Parser for KataGo neural network model files.
-/// Supports versions 8-16 models in binary format (.bin, .bin.gz).
+/// Supports versions 8-17 models in binary format (.bin, .bin.gz).
 class KataGoParser {
 public:
     /// Supported KataGo model versions
-    static constexpr std::array<int, 9> SUPPORTED_VERSIONS = {8, 9, 10, 11, 12, 13, 14, 15, 16};
+    static constexpr std::array<int, 10> SUPPORTED_VERSIONS = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
 
     /// Constructor
     /// @param model_path Path to the KataGo model file (.bin or .bin.gz)
@@ -32,7 +34,13 @@ public:
 
 private:
     std::string m_model_path;
-    gzFile m_gz = nullptr;
+    // Custom-deleter unique_ptr owns the gzFile so it closes on every exit path
+    // (normal return, exception, or bad_alloc) without manual try/catch.
+    struct GzCloser {
+        void operator()(gzFile f) const noexcept { if(f) gzclose(f); }
+    };
+    using GzHandle = std::unique_ptr<std::remove_pointer_t<gzFile>, GzCloser>;
+    GzHandle m_gz;
     std::vector<uint8_t> m_refill;   // bounded refill buffer (~1 MB)
     size_t m_refillPos = 0;          // read cursor within m_refill
     size_t m_refillLen = 0;          // valid bytes in m_refill
@@ -59,11 +67,15 @@ private:
     ActivationLayerDesc parseActivationLayer(int model_version);
     MatMulLayerDesc parseMatMulLayer();
     MatBiasLayerDesc parseMatBiasLayer();
+    TransformerRMSNormDesc parseTransformerRMSNorm();
+    RMSNormLayerDesc parseRMSNormLayer();
 
     // Block parsing functions
     ResidualBlockDesc parseResidualBlock(int model_version);
     GlobalPoolingResidualBlockDesc parseGlobalPoolingResidualBlock(int model_version);
     NestedBottleneckResidualBlockDesc parseNestedBottleneckBlock(int model_version, int trunk_num_channels);
+    TransformerAttentionBlockDesc parseTransformerAttentionBlock(int model_version, int trunk_num_channels);
+    TransformerFFNBlockDesc parseTransformerFFNBlock(int model_version, int trunk_num_channels);
     std::vector<BlockEntry> parseBlockStack(int model_version, int num_blocks, int trunk_num_channels);
 
     // Component parsing functions
