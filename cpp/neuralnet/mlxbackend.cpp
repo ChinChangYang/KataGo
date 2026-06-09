@@ -23,6 +23,7 @@
 #include <mlx/mlx.h>
 #include <KataGoSwift/KataGoSwift-swift.h>
 #include <katagocoreml/KataGoConverter.hpp>
+#include <katagocoreml/Version.hpp>  // ConverterVersion, for the iOS Task-17/19 C-API
 #include <ghc/filesystem.hpp>
 #include <chrono>
 #include <unistd.h>  // For getpid()
@@ -143,6 +144,38 @@ static string convertModelToTemp(
 }
 
 }  // namespace CoreMLConversion
+
+// iOS CoreML cache-bridge C-API (Task 17/19). The Swift KataGoInterface layer
+// (CoreMLComputeHandleLoader / CoreMLModelCache) calls these to drive the
+// shared katagocoreml converter from the cooperative thread pool. Mirrors the
+// definitions metalbackend.cpp provides under USE_METAL_BACKEND so the Swift
+// bridge links the same way under USE_MLX_BACKEND.
+
+// Returns a pointer into a static constexpr; the caller does NOT free it.
+extern "C" const char* katagocoreml_converter_version() {
+  return katagocoreml::ConverterVersion::current();
+}
+
+// Returns a malloc'd C string with the path to the converted .mlpackage; the
+// caller must free it via katagocoreml_free_string. Returns nullptr on failure.
+extern "C" const char* katagocoreml_convert_to_temp(
+  const char* modelPath, int boardX, int boardY,
+  bool useFP16, bool optimizeMask, int maxBatchSize, int serverThreadIdx
+) {
+  try {
+    std::string out = CoreMLConversion::convertModelToTemp(
+      modelPath, boardX, boardY, useFP16, optimizeMask, maxBatchSize, serverThreadIdx);
+    char* buf = (char*)malloc(out.size() + 1);
+    memcpy(buf, out.c_str(), out.size() + 1);
+    return buf;
+  } catch(...) {
+    return nullptr;
+  }
+}
+
+extern "C" void katagocoreml_free_string(const char* s) {
+  free((void*)s);
+}
 
 // LoadedModel / ModelDesc ---------------------------------------------------------------------------------------------
 

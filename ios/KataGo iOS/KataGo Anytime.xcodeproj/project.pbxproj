@@ -30,6 +30,7 @@
 		1AC9BD756030A9BAFC68A404 /* address_is_readable.cc in Sources */ = {isa = PBXBuildFile; fileRef = 34CB7A74633C707C6093A25B /* address_is_readable.cc */; };
 		1C932250F604F7132815DE21 /* unscaledcycleclock.cc in Sources */ = {isa = PBXBuildFile; fileRef = C8269527CA97AE161731B9CB /* unscaledcycleclock.cc */; };
 		1CC870949253FB94170D4AE9 /* Gazetteer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7796CFED474942C453ABC091 /* Gazetteer.pb.cc */; };
+		1E19A0536DFF3C8D5625683B /* mlxtests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FF424C3100BE78563B0BF391 /* mlxtests.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		1E2832C808A267BC14E13E86 /* crc_non_temporal_memcpy.cc in Sources */ = {isa = PBXBuildFile; fileRef = 805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */; };
 		1E393C631B1BC3C0F93CAEA4 /* MILBuilder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7434F79FFAACA347E36CDF34 /* MILBuilder.cpp */; };
 		20D73A20AA9FB7484440EC4F /* Imputer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 14C9F049828D2C767A8EA405 /* Imputer.pb.cc */; };
@@ -46,6 +47,7 @@
 		367C2E7E4E5B24126E925FDE /* coded_stream.cc in Sources */ = {isa = PBXBuildFile; fileRef = E98294CF60C54235D0A2B334 /* coded_stream.cc */; };
 		374E95A7E769402F90845CE9 /* float_conversion.cc in Sources */ = {isa = PBXBuildFile; fileRef = C46D581335E6C102593371C6 /* float_conversion.cc */; };
 		3836D358405B891B6E3572BB /* time_zone_lookup.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */; };
+		388867FB58FBF0496FEA6178 /* mlxwinotuner.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		38FEB8BDDB6E04B991F3ACCE /* cordz_sample_token.cc in Sources */ = {isa = PBXBuildFile; fileRef = 01CDD4D97A60DB28A1ADFBD9 /* cordz_sample_token.cc */; };
 		399AE7C43D9013FB14F3A670 /* SoundAnalysisPreprocessing.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 025B5C9B251E56A5347903A9 /* SoundAnalysisPreprocessing.pb.cc */; };
 		399D0D0800A176514CDD7F63 /* format.cc in Sources */ = {isa = PBXBuildFile; fileRef = B55A917374F587FC1DBCF8EA /* format.cc */; };
@@ -341,7 +343,6 @@
 		E11881652B081E3E00637D44 /* activations.h in Headers */ = {isa = PBXBuildFile; fileRef = E118381A2B081DA700637D44 /* activations.h */; };
 		E118816B2B081E3E00637D44 /* nninputs.h in Headers */ = {isa = PBXBuildFile; fileRef = E11838202B081DA700637D44 /* nninputs.h */; };
 		E118816F2B081E3E00637D44 /* nneval.h in Headers */ = {isa = PBXBuildFile; fileRef = E11838242B081DA700637D44 /* nneval.h */; };
-		E11881702B081E3E00637D44 /* metalbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E11838252B081DA700637D44 /* metalbackend.cpp */; };
 		E11881712B081E3E00637D44 /* nneval.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E11838262B081DA700637D44 /* nneval.cpp */; };
 		E11881722B081E3E00637D44 /* graphhash.h in Headers */ = {isa = PBXBuildFile; fileRef = E11838282B081DA700637D44 /* graphhash.h */; };
 		E11881732B081E3E00637D44 /* board.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E11838292B081DA700637D44 /* board.cpp */; };
@@ -531,7 +532,6 @@
 		EF931B2C32A246FB87AE998C /* escaping.cc in Sources */ = {isa = PBXBuildFile; fileRef = CA637BDE0344DF7FDF50D7AF /* escaping.cc */; };
 		F099C499B6165231410F0861 /* cordz_info.cc in Sources */ = {isa = PBXBuildFile; fileRef = 42798C28CF4A273F0A2ECE56 /* cordz_info.cc */; };
 		F106968CE16D8ED4FD6E4947 /* GLMRegressor.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 206D16FF81C121F070F69FC8 /* GLMRegressor.pb.cc */; };
-		F40B9AE8BA84E26702012E56 /* mlxspike.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0A5190F0628EA555C14C7E9F /* mlxspike.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		F669B066BE644088B09D3EDE /* civil_time_detail.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE23716608EA458E4BFD753E /* civil_time_detail.cc */; };
 		F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8BBC0B17931482DDF9473F56 /* zone_info_source.cc */; };
 		F979745D76CA700E059779B1 /* ostringstream.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDEE19300417942D1C2D57DA /* ostringstream.cc */; };
@@ -540,6 +540,7 @@
 		FB0B1590EBA7CACFEFD6379D /* arenastring.cc in Sources */ = {isa = PBXBuildFile; fileRef = BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */; };
 		FB32590892D4D77692B06440 /* proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5421AC611426CA58B63851AA /* proto.cc */; };
 		FB7896588E7AD07358BB0F87 /* low_level_alloc.cc in Sources */ = {isa = PBXBuildFile; fileRef = F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */; };
+		FB837966B539CDE805A6F7E7 /* mlxbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		FD119B162197599E55BBC0E2 /* pthread_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3C39B0A142771516A0722DE4 /* pthread_waiter.cc */; };
 		FDA37BB958B02DBE4E86F1EC /* leak_check.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2B43A2B22F763467E4437FEE /* leak_check.cc */; };
 /* End PBXBuildFile section */
@@ -707,6 +708,7 @@
 		60CA0A3D8E5E961B5623F5E4 /* flag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = flag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/flag.cc"; sourceTree = SOURCE_ROOT; };
 		653962734D16C68890A2E6FD /* parse_context.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = parse_context.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/parse_context.cc"; sourceTree = SOURCE_ROOT; };
 		654FC19CA890927671A573BA /* duration.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = duration.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/duration.cc"; sourceTree = SOURCE_ROOT; };
+		6554F777AF3B5056F6522068 /* mlxwinograd.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mlxwinograd.h; sourceTree = "<group>"; };
 		65B171D51E58CA4E1C3B9057 /* utf8.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utf8.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/utf8.cc"; sourceTree = SOURCE_ROOT; };
 		65CE6FCF54B90459C06242BB /* cpu_detect.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cpu_detect.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/cpu_detect.cc"; sourceTree = SOURCE_ROOT; };
 		65FC60A967D3BF05C4BCDE0E /* reflection.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = reflection.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/reflection.cc"; sourceTree = SOURCE_ROOT; };
@@ -768,6 +770,7 @@
 		AB10D18C7B3E859EF854E089 /* barrier.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = barrier.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/barrier.cc"; sourceTree = SOURCE_ROOT; };
 		AB8AF52E37193580D79F2CE6 /* city.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = city.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/hash/internal/city.cc"; sourceTree = SOURCE_ROOT; };
 		AC27E7594F1C810B8C50390D /* log_entry.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_entry.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_entry.cc"; sourceTree = SOURCE_ROOT; };
+		AC66EC3F7DB8B7E31D815BCE /* mlxwinotuner.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mlxwinotuner.h; sourceTree = "<group>"; };
 		AC8906AF025B8EBA6668E166 /* Fp8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp8.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp8.cpp; sourceTree = SOURCE_ROOT; };
 		AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_ptr.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/raw_ptr.cc"; sourceTree = SOURCE_ROOT; };
 		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheFooterView.swift; path = "KataGo iOS/CoreMLCacheFooterView.swift"; sourceTree = SOURCE_ROOT; };
@@ -1124,6 +1127,7 @@
 		E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = commandlineflag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/commandlineflag.cc"; sourceTree = SOURCE_ROOT; };
 		E549A394F12A2C25F11CE915 /* randen_slow.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_slow.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_slow.cc"; sourceTree = SOURCE_ROOT; };
 		E5A4D92CF0E9CE8E3EF817C6 /* sem_waiter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = sem_waiter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/sem_waiter.cc"; sourceTree = SOURCE_ROOT; };
+		E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxbackend.cpp; sourceTree = "<group>"; };
 		E5B49A6D9F23E639CE1F5B23 /* gaussian_distribution.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = gaussian_distribution.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/gaussian_distribution.cc"; sourceTree = SOURCE_ROOT; };
 		E5E86CB9461F2B8990E7855E /* initialize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = initialize.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/initialize.cc"; sourceTree = SOURCE_ROOT; };
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
@@ -1133,6 +1137,7 @@
 		EDEE19300417942D1C2D57DA /* ostringstream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ostringstream.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/ostringstream.cc"; sourceTree = SOURCE_ROOT; };
 		EF0CC4F8F6E31E9BBD5658E0 /* damerau_levenshtein_distance.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = damerau_levenshtein_distance.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/damerau_levenshtein_distance.cc"; sourceTree = SOURCE_ROOT; };
 		F04A118B614A6178B0B239E6 /* sysinfo.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = sysinfo.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/sysinfo.cc"; sourceTree = SOURCE_ROOT; };
+		F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxwinotuner.cpp; sourceTree = "<group>"; };
 		F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = low_level_alloc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/low_level_alloc.cc"; sourceTree = SOURCE_ROOT; };
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
@@ -1146,6 +1151,7 @@
 		FDB0EF5683E83342322E62D3 /* demangle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle.cc"; sourceTree = SOURCE_ROOT; };
 		FE23716608EA458E4BFD753E /* civil_time_detail.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = civil_time_detail.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/civil_time_detail.cc"; sourceTree = SOURCE_ROOT; };
 		FE3B9C2481C85939173A3A70 /* spinlock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock.cc"; sourceTree = SOURCE_ROOT; };
+		FF424C3100BE78563B0BF391 /* mlxtests.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxtests.cpp; sourceTree = "<group>"; };
 		FF6F1EC0120C0C10CEF45F23 /* civil_time.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = civil_time.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/civil_time.cc"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -1622,6 +1628,11 @@
 				E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */,
 				0A5190F0628EA555C14C7E9F /* mlxspike.cpp */,
 				691F7D2D624161247C295963 /* mlxspike.h */,
+				E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */,
+				F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */,
+				FF424C3100BE78563B0BF391 /* mlxtests.cpp */,
+				6554F777AF3B5056F6522068 /* mlxwinograd.h */,
+				AC66EC3F7DB8B7E31D815BCE /* mlxwinotuner.h */,
 			);
 			path = neuralnet;
 			sourceTree = "<group>";
@@ -2426,7 +2437,6 @@
 				E11880792B081E3A00637D44 /* testtime.cpp in Sources */,
 				E11880642B081E3900637D44 /* rand_helpers.cpp in Sources */,
 				E11881772B081E3E00637D44 /* graphhash.cpp in Sources */,
-				E11881702B081E3E00637D44 /* metalbackend.cpp in Sources */,
 				E118803D2B081E3900637D44 /* md5.cpp in Sources */,
 				E11881C32B081E3F00637D44 /* setup.cpp in Sources */,
 				E11881272B081E3D00637D44 /* testboardarea.cpp in Sources */,
@@ -2715,7 +2725,9 @@
 				3836D358405B891B6E3572BB /* time_zone_lookup.cc in Sources */,
 				5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */,
 				F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */,
-				F40B9AE8BA84E26702012E56 /* mlxspike.cpp in Sources */,
+				FB837966B539CDE805A6F7E7 /* mlxbackend.cpp in Sources */,
+				388867FB58FBF0496FEA6178 /* mlxwinotuner.cpp in Sources */,
+				1E19A0536DFF3C8D5625683B /* mlxtests.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3263,7 +3275,7 @@
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
-					USE_METAL_BACKEND,
+					USE_MLX_BACKEND,
 					NO_LIBZIP,
 					NO_GIT_REVISION,
 					OS_IS_IOS,
@@ -3331,7 +3343,7 @@
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					USE_METAL_BACKEND,
+					USE_MLX_BACKEND,
 					NO_LIBZIP,
 					NO_GIT_REVISION,
 					OS_IS_IOS,

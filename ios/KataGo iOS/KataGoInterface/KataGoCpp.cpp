@@ -8,7 +8,6 @@
 #include "KataGoCpp.hpp"
 
 #include "../../../cpp/main.h"
-#include "../../../cpp/neuralnet/metalbackend.h"
 
 using namespace std;
 
@@ -91,8 +90,8 @@ void KataGoRunGtp(string modelPath,
     subArgs.push_back(humanModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
-    subArgs.push_back(string("-override-config metalDeviceToUseThread0=") + to_string(metalDeviceToUse));
-    subArgs.push_back(string("-override-config metalUseFP16=true"));
+    subArgs.push_back(string("-override-config mlxDeviceToUseThread0=") + to_string(metalDeviceToUse));
+    subArgs.push_back(string("-override-config mlxUseFP16=true"));
     subArgs.push_back(string("-override-config numSearchThreads=") + to_string(numSearchThreads));
     subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));
     subArgs.push_back(string("-override-config maxBoardSizeForNNBuffer=") + to_string(maxBoardSizeForNNBuffer));
