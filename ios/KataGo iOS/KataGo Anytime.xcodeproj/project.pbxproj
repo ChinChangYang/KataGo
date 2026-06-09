@@ -171,14 +171,11 @@
 		A930EA82B20459A633CCD185 /* ModelPackage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DF87CAF0BC8ED9616E552855 /* ModelPackage.cpp */; };
 		A9376AB799D65C8025CD559D /* city.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB8AF52E37193580D79F2CE6 /* city.cc */; };
 		A99D781BD14A278FDA6A49D7 /* die_if_null.cc in Sources */ = {isa = PBXBuildFile; fileRef = 06B5DB05FBA3F5832D7E2109 /* die_if_null.cc */; };
+		AABBCCDD2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */; };
 		ABDAD4BE72DFB4372CE86377 /* utf8_range.c in Sources */ = {isa = PBXBuildFile; fileRef = 920FF0ED642A58B9D57848B9 /* utf8_range.c */; };
 		AD38793CC430FE93C7EB51A3 /* extension_set.cc in Sources */ = {isa = PBXBuildFile; fileRef = A56F240AFB6311B643324AAC /* extension_set.cc */; };
 		ADDB71762E8FC9DCB6625131 /* output.cc in Sources */ = {isa = PBXBuildFile; fileRef = A45EF436A160EEA1E0BD3205 /* output.cc */; };
 		AE45237315F8D1F22A84E18C /* check_op.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9A84A6291B2BFE5CE2182097 /* check_op.cc */; };
-		CC00000000000000F6000001 /* CoreMLCacheReadinessProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */; };
-		CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */; };
-		CC00000000000000F7000001 /* CoreMLCacheReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */; };
-		CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */; };
 		AF34464DB9EC1C9A75AB28D2 /* EngineLaunchStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DCD4E8F88B177855C19A2D1 /* EngineLaunchStatus.swift */; };
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
@@ -210,6 +207,10 @@
 		CC00000000000000BC000003 /* BackendConfigSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000BC000004 /* BackendConfigSheet.swift */; };
 		CC00000000000000E16F0001 /* EngineLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000E16F0002 /* EngineLifecycle.swift */; };
 		CC00000000000000E16F0003 /* EngineLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000E16F0004 /* EngineLifecycleTests.swift */; };
+		CC00000000000000F6000001 /* CoreMLCacheReadinessProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */; };
+		CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */; };
+		CC00000000000000F7000001 /* CoreMLCacheReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */; };
+		CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */; };
 		CC5014F793A35B4CD098469E /* exponential_biased.cc in Sources */ = {isa = PBXBuildFile; fileRef = A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */; };
 		CD41A831A77E8319890BA0A8 /* parser.cc in Sources */ = {isa = PBXBuildFile; fileRef = CBCC04809980AB6CD49CD9D9 /* parser.cc */; };
 		CDF62E549FB006EC4802412E /* log_format.cc in Sources */ = {isa = PBXBuildFile; fileRef = 141ACBD0F03E88705EF1EA20 /* log_format.cc */; };
@@ -232,6 +233,7 @@
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
 		DFBA06FB577F4C7A7B90DFF2 /* time_zone_if.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDB70E46C2122A655174A3BB /* time_zone_if.cc */; };
+		E1013E572FD8322700D0A4F0 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = E1013E562FD8322700D0A4F0 /* MLX */; };
 		E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10C8BAC2C80BECE00477A7B /* AudioModel.swift */; };
 		E1183E662B081DAA00637D44 /* main.h in Headers */ = {isa = PBXBuildFile; fileRef = E118EF0C2B081D8500637D44 /* main.h */; };
 		E118802E2B081E3900637D44 /* sgf.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CA2B081DA700637D44 /* sgf.h */; };
@@ -484,7 +486,6 @@
 		E18F3E152A51466C00D335E1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E142A51466C00D335E1 /* Assets.xcassets */; };
 		E18F3E182A51466C00D335E1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E172A51466C00D335E1 /* Preview Assets.xcassets */; };
 		E18F3E2C2A51466C00D335E1 /* KataGo_iOSUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */; };
-		AABBCCDD2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */; };
 		E18F3E2E2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */; };
 		E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
 		E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
@@ -738,10 +739,6 @@
 		8670725B9C6971B19E405695 /* tracing.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = tracing.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/tracing.cc"; sourceTree = SOURCE_ROOT; };
 		87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CategoricalMapping.pb.cc; path = ../../cpp/external/katagocoreml/generated/CategoricalMapping.pb.cc; sourceTree = SOURCE_ROOT; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
-		CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjection.swift; path = "KataGo iOS/CoreMLCacheReadinessProjection.swift"; sourceTree = SOURCE_ROOT; };
-		CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjectionTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessProjectionTests.swift"; sourceTree = SOURCE_ROOT; };
-		CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadiness.swift; path = "KataGo iOS/CoreMLCacheReadiness.swift"; sourceTree = SOURCE_ROOT; };
-		CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessTests.swift"; sourceTree = SOURCE_ROOT; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8DE9BEBFBBE6A427CA92E372 /* ascii.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ascii.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/ascii.cc"; sourceTree = SOURCE_ROOT; };
 		8E3859F17AD2C41596120DB5 /* randen.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen.cc"; sourceTree = SOURCE_ROOT; };
@@ -764,6 +761,7 @@
 		A6ADEC4D58AA590CCB7723B6 /* usage_config.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage_config.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/usage_config.cc"; sourceTree = SOURCE_ROOT; };
 		A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TreeEnsemble.pb.cc; path = ../../cpp/external/katagocoreml/generated/TreeEnsemble.pb.cc; sourceTree = SOURCE_ROOT; };
 		A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = exponential_biased.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/exponential_biased.cc"; sourceTree = SOURCE_ROOT; };
+		AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterUITests.swift; sourceTree = "<group>"; };
 		AB10D18C7B3E859EF854E089 /* barrier.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = barrier.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/barrier.cc"; sourceTree = SOURCE_ROOT; };
 		AB8AF52E37193580D79F2CE6 /* city.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = city.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/hash/internal/city.cc"; sourceTree = SOURCE_ROOT; };
 		AC27E7594F1C810B8C50390D /* log_entry.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_entry.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_entry.cc"; sourceTree = SOURCE_ROOT; };
@@ -811,6 +809,10 @@
 		CC00000000000000BC000004 /* BackendConfigSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfigSheet.swift; sourceTree = "<group>"; };
 		CC00000000000000E16F0002 /* EngineLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineLifecycle.swift; sourceTree = "<group>"; };
 		CC00000000000000E16F0004 /* EngineLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineLifecycleTests.swift; sourceTree = "<group>"; };
+		CC00000000000000F6000002 /* CoreMLCacheReadinessProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjection.swift; path = "KataGo iOS/CoreMLCacheReadinessProjection.swift"; sourceTree = SOURCE_ROOT; };
+		CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjectionTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessProjectionTests.swift"; sourceTree = SOURCE_ROOT; };
+		CC00000000000000F7000002 /* CoreMLCacheReadiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadiness.swift; path = "KataGo iOS/CoreMLCacheReadiness.swift"; sourceTree = SOURCE_ROOT; };
+		CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessTests.swift"; sourceTree = SOURCE_ROOT; };
 		CFF4187E328E507D1C765E42 /* parse.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = parse.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/parse.cc"; sourceTree = SOURCE_ROOT; };
 		D1CBE5B8CC729712593159CF /* escaping.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = escaping.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/escaping.cc"; sourceTree = SOURCE_ROOT; };
 		D1F4B3BEA316F4BAC370ACA2 /* globals.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = globals.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/globals.cc"; sourceTree = SOURCE_ROOT; };
@@ -1079,7 +1081,6 @@
 		E18F3E1D2A51466C00D335E1 /* KataGo AnytimeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "KataGo AnytimeTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E272A51466C00D335E1 /* KataGo AnytimeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "KataGo AnytimeUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E2B2A51466C00D335E1 /* KataGo_iOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITests.swift; sourceTree = "<group>"; };
-		AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterUITests.swift; sourceTree = "<group>"; };
 		E18F3E2D2A51466C00D335E1 /* KataGo_iOSUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		E18F3F712A5149AB00D335E1 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		E18F3F742A514B9700D335E1 /* default_model.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = default_model.bin.gz; sourceTree = "<group>"; };
@@ -1178,6 +1179,7 @@
 				E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */,
 				E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */,
 				E11887E72B0830C900637D44 /* KataGoSwift.framework in Frameworks */,
+				E1013E572FD8322700D0A4F0 /* MLX in Frameworks */,
 				E118EE962B081C3300637D44 /* katago.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2266,6 +2268,9 @@
 				Base,
 			);
 			mainGroup = E18F3E042A51466A00D335E1;
+			packageReferences = (
+				E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+			);
 			productRefGroup = E18F3E0E2A51466A00D335E1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -3616,6 +3621,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = exactVersion;
+				version = 0.31.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E1013E562FD8322700D0A4F0 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E18F3E052A51466A00D335E1 /* Project object */;
 }
