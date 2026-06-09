@@ -10,6 +10,17 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-09-migrate-app-to-mlx-backend-design.md`
 
+## Phase 0 RESULTS — corrections to the tasks below (2026-06-09)
+
+The spike completed and **changed several assumptions** in Phases 2–3 below. Done/locked on branch `feature/mlx-app-migration` (commit `91075838`, the repurposed spike branch):
+
+- **Integration target is `katago` (the C++ engine framework), NOT the app target.** Link the MLX product into `katago`, set per-file `-std=gnu++20` on the MLX `.cpp` only (engine stays `gnu++17` — target-wide C++20 breaks `loadmodel.cpp` `u8string`), header search paths on `katago`. MLX removed from the app target.
+- **MLX dependency is a LOCAL vendored SwiftPM package** at `ios/KataGo iOS/ThirdParty/mlx-swift` (not the remote), carrying two simulator-only patches (`PATCHES.md`) that fix a hard MLX-on-iOS-simulator crash. Header paths point at `$(SRCROOT)/ThirdParty/mlx-swift/Source/Cmlx/{mlx,mlx-c}`.
+- **Already wired:** local package ref, MLX→`katago`, header paths, per-file C++20 (currently on the `mlxspike.cpp` canary). Phase 2 applies the same per-file flag to `mlxbackend.cpp`/`mlxwinotuner.cpp`/`mlxtests.cpp` and removes `mlxspike.cpp`.
+- So Phase 2 Task 2.1 (add dep) is **done**; Task 2.2's swap targets `katago`, not the app.
+
+See memory `project-mlx-crashes-on-ios-simulator` and `project-migrate-app-to-mlx-backend` for full detail.
+
 ## Conventions used throughout
 
 - Repo root: `/Users/chinchangyang/Code/KataGo-ios-dev`
