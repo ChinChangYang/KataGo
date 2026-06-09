@@ -2128,7 +2128,49 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
   bool useFP16 = (context->useFP16Mode != enabled_t::False);
   bool optimizeMask = requireExactNNLen;
 
-  // Convert model to CoreML format in temp directory
+  // ANE-only context: free the in-memory FP32 weight arrays before converting.
+  // Both the cache-aware bridge and the direct converter re-read the model from
+  // disk (modelPath); nothing afterward reads the in-memory weight arrays — the
+  // ComputeHandle ctor takes the MLX_MUX_ANE early-return before building any
+  // MLX/GPU model, and only scalar dims are read later (numInputChannels, ...,
+  // which releaseWeights() preserves). Runs under computeHandleMutex (held by
+  // createComputeHandle), so it is not racy; releaseWeights() is idempotent.
+  if(context->aneOnly) {
+    const_cast<LoadedModel*>(loadedModel)->modelDesc.releaseWeights();
+  }
+
+  // The Swift entry points expect a MetalComputeContext. Reuse it for MLX as-is
+  // (it carries only nnXLen/nnYLen/useFP16).
+  auto swiftContext = KataGoSwift::createMetalComputeContext(
+    static_cast<int32_t>(nnXLen),
+    static_cast<int32_t>(nnYLen),
+    useFP16);
+
+  // Try the cache-aware CoreML bridge first (iOS Task 19): it converts + caches
+  // on the cooperative thread pool and avoids recompiling the .mlmodelc on every
+  // launch. Returns none when katago_coreml_bridge has not been registered (e.g.
+  // before KataGoInterface.registerCoreMLBridge(), or on desktop builds), in
+  // which case we fall through to the direct-compile path below.
+  auto bridgeResult = KataGoSwift::invokeCoreMLBridge(
+    swift::String(loadedModel->modelPath),
+    serverThreadIdx,
+    requireExactNNLen,
+    loadedModel->modelDesc.numInputChannels,
+    loadedModel->modelDesc.numInputGlobalChannels,
+    loadedModel->modelDesc.numInputMetaChannels,
+    loadedModel->modelDesc.numPolicyChannels,
+    loadedModel->modelDesc.numValueChannels,
+    loadedModel->modelDesc.numScoreValueChannels,
+    loadedModel->modelDesc.numOwnershipChannels,
+    swiftContext,
+    maxBatchSize
+  );
+  if(static_cast<bool>(bridgeResult)) {
+    return bridgeResult;
+  }
+
+  // Direct path: convert the model in-place and load without the cache.
+  cerr << "MLX backend " << serverThreadIdx << ": CoreML bridge not registered, using direct-compile path" << endl;
   string coremlModelPath = CoreMLConversion::convertModelToTemp(
     loadedModel->modelPath,
     nnXLen,
@@ -2138,24 +2180,6 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
     maxBatchSize,
     serverThreadIdx
   );
-
-  // ANE-only context: the converter has just re-read the model from disk
-  // (modelPath) into CoreML form, and nothing afterward reads the in-memory
-  // weight arrays — the ComputeHandle ctor takes the MLX_MUX_ANE early-return
-  // before building any MLX/GPU model, and only scalar dims are read later
-  // (numInputChannels, ..., which releaseWeights() preserves). Runs under
-  // computeHandleMutex (held by createComputeHandle), so it is not racy;
-  // releaseWeights() is idempotent across the per-thread ANE handles.
-  if(context->aneOnly) {
-    const_cast<LoadedModel*>(loadedModel)->modelDesc.releaseWeights();
-  }
-
-  // The Swift createCoreMLComputeHandle entry point expects a
-  // MetalComputeContext. Construct one on-the-fly from MLX's context values.
-  auto swiftContext = KataGoSwift::createMetalComputeContext(
-    static_cast<int32_t>(nnXLen),
-    static_cast<int32_t>(nnYLen),
-    useFP16);
 
   // Create CoreML-only compute handle (CPU+ANE) — same Swift entry point Metal uses.
   return KataGoSwift::createCoreMLComputeHandle(
