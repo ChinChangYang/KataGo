@@ -25,6 +25,7 @@
 #include <katagocoreml/KataGoConverter.hpp>
 #include <katagocoreml/Version.hpp>  // ConverterVersion, for the iOS Task-17/19 C-API
 #include <ghc/filesystem.hpp>
+#include <TargetConditionals.h>  // TARGET_OS_IOS / TARGET_OS_VISION for memory caps
 #include <chrono>
 #include <unistd.h>  // For getpid()
 #include <iostream>
@@ -2106,7 +2107,17 @@ void NeuralNet::freeInputBuffers(InputBuffers* inputBuffers) {
 // NeuralNet Interface -------------------------------------------------------------------------------------------------
 
 void NeuralNet::globalInitialize() {
-  // MLX initializes automatically
+  // MLX initializes automatically.
+#if TARGET_OS_IOS || TARGET_OS_VISION
+  // iOS/visionOS run under a hard per-app memory budget (the OS jetsams apps
+  // that exceed it; there is no swap). Cap MLX's buffer-reuse cache so idle
+  // steady-state RSS stays bounded — set_cache_limit only reclaims unused
+  // cached buffers on the next allocation and never throws, so it cannot break
+  // inference (unlike set_memory_limit, whose default 1.5x-working-set guideline
+  // we keep). Conservative default; tune per device. The CoreML/ANE path barely
+  // touches this allocator, so the cap mainly bounds the MLX/GPU path.
+  mx::set_cache_limit((size_t)256 * 1024 * 1024);
+#endif
 }
 
 void NeuralNet::globalCleanup() {
