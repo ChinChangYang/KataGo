@@ -6,7 +6,7 @@
 import Foundation
 
 enum BackendChoice: String, CaseIterable, Identifiable {
-    case mpsGPU = "MPS/GPU"
+    case mpsGPU = "MLX/GPU"
     case coremlNE = "CoreML/NE"
 
     var id: String { rawValue }
