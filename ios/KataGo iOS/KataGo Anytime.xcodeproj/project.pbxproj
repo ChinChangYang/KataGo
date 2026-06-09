@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00BFD5EF6E27BFC1A2AE45B9 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = E1013E562FD8322700D0A4F0 /* MLX */; };
 		011085AC1F2879F10A33ADB9 /* cord_rep_btree_reader.cc in Sources */ = {isa = PBXBuildFile; fileRef = F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */; };
 		011559ABD37118152E2411A3 /* any_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = B0BBA9D4195D76AB26782D5D /* any_lite.cc */; };
 		019C3DF15337BE4A6D127E10 /* reflection.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65FC60A967D3BF05C4BCDE0E /* reflection.cc */; };
@@ -233,7 +234,6 @@
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
 		DFBA06FB577F4C7A7B90DFF2 /* time_zone_if.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDB70E46C2122A655174A3BB /* time_zone_if.cc */; };
-		E1013E572FD8322700D0A4F0 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = E1013E562FD8322700D0A4F0 /* MLX */; };
 		E10C8BAD2C80BECE00477A7B /* AudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10C8BAC2C80BECE00477A7B /* AudioModel.swift */; };
 		E1183E662B081DAA00637D44 /* main.h in Headers */ = {isa = PBXBuildFile; fileRef = E118EF0C2B081D8500637D44 /* main.h */; };
 		E118802E2B081E3900637D44 /* sgf.h in Headers */ = {isa = PBXBuildFile; fileRef = E11836CA2B081DA700637D44 /* sgf.h */; };
@@ -531,6 +531,7 @@
 		EF931B2C32A246FB87AE998C /* escaping.cc in Sources */ = {isa = PBXBuildFile; fileRef = CA637BDE0344DF7FDF50D7AF /* escaping.cc */; };
 		F099C499B6165231410F0861 /* cordz_info.cc in Sources */ = {isa = PBXBuildFile; fileRef = 42798C28CF4A273F0A2ECE56 /* cordz_info.cc */; };
 		F106968CE16D8ED4FD6E4947 /* GLMRegressor.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 206D16FF81C121F070F69FC8 /* GLMRegressor.pb.cc */; };
+		F40B9AE8BA84E26702012E56 /* mlxspike.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0A5190F0628EA555C14C7E9F /* mlxspike.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		F669B066BE644088B09D3EDE /* civil_time_detail.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE23716608EA458E4BFD753E /* civil_time_detail.cc */; };
 		F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8BBC0B17931482DDF9473F56 /* zone_info_source.cc */; };
 		F979745D76CA700E059779B1 /* ostringstream.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDEE19300417942D1C2D57DA /* ostringstream.cc */; };
@@ -622,6 +623,7 @@
 		0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_lookup.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_lookup.cc"; sourceTree = SOURCE_ROOT; };
 		08A64D96809284BB1CBDC11B /* BinFileHasher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BinFileHasher.swift; path = "KataGo iOS/BinFileHasher.swift"; sourceTree = SOURCE_ROOT; };
 		098B90970A3612EEF180A94B /* throw_delegate.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = throw_delegate.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/throw_delegate.cc"; sourceTree = SOURCE_ROOT; };
+		0A5190F0628EA555C14C7E9F /* mlxspike.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxspike.cpp; sourceTree = "<group>"; };
 		0A85319AE10A8198A3117ADE /* mutex.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mutex.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/mutex.cc"; sourceTree = SOURCE_ROOT; };
 		0B40E0A9D40BE4F1BFF2939B /* arg.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arg.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/arg.cc"; sourceTree = SOURCE_ROOT; };
 		0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = AudioFeaturePrint.pb.cc; path = ../../cpp/external/katagocoreml/generated/AudioFeaturePrint.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -709,6 +711,7 @@
 		65CE6FCF54B90459C06242BB /* cpu_detect.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cpu_detect.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/cpu_detect.cc"; sourceTree = SOURCE_ROOT; };
 		65FC60A967D3BF05C4BCDE0E /* reflection.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = reflection.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/reflection.cc"; sourceTree = SOURCE_ROOT; };
 		6611B60F0D28CC462D4FFD4B /* seed_sequences.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_sequences.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/seed_sequences.cc"; sourceTree = SOURCE_ROOT; };
+		691F7D2D624161247C295963 /* mlxspike.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mlxspike.h; sourceTree = "<group>"; };
 		69B53B35A548BA23172D03D3 /* cord.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/cord.cc"; sourceTree = SOURCE_ROOT; };
 		6A50B060363C7FD69195AABA /* cord_rep_btree.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree.cc"; sourceTree = SOURCE_ROOT; };
 		6B854DB5E08ABE9A30321B1D /* Converter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Converter.cpp; path = ../../cpp/external/katagocoreml/src/Converter.cpp; sourceTree = SOURCE_ROOT; };
@@ -1160,6 +1163,7 @@
 			files = (
 				E11887F42B08312F00637D44 /* KataGoSwift.framework in Frameworks */,
 				E11887F52B0831B100637D44 /* libz.tbd in Frameworks */,
+				00BFD5EF6E27BFC1A2AE45B9 /* MLX in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1179,7 +1183,6 @@
 				E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */,
 				E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */,
 				E11887E72B0830C900637D44 /* KataGoSwift.framework in Frameworks */,
-				E1013E572FD8322700D0A4F0 /* MLX in Frameworks */,
 				E118EE962B081C3300637D44 /* katago.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1617,6 +1620,8 @@
 				E11838142B081DA700637D44 /* nninterface.h */,
 				E11838112B081DA700637D44 /* openclhelpers.cpp */,
 				E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */,
+				0A5190F0628EA555C14C7E9F /* mlxspike.cpp */,
+				691F7D2D624161247C295963 /* mlxspike.h */,
 			);
 			path = neuralnet;
 			sourceTree = "<group>";
@@ -2144,6 +2149,9 @@
 				E11887F32B08312600637D44 /* PBXTargetDependency */,
 			);
 			name = katago;
+			packageProductDependencies = (
+				E1013E562FD8322700D0A4F0 /* MLX */,
+			);
 			productName = katago;
 			productReference = E118EE902B081C3200637D44 /* katago.framework */;
 			productType = "com.apple.product-type.framework";
@@ -2269,7 +2277,7 @@
 			);
 			mainGroup = E18F3E042A51466A00D335E1;
 			packageReferences = (
-				E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */,
 			);
 			productRefGroup = E18F3E0E2A51466A00D335E1 /* Products */;
 			projectDirPath = "";
@@ -2707,6 +2715,7 @@
 				3836D358405B891B6E3572BB /* time_zone_lookup.cc in Sources */,
 				5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */,
 				F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */,
+				F40B9AE8BA84E26702012E56 /* mlxspike.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2981,6 +2990,8 @@
 				HEADER_SEARCH_PATHS = (
 					"../../cpp/external/tclap-1.2.5/include",
 					../../cpp/external,
+					"$(SRCROOT)/ThirdParty/mlx-swift/Source/Cmlx/mlx",
+					"$(SRCROOT)/ThirdParty/mlx-swift/Source/Cmlx/mlx-c",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -3056,6 +3067,8 @@
 				HEADER_SEARCH_PATHS = (
 					"../../cpp/external/tclap-1.2.5/include",
 					../../cpp/external,
+					"$(SRCROOT)/ThirdParty/mlx-swift/Source/Cmlx/mlx",
+					"$(SRCROOT)/ThirdParty/mlx-swift/Source/Cmlx/mlx-c",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -3622,21 +3635,17 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ml-explore/mlx-swift";
-			requirement = {
-				kind = exactVersion;
-				version = 0.31.4;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "ThirdParty/mlx-swift";
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		E1013E562FD8322700D0A4F0 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E1013E552FD8322700D0A4F0 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */;
 			productName = MLX;
 		};
 /* End XCSwiftPackageProductDependency section */
