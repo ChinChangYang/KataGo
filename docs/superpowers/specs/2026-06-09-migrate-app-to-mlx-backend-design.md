@@ -58,10 +58,25 @@ Merge `origin/mlx-backend-squash` into `ios-dev`. Pulls:
 
 ### C. MLX dependency
 - Add `mlx-swift` (pinned tag) as an SPM package dependency of the project.
-- Link the **`Cmlx`** target into every target that compiles `mlxbackend.cpp`.
 - Set `CLANG_CXX_LANGUAGE_STANDARD = c++20` (Cmlx requires C++20).
-- Ensure `#include <mlx/mlx.h>` resolves (header search paths come from the `Cmlx` target).
 - Build via Xcode/`xcodebuild` only (the project already does for all 3 platforms).
+- **Linking mechanism (nuance — Phase 0 locks the exact path).** `Cmlx` is the MLX C++
+  library *target* but is **not a declared package product** (mlx-swift exposes only
+  `MLX`, `MLXNN`, `MLXFast`, `MLXRandom`, `MLXOptimizers`, `MLXFFT`, `MLXLinalg`), and its
+  `mlx`/`mlx-c` header search paths are **private** to building Cmlx — so they are not
+  propagated to a C++ consumer. Concretely, to make `#include <mlx/mlx.h>` + `mx::` resolve
+  and link from `mlxbackend.cpp`, the candidate mechanisms, in order of preference:
+  1. **Link the `MLX` product** (transitively builds/links `Cmlx`'s objects) **+ add an
+     explicit `HEADER_SEARCH_PATHS`** entry pointing at the SPM checkout's
+     `…/SourcePackages/checkouts/mlx-swift/Source/Cmlx/mlx` (and `…/mlx-c`). Least invasive;
+     risk is the DerivedData-relative path being fragile across machines/CI.
+  2. **Thin `mlx-swift` fork** (or local SwiftPM package) that adds `Cmlx` to `products:` as a
+     `.library` with a proper public-headers layout, pinned like the main fork. Keeps the
+     SPM/source-compiled model; robust headers; cost is maintaining a small fork.
+  3. **Prebuilt `Cmlx.xcframework`** via mlx-swift's `tools/create-xcframework.sh`, vendored
+     under `Libraries/` (matches the `libkatagocoreml` pattern). Robust; departs from the
+     pure-SPM choice — fallback only.
+  Phase 0 tries (1); if it proves too fragile, choose (2) (preferred, stays SPM) or (3).
 
 ### D. Backend macro + C++ glue
 - Flip the preprocessor define `USE_METAL_BACKEND` → `USE_MLX_BACKEND` in the 2 build configs (`project.pbxproj` lines ~3248, ~3316).
@@ -92,6 +107,7 @@ Merge `origin/mlx-backend-squash` into `ios-dev`. Pulls:
 | Risk | Mitigation |
 |---|---|
 | MLX C++ won't compile/run inside the Xcode app (headers, C++20, JIT kernels) | **Phase 0 spike** proves it before any real change |
+| `Cmlx` is not a package product; C++ headers not propagated to consumers | Phase 0 locks the mechanism (MLX product + header search path → fork exposing `Cmlx` product → prebuilt xcframework) |
 | `metalbackend.swift` references C++ symbols from the dropped `metalbackend.cpp` | Detected in spike/Phase 2; provide the needed symbols or keep a thin shim |
 | C++20 bump ripples into other engine TUs | Spike compiles the full target at C++20; fix fallout there |
 | iOS memory / jetsam (prior b40 OOM) | MLX memory/cache/wired caps in Phase 3; test smallest device |
