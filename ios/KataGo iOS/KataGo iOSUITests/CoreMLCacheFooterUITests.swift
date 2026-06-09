@@ -126,6 +126,40 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                        "Clear Cache button should be hidden when cache is empty")
     }
 
+    /// End-to-end runtime check that the MLX backend actually evaluates the
+    /// neural net and the board renders its analysis: after launching the
+    /// built-in model, AnalysisView's per-move winrate labels must appear on the
+    /// goban. analysisStatus defaults to .run, so analysis starts automatically
+    /// once the goban is on screen. Generous timeouts — the simulator's
+    /// software-Metal path is slow to produce the first analysis.
+    @MainActor
+    func testAnalysisTextAppearsOnBoard() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        tapModelRow(in: app, title: builtInTitle)
+        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+
+        // The goban (GameSplitView) is on screen once the "Lock" toolbar button exists.
+        let lockButton = app.buttons["Lock"]
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
+                      "Goban (Lock button) did not appear after launching the built-in engine")
+
+        // Analysis text: AnalysisView renders winrate % labels per candidate move
+        // (default "All" mode shows winrate + visits + score).
+        let winrate = app.staticTexts.matching(identifier: "AnalysisView.winrate").firstMatch
+        let appeared = winrate.waitForExistence(timeout: 180)
+
+        // Capture the board for visual confirmation regardless of the query result.
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "board-analysis"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertTrue(appeared,
+                      "No analysis winrate text appeared on the board — the engine did not produce analysis")
+    }
+
     // MARK: - Helpers
 
     /// Parses the "<Label>: N of M" fragment from a footer line.

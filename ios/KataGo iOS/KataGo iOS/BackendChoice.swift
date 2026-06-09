@@ -52,11 +52,20 @@ struct BackendSettings {
 
     var backend: BackendChoice {
         get {
+            #if targetEnvironment(simulator)
+            // The iOS/visionOS simulator's Metal translation layer (MTLSimDriver)
+            // crashes inside MLX's GPU inference path (copy_gpu_inplace). MLX-GPU
+            // only works on real devices, so force the CoreML/NE path on the
+            // simulator regardless of any stored MLX/GPU preference. Real devices
+            // honor the stored preference below.
+            return .coremlNE
+            #else
             if let raw = UserDefaults.standard.string(forKey: backendKey),
                let choice = BackendChoice(rawValue: raw) {
                 return choice
             }
             return BackendChoice.platformDefault
+            #endif
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: backendKey)

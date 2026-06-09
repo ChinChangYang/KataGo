@@ -190,6 +190,8 @@ extension View {
             .minimumScaleFactor(0.01)
             .bold()
             .foregroundStyle(.black)
+            // Stable hook for UI tests asserting analysis text renders on the board.
+            .accessibilityIdentifier("AnalysisView.winrate")
     }
 
     func visitsText(_ visits: Int) -> some View {
