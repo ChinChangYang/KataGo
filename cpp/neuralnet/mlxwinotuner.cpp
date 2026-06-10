@@ -1121,6 +1121,27 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   if(!result.isValid())
     throw StringError("MLXWinogradTuner: flat sweep result failed isValid()");
 
+#ifdef MLX_TUNE_STUDY
+  if(!full) {
+    // Coarse EXHAUSTIVE reference (same coarse value sets as greedy, but full
+    // search: useGreedy=false) — apples-to-apples with the greedy winner. This
+    // isolates "greedy vs coarse-exhaustive" from the separate "coarse vs wide"
+    // question (the coarse breadth is already accepted). Dev-only.
+    int exIn = 0, exOut = 0;
+    auto exBestIn  = flatSweepInput (batchSize, nnYLen, nnXLen, modelInfo, useFP16, /*full=*/false, /*useGreedy=*/false, nullptr, &exIn);
+    auto exBestOut = flatSweepOutput(batchSize, nnYLen, nnXLen, modelInfo, useFP16, /*full=*/false, /*useGreedy=*/false, nullptr, &exOut);
+    double greedyInMs  = scoreInputTransformForTesting (result.inputTransform,    batchSize, nnYLen, nnXLen, modelInfo, useFP16);
+    double greedyOutMs = scoreOutputUntransformForTesting(result.outputUntransform, batchSize, nnYLen, nnXLen, modelInfo, useFP16);
+    double exInMs  = exBestIn  ? scoreInputTransformForTesting (*exBestIn,  batchSize, nnYLen, nnXLen, modelInfo, useFP16) : 0.0;
+    double exOutMs = exBestOut ? scoreOutputUntransformForTesting(*exBestOut, batchSize, nnYLen, nnXLen, modelInfo, useFP16) : 0.0;
+    double gT = greedyInMs + greedyOutMs, eT = exInMs + exOutMs;
+    double deltaPct = (eT > 1e-9) ? (gT - eT) / eT * 100.0 : 0.0;
+    std::fprintf(stderr,
+      "[MLX-ACCEPT] greedy_ms=%.4f coarse_exhaustive_ms=%.4f delta_pct=%+.1f within5=%d\n",
+      gT, eT, deltaPct, (deltaPct <= 5.0) ? 1 : 0);
+  }
+#endif
+
   if(!tunerFile.empty()) {
     MLXWinogradTuneParams::save(tunerFile, result);
     if(logger)
