@@ -660,6 +660,15 @@ git commit -m "test(mlx): MLX_TUNE_STUDY acceptance — greedy vs coarse-exhaust
 
 No code. Run the study build on the iPad and confirm the three success conditions.
 
+> **RESULTS (recorded 2026-06-11, iPad mini 6 / A15):**
+> - Study build (greedy + acceptance):
+>   `[MLX-TUNE] sweep ... input=1532ms output=2725ms total=4256ms consideredIn=34 consideredOut=25`
+>   `[MLX-ACCEPT] greedy_ms=2.2714 coarse_exhaustive_ms=2.2657 delta_pct=+0.3 within5=1`
+> - Normal build (production, gated study OFF):
+>   `[MLX-TUNE] sweep ... input=1593ms output=1917ms total=3510ms consideredIn=34 consideredOut=17`; **0** `[MLX-STUDY]`/`[MLX-ACCEPT]` lines (gating confirmed).
+>
+> **Verdict:** tuner **18.8 s → 3.5 s** production (≈5.4×; vs ~37 s for the original two-net exhaustive), `consideredIn` 192→34 / `consideredOut` 48→17, and greedy is **+0.3%** vs the coarse-exhaustive optimum (`within5=1`) — minimal performance loss. The auto-tuner (the dominant slice of the >15 s Loading screen) is now ~3.5 s, so the whole Loading screen is comfortably under 15 s.
+
 - [ ] **Step 1: Install + launch the harness (study build from Task 6)**
 
 ```bash
