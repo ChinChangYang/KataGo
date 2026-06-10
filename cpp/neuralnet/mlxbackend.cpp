@@ -1796,6 +1796,20 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> createCoreMLOnlyHandleI
 
 // ComputeContext and ComputeHandle ------------------------------------------------------------------------------------
 
+// Session-scoped, cross-context Winograd-tune memo. The main net and the human
+// SL net are separate NNEvaluators with separate ComputeContexts (gtp.cpp builds
+// both), yet on iOS MLX/GPU both are b18c384 with identical 3x3-conv shapes, so
+// their optimal transform geometry is the same — they should tune ONCE per
+// engine session, not twice. A per-context memo can't span the two contexts;
+// this process-global one does. It is scoped to a session by being cleared when
+// the last ComputeContext is freed (a session == the window in which any context
+// is alive), so a forced re-tune in a later session runs afresh instead of
+// reusing a stale entry. Sequential context creation in gtp.cpp means the
+// check/tune/store below needs no lock held across the (long) tune itself.
+static std::mutex g_winoTuneMemoMutex;
+static std::map<std::string, MLXWinogradTuneParams> g_winoTuneMemo;
+static int g_liveComputeContexts = 0;
+
 struct ComputeContext {
   const int nnXLen;
   const int nnYLen;
@@ -1960,31 +1974,60 @@ struct ComputeHandle {
           MLXWinogradTuner::buildConv3x3Histograms(loadedModel.modelDesc);
       mi.conv3x3InputHistogram  = std::move(inHist);
       mi.conv3x3OutputHistogram = std::move(outHist);
-      tuneParams = MLXWinogradTuner::loadOrAutoTune(
-          /*tunerFile=*/"",
-          context->homeDataDirOverride,
-          MLXWinogradTuner::detectGpuName(),
-          context->nnXLen, context->nnYLen,
-          // Tuner times the Winograd input/output transform kernels at this
-          // batch size only (the matmul stage is untuned). Probed re-tuning
-          // at 8/16/32/64: the winning configs do differ per batch size, but
-          // end-to-end throughput stayed flat within ~1.5% run-to-run noise.
-          // OpenCL's tuner pins a single batch size too. Not worth
-          // parameterizing.
-          /*batchSize=*/8,
-          mi,
-          context->logger,
-          // full / reTune come from the app's MLX/GPU tuning UI via
-          // -override-config (mlxTunerFull / mlxReTune), read into the
-          // ComputeContext in createComputeContext. Defaults are false/false:
-          // load a valid cache, or on a miss tune the coarse "fast" grid once.
-          // full=true selects the wide grid (cached under a distinct "_full"
-          // file); reTune=true forces a fresh tune that overwrites the current
-          // mode's cache. `./katago tuner` (optionally -full) remains a separate
-          // always-overwrite entry point.
-          /*full=*/context->tunerFull,
-          /*reTune=*/context->tunerReTune,
-          /*useFP16=*/useFP16_);
+
+      // Cross-context shape memo (see g_winoTuneMemo): if a same-shape GPU
+      // handle already tuned this session, reuse its result and skip the sweep
+      // entirely. This is what keeps the main + human b18c384 nets at a single
+      // tune instead of two — halving model-load tuning time at zero quality
+      // cost (identical shape ⇒ identical optimal geometry).
+      const std::string shapeKey =
+          std::to_string(mi.trunkNumChannels)
+          + "_" + std::to_string(context->nnXLen)
+          + "x" + std::to_string(context->nnYLen)
+          + (useFP16_ ? "_fp16" : "_fp32")
+          + (context->tunerFull ? "_full" : "_fast");
+      bool reusedMemo = false;
+      {
+        std::lock_guard<std::mutex> lk(g_winoTuneMemoMutex);
+        auto it = g_winoTuneMemo.find(shapeKey);
+        if(it != g_winoTuneMemo.end()) {
+          tuneParams = it->second;
+          reusedMemo = true;
+        }
+      }
+      if(reusedMemo) {
+        if(context->logger != NULL)
+          context->logger->write("Reusing MLX Winograd tuning for shape " + shapeKey
+                                 + " (already tuned this session)");
+      } else {
+        tuneParams = MLXWinogradTuner::loadOrAutoTune(
+            /*tunerFile=*/"",
+            context->homeDataDirOverride,
+            MLXWinogradTuner::detectGpuName(),
+            context->nnXLen, context->nnYLen,
+            // Tuner times the Winograd input/output transform kernels at this
+            // batch size only (the matmul stage is untuned). Probed re-tuning
+            // at 8/16/32/64: the winning configs do differ per batch size, but
+            // end-to-end throughput stayed flat within ~1.5% run-to-run noise.
+            // OpenCL's tuner pins a single batch size too. Not worth
+            // parameterizing.
+            /*batchSize=*/8,
+            mi,
+            context->logger,
+            // full / reTune come from the app's MLX/GPU tuning UI via
+            // -override-config (mlxTunerFull / mlxReTune), read into the
+            // ComputeContext in createComputeContext. Defaults are false/false:
+            // load a valid cache, or on a miss tune the coarse "fast" grid once.
+            // full=true selects the wide grid (cached under a distinct "_full"
+            // file); reTune=true forces a fresh tune that overwrites the current
+            // mode's cache. `./katago tuner` (optionally -full) remains a separate
+            // always-overwrite entry point.
+            /*full=*/context->tunerFull,
+            /*reTune=*/context->tunerReTune,
+            /*useFP16=*/useFP16_);
+        std::lock_guard<std::mutex> lk(g_winoTuneMemoMutex);
+        g_winoTuneMemo[shapeKey] = tuneParams;
+      }
     }
 
     modelCacheKey = makeCacheKey(loadedModel, tuneParams, useFP16_);
@@ -2291,6 +2334,12 @@ ComputeContext* NeuralNet::createComputeContext(
   // upstream when createComputeContext was consolidated onto ConfigParser).
   ComputeContext* context = new ComputeContext(nnXLen, nnYLen, useFP16Mode, homeDataDirOverride, logger);
   context->aneOnly = aneOnly;
+  // Track live contexts so the cross-context tune memo can be cleared when this
+  // engine session ends (see g_winoTuneMemo).
+  {
+    std::lock_guard<std::mutex> lk(g_winoTuneMemoMutex);
+    g_liveComputeContexts++;
+  }
   // MLX/GPU Winograd autotuner controls (app sets these via -override-config).
   // Read here so the GPU ComputeHandle ctor can honor them; harmless on the ANE
   // path, which returns before the tuner. Calling getBool marks the keys "used"
@@ -2302,6 +2351,16 @@ ComputeContext* NeuralNet::createComputeContext(
 
 void NeuralNet::freeComputeContext(ComputeContext* computeContext) {
   delete computeContext;
+  // When the last context of this engine session goes away, drop the
+  // cross-context tune memo so the next session (e.g. a forced re-tune) starts
+  // fresh rather than reusing this session's results.
+  {
+    std::lock_guard<std::mutex> lk(g_winoTuneMemoMutex);
+    if(--g_liveComputeContexts <= 0) {
+      g_liveComputeContexts = 0;
+      g_winoTuneMemo.clear();
+    }
+  }
 }
 
 ComputeHandle* NeuralNet::createComputeHandle(

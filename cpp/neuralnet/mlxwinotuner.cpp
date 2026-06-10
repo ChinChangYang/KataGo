@@ -1004,11 +1004,21 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   // Flat per-stage sweep.
   auto t0 = std::chrono::steady_clock::now();
   auto bestIn  = flatSweepInput (batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger);
+  auto tMid = std::chrono::steady_clock::now();
   auto bestOut = flatSweepOutput(batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger);
   auto t1 = std::chrono::steady_clock::now();
-  double tuneMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  double inMs    = std::chrono::duration<double, std::milli>(tMid - t0).count();
+  double outMs   = std::chrono::duration<double, std::milli>(t1 - tMid).count();
+  double tuneMs  = std::chrono::duration<double, std::milli>(t1 - t0).count();
   if(logger)
     logger->write("MLX tuner flat sweep complete in " + Global::strprintf("%.0f", tuneMs) + " ms");
+  // TEMP instrumentation (stderr → devicectl --console) to isolate the sweep
+  // cost on-device: input/output split + total, per tuned net. Remove once the
+  // coarse rep budget is calibrated for the iPad.
+  std::fprintf(stderr,
+               "[MLX-TUNE] sweep full=%d c=%d x%d y%d input=%.0fms output=%.0fms total=%.0fms\n",
+               full ? 1 : 0, modelInfo.trunkNumChannels, nnXLen, nnYLen, inMs, outMs, tuneMs);
+  std::fflush(stderr);
 
   if(!bestIn || !bestOut)
     throw StringError("MLXWinogradTuner: flat sweep returned no valid candidate");
