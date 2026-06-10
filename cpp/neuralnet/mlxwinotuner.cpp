@@ -845,6 +845,7 @@ flatSweepInput(int N, int H, int W,
     const std::vector<int> order = {3, 1, 0, 2};
     // Seed = baked default {tg0=32,tg1=1,wpt=1,(Cfast,1)} as indices, given the
     // coarse sets {16,32,64,128}/{1,2,4,8}/{1,2,4}/goVw[0]=(Cfast,1).
+    // These are indices into the coarse value sets above — update if those sets change.
     const std::vector<int> seed = {1, 0, 0, 0};
 
     auto decode = [&](const std::vector<int>& idx) {
@@ -968,7 +969,6 @@ flatSweepOutput(int N, int H, int W,
 
   // Output kernel is VW=1 monomorphic and Cfast monomorphic, so neither
   // VW nor gridOrder is searched here.
-  auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles);
   if(useGreedy) {
     const std::vector<int>& tg0v = outputTg0Values(false);
     const std::vector<int>& tg1v = outputTg1Values(false);
@@ -976,6 +976,7 @@ flatSweepOutput(int N, int H, int W,
     const std::vector<int> axisSizes = {(int)tg0v.size(), (int)tg1v.size(), (int)wptv.size()};
     // Sensitivity order — MEASURED on A15: tg0(6%) > tg1(2%) > wpt(1.8%), all plateau.
     const std::vector<int> order = {0, 1, 2};
+    // Indices into the coarse value sets above — update if those sets change.
     const std::vector<int> seed  = {1, 0, 0};  // {tg0=32,tg1=1,wpt=1}
 
     auto scoreFn = [&](const std::vector<int>& idx) -> double {
@@ -997,6 +998,7 @@ flatSweepOutput(int N, int H, int W,
     bestTime = gr.score;
     considered = gr.evaluated;
   } else {
+    auto cands = MLXWinogradTuner::buildOutputCandidatesForTesting(full, outC, Ntiles);
     for(auto cand : cands) {
       considered++;
       double t;
