@@ -73,7 +73,8 @@ void KataGoRunGtp(string modelPath,
                   int numSearchThreads,
                   int nnMaxBatchSize,
                   int maxBoardSizeForNNBuffer,
-                  bool requireExactNNLen) {
+                  bool requireExactNNLen,
+                  string homeDataDir) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -96,6 +97,14 @@ void KataGoRunGtp(string modelPath,
     subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));
     subArgs.push_back(string("-override-config maxBoardSizeForNNBuffer=") + to_string(maxBoardSizeForNNBuffer));
     subArgs.push_back(string("-override-config requireMaxBoardSize=") + (requireExactNNLen ? "true" : "false"));
+    // iOS/visionOS: the app's sandbox container root is not writable, so the
+    // default ~/.katago home-data dir cannot be created and the MLX/GPU
+    // Winograd autotuner aborts (HomeData::getHomeDataDir -> MakeDir::make
+    // throws on an uncaught NN-server thread). Point homeDataDir at a writable,
+    // app-created location instead. Empty on macOS, whose sandbox container
+    // root is writable, so the default ~/.katago path already works there.
+    if(!homeDataDir.empty())
+        subArgs.push_back(string("-override-config homeDataDir=") + homeDataDir);
     MainCmds::gtp(subArgs);
 }
 

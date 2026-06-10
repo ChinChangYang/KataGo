@@ -76,7 +76,37 @@ public class KataGoHelper {
                      Int32(metalNumSearchThreads),
                      Int32(metalNnMaxBatchSize),
                      Int32(maxBoardSizeForNNBuffer),
-                     requireExactNNLen)
+                     requireExactNNLen,
+                     std.string(homeDataDir()))
+    }
+
+    /// Writable home-data directory for KataGo's on-device caches (notably the
+    /// MLX/GPU Winograd autotuner). On iOS/visionOS the sandbox container root
+    /// is not writable, so KataGo's default `$HOME/.katago` cannot be created
+    /// and the autotuner aborts (`MakeDir::make` throws). Hand the engine an
+    /// app-created `Application Support/KataGo` instead. Returns "" on macOS
+    /// (whose container root is writable, so the default path already works)
+    /// or if the directory cannot be created, in which case KataGoRunGtp adds
+    /// no override and the engine keeps its default behavior.
+    private class func homeDataDir() -> String {
+        #if os(macOS)
+        return ""
+        #else
+        let fileManager = FileManager.default
+        guard let base = try? fileManager.url(for: .applicationSupportDirectory,
+                                              in: .userDomainMask,
+                                              appropriateFor: nil,
+                                              create: true) else {
+            return ""
+        }
+        let dir = base.appendingPathComponent("KataGo", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            return ""
+        }
+        return dir.path(percentEncoded: false)
+        #endif
     }
 
     public class func getMessageLine() -> String {
