@@ -35,6 +35,17 @@ inline Result coordinateDescent(
   assert(seedIndices.size() == nAxes);
   assert(order.size() == nAxes);
 
+#ifndef NDEBUG
+  {
+    std::vector<char> seen(nAxes, 0);
+    for(int a : order) {
+      assert(a >= 0 && (size_t)a < nAxes);
+      assert(!seen[a]);
+      seen[a] = 1;
+    }
+  }
+#endif
+
   std::vector<int> best = seedIndices;
   double bestScore = scoreFn(best);
   int evaluated = 1;
