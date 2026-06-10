@@ -17,6 +17,7 @@
 		0600FE3E5C7473BB5AF12043 /* seed_gen_exception.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3EECD0D85DD624C818E374D5 /* seed_gen_exception.cc */; };
 		077EBCD78E98B9FE30D07502 /* win32_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6C1E3C2F7427E56602D6A00E /* win32_waiter.cc */; };
 		099C50E010397FF0755BC913 /* globals.cc in Sources */ = {isa = PBXBuildFile; fileRef = D1F4B3BEA316F4BAC370ACA2 /* globals.cc */; };
+		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
@@ -745,6 +746,7 @@
 		87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CategoricalMapping.pb.cc; path = ../../cpp/external/katagocoreml/generated/CategoricalMapping.pb.cc; sourceTree = SOURCE_ROOT; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
+		8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MLXTuneExperimentView.swift; sourceTree = "<group>"; };
 		8DE9BEBFBBE6A427CA92E372 /* ascii.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ascii.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/ascii.cc"; sourceTree = SOURCE_ROOT; };
 		8E3859F17AD2C41596120DB5 /* randen.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen.cc"; sourceTree = SOURCE_ROOT; };
 		8FF2B17B41FD5A035930E809 /* KataGoParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = KataGoParser.cpp; path = ../../cpp/external/katagocoreml/src/parser/KataGoParser.cpp; sourceTree = SOURCE_ROOT; };
@@ -1929,6 +1931,7 @@
 				E18F3E142A51466C00D335E1 /* Assets.xcassets */,
 				E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */,
 				E18F3E162A51466C00D335E1 /* Preview Content */,
+				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
 			);
 			path = "KataGo iOS";
 			sourceTree = "<group>";
@@ -2805,6 +2808,7 @@
 				6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */,
 				CC00000000000000F6000001 /* CoreMLCacheReadinessProjection.swift in Sources */,
 				CC00000000000000F7000001 /* CoreMLCacheReadiness.swift in Sources */,
+				0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

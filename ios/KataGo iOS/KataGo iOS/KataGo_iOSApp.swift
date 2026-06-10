@@ -44,24 +44,32 @@ struct KataGo_iOSApp: App {
         }
     }
 
+    @ViewBuilder
+    private var modelRunnerRoot: some View {
+        ModelRunnerView()
+            .environment(cacheReadiness)
+            .environment(engineLaunchStatus)
+            .task {
+                await cacheReadiness.start()
+            }
+    }
+
     var scene: some Scene {
         #if os(macOS)
             Window("KataGo Anytime", id: "KataGo Anytime") {
-                ModelRunnerView()
-                    .environment(cacheReadiness)
-                    .environment(engineLaunchStatus)
-                    .task {
-                        await cacheReadiness.start()
-                    }
+                modelRunnerRoot
             }
         #else
             WindowGroup {
-                ModelRunnerView()
-                    .environment(cacheReadiness)
-                    .environment(engineLaunchStatus)
-                    .task {
-                        await cacheReadiness.start()
-                    }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains(MLXTuneExperimentView.launchArg) {
+                    MLXTuneExperimentView()
+                } else {
+                    modelRunnerRoot
+                }
+                #else
+                modelRunnerRoot
+                #endif
             }
         #endif
     }
