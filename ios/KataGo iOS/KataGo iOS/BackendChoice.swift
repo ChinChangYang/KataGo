@@ -27,7 +27,7 @@ enum BackendChoice: String, CaseIterable, Identifiable {
     }
 }
 
-enum CoreMLBoardSize: Int, CaseIterable, Identifiable {
+enum BoardSizeChoice: Int, CaseIterable, Identifiable {
     case nine = 9
     case thirteen = 13
     case nineteen = 19
@@ -49,6 +49,7 @@ struct BackendSettings {
 
     private var backendKey: String { "backend_\(model.fileName)" }
     private var boardSizeKey: String { "coremlBoardSize_\(model.fileName)" }
+    private var mlxBoardSizeKey: String { "mlxBoardSize_\(model.fileName)" }
     private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
     private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
@@ -74,16 +75,33 @@ struct BackendSettings {
         }
     }
 
-    var coremlBoardSize: CoreMLBoardSize {
+    var coremlBoardSize: BoardSizeChoice {
         get {
             let raw = UserDefaults.standard.integer(forKey: boardSizeKey)
-            if raw != 0, let size = CoreMLBoardSize(rawValue: raw) {
+            if raw != 0, let size = BoardSizeChoice(rawValue: raw) {
                 return size
             }
             return .nineteen
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: boardSizeKey)
+        }
+    }
+
+    /// MLX/GPU max board size. Caps the largest board the GPU backend can play and
+    /// the geometry the Winograd autotuner + NN buffers optimize for. Persisted per
+    /// model; the tuner cache is keyed by board size, so per-size tunes coexist.
+    /// Only meaningful for `.mpsGPU`.
+    var mlxBoardSize: BoardSizeChoice {
+        get {
+            let raw = UserDefaults.standard.integer(forKey: mlxBoardSizeKey)
+            if raw != 0, let size = BoardSizeChoice(rawValue: raw) {
+                return size
+            }
+            return .nineteen
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: mlxBoardSizeKey)
         }
     }
 
@@ -108,7 +126,7 @@ struct BackendSettings {
     var effectiveMaxBoardLength: Int {
         switch backend {
         case .coremlNE: return min(coremlBoardSize.rawValue, model.nnLen)
-        case .mpsGPU: return model.nnLen
+        case .mpsGPU: return min(mlxBoardSize.rawValue, model.nnLen)
         }
     }
 
