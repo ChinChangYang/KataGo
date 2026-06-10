@@ -153,17 +153,23 @@ string MLXWinogradTuner::defaultDirectory(bool makeDir, const string& homeDataDi
 string MLXWinogradTuner::defaultFileName(const string& gpuName,
                                          int nnXLen, int nnYLen,
                                          int trunkNumChannels, int modelVersion,
-                                         bool useFP16) {
+                                         bool useFP16, bool full) {
   string clean;
   for(char c : gpuName) {
     if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
       clean += c;
   }
   const char* dtypeSuffix = useFP16 ? "_fp16" : "_fp32";
-  return Global::strprintf("tunemlxwino%d_gpu%s_x%d_y%d_c%d_mv%d%s.txt",
+  // The full (wide-grid) and fast (coarse-grid) tunes produce different winners
+  // and must NOT share a cache file, otherwise switching the UI Fast/Full mode
+  // would silently keep loading the other mode's cached params. The fast tune
+  // keeps the legacy name (no suffix) so existing on-device caches still hit;
+  // the full tune gets a distinct "_full" file. Both coexist per device/model.
+  const char* modeSuffix = full ? "_full" : "";
+  return Global::strprintf("tunemlxwino%d_gpu%s_x%d_y%d_c%d_mv%d%s%s.txt",
                            MLX_WINO_TUNER_VERSION, clean.c_str(),
                            nnXLen, nnYLen, trunkNumChannels, modelVersion,
-                           dtypeSuffix);
+                           dtypeSuffix, modeSuffix);
 }
 
 string MLXWinogradTuner::detectGpuName() {
@@ -376,7 +382,7 @@ static mx::array makeRandomMatmulOut(int Ntiles, int outC, uint32_t seed, bool u
 // namespace alongside its policy constants, but the scoring functions above
 // reference it. Pure function; safe to forward-declare.
 static std::vector<MLXWinogradTuner::ShapePlan>
-planShapeRotation(const std::vector<std::pair<int,int>>& histogram);
+planShapeRotation(const std::vector<std::pair<int,int>>& histogram, bool full);
 
 // Score one input-transform candidate. Adaptive rotation over the model's
 // actual 3x3 conv input-channel distribution: planShapeRotation produces a
@@ -387,8 +393,8 @@ planShapeRotation(const std::vector<std::pair<int,int>>& histogram);
 static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
                                   int N, int H, int W,
                                   const MLXWinogradTuner::ModelInfoForTuning& mi,
-                                  bool useFP16) {
-  auto plan = planShapeRotation(mi.conv3x3InputHistogram);
+                                  bool useFP16, bool full) {
+  auto plan = planShapeRotation(mi.conv3x3InputHistogram, full);
   assert(!plan.empty());
 
   // Pre-build one random input array per planned shape. Each shape warms once
@@ -430,12 +436,12 @@ static double scoreInputTransform(const MLXWinograd::InputTransform& cfg,
 static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
                                      int N, int H, int W,
                                      const MLXWinogradTuner::ModelInfoForTuning& mi,
-                                     bool useFP16) {
+                                     bool useFP16, bool full) {
   int tilesY = (H + 1) / 2;
   int tilesX = (W + 1) / 2;
   int Ntiles = N * tilesY * tilesX;
 
-  auto plan = planShapeRotation(mi.conv3x3OutputHistogram);
+  auto plan = planShapeRotation(mi.conv3x3OutputHistogram, full);
   assert(!plan.empty());
 
   std::vector<mx::array> matmulOuts;
@@ -472,18 +478,35 @@ static double scoreOutputUntransform(const MLXWinograd::OutputUntransform& cfg,
 // Selection-and-allocation policy for the work-weighted shape rotation.
 // Pure function. Inputs: list of (channels, occurrence_count) pairs from the
 // model's 3x3 conv distribution. Output: vector<ShapePlan> sorted desc by
-// weight, with Σ measureReps == 19 and Σ weight ≈ 1.0.
+// weight, with Σ measureReps == the active rep budget and Σ weight ≈ 1.0.
 //
-// Selection-rule constants:
-static constexpr int    kTotalReps         = 20;
-static constexpr int    kWarmupReps        = 1;
-static constexpr int    kMeasureReps       = kTotalReps - kWarmupReps;  // 19
-static constexpr size_t kMaxShapes         = 3;
-static constexpr double kWorkFractionFloor = 0.03;
-static constexpr int    kRepFloor          = 3;
+// Selection-rule constants. The per-candidate timing budget depends on the
+// sweep breadth:
+//   - full=true  (operator `./katago tuner -full`, the wide grid): 19 timed
+//     reps, 3-rep floor per minor shape. Score the wide grid carefully.
+//   - full=false (the per-model-load AUTO tune, the coarse grid): 7 timed reps,
+//     2-rep floor. This is the path that runs on every first launch. The winning
+//     Winograd geometry sits on a broad plateau — many configs land within ~7%
+//     of each other and end-to-end throughput moves <=1.5% across the whole
+//     plateau — so a median over 7 reps lands on the plateau just as reliably as
+//     19. It only loosens the noise tie-break between near-equivalent configs,
+//     which is exactly the part that doesn't affect throughput. Dropping the
+//     per-candidate eval count (1 warmup + reps) from 20 to 8 makes the model-
+//     load sweep ~2.5x faster.
+static constexpr int    kMeasureRepsFull    = 19;
+static constexpr int    kMeasureRepsCoarse  = 7;
+static constexpr int    kRepFloorFull       = 3;
+static constexpr int    kRepFloorCoarse     = 2;
+static constexpr size_t kMaxShapes          = 3;
+static constexpr double kWorkFractionFloor  = 0.03;
 
 static std::vector<MLXWinogradTuner::ShapePlan>
-planShapeRotation(const std::vector<std::pair<int,int>>& histogram) {
+planShapeRotation(const std::vector<std::pair<int,int>>& histogram, bool full) {
+  // Active rep budget: precise for the operator wide-grid tune, fast for the
+  // per-model-load coarse tune. See the constant block above for the rationale.
+  const int kMeasureReps = full ? kMeasureRepsFull : kMeasureRepsCoarse;
+  const int kRepFloor    = full ? kRepFloorFull    : kRepFloorCoarse;
+
   // Degenerate case: empty histogram is a model-corruption signal we
   // surface, not silently mask.
   assert(!histogram.empty());
@@ -560,9 +583,9 @@ planShapeRotation(const std::vector<std::pair<int,int>>& histogram) {
   for(const auto& sp : plan) sum += sp.measureReps;
   plan[0].measureReps += (kMeasureReps - sum);
 
-  // Final invariants. The dominant-underflow assert here will fire only for
-  // numShapes > 6 (3*kRepFloor + 1 > kMeasureReps), which is unreachable
-  // given kMaxShapes = 3.
+  // Final invariants. The dominant-underflow assert here can fire only if the
+  // budget can't cover kMaxShapes floors (kMeasureReps < kMaxShapes*kRepFloor);
+  // both budgets satisfy that (full: 19>=3*3; coarse: 7>=3*2) so it can't fire.
   assert(plan[0].measureReps >= kRepFloor);
 #ifndef NDEBUG
   int finalSum = 0;
@@ -582,8 +605,8 @@ static std::vector<std::pair<int,double>>
 scoreInputTransformPerShape(const MLXWinograd::InputTransform& cfg,
                             int N, int H, int W,
                             const MLXWinogradTuner::ModelInfoForTuning& mi,
-                            bool useFP16) {
-  auto plan = planShapeRotation(mi.conv3x3InputHistogram);
+                            bool useFP16, bool full) {
+  auto plan = planShapeRotation(mi.conv3x3InputHistogram, full);
   assert(!plan.empty());
 
   std::vector<mx::array> inputs;
@@ -618,10 +641,10 @@ static std::vector<std::pair<int,double>>
 scoreOutputUntransformPerShape(const MLXWinograd::OutputUntransform& cfg,
                                int N, int H, int W,
                                const MLXWinogradTuner::ModelInfoForTuning& mi,
-                               bool useFP16) {
+                               bool useFP16, bool full) {
   int Ntiles = N * ((H + 1) / 2) * ((W + 1) / 2);
 
-  auto plan = planShapeRotation(mi.conv3x3OutputHistogram);
+  auto plan = planShapeRotation(mi.conv3x3OutputHistogram, full);
   assert(!plan.empty());
 
   std::vector<mx::array> matmulOuts;
@@ -669,25 +692,33 @@ scoreOutputUntransformPerShape(const MLXWinograd::OutputUntransform& cfg,
 //     backends pin full=false at model load (openclbackend.cpp /
 //     mlxbackend.cpp) and reach the wide grid only through the explicit
 //     tuner command.
+// Coarse (model-load) tg sets drop only the extreme threadgroup dims relative
+// to a uniform {8,16,32,64,128}×{1,2,4,8,16} sweep: tg0=8 (smallest, rarely the
+// occupancy sweet spot for these tiny transform kernels) and tg1=16 (largest;
+// pairs with large tg0 to exceed 1024 anyway). The baked default {tg0=32,tg1=1}
+// stays in the set, and the surviving points still bracket the full threadgroup-
+// size range, so the sweep stays on the broad plateau (see the rep-budget
+// comment) while measuring ~1.5x fewer configs. The wide grid (full=true) keeps
+// every point for the operator `tuner -full` path.
 static const std::vector<int>& inputTg0Values(bool full) {
   static const std::vector<int> vFull   = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
-  static const std::vector<int> vCoarse = {8,16,32,64,128};
+  static const std::vector<int> vCoarse = {16,32,64,128};
   return full ? vFull : vCoarse;
 }
 static const std::vector<int>& inputTg1Values(bool full) {
   static const std::vector<int> vFull   = {1,2,4,5,8,10,16,20,25,32,40,50,64,100,128};
-  static const std::vector<int> vCoarse = {1,2,4,8,16};
+  static const std::vector<int> vCoarse = {1,2,4,8};
   return full ? vFull : vCoarse;
 }
 static const std::vector<int>& outputTg0Values(bool full) {
   // Mirror input set — treat tg0 symmetrically.
   static const std::vector<int> vFull   = {1,2,4,8,16,24,32,48,64,96,128,160,192,256,384,512,1024};
-  static const std::vector<int> vCoarse = {8,16,32,64,128};
+  static const std::vector<int> vCoarse = {16,32,64,128};
   return full ? vFull : vCoarse;
 }
 static const std::vector<int>& outputTg1Values(bool full) {
   static const std::vector<int> vFull   = {1,2,4,5,8,10,16,20,25,32,40,50,64,100,128};
-  static const std::vector<int> vCoarse = {1,2,4,8,16};
+  static const std::vector<int> vCoarse = {1,2,4,8};
   return full ? vFull : vCoarse;
 }
 
@@ -779,7 +810,7 @@ flatSweepInput(int N, int H, int W,
   // The defaults satisfy isInputCandidateValid for any (C, Ntiles) because
   // vw=1 divides every channel count; see mlxwinograd.h for the struct defaults.
   const double baselineMs =
-      scoreInputTransform(MLXWinograd::InputTransform{}, N, H, W, mi, useFP16);
+      scoreInputTransform(MLXWinograd::InputTransform{}, N, H, W, mi, useFP16, full);
 
   // Seed the floor with the baked default so a sweep in which every candidate
   // throws still yields a valid result instead of aborting model load. The
@@ -800,7 +831,7 @@ flatSweepInput(int N, int H, int W,
       considered++;
       double t;
       try {
-        t = scoreInputTransform(cand, N, H, W, mi, useFP16);
+        t = scoreInputTransform(cand, N, H, W, mi, useFP16, full);
       } catch(const std::exception&) {
         // A candidate whose threadgroup exceeds the pipeline's register-pressure-
         // dependent maxTotalThreadsPerThreadgroup (can be < 1024), or that hits a
@@ -826,7 +857,7 @@ flatSweepInput(int N, int H, int W,
 
       // Per-shape median timing on the winner — diagnostic only; winner
       // selection above used the weighted score from scoreInputTransform.
-      auto perShape = scoreInputTransformPerShape(*best, N, H, W, mi, useFP16);
+      auto perShape = scoreInputTransformPerShape(*best, N, H, W, mi, useFP16, full);
       perShapeStr = " shape_ms=";
       for(size_t i = 0; i < perShape.size(); i++) {
         if(i > 0) perShapeStr += ",";
@@ -875,7 +906,7 @@ flatSweepOutput(int N, int H, int W,
   // so the sweep log carries a baseline the operator can compare the winner
   // against. Symmetric to flatSweepInput.
   const double baselineMs =
-      scoreOutputUntransform(MLXWinograd::OutputUntransform{}, N, H, W, mi, useFP16);
+      scoreOutputUntransform(MLXWinograd::OutputUntransform{}, N, H, W, mi, useFP16, full);
 
   // Seed the floor with the baked default (see flatSweepInput for rationale).
   std::optional<MLXWinograd::OutputUntransform> best = MLXWinograd::OutputUntransform{};
@@ -890,7 +921,7 @@ flatSweepOutput(int N, int H, int W,
     considered++;
     double t;
     try {
-      t = scoreOutputUntransform(cand, N, H, W, mi, useFP16);
+      t = scoreOutputUntransform(cand, N, H, W, mi, useFP16, full);
     } catch(const std::exception&) {
       skipped++;
       continue;
@@ -909,7 +940,7 @@ flatSweepOutput(int N, int H, int W,
       // this (matches [-+], not [-+]?). Don't drop the + flag.
       deltaStr = Global::strprintf("%+.1f", deltaPct);
 
-      auto perShape = scoreOutputUntransformPerShape(*best, N, H, W, mi, useFP16);
+      auto perShape = scoreOutputUntransformPerShape(*best, N, H, W, mi, useFP16, full);
       perShapeStr = " shape_ms=";
       for(size_t i = 0; i < perShape.size(); i++) {
         if(i > 0) perShapeStr += ",";
@@ -950,7 +981,7 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
     string dir = defaultDirectory(true, homeDataDirOverride);
     tunerFile = dir + "/" + defaultFileName(gpuName, nnXLen, nnYLen,
                                             modelInfo.trunkNumChannels,
-                                            modelInfo.modelVersion, useFP16);
+                                            modelInfo.modelVersion, useFP16, full);
   }
 
   // Cache load path: if the file exists, validates, and reTune is false, use it.
@@ -1009,24 +1040,24 @@ MLXWinogradTuner::buildOutputCandidatesForTesting(bool full, int outC, int Ntile
 
 std::vector<MLXWinogradTuner::ShapePlan>
 MLXWinogradTuner::planShapeRotationForTesting(
-    const std::vector<std::pair<int,int>>& histogram) {
-  return planShapeRotation(histogram);
+    const std::vector<std::pair<int,int>>& histogram, bool full) {
+  return planShapeRotation(histogram, full);
 }
 
 double MLXWinogradTuner::scoreInputTransformForTesting(
     const MLXWinograd::InputTransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
-    bool useFP16) {
-  return scoreInputTransform(cfg, N, H, W, mi, useFP16);
+    bool useFP16, bool full) {
+  return scoreInputTransform(cfg, N, H, W, mi, useFP16, full);
 }
 
 double MLXWinogradTuner::scoreOutputUntransformForTesting(
     const MLXWinograd::OutputUntransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
-    bool useFP16) {
-  return scoreOutputUntransform(cfg, N, H, W, mi, useFP16);
+    bool useFP16, bool full) {
+  return scoreOutputUntransform(cfg, N, H, W, mi, useFP16, full);
 }
 
 std::vector<std::pair<int,double>>
@@ -1034,8 +1065,8 @@ MLXWinogradTuner::scoreInputTransformPerShapeForTesting(
     const MLXWinograd::InputTransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
-    bool useFP16) {
-  return scoreInputTransformPerShape(cfg, N, H, W, mi, useFP16);
+    bool useFP16, bool full) {
+  return scoreInputTransformPerShape(cfg, N, H, W, mi, useFP16, full);
 }
 
 std::vector<std::pair<int,double>>
@@ -1043,8 +1074,8 @@ MLXWinogradTuner::scoreOutputUntransformPerShapeForTesting(
     const MLXWinograd::OutputUntransform& cfg,
     int N, int H, int W,
     const ModelInfoForTuning& mi,
-    bool useFP16) {
-  return scoreOutputUntransformPerShape(cfg, N, H, W, mi, useFP16);
+    bool useFP16, bool full) {
+  return scoreOutputUntransformPerShape(cfg, N, H, W, mi, useFP16, full);
 }
 
 std::string MLXWinogradTuner::formatConv3x3DistributionLine(

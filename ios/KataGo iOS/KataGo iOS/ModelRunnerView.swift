@@ -93,14 +93,24 @@ struct ModelRunnerView: View {
             pendingLoadModelTitle = newValue.title
             UserDefaults.standard.synchronize()
 
-            let settings = BackendSettings(model: newValue)
+            var settings = BackendSettings(model: newValue)
             launchedMaxBoardLength = settings.effectiveMaxBoardLength
+            let tunerFull = settings.tunerFull
+            let reTune = settings.reTune
             startKataGoThread(
                 modelPath: modelPath,
                 metalDeviceToUse: settings.backend.metalDeviceToUse,
                 maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
-                requireExactNNLen: settings.requireExactNNLen
+                requireExactNNLen: settings.requireExactNNLen,
+                tunerFull: tunerFull,
+                reTune: reTune
             )
+            // One-shot: consume a pending re-tune so it fires exactly once. Only
+            // when MLX/GPU actually uses it — the CoreML/NE path ignores reTune,
+            // so a request made there is left intact for a later MLX/GPU load.
+            if reTune && settings.backend == .mpsGPU {
+                settings.reTune = false
+            }
         }
         .onChange(of: engineLifecycle.lastLoadedModelTitle) { _, newValue in
             guard let newValue else { return }
@@ -112,12 +122,16 @@ struct ModelRunnerView: View {
     private func startKataGoThread(modelPath: String,
                                    metalDeviceToUse: Int,
                                    maxBoardSizeForNNBuffer: Int,
-                                   requireExactNNLen: Bool) {
+                                   requireExactNNLen: Bool,
+                                   tunerFull: Bool,
+                                   reTune: Bool) {
         let katagoThread = Thread {
             KataGoHelper.runGtp(modelPath: modelPath,
                                 metalDeviceToUse: metalDeviceToUse,
                                 maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                                requireExactNNLen: requireExactNNLen)
+                                requireExactNNLen: requireExactNNLen,
+                                tunerFull: tunerFull,
+                                reTune: reTune)
 
             Task {
                 await MainActor.run {

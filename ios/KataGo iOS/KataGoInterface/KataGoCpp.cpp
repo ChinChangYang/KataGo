@@ -74,7 +74,9 @@ void KataGoRunGtp(string modelPath,
                   int nnMaxBatchSize,
                   int maxBoardSizeForNNBuffer,
                   bool requireExactNNLen,
-                  string homeDataDir) {
+                  string homeDataDir,
+                  bool tunerFull,
+                  bool reTune) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -105,6 +107,14 @@ void KataGoRunGtp(string modelPath,
     // root is writable, so the default ~/.katago path already works there.
     if(!homeDataDir.empty())
         subArgs.push_back(string("-override-config homeDataDir=") + homeDataDir);
+    // MLX/GPU Winograd autotuner controls from the app's tuning UI. mlxbackend's
+    // createComputeContext reads these; the MLX/GPU ComputeHandle ctor passes
+    // them to loadOrAutoTune. tunerFull=true -> wide grid (slow, distinct cache
+    // file); reTune=true -> force a fresh tune that overwrites the cache. Always
+    // pushed so the keys are present (and marked used) regardless of value; the
+    // ANE/CoreML path ignores them.
+    subArgs.push_back(string("-override-config mlxTunerFull=") + (tunerFull ? "true" : "false"));
+    subArgs.push_back(string("-override-config mlxReTune=") + (reTune ? "true" : "false"));
     MainCmds::gtp(subArgs);
 }
 

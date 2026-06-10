@@ -49,6 +49,8 @@ struct BackendSettings {
 
     private var backendKey: String { "backend_\(model.fileName)" }
     private var boardSizeKey: String { "coremlBoardSize_\(model.fileName)" }
+    private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
+    private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
     var backend: BackendChoice {
         get {
@@ -83,6 +85,24 @@ struct BackendSettings {
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: boardSizeKey)
         }
+    }
+
+    /// MLX/GPU Winograd autotuning mode. `false` = the fast coarse-grid tune
+    /// (default), `true` = the wide-grid "full" tune (more thorough, much slower
+    /// on device). Persisted per model; each mode is cached in its own file, so
+    /// switching takes effect on the next load. Only meaningful for `.mpsGPU`.
+    var tunerFull: Bool {
+        get { UserDefaults.standard.bool(forKey: tunerFullKey) }
+        set { UserDefaults.standard.set(newValue, forKey: tunerFullKey) }
+    }
+
+    /// One-shot "re-tune on next load" flag. When `true`, the next MLX/GPU load
+    /// of this model forces a fresh autotune that overwrites the cached tuning;
+    /// `ModelRunnerView` clears it back to `false` after consuming it so the
+    /// re-tune happens exactly once. Only meaningful for `.mpsGPU`.
+    var reTune: Bool {
+        get { UserDefaults.standard.bool(forKey: reTuneKey) }
+        set { UserDefaults.standard.set(newValue, forKey: reTuneKey) }
     }
 
     var effectiveMaxBoardLength: Int {

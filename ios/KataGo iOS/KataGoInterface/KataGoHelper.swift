@@ -22,29 +22,39 @@ public class KataGoHelper {
     public class func runGtp(modelPath: String? = nil,
                              metalDeviceToUse: Int = 0,
                              maxBoardSizeForNNBuffer: Int = 37,
-                             requireExactNNLen: Bool = false) {
+                             requireExactNNLen: Bool = false,
+                             tunerFull: Bool = false,
+                             reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
                    metalDeviceToUse: metalDeviceToUse,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                   requireExactNNLen: requireExactNNLen)
+                   requireExactNNLen: requireExactNNLen,
+                   tunerFull: tunerFull,
+                   reTune: reTune)
     }
 #else
     // iOS/visionOS default: 100 = ANE (Neural Engine) via CoreML
     public class func runGtp(modelPath: String? = nil,
                              metalDeviceToUse: Int = 100,
                              maxBoardSizeForNNBuffer: Int = 37,
-                             requireExactNNLen: Bool = false) {
+                             requireExactNNLen: Bool = false,
+                             tunerFull: Bool = false,
+                             reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
                    metalDeviceToUse: metalDeviceToUse,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                   requireExactNNLen: requireExactNNLen)
+                   requireExactNNLen: requireExactNNLen,
+                   tunerFull: tunerFull,
+                   reTune: reTune)
     }
 #endif
 
     private class func runGtpImpl(modelPath: String?,
                                   metalDeviceToUse: Int,
                                   maxBoardSizeForNNBuffer: Int,
-                                  requireExactNNLen: Bool) {
+                                  requireExactNNLen: Bool,
+                                  tunerFull: Bool,
+                                  reTune: Bool) {
         let mainBundle = Bundle.main
         let modelName = "default_model"
         let modelExt = "bin.gz"
@@ -77,7 +87,9 @@ public class KataGoHelper {
                      Int32(metalNnMaxBatchSize),
                      Int32(maxBoardSizeForNNBuffer),
                      requireExactNNLen,
-                     std.string(homeDataDir()))
+                     std.string(homeDataDir()),
+                     tunerFull,
+                     reTune)
     }
 
     /// Writable home-data directory for KataGo's on-device caches (notably the

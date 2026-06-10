@@ -1815,6 +1815,14 @@ struct ComputeContext {
   // which would read the freed weights.
   bool aneOnly = false;
 
+  // MLX/GPU Winograd autotuner controls, plumbed from the app via
+  // -override-config (mlxTunerFull / mlxReTune), read in createComputeContext.
+  // tunerFull=true selects the wide grid (thorough but much slower); reTune=true
+  // forces a fresh tune that ignores and overwrites the cached file. Consumed by
+  // the GPU ComputeHandle ctor's loadOrAutoTune call; ignored on the ANE path.
+  bool tunerFull = false;
+  bool tunerReTune = false;
+
   ComputeContext() = delete;
   ComputeContext(const ComputeContext&) = delete;
   ComputeContext& operator=(const ComputeContext&) = delete;
@@ -1966,14 +1974,16 @@ struct ComputeHandle {
           /*batchSize=*/8,
           mi,
           context->logger,
-          // The model-load path loads a valid cache or, on a miss, tunes the
-          // coarse grid once - it never re-tunes a valid cache and never sweeps
-          // the wide grid. Both are reached only through `./katago tuner`
-          // (add -full for the wide grid), which always re-runs and overwrites.
-          // Mirrors openclbackend.cpp, which has no load-time force-retune and
-          // pins full=false at load.
-          /*full=*/false,
-          /*reTune=*/false,
+          // full / reTune come from the app's MLX/GPU tuning UI via
+          // -override-config (mlxTunerFull / mlxReTune), read into the
+          // ComputeContext in createComputeContext. Defaults are false/false:
+          // load a valid cache, or on a miss tune the coarse "fast" grid once.
+          // full=true selects the wide grid (cached under a distinct "_full"
+          // file); reTune=true forces a fresh tune that overwrites the current
+          // mode's cache. `./katago tuner` (optionally -full) remains a separate
+          // always-overwrite entry point.
+          /*full=*/context->tunerFull,
+          /*reTune=*/context->tunerReTune,
           /*useFP16=*/useFP16_);
     }
 
@@ -2265,7 +2275,6 @@ ComputeContext* NeuralNet::createComputeContext(
   ConfigParser& cfg
 ) {
   (void)loadedModel;
-  (void)cfg;
 
   // aneOnly drives the ANE-path weight release in convertAndCreateCoreMLOnlyHandleMLX.
   // INVARIANT: gpuIdxs must be the complete, deduplicated set of device indices any
@@ -2282,6 +2291,12 @@ ComputeContext* NeuralNet::createComputeContext(
   // upstream when createComputeContext was consolidated onto ConfigParser).
   ComputeContext* context = new ComputeContext(nnXLen, nnYLen, useFP16Mode, homeDataDirOverride, logger);
   context->aneOnly = aneOnly;
+  // MLX/GPU Winograd autotuner controls (app sets these via -override-config).
+  // Read here so the GPU ComputeHandle ctor can honor them; harmless on the ANE
+  // path, which returns before the tuner. Calling getBool marks the keys "used"
+  // so ConfigParser doesn't flag them as unused overrides.
+  context->tunerFull   = cfg.contains("mlxTunerFull") ? cfg.getBool("mlxTunerFull") : false;
+  context->tunerReTune = cfg.contains("mlxReTune")    ? cfg.getBool("mlxReTune")    : false;
   return context;
 }
 

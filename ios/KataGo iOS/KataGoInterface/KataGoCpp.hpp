@@ -20,7 +20,9 @@ void KataGoRunGtp(string modelPath,
                   int nnMaxBatchSize,
                   int maxBoardSizeForNNBuffer,
                   bool requireExactNNLen,
-                  string homeDataDir);
+                  string homeDataDir,
+                  bool tunerFull,
+                  bool reTune);
 
 string KataGoGetMessageLine();
 void KataGoSendCommand(string command);
