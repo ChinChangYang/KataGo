@@ -454,14 +454,10 @@ void Compiled::eval_gpu(
     size_t rest = outputs[0].size() / (dim0 * dim1);
     dim0 = (dim0 + work_per_thread - 1) / work_per_thread;
     NS::UInteger thread_group_size = kernel->maxTotalThreadsPerThreadgroup();
-    int pow2;
-    if (thread_group_size == 1024) {
-      pow2 = 10;
-    } else if (thread_group_size > 512) {
-      pow2 = 9;
-    } else {
-      throw std::runtime_error("[Metal::compiled] Must use > 512 sized block");
-    }
+    // KataGo patch: size the block to the kernel's actual max threads/threadgroup
+    // (JIT-compiled kernels can report <= 512) instead of asserting > 512.
+    int pow2 = 0;
+    while ((static_cast<size_t>(1) << (pow2 + 1)) <= thread_group_size) { pow2++; }
     auto group_dims = get_block_dims(dim0, dim1, rest, pow2);
     MTL::Size grid_dims = MTL::Size(dim0, dim1, rest);
     compute_encoder.dispatch_threads(grid_dims, group_dims);

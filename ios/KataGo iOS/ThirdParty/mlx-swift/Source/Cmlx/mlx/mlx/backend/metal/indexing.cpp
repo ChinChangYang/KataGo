@@ -432,10 +432,11 @@ void Scatter::eval_gpu(const std::vector<array>& inputs, array& out) {
   grid_y = (grid_y + nwork - 1) / nwork;
   MTL::Size grid_dims = MTL::Size(upd_size, grid_y, 1);
   auto thread_group_size = kernel->maxTotalThreadsPerThreadgroup();
-  if (thread_group_size != 1024) {
-    throw std::runtime_error("[Scatter::eval_gpu] Invalid number of threads");
-  }
-  MTL::Size group_dims = get_block_dims(upd_size, grid_y, 1);
+  // KataGo patch: size the block to the kernel's actual max threads/threadgroup
+  // (JIT-compiled kernels can report < 1024) instead of asserting exactly 1024.
+  int tg_pow2 = 0;
+  while ((static_cast<size_t>(1) << (tg_pow2 + 1)) <= thread_group_size) { tg_pow2++; }
+  MTL::Size group_dims = get_block_dims(upd_size, grid_y, 1, tg_pow2);
   compute_encoder.dispatch_threads(grid_dims, group_dims);
 }
 

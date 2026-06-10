@@ -153,12 +153,19 @@ void copy_gpu_inplace(
       }
     }
 
-    // NB assuming thread_group_size is a power of 2 larger than 32 x 32
-    if (thread_group_size != 1024) {
-      throw std::runtime_error("[Metal::copy] Must use 1024 sized block");
+    // thread_group_size is the pipeline's max threads per threadgroup. It is
+    // register-pressure-dependent and can be < 1024 for JIT-compiled kernels
+    // (a prebuilt metallib tends to keep it at 1024). Size the launch block to
+    // that budget (floor-log2) instead of assuming exactly 1024, so the copy
+    // works on GPUs / JIT kernels that report a smaller limit rather than
+    // aborting with "[Metal::copy] Must use 1024 sized block".
+    // [KataGo local patch — upstreamable to ml-explore/mlx]
+    int tg_pow2 = 0;
+    while ((static_cast<size_t>(1) << (tg_pow2 + 1)) <= thread_group_size) {
+      tg_pow2++;
     }
 
-    auto group_dims = get_block_dims(dim0, dim1, rest);
+    auto group_dims = get_block_dims(dim0, dim1, rest, tg_pow2);
     MTL::Size grid_dims = MTL::Size(dim0, dim1, rest);
     compute_encoder.dispatch_threads(grid_dims, group_dims);
   } else {

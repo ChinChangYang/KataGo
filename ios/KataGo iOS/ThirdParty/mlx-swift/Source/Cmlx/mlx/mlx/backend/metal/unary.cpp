@@ -69,11 +69,12 @@ void unary_op_gpu_inplace(
     compute_encoder.set_vector_bytes(shape, 2);
     compute_encoder.set_vector_bytes(strides, 3);
     compute_encoder.set_bytes(ndim, 4);
-    if (thread_group_size != 1024) {
-      throw std::runtime_error("[Metal::unary] Must use 1024 sized block");
-    }
+    // KataGo patch: size the block to the kernel's actual max threads/threadgroup
+    // (JIT-compiled kernels can report < 1024) instead of asserting exactly 1024.
+    int tg_pow2 = 0;
+    while ((static_cast<size_t>(1) << (tg_pow2 + 1)) <= thread_group_size) { tg_pow2++; }
     dim0 = (dim0 + work_per_thread - 1) / work_per_thread;
-    auto group_dims = get_block_dims(dim0, dim1, rest);
+    auto group_dims = get_block_dims(dim0, dim1, rest, tg_pow2);
     MTL::Size grid_dims = MTL::Size(dim0, dim1, rest);
     compute_encoder.dispatch_threads(grid_dims, group_dims);
   } else {
