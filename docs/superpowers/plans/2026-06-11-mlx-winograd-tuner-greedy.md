@@ -413,6 +413,10 @@ git commit -m "feat(mlx): DEBUG launch-arg harness MLXTuneExperimentView for han
 
 No code. Build a **study** build (exhaustive sweep, with the per-candidate dump), run it hands-free on the iPad, and derive the axis order.
 
+> **RESULTS (recorded 2026-06-11, iPad mini 6 / A15, built-in b18c384, 37×37, fp16):**
+> `[MLX-TUNE] sweep full=0 c=384 x37 y37 input=13791ms output=5037ms total=18828ms consideredIn=192 consideredOut=48`.
+> Baseline exhaustive coarse sweep = **18.8 s for one net** (the memo already dedupes the human net) — this is the >15 s bottleneck. **Sync-bound confirmed:** 1,536 input evals / 13,791 ms ≈ **9 ms/eval** (≈13 ms/eval output) for microsecond kernels ⇒ ~100% dispatch overhead. Derived orders baked into Task 5: input `{3,1,0,2}` (joint(gridOrder,vw) ≫ tg1 > tg0 > wpt), output `{0,1,2}` (tg0 > tg1 > wpt). Hand-tracing greedy on the dump: input winner ≈1.302 vs global min ≈1.299 (**0.3%**), output ≈0.93 vs min 0.92 (**~1%**) — the 5% gate should pass with room.
+
 - [ ] **Step 1: Build for device with the study flag**
 
 Run (injects `-DMLX_TUNE_STUDY` into the C++ compile):
@@ -488,9 +492,10 @@ Wrap the existing exhaustive `for(GO go : {GO::Cfast, GO::Tfast}) { … }` loop 
     goVw.push_back({MLXWinograd::GridOrder::Tfast, 1});
 
     const std::vector<int> axisSizes = {(int)tg0v.size(), (int)tg1v.size(), (int)wptv.size(), (int)goVw.size()};
-    // Sensitivity order — HYPOTHESIS; replace with Task 4's measured ranking.
-    // joint(gridOrder,vw)=3 > tg0=0 > tg1=1 > wpt=2.
-    const std::vector<int> order = {3, 0, 1, 2};
+    // Sensitivity order — MEASURED on A15 (Task 4): the joint (gridOrder,vw) axis
+    // dominates (Cfast/vw1≈1.37 vs Tfast≈9.9, vw4≈3.75), then tg1>tg0>wpt (all
+    // ~1-4%, the broad plateau). axis order: joint(3), tg1(1), tg0(0), wpt(2).
+    const std::vector<int> order = {3, 1, 0, 2};
     // Seed = baked default {tg0=32,tg1=1,wpt=1,(Cfast,1)} as indices, given the
     // coarse sets {16,32,64,128}/{1,2,4,8}/{1,2,4}/goVw[0]=(Cfast,1).
     const std::vector<int> seed = {1, 0, 0, 0};
@@ -536,7 +541,8 @@ Change the `flatSweepOutput` signature the same way (insert `bool useGreedy` aft
     const std::vector<int>& tg1v = outputTg1Values(false);
     const std::vector<int>& wptv = wptValues(false);
     const std::vector<int> axisSizes = {(int)tg0v.size(), (int)tg1v.size(), (int)wptv.size()};
-    // Sensitivity order — HYPOTHESIS; replace with Task 4's measured ranking: tg0 > tg1 > wpt.
+    // Sensitivity order — MEASURED on A15 (Task 4): tg0(6%) > tg1(2%) > wpt(1.8%),
+    // all on a narrow plateau. axis order: tg0(0), tg1(1), wpt(2).
     const std::vector<int> order = {0, 1, 2};
     const std::vector<int> seed  = {1, 0, 0};  // {tg0=32,tg1=1,wpt=1}
 
