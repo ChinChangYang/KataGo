@@ -99,7 +99,7 @@ struct ModelRunnerView: View {
             let reTune = settings.reTune
             startKataGoThread(
                 modelPath: modelPath,
-                metalDeviceToUse: settings.backend.metalDeviceToUse,
+                mlxDeviceToUse: settings.backend.mlxDeviceToUse,
                 maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
                 requireExactNNLen: settings.requireExactNNLen,
                 tunerFull: tunerFull,
@@ -108,7 +108,7 @@ struct ModelRunnerView: View {
             // One-shot: consume a pending re-tune so it fires exactly once. Only
             // when MLX/GPU actually uses it — the CoreML/NE path ignores reTune,
             // so a request made there is left intact for a later MLX/GPU load.
-            if reTune && settings.backend == .mpsGPU {
+            if reTune && settings.backend == .mlxGPU {
                 settings.reTune = false
             }
         }
@@ -120,14 +120,14 @@ struct ModelRunnerView: View {
     }
 
     private func startKataGoThread(modelPath: String,
-                                   metalDeviceToUse: Int,
+                                   mlxDeviceToUse: Int,
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
                                    reTune: Bool) {
         let katagoThread = Thread {
             KataGoHelper.runGtp(modelPath: modelPath,
-                                metalDeviceToUse: metalDeviceToUse,
+                                mlxDeviceToUse: mlxDeviceToUse,
                                 maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                                 requireExactNNLen: requireExactNNLen,
                                 tunerFull: tunerFull,

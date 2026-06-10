@@ -6,21 +6,21 @@
 import Foundation
 
 enum BackendChoice: String, CaseIterable, Identifiable {
-    case mpsGPU = "MLX/GPU"
+    case mlxGPU = "MLX/GPU"
     case coremlNE = "CoreML/NE"
 
     var id: String { rawValue }
 
-    var metalDeviceToUse: Int {
+    var mlxDeviceToUse: Int {
         switch self {
-        case .mpsGPU: return 0
+        case .mlxGPU: return 0
         case .coremlNE: return 100
         }
     }
 
     static var platformDefault: BackendChoice {
         #if os(macOS)
-        return .mpsGPU
+        return .mlxGPU
         #else
         return .coremlNE
         #endif
@@ -91,7 +91,7 @@ struct BackendSettings {
     /// MLX/GPU max board size. Caps the largest board the GPU backend can play and
     /// the geometry the Winograd autotuner + NN buffers optimize for. Persisted per
     /// model; the tuner cache is keyed by board size, so per-size tunes coexist.
-    /// Only meaningful for `.mpsGPU`.
+    /// Only meaningful for `.mlxGPU`.
     var mlxBoardSize: BoardSizeChoice {
         get {
             let raw = UserDefaults.standard.integer(forKey: mlxBoardSizeKey)
@@ -108,7 +108,7 @@ struct BackendSettings {
     /// MLX/GPU Winograd autotuning mode. `false` = the fast coarse-grid tune
     /// (default), `true` = the wide-grid "full" tune (more thorough, much slower
     /// on device). Persisted per model; each mode is cached in its own file, so
-    /// switching takes effect on the next load. Only meaningful for `.mpsGPU`.
+    /// switching takes effect on the next load. Only meaningful for `.mlxGPU`.
     var tunerFull: Bool {
         get { UserDefaults.standard.bool(forKey: tunerFullKey) }
         set { UserDefaults.standard.set(newValue, forKey: tunerFullKey) }
@@ -117,7 +117,7 @@ struct BackendSettings {
     /// One-shot "re-tune on next load" flag. When `true`, the next MLX/GPU load
     /// of this model forces a fresh autotune that overwrites the cached tuning;
     /// `ModelRunnerView` clears it back to `false` after consuming it so the
-    /// re-tune happens exactly once. Only meaningful for `.mpsGPU`.
+    /// re-tune happens exactly once. Only meaningful for `.mlxGPU`.
     var reTune: Bool {
         get { UserDefaults.standard.bool(forKey: reTuneKey) }
         set { UserDefaults.standard.set(newValue, forKey: reTuneKey) }
@@ -126,14 +126,14 @@ struct BackendSettings {
     var effectiveMaxBoardLength: Int {
         switch backend {
         case .coremlNE: return min(coremlBoardSize.rawValue, model.nnLen)
-        case .mpsGPU: return min(mlxBoardSize.rawValue, model.nnLen)
+        case .mlxGPU: return min(mlxBoardSize.rawValue, model.nnLen)
         }
     }
 
     var requireExactNNLen: Bool {
         switch backend {
         case .coremlNE: return false
-        case .mpsGPU: return false
+        case .mlxGPU: return false
         }
     }
 }

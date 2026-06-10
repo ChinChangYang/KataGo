@@ -45,7 +45,7 @@ struct MLXTuneExperimentView: View {
         let thread = Thread {
             // Force the GPU backend (device 0) + a fresh tune, bypassing the UI/UserDefaults.
             KataGoHelper.runGtp(modelPath: modelPath,
-                                metalDeviceToUse: 0,
+                                mlxDeviceToUse: 0,
                                 maxBoardSizeForNNBuffer: model.nnLen,
                                 requireExactNNLen: false,
                                 tunerFull: false,

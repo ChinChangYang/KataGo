@@ -69,7 +69,7 @@ ostream outToKataGo(&tsbToKataGo);
 void KataGoRunGtp(string modelPath,
                   string humanModelPath,
                   string configPath,
-                  int metalDeviceToUse,
+                  int mlxDeviceToUse,
                   int numSearchThreads,
                   int nnMaxBatchSize,
                   int maxBoardSizeForNNBuffer,
@@ -93,7 +93,7 @@ void KataGoRunGtp(string modelPath,
     subArgs.push_back(humanModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
-    subArgs.push_back(string("-override-config mlxDeviceToUseThread0=") + to_string(metalDeviceToUse));
+    subArgs.push_back(string("-override-config mlxDeviceToUseThread0=") + to_string(mlxDeviceToUse));
     subArgs.push_back(string("-override-config mlxUseFP16=true"));
     subArgs.push_back(string("-override-config numSearchThreads=") + to_string(numSearchThreads));
     subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));

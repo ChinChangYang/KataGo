@@ -36,7 +36,7 @@ struct BackendConfigSheet: View {
                     .pickerStyle(.segmented)
                 } footer: {
                     switch backend {
-                    case .mpsGPU:
+                    case .mlxGPU:
                         Text("Responsive. No compilation needed.")
                     case .coremlNE:
                         Text("Power-efficient. First launch for a board size takes time to compile.")
@@ -54,7 +54,7 @@ struct BackendConfigSheet: View {
                     }
                 }
 
-                if backend == .mpsGPU {
+                if backend == .mlxGPU {
                     Section {
                         Picker("Board Size", selection: $mlxBoardSize) {
                             ForEach(BoardSizeChoice.allCases) { size in

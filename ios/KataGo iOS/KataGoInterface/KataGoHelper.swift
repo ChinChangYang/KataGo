@@ -10,23 +10,23 @@ import Foundation
 public class KataGoHelper {
 
 #if os(macOS)
-    static let metalNumSearchThreads = 16
-    static let metalNnMaxBatchSize = 8
+    static let mlxNumSearchThreads = 16
+    static let mlxNnMaxBatchSize = 8
 #else
-    static let metalNumSearchThreads = 2
-    static let metalNnMaxBatchSize = 1
+    static let mlxNumSearchThreads = 2
+    static let mlxNnMaxBatchSize = 1
 #endif
 
 #if os(macOS)
-    // macOS default: 0 = GPU (MPSGraph)
+    // macOS default: 0 = GPU (MLX)
     public class func runGtp(modelPath: String? = nil,
-                             metalDeviceToUse: Int = 0,
+                             mlxDeviceToUse: Int = 0,
                              maxBoardSizeForNNBuffer: Int = 37,
                              requireExactNNLen: Bool = false,
                              tunerFull: Bool = false,
                              reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
-                   metalDeviceToUse: metalDeviceToUse,
+                   mlxDeviceToUse: mlxDeviceToUse,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                    requireExactNNLen: requireExactNNLen,
                    tunerFull: tunerFull,
@@ -35,13 +35,13 @@ public class KataGoHelper {
 #else
     // iOS/visionOS default: 100 = ANE (Neural Engine) via CoreML
     public class func runGtp(modelPath: String? = nil,
-                             metalDeviceToUse: Int = 100,
+                             mlxDeviceToUse: Int = 100,
                              maxBoardSizeForNNBuffer: Int = 37,
                              requireExactNNLen: Bool = false,
                              tunerFull: Bool = false,
                              reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
-                   metalDeviceToUse: metalDeviceToUse,
+                   mlxDeviceToUse: mlxDeviceToUse,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                    requireExactNNLen: requireExactNNLen,
                    tunerFull: tunerFull,
@@ -50,7 +50,7 @@ public class KataGoHelper {
 #endif
 
     private class func runGtpImpl(modelPath: String?,
-                                  metalDeviceToUse: Int,
+                                  mlxDeviceToUse: Int,
                                   maxBoardSizeForNNBuffer: Int,
                                   requireExactNNLen: Bool,
                                   tunerFull: Bool,
@@ -82,9 +82,9 @@ public class KataGoHelper {
         KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
                      std.string(humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"),
                      std.string(configPath ?? "Contents/Resources/default_gtp.cfg"),
-                     Int32(metalDeviceToUse),
-                     Int32(metalNumSearchThreads),
-                     Int32(metalNnMaxBatchSize),
+                     Int32(mlxDeviceToUse),
+                     Int32(mlxNumSearchThreads),
+                     Int32(mlxNnMaxBatchSize),
                      Int32(maxBoardSizeForNNBuffer),
                      requireExactNNLen,
                      std.string(homeDataDir()),

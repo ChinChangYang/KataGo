@@ -59,7 +59,7 @@ struct NeuralNetworkModel: Identifiable, Equatable {
         .init(
             title: "Built-in KataGo Network",
             description: """
-This model is a strong 18-block network from KataGo's distributed training. It runs using the Metal backend which automatically converts to CoreML for efficient inference on Apple devices using the Neural Engine (iOS) or GPU (macOS).
+This model is a strong 18-block network from KataGo's distributed training. It runs efficiently on Apple devices — on the Neural Engine through CoreML, or on the GPU through MLX.
 
 Name: kata1-b18c384nbt-s9996604416-d4316597426.
 Uploaded at: 2024-05-26 12:47:48 UTC.
@@ -75,7 +75,7 @@ Board sizes: 2x2 to 37x37.
         .init(
             title: "Official KataGo Network",
             description: """
-This is the strongest confidently-rated network in KataGo's distributed training. It runs using the Metal backend, which automatically converts to CoreML for inference on Apple devices. As a 40-block network it is the most accurate option, but it is a large (~824 MB) download and runs slower and uses more power than smaller networks — best suited to capable devices.
+This is the strongest confidently-rated network in KataGo's distributed training. It runs on Apple devices through the Neural Engine (CoreML) or the GPU (MLX). As a 40-block network it is the most accurate option, but it is a large (~824 MB) download and runs slower and uses more power than smaller networks — best suited to capable devices.
 
 This app will irregularly update the URL for the strongest confidently-rated network. If a new network becomes available, you can keep using your current one or manually switch by deleting it and downloading the latest version.
 
