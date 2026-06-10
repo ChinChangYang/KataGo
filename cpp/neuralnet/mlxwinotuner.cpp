@@ -792,7 +792,7 @@ buildOutputCandidates(bool full, int outC, int Ntiles) {
 static std::optional<MLXWinograd::InputTransform>
 flatSweepInput(int N, int H, int W,
                const MLXWinogradTuner::ModelInfoForTuning& mi,
-               bool useFP16, bool full, Logger* logger) {
+               bool useFP16, bool full, Logger* logger, int* consideredOut) {
   using GO = MLXWinograd::GridOrder;
   // Candidate enumeration's vw-divisibility filter uses C as the most
   // restrictive channel count the kernel will encounter. Use the max of the
@@ -840,6 +840,11 @@ flatSweepInput(int N, int H, int W,
         skipped++;
         continue;
       }
+#ifdef MLX_TUNE_STUDY
+      std::fprintf(stderr,
+                   "[MLX-STUDY] in full=%d go=%d tg0=%d tg1=%d wpt=%d vw=%d score=%.4f\n",
+                   full ? 1 : 0, (int)cand.gridOrder, cand.tg0, cand.tg1, cand.wpt, cand.vw, t);
+#endif
       if(t < bestTime) { bestTime = t; best = cand; }
     }
   }
@@ -883,6 +888,7 @@ flatSweepInput(int N, int H, int W,
                   + " delta_pct=" + deltaStr
                   + perShapeStr);
   }
+  if(consideredOut) *consideredOut = considered;
   return best;
 }
 
@@ -892,7 +898,7 @@ flatSweepInput(int N, int H, int W,
 static std::optional<MLXWinograd::OutputUntransform>
 flatSweepOutput(int N, int H, int W,
                 const MLXWinogradTuner::ModelInfoForTuning& mi,
-                bool useFP16, bool full, Logger* logger) {
+                bool useFP16, bool full, Logger* logger, int* consideredOut) {
   // Output-untransform candidate enumeration doesn't filter on outC
   // (isOutputCandidateValid ignores it — VW=1 monomorphic), but we still
   // pass a representative value. Use the max of the model's actual 3x3
@@ -926,6 +932,11 @@ flatSweepOutput(int N, int H, int W,
       skipped++;
       continue;
     }
+#ifdef MLX_TUNE_STUDY
+    std::fprintf(stderr,
+                 "[MLX-STUDY] out full=%d tg0=%d tg1=%d wpt=%d score=%.4f\n",
+                 full ? 1 : 0, cand.tg0, cand.tg1, cand.wpt, t);
+#endif
     if(t < bestTime) { bestTime = t; best = cand; }
   }
   if(logger && skipped > 0)
@@ -962,6 +973,7 @@ flatSweepOutput(int N, int H, int W,
                   + " delta_pct=" + deltaStr
                   + perShapeStr);
   }
+  if(consideredOut) *consideredOut = considered;
   return best;
 }
 
@@ -1002,10 +1014,11 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   }
 
   // Flat per-stage sweep.
+  int consideredIn = 0, consideredOut = 0;
   auto t0 = std::chrono::steady_clock::now();
-  auto bestIn  = flatSweepInput (batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger);
+  auto bestIn  = flatSweepInput (batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger, &consideredIn);
   auto tMid = std::chrono::steady_clock::now();
-  auto bestOut = flatSweepOutput(batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger);
+  auto bestOut = flatSweepOutput(batchSize, nnYLen, nnXLen, modelInfo, useFP16, full, logger, &consideredOut);
   auto t1 = std::chrono::steady_clock::now();
   double inMs    = std::chrono::duration<double, std::milli>(tMid - t0).count();
   double outMs   = std::chrono::duration<double, std::milli>(t1 - tMid).count();
@@ -1016,8 +1029,8 @@ MLXWinogradTuneParams MLXWinogradTuner::loadOrAutoTune(
   // cost on-device: input/output split + total, per tuned net. Remove once the
   // coarse rep budget is calibrated for the iPad.
   std::fprintf(stderr,
-               "[MLX-TUNE] sweep full=%d c=%d x%d y%d input=%.0fms output=%.0fms total=%.0fms\n",
-               full ? 1 : 0, modelInfo.trunkNumChannels, nnXLen, nnYLen, inMs, outMs, tuneMs);
+               "[MLX-TUNE] sweep full=%d c=%d x%d y%d input=%.0fms output=%.0fms total=%.0fms consideredIn=%d consideredOut=%d\n",
+               full ? 1 : 0, modelInfo.trunkNumChannels, nnXLen, nnYLen, inMs, outMs, tuneMs, consideredIn, consideredOut);
   std::fflush(stderr);
 
   if(!bestIn || !bestOut)
