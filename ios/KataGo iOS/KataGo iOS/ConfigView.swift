@@ -334,7 +334,6 @@ struct RuleConfigView: View {
 
 struct AnalysisConfigView: View {
     var config: Config
-    @State var analysisInformationText: String = Config.defaultAnalysisInformationText
     @State var analysisForWhomText: String = Config.defaultAnalysisForWhomText
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var hiddenAnalysisVisitRatioText = String(Config.defaultHiddenAnalysisVisitRatio)
@@ -346,18 +345,6 @@ struct AnalysisConfigView: View {
 
     var body: some View {
         List {
-            ConfigTextPicker(
-                title: "Analysis information",
-                texts: Config.analysisInformations,
-                selectedText: $analysisInformationText
-            )
-            .onAppear {
-                analysisInformationText = config.analysisInformationText
-            }
-            .onChange(of: analysisInformationText) { _, newValue in
-                config.analysisInformation = Config.analysisInformations.firstIndex(of: newValue) ?? Config.defaultAnalysisInformation
-            }
-
             ConfigTextPicker(
                 title: "Analysis for",
                 texts: Config.analysisForWhoms,
@@ -409,96 +396,6 @@ struct AnalysisConfigView: View {
                 }
                 .onChange(of: analysisInterval) { _, newValue in
                     config.analysisInterval = newValue
-                }
-        }
-    }
-}
-
-struct ViewConfigView: View {
-    var config: Config
-    @State var stoneStyleText = Config.defaultStoneStyleText
-    @State var analysisStyleText = Config.defaultAnalysisStyleText
-    @State var showCoordinate = Config.defaultShowCoordinate
-    @State var showPass = Config.defaultShowPass
-    @State var verticalFlip = Config.defaultVerticalFlip
-    @State var showCharts = Config.defaultShowCharts
-    @State var showOwnership: Bool = Config.defaultShowOwnership
-    @State var showWinrateBar: Bool = Config.defaultShowWinrateBar
-
-    var body: some View {
-        List {
-            ConfigTextPicker(
-                title: "Stone style",
-                texts: Config.stoneStyles,
-                selectedText: $stoneStyleText
-            )
-            .onAppear {
-                stoneStyleText = config.stoneStyleText
-            }
-            .onChange(of: stoneStyleText) { _, newValue in
-                config.stoneStyle = Config.stoneStyles.firstIndex(of: newValue) ?? Config.defaultStoneStyle
-            }
-
-            ConfigTextPicker(
-                title: "Analysis style",
-                texts: Config.analysisStyles,
-                selectedText: $analysisStyleText
-            )
-            .onAppear {
-                analysisStyleText = config.analysisStyleText
-            }
-            .onChange(of: analysisStyleText) { _, newValue in
-                config.analysisStyle = Config.analysisStyles.firstIndex(of: newValue) ?? Config.defaultAnalysisStyle
-            }
-
-            ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)
-                .onAppear {
-                    showCoordinate = config.showCoordinate
-                }
-                .onChange(of: showCoordinate) { _, _ in
-                    config.showCoordinate = showCoordinate
-                }
-
-            ConfigBoolItem(title: "Show pass", value: $showPass)
-                .onAppear {
-                    showPass = config.showPass
-                }
-                .onChange(of: showPass) { _, _ in
-                    config.showPass = showPass
-                }
-
-            ConfigBoolItem(title: "Vertical flip", value: $verticalFlip)
-                .onAppear {
-                    verticalFlip = config.verticalFlip
-                }
-                .onChange(of: verticalFlip) { _, _ in
-                    config.verticalFlip = verticalFlip
-                }
-
-            ConfigBoolItem(title: "Show chart/comments", value: $showCharts)
-                .onAppear {
-                    showCharts = config.showCharts
-                }
-                .onChange(of: showCharts) { _, _ in
-                    config.showCharts = showCharts
-                }
-
-            ConfigBoolItem(title: "Show ownership", value: $showOwnership)
-                .onAppear {
-                    showOwnership = config.showOwnership
-                }
-                .onChange(of: showOwnership) { _, newValue in
-                    config.showOwnership = newValue
-                }
-
-            ConfigBoolItem(title: "Show win rate bar", value: $showWinrateBar)
-                .onAppear {
-                    showWinrateBar = config.showWinrateBar
-                }
-                .onChange(of: showWinrateBar) { _, newValue in
-                    withAnimation {
-                        config.showWinrateBar = newValue
-                    }
                 }
         }
     }
@@ -730,11 +627,6 @@ struct ConfigItems: View {
                     .navigationTitle("Analysis")
             }
 
-            NavigationLink("View") {
-                ViewConfigView(config: config)
-                    .navigationTitle("View")
-            }
-
             NavigationLink("AI") {
                 AIConfigView(config: config)
                     .navigationTitle("AI")
@@ -757,33 +649,134 @@ struct GlobalSettingsView: View {
     @State private var soundEffect: Bool = false
     @State private var hapticFeedback: Bool = false
     @State private var showVisitsPerSecond: Bool = false
+    @State private var stoneStyleText = Config.defaultStoneStyleText
+    @State private var analysisStyleText = Config.defaultAnalysisStyleText
+    @State private var analysisInformationText = Config.defaultAnalysisInformationText
+    @State private var showCoordinate = Config.defaultShowCoordinate
+    @State private var showPass = Config.defaultShowPass
+    @State private var verticalFlip = Config.compatibleVerticalFlip
+    @State private var showCharts = Config.defaultShowCharts
+    @State private var showOwnership = Config.defaultShowOwnership
+    @State private var showWinrateBar = Config.defaultShowWinrateBar
     @Environment(GobanState.self) private var gobanState
 
     var body: some View {
         List {
-            ConfigBoolItem(title: "Sound effect", value: $soundEffect)
+            Section("Board") {
+                ConfigTextPicker(
+                    title: "Stone style",
+                    texts: Config.stoneStyles,
+                    selectedText: $stoneStyleText
+                )
                 .onAppear {
-                    soundEffect = gobanState.soundEffect
+                    stoneStyleText = gobanState.stoneStyleText
                 }
-                .onChange(of: soundEffect) {
-                    gobanState.soundEffect = soundEffect
+                .onChange(of: stoneStyleText) { _, newValue in
+                    gobanState.stoneStyle = Config.stoneStyles.firstIndex(of: newValue) ?? Config.defaultStoneStyle
                 }
 
-            ConfigBoolItem(title: "Haptic feedback", value: $hapticFeedback)
+                ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)
+                    .onAppear {
+                        showCoordinate = gobanState.showCoordinate
+                    }
+                    .onChange(of: showCoordinate) {
+                        gobanState.showCoordinate = showCoordinate
+                    }
+
+                ConfigBoolItem(title: "Show pass", value: $showPass)
+                    .onAppear {
+                        showPass = gobanState.showPass
+                    }
+                    .onChange(of: showPass) {
+                        gobanState.showPass = showPass
+                    }
+
+                ConfigBoolItem(title: "Vertical flip", value: $verticalFlip)
+                    .onAppear {
+                        verticalFlip = gobanState.verticalFlip
+                    }
+                    .onChange(of: verticalFlip) {
+                        gobanState.verticalFlip = verticalFlip
+                    }
+
+                ConfigBoolItem(title: "Show chart/comments", value: $showCharts)
+                    .onAppear {
+                        showCharts = gobanState.showCharts
+                    }
+                    .onChange(of: showCharts) {
+                        gobanState.showCharts = showCharts
+                    }
+            }
+
+            Section("Analysis") {
+                ConfigTextPicker(
+                    title: "Analysis information",
+                    texts: Config.analysisInformations,
+                    selectedText: $analysisInformationText
+                )
                 .onAppear {
-                    hapticFeedback = gobanState.hapticFeedback
+                    analysisInformationText = gobanState.analysisInformationText
                 }
-                .onChange(of: hapticFeedback) {
-                    gobanState.hapticFeedback = hapticFeedback
+                .onChange(of: analysisInformationText) { _, newValue in
+                    gobanState.analysisInformation = Config.analysisInformations.firstIndex(of: newValue) ?? Config.defaultAnalysisInformation
                 }
 
-            ConfigBoolItem(title: "Show visits/s", value: $showVisitsPerSecond)
+                ConfigTextPicker(
+                    title: "Analysis style",
+                    texts: Config.analysisStyles,
+                    selectedText: $analysisStyleText
+                )
                 .onAppear {
-                    showVisitsPerSecond = gobanState.showVisitsPerSecond
+                    analysisStyleText = gobanState.analysisStyleText
                 }
-                .onChange(of: showVisitsPerSecond) {
-                    gobanState.showVisitsPerSecond = showVisitsPerSecond
+                .onChange(of: analysisStyleText) { _, newValue in
+                    gobanState.analysisStyle = Config.analysisStyles.firstIndex(of: newValue) ?? Config.defaultAnalysisStyle
                 }
+
+                ConfigBoolItem(title: "Show ownership", value: $showOwnership)
+                    .onAppear {
+                        showOwnership = gobanState.showOwnership
+                    }
+                    .onChange(of: showOwnership) {
+                        gobanState.showOwnership = showOwnership
+                    }
+
+                ConfigBoolItem(title: "Show win rate bar", value: $showWinrateBar)
+                    .onAppear {
+                        showWinrateBar = gobanState.showWinrateBar
+                    }
+                    .onChange(of: showWinrateBar) {
+                        withAnimation {
+                            gobanState.showWinrateBar = showWinrateBar
+                        }
+                    }
+            }
+
+            Section("Sound & Haptics") {
+                ConfigBoolItem(title: "Sound effect", value: $soundEffect)
+                    .onAppear {
+                        soundEffect = gobanState.soundEffect
+                    }
+                    .onChange(of: soundEffect) {
+                        gobanState.soundEffect = soundEffect
+                    }
+
+                ConfigBoolItem(title: "Haptic feedback", value: $hapticFeedback)
+                    .onAppear {
+                        hapticFeedback = gobanState.hapticFeedback
+                    }
+                    .onChange(of: hapticFeedback) {
+                        gobanState.hapticFeedback = hapticFeedback
+                    }
+
+                ConfigBoolItem(title: "Show visits/s", value: $showVisitsPerSecond)
+                    .onAppear {
+                        showVisitsPerSecond = gobanState.showVisitsPerSecond
+                    }
+                    .onChange(of: showVisitsPerSecond) {
+                        gobanState.showVisitsPerSecond = showVisitsPerSecond
+                    }
+            }
         }
         .navigationTitle("Global Settings")
     }

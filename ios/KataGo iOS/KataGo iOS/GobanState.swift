@@ -33,6 +33,22 @@ class GobanState {
     var hapticFeedback: Bool = false
     var showVisitsPerSecond: Bool = false
 
+    // App-wide display preferences. These mirror GlobalSettings.* @AppStorage
+    // (synced in GameSplitView) so they apply across all games instead of being
+    // stored per-game. The matching Config fields are now unused — left in place
+    // because the SwiftData model must not change. Defaults reuse the Config
+    // constants to preserve the previous behavior exactly.
+    var showCoordinate: Bool = Config.defaultShowCoordinate
+    var showPass: Bool = Config.defaultShowPass
+    var verticalFlip: Bool = Config.compatibleVerticalFlip
+    var showOwnership: Bool = Config.defaultShowOwnership
+    var showWinrateBar: Bool = Config.defaultShowWinrateBar
+    var showCharts: Bool = Config.defaultShowCharts
+    var showComments: Bool = Config.defaultShowComments
+    var stoneStyle: Int = Config.defaultStoneStyle
+    var analysisStyle: Int = Config.defaultAnalysisStyle
+    var analysisInformation: Int = Config.defaultAnalysisInformation
+
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
 
@@ -606,5 +622,55 @@ class GobanState {
                 gameRecord.moves?[previousIndex] = board.locationToMove(location: location)
             }
         }
+    }
+}
+
+// MARK: - Global display-preference helpers
+// Mirror the equivalent Config computed helpers, reading the app-wide values
+// above so render code can switch from `config.isX` to `gobanState.isX`.
+extension GobanState {
+    var isClassicStoneStyle: Bool {
+        guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
+        return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
+    }
+
+    var isClassicAnalysisStyle: Bool {
+        guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
+        return Config.analysisStyles[analysisStyle] == Config.classicAnalysisStyle
+    }
+
+    var isAnalysisInformationWinrate: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
+    }
+
+    var isAnalysisInformationScore: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
+    }
+
+    var isAnalysisInformationAll: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationAll
+    }
+
+    var isAnalysisInformationNone: Bool {
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationNone
+    }
+
+    var stoneStyleText: String {
+        guard stoneStyle < Config.stoneStyles.count else { return Config.defaultStoneStyleText }
+        return Config.stoneStyles[stoneStyle]
+    }
+
+    var analysisStyleText: String {
+        guard analysisStyle < Config.analysisStyles.count else { return Config.defaultAnalysisStyleText }
+        return Config.analysisStyles[analysisStyle]
+    }
+
+    var analysisInformationText: String {
+        guard analysisInformation < Config.analysisInformations.count else { return Config.defaultAnalysisInformationText }
+        return Config.analysisInformations[analysisInformation]
     }
 }

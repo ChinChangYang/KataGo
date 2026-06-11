@@ -30,7 +30,7 @@ struct BoardView: View {
     }
 
     var shouldShowWinrateBar: Bool {
-        config.showWinrateBar && (gobanState.eyeStatus == .opened || (gobanState.eyeStatus == .book && bookLookup.isInBook))
+        gobanState.showWinrateBar && (gobanState.eyeStatus == .opened || (gobanState.eyeStatus == .book && bookLookup.isInBook))
     }
 
     var body: some View {
@@ -42,26 +42,26 @@ struct BoardView: View {
                 let dimensions = Dimensions(size: geometry.size,
                                             width: board.width,
                                             height: board.height,
-                                            showCoordinate: config.showCoordinate,
-                                            showPass: config.showPass)
+                                            showCoordinate: gobanState.showCoordinate,
+                                            showPass: gobanState.showPass)
                 ZStack {
                     BoardLineView(dimensions: dimensions,
-                                  showPass: config.showPass,
-                                  verticalFlip: config.verticalFlip)
+                                  showPass: gobanState.showPass,
+                                  verticalFlip: gobanState.verticalFlip)
 
                     StoneView(
                         dimensions: dimensions,
-                        isClassicStoneStyle: config.isClassicStoneStyle,
-                        verticalFlip: config.verticalFlip,
+                        isClassicStoneStyle: gobanState.isClassicStoneStyle,
+                        verticalFlip: gobanState.verticalFlip,
                         speedText: speedText
                     )
 
                     drawNextMove(dimensions: dimensions,
-                                 verticalFlip: config.verticalFlip)
+                                 verticalFlip: gobanState.verticalFlip)
 
                     AnalysisView(config: config, dimensions: dimensions)
                     BookAnalysisView(config: config, dimensions: dimensions)
-                    MoveNumberView(dimensions: dimensions, verticalFlip: config.verticalFlip)
+                    MoveNumberView(dimensions: dimensions, verticalFlip: gobanState.verticalFlip)
 
                     if shouldShowWinrateBar {
                         WinrateBarView(dimensions: dimensions)
@@ -216,7 +216,7 @@ struct BoardView: View {
         let boardY = calculateCoordinate(from: location.y, margin: dimensions.boardLineStartY, length: dimensions.squareLength) + 1
         let boardX = calculateCoordinate(from: location.x, margin: dimensions.boardLineStartX, length: dimensions.squareLength)
         let height = Int(board.height)
-        let verticalFlipWithPass = config.verticalFlip || ((boardY - 1) == BoardPoint.passY(height: height))
+        let verticalFlipWithPass = gobanState.verticalFlip || ((boardY - 1) == BoardPoint.passY(height: height))
         let adjustedY = verticalFlipWithPass ? boardY : (height - boardY + 1)
         return Coordinate(x: boardX, y: adjustedY, width: Int(board.width), height: height)
     }

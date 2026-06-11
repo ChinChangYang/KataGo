@@ -38,10 +38,6 @@ struct GameSplitView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.modelContext) private var modelContext
 
-    @AppStorage("GlobalSettings.soundEffect") private var globalSoundEffect = false
-    @AppStorage("GlobalSettings.hapticFeedback") private var globalHapticFeedback = false
-    @AppStorage("GlobalSettings.showVisitsPerSecond") private var globalShowVisitsPerSecond = false
-
     var body: some View {
         @Bindable var topUIState = topUIState
 
@@ -90,20 +86,7 @@ struct GameSplitView: View {
         } detail: {
             detailView
         }
-        .onAppear {
-            gobanState.soundEffect = globalSoundEffect
-            gobanState.hapticFeedback = globalHapticFeedback
-            gobanState.showVisitsPerSecond = globalShowVisitsPerSecond
-        }
-        .onChange(of: gobanState.soundEffect) { _, newValue in
-            globalSoundEffect = newValue
-        }
-        .onChange(of: gobanState.hapticFeedback) { _, newValue in
-            globalHapticFeedback = newValue
-        }
-        .onChange(of: gobanState.showVisitsPerSecond) { _, newValue in
-            globalShowVisitsPerSecond = newValue
-        }
+        .modifier(GlobalPreferenceSync(gobanState: gobanState))
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)
             processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
@@ -357,11 +340,11 @@ struct GameSplitView: View {
             let content = ZStack {
                 BoardLineView(dimensions: dimensions,
                               showPass: false,
-                              verticalFlip: config.verticalFlip)
+                              verticalFlip: gobanState.verticalFlip)
 
                 StoneView(dimensions: dimensions,
-                          isClassicStoneStyle: config.isClassicStoneStyle,
-                          verticalFlip: config.verticalFlip,
+                          isClassicStoneStyle: gobanState.isClassicStoneStyle,
+                          verticalFlip: gobanState.verticalFlip,
                           isDrawingCapturedStones: isDrawingCapturedStones)
 
                 AnalysisView(config: config, dimensions: dimensions)
@@ -545,7 +528,7 @@ struct GameSplitView: View {
 
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
-                        audioModel.playPlaySound(soundEffect: globalSoundEffect)
+                        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
                         gobanState.isAutoPlayed = true
                     } else {
                         gobanState.isAutoPlaying = false
@@ -604,5 +587,60 @@ struct GameSplitView: View {
             stones.whiteStonesCaptured = 0
             stones.isReady = false
         }
+    }
+}
+
+/// Two-way binding between the app-wide preference `@AppStorage` keys and the
+/// shared `GobanState`. On appear, the persisted values seed `GobanState`; on
+/// each `GobanState` change (driven by GlobalSettingsView), the value is written
+/// back to UserDefaults. Extracted into its own modifier so the long sync chain
+/// stays out of `GameSplitView`'s body (avoids a SwiftUI type-checker timeout).
+private struct GlobalPreferenceSync: ViewModifier {
+    let gobanState: GobanState
+
+    @AppStorage("GlobalSettings.soundEffect") private var soundEffect = false
+    @AppStorage("GlobalSettings.hapticFeedback") private var hapticFeedback = false
+    @AppStorage("GlobalSettings.showVisitsPerSecond") private var showVisitsPerSecond = false
+    @AppStorage("GlobalSettings.showCoordinate") private var showCoordinate = Config.defaultShowCoordinate
+    @AppStorage("GlobalSettings.showPass") private var showPass = Config.defaultShowPass
+    @AppStorage("GlobalSettings.verticalFlip") private var verticalFlip = Config.compatibleVerticalFlip
+    @AppStorage("GlobalSettings.showOwnership") private var showOwnership = Config.defaultShowOwnership
+    @AppStorage("GlobalSettings.showWinrateBar") private var showWinrateBar = Config.defaultShowWinrateBar
+    @AppStorage("GlobalSettings.showCharts") private var showCharts = Config.defaultShowCharts
+    @AppStorage("GlobalSettings.showComments") private var showComments = Config.defaultShowComments
+    @AppStorage("GlobalSettings.stoneStyle") private var stoneStyle = Config.defaultStoneStyle
+    @AppStorage("GlobalSettings.analysisStyle") private var analysisStyle = Config.defaultAnalysisStyle
+    @AppStorage("GlobalSettings.analysisInformation") private var analysisInformation = Config.defaultAnalysisInformation
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                gobanState.soundEffect = soundEffect
+                gobanState.hapticFeedback = hapticFeedback
+                gobanState.showVisitsPerSecond = showVisitsPerSecond
+                gobanState.showCoordinate = showCoordinate
+                gobanState.showPass = showPass
+                gobanState.verticalFlip = verticalFlip
+                gobanState.showOwnership = showOwnership
+                gobanState.showWinrateBar = showWinrateBar
+                gobanState.showCharts = showCharts
+                gobanState.showComments = showComments
+                gobanState.stoneStyle = stoneStyle
+                gobanState.analysisStyle = analysisStyle
+                gobanState.analysisInformation = analysisInformation
+            }
+            .onChange(of: gobanState.soundEffect) { _, newValue in soundEffect = newValue }
+            .onChange(of: gobanState.hapticFeedback) { _, newValue in hapticFeedback = newValue }
+            .onChange(of: gobanState.showVisitsPerSecond) { _, newValue in showVisitsPerSecond = newValue }
+            .onChange(of: gobanState.showCoordinate) { _, newValue in showCoordinate = newValue }
+            .onChange(of: gobanState.showPass) { _, newValue in showPass = newValue }
+            .onChange(of: gobanState.verticalFlip) { _, newValue in verticalFlip = newValue }
+            .onChange(of: gobanState.showOwnership) { _, newValue in showOwnership = newValue }
+            .onChange(of: gobanState.showWinrateBar) { _, newValue in showWinrateBar = newValue }
+            .onChange(of: gobanState.showCharts) { _, newValue in showCharts = newValue }
+            .onChange(of: gobanState.showComments) { _, newValue in showComments = newValue }
+            .onChange(of: gobanState.stoneStyle) { _, newValue in stoneStyle = newValue }
+            .onChange(of: gobanState.analysisStyle) { _, newValue in analysisStyle = newValue }
+            .onChange(of: gobanState.analysisInformation) { _, newValue in analysisInformation = newValue }
     }
 }

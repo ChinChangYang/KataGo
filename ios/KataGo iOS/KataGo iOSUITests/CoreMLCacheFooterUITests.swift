@@ -160,6 +160,83 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "No analysis winrate text appeared on the board — the engine did not produce analysis")
     }
 
+    /// Verifies the settings migration: the display preferences that used to live
+    /// in the per-game "View" config screen are now under Global Settings (and
+    /// are interactive there, wired to GobanState), and the per-game "View" row
+    /// has been removed while the other per-game tabs remain.
+    @MainActor
+    func testDisplayPreferencesMovedToGlobalSettings() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // A game must be selected for the "Configurations" menu item to appear,
+        // so launch the built-in engine to reach the goban.
+        tapModelRow(in: app, title: builtInTitle)
+        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+
+        let lockButton = app.buttons["Lock"]
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
+                      "Goban (Lock button) did not appear after launching the built-in engine")
+
+        // Open the "More" menu → "Configurations" to present ConfigView.
+        let moreButton = app.buttons["More"].firstMatch
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
+        moreButton.tap()
+
+        let configurations = app.buttons["Configurations"].firstMatch
+        XCTAssertTrue(configurations.waitForExistence(timeout: 10),
+                      "Configurations menu item not found")
+        configurations.tap()
+
+        // ----- Global Settings now hosts the relocated display preferences -----
+        let globalSettings = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10), "Global Settings row not found")
+        globalSettings.tap()
+
+        // Every display toggle that used to be under the per-game "View" tab.
+        let showCoordinate = app.switches["Show coordinate"].firstMatch
+        XCTAssertTrue(showCoordinate.waitForExistence(timeout: 10),
+                      "'Show coordinate' toggle missing from Global Settings")
+        for title in ["Show pass", "Vertical flip", "Show chart/comments",
+                      "Show ownership", "Show win rate bar"] {
+            XCTAssertTrue(app.switches[title].firstMatch.waitForExistence(timeout: 5),
+                          "'\(title)' toggle missing from Global Settings")
+        }
+        // The relocated "Stone style" picker title is present too.
+        let stoneStylePicker = app.staticTexts
+            .containing(NSPredicate(format: "label CONTAINS %@", "Stone style")).firstMatch
+        XCTAssertTrue(stoneStylePicker.waitForExistence(timeout: 5),
+                      "'Stone style' picker missing from Global Settings")
+
+        // The toggle is interactive and flips state (proves the GobanState wiring).
+        // Tap the trailing edge where the switch control lives (a center tap can
+        // land on the row label), then poll for the value to settle.
+        let before = showCoordinate.value as? String
+        showCoordinate.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        let flipped = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", before ?? "1"),
+            object: showCoordinate)
+        XCTAssertEqual(XCTWaiter().wait(for: [flipped], timeout: 3), .completed,
+                       "'Show coordinate' did not toggle from \(before ?? "nil")")
+        showCoordinate.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()   // restore default
+
+        // ----- The per-game "View" tab is gone; the others remain -----
+        let backButton = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Back button not found")
+        backButton.tap()
+
+        let gameSettings = app.buttons["Game Settings"].firstMatch
+        XCTAssertTrue(gameSettings.waitForExistence(timeout: 10), "Game Settings row not found")
+        gameSettings.tap()
+
+        XCTAssertTrue(app.buttons["Rule"].firstMatch.waitForExistence(timeout: 10),
+                      "'Rule' row missing from Game Settings")
+        XCTAssertTrue(app.buttons["Analysis"].firstMatch.exists,
+                      "'Analysis' row missing from Game Settings")
+        XCTAssertFalse(app.buttons["View"].firstMatch.exists,
+                       "'View' row should have been removed from per-game Game Settings")
+    }
+
     // MARK: - Helpers
 
     /// Parses the "<Label>: N of M" fragment from a footer line.

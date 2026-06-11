@@ -19,7 +19,7 @@ struct AnalysisView: View {
     private func isValidPointToShow(blackSet: Set<BoardPoint>,
                                     whiteSet: Set<BoardPoint>,
                                     point: BoardPoint) -> Bool {
-        return !blackSet.contains(point) && !whiteSet.contains(point) && (!point.isPass(width: Int(dimensions.width), height: Int(dimensions.height)) || config.showPass)
+        return !blackSet.contains(point) && !whiteSet.contains(point) && (!point.isPass(width: Int(dimensions.width), height: Int(dimensions.height)) || gobanState.showPass)
     }
 
     func shadows(blackSet: Set<BoardPoint>,
@@ -33,7 +33,7 @@ struct AnalysisView: View {
                     .blur(radius: dimensions.squareLength / 32)
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
             }
         }
     }
@@ -47,7 +47,7 @@ struct AnalysisView: View {
                 .foregroundStyle(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
                 .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
                 .position(x: dimensions.boardLineStartX + CGFloat(unit.point.x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
+                          y: dimensions.boardLineStartY + unit.point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
         }
     }
 
@@ -73,11 +73,11 @@ struct AnalysisView: View {
                                 }
                             }
                         if !isHidden {
-                            if config.isAnalysisInformationWinrate {
+                            if gobanState.isAnalysisInformationWinrate {
                                 winrateText(info.winrate)
-                            } else if config.isAnalysisInformationScore {
+                            } else if gobanState.isAnalysisInformationScore {
                                 scoreText(info.scoreLead)
-                            } else if config.isAnalysisInformationAll {
+                            } else if gobanState.isAnalysisInformationAll {
                                 VStack {
                                     winrateText(info.winrate)
                                     visitsText(info.visits)
@@ -91,7 +91,7 @@ struct AnalysisView: View {
 #endif
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: config.verticalFlip) * dimensions.squareLength)
+                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
                 }
             }
         }
@@ -106,15 +106,15 @@ struct AnalysisView: View {
                 let whiteSet = Set(stones.whitePoints)
                 let sortedInfoKeys = analysis.info.keys.sorted()
 
-                if !config.isAnalysisInformationNone && config.isClassicAnalysisStyle {
+                if !gobanState.isAnalysisInformationNone && gobanState.isClassicAnalysisStyle {
                     shadows(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
                 }
 
-                if config.showOwnership {
+                if gobanState.showOwnership {
                     ownerships
                 }
 
-                if !config.isAnalysisInformationNone {
+                if !gobanState.isAnalysisInformationNone {
                     moves(blackSet: blackSet, whiteSet: whiteSet, sortedInfoKeys: sortedInfoKeys)
                 }
             }

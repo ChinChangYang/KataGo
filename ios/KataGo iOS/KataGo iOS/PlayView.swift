@@ -11,13 +11,12 @@ struct PlayView: View {
     var gameRecord: GameRecord
     @State var isHorizontalLayout = false
     @Environment(BoardSize.self) var board
+    @Environment(GobanState.self) var gobanState
     @FocusState var commentIsFocused: Bool
-
-    var config: Config { gameRecord.concreteConfig }
 
     func infoBoardView(for dimensions: Dimensions) -> some View {
         return VStack {
-            if config.showCharts || config.showComments {
+            if gobanState.showCharts || gobanState.showComments {
                 InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
                     .frame(height: max(dimensions.emptyHeight, InfoView.minHeight))
             }
@@ -32,8 +31,8 @@ struct PlayView: View {
                 let dimensions = Dimensions(size: geometry.size,
                                             width: board.width,
                                             height: board.height,
-                                            showCoordinate: config.showCoordinate,
-                                            showPass: config.showPass)
+                                            showCoordinate: gobanState.showCoordinate,
+                                            showPass: gobanState.showPass)
 
                 infoBoardView(for: dimensions)
             }

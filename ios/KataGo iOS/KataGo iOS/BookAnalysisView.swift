@@ -30,7 +30,7 @@ struct BookAnalysisView: View {
 
             ForEach(sortedPoints, id: \.self) { point in
                 if !blackSet.contains(point) && !whiteSet.contains(point),
-                   (!point.isPass(width: Int(dimensions.width), height: Int(dimensions.height)) || config.showPass),
+                   (!point.isPass(width: Int(dimensions.width), height: Int(dimensions.height)) || gobanState.showPass),
                    let info = analysis[point] {
                     let color = badnessColor(
                         info: info,
@@ -48,7 +48,7 @@ struct BookAnalysisView: View {
                                 }
                             }
 
-                        if !config.isAnalysisInformationNone {
+                        if !gobanState.isAnalysisInformationNone {
                             moveText(info: info, nextPlayer: bookLookup.currentNextPlayer ?? 1)
                         }
                     }
@@ -60,7 +60,7 @@ struct BookAnalysisView: View {
                         x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
                         y: dimensions.boardLineStartY + point.getPositionY(
                             height: dimensions.height,
-                            verticalFlip: config.verticalFlip
+                            verticalFlip: gobanState.verticalFlip
                         ) * dimensions.squareLength
                     )
                 }
@@ -76,11 +76,11 @@ struct BookAnalysisView: View {
         let scoreLead = currentPlayerScore(ss: info.sharpScore, nextPlayer: nextPlayer)
         let visits = Int(info.adjustedVisits)
 
-        if config.isAnalysisInformationWinrate {
+        if gobanState.isAnalysisInformationWinrate {
             winrateText(winrate)
-        } else if config.isAnalysisInformationScore {
+        } else if gobanState.isAnalysisInformationScore {
             scoreText(scoreLead)
-        } else if config.isAnalysisInformationAll {
+        } else if gobanState.isAnalysisInformationAll {
             VStack {
                 winrateText(winrate)
                 visitsText(visits)
