@@ -510,7 +510,13 @@ static swift::Optional<KataGoSwift::CoreMLComputeHandle> convertAndCreateCoreMLO
     maxBatchSize
   );
   if(static_cast<bool>(bridgeResult)) {
-    return bridgeResult;
+    // Return a copy, NOT the named local. `return bridgeResult;` would select the
+    // move constructor, but Swift value types are copyable yet not movable across
+    // C++ interop, so the move ctor references the undefined
+    // __fatalError_Cxx_move_of_Swift_value_type_not_supported_yet — a link error in
+    // the CMake -DUSE_BACKEND=METAL build. CoreMLComputeHandle is a Swift `final
+    // class`, so the copy ctor is a cheap ARC retain.
+    return swift::Optional<KataGoSwift::CoreMLComputeHandle>(bridgeResult);
   }
 
   // Legacy path: convert model in-place and load without cache.
