@@ -14,6 +14,9 @@ Outputs:
   --preview-dir: writes preview.svg (shipped geometry R=420, k=1.0) and
                  match-preview.svg (original-matching R=444, k=1.03) plus a
                  background-only gold rect is baked into both previews.
+  --loading-dir: writes LoadingIcon.svg (flattened: gold + field + vector
+                 stone shadows + stones, R=420) and converts it to
+                 LoadingIcon.pdf via rsvg-convert when available.
 
 Regenerate after any geometry change:
   python3 generate_icon.py --icon-dir "../KataGo iOS/AppIcon.icon" \
@@ -22,6 +25,8 @@ Regenerate after any geometry change:
 import argparse
 import math
 import os
+import shutil
+import subprocess
 
 GOLD = "#CC994C"
 FIELD_WHITE = "#E0E0E0"
@@ -38,6 +43,13 @@ STONE_DEFS = """
   <radialGradient id="wg" cx="0.38" cy="0.30" r="0.92">
     <stop offset="0%" stop-color="#fff"/><stop offset="34%" stop-color="#fbfbfb"/>
     <stop offset="70%" stop-color="#ededed"/><stop offset="100%" stop-color="#d2d2d2"/>
+  </radialGradient>"""
+
+SHADOW_DEFS = """
+  <radialGradient id="sg" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0%" stop-color="#000" stop-opacity="0.35"/>
+    <stop offset="70%" stop-color="#000" stop-opacity="0.30"/>
+    <stop offset="100%" stop-color="#000" stop-opacity="0"/>
   </radialGradient>"""
 
 
@@ -106,10 +118,32 @@ def preview_svg(R, k=1.0):
             + field_body + stones_body + "\n</svg>\n")
 
 
+def loading_svg(R):
+    """Flattened LoadingIcon composite: gold background + field + vector
+    stone shadows + stones. Shadows are radial-gradient circles offset
+    (+10, +14) at radius 1.12*r — NOT feDropShadow, because librsvg
+    rasterizes SVG filters during PDF export while gradients become true
+    PDF shadings, keeping the exported PDF fully vector."""
+    r = R / (1 + math.sqrt(2))
+    field_body = field_svg(R).split("</defs>\n", 1)[1].rsplit("</svg>", 1)[0]
+    stones = stones_svg(R)
+    stones_defs = stones.split("<defs>", 1)[1].split("</defs>", 1)[0]
+    stones_body = stones.split("</defs>\n", 1)[1].rsplit("</svg>", 1)[0]
+    shadows = "".join(
+        f'<circle cx="{C + sx * r + 10:.2f}" cy="{C + sy * r + 14:.2f}" '
+        f'r="{r * 1.12:.2f}" fill="url(#sg)"/>'
+        for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)))
+    return (svg_header(stones_defs + SHADOW_DEFS)
+            + f'<rect width="{CANVAS}" height="{CANVAS}" fill="{GOLD}"/>\n'
+            + field_body + shadows + stones_body + "\n</svg>\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--icon-dir", help="AppIcon.icon bundle dir (writes Assets/*.svg)")
     ap.add_argument("--preview-dir", help="dir for preview.svg + match-preview.svg")
+    ap.add_argument("--loading-dir",
+                    help="dir for LoadingIcon.svg (+ LoadingIcon.pdf if rsvg-convert is on PATH)")
     args = ap.parse_args()
     R_SHIP = 420.0   # 82% margin (approved)
     R_MATCH = 444.0  # original geometry for edge-fidelity comparison
@@ -128,8 +162,20 @@ def main():
         with open(os.path.join(args.preview_dir, "match-preview.svg"), "w") as f:
             f.write(preview_svg(R_MATCH, k=1.03))
         print(f"wrote previews to {args.preview_dir}")
-    if not (args.icon_dir or args.preview_dir):
-        ap.error("nothing to do: pass --icon-dir and/or --preview-dir")
+    if args.loading_dir:
+        os.makedirs(args.loading_dir, exist_ok=True)
+        svg_path = os.path.join(args.loading_dir, "LoadingIcon.svg")
+        with open(svg_path, "w") as f:
+            f.write(loading_svg(R_SHIP))
+        if shutil.which("rsvg-convert"):
+            pdf_path = os.path.join(args.loading_dir, "LoadingIcon.pdf")
+            subprocess.run(["rsvg-convert", "-f", "pdf", svg_path, "-o", pdf_path],
+                           check=True)
+            print(f"wrote {svg_path} and {pdf_path}")
+        else:
+            print(f"wrote {svg_path}; rsvg-convert not found, skipped PDF")
+    if not (args.icon_dir or args.preview_dir or args.loading_dir):
+        ap.error("nothing to do: pass --icon-dir, --preview-dir and/or --loading-dir")
 
 
 if __name__ == "__main__":
