@@ -24,7 +24,7 @@
 
 **Context:** `generate_icon.py` already provides `field_svg(R)` (the four-diagonal-sector disc), `stones_svg(R, k=1.0, baked_shadow=False)` (four glossy stones, radial gradients `kg`/`wg`), `preview_svg(R, k)` (flattened preview with a *filter-based* baked shadow — do NOT reuse its shadow for the PDF), constants `GOLD`/`CANVAS`/`C`, and `svg_header(extra_defs)`. Geometry: `R_SHIP = 420.0`, `r = R/(1+√2)`, stone centers `(C±r, C±r)`.
 
-- [ ] **Step 1: Run the "failing test" — the flag doesn't exist yet**
+- [x] **Step 1: Run the "failing test" — the flag doesn't exist yet**
 
 ```bash
 cd "ios/KataGo iOS/IconSource"
@@ -33,7 +33,7 @@ python3 generate_icon.py --loading-dir /tmp/katago-loading
 
 Expected: FAIL — `error: unrecognized arguments: --loading-dir` (exit code 2).
 
-- [ ] **Step 2: Add imports, shadow gradient defs, and `loading_svg()`**
+- [x] **Step 2: Add imports, shadow gradient defs, and `loading_svg()`**
 
 In `ios/KataGo iOS/IconSource/generate_icon.py`, extend the import block at the top:
 
@@ -79,7 +79,7 @@ def loading_svg(R):
             + field_body + shadows + stones_body + "\n</svg>\n")
 ```
 
-- [ ] **Step 3: Wire up the `--loading-dir` CLI flag**
+- [x] **Step 3: Wire up the `--loading-dir` CLI flag**
 
 In `main()`, add the argument after the `--preview-dir` line:
 
@@ -125,7 +125,7 @@ Outputs:
                  LoadingIcon.pdf via rsvg-convert when available.
 ```
 
-- [ ] **Step 4: Generate and run the pixel-probe regression test**
+- [x] **Step 4: Generate and run the pixel-probe regression test**
 
 ```bash
 cd "ios/KataGo iOS/IconSource"
@@ -136,7 +136,7 @@ python3 verify_icon.py probe /tmp/katago-loading/LoadingIcon-1024.png
 
 Expected: generator prints `wrote /tmp/katago-loading/LoadingIcon.svg and /tmp/katago-loading/LoadingIcon.pdf`; the probe prints 10 `PASS` lines (N/E/S/W field, astroid gold center, gold corner, TL/TR/BL/BR stones) and exits 0.
 
-- [ ] **Step 5: Verify the PDF is pure vector**
+- [x] **Step 5: Verify the PDF is pure vector**
 
 ```bash
 python3 - <<'EOF'
@@ -149,7 +149,7 @@ EOF
 
 Expected: `PASS: PDF is pure vector (...)` — roughly 10 KB.
 
-- [ ] **Step 6: Confirm existing outputs are unchanged (no regression in app-icon layers)**
+- [x] **Step 6: Confirm existing outputs are unchanged (no regression in app-icon layers)**
 
 ```bash
 cd "ios/KataGo iOS/IconSource"
@@ -159,7 +159,7 @@ git status --porcelain "../KataGo iOS/AppIcon.icon"
 
 Expected: `wrote layers to ...` then EMPTY git status output (regenerated layers are byte-identical to the committed ones).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "ios/KataGo iOS/IconSource/generate_icon.py"
@@ -179,7 +179,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Context:** The asset keeps the name `LoadingIcon`, so the four call sites (`LoadingView.swift:54`, `ModelPickerView.swift:96`, `PlusMenuView.swift:61`, `AppIntents/GameEntity.swift:128`) need no changes, and imageset contents are not registered in `project.pbxproj` (the whole `Assets.xcassets` is one build-file entry) — so NO pbxproj edits.
 
-- [ ] **Step 1: Generate the PDF and copy it into the imageset**
+- [x] **Step 1: Generate the PDF and copy it into the imageset**
 
 ```bash
 cd "ios/KataGo iOS/IconSource"
@@ -189,13 +189,13 @@ cp /tmp/katago-loading/LoadingIcon.pdf "../KataGo iOS/Assets.xcassets/LoadingIco
 
 Expected: `wrote /tmp/katago-loading/LoadingIcon.svg and /tmp/katago-loading/LoadingIcon.pdf`. (Only the PDF goes into the imageset — Xcode does not accept SVG in an imageset.)
 
-- [ ] **Step 2: Remove the old raster (trash, not rm)**
+- [x] **Step 2: Remove the old raster (trash, not rm)**
 
 ```bash
 trash "ios/KataGo iOS/KataGo iOS/Assets.xcassets/LoadingIcon.imageset/icon1024.png"
 ```
 
-- [ ] **Step 3: Rewrite Contents.json for a single-scale vector asset**
+- [x] **Step 3: Rewrite Contents.json for a single-scale vector asset**
 
 Replace the full contents of `ios/KataGo iOS/KataGo iOS/Assets.xcassets/LoadingIcon.imageset/Contents.json` with:
 
@@ -219,7 +219,7 @@ Replace the full contents of `ios/KataGo iOS/KataGo iOS/Assets.xcassets/LoadingI
 
 (One `universal` entry with no `scale` key = "Single Scale"; `preserves-vector-representation` = the "Preserve Vector Data" checkbox.)
 
-- [ ] **Step 4: Build for iOS Simulator**
+- [x] **Step 4: Build for iOS Simulator**
 
 ```bash
 cd "ios/KataGo iOS"
@@ -228,7 +228,7 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -d
 
 Expected: `** BUILD SUCCEEDED **` (no actool warnings about LoadingIcon).
 
-- [ ] **Step 5: Verify the compiled asset carries the vector representation**
+- [x] **Step 5: Verify the compiled asset carries the vector representation**
 
 ```bash
 cd "ios/KataGo iOS"
@@ -238,7 +238,7 @@ xcrun assetutil --info "$CAR" | grep -B2 -A10 '"Name" : "LoadingIcon"'
 
 Expected: a `LoadingIcon` entry is present; with Preserve Vector Data the entry (or an adjacent one) reports a PDF/vector rendition (e.g. `"Encoding" : "..."` with `"Image Type" : "kCoreThemeOnePartScale"` plus a `Vector` rendition, exact wording varies by toolchain). FAIL if no `LoadingIcon` entry exists at all.
 
-- [ ] **Step 6: Build for macOS and visionOS Simulator**
+- [x] **Step 6: Build for macOS and visionOS Simulator**
 
 ```bash
 cd "ios/KataGo iOS"
@@ -248,7 +248,7 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -d
 
 Expected: `** BUILD SUCCEEDED **` for both.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "ios/KataGo iOS/KataGo iOS/Assets.xcassets/LoadingIcon.imageset"

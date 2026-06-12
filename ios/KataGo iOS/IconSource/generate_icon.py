@@ -18,9 +18,11 @@ Outputs:
                  stone shadows + stones, R=420) and converts it to
                  LoadingIcon.pdf via rsvg-convert when available.
 
-Regenerate after any geometry change:
+Regenerate after any geometry change (then copy LoadingIcon.pdf into
+LoadingIcon.imageset):
   python3 generate_icon.py --icon-dir "../KataGo iOS/AppIcon.icon" \
-                           --preview-dir /tmp/katago-icon-preview
+                           --preview-dir /tmp/katago-icon-preview \
+                           --loading-dir /tmp/katago-loading
 """
 import argparse
 import math
