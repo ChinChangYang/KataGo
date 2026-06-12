@@ -314,6 +314,21 @@ extension Config {
 }
 
 extension Config {
+    // Display strings for the move-number picker. Order must match the
+    // MoveNumberStyle raw values.
+    static let lastThreeMovesNumberStyle = "Last 3 moves"
+    static let lastMoveNumberStyle = "Last move"
+    static let allMovesNumberStyle = "All moves"
+    static let lastMoveMarkerNumberStyle = "Marker"
+    static let moveNumberStyles = [lastThreeMovesNumberStyle,
+                                   lastMoveNumberStyle,
+                                   allMovesNumberStyle,
+                                   lastMoveMarkerNumberStyle]
+    static let defaultMoveNumberStyle = 0
+    static let defaultMoveNumberStyleText = moveNumberStyles[defaultMoveNumberStyle]
+}
+
+extension Config {
     static let defaultShowCoordinate = true
 }
 

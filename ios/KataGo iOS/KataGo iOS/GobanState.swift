@@ -48,9 +48,12 @@ class GobanState {
     var stoneStyle: Int = Config.defaultStoneStyle
     var analysisStyle: Int = Config.defaultAnalysisStyle
     var analysisInformation: Int = Config.defaultAnalysisInformation
+    var moveNumberStyle: Int = Config.defaultMoveNumberStyle
 
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
+    @ObservationIgnored private var moveNumbersCacheKey: (String, Int)? = nil
+    @ObservationIgnored private var moveNumbersCacheResult: MoveNumbers = .empty
 
     func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -509,6 +512,25 @@ class GobanState {
         return result
     }
 
+    func getMoveNumbers(gameRecord: GameRecord?) -> MoveNumbers {
+        guard moveNumberStyleChoice != .lastThreeMoves,
+              let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
+            return .empty
+        }
+
+        if let key = moveNumbersCacheKey, key == (sgf, currentIndex) {
+            return moveNumbersCacheResult
+        }
+
+        let result = MoveNumbers.derive(sgf: sgf, currentIndex: currentIndex)
+
+        moveNumbersCacheKey = (sgf, currentIndex)
+        moveNumbersCacheResult = result
+
+        return result
+    }
+
     func forwardMoves(
         limit: Int?,
         gameRecord: GameRecord,
@@ -672,5 +694,14 @@ extension GobanState {
     var analysisInformationText: String {
         guard analysisInformation < Config.analysisInformations.count else { return Config.defaultAnalysisInformationText }
         return Config.analysisInformations[analysisInformation]
+    }
+
+    var moveNumberStyleText: String {
+        guard moveNumberStyle < Config.moveNumberStyles.count else { return Config.defaultMoveNumberStyleText }
+        return Config.moveNumberStyles[moveNumberStyle]
+    }
+
+    var moveNumberStyleChoice: MoveNumberStyle {
+        MoveNumberStyle(rawValue: moveNumberStyle) ?? .lastThreeMoves
     }
 }
