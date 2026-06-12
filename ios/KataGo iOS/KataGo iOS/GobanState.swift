@@ -682,17 +682,17 @@ extension GobanState {
     }
 
     var stoneStyleText: String {
-        guard stoneStyle < Config.stoneStyles.count else { return Config.defaultStoneStyleText }
+        guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return Config.defaultStoneStyleText }
         return Config.stoneStyles[stoneStyle]
     }
 
     var analysisStyleText: String {
-        guard analysisStyle < Config.analysisStyles.count else { return Config.defaultAnalysisStyleText }
+        guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return Config.defaultAnalysisStyleText }
         return Config.analysisStyles[analysisStyle]
     }
 
     var analysisInformationText: String {
-        guard analysisInformation < Config.analysisInformations.count else { return Config.defaultAnalysisInformationText }
+        guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return Config.defaultAnalysisInformationText }
         return Config.analysisInformations[analysisInformation]
     }
 

@@ -74,4 +74,23 @@ struct MoveNumbersTests {
         #expect(result.lastPoint == nil)
         #expect(result.lastNumber == nil)
     }
+
+    @Test func coordinateConventionAnchor() {
+        // SGF "aa" is the TOP-left corner; BoardPoint y is 0-indexed from the
+        // bottom, so on a 5x5 board it maps to y = 4.
+        #expect(point(0, 0) == BoardPoint(x: 0, y: 4))
+    }
+
+    @Test func negativeIndexYieldsEmptyResult() {
+        let result = MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: -1)
+        #expect(result == .empty)
+    }
+
+    @Test func styleStringsMatchEnumOrder() {
+        #expect(Config.moveNumberStyles.count == 4)
+        #expect(Config.moveNumberStyles[MoveNumberStyle.lastThreeMoves.rawValue] == Config.lastThreeMovesNumberStyle)
+        #expect(Config.moveNumberStyles[MoveNumberStyle.lastMove.rawValue] == Config.lastMoveNumberStyle)
+        #expect(Config.moveNumberStyles[MoveNumberStyle.allMoves.rawValue] == Config.allMovesNumberStyle)
+        #expect(Config.moveNumberStyles[MoveNumberStyle.lastMoveMarker.rawValue] == Config.lastMoveMarkerNumberStyle)
+    }
 }

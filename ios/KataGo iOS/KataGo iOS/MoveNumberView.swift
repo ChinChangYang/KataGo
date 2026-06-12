@@ -29,10 +29,11 @@ struct MoveNumberView: View {
 
     /// Relative 1-2-3 markers parsed from the engine's showboard output.
     private var lastThreeMoveOrder: some View {
-        Group {
+        let blackPoints = blackPointSet
+        return Group {
             ForEach(stones.moveOrder.keys.sorted(), id: \.self) { point in
                 if let order = stones.moveOrder[point] {
-                    label(String(order), at: point)
+                    label(String(order), at: point, color: contrastColor(at: point, black: blackPoints))
                 }
             }
         }
@@ -40,20 +41,25 @@ struct MoveNumberView: View {
 
     @ViewBuilder
     private var lastMoveNumber: some View {
+        let blackPoints = blackPointSet
+        let whitePoints = whitePointSet
         if let point = moveNumbers.lastPoint,
            let number = moveNumbers.lastNumber,
-           hasStone(at: point) {
-            label(String(number), at: point)
+           hasStone(at: point, black: blackPoints, white: whitePoints) {
+            label(String(number), at: point, color: contrastColor(at: point, black: blackPoints))
         }
     }
 
     private var allMoveNumbers: some View {
-        Group {
+        let blackPoints = blackPointSet
+        let whitePoints = whitePointSet
+        return Group {
             ForEach(moveNumbers.numbers.keys.sorted(), id: \.self) { point in
                 // Skip points whose stone was captured; on replayed points the
                 // derivation already kept the latest number.
-                if let number = moveNumbers.numbers[point], hasStone(at: point) {
-                    label(String(number), at: point)
+                if let number = moveNumbers.numbers[point],
+                   hasStone(at: point, black: blackPoints, white: whitePoints) {
+                    label(String(number), at: point, color: contrastColor(at: point, black: blackPoints))
                 }
             }
         }
@@ -61,20 +67,30 @@ struct MoveNumberView: View {
 
     @ViewBuilder
     private var lastMoveMarker: some View {
-        if let point = moveNumbers.lastPoint, hasStone(at: point) {
+        let blackPoints = blackPointSet
+        let whitePoints = whitePointSet
+        if let point = moveNumbers.lastPoint, hasStone(at: point, black: blackPoints, white: whitePoints) {
             TriangleShape()
-                .stroke(contrastColor(at: point), lineWidth: max(1, dimensions.squareLength / 24))
+                .stroke(contrastColor(at: point, black: blackPoints), lineWidth: max(1, dimensions.squareLength / 24))
                 .frame(width: dimensions.squareLength * 0.4, height: dimensions.squareLength * 0.35)
                 .position(position(of: point))
         }
     }
 
-    private func hasStone(at point: BoardPoint) -> Bool {
-        stones.blackPoints.contains(point) || stones.whitePoints.contains(point)
+    private var blackPointSet: Set<BoardPoint> {
+        Set(stones.blackPoints)
     }
 
-    private func contrastColor(at point: BoardPoint) -> Color {
-        stones.blackPoints.contains(point) ? .white : .black
+    private var whitePointSet: Set<BoardPoint> {
+        Set(stones.whitePoints)
+    }
+
+    private func hasStone(at point: BoardPoint, black: Set<BoardPoint>, white: Set<BoardPoint>) -> Bool {
+        black.contains(point) || white.contains(point)
+    }
+
+    private func contrastColor(at point: BoardPoint, black: Set<BoardPoint>) -> Color {
+        black.contains(point) ? .white : .black
     }
 
     private func position(of point: BoardPoint) -> CGPoint {
@@ -82,10 +98,10 @@ struct MoveNumberView: View {
                 y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength)
     }
 
-    private func label(_ text: String, at point: BoardPoint) -> some View {
+    private func label(_ text: String, at point: BoardPoint, color: Color) -> some View {
         Text(text)
             .contentTransition(.numericText())
-            .foregroundStyle(contrastColor(at: point))
+            .foregroundStyle(color)
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
