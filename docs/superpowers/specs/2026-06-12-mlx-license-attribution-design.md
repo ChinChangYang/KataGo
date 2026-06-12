@@ -62,7 +62,7 @@ pins.
 | 13 | metal-cpp | Apache-2.0 | Apple Inc. | `ThirdParty/mlx-swift/.../metal-cpp` |
 | 14 | {fmt} | MIT | Victor Zverovich | `ThirdParty/mlx-swift/.../fmt` |
 | 15 | pocketfft | BSD-3-Clause | Max-Planck-Society; Peter Bell | `ThirdParty/mlx-swift/.../mlx/3rdparty` |
-| 16 | swift-numerics | MIT | Apple Inc. | SwiftPM (pulled by mlx-swift) |
+| 16 | swift-numerics | Apache-2.0 (w/ Runtime Library Exception) | Apple Inc. | SwiftPM (pulled by mlx-swift) |
 
 **Out of scope (verified NOT shipped on iOS):** clblast (OpenCL), cudnn-frontend
 (CUDA), half (CUDA/OpenCL-only includes), cpp-httplib + mozilla-cacerts
