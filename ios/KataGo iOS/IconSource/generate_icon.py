@@ -169,8 +169,10 @@ def main():
             f.write(loading_svg(R_SHIP))
         if shutil.which("rsvg-convert"):
             pdf_path = os.path.join(args.loading_dir, "LoadingIcon.pdf")
+            # SOURCE_DATE_EPOCH pins cairo's /CreationDate so regenerated PDFs are byte-identical
             subprocess.run(["rsvg-convert", "-f", "pdf", svg_path, "-o", pdf_path],
-                           check=True)
+                           check=True,
+                           env={**os.environ, "SOURCE_DATE_EPOCH": "0"})
             print(f"wrote {svg_path} and {pdf_path}")
         else:
             print(f"wrote {svg_path}; rsvg-convert not found, skipped PDF")
