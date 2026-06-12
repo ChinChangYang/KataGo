@@ -10,6 +10,7 @@
 		00BFD5EF6E27BFC1A2AE45B9 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = E1013E562FD8322700D0A4F0 /* MLX */; };
 		011085AC1F2879F10A33ADB9 /* cord_rep_btree_reader.cc in Sources */ = {isa = PBXBuildFile; fileRef = F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */; };
 		011559ABD37118152E2411A3 /* any_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = B0BBA9D4195D76AB26782D5D /* any_lite.cc */; };
+		01267464F5770AD51D16AD22 /* MoveNumbers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */; };
 		019C3DF15337BE4A6D127E10 /* reflection.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65FC60A967D3BF05C4BCDE0E /* reflection.cc */; };
 		034DD5AE98939A92963FFE07 /* utf8.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65B171D51E58CA4E1C3B9057 /* utf8.cc */; };
 		05470F856DFE711A42601AE2 /* raw_ptr.cc in Sources */ = {isa = PBXBuildFile; fileRef = AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */; };
@@ -155,6 +156,7 @@
 		94BDAF9907F26647CC4164CF /* match.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC52A0100425C29AA86E3502 /* match.cc */; };
 		9621D8C7B7B6D544E921F80A /* Normalizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */; };
 		9A99DAF7FAF58A89DBC0FBF1 /* cord.cc in Sources */ = {isa = PBXBuildFile; fileRef = 69B53B35A548BA23172D03D3 /* cord.cc */; };
+		9AF72428AFC387AA832A900E /* MoveNumbersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */; };
 		9B3966B6BFF6B307B7979FCE /* borrowed_fixup_buffer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B4040941854E66E2DF899 /* borrowed_fixup_buffer.cc */; };
 		9B80DE7F3DDD3820ED9DB6A9 /* generated_enum_util.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */; };
 		9BBBC07E997FDB4C5F1DD85C /* hash.cc in Sources */ = {isa = PBXBuildFile; fileRef = DB4A44BA9F9E01AA3DA6FE91 /* hash.cc */; };
@@ -1152,6 +1154,7 @@
 		F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = low_level_alloc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/low_level_alloc.cc"; sourceTree = SOURCE_ROOT; };
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
+		F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoveNumbers.swift; sourceTree = "<group>"; };
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
 		F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureTypes.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureTypes.pb.cc; sourceTree = SOURCE_ROOT; };
 		F6CA708020D63562D4FEC662 /* spinlock_wait.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock_wait.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock_wait.cc"; sourceTree = SOURCE_ROOT; };
@@ -1160,6 +1163,7 @@
 		F9809A61FCFEA975ECB1458A /* ThirdPartyLicenses.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThirdPartyLicenses.swift; sourceTree = "<group>"; };
 		F9E318D52312E92994233C24 /* time_zone_posix.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_posix.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_posix.cc"; sourceTree = SOURCE_ROOT; };
 		FB77AE0C1C1E08B886E39DED /* WordEmbedding.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordEmbedding.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordEmbedding.pb.cc; sourceTree = SOURCE_ROOT; };
+		FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoveNumbersTests.swift; sourceTree = "<group>"; };
 		FDB0EF5683E83342322E62D3 /* demangle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle.cc"; sourceTree = SOURCE_ROOT; };
 		FE23716608EA458E4BFD753E /* civil_time_detail.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = civil_time_detail.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/civil_time_detail.cc"; sourceTree = SOURCE_ROOT; };
 		FE3B9C2481C85939173A3A70 /* spinlock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock.cc"; sourceTree = SOURCE_ROOT; };
@@ -1861,6 +1865,7 @@
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				F9809A61FCFEA975ECB1458A /* ThirdPartyLicenses.swift */,
 				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
+				F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1967,6 +1972,7 @@
 				E1BB32AA2D95E00000690E67 /* BookLookupTests.swift */,
 				CC00000000000000E16F0004 /* EngineLifecycleTests.swift */,
 				87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */,
+				FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -2827,6 +2833,7 @@
 				0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */,
 				882720FCDAF44AFCF111581F /* ThirdPartyLicenses.swift in Sources */,
 				DA1AC8AAF58F6DAD80645635 /* AcknowledgmentsView.swift in Sources */,
+				01267464F5770AD51D16AD22 /* MoveNumbers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2846,6 +2853,7 @@
 				CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */,
 				CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */,
 				74F31654F67CF26602AAD91E /* ThirdPartyLicensesTests.swift in Sources */,
+				9AF72428AFC387AA832A900E /* MoveNumbersTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
