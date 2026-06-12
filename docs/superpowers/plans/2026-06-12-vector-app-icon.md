@@ -27,7 +27,7 @@
 **Files:**
 - Create: `ios/KataGo iOS/IconSource/generate_icon.py`
 
-- [ ] **Step 1: Write the generator**
+- [x] **Step 1: Write the generator**
 
 Create `ios/KataGo iOS/IconSource/generate_icon.py` with exactly this content:
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 2: Run the generator (previews only) and render PNGs**
+- [x] **Step 2: Run the generator (previews only) and render PNGs**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/IconSource"
@@ -182,11 +182,11 @@ python3 generate_icon.py --preview-dir /tmp/katago-icon-preview
 
 Expected: three PNGs written, no errors.
 
-- [ ] **Step 3: Visually inspect the previews**
+- [x] **Step 3: Visually inspect the previews**
 
 Read `/tmp/katago-icon-preview/preview.png` and `/tmp/katago-icon-preview/preview_180.png` with the Read tool. Expected: gold background; disc with white field at 12 and 6 o'clock, black field at 3 and 9 o'clock; four glossy stones (TL+BR black, TR+BL white) merging into matching sectors; gold four-pointed astroid at center. The 180px version must still read as four stones around a gold star.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
@@ -202,7 +202,7 @@ git commit -m "feat(icon): parametric vector icon generator (yotsudomoe geometry
 - Create: `ios/KataGo iOS/IconSource/verify_icon.py`
 - Create: `ios/KataGo iOS/IconSource/original-icon1024.png` (reference copy)
 
-- [ ] **Step 1: Snapshot the original icon as the fidelity reference**
+- [x] **Step 1: Snapshot the original icon as the fidelity reference**
 
 The appiconset will be deleted in Task 4, so keep a reference copy next to the tools:
 
@@ -211,7 +211,7 @@ cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
 cp "KataGo iOS/Assets.xcassets/AppIcon.appiconset/icon1024.png" "IconSource/original-icon1024.png"
 ```
 
-- [ ] **Step 2: Write the verifier**
+- [x] **Step 2: Write the verifier**
 
 Create `ios/KataGo iOS/IconSource/verify_icon.py` with exactly this content:
 
@@ -405,7 +405,7 @@ if __name__ == "__main__":
         sys.exit(2)
 ```
 
-- [ ] **Step 3: Run probe assertions — expect all PASS**
+- [x] **Step 3: Run probe assertions — expect all PASS**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/IconSource"
@@ -414,7 +414,7 @@ python3 verify_icon.py probe /tmp/katago-icon-preview/preview.png && echo "PROBE
 
 Expected: 10 `PASS` lines and `PROBES OK`. If any FAIL, the generator geometry or colors regressed — fix `generate_icon.py`, regenerate (Task 1 Step 2), re-run.
 
-- [ ] **Step 4: Run the edge overlay against the original**
+- [x] **Step 4: Run the edge overlay against the original**
 
 ```bash
 python3 verify_icon.py overlay original-icon1024.png /tmp/katago-icon-preview/match-preview.png /tmp/katago-icon-preview/overlay.png
@@ -422,11 +422,11 @@ python3 verify_icon.py overlay original-icon1024.png /tmp/katago-icon-preview/ma
 
 Expected: prints `edge match vs original: NN.N%` with NN ≥ 50 (the original is hand-drawn/asymmetric; ~55% is normal at ±2px).
 
-- [ ] **Step 5: Visually inspect the overlay**
+- [x] **Step 5: Visually inspect the overlay**
 
 Read `/tmp/katago-icon-preview/overlay.png`. Expected: stone circles and disc rim largely yellow (matching); red/green pairs run parallel and close (the original's asymmetry), with no structural divergence (no extra/missing curves).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
@@ -442,7 +442,7 @@ git commit -m "feat(icon): icon verifier (probe assertions + edge overlay vs ori
 - Create: `ios/KataGo iOS/KataGo iOS/AppIcon.icon/icon.json`
 - Create (generated): `ios/KataGo iOS/KataGo iOS/AppIcon.icon/Assets/1-field.svg`, `.../Assets/2-stones.svg`
 
-- [ ] **Step 1: Generate the layer SVGs into the bundle**
+- [x] **Step 1: Generate the layer SVGs into the bundle**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/IconSource"
@@ -452,7 +452,7 @@ ls "../KataGo iOS/AppIcon.icon/Assets/"
 
 Expected: `1-field.svg  2-stones.svg`.
 
-- [ ] **Step 2: Write the manifest**
+- [x] **Step 2: Write the manifest**
 
 Create `ios/KataGo iOS/KataGo iOS/AppIcon.icon/icon.json` with exactly this content (groups are listed front-to-back: stones in front of field; the gold background is the `fill`):
 
@@ -503,7 +503,7 @@ Create `ios/KataGo iOS/KataGo iOS/AppIcon.icon/icon.json` with exactly this cont
 }
 ```
 
-- [ ] **Step 3: Validate JSON syntax**
+- [x] **Step 3: Validate JSON syntax**
 
 ```bash
 python3 -c "import json; json.load(open('/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/KataGo iOS/AppIcon.icon/icon.json')); print('JSON OK')"
@@ -511,7 +511,7 @@ python3 -c "import json; json.load(open('/Users/chinchangyang/Code/KataGo-ios-de
 
 Expected: `JSON OK`.
 
-- [ ] **Step 4: Smoke-open in Icon Composer (non-blocking)**
+- [x] **Step 4: Smoke-open in Icon Composer (non-blocking)**
 
 ```bash
 open -a "/Applications/Xcode.app/Contents/Applications/Icon Composer.app" "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/KataGo iOS/AppIcon.icon"
@@ -519,7 +519,7 @@ open -a "/Applications/Xcode.app/Contents/Applications/Icon Composer.app" "/User
 
 This hands the bundle to the GUI for the user to eyeball; do not block on it. The authoritative machine check is the Task 4 build.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
@@ -536,7 +536,7 @@ git commit -m "feat(icon): layered AppIcon.icon bundle (SVG field + stones, soli
 - Delete: `ios/KataGo iOS/KataGo iOS/Assets.xcassets/AppIcon.appiconset/`
 - Keep: `ios/KataGo iOS/KataGo iOS/Assets.xcassets/AppIcon.solidimagestack/` (visionOS)
 
-- [ ] **Step 1: Register AppIcon.icon in the pbxproj**
+- [x] **Step 1: Register AppIcon.icon in the pbxproj**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
@@ -559,7 +559,7 @@ puts "added AppIcon.icon to group #{grp.display_name}, target #{app.name}"
 
 Expected: `added AppIcon.icon to group KataGo iOS, target KataGo Anytime`.
 
-- [ ] **Step 2: Delete the legacy appiconset (keep solidimagestack)**
+- [x] **Step 2: Delete the legacy appiconset (keep solidimagestack)**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/KataGo iOS"
@@ -568,7 +568,7 @@ git rm -r "Assets.xcassets/AppIcon.appiconset"
 
 (No pbxproj change needed — the asset catalog is referenced as a whole.)
 
-- [ ] **Step 3: Build for iOS Simulator**
+- [x] **Step 3: Build for iOS Simulator**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
@@ -598,7 +598,7 @@ git rm --cached 1-field.svg 2-stones.svg 2>/dev/null; rm -f 1-field.svg 2-stones
 
 The SVG source of truth remains `generate_icon.py`; rebuild and continue.
 
-- [ ] **Step 4: Verify the compiled icon is in the product**
+- [x] **Step 4: Verify the compiled icon is in the product**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
@@ -609,7 +609,7 @@ xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | grep -m4 -i '"Name".*AppI
 
 Expected: entries naming `AppIcon` (Icon Composer icons appear as icon/IconStack asset types). If `Assets.car` lacks any AppIcon entry, the wiring failed — re-check Step 1 output and the build log for `AppIcon.icon`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
@@ -623,7 +623,7 @@ git commit -m "feat(icon): adopt layered AppIcon.icon; drop raster appiconset (i
 
 **Files:** none (verification only; fixes commit here if needed)
 
-- [ ] **Step 1: Build for macOS**
+- [x] **Step 1: Build for macOS**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
@@ -632,7 +632,7 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -d
 
 Expected: `** BUILD SUCCEEDED **`.
 
-- [ ] **Step 2: Verify the macOS product icon**
+- [x] **Step 2: Verify the macOS product icon**
 
 ```bash
 APP=$(find . -path "*Build/Products/Debug/KataGo Anytime.app" | head -1)
@@ -642,7 +642,7 @@ xcrun assetutil --info "$APP/Contents/Resources/Assets.car" 2>/dev/null | grep -
 
 Expected: `Assets.car` present with AppIcon entries (an `AppIcon.icns` may or may not also be emitted — either is fine as long as Assets.car has the icon).
 
-- [ ] **Step 3: Build for visionOS Simulator (solidimagestack path)**
+- [x] **Step 3: Build for visionOS Simulator (solidimagestack path)**
 
 ```bash
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug 2>&1 | tail -3
@@ -666,7 +666,7 @@ puts "AppIcon.icon limited to ios+macos"
 
 Then rebuild visionOS and expect success.
 
-- [ ] **Step 4: Re-run the full verification suite**
+- [x] **Step 4: Re-run the full verification suite**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/IconSource"
@@ -677,7 +677,7 @@ python3 verify_icon.py probe /tmp/katago-icon-preview/preview.png && echo ALL-OK
 
 Expected: `ALL-OK`.
 
-- [ ] **Step 5: Commit any fixes made in this task**
+- [x] **Step 5: Commit any fixes made in this task**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
@@ -695,7 +695,7 @@ git commit -m "fix(icon): platform-scope AppIcon.icon for visionOS compatibility
 
 **Files:** none
 
-- [ ] **Step 1: Install and show the Home Screen icon**
+- [x] **Step 1: Install and show the Home Screen icon**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS"
@@ -709,7 +709,7 @@ sleep 2 && xcrun simctl io booted screenshot /tmp/katago-icon-preview/home.png 2
 
 Then press Home in the Simulator (Device > Home) and screenshot the icon: `xcrun simctl io booted screenshot /tmp/katago-icon-preview/home.png`; Read the screenshot to confirm the icon renders with Liquid Glass (crisp edges, system shadow between stone and field layers).
 
-- [ ] **Step 2: Report to the user**
+- [x] **Step 2: Report to the user**
 
 Summarize: what shipped, where the generator lives, how to regenerate, and that dark/tinted/clear variants are system-derived (tunable later in Icon Composer by opening the committed `.icon`).
 

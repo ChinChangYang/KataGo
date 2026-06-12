@@ -42,7 +42,7 @@ Author the **Default** appearance only; let Liquid Glass derive Dark, Tinted, an
 
 ## Deliverable
 
-A hand-authored `AppIcon.icon` bundle (Icon Composer format: `icon.json` manifest + the 3 SVG layer files) consumed directly by Xcode 26, **replacing** both `AppIcon.appiconset` and `AppIcon.solidimagestack` for iOS, macOS, and visionOS. A committed parametric generator script regenerates the SVG layers.
+A hand-authored `AppIcon.icon` bundle (Icon Composer format: `icon.json` manifest + SVG layers) consumed directly by Xcode 26, **replacing** `AppIcon.appiconset` for iOS and macOS. As built, spec layer 1 (gold background) maps to the manifest's `solid` `fill`, and layers 2–3 are the two SVG layer groups (`1-field.svg`, `2-stones.svg`). `AppIcon.solidimagestack` is retained for visionOS (per Risk #4's contingency — the vision idiom keeps its layered image stack). A committed parametric generator script (`ios/KataGo iOS/IconSource/generate_icon.py`) regenerates the SVG layers.
 
 ## Verification approach
 
