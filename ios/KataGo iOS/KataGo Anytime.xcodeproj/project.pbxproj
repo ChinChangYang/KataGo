@@ -94,6 +94,7 @@
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
 		61BCF2BF2E6863B7D939DE3D /* status_internal.cc in Sources */ = {isa = PBXBuildFile; fileRef = F42A3F61F5D728D923150B06 /* status_internal.cc */; };
+		630898D664665D951808FD3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		6335453FC03E1E0E180004A2 /* CoreMLSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */; };
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
 		64D06643D3E232A5332C28D0 /* bind.cc in Sources */ = {isa = PBXBuildFile; fileRef = 17FA6DBD4C7BA5955B8953B7 /* bind.cc */; };
@@ -748,6 +749,7 @@
 		83CB0B5B98E841B031CC4355 /* message_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = message_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/message_lite.cc"; sourceTree = SOURCE_ROOT; };
 		83FDDE9F07972DF926E7D7EB /* scoped_set_env.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = scoped_set_env.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/scoped_set_env.cc"; sourceTree = SOURCE_ROOT; };
 		8670725B9C6971B19E405695 /* tracing.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = tracing.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/tracing.cc"; sourceTree = SOURCE_ROOT; };
+		879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CategoricalMapping.pb.cc; path = ../../cpp/external/katagocoreml/generated/CategoricalMapping.pb.cc; sourceTree = SOURCE_ROOT; };
 		87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThirdPartyLicensesTests.swift; sourceTree = "<group>"; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
@@ -1859,6 +1861,7 @@
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				F9809A61FCFEA975ECB1458A /* ThirdPartyLicenses.swift */,
 				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
+				879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -2359,6 +2362,7 @@
 				E13B92792DD358DA009F8A1A /* PlayGoStone3.mp3 in Resources */,
 				E13B927A2DD358DA009F8A1A /* PlayGoStone1.mp3 in Resources */,
 				E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */,
+				630898D664665D951808FD3D /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
