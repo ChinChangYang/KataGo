@@ -650,6 +650,7 @@ struct GlobalSettingsView: View {
     @State private var hapticFeedback: Bool = false
     @State private var showVisitsPerSecond: Bool = false
     @State private var stoneStyleText = Config.defaultStoneStyleText
+    @State private var moveNumberStyleText = Config.defaultMoveNumberStyleText
     @State private var analysisStyleText = Config.defaultAnalysisStyleText
     @State private var analysisInformationText = Config.defaultAnalysisInformationText
     @State private var showCoordinate = Config.defaultShowCoordinate
@@ -673,6 +674,18 @@ struct GlobalSettingsView: View {
                 }
                 .onChange(of: stoneStyleText) { _, newValue in
                     gobanState.stoneStyle = Config.stoneStyles.firstIndex(of: newValue) ?? Config.defaultStoneStyle
+                }
+
+                ConfigTextPicker(
+                    title: "Move numbers",
+                    texts: Config.moveNumberStyles,
+                    selectedText: $moveNumberStyleText
+                )
+                .onAppear {
+                    moveNumberStyleText = gobanState.moveNumberStyleText
+                }
+                .onChange(of: moveNumberStyleText) { _, newValue in
+                    gobanState.moveNumberStyle = Config.moveNumberStyles.firstIndex(of: newValue) ?? Config.defaultMoveNumberStyle
                 }
 
                 ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)

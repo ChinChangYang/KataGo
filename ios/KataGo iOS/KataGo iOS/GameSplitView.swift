@@ -609,6 +609,7 @@ private struct GlobalPreferenceSync: ViewModifier {
     @AppStorage("GlobalSettings.showCharts") private var showCharts = Config.defaultShowCharts
     @AppStorage("GlobalSettings.showComments") private var showComments = Config.defaultShowComments
     @AppStorage("GlobalSettings.stoneStyle") private var stoneStyle = Config.defaultStoneStyle
+    @AppStorage("GlobalSettings.moveNumberStyle") private var moveNumberStyle = Config.defaultMoveNumberStyle
     @AppStorage("GlobalSettings.analysisStyle") private var analysisStyle = Config.defaultAnalysisStyle
     @AppStorage("GlobalSettings.analysisInformation") private var analysisInformation = Config.defaultAnalysisInformation
 
@@ -626,6 +627,7 @@ private struct GlobalPreferenceSync: ViewModifier {
                 gobanState.showCharts = showCharts
                 gobanState.showComments = showComments
                 gobanState.stoneStyle = stoneStyle
+                gobanState.moveNumberStyle = moveNumberStyle
                 gobanState.analysisStyle = analysisStyle
                 gobanState.analysisInformation = analysisInformation
             }
@@ -640,6 +642,7 @@ private struct GlobalPreferenceSync: ViewModifier {
             .onChange(of: gobanState.showCharts) { _, newValue in showCharts = newValue }
             .onChange(of: gobanState.showComments) { _, newValue in showComments = newValue }
             .onChange(of: gobanState.stoneStyle) { _, newValue in stoneStyle = newValue }
+            .onChange(of: gobanState.moveNumberStyle) { _, newValue in moveNumberStyle = newValue }
             .onChange(of: gobanState.analysisStyle) { _, newValue in analysisStyle = newValue }
             .onChange(of: gobanState.analysisInformation) { _, newValue in analysisInformation = newValue }
     }

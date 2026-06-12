@@ -697,7 +697,7 @@ extension GobanState {
     }
 
     var moveNumberStyleText: String {
-        guard moveNumberStyle < Config.moveNumberStyles.count else { return Config.defaultMoveNumberStyleText }
+        guard (0..<Config.moveNumberStyles.count).contains(moveNumberStyle) else { return Config.defaultMoveNumberStyleText }
         return Config.moveNumberStyles[moveNumberStyle]
     }
 
