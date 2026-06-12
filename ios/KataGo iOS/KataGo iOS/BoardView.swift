@@ -61,7 +61,10 @@ struct BoardView: View {
 
                     AnalysisView(config: config, dimensions: dimensions)
                     BookAnalysisView(config: config, dimensions: dimensions)
-                    MoveNumberView(dimensions: dimensions, verticalFlip: gobanState.verticalFlip)
+                    MoveNumberView(dimensions: dimensions,
+                                   verticalFlip: gobanState.verticalFlip,
+                                   style: gobanState.moveNumberStyleChoice,
+                                   moveNumbers: gobanState.getMoveNumbers(gameRecord: gameRecord))
 
                     if shouldShowWinrateBar {
                         WinrateBarView(dimensions: dimensions)
