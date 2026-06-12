@@ -1861,7 +1861,6 @@
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				F9809A61FCFEA975ECB1458A /* ThirdPartyLicenses.swift */,
 				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
-				879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1945,6 +1944,7 @@
 				E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */,
 				E18F3E162A51466C00D335E1 /* Preview Content */,
 				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
+				879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */,
 			);
 			path = "KataGo iOS";
 			sourceTree = "<group>";
