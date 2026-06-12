@@ -7,6 +7,12 @@ and/or files, see the individual readmes and/or license files for each one withi
 subdirectories within cpp/external. Additionally, cpp/core/sha2.cpp derives from another piece of
 external code and embeds its own license within that file.
 
+Additionally, the iOS/macOS/visionOS app under ios/KataGo iOS bundles the mlx-swift library and
+its vendored components: mlx, mlx-c, metal-cpp, fmt, nlohmann_json, and pocketfft, as well as the
+swift-numerics package. For the licenses of those libraries, see the individual license files
+within ios/KataGo iOS/ThirdParty/mlx-swift and its Source/Cmlx subdirectories. These components
+are all under permissive licenses (MIT, Apache-2.0, or BSD-3-Clause).
+
 Some parts of python/katago/model_pytorch.py and a few other files, where noted, are modifications
 of code from other open source authors.
 

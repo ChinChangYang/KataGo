@@ -805,6 +805,10 @@ struct ConfigView: View {
             NavigationLink("Game Settings") {
                 GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             }
+
+            NavigationLink("Open-Source Licenses") {
+                AcknowledgmentsView()
+            }
         }
         .navigationTitle("Configurations")
     }

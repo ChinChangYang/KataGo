@@ -237,6 +237,52 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                        "'View' row should have been removed from per-game Game Settings")
     }
 
+    @MainActor
+    func testOpenSourceLicensesScreen() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // A game must be selected for the "Configurations" menu item to appear.
+        tapModelRow(in: app, title: builtInTitle)
+        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+
+        let lockButton = app.buttons["Lock"]
+        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
+                      "Goban (Lock button) did not appear after launching the built-in engine")
+
+        // Open "More" → "Configurations".
+        let moreButton = app.buttons["More"].firstMatch
+        XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
+        moreButton.tap()
+
+        let configurations = app.buttons["Configurations"].firstMatch
+        XCTAssertTrue(configurations.waitForExistence(timeout: 10),
+                      "Configurations menu item not found")
+        configurations.tap()
+
+        // The new third row opens the Open-Source Licenses list.
+        let licensesRow = app.buttons["Open-Source Licenses"].firstMatch
+        XCTAssertTrue(licensesRow.waitForExistence(timeout: 10),
+                      "'Open-Source Licenses' row missing from Configurations")
+        licensesRow.tap()
+
+        // The list includes the MLX trigger and KataGo itself.
+        let mlxRow = app.buttons["MLX"].firstMatch
+        XCTAssertTrue(mlxRow.waitForExistence(timeout: 10),
+                      "'MLX' row missing from Open-Source Licenses")
+        XCTAssertTrue(app.buttons["KataGo"].firstMatch.waitForExistence(timeout: 10),
+                      "'KataGo' row missing from Open-Source Licenses")
+
+        // Opening a component shows its verbatim license text.
+        mlxRow.tap()
+        XCTAssertTrue(app.navigationBars["MLX"].waitForExistence(timeout: 10),
+                      "MLX license detail did not open")
+        let licenseBody = app.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS %@", "Permission is hereby granted")).firstMatch
+        XCTAssertTrue(licenseBody.waitForExistence(timeout: 10),
+                      "MLX license text not shown")
+    }
+
     // MARK: - Helpers
 
     /// Parses the "<Label>: N of M" fragment from a footer line.
