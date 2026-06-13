@@ -54,17 +54,38 @@ geometry `BoardLineView.drawBoardBackground` uses, so the stroke hugs
 the board edge exactly. It appears with the first temporary stone and
 disappears on replace/discard. Red matches the toolbar button's tint.
 
-### 2. Branch-exit dialog (GameSplitView)
+### 2. Branch-exit dialog (GameSplitView) — two-stage
 
-The existing `confirmingBranchDeactivation` confirmation dialog changes
-from a single "Restore" action to three:
+Tapping the toolbar button presents a **first** confirmation dialog
+(`confirmingBranchDeactivation`):
 
 - Title: "Branch moves are temporary. Replace the original game with
   this branch, or discard it?"
-- **Replace Original with Branch** (destructive) → `commitBranch`.
-- **Discard Branch** (destructive) → `deactivateBranch()` (today's
-  restore behavior).
-- **Cancel** — dialog dismissed, branch stays active.
+- **Replace Original with Branch** — primary (no `role`, renders in the
+  standard tint, not red); sets `confirmingBranchReplace = true`.
+- **Discard Branch** (`.destructive`, red); sets
+  `confirmingBranchDiscard = true`.
+- **Cancel** — dismissed, branch stays active.
+
+Each choice opens a **second**, tailored confirmation dialog so the
+irreversible step is always explicitly confirmed:
+
+- `confirmingBranchReplace`: "Replace the original game with this
+  branch? The original game's moves after this point will be
+  permanently lost." → **Replace Original with Branch** (`.destructive`)
+  → `commitBranch`; **Cancel**.
+- `confirmingBranchDiscard`: "Discard this branch? Your newly played
+  stones will be lost." → **Discard Branch** (`.destructive`) →
+  `deactivateBranch()`; **Cancel**.
+
+Two new `GobanState` Bool flags (`confirmingBranchReplace`,
+`confirmingBranchDiscard`) drive the second-stage dialogs. `GobanState`
+is a plain `@Observable` class (not a SwiftData model), so adding stored
+flags is unconstrained. The second-stage `isPresented` flag is set from
+the first dialog's button action; on iOS 26 SwiftUI dismisses the first
+action sheet and presents the second. (If the second sheet ever fails to
+appear on device, the fix is to defer the flag set to the next runloop —
+flagged for the on-device check.)
 
 ### 3. `GobanState.commitBranch(gameRecord:)`
 
@@ -99,7 +120,8 @@ reusing the proven restore path.
   committing, `sgf` extends past `currentIndex` — the same model normal
   navigation uses.
 - The original's tail (moves after the divergence) is lost on replace —
-  explicit, destructive-styled user choice.
+  an explicit, twice-confirmed user choice (primary button in stage one,
+  destructive confirm in stage two).
 - `commitBranch` with no active branch: no-op (guard).
 - The toolbar button is already disabled while the AI is generating a
   move; unchanged.
@@ -123,3 +145,8 @@ reusing the proven restore path.
 - Commit reuses the existing deactivation/reload path rather than
   suppressing the reload with a flag — simplicity over saving one
   redundant `loadsgf`.
+- Branch-exit dialog is two-stage: **Replace** is the primary (non-red)
+  action and **Discard** is red, and *both* require a tailored
+  second-stage confirmation (user choice, revised after the first
+  single-stage dialog shipped — two equally-red one-tap buttons blurred
+  the keep-vs-discard distinction).
