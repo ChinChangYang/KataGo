@@ -1,15 +1,30 @@
-# Documentation for KataGo iOS project
+# Documentation for KataGo Anytime
 
 ## Overview
-The *KataGo iOS* project serves as an interface layer, integrating the [KataGo](https://github.com/ChinChangYang/KataGo/tree/metal-coreml-stable) engine with Apple's [iOS](https://www.apple.com/ios) platform to provide a user-friendly graphical interface. Utilizing [SwiftUI](https://developer.apple.com/xcode/swiftui/), this interface allows users to interact with the KataGo engine through [GTP](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) commands and visually engage with the Go board. The project leverages the [CoreML backend](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/CoreML_Backend.md) to harness the computational power of Apple's [Neural Engine](https://machinelearning.apple.com/research/neural-engine-transformers) (NE) and GPU, optimizing for power efficiency and performance.
+*KataGo Anytime* is a native [SwiftUI](https://developer.apple.com/xcode/swiftui/) app that wraps the [KataGo](https://github.com/ChinChangYang/KataGo/tree/metal-coreml-stable) engine, giving you a friendly graphical interface for Go analysis and play on Apple platforms. The app communicates with the embedded C++ engine over [GTP](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) and renders an interactive Go board.
+
+It runs on **iOS 26+, macOS 26+ (native), and visionOS 26+**, and is optimized for power-efficient inference on Apple silicon. On iPhone, iPad, and Apple Vision Pro the engine runs on Apple's [Neural Engine](https://machinelearning.apple.com/research/neural-engine-transformers) (NE) via CoreML; on macOS it runs on the GPU via an [MLX](https://github.com/ml-explore/mlx) backend.
 
 ![Screenshot of the board view](GobanView.png)
 
-## CoreML Integration and Power Efficiency
-This project employs the [CoreML](https://developer.apple.com/machine-learning/core-ml/) framework through the [`MLModel`](https://developer.apple.com/documentation/coreml/mlmodel) API, enabling KataGo inference with a [CoreML model](https://apple.github.io/coremltools/docs-guides/source/overview-coremltools.html) converted from the KataGo network. This integration is pivotal for leveraging the Neural Engine in Apple silicon, known for its superior power efficiency compared to traditional GPU processing. The decision to limit search threads to two is a strategic optimization to balance minimal power consumption with responsive user interaction, particularly crucial for mobile devices where battery efficiency is paramount.
+## Inference Backends and Power Efficiency
+The app ships a single compiled C++ neural-network backend (MLX) that multiplexes two user-selectable inference paths:
+
+- **CoreML/NE** — runs the network on Apple's Neural Engine via CoreML. This is the default on iOS and visionOS, prized for its power efficiency on mobile devices.
+- **MLX/GPU** — runs the network on the GPU through MLX. This is the default on macOS.
+
+You choose the backend **per neural-network model** from a settings sheet (see the [User Guide](#selecting-a-model-and-backend) below). The selection persists per model.
+
+A few platform notes:
+
+- On the **iOS/visionOS Simulator** the backend is always pinned to **CoreML/NE**, regardless of any stored preference, because MLX GPU inference crashes in the simulator's Metal translation layer. Real devices honor your stored preference.
+- **Search threads** are set per platform at runtime: **2 threads** on iOS/visionOS (a deliberate trade-off for minimal power consumption and responsive interaction on battery-powered devices) and **16 threads** on macOS.
+- The CoreML model is generated **on the fly** at runtime by converting the `.bin.gz` network into a CoreML model, which is then compiled and cached. You do **not** download or bundle a separate `.mlpackage`.
 
 ## Analysis of Benchmark Results
-Rigorous benchmarking conducted on contemporary devices, including the [iPhone 12](https://support.apple.com/kb/SP830) and [iPad mini (6th generation)](https://support.apple.com/kb/SP850), has elucidated the CoreML Neural Engine (NE) backend's superior power efficiency relative to traditional GPU processing alternatives. These findings are instrumental in demonstrating the Neural Engine's capacity to handle computationally demanding tasks, such as Go game analysis, while adhering to the stringent power consumption constraints inherent to mobile devices.
+The following benchmarks were measured at a point in time on the [iPhone 12](https://support.apple.com/kb/SP830) and [iPad mini (6th generation)](https://support.apple.com/kb/SP850). They illustrate the CoreML Neural Engine (NE) backend's power efficiency relative to GPU processing on those devices.
+
+> **Note:** These tables are **historical**, measured on KataGo `v1.14.0-coreml1` with the `b18c384nbt` network, before the app migrated to the current MLX-based backend architecture and newer default networks. The `CoreML GPU` and `Metal GPU` rows reflect that earlier build and are not separately selectable backends in the current app. The numbers are preserved here as point-in-time measurements and have not been re-measured against the current build.
 
 ### Benchmark Analysis for iPhone 12
 
@@ -47,57 +62,66 @@ The CoreML NE backend demonstrates a significant efficiency advantage, achieving
 | Metal GPU  | 31.27    | 26.61     | 66% -> 63%  |
 ```
 
-On the iPad mini (6th generation), the CoreML NE backend not only sustains its lead in processing efficiency but also showcases an enhanced power-saving profile, further reinforcing the Neural Engine's role in optimizing *KataGo iOS* applications for mobile platforms.
+On the iPad mini (6th generation), the CoreML NE backend not only sustains its lead in processing efficiency but also showcases an enhanced power-saving profile, further reinforcing the Neural Engine's role in optimizing the app for mobile platforms.
 
 ## Source Code Compilation Guidelines
-The setup process for the *KataGo iOS* project involves a series of steps designed to prepare your development environment, clone the project repository, and configure necessary resources. Follow these detailed guidelines to ensure a smooth setup and compilation process.
+The setup process involves preparing your development environment, cloning the repository, supplying the model resources, and configuring code signing. Follow these guidelines for a smooth build.
 
 ### Cloning the Project Repository
-To commence the setup, initiate by cloning the designated branch, `ios-dev`, from the repository maintained by `ChinChangYang`, into a directory named `KataGo-ios-dev`:
+Clone the `ios-dev` branch from the repository maintained by `ChinChangYang` into a directory named `KataGo-ios-dev`:
 ```
 git clone https://github.com/ChinChangYang/KataGo.git -b ios-dev KataGo-ios-dev
 ```
 
-Transition into the directory specific to the *KataGo iOS* project:
+Transition into the directory specific to the app:
 ```
 cd KataGo-ios-dev/ios/KataGo\ iOS
 ```
 
 ### Acquiring Necessary Resources
-Proceed to acquire the KataGo network file, placing it within the `Resource` directory:
-```
-wget https://github.com/ChinChangYang/KataGo/releases/download/v1.13.2-coreml2/kata1-b18c384nbt-s8341979392-d3881113763.bin.gz -O Resources/default_model.bin.gz
-```
+The app loads its model files from the `Resources/` directory. These `.bin.gz` networks are gitignored and must be supplied by you before building. Place the following files in `Resources/`:
 
-Furthermore, download the compressed [CoreML](https://github.com/ChinChangYang/KataGo/releases/tag/v1.13.2-coreml2) model from the specified release and store it within the same directory:
-```
-wget https://github.com/ChinChangYang/KataGo/releases/download/v1.13.2-coreml2/KataGoModel29x29fp16v14s8341979392.mlpackage.zip -O Resources/KataGoModel29x29fp16.mlpackage.zip
-```
+- `default_model.bin.gz` — the built-in KataGo network (an 18-block `b18c384nbt` net).
+- `b18c384nbt-humanv0.bin.gz` — the human-style (human SL) network used for human-like profiles.
+- `default_gtp.cfg` — the GTP configuration (already present in the repository).
 
-Subsequently, decompress the CoreML model file:
-```
-unzip Resources/KataGoModel29x29fp16.mlpackage.zip -d Resources
-```
+You do **not** need to download or unzip a CoreML `.mlpackage`. The app converts the `.bin.gz` network into a CoreML model on the fly at runtime and caches the result.
 
-Rename the decompressed model to match the expected name in the `KataGo iOS` project:
-```
-mv Resources/KataGoModel29x29fp16v14s8341979392.mlpackage Resources/KataGoModel29x29fp16.mlpackage
-```
+> **Note:** Additional neural networks (including a downloadable 40-block "Official KataGo Network" and several community nets) are downloaded **in-app at runtime** through the model picker; they do not need to be placed in `Resources/`. See [Selecting a Model and Backend](#selecting-a-model-and-backend).
 
 ### Configuring the Project in Xcode
-Open the project file within [Xcode](https://developer.apple.com/xcode/), Apple's integrated development environment (IDE), by executing the following command:
+Open the project in [Xcode](https://developer.apple.com/xcode/):
 ```
-open KataGo\ iOS.xcodeproj
+open "KataGo Anytime.xcodeproj"
 ```
 
-Configure the code signing settings within Xcode by navigating to the project's "Signing & Capabilities" section. This involves selecting an appropriate code signing identity and development team, typically linked to an Apple Development certificate and a unique Team ID registered with the Apple Developer Program.
+The primary scheme is **KataGo Anytime**.
 
-Refer to the provided screenshot for guidance on configuring the code signing settings in Xcode:
+Configure code signing in Xcode under the project's "Signing & Capabilities" section. Select an appropriate code signing identity and development team, typically linked to an Apple Development certificate and a Team ID registered with the Apple Developer Program.
+
+Refer to the screenshot below for guidance on configuring code signing in Xcode:
 
 ![Screenshot of Xcode signing](Xcode_Signing.png)
 
 ### Building and Running the Application
-Finalize the setup by building and running the application. This can be achieved by selecting "Product -> Run" from the Xcode menu or using the `Command + r` shortcut. This initiates the build process and launches the application on the chosen simulator or connected device, ensuring the project is correctly set up and ready for development and testing.
+You can build and run from Xcode via "Product -> Run" (or `Command + R`), targeting a simulator or connected device.
+
+The app builds for all three supported platforms. From the command line:
+```
+# Build for iOS Simulator
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug
+
+# Build for macOS
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=macOS' -configuration Debug
+
+# Build for visionOS Simulator
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug
+```
+
+Tests run on the iOS Simulator (the test target does not support macOS or visionOS):
+```
+xcodebuild test -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=iOS Simulator,name=iPhone 17'
+```
 
 ### Install Apps from Outside the App Store
 
@@ -108,59 +132,132 @@ Finalize the setup by building and running the application. This can be achieved
 
 **Solution: Manually Trusting the Developer**
 
-1. **Attempt Installation:**  Try to build and run the KataGo app as instructed in this documentation. If you receive an "Untrusted Developer" error, proceed to the next steps.
+1. **Attempt Installation:**  Try to build and run the app as instructed in this documentation. If you receive an "Untrusted Developer" error, proceed to the next steps.
 
 2. **Open Settings:**
    * Locate the Settings app on your iPhone or iPad.
 
 3. **Find Device Management:**
    * Navigate to either:
-     * "General" -> "Device Management" 
-     * "General" -> "VPN & Device Management" 
+     * "General" -> "Device Management"
+     * "General" -> "VPN & Device Management"
      * **Note:** The exact location may vary depending on your iOS version.
 
-4. **Locate the App Profile:** 
-   * Under "Device Management" look for a profile related to the KataGo app. It might be named after you.
+4. **Locate the App Profile:**
+   * Under "Device Management" look for a profile related to the app. It might be named after you.
 
 5. **Trust the App:**
    * Tap on the app profile.
    * Choose the option to "Trust" or "Verify App."
 
-6. **Reattempt Installation:**  The installation process should now proceed.  
+6. **Reattempt Installation:**  The installation process should now proceed.
 
 **Important Notes:**
 
 * **Temporary Trust:**  Developer certificates and trusted profiles sometimes expire. You may need to repeat this process periodically.
 
 ## User Guide
-This guide will walk you through the application's primary functionalities, ensuring a seamless user experience.
+This guide walks you through the application's primary functionality.
 
 ### Navigating the Interface
-#### Command Tab
-Upon launching the KataGo iOS application, you'll be greeted with the **Command** tab. This section serves as a command center, allowing you to input specific [GTP commands](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) to interact with the KataGo engine. Commands like `kgs-rules japanese` and `komi 6.5` can be entered here to customize your game settings.
+The app is **not** organized as a set of tabs. Instead, it uses a [`NavigationSplitView`](https://developer.apple.com/documentation/swiftui/navigationsplitview):
 
-![Command Tab Screenshot](CommandView.png)
+- A **sidebar** titled **Games** lists your saved games. It is a searchable, selectable list with swipe-to-delete. Selecting a row opens that game in the detail view.
+- A **detail** view shows the Go board (`GobanView`) for the selected game. If no game is selected, it shows a "Select a game" placeholder; if the board is larger than the selected model supports, it shows a "Too large board size" message.
 
-#### Goban Tab
-Switch to the **Goban** tab to access the visual heart of your Go experience. Here, a graphical game board awaits your moves, displaying KataGo's real-time analysis and suggestions. The toolbar integrated within this tab offers quick-access buttons for comprehensive game control:
+On a fresh launch (when no model has been chosen yet) the first screen is the **model picker**, followed by a loading screen while the engine initializes, and then the split view.
 
-- **Pass**: Skip your turn without making a move.
-- **Undo**: Revert the last action taken.
-- **Start/Pause**: Begin or pause KataGo's analytical process.
-- **Stop**: Cease analysis and conceal the results.
-- **Next**: Generate the next move.
-- **Clear**: Remove all stones from the board, resetting the game.
+On **visionOS**, the board toolbar adds an Expand/Collapse full-screen button that toggles the sidebar in and out of view.
 
-![Goban Tab Screenshot](GobanViewNote.png)
+#### Selecting a Model and Backend
+Before you can play, you select a neural network from the **model picker**:
 
-#### Config Tab
-For a tailored application experience, the **Config** tab allows you to adjust various settings. Here, you can define the visibility and frequency of in-game messages and analysis, optimizing the application to suit your preferences.
+- The picker lists the built-in 18-block network plus several downloadable networks, including a 40-block **"Official KataGo Network"** and several community nets.
+- Each network has a single status button that changes with its state: a **download arrow** when the net isn't downloaded yet (tap to download), a **stop** icon while downloading, and a **play** button once the file is present (tap to launch the engine with that net).
+- Tap the gear/settings button on a model to open its **Backend** settings sheet. Here you choose the inference backend (**MLX/GPU** or **CoreML/NE**, via a segmented control) and a board-size option.
+  - For **MLX/GPU**, you can also set a **Max Board Size** (9 / 13 / 19 / 37, default 19), a Winograd autotuner mode (**Fast** or **Full**), and a one-shot "Re-tune on next load" toggle.
+  - For **CoreML/NE**, you set a **Compiled Board Size** (9 / 13 / 19 / 37, default 19).
 
-![Config Tab Screenshot](ConfigView.png)
+The chosen backend and board size persist per model.
 
-Within the **Config** tab, you can adjust the following parameters to enhance your gameplay:
+#### Playing on the Board
+The board itself is where you play and review:
 
-- **Max Message Characters**: Sets the limit for the number of characters displayed from the GTP command outputs.
-- **Max Analysis Moves**: Determines the maximum number of moves KataGo will analyze.
-- **Analysis Interval (Centiseconds)**: Specifies the frequency, in centiseconds, at which KataGo updates its analysis.
-- **Max Message Lines**: Caps the number of lines shown from the GTP command outputs.
+- **Place a move** by tapping an intersection. To **pass**, tap the dedicated pass cell. The engine validates move legality before the stone is placed.
+- The AI plays its moves automatically according to your per-game AI configuration; there is no manual "next move" button.
+- When you play a move while reviewing earlier history (not at the latest move), the app starts a temporary **branch** (see [Branch Mode](#branch-mode)).
+
+![Goban Screenshot](GobanViewNote.png)
+
+#### The Board Control Strip
+Below the board is a control strip with eight buttons for navigation, analysis, and overlay visibility:
+
+- **Backward to End** — jump to the first move.
+- **Backward** — step back 10 moves.
+- **Backward Frame** — step back 1 move.
+- **Toggle Analysis** (the sparkle button) — a single button that cycles the analysis state: start (run), pause, and stop (clear).
+- **Toggle Visibility** (the eye button) — cycles the analysis-overlay visibility: opened, book (when a compatible opening book is loaded), and closed.
+- **Forward Frame** — step forward 1 move.
+- **Forward** — step forward 10 moves.
+- **Forward to End** — jump to the latest move.
+
+#### The "More" Menu
+A **More** menu (the ellipsis-circle button) in the toolbar provides game and app actions, including **New Game**, **Clone**, **Import**, **Share**, **Delete**, a thumbnail-size toggle, **Configurations**, and **Developer Mode**. A **Quit** button is also available from the sidebar toolbar.
+
+#### Developer Mode (GTP Console)
+The raw [GTP command](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) console still exists, but it is now reached through **More -> Developer Mode**, which opens as a sheet. It shows a scrolling message log and a text field for entering GTP commands (e.g. `list_commands`).
+
+![GTP Console Screenshot](CommandView.png)
+
+#### Branch Mode
+When you play a move while reviewing earlier history (and not editing), the app enters **branch mode**: it snapshots the current line so your exploratory stones don't overwrite the saved game. While a branch is active, the board is drawn with a **red border** to remind you that the branch stones are temporary, and the detail toolbar shows a **Deactivate Branch** button.
+
+Deactivating a branch presents a **two-stage confirmation**:
+
+1. First, you choose **Replace Original with Branch** or **Discard Branch**.
+2. Then a second, destructive confirmation finalizes your choice — either replacing the saved game's line with the branch (dropping moves after the divergence point) or discarding the branch entirely.
+
+### Configurations
+Settings are reached through **More -> Configurations**, which presents a hierarchical settings sheet (not a tab) titled **Configurations** with three sections:
+
+- **Global Settings** — app-wide preferences, synced via `@AppStorage`.
+- **Game Settings** — per-game settings for the currently selected game.
+- **Open-Source Licenses** — third-party license information.
+
+![Configurations Screenshot](ConfigView.png)
+
+#### Global Settings
+Global Settings are app-wide and are grouped into three sections:
+
+- **Board**
+  - **Stone style** — Fast or Classic (default Fast).
+  - **Move numbers** — Last 3 moves, Last move, All moves, or Marker (default Last 3 moves).
+  - **Show coordinate**, **Show pass**, **Vertical flip**, and **Show chart/comments** toggles.
+- **Analysis**
+  - **Analysis information** — Winrate, Score, All, or None (default All).
+  - **Analysis style** — Fast or Classic (default Fast).
+  - **Show ownership** and **Show win rate bar** toggles.
+- **Sound & Haptics**
+  - **Sound effect** toggle — randomized stone-placement and capture sounds.
+  - **Haptic feedback** toggle.
+  - **Show visits/s** toggle.
+
+#### Game Settings
+Game Settings apply to the currently selected game and are organized into six sub-screens:
+
+- **Name** — the game's name.
+- **Rule** — Board width and height (each 2 to the maximum, default 19x19), Ko rule (Simple / Positional / Situational), Scoring rule (Area / Territory), Tax rule (None / Seki / All), Multi-stone suicide toggle, Has-button toggle, White handicap bonus, and Komi (default 7.0).
+- **Analysis** — **Analysis for** (Both / Black / White), Hidden analysis visit ratio, Analysis wide root noise, **Max analysis moves** (1-1000, default 50), and **Analysis interval** (10-300 in steps of 10, default 50).
+- **AI** — White advantage (playout doubling advantage), plus per-color Black AI / White AI sections, each with a human-style profile picker and a "Time per move" control (0-60 seconds).
+- **Comment** — an **Apple Intelligence** toggle, a commentary **Tone** picker (Technical, Educational, Encouraging, Enthusiastic, Poetic; default Technical), and a **Temperature** stepper (0-1, step 0.1).
+- **SGF** — paste SGF text to load a game; the app parses the board size, rules, and komi and reloads the game.
+
+> The earlier README's `Max Message Characters` and `Max Message Lines` settings no longer exist.
+
+### On-Device AI Commentary
+The app can generate natural-language commentary for moves entirely on-device using Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework. Commentary respects the configured tone and temperature, and falls back to a deterministic, natural-language comment if generation is unavailable. Enable it via **Game Settings -> Comment -> Apple Intelligence**.
+
+### Saved Games, Import, Export, and Sync
+- Games are persisted with **SwiftData** and synced across your devices via **CloudKit** (iCloud).
+- **Import** SGF via the document picker (More -> Import) or by dragging an SGF onto the app.
+- **Export / Share** the current game as SGF via the Share action in the More menu.
