@@ -187,7 +187,7 @@ struct ContentView: View {
         // If the message indicates which player's turn it is
         if message.hasPrefix("Next player") {
             // Parse the current board state
-            await parseBoardPoints(boardText: boardText)
+            parseBoardPoints(boardText: boardText)
 
             // Determine the next player color based on the message content
             player.nextColorForPlayCommand = message.contains("Black") ? .black : .white
@@ -226,61 +226,17 @@ struct ContentView: View {
         }
     }
 
-    func parseStones(boardText: [String]) async -> (width: CGFloat, height: CGFloat, blackStones: [BoardPoint], whiteStones: [BoardPoint], moveOrder: [BoardPoint: Character]) {
-        let (height, width) = calculateBoardDimensions(boardText: boardText) // Get current board dimensions
-        var blackStones: [BoardPoint] = [] // Stores positions of black stones
-        var whiteStones: [BoardPoint] = [] // Stores positions of white stones
-        var moveOrder: [BoardPoint: Character] = [:] // Tracks the order of moves
-
-        // Process each line of the board text to extract stone positions and moves
-        for (_, line) in boardText.dropFirst().enumerated() {
-            let y = calculateYCoordinate(from: line) // Calculate the y-coordinate from the line
-            parseLine(line, y: y, blackStones: &blackStones, whiteStones: &whiteStones, moveOrder: &moveOrder)
-        }
-
-        return (width, height, blackStones, whiteStones, moveOrder)
-    }
-
     // Parses the board text to extract and classify positions of stones and moves
-    func parseBoardPoints(boardText: [String]) async {
-        let (width, height, blackStones, whiteStones, moveOrder) = await parseStones(boardText: boardText)
+    func parseBoardPoints(boardText: [String]) {
+        let parsed = BoardTextParser.parse(boardText)
 
         withAnimation(.none) {
-            stones.blackPoints = blackStones // Update black stone positions
-            stones.whitePoints = whiteStones // Update white stone positions
-            adjustBoardDimensionsIfNeeded(width: width, height: height) // Adjust dimensions if they change
+            stones.blackPoints = parsed.blackStones
+            stones.whitePoints = parsed.whiteStones
+            adjustBoardDimensionsIfNeeded(width: parsed.width, height: parsed.height)
         } completion: {
             withAnimation(.spring) {
-                stones.moveOrder = moveOrder // Animate the change of move order using spring animation
-            }
-        }
-    }
-
-    // Calculates the board dimensions based on the text representation
-    private func calculateBoardDimensions(boardText: [String]) -> (CGFloat, CGFloat) {
-        let height = CGFloat(boardText.count - 1) // Height is based on the number of lines in board text
-        let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2) // Width based on the character count of the last line
-        return (height, width) // Return the dimensions as a tuple
-    }
-
-    // Calculates the y-coordinate for a given line of text
-    private func calculateYCoordinate(from line: String) -> Int {
-        return (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1 // Extract and adjust y-coordinate
-    }
-
-    // Parses a single line of board text and updates stone positions and move order
-    private func parseLine(_ line: String, y: Int, blackStones: inout [BoardPoint], whiteStones: inout [BoardPoint], moveOrder: inout [BoardPoint: Character]) {
-        for (charIndex, char) in line.dropFirst(3).enumerated() {
-            let xCoord = charIndex / 2 // Calculate the x-coordinate from character index
-            let point = BoardPoint(x: xCoord, y: y) // Create point for the board
-
-            // Classify the character as black stone, white stone, or move number
-            if char == "X" {
-                blackStones.append(point) // Add black stone position
-            } else if char == "O" {
-                whiteStones.append(point) // Add white stone position
-            } else if char.isNumber {
-                moveOrder[point] = char // Track move number
+                stones.moveOrder = parsed.moveOrder
             }
         }
     }
@@ -295,85 +251,20 @@ struct ContentView: View {
         }
     }
 
-    func collectAnalysisInfo(message: String) async -> ([[BoardPoint: AnalysisInfo]], String.SubSequence?) {
-        let splitData = message.split(separator: "info")
-        let analysisInfo = splitData.compactMap {
-            extractAnalysisInfo(dataLine: String($0))
-        }
-
-        return (analysisInfo, splitData.last)
-    }
-
-    func computeDefiniteness(_ whiteness: Float) -> Float {
-        return Swift.abs(whiteness - 0.5) * 2
-    }
-
-    func computeOpacity(scale x: Float) -> Float {
-        let a = 100.0
-        let b = 0.25
-        let opacity = Float(0.8 / (1.0 + exp(-a * (Double(x) - b))))
-        return opacity
-    }
-
-    func extractOwnershipUnits(lastData: String.SubSequence?, nextColorFromShowBoard: PlayerColor, width: Int, height: Int) async -> [OwnershipUnit] {
-        guard let lastData else { return [] }
-        let message = String(lastData)
-        let mean = extractOwnershipMean(message: message)
-        let stdev = extractOwnershipStdev(message: message)
-        guard !mean.isEmpty && !stdev.isEmpty else { return [] }
-        var ownershipUnits: [OwnershipUnit] = []
-        var i = 0
-
-        for y in stride(from:(height - 1), through: 0, by: -1) {
-            for x in 0..<width {
-                let point = BoardPoint(x: x, y: y)
-                let whiteness = (mean[i] + 1) / 2
-                // digitize for performance
-                let digit: Float = 5
-                let digitizedWhiteness = (whiteness * digit).rounded() / digit
-                let digitizedStdev = (stdev[i] * digit).rounded() / digit
-                let definiteness = computeDefiniteness(digitizedWhiteness)
-                // Show a black or white square if definiteness is high and stdev is low
-                // Show nothing if definiteness is low and stdev is low
-                // Show a square with linear gradient of black and white if definiteness is low and stdev is high
-                let scale = max(definiteness, digitizedStdev) * 0.65
-                let opacity = computeOpacity(scale: scale)
-
-                ownershipUnits.append(
-                    OwnershipUnit(
-                        point: point,
-                        whiteness: digitizedWhiteness,
-                        scale: scale,
-                        opacity: opacity
-                    )
-                )
-
-                i = i + 1
-            }
-        }
-
-        return ownershipUnits
-    }
-
     func maybeCollectAnalysis(message: String) async {
         guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
             let sampleTime = ProcessInfo.processInfo.systemUptime
 
-            let (analysisInfo, lastData) = await collectAnalysisInfo(message: message)
-
-            let ownershipUnits = await extractOwnershipUnits(lastData: lastData, nextColorFromShowBoard: player.nextColorFromShowBoard, width: Int(board.width), height: Int(board.height))
-
+            let parser = AnalysisLineParser(boardWidth: Int(board.width),
+                                            boardHeight: Int(board.height),
+                                            nextColor: player.nextColorFromShowBoard)
+            let parsed = parser.parse(message: message)
             let rootVisits = Analysis.parseRootVisits(from: message)
 
             withAnimation {
-                analysis.info = analysisInfo.reduce([:]) {
-                    $0.merging($1) { (current, _) in
-                        current
-                    }
-                }
-
-                analysis.ownershipUnits = ownershipUnits
+                analysis.info = parsed.info
+                analysis.ownershipUnits = parsed.ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
 
                 if let rootVisits {
@@ -384,144 +275,12 @@ struct ContentView: View {
                     if let blackWinrate = analysis.blackWinrate {
                         rootWinrate.black = blackWinrate
                     }
-
                     rootScore.black = analysis.blackScore ?? 0
                 }
             }
 
-            gobanState.waitingForAnalysis = analysisInfo.isEmpty
+            gobanState.waitingForAnalysis = parsed.info.isEmpty
         }
-    }
-
-    func moveToPoint(move: String) -> BoardPoint? {
-        let pattern = /([^\d\W]+)(\d+)/
-        if let match = move.firstMatch(of: pattern),
-           let coordinate = Coordinate(xLabel: String(match.1),
-                                       yLabel: String(match.2),
-                                       width: Int(board.width),
-                                       height: Int(board.height)) {
-            // Subtract 1 from y to make it 0-indexed
-            return BoardPoint(x: coordinate.x, y: coordinate.y - 1)
-        } else {
-            return nil
-        }
-    }
-
-    // Matches a move pattern in the provided data line, returning the corresponding BoardPoint if found
-    func matchMovePattern(dataLine: String) -> BoardPoint? {
-        let movePattern = /move (\w+\d+)/ // Regular expression to match standard moves
-        let passPattern = /move pass/ // Regular expression to match "pass" moves
-
-        // Search for a standard move pattern in the data line
-        if let match = dataLine.firstMatch(of: movePattern) {
-            let move = String(match.1) // Extract the move string
-            if let point = moveToPoint(move: move) { // Translate the move into a BoardPoint
-                return point // Return the corresponding BoardPoint
-            }
-            // Check if the data line indicates a "pass" move
-        } else if dataLine.firstMatch(of: passPattern) != nil {
-            return BoardPoint.pass(width: Int(board.width), height: Int(board.height)) // Return a pass move
-        }
-
-        return nil // Return nil if no valid move pattern is matched
-    }
-
-    func matchVisitsPattern(dataLine: String) -> Int? {
-        let pattern = /visits (\d+)/
-        if let match = dataLine.firstMatch(of: pattern) {
-            let visits = Int(match.1)
-            return visits
-        }
-
-        return nil
-    }
-
-    func matchWinratePattern(dataLine: String) -> Float? {
-        let pattern = /winrate ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern),
-           let winrate = Float(match.1) {
-            if player.nextColorFromShowBoard == .black {
-                return 1.0 - winrate
-            } else {
-                return winrate
-            }
-        }
-
-        return nil
-    }
-
-    func matchScoreLeadPattern(dataLine: String) -> Float? {
-        let pattern = /scoreLead ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern),
-           let scoreLead = Float(match.1) {
-            if player.nextColorFromShowBoard == .black {
-                return -scoreLead
-            } else {
-                return scoreLead
-            }
-        }
-
-        return nil
-    }
-
-    func matchUtilityLcbPattern(dataLine: String) -> Float? {
-        let pattern = /utilityLcb ([-\d.eE]+)/
-        if let match = dataLine.firstMatch(of: pattern),
-           let utilityLcb = Float(match.1) {
-            if player.nextColorFromShowBoard == .black {
-                return -utilityLcb
-            } else {
-                return utilityLcb
-            }
-        }
-
-        return nil
-    }
-
-    func extractAnalysisInfo(dataLine: String) -> [BoardPoint: AnalysisInfo]? {
-        let point = matchMovePattern(dataLine: dataLine)
-        let visits = matchVisitsPattern(dataLine: dataLine)
-        let winrate = matchWinratePattern(dataLine: dataLine)
-        let scoreLead = matchScoreLeadPattern(dataLine: dataLine)
-        let utilityLcb = matchUtilityLcbPattern(dataLine: dataLine)
-
-        if let point, let visits, let winrate, let scoreLead, let utilityLcb {
-            // Winrate is 0.5 when visits = 0, so skip those analysis to let win rate bar stable.
-            guard visits > 0 || winrate != 0.5 else { return nil }
-            let analysisInfo = AnalysisInfo(visits: visits, winrate: winrate, scoreLead: scoreLead, utilityLcb: utilityLcb)
-
-            return [point: analysisInfo]
-        }
-
-        return nil
-    }
-
-    func extractOwnershipMean(message: String) -> [Float] {
-        let pattern = /ownership ([-\d\s.eE]+)/
-        if let match = message.firstMatch(of: pattern) {
-            let mean = match.1.split(separator: " ").compactMap { Float($0)
-            }
-            // Return mean if it is valid
-            if mean.count == Int(board.width * board.height) {
-                return mean
-            }
-        }
-
-        return []
-    }
-
-    func extractOwnershipStdev(message: String) -> [Float] {
-        let pattern = /ownershipStdev ([-\d\s.eE]+)/
-        if let match = message.firstMatch(of: pattern) {
-            let stdev = match.1.split(separator: " ").compactMap { Float($0)
-            }
-            // Check stdev if it is valid
-            if stdev.count == Int(board.width * board.height) {
-                return stdev
-            }
-        }
-
-        return []
     }
 
     func maybeCollectSgf(message: String) {
