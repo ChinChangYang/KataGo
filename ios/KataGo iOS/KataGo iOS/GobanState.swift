@@ -399,6 +399,21 @@ class GobanState {
         branchIndex = .inActiveCurrentIndex
     }
 
+    /// Replaces the saved game with the active branch line. Per-index data
+    /// past the divergence point (where the original and branch lines stop
+    /// sharing moves) is dropped; clearData must run before currentIndex is
+    /// reassigned because gameRecord.currentIndex IS the divergence point
+    /// while a branch is active (branch navigation moves branchIndex only).
+    func commitBranch(gameRecord: GameRecord) {
+        guard isBranchActive else { return }
+
+        gameRecord.clearData(after: gameRecord.currentIndex)
+        gameRecord.sgf = branchSgf
+        gameRecord.currentIndex = branchIndex
+        gameRecord.lastModificationDate = Date.now
+        deactivateBranch()
+    }
+
     func undoBranchIndex() {
         if (branchIndex > 0) {
             branchIndex = branchIndex - 1
