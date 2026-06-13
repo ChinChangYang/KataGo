@@ -70,14 +70,12 @@ struct MoveNumberView: View {
         let blackPoints = blackPointSet
         let whitePoints = whitePointSet
         if let point = moveNumbers.lastPoint, hasStone(at: point, black: blackPoints, white: whitePoints) {
-            // Offset toward the stone's top-right corner so the centered
-            // ownership square doesn't obscure the marker.
-            let center = position(of: point)
-            TriangleShape()
-                .stroke(contrastColor(at: point, black: blackPoints), lineWidth: max(1, dimensions.squareLength / 24))
-                .frame(width: dimensions.squareLength * 0.4, height: dimensions.squareLength * 0.35)
-                .position(x: center.x + dimensions.squareLength / 4,
-                          y: center.y - dimensions.squareLength / 4)
+            // Red stays visible on both stone colors and on the grayscale
+            // ownership square (drawn beneath this view in BoardView's ZStack).
+            Circle()
+                .fill(.red)
+                .frame(width: dimensions.squareLength * 0.3, height: dimensions.squareLength * 0.3)
+                .position(position(of: point))
         }
     }
 
@@ -111,18 +109,6 @@ struct MoveNumberView: View {
             .bold()
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(position(of: point))
-    }
-}
-
-/// Upward-pointing triangle outline — the classic kifu last-move markup.
-struct TriangleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 
