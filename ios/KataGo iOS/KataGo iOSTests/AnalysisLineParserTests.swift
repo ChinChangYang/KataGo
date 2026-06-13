@@ -41,6 +41,16 @@ struct AnalysisLineParserTests {
         #expect(r.info[d4] != nil)         // visits 0 but winrate 0.6 -> kept
     }
 
+    @Test func firstWinsOnSameKeyCollision() {
+        // Two info blocks for the SAME move (Q16) with different values:
+        // the first occurrence must win on key collision (not the last).
+        let parser = AnalysisLineParser(boardWidth: 19, boardHeight: 19, nextColor: .white)
+        let msg = "info move Q16 visits 10 winrate 0.55 scoreLead 1 utilityLcb 0 "
+                + "info move Q16 visits 99 winrate 0.10 scoreLead 2 utilityLcb 0"
+        let r = parser.parse(message: msg)
+        #expect(r.info[q16]?.visits == 10)   // first wins, not 99
+    }
+
     @Test func parsesPassMove() {
         let parser = AnalysisLineParser(boardWidth: 19, boardHeight: 19, nextColor: .white)
         let msg = "info move pass visits 10 winrate 0.5 scoreLead 0 utilityLcb 0"
