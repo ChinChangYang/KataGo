@@ -194,11 +194,17 @@ struct GameSplitView: View {
             }
         }
         .confirmationDialog(
-            "Are you sure you want to restore the game position? This will discard the current branch.",
+            "Branch moves are temporary. Replace the original game with this branch, or discard it?",
             isPresented: $gobanState.confirmingBranchDeactivation,
             titleVisibility: .visible
         ) {
-            Button("Restore", role: .destructive) {
+            Button("Replace Original with Branch", role: .destructive) {
+                if let gameRecord = navigationContext.selectedGameRecord {
+                    gobanState.commitBranch(gameRecord: gameRecord)
+                }
+            }
+
+            Button("Discard Branch", role: .destructive) {
                 gobanState.deactivateBranch()
             }
 
