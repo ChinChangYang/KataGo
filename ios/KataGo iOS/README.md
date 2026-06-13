@@ -7,8 +7,6 @@ It runs on **iOS 26+, macOS 26+ (native), and visionOS 26+**, and is optimized f
 
 ![Screenshot of the board view](GobanView.png)
 
-> **Note:** The screenshots in this document are **illustrative** and may not reflect the current UI (the app moved from a tabbed layout to a split-view design). They will be refreshed in a future update.
-
 ## Inference Backends and Power Efficiency
 The app ships a single compiled C++ neural-network backend (MLX) that multiplexes two user-selectable inference paths:
 
@@ -160,8 +158,6 @@ xcodebuild test -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -de
 
 ## User Guide
 This guide walks you through the application's primary functionality.
-
-> **Note:** The screenshots below are **illustrative** and may lag the current UI; treat the text as the source of truth.
 
 ### Navigating the Interface
 The app is **not** organized as a set of tabs. Instead, it uses a [`NavigationSplitView`](https://developer.apple.com/documentation/swiftui/navigationsplitview):
