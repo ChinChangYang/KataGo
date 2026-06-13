@@ -27,6 +27,8 @@ class GobanState {
     var pendingMoveVertex: String? = nil
     var confirmingIllegalMove: Bool = false
     var confirmingBranchDeactivation: Bool = false
+    var confirmingBranchReplace: Bool = false
+    var confirmingBranchDiscard: Bool = false
     var illegalMoveReason: String? = nil
     var pendingMoveTimestamp: Date? = nil
     var soundEffect: Bool = false

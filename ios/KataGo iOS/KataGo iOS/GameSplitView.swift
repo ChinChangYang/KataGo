@@ -198,19 +198,39 @@ struct GameSplitView: View {
             isPresented: $gobanState.confirmingBranchDeactivation,
             titleVisibility: .visible
         ) {
+            Button("Replace Original with Branch") {
+                gobanState.confirmingBranchReplace = true
+            }
+
+            Button("Discard Branch", role: .destructive) {
+                gobanState.confirmingBranchDiscard = true
+            }
+
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog(
+            "Replace the original game with this branch? The original game’s moves after this point will be permanently lost.",
+            isPresented: $gobanState.confirmingBranchReplace,
+            titleVisibility: .visible
+        ) {
             Button("Replace Original with Branch", role: .destructive) {
                 if let gameRecord = navigationContext.selectedGameRecord {
                     gobanState.commitBranch(gameRecord: gameRecord)
                 }
             }
 
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog(
+            "Discard this branch? Your newly played stones will be lost.",
+            isPresented: $gobanState.confirmingBranchDiscard,
+            titleVisibility: .visible
+        ) {
             Button("Discard Branch", role: .destructive) {
                 gobanState.deactivateBranch()
             }
 
-            Button("Cancel", role: .cancel) {
-                gobanState.confirmingBranchDeactivation = false
-            }
+            Button("Cancel", role: .cancel) { }
         }
     }
 
