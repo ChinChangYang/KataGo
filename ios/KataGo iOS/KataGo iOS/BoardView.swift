@@ -66,6 +66,16 @@ struct BoardView: View {
                                    style: gobanState.moveNumberStyleChoice,
                                    moveNumbers: gobanState.getMoveNumbers(gameRecord: gameRecord))
 
+                    if gobanState.isBranchActive {
+                        // Reminder that branch stones are temporary; geometry
+                        // matches BoardLineView.drawBoardBackground's wood rect.
+                        Rectangle()
+                            .stroke(.red, lineWidth: max(2, dimensions.squareLength / 16))
+                            .frame(width: dimensions.gobanWidth, height: dimensions.gobanHeight)
+                            .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
+                                      y: dimensions.gobanStartY + (dimensions.gobanHeight / 2))
+                    }
+
                     if shouldShowWinrateBar {
                         WinrateBarView(dimensions: dimensions)
                             .transition(.opacity)
