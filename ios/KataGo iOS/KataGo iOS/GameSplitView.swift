@@ -199,11 +199,21 @@ struct GameSplitView: View {
             titleVisibility: .visible
         ) {
             Button("Replace Original with Branch") {
-                gobanState.confirmingBranchReplace = true
+                // Defer to the next runloop so the first dialog fully
+                // dismisses before the second presents. Chaining
+                // confirmationDialogs in the same transaction (present
+                // while dismissing) is fragile on iOS 26 and can silently
+                // drop the second sheet. Button actions are MainActor-
+                // isolated, so this one-turn hop is concurrency-safe.
+                Task { @MainActor in
+                    gobanState.confirmingBranchReplace = true
+                }
             }
 
             Button("Discard Branch", role: .destructive) {
-                gobanState.confirmingBranchDiscard = true
+                Task { @MainActor in
+                    gobanState.confirmingBranchDiscard = true
+                }
             }
 
             Button("Cancel", role: .cancel) { }
