@@ -1875,9 +1875,6 @@
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				F9809A61FCFEA975ECB1458A /* ThirdPartyLicenses.swift */,
 				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
-				F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */,
-				F96030C633C44D66DB854145 /* BoardTextParser.swift */,
-				9A80FD0C39BC207A6324C0A2 /* AnalysisLineParser.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1902,6 +1899,9 @@
 				E16E1F3E2DE4235000B0F144 /* TerminationModel.swift */,
 				E13A9ACD2D9A42B6002A367C /* ThumbnailModel.swift */,
 				E1455D912E5C286A00D8841F /* TransferableSgf.swift */,
+				F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */,
+				F96030C633C44D66DB854145 /* BoardTextParser.swift */,
+				9A80FD0C39BC207A6324C0A2 /* AnalysisLineParser.swift */,
 			);
 			name = Model;
 			sourceTree = "<group>";

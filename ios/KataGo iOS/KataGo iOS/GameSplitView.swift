@@ -226,6 +226,11 @@ struct GameSplitView: View {
             Button("Replace Original with Branch", role: .destructive) {
                 if let gameRecord = navigationContext.selectedGameRecord {
                     gobanState.commitBranch(gameRecord: gameRecord)
+                } else {
+                    // No game to replace (unreachable in practice): exit branch
+                    // mode anyway so confirming never leaves the branch stuck,
+                    // mirroring the Discard path below.
+                    gobanState.deactivateBranch()
                 }
             }
 
