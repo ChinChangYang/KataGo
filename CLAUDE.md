@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a fork of KataGo (a strong open-source Go AI engine) with an iOS/macOS SwiftUI app that wraps the C++ engine. The project uses CoreML and Metal backends optimized for Apple's Neural Engine, providing power-efficient Go analysis on mobile devices.
+This is a fork of KataGo (a strong open-source Go AI engine) with a SwiftUI app (iOS/macOS/visionOS) that wraps the C++ engine. The app compiles an MLX-based C++ backend that runs inference on Apple's Neural Engine (via CoreML) and GPU (via MLX), providing power-efficient Go analysis across Apple platforms.
 
 ## Build Commands
 
@@ -30,20 +30,24 @@ xcodebuild test -project "ios/KataGo iOS/KataGo Anytime.xcodeproj" -scheme "Kata
 ```
 
 ### Required Resources
-Before building, download model files to `ios/KataGo iOS/Resources/`:
-- `default_model.bin.gz` - KataGo neural network
-- `KataGoModel29x29fp16.mlpackage` - CoreML model for Neural Engine
+The app loads its networks from `ios/KataGo iOS/Resources/`. The `.bin.gz` networks are gitignored and must be supplied before building:
+- `default_model.bin.gz` - built-in KataGo network (18-block `b18c384nbt`)
+- `b18c384nbt-humanv0.bin.gz` - human-style (human SL) network for human-like profiles
+- `default_gtp.cfg` - GTP configuration (committed)
+
+There is **no** `.mlpackage` to download: the CoreML model is generated on the fly at runtime by converting the `.bin.gz` network, then compiled and cached. Additional networks (e.g. the 40-block "Official KataGo Network") are downloaded in-app via the model picker.
 
 ## Architecture
 
 ### Two-Component Design
 
-**C++ Engine (`cpp/`)**: The core KataGo engine with multiple neural network backends:
-- `neuralnet/coremlbackend.{cpp,swift}` - CoreML backend for Apple Neural Engine
-- `neuralnet/metalbackend.{cpp,swift}` - Metal GPU backend for macOS
-- Standard backends: CUDA, OpenCL, Eigen (CPU), TensorRT
+**C++ Engine (`cpp/`)**: The core KataGo engine. The Apple app compiles the **MLX** backend (`USE_MLX_BACKEND`):
+- `neuralnet/mlxbackend.cpp` - the backend the app compiles; dispatches each eval to either Apple's Neural Engine (CoreML) or the GPU (MLX) based on the selected device. Winograd autotuning lives in `mlxwinotuner.{cpp,h}` / `mlxwinograd.h`.
+- CoreML model conversion, loading, and caching are handled Swift-side in `KataGoInterface/` (`CoreMLComputeHandleLoader.swift`, `CoreMLModelCache.swift`) — there is no `coremlbackend.cpp`.
+- `neuralnet/metalbackend.{cpp,swift}` - legacy Metal backend, superseded by MLX and not active in the app (the app defines `USE_MLX_BACKEND`, not `USE_METAL_BACKEND`).
+- Standard upstream backends: CUDA, OpenCL, Eigen (CPU), TensorRT.
 
-**SwiftUI App (`ios/KataGo iOS/`)**: Native iOS/macOS interface:
+**SwiftUI App (`ios/KataGo iOS/`)**: Native iOS/macOS/visionOS interface:
 - `KataGoInterface/` - Framework bridging Swift to C++ via `KataGoHelper.swift`
 - `KataGo iOS/` - Main app with SwiftUI views and models
 
@@ -74,10 +78,11 @@ The app communicates with the C++ engine via GTP (Go Text Protocol):
 
 ### Neural Network Backends on Apple Silicon
 
-- **CoreML NE** (Neural Engine): Best power efficiency, ~70 visits/s on iPhone 12
-- **CoreML GPU**: Slower than NE
-- **Metal GPU**: Used on macOS with `metalNumSearchThreads=16`
-- On iOS, limited to 2 search threads for power efficiency
+The compiled MLX backend multiplexes two user-selectable inference paths (chosen per model in the Backend settings sheet):
+- **CoreML/NE** (Neural Engine): default on iOS and visionOS; best power efficiency (~70 visits/s on iPhone 12).
+- **MLX/GPU**: default on macOS.
+- Search threads are set per platform: **2** on iOS/visionOS (power efficiency), **16** on macOS.
+- On the iOS/visionOS Simulator the backend is always pinned to CoreML/NE (MLX GPU inference crashes in the simulator's Metal layer).
 
 ## C++ Source Structure
 
@@ -104,9 +109,7 @@ The `Commentator` class uses Apple's FoundationModels framework to generate natu
 
 ## Global Settings
 
-Stored via `@AppStorage` in `GameSplitView`:
-- `GlobalSettings.soundEffect` - Enable stone placement/capture sounds
-- `GlobalSettings.hapticFeedback` - Enable haptic feedback for board interactions
+App-wide display/behavior preferences are stored via `@AppStorage` (keys prefixed `GlobalSettings.`) and synced into `GobanState` by `GlobalPreferenceSync` in `GameSplitView`. They include: `soundEffect`, `hapticFeedback`, `showVisitsPerSecond`, `showCoordinate`, `showPass`, `verticalFlip`, `showOwnership`, `showWinrateBar`, `showCharts`, `showComments`, `stoneStyle`, `analysisStyle`, `analysisInformation`, and `moveNumberStyle` (the move-number display picker: last-3 / last / all / marker).
 
 ## GTP Commands Used
 
