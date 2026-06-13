@@ -61,11 +61,16 @@ Tapping the toolbar button presents a **first** confirmation dialog
 
 - Title: "Branch moves are temporary. Replace the original game with
   this branch, or discard it?"
-- **Replace Original with Branch** — primary (no `role`, renders in the
-  standard tint, not red); sets `confirmingBranchReplace = true`.
-- **Discard Branch** (`.destructive`, red); sets
+- **Replace Original with Branch** — no `role` (standard tint); sets
+  `confirmingBranchReplace = true`.
+- **Discard Branch** — no `role` (standard tint); sets
   `confirmingBranchDiscard = true`.
 - **Cancel** — dismissed, branch stays active.
+
+The first dialog is only a chooser — neither option is irreversible on
+its own (each just opens its confirm), so neither uses `.destructive`.
+Red is reserved for the stage-two confirm buttons, which are the actual
+point of no return.
 
 Each choice opens a **second**, tailored confirmation dialog so the
 irreversible step is always explicitly confirmed:
@@ -145,8 +150,11 @@ reusing the proven restore path.
 - Commit reuses the existing deactivation/reload path rather than
   suppressing the reload with a flag — simplicity over saving one
   redundant `loadsgf`.
-- Branch-exit dialog is two-stage: **Replace** is the primary (non-red)
-  action and **Discard** is red, and *both* require a tailored
-  second-stage confirmation (user choice, revised after the first
-  single-stage dialog shipped — two equally-red one-tap buttons blurred
-  the keep-vs-discard distinction).
+- Branch-exit dialog is two-stage. The first dialog is a non-destructive
+  chooser (both Replace and Discard use the standard tint, no `.destructive`),
+  and *each* opens a tailored second-stage confirmation whose confirm
+  button is red `.destructive` — the only point of no return (user
+  choice, revised after the first single-stage dialog shipped: two
+  equally-red one-tap buttons blurred the keep-vs-discard distinction,
+  and once both actions are second-confirmed, the stage-one buttons no
+  longer need destructive styling at all).

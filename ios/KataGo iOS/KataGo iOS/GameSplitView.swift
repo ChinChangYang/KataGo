@@ -210,7 +210,7 @@ struct GameSplitView: View {
                 }
             }
 
-            Button("Discard Branch", role: .destructive) {
+            Button("Discard Branch") {
                 Task { @MainActor in
                     gobanState.confirmingBranchDiscard = true
                 }
