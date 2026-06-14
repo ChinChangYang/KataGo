@@ -108,6 +108,7 @@
 		6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */; };
 		6C3C4578D360047862599751 /* Operations.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9214156EA4D6514A86F1A8E6 /* Operations.cpp */; };
 		6EA0837CBA82FBA413DB2651 /* cord_analysis.cc in Sources */ = {isa = PBXBuildFile; fileRef = B03045E3BA23301B9B7A5D81 /* cord_analysis.cc */; };
+		6EF6DC2E61FAE43A76634A09 /* SgfTruncation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1295B0E66EC8B48E3A39D9 /* SgfTruncation.swift */; };
 		6F04B87E6A4048BE85D17A41 /* usage.cc in Sources */ = {isa = PBXBuildFile; fileRef = 49DECA294437EEBE7BC59924 /* usage.cc */; };
 		709B801ECEA6475DC8A29FFE /* symbolize.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3D6E61F4E7C124FA574B8D6A /* symbolize.cc */; };
 		71539C7E6712A05DD9F1BD93 /* cord_internal.cc in Sources */ = {isa = PBXBuildFile; fileRef = 484C978DC55B1151B3DAD0F2 /* cord_internal.cc */; };
@@ -232,6 +233,7 @@
 		D063D0F817AA5C0A72E2E47A /* NearestNeighbors.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F3CFBF189067FF37C8812 /* NearestNeighbors.pb.cc */; };
 		D0851B731D8070A7DC0B2555 /* KataGoParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8FF2B17B41FD5A035930E809 /* KataGoParser.cpp */; };
 		D27A56AB9754E184C155CC38 /* globals.cc in Sources */ = {isa = PBXBuildFile; fileRef = 924DAEA6A848345285DD2ACB /* globals.cc */; };
+		D36117496D6E0EFF45DF02C1 /* SgfTruncationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */; };
 		D3972BDB14B2168CF7CFC034 /* commandlineflag.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3868FD871D534F045C3DCEB6 /* commandlineflag.cc */; };
 		D41A46783D639FE1059F826C /* AnalysisLineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A80FD0C39BC207A6324C0A2 /* AnalysisLineParser.swift */; };
 		D628E00D67E997DE0C897236 /* log_sink.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5E1405189D7D3837B2A46C2C /* log_sink.cc */; };
@@ -761,6 +763,7 @@
 		87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CategoricalMapping.pb.cc; path = ../../cpp/external/katagocoreml/generated/CategoricalMapping.pb.cc; sourceTree = SOURCE_ROOT; };
 		87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThirdPartyLicensesTests.swift; sourceTree = "<group>"; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
+		8B1295B0E66EC8B48E3A39D9 /* SgfTruncation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfTruncation.swift; sourceTree = "<group>"; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MLXTuneExperimentView.swift; sourceTree = "<group>"; };
 		8DE9BEBFBBE6A427CA92E372 /* ascii.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ascii.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/ascii.cc"; sourceTree = SOURCE_ROOT; };
@@ -805,6 +808,7 @@
 		B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReader.cpp; sourceTree = SOURCE_ROOT; };
 		B55A917374F587FC1DBCF8EA /* format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/format.cc"; sourceTree = SOURCE_ROOT; };
 		B5F263A20FAF107D96F1690F /* raw_logging.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_logging.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/raw_logging.cc"; sourceTree = SOURCE_ROOT; };
+		B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfTruncationTests.swift; sourceTree = "<group>"; };
 		B797CDE40306D2B33B324106 /* status.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status.cc"; sourceTree = SOURCE_ROOT; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
 		BA88218FE439761B96AE38F7 /* MIL.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MIL.pb.cc; path = ../../cpp/external/katagocoreml/generated/MIL.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -1902,6 +1906,7 @@
 				F4A3C54E6220E74E9E94BE0A /* MoveNumbers.swift */,
 				F96030C633C44D66DB854145 /* BoardTextParser.swift */,
 				9A80FD0C39BC207A6324C0A2 /* AnalysisLineParser.swift */,
+				8B1295B0E66EC8B48E3A39D9 /* SgfTruncation.swift */,
 			);
 			name = Model;
 			sourceTree = "<group>";
@@ -1988,6 +1993,7 @@
 				C1F2D57889B86325ADEFAD16 /* GobanStateBranchTests.swift */,
 				D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */,
 				79E54583C05CD001102C9D93 /* AnalysisLineParserTests.swift */,
+				B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -2851,6 +2857,7 @@
 				01267464F5770AD51D16AD22 /* MoveNumbers.swift in Sources */,
 				6312E30E50A6BD01042F5BB3 /* BoardTextParser.swift in Sources */,
 				D41A46783D639FE1059F826C /* AnalysisLineParser.swift in Sources */,
+				6EF6DC2E61FAE43A76634A09 /* SgfTruncation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2874,6 +2881,7 @@
 				40716FF857C336963FA9B1F9 /* GobanStateBranchTests.swift in Sources */,
 				91891DBEF07F1553186F53B1 /* BoardTextParserTests.swift in Sources */,
 				C5CA79EE1F0926072A1A2209 /* AnalysisLineParserTests.swift in Sources */,
+				D36117496D6E0EFF45DF02C1 /* SgfTruncationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
