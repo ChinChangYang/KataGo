@@ -139,7 +139,7 @@ struct PlusMenuView: View {
 
                 Button("Clone Current Position") {
                     withAnimation {
-                        let newGameRecord = gameRecord.clone(upToMove: gameRecord.currentIndex)
+                        let newGameRecord = gobanState.cloneCurrentPosition(gameRecord: gameRecord)
                         modelContext.insert(newGameRecord)
                         navigationContext.selectedGameRecord = newGameRecord
                     }

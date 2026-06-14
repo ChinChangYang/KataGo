@@ -284,10 +284,21 @@ final class GameRecord {
     /// in exactly one place: this method only overrides the sgf/currentIndex
     /// and trims the per-index data on the (not-yet-inserted) copy.
     func clone(upToMove index: Int) -> GameRecord {
+        clone(upToMove: index, fromSgf: self.sgf, dataValidUpTo: index)
+    }
+
+    /// Branch-aware variant of `clone(upToMove:)`. Truncates `sourceSgf`
+    /// (which may be a live branch line, not `self.sgf`) to `index` move nodes
+    /// and sets `currentIndex = index`. Per-index data is trimmed to keys
+    /// `<= dataValidUpTo`: while a branch is active the stored dictionaries
+    /// still describe the old mainline and are only valid up to the branch's
+    /// divergence point, so callers pass the smaller of the divergence index
+    /// and `index` there (mirroring `GobanState.commitBranch`).
+    func clone(upToMove index: Int, fromSgf sourceSgf: String, dataValidUpTo dataIndex: Int) -> GameRecord {
         let newGameRecord = clone()
-        newGameRecord.sgf = SgfTruncation.truncate(self.sgf, toMoveCount: index)
+        newGameRecord.sgf = SgfTruncation.truncate(sourceSgf, toMoveCount: index)
         newGameRecord.currentIndex = index
-        newGameRecord.clearData(after: index)
+        newGameRecord.clearData(after: dataIndex)
         return newGameRecord
     }
 

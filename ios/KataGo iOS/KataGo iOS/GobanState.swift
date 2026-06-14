@@ -416,6 +416,24 @@ class GobanState {
         deactivateBranch()
     }
 
+    /// Clones the game truncated to the position currently on screen. When a
+    /// branch is active the viewed line is `branchSgf`/`branchIndex` (not the
+    /// saved `gameRecord.sgf`/`currentIndex`, which stay frozen at the
+    /// divergence point), so clone from the live branch line; per-index data is
+    /// only valid up to the divergence point (`gameRecord.currentIndex`), as in
+    /// `commitBranch`. Off-branch it is the saved mainline position.
+    func cloneCurrentPosition(gameRecord: GameRecord) -> GameRecord {
+        if isBranchActive {
+            return gameRecord.clone(
+                upToMove: branchIndex,
+                fromSgf: branchSgf,
+                dataValidUpTo: min(gameRecord.currentIndex, branchIndex)
+            )
+        } else {
+            return gameRecord.clone(upToMove: gameRecord.currentIndex)
+        }
+    }
+
     func undoBranchIndex() {
         if (branchIndex > 0) {
             branchIndex = branchIndex - 1

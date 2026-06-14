@@ -99,8 +99,13 @@ only in producing a truncated SGF + trimmed per-index data.
 - Passes (`;B[]`) are move nodes and are counted.
 - Comments containing `;` or escaped `]` do not break truncation (bracket-aware
   scan).
-- An active branch does not affect this: we clone the saved `gameRecord` at its
-  own `currentIndex`, not branch state.
+- An active branch IS honored: "current position" means the line on screen.
+  While a branch is active `gameRecord.sgf`/`currentIndex` stay frozen at the
+  divergence point, so `GobanState.cloneCurrentPosition(gameRecord:)` clones the
+  live `branchSgf` truncated to `branchIndex`. Per-index data (which still
+  describes the old mainline) is only valid up to the divergence point, so it is
+  trimmed to `min(gameRecord.currentIndex, branchIndex)` — mirroring
+  `commitBranch`. Off-branch this reduces to the saved mainline position.
 
 ## Testing
 

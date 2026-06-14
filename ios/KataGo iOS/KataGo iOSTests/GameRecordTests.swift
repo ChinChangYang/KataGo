@@ -7,6 +7,7 @@
 
 import Testing
 import SwiftData
+import KataGoInterface
 @testable import KataGo_Anytime
 
 struct GameRecordTests {
@@ -131,5 +132,42 @@ struct GameRecordTests {
         // Original is untouched.
         #expect(record.sgf == sgf)
         #expect(record.currentIndex == 4)
+    }
+
+    @Test func cloneUpToMoveFromBranchSgfTruncatesLiveLine() async throws {
+        // A branch is active: the saved record is the OLD mainline frozen at the
+        // divergence point (currentIndex == 1), while the line on screen is a
+        // different branch SGF the user navigated into (branchIndex == 3).
+        // "Clone Current Position" must copy the branch line the user sees, not
+        // the stale mainline, and per-index data is only valid up to divergence.
+        let mainlineSgf = "(;FF[4]GM[1]SZ[9];B[aa];W[bb])"
+        let branchSgf = "(;FF[4]GM[1]SZ[9];B[aa];W[cc];B[dd];W[ee])"
+        let record = GameRecord.createGameRecord(
+            sgf: mainlineSgf,
+            currentIndex: 1,          // divergence point
+            name: "Game",
+            comments: [0: "z", 1: "a", 2: "old-b"],
+            winRates: [1: 0.5, 2: 0.6]
+        )
+
+        let copy = record.clone(
+            upToMove: 3,
+            fromSgf: branchSgf,
+            dataValidUpTo: min(record.currentIndex, 3)  // == 1
+        )
+
+        // SGF/index follow the branch line, not the frozen mainline.
+        #expect(copy.sgf == "(;FF[4]GM[1]SZ[9];B[aa];W[cc];B[dd])")
+        #expect(copy.currentIndex == 3)
+        #expect(SgfHelper(sgf: copy.sgf).moveSize == 3)
+        // Per-index data is trimmed to the divergence point (<= 1); stale
+        // mainline data past divergence (index 2) is dropped.
+        #expect(copy.comments == [0: "z", 1: "a"])
+        #expect(copy.winRates == [1: 0.5])
+        #expect(copy.name == "Game (copy)")
+        #expect(record.config !== copy.config)
+        // Original is untouched.
+        #expect(record.sgf == mainlineSgf)
+        #expect(record.currentIndex == 1)
     }
 }
