@@ -74,4 +74,48 @@ struct GobanStateBranchTests {
         #expect(gameRecord.currentIndex == 3)
         #expect(gobanState.isBranchActive == false)
     }
+
+    @Test func cloneCurrentPositionClonesBranchLineWhenActive() {
+        // Saved mainline frozen at the divergence point (currentIndex 2); the
+        // viewed line is the branch at branchIndex 4.
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: Self.originalSgf,
+            currentIndex: 2,
+            name: "Game",
+            comments: [0: "root", 1: "a", 2: "divergence", 3: "tail", 4: "tail"]
+        )
+        let gobanState = GobanState()
+        gobanState.branchSgf = Self.branchLineSgf
+        gobanState.branchIndex = 4
+
+        let copy = gobanState.cloneCurrentPosition(gameRecord: gameRecord)
+
+        // Clones the live branch line truncated to branchIndex (4 of 5 moves).
+        #expect(copy.sgf == "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[ee];W[ff])")
+        #expect(copy.currentIndex == 4)
+        // Per-index data is trimmed to min(currentIndex 2, branchIndex 4) = 2.
+        #expect(copy.comments == [0: "root", 1: "a", 2: "divergence"])
+        #expect(copy.name == "Game (copy)")
+        // Read-only: original game and branch state are untouched.
+        #expect(gameRecord.sgf == Self.originalSgf)
+        #expect(gameRecord.currentIndex == 2)
+        #expect(gobanState.isBranchActive == true)
+    }
+
+    @Test func cloneCurrentPositionClonesMainlineWhenNoBranch() {
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: Self.originalSgf,
+            currentIndex: 2,
+            name: "Game",
+            comments: [0: "root", 1: "a", 2: "b", 3: "tail"]
+        )
+        let gobanState = GobanState() // no active branch
+
+        let copy = gobanState.cloneCurrentPosition(gameRecord: gameRecord)
+
+        #expect(copy.sgf == "(;FF[4]GM[1]SZ[9];B[aa];W[bb])")
+        #expect(copy.currentIndex == 2)
+        #expect(copy.comments == [0: "root", 1: "a", 2: "b"])
+        #expect(gameRecord.sgf == Self.originalSgf)
+    }
 }
