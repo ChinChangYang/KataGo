@@ -202,6 +202,14 @@ Below the board is a control strip with eight buttons for navigation, analysis, 
 #### The "More" Menu
 A **More** menu (the ellipsis-circle button) in the toolbar provides game and app actions, including **New Game**, **Clone**, **Import**, **Share**, **Delete**, a thumbnail-size toggle, **Configurations**, and **Developer Mode**. A **Quit** button is also available from the sidebar toolbar.
 
+#### Cloning a Game
+Tapping **Clone** asks how much of the game to copy:
+
+- **Whole Game** — a full copy.
+- **Current Position** — a copy truncated to the move you're currently viewing; later moves are dropped, so the copy starts from that position. Handy for practicing a particular position later.
+
+![Clone dialog](CloneDialog.png)
+
 #### Developer Mode (GTP Console)
 The raw [GTP command](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) console still exists, but it is now reached through **More -> Developer Mode**, which opens as a sheet. It shows a scrolling message log and a text field for entering GTP commands (e.g. `list_commands`).
 
@@ -212,7 +220,7 @@ When you play a move while reviewing earlier history (and not editing), the app 
 
 Deactivating a branch presents a **two-stage confirmation**:
 
-1. First, you choose **Replace Original with Branch** or **Discard Branch**.
+1. First, you choose **Replace** or **Discard Branch**.
 2. Then a second, destructive confirmation finalizes your choice — either replacing the saved game's line with the branch (dropping moves after the divergence point) or discarding the branch entirely.
 
 ### Configurations
