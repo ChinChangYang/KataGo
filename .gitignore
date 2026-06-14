@@ -71,6 +71,9 @@ GPATH
 GRTAGS
 GTAGS
 
+# Superpowers brainstorming companion artifacts
+.superpowers/
+
 # For Xcode
 xcuserdata/
 DerivedData/
