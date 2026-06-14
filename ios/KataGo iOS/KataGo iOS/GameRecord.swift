@@ -276,6 +276,42 @@ final class GameRecord {
         return newGameRecord
     }
 
+    /// Like `clone()`, but the copy contains only the moves up to `index`:
+    /// the SGF is truncated to `index` move nodes, `currentIndex` is set to
+    /// `index`, and per-index data after `index` is dropped.
+    func clone(upToMove index: Int) -> GameRecord {
+        let newConfig = Config(config: self.config)
+        let truncatedSgf = SgfTruncation.truncate(self.sgf, toMoveCount: index)
+
+        let newGameRecord = GameRecord(
+            sgf: truncatedSgf,
+            currentIndex: index,
+            config: newConfig,
+            name: self.name + " (copy)",
+            lastModificationDate: Date.now,
+            comments: self.comments,
+            thumbnail: self.thumbnail,
+            scoreLeads: self.scoreLeads,
+            bestMoves: self.bestMoves,
+            winRates: self.winRates,
+            deadBlackStones: self.deadBlackStones,
+            deadWhiteStones: self.deadWhiteStones,
+            blackSchrodingerStones: self.blackSchrodingerStones,
+            whiteSchrodingerStones: self.whiteSchrodingerStones,
+            moves: self.moves,
+            blackStones: self.blackStones,
+            whiteStones: self.whiteStones,
+            ownershipWhiteness: self.ownershipWhiteness,
+            ownershipScales: self.ownershipScales,
+            width: self.width,
+            height: self.height
+        )
+
+        newGameRecord.clearData(after: index)
+        newConfig.gameRecord = newGameRecord
+        return newGameRecord
+    }
+
     func undo() {
         if (currentIndex > 0) {
             currentIndex = currentIndex - 1

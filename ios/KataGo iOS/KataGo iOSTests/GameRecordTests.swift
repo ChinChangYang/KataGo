@@ -109,4 +109,27 @@ struct GameRecordTests {
         gameRecord.clearData(after: -1)
         #expect(gameRecord.comments?.isEmpty == true)
     }
+
+    @Test func cloneUpToMoveTruncatesSgfAndData() async throws {
+        let sgf = "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])"
+        let record = GameRecord.createGameRecord(
+            sgf: sgf,
+            currentIndex: 4,
+            name: "Game",
+            comments: [0: "z", 1: "a", 2: "b", 3: "c", 4: "d"],
+            winRates: [1: 0.5, 2: 0.6, 3: 0.7, 4: 0.8]
+        )
+
+        let copy = record.clone(upToMove: 2)
+
+        #expect(copy.sgf == "(;FF[4]GM[1]SZ[9];B[aa];W[bb])")
+        #expect(copy.currentIndex == 2)
+        #expect(copy.comments == [0: "z", 1: "a", 2: "b"])
+        #expect(copy.winRates == [1: 0.5, 2: 0.6])
+        #expect(copy.name == "Game (copy)")
+        #expect(record.config !== copy.config)
+        // Original is untouched.
+        #expect(record.sgf == sgf)
+        #expect(record.currentIndex == 4)
+    }
 }
