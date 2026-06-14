@@ -129,7 +129,7 @@ struct PlusMenuView: View {
             titleVisibility: .visible
         ) {
             if let gameRecord {
-                Button("Clone Whole Game") {
+                Button("Whole Game") {
                     withAnimation {
                         let newGameRecord = gameRecord.clone()
                         modelContext.insert(newGameRecord)
@@ -137,7 +137,7 @@ struct PlusMenuView: View {
                     }
                 }
 
-                Button("Clone Current Position") {
+                Button("Current Position") {
                     withAnimation {
                         let newGameRecord = gobanState.cloneCurrentPosition(gameRecord: gameRecord)
                         modelContext.insert(newGameRecord)

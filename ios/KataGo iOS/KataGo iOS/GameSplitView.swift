@@ -198,7 +198,7 @@ struct GameSplitView: View {
             isPresented: $gobanState.confirmingBranchDeactivation,
             titleVisibility: .visible
         ) {
-            Button("Replace Original with Branch") {
+            Button("Replace") {
                 // Defer to the next runloop so the first dialog fully
                 // dismisses before the second presents. Chaining
                 // confirmationDialogs in the same transaction (present
@@ -223,7 +223,7 @@ struct GameSplitView: View {
             isPresented: $gobanState.confirmingBranchReplace,
             titleVisibility: .visible
         ) {
-            Button("Replace Original with Branch", role: .destructive) {
+            Button("Replace", role: .destructive) {
                 if let gameRecord = navigationContext.selectedGameRecord {
                     gobanState.commitBranch(gameRecord: gameRecord)
                 } else {
