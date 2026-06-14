@@ -17,6 +17,7 @@ struct PlusMenuView: View {
     @Environment(TopUIState.self) var topUIState
     @State private var showingConfig = false
     @State private var showingDeveloper = false
+    @State private var confirmingClone = false
 
     var body: some View {
         Menu {
@@ -32,11 +33,7 @@ struct PlusMenuView: View {
 
             if let gameRecord {
                 Button {
-                    withAnimation {
-                        let newGameRecord = gameRecord.clone()
-                        modelContext.insert(newGameRecord)
-                        navigationContext.selectedGameRecord = newGameRecord
-                    }
+                    confirmingClone = true
                 } label: {
                     Label("Clone", systemImage: "doc.on.doc")
                 }
@@ -125,6 +122,31 @@ struct PlusMenuView: View {
                 .frame(minWidth: 500, minHeight: 400)
                 #endif
             }
+        }
+        .confirmationDialog(
+            "Clone this game",
+            isPresented: $confirmingClone,
+            titleVisibility: .visible
+        ) {
+            if let gameRecord {
+                Button("Clone Whole Game") {
+                    withAnimation {
+                        let newGameRecord = gameRecord.clone()
+                        modelContext.insert(newGameRecord)
+                        navigationContext.selectedGameRecord = newGameRecord
+                    }
+                }
+
+                Button("Clone Current Position") {
+                    withAnimation {
+                        let newGameRecord = gameRecord.clone(upToMove: gameRecord.currentIndex)
+                        modelContext.insert(newGameRecord)
+                        navigationContext.selectedGameRecord = newGameRecord
+                    }
+                }
+            }
+
+            Button("Cancel", role: .cancel) { }
         }
     }
 }
