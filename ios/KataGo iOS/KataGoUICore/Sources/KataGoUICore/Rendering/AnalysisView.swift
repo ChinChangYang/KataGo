@@ -6,16 +6,20 @@
 //
 
 import SwiftUI
-import KataGoUICore
 import KataGoInterface
 
-struct AnalysisView: View {
+public struct AnalysisView: View {
     @Environment(Analysis.self) var analysis
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
     @Environment(Turn.self) var player
     var config: Config
     let dimensions: Dimensions
+
+    public init(config: Config, dimensions: Dimensions) {
+        self.config = config
+        self.dimensions = dimensions
+    }
 
     private func isValidPointToShow(blackSet: Set<BoardPoint>,
                                     whiteSet: Set<BoardPoint>,
@@ -98,7 +102,7 @@ struct AnalysisView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         if gobanState.shouldRequestAnalysis(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) &&
             (gobanState.eyeStatus == .opened) &&
             (!gobanState.isAutoPlaying) {

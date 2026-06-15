@@ -6,15 +6,20 @@
 //
 
 import SwiftUI
-import KataGoUICore
 
-struct BoardLineView: View {
+public struct BoardLineView: View {
     let dimensions: Dimensions
     let showPass: Bool
     let verticalFlip: Bool
     @Environment(BoardSize.self) var board
 
-    var body: some View {
+    public init(dimensions: Dimensions, showPass: Bool, verticalFlip: Bool) {
+        self.dimensions = dimensions
+        self.showPass = showPass
+        self.verticalFlip = verticalFlip
+    }
+
+    public var body: some View {
         ZStack {
             drawBoardBackground(dimensions: dimensions)
             drawLines(dimensions: dimensions)

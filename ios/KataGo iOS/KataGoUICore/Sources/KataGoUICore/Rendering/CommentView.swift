@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
-import KataGoUICore
 import FoundationModels
 
-struct CommentView: View {
+public struct CommentView: View {
     var gameRecord: GameRecord
     @State var comment = ""
     @State private var isGenerating = false
@@ -19,6 +18,10 @@ struct CommentView: View {
     @Environment(Stones.self) var stones
     @Environment(BoardSize.self) var board
     @Environment(Turn.self) var turn
+
+    public init(gameRecord: GameRecord) {
+        self.gameRecord = gameRecord
+    }
 
     var textArea: some View {
         ZStack {
@@ -58,7 +61,7 @@ struct CommentView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         ScrollViewReader { _ in
             ScrollView(.vertical) {
                 textArea

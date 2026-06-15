@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import KataGoUICore
 
 struct WinrateBarView: View {
     @Environment(Winrate.self) var rootWinrate

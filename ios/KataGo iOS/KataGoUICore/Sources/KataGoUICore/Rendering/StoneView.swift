@@ -6,9 +6,8 @@
 //
 
 import SwiftUI
-import KataGoUICore
 
-struct StoneView: View {
+public struct StoneView: View {
     @Environment(Stones.self) var stones
     @Environment(GobanState.self) var gobanState
 
@@ -18,7 +17,19 @@ struct StoneView: View {
     var isDrawingCapturedStones: Bool = true
     var speedText: String? = nil
 
-    var body: some View {
+    public init(dimensions: Dimensions,
+                isClassicStoneStyle: Bool,
+                verticalFlip: Bool,
+                isDrawingCapturedStones: Bool = true,
+                speedText: String? = nil) {
+        self.dimensions = dimensions
+        self.isClassicStoneStyle = isClassicStoneStyle
+        self.verticalFlip = verticalFlip
+        self.isDrawingCapturedStones = isDrawingCapturedStones
+        self.speedText = speedText
+    }
+
+    public var body: some View {
         drawStones(dimensions: dimensions)
 
         if isDrawingCapturedStones {

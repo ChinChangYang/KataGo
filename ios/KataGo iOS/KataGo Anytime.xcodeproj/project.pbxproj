@@ -437,7 +437,6 @@
 		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1240BAF2C6D640200B4874F /* LoadingView.swift */; };
-		E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6EA02C325E010002DED0 /* WinrateBarView.swift */; };
 		E12A6F192C37FE710002DED0 /* KataGoInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F182C37FE710002DED0 /* KataGoInterface.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		E12A6F1C2C37FE710002DED0 /* KataGoInterface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; };
 		E12A6F1D2C37FE710002DED0 /* KataGoInterface.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoInterface.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -448,14 +447,12 @@
 		E12A6F3B2C38C5EA0002DED0 /* KataGoHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */; };
 		E12DF70A2E875D4500521B20 /* GameListToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12DF7092E875D4500521B20 /* GameListToolbar.swift */; };
 		E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13828622C5B8C3600670FD3 /* GameListView.swift */; };
-		E138288D2C6A431600670FD3 /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E138288C2C6A431600670FD3 /* BoardView.swift */; };
 		E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E138288E2C6A436700670FD3 /* TopToolbarView.swift */; };
 		E13B92822DD9FF32009F8A1A /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */; };
 		E13B92842DDB3FB7009F8A1A /* ModelRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */; };
 		E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
-		E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF812C8E8C5D00C702BE /* CommentView.swift */; };
 		E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14FBF832C8F300C00C702BE /* PlayView.swift */; };
 		E15A220B2EE6AED800708C25 /* GameSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15A220A2EE6AED800708C25 /* GameSplitView.swift */; };
 		E15CEE3C2DCF94C100D78AE3 /* RulesCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */; };
@@ -463,11 +460,9 @@
 		E15E3A292EA8FF2C00B70DE2 /* evalcache.h in Headers */ = {isa = PBXBuildFile; fileRef = E15E3A272EA8FF2C00B70DE2 /* evalcache.h */; };
 		E15E3A2A2EA8FF2C00B70DE2 /* evalcache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */; };
 		E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
-		E160DEEC2E2540B1004B065F /* LinePlotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E160DEEB2E2540B1004B065F /* LinePlotView.swift */; };
 		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E16BC83D2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		E17E5605F7490BFE936C8640 /* poison.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3C8DC0A8F9AF1ACB13FFEC5 /* poison.cc */; };
-		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E184F5E42EC022B700C06AEB /* InfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E184F5E32EC022B700C06AEB /* InfoView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
@@ -480,14 +475,12 @@
 		E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */; };
 		E1A143AC2E80FAD200FAA1BF /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */; };
-		E1A2B3C72F0A1B2C00AABB02 /* BookAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C62F0A1B2C00AABB02 /* BookAnalysisView.swift */; };
 		E1AFE0532C3C07E00061D724 /* SgfCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */; };
 		E1AFE0542C3C07E00061D724 /* SgfCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E1AFE0562C3C2E8D0061D724 /* SgfHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */; };
 		E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */; };
 		E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */; };
 		E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */; };
-		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
 		E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
 		E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
@@ -498,9 +491,7 @@
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
 		E1C6D0C72CDF0E38002C1921 /* GameLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */; };
-		E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AC2AA897C000556DFB /* StoneView.swift */; };
 		E1D7D3AE2AA897C000556DFB /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
-		E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */; };
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
 		E5137D84D308B565E7F4CCE7 /* pow10_helper.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CA99DECEC565A8514335 /* pow10_helper.cc */; };
@@ -1020,7 +1011,6 @@
 		E118EE902B081C3200637D44 /* katago.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = katago.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E118EF0C2B081D8500637D44 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
 		E1240BAF2C6D640200B4874F /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
-		E12A6EA02C325E010002DED0 /* WinrateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinrateBarView.swift; sourceTree = "<group>"; };
 		E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "KataGo-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
 		E12A6F162C37FE710002DED0 /* KataGoInterface.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = KataGoInterface.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E12A6F182C37FE710002DED0 /* KataGoInterface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KataGoInterface.h; sourceTree = "<group>"; };
@@ -1029,14 +1019,12 @@
 		E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoHelper.swift; sourceTree = "<group>"; };
 		E12DF7092E875D4500521B20 /* GameListToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameListToolbar.swift; sourceTree = "<group>"; };
 		E13828622C5B8C3600670FD3 /* GameListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameListView.swift; sourceTree = "<group>"; };
-		E138288C2C6A431600670FD3 /* BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardView.swift; sourceTree = "<group>"; };
 		E138288E2C6A436700670FD3 /* TopToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopToolbarView.swift; sourceTree = "<group>"; };
 		E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRunnerView.swift; sourceTree = "<group>"; };
 		E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEditorView.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
-		E14FBF812C8E8C5D00C702BE /* CommentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentView.swift; sourceTree = "<group>"; };
 		E14FBF832C8F300C00C702BE /* PlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayView.swift; sourceTree = "<group>"; };
 		E15A220A2EE6AED800708C25 /* GameSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSplitView.swift; sourceTree = "<group>"; };
 		E15CEE3B2DCF94C100D78AE3 /* RulesCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RulesCpp.cpp; sourceTree = "<group>"; };
@@ -1044,10 +1032,8 @@
 		E15E3A272EA8FF2C00B70DE2 /* evalcache.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = evalcache.h; sourceTree = "<group>"; };
 		E15E3A282EA8FF2C00B70DE2 /* evalcache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = evalcache.cpp; sourceTree = "<group>"; };
 		E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoShortcuts.swift; sourceTree = "<group>"; };
-		E160DEEB2E2540B1004B065F /* LinePlotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinePlotView.swift; sourceTree = "<group>"; };
 		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
 		E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "b18c384nbt-humanv0.bin.gz"; sourceTree = "<group>"; };
-		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E184F5E32EC022B700C06AEB /* InfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo Anytime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
@@ -1063,14 +1049,12 @@
 		E18F3F752A514B9700D335E1 /* default_gtp.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = default_gtp.cfg; sourceTree = "<group>"; };
 		E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusToolbarItems.swift; sourceTree = "<group>"; };
 		E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
-		E1A2B3C62F0A1B2C00AABB02 /* BookAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookAnalysisView.swift; sourceTree = "<group>"; };
 		E1AFE0512C3C07E00061D724 /* SgfCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SgfCpp.cpp; sourceTree = "<group>"; };
 		E1AFE0522C3C07E00061D724 /* SgfCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = SgfCpp.hpp; sourceTree = "<group>"; };
 		E1AFE0552C3C2E8D0061D724 /* SgfHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SgfHelper.swift; sourceTree = "<group>"; };
 		E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusMenuView.swift; sourceTree = "<group>"; };
 		E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FastTestPlan.xctestplan; sourceTree = "<group>"; };
 		E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FullTestPlan.xctestplan; sourceTree = "<group>"; };
-		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
 		E1B675252C95B42C0043E527 /* GameEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEntity.swift; sourceTree = "<group>"; };
 		E1B675272C95C1430043E527 /* GetGameInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetGameInfo.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
@@ -1083,9 +1067,7 @@
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
 		E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLinkView.swift; sourceTree = "<group>"; };
 		E1CF18DD2CAA0D7D009F0154 /* KataGo iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KataGo iOS.entitlements"; sourceTree = "<group>"; };
-		E1D7D3AC2AA897C000556DFB /* StoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoneView.swift; sourceTree = "<group>"; };
 		E1D7D3AF2AA897C000556DFB /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
-		E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
 		E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigView.swift; sourceTree = "<group>"; };
 		E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ItemSimilarityRecommender.pb.cc; path = ../../cpp/external/katagocoreml/generated/ItemSimilarityRecommender.pb.cc; sourceTree = SOURCE_ROOT; };
 		E3C8DC0A8F9AF1ACB13FFEC5 /* poison.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = poison.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/poison.cc"; sourceTree = SOURCE_ROOT; };
@@ -1788,13 +1770,8 @@
 		E16BC8242C47E9CF00EA3A1E /* View */ = {
 			isa = PBXGroup;
 			children = (
-				E1D7D3B22AAA1F5600556DFB /* AnalysisView.swift */,
 				CC00000000000000BC000004 /* BackendConfigSheet.swift */,
-				E1B63BE32AABDF3500094965 /* BoardLineView.swift */,
-				E138288C2C6A431600670FD3 /* BoardView.swift */,
-				E1A2B3C62F0A1B2C00AABB02 /* BookAnalysisView.swift */,
 				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
-				E14FBF812C8E8C5D00C702BE /* CommentView.swift */,
 				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
 				E18F3E122A51466A00D335E1 /* ContentView.swift */,
 				E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */,
@@ -1803,20 +1780,16 @@
 				E15A220A2EE6AED800708C25 /* GameSplitView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E184F5E32EC022B700C06AEB /* InfoView.swift */,
-				E160DEEB2E2540B1004B065F /* LinePlotView.swift */,
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
 				E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */,
 				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
-				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
 				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
 				E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */,
 				E1D7D3AF2AA897C000556DFB /* Shaders.metal */,
 				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
-				E1D7D3AC2AA897C000556DFB /* StoneView.swift */,
 				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
-				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
 			);
 			name = View;
@@ -2707,13 +2680,9 @@
 			files = (
 				E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */,
 				E1A143AC2E80FAD200FAA1BF /* QuitButton.swift in Sources */,
-				E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */,
-				E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */,
-				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
 				E1D7D3AE2AA897C000556DFB /* Shaders.metal in Sources */,
 				E15F54872C94427C00A698D0 /* KataGoShortcuts.swift in Sources */,
 				E138288F2C6A436700670FD3 /* TopToolbarView.swift in Sources */,
-				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
 				E1240BB02C6D640200B4874F /* LoadingView.swift in Sources */,
 				CC00000000000000BC000003 /* BackendConfigSheet.swift in Sources */,
 				E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */,
@@ -2729,14 +2698,9 @@
 				E184F5E42EC022B700C06AEB /* InfoView.swift in Sources */,
 				E12DF70A2E875D4500521B20 /* GameListToolbar.swift in Sources */,
 				E14FBF842C8F300C00C702BE /* PlayView.swift in Sources */,
-				E14FBF822C8E8C5D00C702BE /* CommentView.swift in Sources */,
-				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
-				E138288D2C6A431600670FD3 /* BoardView.swift in Sources */,
-				E1A2B3C72F0A1B2C00AABB02 /* BookAnalysisView.swift in Sources */,
 				E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */,
 				E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
-				E160DEEC2E2540B1004B065F /* LinePlotView.swift in Sources */,
 				E15A220B2EE6AED800708C25 /* GameSplitView.swift in Sources */,
 				6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */,
 				0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */,

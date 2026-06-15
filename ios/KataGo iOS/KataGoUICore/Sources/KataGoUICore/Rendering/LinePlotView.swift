@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import KataGoUICore
 import Charts
 
 struct Point {
@@ -19,7 +18,7 @@ struct Point {
     }
 }
 
-struct LinePlotView: View {
+public struct LinePlotView: View {
     var gameRecord: GameRecord
     @State var selectedMove: Int?
     @Environment(\.colorScheme) private var colorScheme
@@ -29,6 +28,10 @@ struct LinePlotView: View {
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
+
+    public init(gameRecord: GameRecord) {
+        self.gameRecord = gameRecord
+    }
 
     var scoreLeadPoints: [Point] {
         if gobanState.eyeStatus == .closed {
@@ -180,7 +183,7 @@ struct LinePlotView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             chart
 

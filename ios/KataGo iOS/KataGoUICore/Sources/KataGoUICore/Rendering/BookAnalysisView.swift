@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import KataGoUICore
 
 struct BookAnalysisView: View {
     @Environment(BookLookup.self) var bookLookup

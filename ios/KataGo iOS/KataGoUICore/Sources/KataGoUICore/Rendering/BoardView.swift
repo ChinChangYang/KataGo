@@ -6,11 +6,10 @@
 //
 
 import SwiftUI
-import KataGoUICore
 import KataGoInterface
 import AVKit
 
-struct BoardView: View {
+public struct BoardView: View {
     @Environment(AudioModel.self) var audioModel
     @Environment(BoardSize.self) var board
     @Environment(Turn.self) var player
@@ -26,6 +25,11 @@ struct BoardView: View {
     @State private var confirmingOverwrite: Bool = false
     @State private var gestureLocation: CGPoint?
 
+    public init(gameRecord: GameRecord, commentIsFocused: FocusState<Bool>.Binding) {
+        self.gameRecord = gameRecord
+        self._commentIsFocused = commentIsFocused
+    }
+
     var config: Config {
         gameRecord.concreteConfig
     }
@@ -34,7 +38,7 @@ struct BoardView: View {
         gobanState.showWinrateBar && (gobanState.eyeStatus == .opened || (gobanState.eyeStatus == .book && bookLookup.isInBook))
     }
 
-    var body: some View {
+    public var body: some View {
         VStack {
 #if os(macOS)
             Spacer(minLength: 20)
