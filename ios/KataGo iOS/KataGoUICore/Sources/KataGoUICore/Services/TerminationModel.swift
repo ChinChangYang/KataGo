@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum QuitStatus {
+public enum QuitStatus {
     case none
     case quitting
     case quitted

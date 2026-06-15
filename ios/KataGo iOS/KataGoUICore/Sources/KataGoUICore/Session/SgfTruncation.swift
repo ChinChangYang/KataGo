@@ -9,11 +9,11 @@ import Foundation
 /// a comment value containing ';' or an escaped ']' cannot shift the cut.
 /// Assumes a linear SGF with no variations, which is what the app saves
 /// (printsgf mainline output).
-enum SgfTruncation {
+public enum SgfTruncation {
     /// Returns `sgf` containing only the root node plus the first `n` move
     /// nodes, closed with ")". If `sgf` has `n` or fewer moves (or `n < 0`),
     /// returns `sgf` unchanged.
-    static func truncate(_ sgf: String, toMoveCount n: Int) -> String {
+    public static func truncate(_ sgf: String, toMoveCount n: Int) -> String {
         guard n >= 0 else { return sgf }
 
         let chars = Array(sgf)

@@ -7,8 +7,8 @@
 
 import Foundation
 
-struct HumanSLModel {
-    static var allProfiles: [String] {
+public struct HumanSLModel {
+    public static var allProfiles: [String] {
         let dans = (1...9).reversed().map() { dan in
             return "\(dan)d"
         }
@@ -36,7 +36,7 @@ struct HumanSLModel {
 
     var internal_profile: String
 
-    var profile: String {
+    public var profile: String {
         get {
             return internal_profile
         }
@@ -48,11 +48,11 @@ struct HumanSLModel {
         }
     }
 
-    init() {
+    public init() {
         internal_profile = "AI"
     }
 
-    init?(profile: String) {
+    public init?(profile: String) {
         if HumanSLModel.allProfiles.contains(profile) {
             self.internal_profile = profile
         } else {
@@ -75,7 +75,7 @@ struct HumanSLModel {
     }
 
     /// Choose the "profile" of players that the human SL model will imitate.
-    var humanSLProfile: String {
+    public var humanSLProfile: String {
         if profile == "AI" {
             return "rank_9d"
         } else {
@@ -167,7 +167,7 @@ struct HumanSLModel {
         }
     }
 
-    var commands: [String] {
+    public var commands: [String] {
         ["kata-set-param humanSLProfile \(humanSLProfile)",
          "kata-set-param humanSLChosenMoveProp \(humanSLChosenMoveProp)",
          "kata-set-param humanSLRootExploreProbWeightless \(humanSLRootExploreProbWeightless)",

@@ -1,4 +1,5 @@
 import SwiftUI
+import KataGoUICore
 
 /// Lists every third-party component shipped in the app, with its license.
 struct AcknowledgmentsView: View {

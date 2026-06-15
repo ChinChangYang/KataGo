@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 @MainActor
 struct CoreMLCacheReadinessTests {

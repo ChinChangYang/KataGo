@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct GameListToolbar: ToolbarContent {
     var gameRecord: GameRecord?

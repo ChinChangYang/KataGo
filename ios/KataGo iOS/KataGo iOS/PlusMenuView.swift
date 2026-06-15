@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct PlusMenuView: View {
     var gameRecord: GameRecord?

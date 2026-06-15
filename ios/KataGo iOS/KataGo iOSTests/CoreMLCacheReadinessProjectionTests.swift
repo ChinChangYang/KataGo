@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import KataGoInterface
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct CoreMLCacheReadinessProjectionTests {
     @Test func resolverReturnsNilForUnknownFileName() async throws {

@@ -9,6 +9,7 @@ import CoreData
 import SwiftData
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 @main
 struct KataGo_iOSApp: App {

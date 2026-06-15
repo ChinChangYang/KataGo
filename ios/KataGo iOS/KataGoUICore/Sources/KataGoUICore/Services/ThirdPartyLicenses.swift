@@ -1,17 +1,23 @@
 import Foundation
 
 /// One third-party component shipped in the app binary, with its verbatim license.
-struct ThirdPartyLicense: Identifiable {
-    var id: String { name }
-    let name: String
-    let subtitle: String   // "<license type> · <copyright holder>"
-    let text: String       // verbatim license text
+public struct ThirdPartyLicense: Identifiable, Sendable {
+    public var id: String { name }
+    public let name: String
+    public let subtitle: String   // "<license type> · <copyright holder>"
+    public let text: String       // verbatim license text
+
+    public init(name: String, subtitle: String, text: String) {
+        self.name = name
+        self.subtitle = subtitle
+        self.text = text
+    }
 }
 
 extension ThirdPartyLicense {
     /// Every third-party component compiled into or linked by the iOS app target,
     /// sorted case-insensitively by name for stable display.
-    static let all: [ThirdPartyLicense] = unsorted
+    public static let all: [ThirdPartyLicense] = unsorted
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
     private static let unsorted: [ThirdPartyLicense] = [

@@ -17,16 +17,30 @@ import KataGoInterface
 /// Primitive inputs for `CoreMLModelCache.projectedDigest`.
 /// Keeps the framework ignorant of app-target types like
 /// `BackendSettings` and `NeuralNetworkModel`.
-struct ProjectionInputs: Equatable {
-    let sourcePath: String
-    let nnXLen: Int32
-    let nnYLen: Int32
-    let requireExactNNLen: Bool
-    let useFP16: Bool
-    let maxBatchSize: Int
+public struct ProjectionInputs: Equatable {
+    public let sourcePath: String
+    public let nnXLen: Int32
+    public let nnYLen: Int32
+    public let requireExactNNLen: Bool
+    public let useFP16: Bool
+    public let maxBatchSize: Int
+
+    public init(sourcePath: String,
+                nnXLen: Int32,
+                nnYLen: Int32,
+                requireExactNNLen: Bool,
+                useFP16: Bool,
+                maxBatchSize: Int) {
+        self.sourcePath = sourcePath
+        self.nnXLen = nnXLen
+        self.nnYLen = nnYLen
+        self.requireExactNNLen = requireExactNNLen
+        self.useFP16 = useFP16
+        self.maxBatchSize = maxBatchSize
+    }
 }
 
-typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
+public typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
 
 /// Production resolver. Walks `NeuralNetworkModel.allCases` to find
 /// the named model, computes its `BackendSettings`, and maps to the
@@ -39,7 +53,7 @@ typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInput
 /// today. If those defaults change, this resolver must change with
 /// them, otherwise the projection drifts from the launch's actual
 /// cache key.
-func makeProjectionResolver() -> ProjectionResolver {
+public func makeProjectionResolver() -> ProjectionResolver {
     return { fileName in
         // Human SL aux is bundled and shares the built-in's backend
         // settings (the engine loads them together with the same nnLen
@@ -101,7 +115,7 @@ func makeProjectionResolver() -> ProjectionResolver {
 /// `CoreMLCacheReadiness` to ask `CoreMLModelCache.hasEntry(digest:)`
 /// whether a given fileName is currently cached on disk.
 /// Returns nil when the file is not downloaded.
-func makeProjectionDigestFor() -> @Sendable (String) async throws -> String? {
+public func makeProjectionDigestFor() -> @Sendable (String) async throws -> String? {
     let resolver = makeProjectionResolver()
     return { fileName in
         guard let inputs = resolver(fileName) else { return nil }

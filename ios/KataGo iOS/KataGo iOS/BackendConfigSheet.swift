@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct BackendConfigSheet: View {
     let model: NeuralNetworkModel

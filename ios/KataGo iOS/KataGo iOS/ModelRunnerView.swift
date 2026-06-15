@@ -8,6 +8,7 @@
 import OSLog
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 private let recoveryLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",

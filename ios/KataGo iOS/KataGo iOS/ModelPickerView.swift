@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 extension Int {
     var humanFileSize: String {

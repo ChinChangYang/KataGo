@@ -8,6 +8,7 @@
 import SwiftUI
 import KataGoInterface
 import UniformTypeIdentifiers
+import KataGoUICore
 
 struct GameSplitView: View {
     @Binding var selectedModel: NeuralNetworkModel?

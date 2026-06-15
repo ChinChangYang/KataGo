@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 struct QuitButton: View {
     @Binding var quitStatus: QuitStatus

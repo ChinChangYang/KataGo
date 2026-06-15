@@ -6,6 +6,7 @@
 import Testing
 import KataGoInterface
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct SgfTruncationTests {
     static let fourMoves = "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])"

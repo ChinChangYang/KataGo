@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import KataGoInterface
+import KataGoUICore
 
 @Model
 final class Config {

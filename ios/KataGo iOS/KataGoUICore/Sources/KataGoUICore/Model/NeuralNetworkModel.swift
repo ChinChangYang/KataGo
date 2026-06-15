@@ -7,21 +7,21 @@
 
 import Foundation
 
-struct NeuralNetworkModel: Identifiable, Equatable {
-    let id = UUID()
-    let title: String
-    let description: String
-    let url: String
-    let fileName: String
-    let fileSize: Int
-    let builtIn: Bool
-    let nnLen: Int
+public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
+    public let id = UUID()
+    public let title: String
+    public let description: String
+    public let url: String
+    public let fileName: String
+    public let fileSize: Int
+    public let builtIn: Bool
+    public let nnLen: Int
 
-    var downloadedURL: URL? {
+    public var downloadedURL: URL? {
         return URL.documentsDirectory.appendingPathComponent(fileName)
     }
 
-    var visible: Bool {
+    public var visible: Bool {
         true
     }
 
@@ -34,7 +34,7 @@ struct NeuralNetworkModel: Identifiable, Equatable {
     ///   - fileSize: the file size of the model
     ///   - builtIn: a flag to indicate that the model is built-in or not
     ///   - nnLen: neural network board length, default value should be equal to `COMPILE_MAX_BOARD_LEN`
-    init(title: String,
+    public init(title: String,
          description: String,
          url: String,
          fileName: String,
@@ -51,11 +51,11 @@ struct NeuralNetworkModel: Identifiable, Equatable {
         self.nnLen = nnLen
     }
 
-    static var builtInModel: NeuralNetworkModel? {
+    public static var builtInModel: NeuralNetworkModel? {
         allCases.first { $0.builtIn }
     }
 
-    static let allCases: [NeuralNetworkModel] = [
+    public static let allCases: [NeuralNetworkModel] = [
         .init(
             title: "Built-in KataGo Network",
             description: """

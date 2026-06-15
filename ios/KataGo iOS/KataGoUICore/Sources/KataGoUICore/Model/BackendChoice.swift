@@ -5,20 +5,20 @@
 
 import Foundation
 
-enum BackendChoice: String, CaseIterable, Identifiable {
+public enum BackendChoice: String, CaseIterable, Identifiable {
     case mlxGPU = "MLX/GPU"
     case coremlNE = "CoreML/NE"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var mlxDeviceToUse: Int {
+    public var mlxDeviceToUse: Int {
         switch self {
         case .mlxGPU: return 0
         case .coremlNE: return 100
         }
     }
 
-    static var platformDefault: BackendChoice {
+    public static var platformDefault: BackendChoice {
         #if os(macOS)
         return .mlxGPU
         #else
@@ -27,23 +27,23 @@ enum BackendChoice: String, CaseIterable, Identifiable {
     }
 }
 
-enum BoardSizeChoice: Int, CaseIterable, Identifiable {
+public enum BoardSizeChoice: Int, CaseIterable, Identifiable {
     case nine = 9
     case thirteen = 13
     case nineteen = 19
     case thirtySevenMax = 37
 
-    var id: Int { rawValue }
+    public var id: Int { rawValue }
 
-    var label: String {
+    public var label: String {
         "\(rawValue)x\(rawValue)"
     }
 }
 
-struct BackendSettings {
+public struct BackendSettings {
     private let model: NeuralNetworkModel
 
-    init(model: NeuralNetworkModel) {
+    public init(model: NeuralNetworkModel) {
         self.model = model
     }
 
@@ -53,7 +53,7 @@ struct BackendSettings {
     private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
     private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
-    var backend: BackendChoice {
+    public var backend: BackendChoice {
         get {
             #if targetEnvironment(simulator)
             // The iOS/visionOS simulator's Metal translation layer (MTLSimDriver)
@@ -75,7 +75,7 @@ struct BackendSettings {
         }
     }
 
-    var coremlBoardSize: BoardSizeChoice {
+    public var coremlBoardSize: BoardSizeChoice {
         get {
             let raw = UserDefaults.standard.integer(forKey: boardSizeKey)
             if raw != 0, let size = BoardSizeChoice(rawValue: raw) {
@@ -92,7 +92,7 @@ struct BackendSettings {
     /// the geometry the Winograd autotuner + NN buffers optimize for. Persisted per
     /// model; the tuner cache is keyed by board size, so per-size tunes coexist.
     /// Only meaningful for `.mlxGPU`.
-    var mlxBoardSize: BoardSizeChoice {
+    public var mlxBoardSize: BoardSizeChoice {
         get {
             let raw = UserDefaults.standard.integer(forKey: mlxBoardSizeKey)
             if raw != 0, let size = BoardSizeChoice(rawValue: raw) {
@@ -109,7 +109,7 @@ struct BackendSettings {
     /// (default), `true` = the wide-grid "full" tune (more thorough, much slower
     /// on device). Persisted per model; each mode is cached in its own file, so
     /// switching takes effect on the next load. Only meaningful for `.mlxGPU`.
-    var tunerFull: Bool {
+    public var tunerFull: Bool {
         get { UserDefaults.standard.bool(forKey: tunerFullKey) }
         set { UserDefaults.standard.set(newValue, forKey: tunerFullKey) }
     }
@@ -118,19 +118,19 @@ struct BackendSettings {
     /// of this model forces a fresh autotune that overwrites the cached tuning;
     /// `ModelRunnerView` clears it back to `false` after consuming it so the
     /// re-tune happens exactly once. Only meaningful for `.mlxGPU`.
-    var reTune: Bool {
+    public var reTune: Bool {
         get { UserDefaults.standard.bool(forKey: reTuneKey) }
         set { UserDefaults.standard.set(newValue, forKey: reTuneKey) }
     }
 
-    var effectiveMaxBoardLength: Int {
+    public var effectiveMaxBoardLength: Int {
         switch backend {
         case .coremlNE: return min(coremlBoardSize.rawValue, model.nnLen)
         case .mlxGPU: return min(mlxBoardSize.rawValue, model.nnLen)
         }
     }
 
-    var requireExactNNLen: Bool {
+    public var requireExactNNLen: Bool {
         switch backend {
         case .coremlNE: return false
         case .mlxGPU: return false

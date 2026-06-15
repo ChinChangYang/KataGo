@@ -17,7 +17,7 @@ class StandardError: TextOutputStream {
 }
 
 /// A function to print error messages
-func printError(_ item: Any) {
+public func printError(_ item: Any) {
     // Create an instance of StandardError to direct output to the standard error stream
     var instance = StandardError()
     // Output the provided item to the standard error using the created instance

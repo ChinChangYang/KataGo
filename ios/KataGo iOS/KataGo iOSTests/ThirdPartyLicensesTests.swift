@@ -1,5 +1,6 @@
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct ThirdPartyLicensesTests {
     @Test func listsEveryShippedThirdPartyComponent() {

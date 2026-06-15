@@ -8,6 +8,7 @@
 import Foundation
 import Compression
 import SwiftUI
+import KataGoUICore
 
 struct BookMoveInfo {
     let winLoss: Double

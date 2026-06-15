@@ -11,6 +11,7 @@
 #if DEBUG
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 struct MLXTuneExperimentView: View {
     static let launchArg = "--mlx-tune-experiment"

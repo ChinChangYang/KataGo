@@ -7,6 +7,7 @@
 
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct EngineLifecycleTests {
 

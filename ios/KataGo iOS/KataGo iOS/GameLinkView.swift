@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import KataGoUICore
 
 struct GameLinkView: View {
     let gameRecord: GameRecord

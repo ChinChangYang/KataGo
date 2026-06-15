@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoInterface
+import KataGoUICore
 
 struct TopToolbarView: ToolbarContent {
     var gameRecord: GameRecord

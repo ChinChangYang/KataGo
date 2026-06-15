@@ -12,20 +12,22 @@ import Foundation
 /// crash-loop sentinel can be cleared. `reset()` must be called before each
 /// new load so the observer re-fires when the same model is picked twice.
 @Observable
-class EngineLifecycle {
-    var lastLoadedModelTitle: String? = nil
+public class EngineLifecycle {
+    public var lastLoadedModelTitle: String? = nil
 
-    func markFirstResponse(modelTitle: String) {
+    public init() {}
+
+    public func markFirstResponse(modelTitle: String) {
         lastLoadedModelTitle = modelTitle
     }
 
-    func reset() {
+    public func reset() {
         lastLoadedModelTitle = nil
     }
 }
 
 /// What `ModelRunnerView` should do at launch based on persisted state.
-enum RecoveryAction: Equatable {
+public enum RecoveryAction: Equatable {
     /// Previous launch died before the engine ever responded. `ModelRunnerView`
     /// leaves `selectedModel` nil so the picker renders; the picker reads
     /// `pendingLoadModelTitle` directly for the banner text.
@@ -36,8 +38,8 @@ enum RecoveryAction: Equatable {
 
 /// Pure decision logic for launch-time model-load recovery. Extracted so it
 /// can be unit-tested without booting a SwiftUI view.
-enum RecoveryDecision {
-    static func decide(
+public enum RecoveryDecision {
+    public static func decide(
         pendingLoadModelTitle: String,
         selectedModelTitle: String,
         isDebug: Bool

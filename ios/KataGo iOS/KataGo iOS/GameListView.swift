@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import KataGoUICore
 
 struct GameLinksView: View {
     @Binding var selectedGameRecord: GameRecord?
