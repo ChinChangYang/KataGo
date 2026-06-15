@@ -10,24 +10,24 @@ import SwiftUI
 
 @MainActor
 @Observable
-class Downloader: NSObject, URLSessionDownloadDelegate {
-    var progress: Double = 0.0
-    var isDownloading: Bool = false
-    var downloadedFileURL: URL?
+public class Downloader: NSObject, URLSessionDownloadDelegate {
+    public var progress: Double = 0.0
+    public var isDownloading: Bool = false
+    public var downloadedFileURL: URL?
     private var downloadTask: URLSessionDownloadTask?
-    nonisolated let destinationURL: URL
+    nonisolated public let destinationURL: URL
 
     /// Called on the MainActor after a successful download completes and
     /// the file has been moved to `destinationURL`. Callers (e.g.
     /// `ModelDetailView`) use this seam to hash the file and schedule a
     /// background precompile without coupling `Downloader` to the scheduler.
-    var onDownloadComplete: (@MainActor (URL) async -> Void)?
+    public var onDownloadComplete: (@MainActor (URL) async -> Void)?
 
-    init(destinationURL: URL) {
+    public init(destinationURL: URL) {
         self.destinationURL = destinationURL
     }
 
-    func download(from sourceURL: URL) async throws {
+    public func download(from sourceURL: URL) async throws {
         progress = 0.0
         isDownloading = true
         downloadedFileURL = nil
@@ -40,14 +40,14 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         downloadTask?.resume()
     }
 
-    func cancel() {
+    public func cancel() {
         downloadTask?.cancel()
         downloadTask = nil
         isDownloading = false
         progress = 0.0
     }
 
-    nonisolated func urlSession(_: URLSession,
+    nonisolated public func urlSession(_: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didWriteData _: Int64,
                                 totalBytesWritten: Int64,
@@ -59,7 +59,7 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    nonisolated func urlSession(_: URLSession,
+    nonisolated public func urlSession(_: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didFinishDownloadingTo location: URL) {
         // Remove if exists
@@ -75,7 +75,7 @@ class Downloader: NSObject, URLSessionDownloadDelegate {
         }
     }
 
-    nonisolated func urlSession(_: URLSession,
+    nonisolated public func urlSession(_: URLSession,
                                 task: URLSessionTask,
                                 didCompleteWithError error: (any Error)?) {
         // This is called for both success (error == nil) and failure/cancel

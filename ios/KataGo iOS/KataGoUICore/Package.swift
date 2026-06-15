@@ -10,6 +10,9 @@ let package = Package(
     targets: [
         .target(
             name: "KataGoUICore",
+            resources: [
+                .process("Resources")
+            ],
             swiftSettings: [
                 // KataGoInterface exposes C++ headers (e.g. KataGoCpp.hpp includes
                 // <string>), so importing it requires Swift/C++ interop on this target,

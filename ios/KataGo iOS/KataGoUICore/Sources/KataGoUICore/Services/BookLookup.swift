@@ -8,14 +8,13 @@
 import Foundation
 import Compression
 import SwiftUI
-import KataGoUICore
 
-struct BookMoveInfo {
-    let winLoss: Double
-    let sharpScore: Double
-    let adjustedVisits: Int64
-    let policyPrior: Double
-    let rank: Int
+public struct BookMoveInfo {
+    public let winLoss: Double
+    public let sharpScore: Double
+    public let adjustedVisits: Int64
+    public let policyPrior: Double
+    public let rank: Int
 }
 
 // MARK: - Binary format constants
@@ -32,12 +31,12 @@ private let childEntrySize = 8
 
 @MainActor
 @Observable
-class BookLookup {
-    private(set) var isLoaded = false
-    private(set) var isInBook = false
-    private(set) var currentPositionId: Int = 0
-    private(set) var accumulatedSymmetry: Int = 0
-    private(set) var justAdvanced = false
+public class BookLookup {
+    public private(set) var isLoaded = false
+    public private(set) var isInBook = false
+    public private(set) var currentPositionId: Int = 0
+    public private(set) var accumulatedSymmetry: Int = 0
+    public private(set) var justAdvanced = false
 
     private var isLoading = false
     private var bookData: Data?
@@ -54,9 +53,9 @@ class BookLookup {
 
     private let boardSize = 9
 
-    init() {}
+    public init() {}
 
-    func loadIfNeeded() {
+    public func loadIfNeeded() {
         guard !isLoaded, !isLoading else { return }
         isLoading = true
         Task { await loadBook() }
@@ -184,7 +183,7 @@ class BookLookup {
     // MARK: - Loading
 
     private func loadBook() async {
-        guard let bundleURL = Bundle.main.url(forResource: "book9x9jp-20260226.kbook", withExtension: "gz") else {
+        guard let bundleURL = Bundle.module.url(forResource: "book9x9jp-20260226.kbook", withExtension: "gz") else {
             printError("Bundle URL not found for book9x9jp-20260226.kbook.gz")
             return
         }
@@ -508,7 +507,7 @@ class BookLookup {
 
     // MARK: - Navigation
 
-    func advanceMove(appPoint: BoardPoint, boardWidth: Int, boardHeight: Int) {
+    public func advanceMove(appPoint: BoardPoint, boardWidth: Int, boardHeight: Int) {
         guard isInBook, boardWidth == boardSize, boardHeight == boardSize else { return }
 
         let displayPos = appPointToBookPos(appPoint, boardWidth: boardWidth, boardHeight: boardHeight)
@@ -543,11 +542,11 @@ class BookLookup {
         justAdvanced = true
     }
 
-    func clearJustAdvanced() {
+    public func clearJustAdvanced() {
         justAdvanced = false
     }
 
-    func resetToRoot() {
+    public func resetToRoot() {
         guard isLoaded else { return }
         currentPositionId = 0
         accumulatedSymmetry = 0
@@ -555,7 +554,7 @@ class BookLookup {
     }
 
     /// Replay book state from a list of app BoardPoints (called after undo/forward/game switch).
-    func syncFromMoves(_ moves: [BoardPoint], boardWidth: Int, boardHeight: Int) {
+    public func syncFromMoves(_ moves: [BoardPoint], boardWidth: Int, boardHeight: Int) {
         guard isLoaded, boardWidth == boardSize, boardHeight == boardSize else {
             isInBook = false
             return
@@ -578,21 +577,21 @@ class BookLookup {
     }
 
     /// Black winrate (0..1) for the best book move, or nil if not in book.
-    var bestBlackWinrate: Float? {
+    public var bestBlackWinrate: Float? {
         guard let posEntry = currentPositionEntry, posEntry.movesCount > 0,
               let bestMove = readMove(at: Int(posEntry.movesStart)) else { return nil }
         return Float((1.0 - Double(bestMove.winLoss)) / 2.0)
     }
 
     /// Black score lead for the best book move, or nil if not in book.
-    var bestBlackScore: Float? {
+    public var bestBlackScore: Float? {
         guard let posEntry = currentPositionEntry, posEntry.movesCount > 0,
               let bestMove = readMove(at: Int(posEntry.movesStart)) else { return nil }
         return Float(-bestMove.sharpScore)
     }
 
     /// The next player at the current position (1=black, 2=white), or nil if not in book.
-    var currentNextPlayer: Int? {
+    public var currentNextPlayer: Int? {
         guard let posEntry = currentPositionEntry else { return nil }
         return Int(posEntry.nextPlayer)
     }
@@ -603,7 +602,7 @@ class BookLookup {
         return Int(posEntry.movesCount)
     }
 
-    func getBookAnalysis(boardWidth: Int, boardHeight: Int) -> [BoardPoint: BookMoveInfo] {
+    public func getBookAnalysis(boardWidth: Int, boardHeight: Int) -> [BoardPoint: BookMoveInfo] {
         guard boardWidth == boardSize,
               boardHeight == boardSize,
               let posEntry = currentPositionEntry else {

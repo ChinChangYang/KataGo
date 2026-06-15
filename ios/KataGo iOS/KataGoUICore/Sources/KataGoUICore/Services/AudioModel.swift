@@ -25,7 +25,7 @@ public class AudioModel {
             let randomIndex = Int.random(in: 1...3)
             let playSoundSource = "PlayGoStone\(randomIndex)"
 
-            if let playSoundPath = Bundle.main.path(forResource: playSoundSource, ofType: "mp3") {
+            if let playSoundPath = Bundle.module.path(forResource: playSoundSource, ofType: "mp3") {
                 let playSoundUrl = URL(fileURLWithPath: playSoundPath)
                 playSoundPlayer = try? AVAudioPlayer(contentsOf: playSoundUrl)
                 playSoundPlayer?.play()
@@ -38,7 +38,7 @@ public class AudioModel {
             let randomIndex = Int.random(in: 1...3)
             let captureSoundSource = "CaptureGoStone\(randomIndex)"
 
-            if let captureSoundUrl = Bundle.main.url(forResource: captureSoundSource, withExtension: "mp3") {
+            if let captureSoundUrl = Bundle.module.url(forResource: captureSoundSource, withExtension: "mp3") {
                 captureSoundPlayer = try? AVAudioPlayer(contentsOf: captureSoundUrl)
                 captureSoundPlayer?.play()
             }
