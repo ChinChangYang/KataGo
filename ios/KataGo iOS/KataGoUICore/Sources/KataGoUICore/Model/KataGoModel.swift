@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import KataGoInterface
 
 @Observable
 public class BoardSize {

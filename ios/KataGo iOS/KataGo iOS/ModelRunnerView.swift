@@ -7,7 +7,6 @@
 
 import OSLog
 import SwiftUI
-import KataGoInterface
 import KataGoUICore
 
 private let recoveryLogger = Logger(

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import KataGoInterface
+import KataGoUICore
 @testable import KataGo_Anytime
 @testable import KataGoUICore
 

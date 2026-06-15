@@ -7,7 +7,7 @@
 
 import Testing
 import SwiftData
-import KataGoInterface
+import KataGoUICore
 @testable import KataGo_Anytime
 @testable import KataGoUICore
 

@@ -7,7 +7,10 @@
 
 #include "KataGoCpp.hpp"
 
-#include "../../../cpp/main.h"
+// Resolved via the `cpp/` header search path injected in Package.swift
+// (cxxSettings -I). Was a `../../../cpp/main.h` relative include when these
+// sources lived in the KataGoInterface framework target.
+#include "main.h"
 
 using namespace std;
 

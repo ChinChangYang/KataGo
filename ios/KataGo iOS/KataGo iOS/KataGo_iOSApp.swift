@@ -8,7 +8,6 @@
 import CoreData
 import SwiftData
 import SwiftUI
-import KataGoInterface
 import KataGoUICore
 
 @main
@@ -33,6 +32,14 @@ struct KataGo_iOSApp: App {
         #endif
 
         KataGoShortcuts.updateAppShortcutParameters()
+
+        // Register the cache-aware CoreML bridge (Task 19) before any view
+        // appears (and thus before any engine launch). This wires
+        // loadCoreMLHandleWithBridgeTimeout into the KataGoSwift seam. It runs
+        // here rather than inside KataGoUICore's KataGoHelper because the
+        // loader imports the KataGoSwift Xcode framework, which a SwiftPM
+        // package target cannot order against on a cold build.
+        registerCoreMLBridge()
 
         // Wire the bridge's downloaded-hasher seam so downloaded models
         // can compute their `sourceIdentity` for cache-key construction.

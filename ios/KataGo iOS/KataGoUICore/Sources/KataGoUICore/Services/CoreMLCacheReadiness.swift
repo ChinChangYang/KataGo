@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import KataGoInterface
 import Observation
 import OSLog
 

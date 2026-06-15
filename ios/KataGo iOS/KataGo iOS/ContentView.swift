@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import KataGoInterface
 import KataGoUICore
 
 struct ContentView: View {

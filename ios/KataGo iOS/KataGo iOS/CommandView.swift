@@ -7,7 +7,6 @@
 
 import SwiftUI
 import KataGoUICore
-import KataGoInterface
 
 struct CommandView: View {
     @Environment(MessageList.self) var messageList

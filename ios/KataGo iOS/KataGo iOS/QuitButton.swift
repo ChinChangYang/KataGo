@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import KataGoInterface
 import KataGoUICore
 
 struct QuitButton: View {
@@ -28,7 +27,7 @@ struct QuitButton: View {
         ) {
             Button("Quit", role: .destructive) {
                 quitStatus = .quitting
-                KataGoSendCommand("quit")
+                KataGoHelper.sendCommand("quit")
                 Task {
                     // Wait until all messages are consumed.
                     try? await Task.sleep(for: .seconds(1))

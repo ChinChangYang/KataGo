@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import KataGoInterface
+@testable import KataGoUICore
 
 struct CoreMLModelCacheTests {
     private func tempCacheRoot() -> URL {

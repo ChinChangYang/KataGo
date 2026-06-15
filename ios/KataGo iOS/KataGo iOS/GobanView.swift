@@ -8,7 +8,6 @@
 import SwiftUI
 import KataGoUICore
 import SwiftData
-import KataGoInterface
 
 struct GobanItems: View {
     var gameRecord: GameRecord

@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import KataGoInterface
 
 @Model
 public final class GameRecord {

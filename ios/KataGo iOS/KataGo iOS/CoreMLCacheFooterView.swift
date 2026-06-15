@@ -4,7 +4,7 @@
 //
 
 import SwiftUI
-import KataGoInterface
+import KataGoUICore
 
 struct CoreMLCacheFooterView: View {
     @State private var mainCount: Int = 0

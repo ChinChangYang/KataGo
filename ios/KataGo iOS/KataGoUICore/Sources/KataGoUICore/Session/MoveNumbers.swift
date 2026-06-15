@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import KataGoInterface
 
 /// How the board annotates move numbers. Raw values index
 /// `Config.moveNumberStyles` (the picker's display strings) — keep the two in

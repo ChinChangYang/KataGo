@@ -12,7 +12,6 @@
 //
 
 import Foundation
-import KataGoInterface
 
 /// Primitive inputs for `CoreMLModelCache.projectedDigest`.
 /// Keeps the framework ignorant of app-target types like

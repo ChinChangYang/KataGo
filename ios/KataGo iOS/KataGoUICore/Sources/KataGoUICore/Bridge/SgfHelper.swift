@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CKataGoBridge
 
 public struct Location {
     public let x: Int

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import KataGoInterface
 import KataGoUICore
 
 @MainActor

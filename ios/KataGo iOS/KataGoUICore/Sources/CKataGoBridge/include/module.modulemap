@@ -1,0 +1,6 @@
+module CKataGoBridge {
+    header "KataGoCpp.hpp"
+    header "SgfCpp.hpp"
+    requires cplusplus
+    export *
+}

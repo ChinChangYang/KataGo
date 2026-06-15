@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftData
-import KataGoInterface
 
 @Model
 public final class Config {

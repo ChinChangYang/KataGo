@@ -4,16 +4,10 @@ import OSLog
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",
                          category: "engine.coreml.cache")
 
-private final class StandardErrorStream: TextOutputStream {
-    func write(_ string: String) {
-        try? FileHandle.standardError.write(contentsOf: Data(string.utf8))
-    }
-}
-
-private func printError(_ item: Any) {
-    var stream = StandardErrorStream()
-    print(item, to: &stream)
-}
+// Note: `printError` (stderr writer) is provided package-wide by
+// DebugUtils.swift. This file used to carry its own private copy when it
+// lived in the separate KataGoInterface framework module; now that it shares
+// the KataGoUICore module, it reuses the shared one to avoid a redeclaration.
 
 public struct IndexEntry: Codable, Sendable {
     public let digest: String

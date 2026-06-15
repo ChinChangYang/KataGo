@@ -1,6 +1,7 @@
 import CoreML
 import Foundation
 import KataGoSwift
+import KataGoUICore
 
 // MARK: - C bridge declarations (resolve against metalbackend.cpp in KataGoSwift)
 
@@ -227,12 +228,12 @@ public func loadCoreMLHandleWithBridgeTimeout(
 
 /// Register `loadCoreMLHandleWithBridgeTimeout` into the KataGoSwift
 /// closure seam (`katago_coreml_bridge`) so that `metalbackend.cpp`
-/// can invoke it synchronously. Call this once at KataGoInterface
-/// initialisation time.
+/// can invoke it synchronously. Call this once at app-launch time
+/// (KataGo_iOSApp.init), before any engine launch.
 ///
 /// This is the counterpart to `katagoDownloadedHasher` (Task 17/23):
-/// KataGoSwift cannot import KataGoInterface (circular), so we inject
-/// from KataGoInterface into the KataGoSwift global at startup.
+/// KataGoSwift cannot import this loader (circular), so the app target
+/// injects into the KataGoSwift global at startup.
 public func registerCoreMLBridge() {
     katago_coreml_bridge = { (
         coremlModelPath, serverThreadIdx, requireExactNNLen,

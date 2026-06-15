@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CKataGoBridge
 
 public class KataGoHelper {
 
@@ -74,10 +75,13 @@ public class KataGoHelper {
         let configPath = mainBundle.path(forResource: configName,
                                          ofType: configExt)
 
-        // Register the cache-aware CoreML bridge (Task 19) before the engine
-        // starts. This wires loadCoreMLHandleWithBridgeTimeout into the
-        // KataGoSwift seam so convertAndCreateCoreMLOnlyHandle can call it.
-        registerCoreMLBridge()
+        // The cache-aware CoreML bridge (Task 19) is registered at app launch
+        // via `registerCoreMLBridge()` in KataGo_iOSApp.init(). It lives in the
+        // app target (not this package) because its loader imports KataGoSwift,
+        // an Xcode framework a SwiftPM target cannot order against; the app
+        // target is ordered after KataGoSwift via the framework graph. The
+        // registration runs before any view (and thus any runGtp call), so the
+        // KataGoSwift seam is wired before the engine starts.
 
         KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
                      std.string(humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"),
