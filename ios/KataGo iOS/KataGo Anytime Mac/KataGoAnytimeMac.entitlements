@@ -2,37 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>com.apple.developer.aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.chinchangyang.KataGo-iOS.tw</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
-	<!--
-	  iCloud/CloudKit entitlements (matching the iOS app's
-	  iCloud.chinchangyang.KataGo-iOS.tw container) are DEFERRED to Task 4,
-	  where CloudKit sync is actually wired into the SwiftData container.
-
-	  CloudKit is a *managed* capability: it requires a developer-account-
-	  generated provisioning profile for this NEW App ID
-	  (chinchangyang.KataGo-iOS.tw.mac). That profile cannot be created
-	  unless the Apple Developer account is signed in to Xcode, so including
-	  these keys now makes the target unbuildable in any environment without
-	  that provisioning (including headless CI). The Task-2 empty-window
-	  skeleton uses a plain local ModelContainer(for: GameRecord.self) with
-	  NO CloudKit configuration, so the entitlement is not yet exercised.
-
-	  In Task 4, once the App ID is provisioned with the CloudKit capability,
-	  add (matching the iOS app exactly):
-
-	  <key>com.apple.developer.icloud-container-identifiers</key>
-	  <array>
-	      <string>iCloud.chinchangyang.KataGo-iOS.tw</string>
-	  </array>
-	  <key>com.apple.developer.icloud-services</key>
-	  <array>
-	      <string>CloudKit</string>
-	  </array>
-	-->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>
