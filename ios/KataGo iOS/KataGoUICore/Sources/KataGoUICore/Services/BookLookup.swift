@@ -35,7 +35,7 @@ public class BookLookup {
     public private(set) var isLoaded = false
     public private(set) var isInBook = false
     public private(set) var currentPositionId: Int = 0
-    public private(set) var accumulatedSymmetry: Int = 0
+    private(set) var accumulatedSymmetry: Int = 0
     public private(set) var justAdvanced = false
 
     private var isLoading = false

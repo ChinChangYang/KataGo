@@ -66,6 +66,14 @@ final class BackendConfigSheetUITests: XCTestCase {
         XCTAssertTrue(thirteen.waitForExistence(timeout: 10) && thirteen.isSelected,
                       "MLX/GPU max board size did not persist as 13x13 across reopen, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
+
+        // Restore the 19x19 default so the test is idempotent: the choice is
+        // persisted per-model in UserDefaults, which survives app reinstall in the
+        // simulator's data container, so leaving it at 13x13 would make the
+        // "defaults to 19x19" assertion fail on the next run.
+        segment(in: app, "19x19").tap()
+        XCTAssertTrue(segment(in: app, "19x19").isSelected,
+                      "Failed to restore the 19x19 default at end of test")
     }
 
     // MARK: - Helpers

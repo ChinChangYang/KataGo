@@ -101,25 +101,28 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "Confirmation 'Clear' button did not appear")
         confirmClear.tap()
 
-        // Footer must now read "Main: 0 of 4" with zero bytes.
+        // The footer formats sizes with `ByteCountFormatter`, whose output for
+        // zero bytes is locale/OS-dependent ("0 B", "0 KB", "Zero KB", "Zero
+        // bytes", …) AND differs between the app process and this test process,
+        // so we cannot match the byte string directly. The deterministic,
+        // process-independent signal that the partition is empty is the
+        // cleared count "0 of <cap>", which the footer renders as
+        // "<Label>: 0 of 4 · <size>". Assert on the count.
+        let zeroCount = "0 of 4"
+
+        // Footer must now read "Main: 0 of 4" after Clear.
         let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(mainStats.waitForExistence(timeout: 30),
                       "CoreMLCache.footerMainStats not found after Clear")
-        XCTAssertTrue(mainStats.label.contains("Main: 0 of 4"),
-                      "Expected 'Main: 0 of 4' after Clear, got: '\(mainStats.label)'")
-        XCTAssertTrue(mainStats.label.contains("0 B")
-                      || mainStats.label.contains("Zero bytes"),
-                      "Expected zero-byte size after Clear, got: '\(mainStats.label)'")
+        XCTAssertTrue(mainStats.label.contains("Main: \(zeroCount)"),
+                      "Expected 'Main: \(zeroCount)' after Clear, got: '\(mainStats.label)'")
 
-        // Human SL partition must also read "Human SL: 0 of 4" with zero bytes.
+        // Human SL partition must also read "Human SL: 0 of 4" after Clear.
         let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
         XCTAssertTrue(auxStats.waitForExistence(timeout: 30),
                       "CoreMLCache.footerAuxStats not found after Clear")
-        XCTAssertTrue(auxStats.label.contains("Human SL: 0 of 4"),
-                      "Expected 'Human SL: 0 of 4' after Clear, got: '\(auxStats.label)'")
-        XCTAssertTrue(auxStats.label.contains("0 B")
-                      || auxStats.label.contains("Zero bytes"),
-                      "Expected zero-byte size for Human SL after Clear, got: '\(auxStats.label)'")
+        XCTAssertTrue(auxStats.label.contains("Human SL: \(zeroCount)"),
+                      "Expected 'Human SL: \(zeroCount)' after Clear, got: '\(auxStats.label)'")
 
         // The Clear Cache button must disappear once totalCount == 0.
         XCTAssertFalse(clearButton.waitForExistence(timeout: 5),

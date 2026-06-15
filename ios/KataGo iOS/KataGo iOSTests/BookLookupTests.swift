@@ -446,6 +446,37 @@ struct BookLookupTests {
         #expect(book.currentMovesCount == nil)
     }
 
+    // MARK: - Real bundle load (Bundle.module)
+
+    /// Exercises the REAL load path: `loadIfNeeded()` reads the bundled
+    /// `book9x9jp-20260226.kbook.gz` via `Bundle.module`, decompresses it,
+    /// and parses the binary header. Proves `Bundle.module` resolves the
+    /// package resource at runtime (the same mechanism `AudioModel` uses
+    /// for its bundled mp3s). The fire-and-forget `loadIfNeeded()` spawns
+    /// a detached parse Task, so poll `isLoaded` with a bounded timeout.
+    @Test func loadsRealBundledBook() async throws {
+        let book = BookLookup()
+        #expect(book.isLoaded == false)
+
+        book.loadIfNeeded()
+
+        // Poll for the asynchronous load to complete (decompress + parse).
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while !book.isLoaded, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        #expect(book.isLoaded == true,
+                "Bundle.module should resolve and load book9x9jp-20260226.kbook.gz")
+        // A real 9x9 opening book has positions, so the root must be in-book
+        // and expose analysis for the empty board.
+        #expect(book.isInBook == true)
+        #expect(book.currentNextPlayer == 1)  // black to play at the root
+        let rootAnalysis = book.getBookAnalysis(boardWidth: 9, boardHeight: 9)
+        #expect(rootAnalysis.isEmpty == false,
+                "Root position of the loaded book should expose at least one move")
+    }
+
     // MARK: - Binary format validation
 
     @Test func binarySerializationRoundTrip() {
