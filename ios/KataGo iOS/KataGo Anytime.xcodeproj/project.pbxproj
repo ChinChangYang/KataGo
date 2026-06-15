@@ -17,10 +17,13 @@
 		0600FE3E5C7473BB5AF12043 /* seed_gen_exception.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3EECD0D85DD624C818E374D5 /* seed_gen_exception.cc */; };
 		077EBCD78E98B9FE30D07502 /* win32_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6C1E3C2F7427E56602D6A00E /* win32_waiter.cc */; };
 		099C50E010397FF0755BC913 /* globals.cc in Sources */ = {isa = PBXBuildFile; fileRef = D1F4B3BEA316F4BAC370ACA2 /* globals.cc */; };
+		0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
+		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
+		162CF665BE9CC9D3F596B306 /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */; };
 		16DA2B0F2603C5AC4D072362 /* SubByteTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */; };
 		1821247E1EAEBBC73694BAFD /* ItemSimilarityRecommender.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */; };
 		1898CE597D3A65A0C6455C0A /* program_name.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3198312DEEC29C7E79A119D6 /* program_name.cc */; };
@@ -87,12 +90,14 @@
 		57106766F3F29CAD99F9BF2D /* nullguard.cc in Sources */ = {isa = PBXBuildFile; fileRef = 55915A5FD9CB10142DE64426 /* nullguard.cc */; };
 		57AB2F792F63982215ED36A6 /* TextClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B353F521781321D83987622 /* TextClassifier.pb.cc */; };
 		57C30FBD9D80117903FCC4E2 /* TreeEnsemble.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */; };
+		583282835D75E870D91DFCF5 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4C159FB921FB252C225F18A /* AppIntents.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		585A135BE268886E031FA9A2 /* time_zone_fixed.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */; };
 		5AD1A5BA9300BBAABC9954F8 /* demangle.cc in Sources */ = {isa = PBXBuildFile; fileRef = FDB0EF5683E83342322E62D3 /* demangle.cc */; };
 		5C0FB63877615EF37C82B458 /* elf_mem_image.cc in Sources */ = {isa = PBXBuildFile; fileRef = BC369E122AA45A565227D30F /* elf_mem_image.cc */; };
 		5CF354385061AA2AF9FDB640 /* thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1BD242602F707FC96E8F9DDC /* thread_identity.cc */; };
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
+		5FFDE5149A7967CD92997B05 /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D93FBBF1207325A5E8D3E42 /* KataGoUICore */; };
 		61BCF2BF2E6863B7D939DE3D /* status_internal.cc in Sources */ = {isa = PBXBuildFile; fileRef = F42A3F61F5D728D923150B06 /* status_internal.cc */; };
 		630898D664665D951808FD3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		6335453FC03E1E0E180004A2 /* CoreMLSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */; };
@@ -113,9 +118,12 @@
 		7355BB5F52FB13C6F999DF88 /* randen_hwaes.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2E68FA51F431F3FDCF3DA465 /* randen_hwaes.cc */; };
 		73D1DC8DDD07CA0A5AF0BF71 /* io_win32.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6EB13268A687A719E6147560 /* io_win32.cc */; };
 		747AA0D367E87CC4A09A691D /* generated_message_tctable_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC7C132EBC65528DED098F5A /* generated_message_tctable_lite.cc */; };
+		74F0287281FFC47912543E0A /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */; };
 		74F31654F67CF26602AAD91E /* ThirdPartyLicensesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */; };
 		74FD21F6D90C6C17BD8C1ACA /* cpu_detect.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65CE6FCF54B90459C06242BB /* cpu_detect.cc */; };
 		75713BA26AADC45D8118ED42 /* cordz_handle.cc in Sources */ = {isa = PBXBuildFile; fileRef = 40A265B1DCFCFBEE2F70C0A7 /* cordz_handle.cc */; };
+		771C2416FAE06C95AE5E73E0 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
+		775ABF15664E7E781AFE4CF9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB4E92E3543C8AD66A38752E /* Cocoa.framework */; };
 		776D824E960DE621EE554970 /* charconv_parse.cc in Sources */ = {isa = PBXBuildFile; fileRef = AF678317B766C097616B662A /* charconv_parse.cc */; };
 		77C02C65E55EC657E2FBDAF8 /* crc32c.cc in Sources */ = {isa = PBXBuildFile; fileRef = 15BA1592C87481A57E8CC1BE /* crc32c.cc */; };
 		79FC99D1FE195C3BDC7AE8D8 /* commandlineflag.cc in Sources */ = {isa = PBXBuildFile; fileRef = E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */; };
@@ -186,6 +194,7 @@
 		AE45237315F8D1F22A84E18C /* check_op.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9A84A6291B2BFE5CE2182097 /* check_op.cc */; };
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
+		B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B3C5A7E296778917F6018B60 /* ArrayFeatureExtractor.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5794706AF4B265E17CEF12A4 /* ArrayFeatureExtractor.pb.cc */; };
 		B47AC320EAC8ADA4B2B4649E /* structured_proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */; };
 		B49E0366C2D6EF8344A465B9 /* AudioFeaturePrint.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */; };
@@ -480,6 +489,7 @@
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
 		E5137D84D308B565E7F4CCE7 /* pow10_helper.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CA99DECEC565A8514335 /* pow10_helper.cc */; };
+		E520E06A88E0C6F0F7708443 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E745B4AF363B375FE7357325 /* arenaz_sampler.cc in Sources */ = {isa = PBXBuildFile; fileRef = BE2564FBAA9E809482077069 /* arenaz_sampler.cc */; };
 		E7E83D48676240ECABC08CFA /* numbers.cc in Sources */ = {isa = PBXBuildFile; fileRef = 264B3893737FC446D6D67C6E /* numbers.cc */; };
 		E8E0DEFB7A6A676665AFFAC9 /* BayesianProbitRegressor.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = A4D73282B969B2E68B605C1C /* BayesianProbitRegressor.pb.cc */; };
@@ -506,6 +516,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0B993F24760BC3B1DBA414EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E118EE8F2B081C3200637D44;
+			remoteInfo = katago;
+		};
+		508EE9D74FB84791DF5B7A4F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E11887E02B0830C900637D44;
+			remoteInfo = KataGoSwift;
+		};
 		E11887E52B0830C900637D44 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
@@ -544,6 +568,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		0B683B14037DC3C6BDD811AB /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				E520E06A88E0C6F0F7708443 /* katago.framework in Embed Frameworks */,
+				B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E118EE842B0819E500637D44 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -627,6 +663,7 @@
 		4B353F521781321D83987622 /* TextClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TextClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/TextClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
 		4B723FFDCF4553074736CA50 /* graphcycles.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = graphcycles.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/graphcycles.cc"; sourceTree = SOURCE_ROOT; };
 		4BE7511F72FFCCBFDD1A791A /* int128.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = int128.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/numeric/int128.cc"; sourceTree = SOURCE_ROOT; };
+		4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreMLComputeHandleLoader.swift; sourceTree = "<group>"; };
 		4D052BCCBD2D036B1E839690 /* vlog_config.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = vlog_config.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/vlog_config.cc"; sourceTree = SOURCE_ROOT; };
 		4D6E52745365E94504045919 /* create_thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = create_thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/create_thread_identity.cc"; sourceTree = SOURCE_ROOT; };
 		4FA4F0662AABA7D774C87B46 /* conditions.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = conditions.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/conditions.cc"; sourceTree = SOURCE_ROOT; };
@@ -634,6 +671,7 @@
 		53BD6F60BC59DC9F59A2F3F7 /* log_message.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_message.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/log_message.cc"; sourceTree = SOURCE_ROOT; };
 		5421AC611426CA58B63851AA /* proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/proto.cc"; sourceTree = SOURCE_ROOT; };
 		55915A5FD9CB10142DE64426 /* nullguard.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nullguard.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/nullguard.cc"; sourceTree = SOURCE_ROOT; };
+		55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		5617DDD280230D724D85091A /* str_cat.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_cat.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_cat.cc"; sourceTree = SOURCE_ROOT; };
 		56670017B37208754039FF64 /* Parameters.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Parameters.pb.cc; path = ../../cpp/external/katagocoreml/generated/Parameters.pb.cc; sourceTree = SOURCE_ROOT; };
 		56B99DA3E143A43DEB93814E /* clock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = clock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/clock.cc"; sourceTree = SOURCE_ROOT; };
@@ -642,6 +680,7 @@
 		59BDE2664FA33EFE5A79F545 /* wire_format_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = wire_format_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/wire_format_lite.cc"; sourceTree = SOURCE_ROOT; };
 		5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_material.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/seed_material.cc"; sourceTree = SOURCE_ROOT; };
 		5E1405189D7D3837B2A46C2C /* log_sink.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_sink.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_sink.cc"; sourceTree = SOURCE_ROOT; };
+		5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		5F6CAE149C2D97CD25EB7312 /* extension.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = extension.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/extension.cc"; sourceTree = SOURCE_ROOT; };
 		5FEAA2F338D54F48ED93BEC0 /* arena_align.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arena_align.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arena_align.cc"; sourceTree = SOURCE_ROOT; };
 		600FF4D6555CDCE2390DAD5C /* NeuralNetwork.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = NeuralNetwork.pb.cc; path = ../../cpp/external/katagocoreml/generated/NeuralNetwork.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -675,6 +714,7 @@
 		7796CFED474942C453ABC091 /* Gazetteer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Gazetteer.pb.cc; path = ../../cpp/external/katagocoreml/generated/Gazetteer.pb.cc; sourceTree = SOURCE_ROOT; };
 		79E54583C05CD001102C9D93 /* AnalysisLineParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisLineParserTests.swift; sourceTree = "<group>"; };
 		7B39F29BDB2F8D7E127040D4 /* log_severity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_severity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/log_severity.cc"; sourceTree = SOURCE_ROOT; };
+		7CCB02B8B6426F2FD06E23D2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
 		805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_non_temporal_memcpy.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_non_temporal_memcpy.cc"; sourceTree = SOURCE_ROOT; };
@@ -700,6 +740,7 @@
 		927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CoreMLSerializer.cpp; path = ../../cpp/external/katagocoreml/src/serializer/CoreMLSerializer.cpp; sourceTree = SOURCE_ROOT; };
 		940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Scaler.pb.cc; path = ../../cpp/external/katagocoreml/generated/Scaler.pb.cc; sourceTree = SOURCE_ROOT; };
 		959FD21C12D9EA5999A3D914 /* notification.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = notification.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/notification.cc"; sourceTree = SOURCE_ROOT; };
+		99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = KataGoAnytimeMac.entitlements; sourceTree = "<group>"; };
 		9A84A6291B2BFE5CE2182097 /* check_op.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = check_op.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/check_op.cc"; sourceTree = SOURCE_ROOT; };
 		9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
 		A384C5A1A349F4B5F0FC3169 /* casts.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = casts.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/casts.cc"; sourceTree = SOURCE_ROOT; };
@@ -735,6 +776,7 @@
 		B797CDE40306D2B33B324106 /* status.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status.cc"; sourceTree = SOURCE_ROOT; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
 		BA88218FE439761B96AE38F7 /* MIL.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MIL.pb.cc; path = ../../cpp/external/katagocoreml/generated/MIL.pb.cc; sourceTree = SOURCE_ROOT; };
+		BB4E92E3543C8AD66A38752E /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arenastring.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arenastring.cc"; sourceTree = SOURCE_ROOT; };
 		BC00FAF78F15BAC9A3101C58 /* VisionFeaturePrint.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = VisionFeaturePrint.pb.cc; path = ../../cpp/external/katagocoreml/generated/VisionFeaturePrint.pb.cc; sourceTree = SOURCE_ROOT; };
 		BC2CF6DCF3C1E8EF28EA94A2 /* MMapFileReaderFactory.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReaderFactory.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReaderFactory.cpp; sourceTree = SOURCE_ROOT; };
@@ -752,6 +794,7 @@
 		C4E1A7267F0FD9F81B825BA1 /* stack_consumption.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stack_consumption.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/stack_consumption.cc"; sourceTree = SOURCE_ROOT; };
 		C4F10454A06915C16510616D /* discrete_distribution.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = discrete_distribution.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/discrete_distribution.cc"; sourceTree = SOURCE_ROOT; };
 		C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_crc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_crc.cc"; sourceTree = SOURCE_ROOT; };
+		C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime Mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C661B0E86E990AC64120A0B1 /* examine_stack.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = examine_stack.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/examine_stack.cc"; sourceTree = SOURCE_ROOT; };
 		C811320B1287C5DE661DB7FB /* implicit_weak_message.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = implicit_weak_message.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/implicit_weak_message.cc"; sourceTree = SOURCE_ROOT; };
 		C8269527CA97AE161731B9CB /* unscaledcycleclock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = unscaledcycleclock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/unscaledcycleclock.cc"; sourceTree = SOURCE_ROOT; };
@@ -1047,6 +1090,7 @@
 		F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = low_level_alloc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/low_level_alloc.cc"; sourceTree = SOURCE_ROOT; };
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
+		F4C159FB921FB252C225F18A /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
 		F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureTypes.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureTypes.pb.cc; sourceTree = SOURCE_ROOT; };
 		F6CA708020D63562D4FEC662 /* spinlock_wait.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock_wait.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock_wait.cc"; sourceTree = SOURCE_ROOT; };
@@ -1063,6 +1107,18 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		5BC10027239988B6F3835D6A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				775ABF15664E7E781AFE4CF9 /* Cocoa.framework in Frameworks */,
+				5FFDE5149A7967CD92997B05 /* KataGoUICore in Frameworks */,
+				0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */,
+				771C2416FAE06C95AE5E73E0 /* katago.framework in Frameworks */,
+				583282835D75E870D91DFCF5 /* AppIntents.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E11887DE2B0830C900637D44 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1148,6 +1204,14 @@
 			name = proto_generated;
 			sourceTree = "<group>";
 		};
+		30687D37E5124884C6DACCF2 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				BB4E92E3543C8AD66A38752E /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
 		5B5E3386297452CB52ECF0A8 /* ModelPackage */ = {
 			isa = PBXGroup;
 			children = (
@@ -1155,6 +1219,19 @@
 				72957BAFF34FE57DABA3B7E1 /* JsonMap.cpp */,
 			);
 			name = ModelPackage;
+			sourceTree = "<group>";
+		};
+		6B70C95C29A013E1C0FA60AC /* KataGo Anytime Mac */ = {
+			isa = PBXGroup;
+			children = (
+				55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */,
+				5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */,
+				4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */,
+				7CCB02B8B6426F2FD06E23D2 /* Info.plist */,
+				99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */,
+			);
+			name = "KataGo Anytime Mac";
+			path = "KataGo Anytime Mac";
 			sourceTree = "<group>";
 		};
 		951FEDFF2F773F62044F2154 /* MILBlob */ = {
@@ -1752,6 +1829,7 @@
 				04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */,
 				CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */,
 				CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */,
+				6B70C95C29A013E1C0FA60AC /* KataGo Anytime Mac */,
 			);
 			sourceTree = "<group>";
 		};
@@ -1763,6 +1841,7 @@
 				E18F3E272A51466C00D335E1 /* KataGo AnytimeUITests.xctest */,
 				E118EE902B081C3200637D44 /* katago.framework */,
 				E11887E12B0830C900637D44 /* KataGoSwift.framework */,
+				C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1827,6 +1906,8 @@
 			isa = PBXGroup;
 			children = (
 				E18F3F712A5149AB00D335E1 /* libz.tbd */,
+				30687D37E5124884C6DACCF2 /* OS X */,
+				F4C159FB921FB252C225F18A /* AppIntents.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -1969,6 +2050,29 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		12B6A655CD5C9237380A43AE /* KataGo Anytime Mac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6898BF5F74C7AC5B5E37CCA7 /* Build configuration list for PBXNativeTarget "KataGo Anytime Mac" */;
+			buildPhases = (
+				AC7F972F910D3C0E79431C3A /* Sources */,
+				5BC10027239988B6F3835D6A /* Frameworks */,
+				CCBE38050DC98ECFA5E176E1 /* Resources */,
+				0B683B14037DC3C6BDD811AB /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6E3FB0FE24CC569305ED27DD /* PBXTargetDependency */,
+				F94C46C9F70DBE70D5765886 /* PBXTargetDependency */,
+			);
+			name = "KataGo Anytime Mac";
+			packageProductDependencies = (
+				0D93FBBF1207325A5E8D3E42 /* KataGoUICore */,
+			);
+			productName = "KataGo Anytime Mac";
+			productReference = C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */;
+			productType = "com.apple.product-type.application";
+		};
 		E11887E02B0830C900637D44 /* KataGoSwift */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E11887E92B0830C900637D44 /* Build configuration list for PBXNativeTarget "KataGoSwift" */;
@@ -2125,11 +2229,19 @@
 				E18F3E262A51466C00D335E1 /* KataGo AnytimeUITests */,
 				E118EE8F2B081C3200637D44 /* katago */,
 				E11887E02B0830C900637D44 /* KataGoSwift */,
+				12B6A655CD5C9237380A43AE /* KataGo Anytime Mac */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CCBE38050DC98ECFA5E176E1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E11887DF2B0830C900637D44 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2176,6 +2288,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AC7F972F910D3C0E79431C3A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */,
+				74F0287281FFC47912543E0A /* MainWindowController.swift in Sources */,
+				162CF665BE9CC9D3F596B306 /* CoreMLComputeHandleLoader.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E11887DD2B0830C900637D44 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2616,6 +2738,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		6E3FB0FE24CC569305ED27DD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = katago;
+			target = E118EE8F2B081C3200637D44 /* katago */;
+			targetProxy = 0B993F24760BC3B1DBA414EB /* PBXContainerItemProxy */;
+		};
 		E11887E62B0830C900637D44 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E11887E02B0830C900637D44 /* KataGoSwift */;
@@ -2641,9 +2769,81 @@
 			target = E18F3E0C2A51466A00D335E1 /* KataGo Anytime */;
 			targetProxy = E18F3E282A51466C00D335E1 /* PBXContainerItemProxy */;
 		};
+		F94C46C9F70DBE70D5765886 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KataGoSwift;
+			target = E11887E02B0830C900637D44 /* KataGoSwift */;
+			targetProxy = 508EE9D74FB84791DF5B7A4F /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		44CDF9CA09F398C0EC185B4C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KataGo Anytime Mac/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";
+				PRODUCT_NAME = KataGoAnytimeMac;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D3B3D4B2EC41BD9094262C32 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KataGo Anytime Mac/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";
+				PRODUCT_NAME = KataGoAnytimeMac;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		E11887EA2B0830C900637D44 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -3253,6 +3453,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		6898BF5F74C7AC5B5E37CCA7 /* Build configuration list for PBXNativeTarget "KataGo Anytime Mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D3B3D4B2EC41BD9094262C32 /* Release */,
+				44CDF9CA09F398C0EC185B4C /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E11887E92B0830C900637D44 /* Build configuration list for PBXNativeTarget "KataGoSwift" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -3321,6 +3530,11 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0D93FBBF1207325A5E8D3E42 /* KataGoUICore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = KataGoUICore;
+		};
 		D92F4C4766099217B210A9D1 /* KataGoUICore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
