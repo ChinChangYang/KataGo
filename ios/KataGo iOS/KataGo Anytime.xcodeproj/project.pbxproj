@@ -96,10 +96,12 @@
 		5AD1A5BA9300BBAABC9954F8 /* demangle.cc in Sources */ = {isa = PBXBuildFile; fileRef = FDB0EF5683E83342322E62D3 /* demangle.cc */; };
 		5C0FB63877615EF37C82B458 /* elf_mem_image.cc in Sources */ = {isa = PBXBuildFile; fileRef = BC369E122AA45A565227D30F /* elf_mem_image.cc */; };
 		5CF354385061AA2AF9FDB640 /* thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1BD242602F707FC96E8F9DDC /* thread_identity.cc */; };
+		5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D702E277C8397612E300DEC9 /* MacBoardHostView.swift */; };
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
 		5FFDE5149A7967CD92997B05 /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D93FBBF1207325A5E8D3E42 /* KataGoUICore */; };
 		61BCF2BF2E6863B7D939DE3D /* status_internal.cc in Sources */ = {isa = PBXBuildFile; fileRef = F42A3F61F5D728D923150B06 /* status_internal.cc */; };
+		61C325C8BFAD3AB5D9F8C34A /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		630898D664665D951808FD3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		6335453FC03E1E0E180004A2 /* CoreMLSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */; };
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
@@ -199,6 +201,7 @@
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
 		B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B3C5A7E296778917F6018B60 /* ArrayFeatureExtractor.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5794706AF4B265E17CEF12A4 /* ArrayFeatureExtractor.pb.cc */; };
+		B3FEEEA4AAB839BA36DCFCB3 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		B47AC320EAC8ADA4B2B4649E /* structured_proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */; };
 		B49E0366C2D6EF8344A465B9 /* AudioFeaturePrint.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */; };
 		B4B0885216435F927C9C8DD6 /* flags.cc in Sources */ = {isa = PBXBuildFile; fileRef = C20921B07C4FBDCCC06193B2 /* flags.cc */; };
@@ -218,6 +221,7 @@
 		C94E26069C042A56AD5D7FA6 /* fnmatch.cc in Sources */ = {isa = PBXBuildFile; fileRef = AFA25780D7FD60C18EEC7648 /* fnmatch.cc */; };
 		C9E62F63E3B352AB7B1A9784 /* profile_builder.cc in Sources */ = {isa = PBXBuildFile; fileRef = F76F77D2854F4AF2862EF966 /* profile_builder.cc */; };
 		C9F08DE55AEB04FAA4BEBE48 /* Identity.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6F866E573528F820F22A5D09 /* Identity.pb.cc */; };
+		CA36A405FB842DD6BE6516CD /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		CA5FFAE2C89258E1E0D850BB /* throw_delegate.cc in Sources */ = {isa = PBXBuildFile; fileRef = 098B90970A3612EEF180A94B /* throw_delegate.cc */; };
 		CA83E55A9AEC8E096FE3B592 /* tracing.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8670725B9C6971B19E405695 /* tracing.cc */; };
 		CBA23590061F14C135F5CBAC /* NonMaximumSuppression.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = B2E7B68715B470B69222FD6B /* NonMaximumSuppression.pb.cc */; };
@@ -821,6 +825,7 @@
 		D53357C0B8CA23F49DBCC01E /* marshalling.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = marshalling.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/marshalling.cc"; sourceTree = SOURCE_ROOT; };
 		D567C3AB127FDCD977020697 /* usage.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/usage.cc"; sourceTree = SOURCE_ROOT; };
 		D6874F1F3C7B520AD9FEE05A /* ClassConfidenceThresholding.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ClassConfidenceThresholding.pb.cc; path = ../../cpp/external/katagocoreml/generated/ClassConfidenceThresholding.pb.cc; sourceTree = SOURCE_ROOT; };
+		D702E277C8397612E300DEC9 /* MacBoardHostView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacBoardHostView.swift; sourceTree = "<group>"; };
 		D7A16EC2F498FDCFE013273A /* demangle_rust.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle_rust.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle_rust.cc"; sourceTree = SOURCE_ROOT; };
 		D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTextParserTests.swift; sourceTree = "<group>"; };
 		D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreMLComputeHandleLoader.swift; sourceTree = "<group>"; };
@@ -1238,6 +1243,7 @@
 				735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */,
 				54D382D5D477A9008C934B67 /* BoardViewController.swift */,
 				1C81EB8694345D4096093043 /* PlaceholderViewController.swift */,
+				D702E277C8397612E300DEC9 /* MacBoardHostView.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2248,6 +2254,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA36A405FB842DD6BE6516CD /* default_model.bin.gz in Resources */,
+				B3FEEEA4AAB839BA36DCFCB3 /* default_gtp.cfg in Resources */,
+				61C325C8BFAD3AB5D9F8C34A /* b18c384nbt-humanv0.bin.gz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2307,6 +2316,7 @@
 				69FBFAB9B1006AEE42C3312C /* MainSplitViewController.swift in Sources */,
 				4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */,
 				AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */,
+				5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

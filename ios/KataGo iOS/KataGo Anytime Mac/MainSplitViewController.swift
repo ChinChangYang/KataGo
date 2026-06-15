@@ -6,9 +6,21 @@ import KataGoUICore
 /// the split build before the real board is wired in Task 4.
 final class MainSplitViewController: NSSplitViewController {
     let session: GameSession
+    let navigationContext: NavigationContext
+    let audioModel: AudioModel
+    let thumbnailModel: ThumbnailModel
+    let topUIState: TopUIState
 
-    init(session: GameSession) {
+    init(session: GameSession,
+         navigationContext: NavigationContext,
+         audioModel: AudioModel,
+         thumbnailModel: ThumbnailModel,
+         topUIState: TopUIState) {
         self.session = session
+        self.navigationContext = navigationContext
+        self.audioModel = audioModel
+        self.thumbnailModel = thumbnailModel
+        self.topUIState = topUIState
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -25,7 +37,14 @@ final class MainSplitViewController: NSSplitViewController {
         sidebarItem.maximumThickness = 320
 
         // Board (content) — takes the slack on resize.
-        let boardItem = NSSplitViewItem(viewController: BoardViewController(session: session))
+        let boardVC = BoardViewController(
+            session: session,
+            navigationContext: navigationContext,
+            audioModel: audioModel,
+            thumbnailModel: thumbnailModel,
+            topUIState: topUIState
+        )
+        let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(
             NSLayoutConstraint.Priority.defaultLow.rawValue - 1)
 

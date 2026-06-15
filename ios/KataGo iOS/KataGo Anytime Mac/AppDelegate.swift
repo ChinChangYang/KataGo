@@ -2,7 +2,24 @@ import AppKit
 import SwiftData
 import KataGoUICore
 
+/// Explicit entry point. A bare `@main` on an `NSApplicationDelegate` class does
+/// NOT install that instance as `NSApp.delegate` (unlike SwiftUI's `App`), so
+/// `applicationDidFinishLaunching(_:)` would never fire and the app would launch
+/// to an empty process with no window or engine. Wiring the delegate explicitly
+/// before `NSApplicationMain` fixes that.
 @main
+enum AppMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        // Keep the delegate alive for the lifetime of the run loop.
+        withExtendedLifetime(delegate) {
+            _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
+        }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     let modelContainer = try! ModelContainer(for: GameRecord.self)
