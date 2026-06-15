@@ -73,7 +73,7 @@ Expected: `** BUILD SUCCEEDED **` for iOS, macOS, visionOS; `** TEST SUCCEEDED *
 - [ ] **Step 2: Create `KataGoUICore/Package.swift`**
 
 ```swift
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2          // 6.2 required: the .v26 platform symbols are unavailable in 6.0
 import PackageDescription
 
 let package = Package(
@@ -85,9 +85,14 @@ let package = Package(
     targets: [
         .target(
             name: "KataGoUICore",
-            resources: [
-                .process("Resources")
+            swiftSettings: [
+                // REQUIRED so the package can `import KataGoInterface`, whose public
+                // headers (KataGoCpp.hpp) include C++ stdlib (<string>). Verified during
+                // Task 1 execution. Matches the app target's C++ interop.
+                .interoperabilityMode(.Cxx)
             ]
+            // NOTE: the `resources: [.process("Resources")]` argument is added in Task 4
+            // (an empty Resources dir produces a degenerate bundle that fails codesign).
         )
     ]
 )
@@ -462,7 +467,7 @@ git tag mac-phase0-complete
 
 ## Risks & Mitigations
 
-- **`KataGoInterface` visibility from the package:** `KataGoInterface` is an Xcode framework, not a SwiftPM package, so it isn't a `Package.swift` dependency. Moved files keep `import KataGoInterface`; this resolves when the *app* builds (the framework is in the link). If the package fails to find `KataGoInterface` during its own compile, add it as a dependency via the project's package-target settings (Xcode: select the `KataGoUICore` package target ▸ add `KataGoInterface` to "Link Binary With Libraries"), or expose the needed bridge types through a thin protocol in `KataGoUICore` that the app conforms to. Decide at Task 2 Step 3 if the error appears.
+- **`KataGoInterface` visibility from the package — RESOLVED (Task 1):** the package *can* resolve and import the `KataGoInterface` Xcode framework, but because its public headers expose C++ (`KataGoCpp.hpp` includes `<string>`), the import only compiles when the package target has **Swift/C++ interop enabled**. Fix verified empirically in Task 1: add `swiftSettings: [.interoperabilityMode(.Cxx)]` to the `KataGoUICore` target (shown in Task 1 Step 2). No protocol-inversion or framework-repackaging needed. All later tasks that move `KataGoInterface`-importing files rely on this.
 - **`public init` for `@Model`/`@Observable`:** the build surfaces every missing one; never change stored properties of `@Model` types (frozen schema) — only access levels + add `public init`.
 - **Resource loading:** only `AudioModel` and `BookLookup` change to `Bundle.module`; engine nets/gtp.cfg stay app-side. The `BookLookupTests` + audio smoke test verify this.
 - **pbxproj edits:** if the Ruby `XCLocalSwiftPackageReference` API differs in gem 1.27.0, use the Xcode UI fallbacks noted in Task 1 Steps 5–6; commit the resulting `project.pbxproj` either way.
