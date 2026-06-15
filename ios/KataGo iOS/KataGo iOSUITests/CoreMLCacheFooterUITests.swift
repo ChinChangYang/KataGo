@@ -297,12 +297,14 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         return Int(digits) ?? -1
     }
 
+    @MainActor
     private func tapModelRow(in app: XCUIApplication, title: String) {
         let row = app.staticTexts[title]
         XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(title)")
         row.tap()
     }
 
+    @MainActor
     private func tapDownloadOrPlay(in app: XCUIApplication) {
         let button = app.buttons["ModelDetailView.downloadPlayButton"]
         XCTAssertTrue(button.waitForExistence(timeout: 10),
@@ -315,6 +317,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     /// button's presence indicates whether the file is already on disk:
     /// - trash visible → tap play (single tap launches the engine)
     /// - trash absent  → tap download, wait for trash, tap play again
+    @MainActor
     private func ensureDownloadedThenPlay(in app: XCUIApplication,
                                           downloadTimeout: TimeInterval = 180) {
         let trash = app.buttons["ModelDetailView.trashButton"]
@@ -332,6 +335,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     /// on top. The Quit button lives in the sidebar's toolbar (GameListToolbar)
     /// — reach it by tapping the navigation-bar leading button to pop back
     /// to the sidebar, then tap Quit and confirm.
+    @MainActor
     private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
         // First: wait for the goban detail to appear. The "Lock" toolbar
         // button is the most reliable signal that GameSplitView is on screen.
@@ -366,12 +370,14 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     /// The picker has reappeared once any model row is visible again.
+    @MainActor
     private func waitForPicker(in app: XCUIApplication, title: String) {
         let row = app.staticTexts[title]
         XCTAssertTrue(row.waitForExistence(timeout: 60),
                       "Picker did not reappear after Quit")
     }
 
+    @MainActor
     private func readMainStats(in app: XCUIApplication) -> String {
         let footer = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(footer.waitForExistence(timeout: 15),

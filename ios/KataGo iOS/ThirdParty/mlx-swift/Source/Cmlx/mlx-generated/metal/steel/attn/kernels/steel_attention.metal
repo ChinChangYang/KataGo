@@ -1,5 +1,14 @@
 // Copyright © 2024-25 Apple Inc.
 
+// KataGo: suppress benign C++17/20 "if constexpr is a C++17/20 extension"
+// warnings emitted by the MLX steel attention kernels when compiled by the
+// Metal compiler. Mirrors upstream mlx-swift's
+// MTL_COMPILER_FLAGS (-Wno-c++17-extensions -Wno-c++20-extensions), which the
+// SwiftPM build path used by this app does not apply (see
+// ThirdParty/mlx-swift/xcode/xcconfig/Cmlx.xcconfig). Scoped to this TU.
+#pragma clang diagnostic ignored "-Wc++17-extensions"
+#pragma clang diagnostic ignored "-Wc++20-extensions"
+
 // clang-format off
 #include "../../../utils.h"
 

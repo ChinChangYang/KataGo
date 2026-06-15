@@ -364,7 +364,7 @@ struct CoreMLModelCacheTests {
         })
         await pinned.release()
 
-        let observed = await tick
+        let observed: Void? = await tick
         #expect(observed != nil)
     }
 
@@ -376,7 +376,7 @@ struct CoreMLModelCacheTests {
         async let tick: Void? = iter.next()
 
         await cache.clearAll()
-        let observed = await tick
+        let observed: Void? = await tick
         #expect(observed != nil)
     }
 

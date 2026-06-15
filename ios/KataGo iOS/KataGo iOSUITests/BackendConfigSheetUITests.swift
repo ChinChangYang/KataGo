@@ -73,6 +73,7 @@ final class BackendConfigSheetUITests: XCTestCase {
     /// From the model detail view, tap the gear button that presents
     /// BackendConfigSheet. (Navigation into the detail view happens once in the
     /// test body; the detail view persists across sheet dismissals.)
+    @MainActor
     private func openBackendSheet(in app: XCUIApplication) {
         let gear = app.buttons["Backend Settings"]
         XCTAssertTrue(gear.waitForExistence(timeout: 10), "Backend Settings gear button not found")
@@ -81,17 +82,20 @@ final class BackendConfigSheetUITests: XCTestCase {
 
     /// Tap the "MLX/GPU" segment of the Backend picker to reveal the MLX-only
     /// "Max Board Size" section. (UI only — no engine launch.)
+    @MainActor
     private func selectMLXBackend(in app: XCUIApplication) {
         let mlx = app.buttons["MLX/GPU"]
         XCTAssertTrue(mlx.waitForExistence(timeout: 10), "MLX/GPU backend segment not found")
         mlx.tap()
     }
 
+    @MainActor
     private func segment(in app: XCUIApplication, _ label: String) -> XCUIElement {
         app.buttons[label]
     }
 
     /// For diagnostics on failure: which board-size segment currently reads selected.
+    @MainActor
     private func selectedBoardSize(in app: XCUIApplication) -> String? {
         boardSizes.first { app.buttons[$0].exists && app.buttons[$0].isSelected }
     }

@@ -31,7 +31,7 @@ struct PlusMenuView: View {
                 Label("New Game", systemImage: "doc")
             }
 
-            if let gameRecord {
+            if gameRecord != nil {
                 Button {
                     confirmingClone = true
                 } label: {
