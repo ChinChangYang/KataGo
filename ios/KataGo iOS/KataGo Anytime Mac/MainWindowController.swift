@@ -54,6 +54,10 @@ final class MainWindowController: NSWindowController {
         w.center()
 
         startEngineAndSession()
+
+        #if DEBUG
+        scheduleSnapshotIfRequested()
+        #endif
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -270,6 +274,45 @@ final class MainWindowController: NSWindowController {
             aiMove: aiMoveBox.binding
         )
     }
+
+    #if DEBUG
+    // MARK: - Verification snapshot (DEBUG only)
+    //
+    // When the env var `KATAGO_MAC_SNAPSHOT` is set (any non-empty value), render
+    // the SwiftUI board to a PNG after it has had time to render, then quit. This
+    // is an in-app SwiftUI render via `ImageRenderer` (no screen-recording / TCC
+    // permission needed, and — unlike `NSView.cacheDisplay` — it reliably captures
+    // the layer-backed SwiftUI content). Because the app is sandboxed it writes
+    // into its own temporary directory and prints the absolute path so the caller
+    // can find it. (The native window chrome is best verified on-screen / via the
+    // screencapture path once screen-recording permission is in effect.)
+    private func scheduleSnapshotIfRequested() {
+        guard let flag = ProcessInfo.processInfo.environment["KATAGO_MAC_SNAPSHOT"], !flag.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 16) { [weak self] in
+            guard let self else { NSApp.terminate(nil); return }
+            let dirURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("katago-snapshot", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+
+            let board = MacBoardHostView(session: self.session,
+                                         navigationContext: self.navigationContext,
+                                         audioModel: self.audioModel)
+                .frame(width: 760, height: 800)
+            let renderer = ImageRenderer(content: board)
+            renderer.scale = 2
+            if let nsImage = renderer.nsImage,
+               let tiff = nsImage.tiffRepresentation,
+               let bmp = NSBitmapImageRep(data: tiff),
+               let data = bmp.representation(using: .png, properties: [:]) {
+                try? data.write(to: dirURL.appendingPathComponent("board.png"))
+            }
+
+            print("KATAGO_SNAPSHOT_DIR=\(dirURL.path)")
+            fflush(stdout)
+            NSApp.terminate(nil)
+        }
+    }
+    #endif
 }
 
 /// Tiny main-actor box that vends a `Binding<String?>` for `GameSession`'s
