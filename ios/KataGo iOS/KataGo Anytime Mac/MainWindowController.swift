@@ -55,6 +55,122 @@ final class MainWindowController: NSWindowController {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    // MARK: - Move navigation
+    //
+    // The toolbar nav group (⏮◀▶⏭) and the Navigate menu (Back/Forward/First/
+    // Last) target the first responder with the selectors implemented below.
+    // `NSWindowController` is inserted into the window's responder chain (the
+    // window owns it via `super.init(window:)`), so these `@objc` actions are
+    // reached after the content view / window decline them.
+    //
+    // Each action reuses `GobanState`'s `backwardMoves` / `forwardMoves`
+    // verbatim — the exact calls the iOS `StatusToolbarItems` makes. Single
+    // step uses `limit: 1`; First/Last jump with `limit: nil`. iOS also
+    // mirrors `maybeUpdateAnalysisData` before navigating to persist analysis
+    // data while editing, so we do the same.
+
+    /// Mirrors `StatusToolbarItems.isFunctional`: navigation is only allowed
+    /// when the engine isn't generating an AI move, isn't auto-playing, and no
+    /// `showboard` round-trip is in flight.
+    private var isFunctional: Bool {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return false }
+        let gobanState = session.gobanState
+        return !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
+            && !gobanState.isAutoPlaying
+            && (gobanState.showBoardCount == 0)
+    }
+
+    /// Persists in-progress analysis data (when editing) before navigating,
+    /// exactly as iOS does ahead of every back/forward action.
+    private func maybeUpdateAnalysisData(gameRecord: GameRecord) {
+        session.gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: session.analysis,
+            board: session.board,
+            stones: session.stones,
+            all: false
+        )
+    }
+
+    private func backward(limit: Int?) {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        maybeUpdateAnalysisData(gameRecord: gameRecord)
+        guard isFunctional else { return }
+        session.gobanState.backwardMoves(
+            limit: limit,
+            gameRecord: gameRecord,
+            messageList: session.messageList,
+            player: session.player,
+            stones: session.stones
+        )
+    }
+
+    private func forward(limit: Int?) {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        maybeUpdateAnalysisData(gameRecord: gameRecord)
+        guard isFunctional else { return }
+        session.gobanState.forwardMoves(
+            limit: limit,
+            gameRecord: gameRecord,
+            board: session.board,
+            messageList: session.messageList,
+            player: session.player,
+            audioModel: audioModel,
+            stones: session.stones
+        )
+    }
+
+    /// `← / ◀`: step back one move.
+    @objc func goBackward(_ sender: Any?) { backward(limit: 1) }
+
+    /// `→ / ▶`: step forward one move.
+    @objc func goForward(_ sender: Any?) { forward(limit: 1) }
+
+    /// `⌥⌘← / ⏮`: jump to the start of the game.
+    @objc func goToStart(_ sender: Any?) { backward(limit: nil) }
+
+    /// `⌥⌘→ / ⏭`: jump to the end of the game.
+    @objc func goToEnd(_ sender: Any?) { forward(limit: nil) }
+
+    // MARK: Navigation availability
+
+    /// Whether a move exists at `currentIndex - 1` (i.e. we can step/jump back).
+    /// Mirrors `backwardMoves`' loop guard (`getMove(at: currentIndex - 1)`).
+    private var canGoBackward: Bool {
+        guard isFunctional,
+              let gameRecord = navigationContext.selectedGameRecord,
+              let sgf = session.gobanState.getSgf(gameRecord: gameRecord),
+              let currentIndex = session.gobanState.getCurrentIndex(gameRecord: gameRecord) else {
+            return false
+        }
+        return SgfHelper(sgf: sgf).getMove(at: currentIndex - 1) != nil
+    }
+
+    /// Whether a move exists at `currentIndex` (i.e. we can step/jump forward).
+    /// Mirrors `forwardMoves`' loop guard (`getMove(at: currentIndex)`).
+    private var canGoForward: Bool {
+        guard isFunctional,
+              let gameRecord = navigationContext.selectedGameRecord,
+              let sgf = session.gobanState.getSgf(gameRecord: gameRecord),
+              let currentIndex = session.gobanState.getCurrentIndex(gameRecord: gameRecord) else {
+            return false
+        }
+        return SgfHelper(sgf: sgf).getMove(at: currentIndex) != nil
+    }
+
+    /// Shared availability test for both the Navigate menu items and the
+    /// toolbar nav-group subitems, keyed off the action selector.
+    private func canPerformNavigation(_ action: Selector?) -> Bool {
+        switch action {
+        case #selector(goBackward(_:)), #selector(goToStart(_:)):
+            return canGoBackward
+        case #selector(goForward(_:)), #selector(goToEnd(_:)):
+            return canGoForward
+        default:
+            return true
+        }
+    }
+
     // MARK: - Engine launch + session loop
 
     /// Mirrors the iOS launch (`ModelRunnerView` engine thread + `ContentView`
@@ -166,6 +282,29 @@ private final class AIMoveBox {
 
 // MARK: - Toolbar
 
+// MARK: - Menu item validation
+
+extension MainWindowController: NSMenuItemValidation {
+    /// Enables/disables the Navigate menu items (Back/Forward/First/Last) via
+    /// the responder chain, using the same `canGoBackward` / `canGoForward`
+    /// tests as the toolbar. Non-navigation items default to enabled.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        canPerformNavigation(menuItem.action)
+    }
+}
+
+// MARK: - Toolbar item validation
+
+extension MainWindowController: NSToolbarItemValidation {
+    /// Enables/disables the nav-group subitems (⏮◀▶⏭) through the responder
+    /// chain. AppKit calls this for each `target = nil` item that resolves to
+    /// this responder; non-navigation items default to enabled. Uses the same
+    /// `canGoBackward` / `canGoForward` tests as the Navigate menu.
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        canPerformNavigation(item.action)
+    }
+}
+
 private extension NSToolbarItem.Identifier {
     static let toggleSidebar = NSToolbarItem.Identifier("toggleSidebar")
     static let newGame = NSToolbarItem.Identifier("newGame")
@@ -258,10 +397,10 @@ extension MainWindowController: NSToolbarDelegate {
     /// ⏮ ◀ ▶ ⏭ as a segmented navigation group routed through the responder chain.
     private func makeNavGroup(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItemGroup {
         let specs: [(label: String, symbol: String, action: Selector)] = [
-            ("First", "backward.end", Selector(("goToStart:"))),
-            ("Back", "backward", Selector(("goBackward:"))),
-            ("Forward", "forward", Selector(("goForward:"))),
-            ("Last", "forward.end", Selector(("goToEnd:"))),
+            ("First", "backward.end", #selector(goToStart(_:))),
+            ("Back", "backward", #selector(goBackward(_:))),
+            ("Forward", "forward", #selector(goForward(_:))),
+            ("Last", "forward.end", #selector(goToEnd(_:))),
         ]
 
         let subitems = specs.enumerated().map { index, spec -> NSToolbarItem in
