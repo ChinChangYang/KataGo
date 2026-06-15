@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 import KataGoInterface
 
 struct AnalysisView: View {

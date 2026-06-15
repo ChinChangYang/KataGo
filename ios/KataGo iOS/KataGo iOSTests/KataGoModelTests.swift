@@ -9,6 +9,7 @@ import Testing
 import CoreGraphics
 import Foundation
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct KataGoModelTests {
 

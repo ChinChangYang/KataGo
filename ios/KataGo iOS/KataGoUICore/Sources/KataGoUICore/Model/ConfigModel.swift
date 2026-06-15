@@ -8,51 +8,50 @@
 import Foundation
 import SwiftData
 import KataGoInterface
-import KataGoUICore
 
 @Model
-final class Config {
+public final class Config {
     // The iCloud servers don’t guarantee atomic processing of relationship changes,
     // so CloudKit requires all relationships to be optional.
-    var gameRecord: GameRecord?
-    var boardWidth: Int = defaultBoardWidth
-    var boardHeight: Int = defaultBoardHeight
-    var rule: Int = defaultRule
-    var komi: Float = defaultKomi
-    var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
-    var analysisWideRootNoise: Float = defaultAnalysisWideRootNoise
-    var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
-    var analysisInterval: Int = defaultAnalysisInterval
-    var analysisInformation: Int = defaultAnalysisInformation
-    var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
-    var stoneStyle: Int = defaultStoneStyle
-    var showCoordinate: Bool = defaultShowCoordinate
-    var humanSLRootExploreProbWeightful: Float = defaultHumanRatio
-    var humanSLProfile: String = defaultHumanSLProfile
-    var optionalAnalysisForWhom: Int? = defaultAnalysisForWhom
-    var optionalShowOwnership: Bool? = defaultShowOwnership
-    var optionalHumanRatioForWhite: Float? = defaultHumanRatio
-    var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
-    var optionalSoundEffect: Bool? = defaultSoundEffect
-    var optionalShowComments: Bool? = defaultShowComments
-    var optionalShowPass: Bool? = defaultShowPass
-    var optionalVerticalFlip: Bool? = defaultVerticalFlip
-    var optionalBlackMaxTime: Float? = defaultBlackMaxTime
-    var optionalWhiteMaxTime: Float? = defaultWhiteMaxTime
-    var optionalKoRule: Int? = defaultKoRule
-    var optionalScoringRule: Int? = defaultScoringRule
-    var optionalTaxRule: Int? = defaultTaxRule
-    var optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal
-    var optionalHasButton: Bool? = defaultHasButton
-    var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
-    var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
-    var optionalAnalysisStyle: Int? = defaultAnalysisStyle
-    var optionalShowCharts: Bool? = defaultShowCharts
-    var optionalUseLLM: Bool? = defaultUseLLM
-    var optionalTemperature: Float? = defaultTemperature
-    var optionalTone: Int? = defaultTone
+    public var gameRecord: GameRecord?
+    public var boardWidth: Int = defaultBoardWidth
+    public var boardHeight: Int = defaultBoardHeight
+    public var rule: Int = defaultRule
+    public var komi: Float = defaultKomi
+    public var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
+    public var analysisWideRootNoise: Float = defaultAnalysisWideRootNoise
+    public var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
+    public var analysisInterval: Int = defaultAnalysisInterval
+    public var analysisInformation: Int = defaultAnalysisInformation
+    public var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
+    public var stoneStyle: Int = defaultStoneStyle
+    public var showCoordinate: Bool = defaultShowCoordinate
+    public var humanSLRootExploreProbWeightful: Float = defaultHumanRatio
+    public var humanSLProfile: String = defaultHumanSLProfile
+    public var optionalAnalysisForWhom: Int? = defaultAnalysisForWhom
+    public var optionalShowOwnership: Bool? = defaultShowOwnership
+    public var optionalHumanRatioForWhite: Float? = defaultHumanRatio
+    public var optionalHumanProfileForWhite: String? = defaultHumanSLProfile
+    public var optionalSoundEffect: Bool? = defaultSoundEffect
+    public var optionalShowComments: Bool? = defaultShowComments
+    public var optionalShowPass: Bool? = defaultShowPass
+    public var optionalVerticalFlip: Bool? = defaultVerticalFlip
+    public var optionalBlackMaxTime: Float? = defaultBlackMaxTime
+    public var optionalWhiteMaxTime: Float? = defaultWhiteMaxTime
+    public var optionalKoRule: Int? = defaultKoRule
+    public var optionalScoringRule: Int? = defaultScoringRule
+    public var optionalTaxRule: Int? = defaultTaxRule
+    public var optionalMultiStoneSuicideLegal: Bool? = defaultMultiStoneSuicideLegal
+    public var optionalHasButton: Bool? = defaultHasButton
+    public var optionalWhiteHandicapBonusRule: Int? = defaultWhiteHandicapBonusRule
+    public var optionalShowWinrateBar: Bool? = defaultShowWinrateBar
+    public var optionalAnalysisStyle: Int? = defaultAnalysisStyle
+    public var optionalShowCharts: Bool? = defaultShowCharts
+    public var optionalUseLLM: Bool? = defaultUseLLM
+    public var optionalTemperature: Float? = defaultTemperature
+    public var optionalTone: Int? = defaultTone
 
-    init(gameRecord: GameRecord? = nil,
+    public init(gameRecord: GameRecord? = nil,
          boardWidth: Int = defaultBoardWidth,
          boardHeight: Int = defaultBoardHeight,
          rule: Int = defaultRule,
@@ -129,7 +128,7 @@ final class Config {
         self.optionalTone = optionalTone
     }
 
-    convenience init(config: Config?) {
+    public convenience init(config: Config?) {
         assert(config != nil)
         if let config = config {
             self.init(
@@ -171,47 +170,47 @@ final class Config {
 }
 
 extension Config {
-    var isBookCompatible: Bool {
+    public var isBookCompatible: Bool {
         boardWidth == 9 && boardHeight == 9
     }
 }
 
 extension Config {
-    func getKataAnalyzeCommand(analysisInterval: Int) -> String {
+    public func getKataAnalyzeCommand(analysisInterval: Int) -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"
     }
 
-    func getKataAnalyzeCommand() -> String {
+    public func getKataAnalyzeCommand() -> String {
         return getKataAnalyzeCommand(analysisInterval: analysisInterval)
     }
 
-    func getKataFastAnalyzeCommand() -> String {
+    public func getKataFastAnalyzeCommand() -> String {
         return getKataAnalyzeCommand(analysisInterval: 10);
     }
 
-    func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
+    public func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
         return [
             "kata-set-param maxTime \(max(maxTime, 0.5))",
             "kata-search_analyze_cancellable interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"]
     }
 
-    func getKataBoardSizeCommand() -> String {
+    public func getKataBoardSizeCommand() -> String {
         return "rectangular_boardsize \(boardWidth) \(boardHeight)"
     }
 
-    func getKataKomiCommand() -> String {
+    public func getKataKomiCommand() -> String {
         return "komi \(komi)"
     }
 
-    func getKataPlayoutDoublingAdvantageCommand() -> String {
+    public func getKataPlayoutDoublingAdvantageCommand() -> String {
         return "kata-set-param playoutDoublingAdvantage \(playoutDoublingAdvantage)"
     }
 
-    func getKataAnalysisWideRootNoiseCommand() -> String {
+    public func getKataAnalysisWideRootNoiseCommand() -> String {
         return "kata-set-param analysisWideRootNoise \(analysisWideRootNoise)"
     }
 
-    func getSymmetricHumanAnalysisCommands() -> [String] {
+    public func getSymmetricHumanAnalysisCommands() -> [String] {
         if isEqualBlackWhiteHumanSettings,
            let humanSLModel = HumanSLModel(profile: humanSLProfile) {
             return humanSLModel.commands
@@ -222,21 +221,21 @@ extension Config {
 }
 
 extension Config {
-    static let defaultBoardWidth = 19
-    static let defaultBoardHeight = 19
-    static let defaultKomi: Float = 7.0
-    static let defaultPlayoutDoublingAdvantage: Float = 0.0
-    static let defaultAnalysisWideRootNoise: Float = 0.03125
-    static let defaultMaxAnalysisMoves = 50
-    static let defaultAnalysisInterval = 50
-    static let defaultHiddenAnalysisVisitRatio: Float = 0.03125
+    public static let defaultBoardWidth = 19
+    public static let defaultBoardHeight = 19
+    public static let defaultKomi: Float = 7.0
+    public static let defaultPlayoutDoublingAdvantage: Float = 0.0
+    public static let defaultAnalysisWideRootNoise: Float = 0.03125
+    public static let defaultMaxAnalysisMoves = 50
+    public static let defaultAnalysisInterval = 50
+    public static let defaultHiddenAnalysisVisitRatio: Float = 0.03125
 }
 
 extension Config {
-    static let defaultRule = 0
-    static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
+    public static let defaultRule = 0
+    public static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
 
-    func getKataRuleCommand() -> String {
+    public func getKataRuleCommand() -> String {
         guard (0..<Config.rules.count).contains(rule) else {
             return "kata-set-rules \(Config.rules[Config.defaultRule])"
         }
@@ -246,20 +245,20 @@ extension Config {
 }
 
 extension Config {
-    static let defaultAnalysisInformation = 2
-    static let analysisInformationWinrate = "Winrate"
-    static let analysisInformationScore = "Score"
-    static let analysisInformationAll = "All"
-    static let analysisInformationNone = "None"
+    public static let defaultAnalysisInformation = 2
+    public static let analysisInformationWinrate = "Winrate"
+    public static let analysisInformationScore = "Score"
+    public static let analysisInformationAll = "All"
+    public static let analysisInformationNone = "None"
 
-    static let analysisInformations = [analysisInformationWinrate,
+    public static let analysisInformations = [analysisInformationWinrate,
                                        analysisInformationScore,
                                        analysisInformationAll,
                                        analysisInformationNone]
 
-    static let defaultAnalysisInformationText = analysisInformations[defaultAnalysisInformation]
+    public static let defaultAnalysisInformationText = analysisInformations[defaultAnalysisInformation]
 
-    var analysisInformationText: String {
+    public var analysisInformationText: String {
         guard analysisInformation < Config.analysisInformations.count else {
             return Config.defaultAnalysisInformationText
         }
@@ -267,35 +266,35 @@ extension Config {
         return Config.analysisInformations[analysisInformation]
     }
 
-    var isAnalysisInformationWinrate: Bool {
+    public var isAnalysisInformationWinrate: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
     }
 
-    var isAnalysisInformationScore: Bool {
+    public var isAnalysisInformationScore: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
     }
 
-    var isAnalysisInformationAll: Bool {
+    public var isAnalysisInformationAll: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationAll
     }
 
-    var isAnalysisInformationNone: Bool {
+    public var isAnalysisInformationNone: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationNone
     }
 }
 
 extension Config {
-    static let fastStoneStyle = "Fast"
-    static let classicStoneStyle = "Classic"
-    static let stoneStyles = [fastStoneStyle, classicStoneStyle]
-    static let defaultStoneStyle = 0
-    static let defaultStoneStyleText = stoneStyles[defaultStoneStyle]
+    public static let fastStoneStyle = "Fast"
+    public static let classicStoneStyle = "Classic"
+    public static let stoneStyles = [fastStoneStyle, classicStoneStyle]
+    public static let defaultStoneStyle = 0
+    public static let defaultStoneStyleText = stoneStyles[defaultStoneStyle]
 
-    var stoneStyleText: String {
+    public var stoneStyleText: String {
         guard stoneStyle < Config.stoneStyles.count else {
             return Config.defaultStoneStyleText
         }
@@ -303,12 +302,12 @@ extension Config {
         return Config.stoneStyles[stoneStyle]
     }
 
-    var isFastStoneStyle: Bool {
+    public var isFastStoneStyle: Bool {
         guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
         return Config.stoneStyles[stoneStyle] == Config.fastStoneStyle
     }
 
-    var isClassicStoneStyle: Bool {
+    public var isClassicStoneStyle: Bool {
         guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
         return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
     }
@@ -317,43 +316,43 @@ extension Config {
 extension Config {
     // Display strings for the move-number picker. Order must match the
     // MoveNumberStyle raw values.
-    static let lastThreeMovesNumberStyle = "Last 3 moves"
-    static let lastMoveNumberStyle = "Last move"
-    static let allMovesNumberStyle = "All moves"
-    static let lastMoveMarkerNumberStyle = "Marker"
-    static let moveNumberStyles = [lastThreeMovesNumberStyle,
+    public static let lastThreeMovesNumberStyle = "Last 3 moves"
+    public static let lastMoveNumberStyle = "Last move"
+    public static let allMovesNumberStyle = "All moves"
+    public static let lastMoveMarkerNumberStyle = "Marker"
+    public static let moveNumberStyles = [lastThreeMovesNumberStyle,
                                    lastMoveNumberStyle,
                                    allMovesNumberStyle,
                                    lastMoveMarkerNumberStyle]
-    static let defaultMoveNumberStyle = 0
-    static let defaultMoveNumberStyleText = moveNumberStyles[defaultMoveNumberStyle]
+    public static let defaultMoveNumberStyle = 0
+    public static let defaultMoveNumberStyleText = moveNumberStyles[defaultMoveNumberStyle]
 }
 
 extension Config {
-    static let defaultShowCoordinate = true
+    public static let defaultShowCoordinate = true
 }
 
 extension Config {
-    static let defaultHumanRatio: Float = 0
+    public static let defaultHumanRatio: Float = 0
 }
 
 extension Config {
-    static let defaultHumanSLProfile = "AI"
+    public static let defaultHumanSLProfile = "AI"
 }
 
 extension Config {
-    static let defaultAnalysisForWhom = 0
-    static let analysisForBoth = "Both"
-    static let analysisForBlack = "Black"
-    static let analysisForWhite = "White"
+    public static let defaultAnalysisForWhom = 0
+    public static let analysisForBoth = "Both"
+    public static let analysisForBlack = "Black"
+    public static let analysisForWhite = "White"
 
-    static let analysisForWhoms = [analysisForBoth,
+    public static let analysisForWhoms = [analysisForBoth,
                                    analysisForBlack,
                                    analysisForWhite]
 
-    static let defaultAnalysisForWhomText = analysisForWhoms[defaultAnalysisForWhom]
+    public static let defaultAnalysisForWhomText = analysisForWhoms[defaultAnalysisForWhom]
 
-    var analysisForWhom: Int {
+    public var analysisForWhom: Int {
         get {
             return optionalAnalysisForWhom ?? Config.defaultAnalysisForWhom
         }
@@ -363,7 +362,7 @@ extension Config {
         }
     }
 
-    var analysisForWhomText: String {
+    public var analysisForWhomText: String {
         guard analysisForWhom < Config.analysisForWhoms.count else { return Config.defaultAnalysisForWhomText }
         return Config.analysisForWhoms[analysisForWhom]
     }
@@ -378,7 +377,7 @@ extension Config {
         return Config.analysisForWhoms[analysisForWhom] == Config.analysisForWhite
     }
 
-    func isAnalysisForCurrentPlayer(nextColorForPlayCommand: PlayerColor) -> Bool {
+    public func isAnalysisForCurrentPlayer(nextColorForPlayCommand: PlayerColor) -> Bool {
         return (nextColorForPlayCommand != .unknown) &&
         ((isAnalysisForBlack && nextColorForPlayCommand == .black) ||
          (isAnalysisForWhite && nextColorForPlayCommand == .white) ||
@@ -387,9 +386,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultShowOwnership = true
+    public static let defaultShowOwnership = true
 
-    var showOwnership: Bool {
+    public var showOwnership: Bool {
         get {
             return optionalShowOwnership ?? Config.defaultShowOwnership
         }
@@ -401,7 +400,7 @@ extension Config {
 }
 
 extension Config {
-    var humanProfileForBlack: String {
+    public var humanProfileForBlack: String {
         get {
             return humanSLProfile
         }
@@ -411,7 +410,7 @@ extension Config {
         }
     }
 
-    var humanRatioForBlack: Float {
+    public var humanRatioForBlack: Float {
         get {
             return humanSLRootExploreProbWeightful
         }
@@ -423,7 +422,7 @@ extension Config {
 }
 
 extension Config {
-    var humanProfileForWhite: String {
+    public var humanProfileForWhite: String {
         get {
             return optionalHumanProfileForWhite ?? Config.defaultHumanSLProfile
         }
@@ -433,7 +432,7 @@ extension Config {
         }
     }
 
-    var humanRatioForWhite: Float {
+    public var humanRatioForWhite: Float {
         get {
             return optionalHumanRatioForWhite ?? Config.defaultHumanRatio
         }
@@ -443,15 +442,15 @@ extension Config {
         }
     }
 
-    var isEqualBlackWhiteHumanSettings: Bool {
+    public var isEqualBlackWhiteHumanSettings: Bool {
         return (humanSLProfile == humanProfileForWhite) && (humanRatioForBlack == humanRatioForWhite)
     }
 }
 
 extension Config {
-    static let defaultSoundEffect = true
+    public static let defaultSoundEffect = true
 
-    var soundEffect: Bool {
+    public var soundEffect: Bool {
         get {
             return optionalSoundEffect ?? Config.defaultSoundEffect
         }
@@ -463,9 +462,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultShowComments = false
+    public static let defaultShowComments = false
 
-    var showComments: Bool {
+    public var showComments: Bool {
         get {
             return optionalShowComments ?? Config.defaultShowComments
         }
@@ -477,9 +476,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultShowPass = true
+    public static let defaultShowPass = true
 
-    var showPass: Bool {
+    public var showPass: Bool {
         get {
             return optionalShowPass ?? Config.defaultShowPass
         }
@@ -491,10 +490,10 @@ extension Config {
 }
 
 extension Config {
-    static let defaultVerticalFlip = false
-    static let compatibleVerticalFlip = true
+    public static let defaultVerticalFlip = false
+    public static let compatibleVerticalFlip = true
 
-    var verticalFlip: Bool {
+    public var verticalFlip: Bool {
         get {
             return optionalVerticalFlip ?? Config.compatibleVerticalFlip
         }
@@ -506,9 +505,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultBlackMaxTime: Float = 0.0
+    public static let defaultBlackMaxTime: Float = 0.0
 
-    var blackMaxTime: Float {
+    public var blackMaxTime: Float {
         get {
             return optionalBlackMaxTime ?? Config.defaultBlackMaxTime
         }
@@ -520,9 +519,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultWhiteMaxTime: Float = 0.0
+    public static let defaultWhiteMaxTime: Float = 0.0
     
-    var whiteMaxTime: Float {
+    public var whiteMaxTime: Float {
         get {
             return optionalWhiteMaxTime ?? Config.defaultBlackMaxTime
         }
@@ -534,11 +533,11 @@ extension Config {
 }
 
 extension Config {
-    static let defaultKoRule: Int = 0
-    static let koRules = ["SIMPLE", "POSITIONAL", "SITUATIONAL"]
-    static let defaultKoRuleText = koRules[defaultKoRule]
+    public static let defaultKoRule: Int = 0
+    public static let koRules = ["SIMPLE", "POSITIONAL", "SITUATIONAL"]
+    public static let defaultKoRuleText = koRules[defaultKoRule]
 
-    var koRule: KoRule {
+    public var koRule: KoRule {
         get {
             return KoRule(rawValue: optionalKoRule ?? Config.defaultKoRule) ?? .simple
         }
@@ -548,20 +547,20 @@ extension Config {
         }
     }
 
-    var koRuleText: String {
+    public var koRuleText: String {
         guard koRule.rawValue < Config.koRules.count else { return "" }
         return Config.koRules[koRule.rawValue]
     }
 
-    var koRuleCommand: String {
+    public var koRuleCommand: String {
         return "kata-set-rule ko \(koRuleText)"
     }
 
-    static let defaultScoringRule: Int = 0
-    static let scoringRules = ["AREA", "TERRITORY"]
-    static let defaultScoringRuleText = scoringRules[defaultScoringRule]
+    public static let defaultScoringRule: Int = 0
+    public static let scoringRules = ["AREA", "TERRITORY"]
+    public static let defaultScoringRuleText = scoringRules[defaultScoringRule]
 
-    var scoringRule: ScoringRule {
+    public var scoringRule: ScoringRule {
         get {
             return ScoringRule(rawValue: optionalScoringRule ?? Config.defaultScoringRule) ?? .area
         }
@@ -571,20 +570,20 @@ extension Config {
         }
     }
 
-    var scoringRuleText: String {
+    public var scoringRuleText: String {
         guard scoringRule.rawValue < Config.scoringRules.count else { return "" }
         return Config.scoringRules[scoringRule.rawValue]
     }
 
-    var scoringRuleCommand: String {
+    public var scoringRuleCommand: String {
         return "kata-set-rule scoring \(scoringRuleText)"
     }
 
-    static let defaultTaxRule: Int = 0
-    static let taxRules = ["NONE", "SEKI", "ALL"]
-    static let defaultTaxRuleText = taxRules[defaultTaxRule]
+    public static let defaultTaxRule: Int = 0
+    public static let taxRules = ["NONE", "SEKI", "ALL"]
+    public static let defaultTaxRuleText = taxRules[defaultTaxRule]
 
-    var taxRule: TaxRule {
+    public var taxRule: TaxRule {
         get {
             return TaxRule(rawValue: optionalTaxRule ?? Config.defaultTaxRule) ?? .none
         }
@@ -594,18 +593,18 @@ extension Config {
         }
     }
 
-    var taxRuleText: String {
+    public var taxRuleText: String {
         guard taxRule.rawValue < Config.taxRules.count else { return "" }
         return Config.taxRules[taxRule.rawValue]
     }
 
-    var taxRuleCommand: String {
+    public var taxRuleCommand: String {
         return "kata-set-rule tax \(taxRuleText)"
     }
 
-    static let defaultMultiStoneSuicideLegal: Bool = false
+    public static let defaultMultiStoneSuicideLegal: Bool = false
 
-    var multiStoneSuicideLegal: Bool {
+    public var multiStoneSuicideLegal: Bool {
         get {
             return optionalMultiStoneSuicideLegal ?? Config.defaultMultiStoneSuicideLegal
         }
@@ -615,13 +614,13 @@ extension Config {
         }
     }
 
-    var multiStoneSuicideLegalCommand: String {
+    public var multiStoneSuicideLegalCommand: String {
         return "kata-set-rule suicide \(multiStoneSuicideLegal)"
     }
 
-    static let defaultHasButton: Bool = false
+    public static let defaultHasButton: Bool = false
 
-    var hasButton: Bool {
+    public var hasButton: Bool {
         get {
             return optionalHasButton ?? Config.defaultHasButton
         }
@@ -631,15 +630,15 @@ extension Config {
         }
     }
 
-    var hasButtonCommand: String {
+    public var hasButtonCommand: String {
         return "kata-set-rule hasButton \(hasButton)"
     }
 
-    static let defaultWhiteHandicapBonusRule: Int = 0
-    static let whiteHandicapBonusRules = ["0", "N-1", "N"]
-    static let defaultWhiteHandicapBonusRuleText = whiteHandicapBonusRules[defaultWhiteHandicapBonusRule]
+    public static let defaultWhiteHandicapBonusRule: Int = 0
+    public static let whiteHandicapBonusRules = ["0", "N-1", "N"]
+    public static let defaultWhiteHandicapBonusRuleText = whiteHandicapBonusRules[defaultWhiteHandicapBonusRule]
 
-    var whiteHandicapBonusRule: WhiteHandicapBonusRule {
+    public var whiteHandicapBonusRule: WhiteHandicapBonusRule {
         get {
             return WhiteHandicapBonusRule(rawValue: optionalWhiteHandicapBonusRule ?? Config.defaultWhiteHandicapBonusRule) ?? .zero
         }
@@ -649,16 +648,16 @@ extension Config {
         }
     }
 
-    var whiteHandicapBonusRuleText: String {
+    public var whiteHandicapBonusRuleText: String {
         guard whiteHandicapBonusRule.rawValue < Config.whiteHandicapBonusRules.count else { return "" }
         return Config.whiteHandicapBonusRules[whiteHandicapBonusRule.rawValue]
     }
 
-    var whiteHandicapBonusRuleCommand: String {
+    public var whiteHandicapBonusRuleCommand: String {
         return "kata-set-rule whiteHandicapBonus \(whiteHandicapBonusRuleText)"
     }
 
-    var ruleCommands: [String] {
+    public var ruleCommands: [String] {
         return [koRuleCommand,
                 scoringRuleCommand,
                 taxRuleCommand,
@@ -669,9 +668,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultShowWinrateBar: Bool = true
+    public static let defaultShowWinrateBar: Bool = true
 
-    var showWinrateBar: Bool {
+    public var showWinrateBar: Bool {
         get {
             return optionalShowWinrateBar ?? Config.defaultShowWinrateBar
         }
@@ -683,13 +682,13 @@ extension Config {
 }
 
 extension Config {
-    static let fastAnalysisStyle = "Fast"
-    static let classicAnalysisStyle = "Classic"
-    static let analysisStyles = [fastAnalysisStyle, classicAnalysisStyle]
-    static let defaultAnalysisStyle = 0
-    static let defaultAnalysisStyleText = analysisStyles[defaultAnalysisStyle]
+    public static let fastAnalysisStyle = "Fast"
+    public static let classicAnalysisStyle = "Classic"
+    public static let analysisStyles = [fastAnalysisStyle, classicAnalysisStyle]
+    public static let defaultAnalysisStyle = 0
+    public static let defaultAnalysisStyleText = analysisStyles[defaultAnalysisStyle]
 
-    var analysisStyle: Int {
+    public var analysisStyle: Int {
         get {
             return optionalAnalysisStyle ?? Config.defaultAnalysisStyle
         }
@@ -699,7 +698,7 @@ extension Config {
         }
     }
 
-    var analysisStyleText: String {
+    public var analysisStyleText: String {
         guard analysisStyle < Config.analysisStyles.count else {
             return Config.defaultAnalysisStyleText
         }
@@ -707,21 +706,21 @@ extension Config {
         return Config.analysisStyles[analysisStyle]
     }
 
-    var isFastAnalysisStyle: Bool {
+    public var isFastAnalysisStyle: Bool {
         guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
         return Config.analysisStyles[analysisStyle] == Config.fastAnalysisStyle
     }
 
-    var isClassicAnalysisStyle: Bool {
+    public var isClassicAnalysisStyle: Bool {
         guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
         return Config.analysisStyles[analysisStyle] == Config.classicAnalysisStyle
     }
 }
 
 extension Config {
-    static let defaultShowCharts: Bool = true
+    public static let defaultShowCharts: Bool = true
 
-    var showCharts: Bool {
+    public var showCharts: Bool {
         get {
             return optionalShowCharts ?? Config.defaultShowCharts
         }
@@ -733,9 +732,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultUseLLM: Bool = false
+    public static let defaultUseLLM: Bool = false
 
-    var useLLM: Bool {
+    public var useLLM: Bool {
         get {
             return optionalUseLLM ?? Config.defaultUseLLM
         }
@@ -747,9 +746,9 @@ extension Config {
 }
 
 extension Config {
-    static let defaultTemperature: Float = 0.5
+    public static let defaultTemperature: Float = 0.5
 
-    var temperature: Float {
+    public var temperature: Float {
         get {
             return optionalTemperature ?? Config.defaultTemperature
         }
@@ -761,11 +760,11 @@ extension Config {
 }
 
 extension Config {
-    static let defaultTone: Int = 0
-    static let tones = ["Technical", "Educational", "Encouraging", "Enthusiastic", "Poetic"]
-    static let defaultToneText = tones[defaultTone]
+    public static let defaultTone: Int = 0
+    public static let tones = ["Technical", "Educational", "Encouraging", "Enthusiastic", "Poetic"]
+    public static let defaultToneText = tones[defaultTone]
 
-    var tone: CommentTone {
+    public var tone: CommentTone {
         get {
             return CommentTone(rawValue: optionalTone ?? Config.defaultTone) ?? .technical
         }
@@ -775,7 +774,7 @@ extension Config {
         }
     }
 
-    var toneText: String {
+    public var toneText: String {
         guard tone.rawValue < Config.tones.count else { return "" }
         return Config.tones[tone.rawValue]
     }

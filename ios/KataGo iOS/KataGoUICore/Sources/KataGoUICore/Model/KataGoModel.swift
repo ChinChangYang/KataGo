@@ -10,11 +10,13 @@ import SwiftData
 import KataGoInterface
 
 @Observable
-class BoardSize {
-    var width: CGFloat = 19
-    var height: CGFloat = 19
+public class BoardSize {
+    public init() {}
 
-    func locationToMove(location: Location) -> String? {
+    public var width: CGFloat = 19
+    public var height: CGFloat = 19
+
+    public func locationToMove(location: Location) -> String? {
         guard !location.pass else { return "pass" }
         let x = location.x
         let y = Int(height) - location.y
@@ -25,29 +27,34 @@ class BoardSize {
     }
 }
 
-struct BoardPoint: Hashable, Comparable {
-    let x: Int
-    let y: Int
+public struct BoardPoint: Hashable, Comparable, Sendable {
+    public let x: Int
+    public let y: Int
 
-    func isPass(width: Int, height: Int) -> Bool {
+    public init(x: Int, y: Int) {
+        self.x = x
+        self.y = y
+    }
+
+    public func isPass(width: Int, height: Int) -> Bool {
         self == BoardPoint.pass(width: width, height: height)
     }
 
-    static func passY(height: Int) -> Int {
+    public static func passY(height: Int) -> Int {
         return height + 1
     }
 
-    static func pass(width: Int, height: Int) -> BoardPoint {
+    public static func pass(width: Int, height: Int) -> BoardPoint {
         return BoardPoint(x: width - 1, y: passY(height: height))
     }
 
-    static func < (lhs: BoardPoint, rhs: BoardPoint) -> Bool {
+    public static func < (lhs: BoardPoint, rhs: BoardPoint) -> Bool {
         return (lhs.y, lhs.x) < (rhs.y, rhs.x)
     }
 }
 
 extension BoardPoint {
-    static func getPositionY(y: Int, height: CGFloat, verticalFlip: Bool) -> CGFloat {
+    public static func getPositionY(y: Int, height: CGFloat, verticalFlip: Bool) -> CGFloat {
         return verticalFlip ? CGFloat(y) : (height - CGFloat(y) - 1)
     }
 
@@ -55,7 +62,7 @@ extension BoardPoint {
     // It takes into account the height of the board and whether the board is flipped vertically.
     // The pass area is always located at the bottom of the board, regardless of the vertical orientation.
     // If the board is flipped and the current point represents a pass, we adjust the vertical flip condition accordingly.
-    func getPositionY(height: CGFloat, verticalFlip: Bool) -> CGFloat {
+    public func getPositionY(height: CGFloat, verticalFlip: Bool) -> CGFloat {
         // Determine if the vertical flip condition should account for the pass area
         let verticalFlipWithPass = verticalFlip || (y == BoardPoint.passY(height: Int(height)))
         // Compute and return the Y-coordinate based on the current board point, height, and adjusted vertical flip state
@@ -64,7 +71,7 @@ extension BoardPoint {
 }
 
 extension BoardPoint {
-    init(location: Location, width: Int, height: Int) {
+    public init(location: Location, width: Int, height: Int) {
         if location.pass {
             x = width - 1
             y = BoardPoint.passY(height: height)
@@ -78,7 +85,7 @@ extension BoardPoint {
 
 extension BoardPoint {
 
-    static func toString(
+    public static func toString(
         _ points: [BoardPoint],
         width: Int,
         height: Int
@@ -106,7 +113,7 @@ extension BoardPoint {
 }
 
 extension BoardPoint {
-    init?(move: String, width: Int, height: Int) {
+    public init?(move: String, width: Int, height: Int) {
         if move == "pass" {
             self = BoardPoint.pass(width: width, height: height)
         } else {
@@ -131,15 +138,17 @@ extension BoardPoint {
 }
 
 @Observable
-class Stones: Equatable {
-    var blackPoints: [BoardPoint] = []
-    var whitePoints: [BoardPoint] = []
-    var moveOrder: [BoardPoint: Character] = [:]
-    var blackStonesCaptured: Int = 0
-    var whiteStonesCaptured: Int = 0
-    var isReady: Bool = true
+public class Stones: Equatable {
+    public init() {}
 
-    static func == (lhs: Stones, rhs: Stones) -> Bool {
+    public var blackPoints: [BoardPoint] = []
+    public var whitePoints: [BoardPoint] = []
+    public var moveOrder: [BoardPoint: Character] = [:]
+    public var blackStonesCaptured: Int = 0
+    public var whiteStonesCaptured: Int = 0
+    public var isReady: Bool = true
+
+    public static func == (lhs: Stones, rhs: Stones) -> Bool {
         lhs.blackPoints == rhs.blackPoints &&
         lhs.whitePoints == rhs.whitePoints &&
         lhs.moveOrder == rhs.moveOrder &&
@@ -149,12 +158,12 @@ class Stones: Equatable {
     }
 }
 
-enum PlayerColor {
+public enum PlayerColor {
     case black
     case white
     case unknown
 
-    var symbol: String? {
+    public var symbol: String? {
         if self == .black {
             return "b"
         } else if self == .white {
@@ -164,7 +173,7 @@ enum PlayerColor {
         }
     }
 
-    var name: String {
+    public var name: String {
         if self == .black {
             "Black"
         } else if self == .white {
@@ -174,7 +183,7 @@ enum PlayerColor {
         }
     }
 
-    var other: PlayerColor {
+    public var other: PlayerColor {
         switch self {
         case .black: .white
         case .white: .black
@@ -184,13 +193,15 @@ enum PlayerColor {
 }
 
 @Observable
-class Turn {
-    var nextColorForPlayCommand = PlayerColor.black
-    var nextColorFromShowBoard = PlayerColor.black
+public class Turn {
+    public init() {}
+
+    public var nextColorForPlayCommand = PlayerColor.black
+    public var nextColorFromShowBoard = PlayerColor.black
 }
 
 extension Turn {
-    func toggleNextColorForPlayCommand() {
+    public func toggleNextColorForPlayCommand() {
         if nextColorForPlayCommand == .black {
             nextColorForPlayCommand = .white
         } else {
@@ -198,50 +209,64 @@ extension Turn {
         }
     }
 
-    var nextColorSymbolForPlayCommand: String? {
+    public var nextColorSymbolForPlayCommand: String? {
         nextColorForPlayCommand.symbol
     }
 }
 
-struct AnalysisInfo {
-    let visits: Int
-    let winrate: Float
-    let scoreLead: Float
-    let utilityLcb: Float
+public struct AnalysisInfo {
+    public let visits: Int
+    public let winrate: Float
+    public let scoreLead: Float
+    public let utilityLcb: Float
+
+    public init(visits: Int, winrate: Float, scoreLead: Float, utilityLcb: Float) {
+        self.visits = visits
+        self.winrate = winrate
+        self.scoreLead = scoreLead
+        self.utilityLcb = utilityLcb
+    }
 }
 
-struct OwnershipUnit: Identifiable {
-    let point: BoardPoint
-    let whiteness: Float
-    let scale: Float
-    let opacity: Float
+public struct OwnershipUnit: Identifiable {
+    public let point: BoardPoint
+    public let whiteness: Float
+    public let scale: Float
+    public let opacity: Float
 
-    var id: Int {
+    public init(point: BoardPoint, whiteness: Float, scale: Float, opacity: Float) {
+        self.point = point
+        self.whiteness = whiteness
+        self.scale = scale
+        self.opacity = opacity
+    }
+
+    public var id: Int {
         point.hashValue
     }
 
-    var isBlack: Bool {
+    public var isBlack: Bool {
         whiteness < 0.1
     }
 
-    var isWhite: Bool {
+    public var isWhite: Bool {
         whiteness > 0.9
     }
 
-    var isSchrodinger: Bool {
+    public var isSchrodinger: Bool {
         (abs(whiteness - 0.5) < 0.2) && scale > 0.4
     }
 
-    var nearBlack: Bool {
+    public var nearBlack: Bool {
         whiteness < 0.3
     }
 
-    var nearWhite: Bool {
+    public var nearWhite: Bool {
         whiteness > 0.7
     }
 }
 
-func convertToSIUnits(_ number: Int) -> String {
+public func convertToSIUnits(_ number: Int) -> String {
     let prefixes: [(prefix: String, value: Int)] = [
         ("T", 1_000_000_000_000),
         ("G", 1_000_000_000),
@@ -260,22 +285,24 @@ func convertToSIUnits(_ number: Int) -> String {
 }
 
 @Observable
-class Analysis {
-    var nextColorForAnalysis = PlayerColor.white
-    var info: [BoardPoint: AnalysisInfo] = [:]
-    var ownershipUnits: [OwnershipUnit] = []
-    var visitsPerSecond: Double = 0
+public class Analysis {
+    public init() {}
+
+    public var nextColorForAnalysis = PlayerColor.white
+    public var info: [BoardPoint: AnalysisInfo] = [:]
+    public var ownershipUnits: [OwnershipUnit] = []
+    public var visitsPerSecond: Double = 0
 
     @ObservationIgnored private var lastRootVisits: Int?
     @ObservationIgnored private var sessionStartVisits: Int?
     @ObservationIgnored private var sessionStartTime: TimeInterval?
 
-    var maxVisits: Int? {
+    public var maxVisits: Int? {
         let visits = info.values.map(\.visits)
         return visits.max()
     }
 
-    var maxWinrate: Float? {
+    public var maxWinrate: Float? {
         guard let maxVisits else { return nil }
         return info.values.first(where: { $0.visits == maxVisits })?.winrate
     }
@@ -285,19 +312,19 @@ class Analysis {
         return info.values.first(where: { $0.visits == maxVisits })?.scoreLead
     }
 
-    var blackWinrate: Float? {
+    public var blackWinrate: Float? {
         guard let maxWinrate = maxWinrate else { return nil }
         let blackWinrate = (nextColorForAnalysis == .black) ? maxWinrate : (1 - maxWinrate)
         return blackWinrate
     }
 
-    var blackScore: Float? {
+    public var blackScore: Float? {
         guard let maxScore = maxScoreLead else { return nil }
         let blackScore = (nextColorForAnalysis == .black) ? maxScore : -maxScore
         return blackScore
     }
 
-    func getBestMove(width: Int, height: Int) -> String? {
+    public func getBestMove(width: Int, height: Int) -> String? {
         guard let firstInfo = info.first else { return nil }
 
         let bestMoveInfo = info.reduce(firstInfo) {
@@ -318,7 +345,7 @@ class Analysis {
         return coordinate?.move
     }
 
-    func clear() {
+    public func clear() {
         info = [:]
         ownershipUnits = []
         visitsPerSecond = 0
@@ -334,7 +361,7 @@ class Analysis {
     ///
     /// `time` must be a monotonic timestamp in seconds (e.g. `ProcessInfo.processInfo.systemUptime`).
     /// A drop in cumulative `rootVisits` marks a new session (new move / new position).
-    func updateVisitsPerSecond(rootVisits: Int, at time: TimeInterval) {
+    public func updateVisitsPerSecond(rootVisits: Int, at time: TimeInterval) {
         // Continue the current session only when visits keep accumulating.
         if let lastRootVisits, rootVisits >= lastRootVisits,
            let sessionStartVisits, let sessionStartTime {
@@ -361,7 +388,7 @@ class Analysis {
     /// pause, so cumulative `rootVisits` does not drop on resume and the session would
     /// otherwise keep its pre-pause start time — dividing accumulated visits by an
     /// elapsed time that includes the idle pause, which makes the rate plunge.
-    func resetVisitsPerSecondSession() {
+    public func resetVisitsPerSecondSession() {
         visitsPerSecond = 0
         lastRootVisits = nil
         sessionStartVisits = nil
@@ -369,13 +396,13 @@ class Analysis {
     }
 
     /// SI-formatted display string, e.g. "1.2k visits/s". Reuses `convertToSIUnits`.
-    var visitsPerSecondText: String {
+    public var visitsPerSecondText: String {
         convertToSIUnits(Int(visitsPerSecond.rounded())) + " visits/s"
     }
 
     /// Parses the cumulative root visit count from a kata-analyze line, if present.
     /// `rootInfo` (capital I) is unaffected by the lowercase "info" split used elsewhere.
-    static func parseRootVisits(from message: String) -> Int? {
+    public static func parseRootVisits(from message: String) -> Int? {
         let pattern = /rootInfo visits (\d+)/
         if let match = message.firstMatch(of: pattern) {
             return Int(match.1)
@@ -384,33 +411,33 @@ class Analysis {
     }
 }
 
-struct Dimensions {
-    let squareLength: CGFloat
-    let squareLengthDiv2: CGFloat
-    let squareLengthDiv4: CGFloat
-    let squareLengthDiv8: CGFloat
-    let squareLengthDiv16: CGFloat
-    let boardLineStartX: CGFloat
-    let boardLineStartY: CGFloat
-    let stoneLength: CGFloat
-    let width: CGFloat
-    let height: CGFloat
-    let gobanWidth: CGFloat
-    let gobanHeight: CGFloat
-    let boardLineBoundWidth: CGFloat
-    let boardLineBoundHeight: CGFloat
-    let gobanStartX: CGFloat
-    let gobanStartY: CGFloat
-    let coordinate: Bool
-    let capturedStonesWidth: CGFloat = 80
-    let capturedStonesHeight: CGFloat
-    let capturedStonesStartY: CGFloat
-    let totalWidth: CGFloat
-    let totalHeight: CGFloat
-    let drawHeight: CGFloat
-    let emptyHeight: CGFloat
+public struct Dimensions {
+    public let squareLength: CGFloat
+    public let squareLengthDiv2: CGFloat
+    public let squareLengthDiv4: CGFloat
+    public let squareLengthDiv8: CGFloat
+    public let squareLengthDiv16: CGFloat
+    public let boardLineStartX: CGFloat
+    public let boardLineStartY: CGFloat
+    public let stoneLength: CGFloat
+    public let width: CGFloat
+    public let height: CGFloat
+    public let gobanWidth: CGFloat
+    public let gobanHeight: CGFloat
+    public let boardLineBoundWidth: CGFloat
+    public let boardLineBoundHeight: CGFloat
+    public let gobanStartX: CGFloat
+    public let gobanStartY: CGFloat
+    public let coordinate: Bool
+    public let capturedStonesWidth: CGFloat = 80
+    public let capturedStonesHeight: CGFloat
+    public let capturedStonesStartY: CGFloat
+    public let totalWidth: CGFloat
+    public let totalHeight: CGFloat
+    public let drawHeight: CGFloat
+    public let emptyHeight: CGFloat
 
-    init(size: CGSize,
+    public init(size: CGSize,
          width: CGFloat,
          height: CGFloat,
          showCoordinate coordinate: Bool = false,
@@ -451,118 +478,124 @@ struct Dimensions {
         emptyHeight = totalHeight - drawHeight
     }
 
-    func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {
+    public func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {
         gobanStartX + (gobanWidth / 2) + ((-3 + (6 * xOffset)) * max(gobanWidth / 2, capturedStonesWidth) / 4)
     }
 }
 
 /// Message with a text and an ID
-struct Message: Identifiable, Equatable, Hashable {
+public struct Message: Identifiable, Equatable, Hashable {
     /// Default maximum message characters
-    static let defaultMaxMessageCharacters = 5000
+    public static let defaultMaxMessageCharacters = 5000
 
     /// Identification of this message
-    let id = UUID()
+    public let id = UUID()
 
     /// Text of this message
-    let text: String
+    public let text: String
 
     /// Initialize a message with a text and a max length
     /// - Parameters:
     ///   - text: a text
     ///   - maxLength: a max length
-    init(text: String, maxLength: Int = defaultMaxMessageCharacters) {
+    public init(text: String, maxLength: Int = defaultMaxMessageCharacters) {
         self.text = String(text.prefix(maxLength))
     }
 }
 
 @Observable
-class MessageList {
-    static let defaultMaxMessageLines = 1000
-    
-    var messages: [Message] = []
-    
-    func shrink() {
+public class MessageList {
+    public static let defaultMaxMessageLines = 1000
+
+    public init() {}
+
+    public var messages: [Message] = []
+
+    public func shrink() {
         while messages.count > MessageList.defaultMaxMessageLines {
             messages.removeFirst()
         }
     }
-    
+
     private func append(command: String) {
         messages.append(Message(text: "> \(command)"))
     }
-    
-    func appendAndSend(command: String) {
+
+    public func appendAndSend(command: String) {
         append(command: command)
         KataGoHelper.sendCommand(command)
     }
-    
-    func appendAndSend(commands: [String]) {
+
+    public func appendAndSend(commands: [String]) {
         commands.forEach(appendAndSend)
     }
 }
 
-enum AnalysisStatus {
+public enum AnalysisStatus {
     case clear
     case pause
     case run
 }
 
 extension String {
-    static let inActiveSgf = ""
+    public static let inActiveSgf = ""
 
-    var isActiveSgf: Bool {
+    public var isActiveSgf: Bool {
         return self != .inActiveSgf
     }
 }
 
 extension Int {
-    static let inActiveCurrentIndex = -1
+    public static let inActiveCurrentIndex = -1
 
-    var isActiveSgfIndex: Bool {
+    public var isActiveSgfIndex: Bool {
         return self > .inActiveCurrentIndex
     }
 }
 
-enum EyeStatus {
+public enum EyeStatus {
     case opened
     case book
     case closed
 }
 
 @Observable
-class Winrate {
-    var black: Float = 0.5
+public class Winrate {
+    public init() {}
 
-    var white: Float {
+    public var black: Float = 0.5
+
+    public var white: Float {
         1 - black
     }
 }
 
 @Observable
-class Score {
-    var black: Float = 0.0
+public class Score {
+    public init() {}
 
-    var white: Float {
+    public var black: Float = 0.0
+
+    public var white: Float {
         -black
     }
 }
 
-struct Coordinate {
-    let x: Int
-    let y: Int
-    let width: Int
-    let height: Int
+public struct Coordinate {
+    public let x: Int
+    public let y: Int
+    public let width: Int
+    public let height: Int
 
-    var xLabel: String? {
+    public var xLabel: String? {
         return Coordinate.xLabelMap[x]
     }
 
-    var yLabel: String {
+    public var yLabel: String {
         return String(y)
     }
 
-    var move: String? {
+    public var move: String? {
         if let point, point.isPass(width: width, height: height) {
             return "pass"
         } else if let xLabel {
@@ -572,16 +605,16 @@ struct Coordinate {
         }
     }
 
-    var point: BoardPoint? {
+    public var point: BoardPoint? {
         BoardPoint(x: x, y: y - 1)
     }
 
-    var index: Int {
+    public var index: Int {
         x + ((y - 1) * width)
     }
 
     // Mapping letters A-AZ (without I) to numbers 0-49
-    static let xMap: [String: Int] = [
+    public static let xMap: [String: Int] = [
         "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,
         "F": 5, "G": 6, "H": 7, "J": 8, "K": 9,
         "L": 10, "M": 11, "N": 12, "O": 13, "P": 14,
@@ -594,7 +627,7 @@ struct Coordinate {
         "AV": 45, "AW": 46, "AX": 47, "AY": 48, "AZ": 49
     ]
 
-    static let xLabelMap: [Int: String] = [
+    public static let xLabelMap: [Int: String] = [
         0: "A", 1: "B", 2: "C", 3: "D", 4: "E",
         5: "F", 6: "G", 7: "H", 8: "J", 9: "K",
         10: "L", 11: "M", 12: "N", 13: "O", 14: "P",
@@ -607,7 +640,7 @@ struct Coordinate {
         45: "AV", 46: "AW", 47: "AX", 48: "AY", 49: "AZ"
     ]
 
-    init?(x: Int, y: Int, width: Int, height: Int) {
+    public init?(x: Int, y: Int, width: Int, height: Int) {
         guard ((1...height).contains(y) && (0..<width).contains(x)) || BoardPoint(x: x, y: y - 1).isPass(width: width, height: height) else { return nil }
         self.x = x
         self.y = y
@@ -615,11 +648,11 @@ struct Coordinate {
         self.height = height
     }
 
-    init?(xLabel: String, yLabel: String) {
+    public init?(xLabel: String, yLabel: String) {
         self.init(xLabel: xLabel, yLabel: yLabel, width: 19, height: 19)
     }
 
-    init?(xLabel: String, yLabel: String, width: Int, height: Int) {
+    public init?(xLabel: String, yLabel: String, width: Int, height: Int) {
         if let x = Coordinate.xMap[xLabel.uppercased()],
            let y = Int(yLabel) {
             self.init(x: x, y: y, width: width, height: height)
@@ -630,7 +663,7 @@ struct Coordinate {
 }
 
 extension Coordinate {
-    init?(move: String, width: Int, height: Int) {
+    public init?(move: String, width: Int, height: Int) {
         let pattern = /(\w+)(\d+)/
         guard let match = move.firstMatch(of: pattern) else { return nil }
 
@@ -651,7 +684,9 @@ extension Coordinate {
 }
 
 @Observable
-class TopUIState {
-    var importing = false
-    var confirmingDeletion = false
+public class TopUIState {
+    public init() {}
+
+    public var importing = false
+    public var confirmingDeletion = false
 }

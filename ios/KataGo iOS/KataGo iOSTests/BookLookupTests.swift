@@ -7,6 +7,7 @@
 
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 /// Typealias for the position tuple used by BookLookup's test initializer.
 fileprivate typealias TestPosition = (

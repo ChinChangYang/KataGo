@@ -5,6 +5,7 @@
 
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct GobanStateBranchTests {
     // Original line: 4 moves. Branch diverges after move 2 with 3 new moves.

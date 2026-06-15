@@ -6,18 +6,18 @@
 import Foundation
 
 /// The board state parsed from KataGo's `showboard` ASCII output.
-struct ParsedBoard: Equatable {
-    let width: CGFloat
-    let height: CGFloat
-    let blackStones: [BoardPoint]
-    let whiteStones: [BoardPoint]
-    let moveOrder: [BoardPoint: Character]
+public struct ParsedBoard: Equatable {
+    public let width: CGFloat
+    public let height: CGFloat
+    public let blackStones: [BoardPoint]
+    public let whiteStones: [BoardPoint]
+    public let moveOrder: [BoardPoint: Character]
 }
 
 /// Pure parser for `showboard` text. Behavior matches the previous
 /// ContentView.parseStones/calculateBoardDimensions/calculateYCoordinate/parseLine.
-enum BoardTextParser {
-    static func parse(_ boardText: [String]) -> ParsedBoard {
+public enum BoardTextParser {
+    public static func parse(_ boardText: [String]) -> ParsedBoard {
         let height = CGFloat(boardText.count - 1)
         let width = CGFloat((boardText.last?.dropFirst(2).count ?? 0) / 2)
         var blackStones: [BoardPoint] = []

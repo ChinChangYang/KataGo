@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct BoardLineView: View {
     let dimensions: Dimensions

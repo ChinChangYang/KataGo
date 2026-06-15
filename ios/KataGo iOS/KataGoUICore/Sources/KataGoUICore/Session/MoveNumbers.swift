@@ -9,7 +9,7 @@ import KataGoInterface
 /// How the board annotates move numbers. Raw values index
 /// `Config.moveNumberStyles` (the picker's display strings) — keep the two in
 /// the same order.
-enum MoveNumberStyle: Int {
+public enum MoveNumberStyle: Int {
     case lastThreeMoves = 0
     case lastMove = 1
     case allMoves = 2
@@ -20,14 +20,14 @@ enum MoveNumberStyle: Int {
 /// the engine's showboard markers. When the same point is played more than
 /// once (ko, recapture), the latest move number wins. `lastPoint`/`lastNumber`
 /// are nil when no move was played or the last move was a pass.
-struct MoveNumbers: Equatable {
-    let numbers: [BoardPoint: Int]
-    let lastPoint: BoardPoint?
-    let lastNumber: Int?
+public struct MoveNumbers: Equatable, Sendable {
+    public let numbers: [BoardPoint: Int]
+    public let lastPoint: BoardPoint?
+    public let lastNumber: Int?
 
-    static let empty = MoveNumbers(numbers: [:], lastPoint: nil, lastNumber: nil)
+    public static let empty = MoveNumbers(numbers: [:], lastPoint: nil, lastNumber: nil)
 
-    static func derive(sgf: String, currentIndex: Int) -> MoveNumbers {
+    public static func derive(sgf: String, currentIndex: Int) -> MoveNumbers {
         let sgfHelper = SgfHelper(sgf: sgf)
         let width = sgfHelper.xSize
         let height = sgfHelper.ySize

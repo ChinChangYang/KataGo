@@ -7,8 +7,13 @@
 
 import SwiftUI
 
-struct TransferableSgf: Transferable {
-    static var transferRepresentation: some TransferRepresentation {
+public struct TransferableSgf: Transferable {
+    public init(name: String, content: String) {
+        self.name = name
+        self.content = content
+    }
+
+    public static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .utf8PlainText) { sgf in
             cleanUpSgfFiles()
             return try createTransferredFile(from: sgf)

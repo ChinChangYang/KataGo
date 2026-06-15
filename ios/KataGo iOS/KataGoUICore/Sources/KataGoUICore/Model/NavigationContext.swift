@@ -8,10 +8,10 @@
 import SwiftUI
 
 @Observable
-class NavigationContext {
-    var selectedGameRecord: GameRecord?
+public class NavigationContext {
+    public var selectedGameRecord: GameRecord?
 
-    init(selectedGameRecord: GameRecord? = nil) {
+    public init(selectedGameRecord: GameRecord? = nil) {
         self.selectedGameRecord = selectedGameRecord
     }
 }

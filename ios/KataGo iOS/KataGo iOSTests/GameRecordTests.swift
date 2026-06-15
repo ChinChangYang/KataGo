@@ -9,6 +9,7 @@ import Testing
 import SwiftData
 import KataGoInterface
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct GameRecordTests {
 

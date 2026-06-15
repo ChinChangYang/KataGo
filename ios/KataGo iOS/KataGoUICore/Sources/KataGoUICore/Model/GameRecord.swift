@@ -8,30 +8,29 @@
 import SwiftUI
 import SwiftData
 import KataGoInterface
-import KataGoUICore
 
 @Model
-final class GameRecord {
-    static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
-    static let defaultName = "New Game"
+public final class GameRecord {
+    public static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
+    public static let defaultName = "New Game"
 
-    static func makeDefaultSgf(boardSize: Int) -> String {
+    public static func makeDefaultSgf(boardSize: Int) -> String {
         "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
     }
 
-    var sgf: String = defaultSgf
-    var currentIndex: Int = 0
+    public var sgf: String = defaultSgf
+    public var currentIndex: Int = 0
     // The iCloud servers don’t guarantee atomic processing of relationship changes,
     // so CloudKit requires all relationships to be optional.
-    @Relationship(deleteRule: .cascade) var config: Config?
-    var name: String = defaultName
-    var lastModificationDate: Date?
-    var comments: [Int: String]?
-    var uuid: UUID? = UUID()
-    var thumbnail: Data?
-    var scoreLeads: [Int: Float]?
-    var bestMoves: [Int: String]?
-    var winRates: [Int: Float]?
+    @Relationship(deleteRule: .cascade) public var config: Config?
+    public var name: String = defaultName
+    public var lastModificationDate: Date?
+    public var comments: [Int: String]?
+    public var uuid: UUID? = UUID()
+    public var thumbnail: Data?
+    public var scoreLeads: [Int: Float]?
+    public var bestMoves: [Int: String]?
+    public var winRates: [Int: Float]?
 
     // These variables are not used. Leave these here for compatibility.
     private var deadBlackStones: [Int: String]?
@@ -39,19 +38,19 @@ final class GameRecord {
     private var blackSchrodingerStones: [Int: String]?
     private var whiteSchrodingerStones: [Int: String]?
 
-    var moves: [Int: String]?
-    var blackStones: [Int: String]?
-    var whiteStones: [Int: String]?
-    var ownershipWhiteness: [Int: [Float]]?
-    var ownershipScales: [Int: [Float]]?
-    var width: Int?
-    var height: Int?
+    public var moves: [Int: String]?
+    public var blackStones: [Int: String]?
+    public var whiteStones: [Int: String]?
+    public var ownershipWhiteness: [Int: [Float]]?
+    public var ownershipScales: [Int: [Float]]?
+    public var width: Int?
+    public var height: Int?
 
-    func getCapturedBlackStones(_ index: Int) -> String? {
+    public func getCapturedBlackStones(_ index: Int) -> String? {
         getCapturedStones(from: blackStones, index: index)
     }
 
-    func getCapturedWhiteStones(_ index: Int) -> String? {
+    public func getCapturedWhiteStones(_ index: Int) -> String? {
         getCapturedStones(from: whiteStones, index: index)
     }
 
@@ -84,14 +83,14 @@ final class GameRecord {
         return capturedStones
     }
 
-    func getDeadBlackStones(_ index: Int) -> String? {
+    public func getDeadBlackStones(_ index: Int) -> String? {
         getStones(
             from: blackStones,
             index: index
         ) { $0 > 0.9 }
     }
 
-    func getDeadWhiteStones(_ index: Int) -> String? {
+    public func getDeadWhiteStones(_ index: Int) -> String? {
         getStones(
             from: whiteStones,
             index: index
@@ -131,11 +130,11 @@ final class GameRecord {
         }
     }
 
-    func getBlackSchrodingerStones(_ index: Int) -> String? {
+    public func getBlackSchrodingerStones(_ index: Int) -> String? {
         return getSchrodingerStones(from: blackStones, index: index)
     }
 
-    func getWhiteSchrodingerStones(_ index: Int) -> String? {
+    public func getWhiteSchrodingerStones(_ index: Int) -> String? {
         return getSchrodingerStones(from: whiteStones, index: index)
     }
 
@@ -173,21 +172,21 @@ final class GameRecord {
         }
     }
 
-    func getBlackSacrificeableStones(_ index: Int) -> String? {
+    public func getBlackSacrificeableStones(_ index: Int) -> String? {
         return getStones(
             from: blackStones,
             index: index
         ) { ($0 <= 0.9) && ($0 > 0.7) }
     }
 
-    func getWhiteSacrificeableStones(_ index: Int) -> String? {
+    public func getWhiteSacrificeableStones(_ index: Int) -> String? {
         return getStones(
             from: whiteStones,
             index: index
         ) { ($0 >= 0.1) && ($0 < 0.3) }
     }
 
-    var concreteConfig: Config {
+    public var concreteConfig: Config {
         // A config must not be nil in any case.
         // If it is not the case, there is a bug in the GameRecord initialization function.
         // Anyway, it will create a default config for this case, but the config is probably wrong.
@@ -201,7 +200,7 @@ final class GameRecord {
         }
     }
 
-    init(sgf: String = defaultSgf,
+    public init(sgf: String = defaultSgf,
          currentIndex: Int = 0,
          config: Config,
          name: String = defaultName,
@@ -246,7 +245,7 @@ final class GameRecord {
         self.height = height
     }
 
-    func clone() -> GameRecord {
+    public func clone() -> GameRecord {
         let newConfig = Config(config: self.config)
 
         let newGameRecord = GameRecord(
@@ -284,7 +283,7 @@ final class GameRecord {
     /// Built on top of `clone()` so the full stored-field list is materialized
     /// in exactly one place: this method only overrides the sgf/currentIndex
     /// and trims the per-index data on the (not-yet-inserted) copy.
-    func clone(upToMove index: Int) -> GameRecord {
+    public func clone(upToMove index: Int) -> GameRecord {
         clone(upToMove: index, fromSgf: self.sgf, dataValidUpTo: index)
     }
 
@@ -295,7 +294,7 @@ final class GameRecord {
     /// still describe the old mainline and are only valid up to the branch's
     /// divergence point, so callers pass the smaller of the divergence index
     /// and `index` there (mirroring `GobanState.commitBranch`).
-    func clone(upToMove index: Int, fromSgf sourceSgf: String, dataValidUpTo dataIndex: Int) -> GameRecord {
+    public func clone(upToMove index: Int, fromSgf sourceSgf: String, dataValidUpTo dataIndex: Int) -> GameRecord {
         let newGameRecord = clone()
         newGameRecord.sgf = SgfTruncation.truncate(sourceSgf, toMoveCount: index)
         newGameRecord.currentIndex = index
@@ -303,13 +302,13 @@ final class GameRecord {
         return newGameRecord
     }
 
-    func undo() {
+    public func undo() {
         if (currentIndex > 0) {
             currentIndex = currentIndex - 1
         }
     }
 
-    func clearData(after index: Int) {
+    public func clearData(after index: Int) {
         comments = comments?.filter { $0.key <= index }
         scoreLeads = scoreLeads?.filter { $0.key <= index }
         bestMoves = bestMoves?.filter { $0.key <= index }
@@ -325,7 +324,7 @@ final class GameRecord {
         ownershipScales = ownershipScales?.filter { $0.key <= index }
     }
 
-    class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
+    public class func createFetchDescriptor(fetchLimit: Int? = nil) -> FetchDescriptor<GameRecord> {
         var descriptor = FetchDescriptor<GameRecord>(
             sortBy: [.init(\.lastModificationDate, order: .reverse)]
         )
@@ -334,13 +333,13 @@ final class GameRecord {
     }
 
     @MainActor
-    class func fetchGameRecords(container: ModelContainer, fetchLimit: Int? = nil) throws -> [GameRecord] {
+    public class func fetchGameRecords(container: ModelContainer, fetchLimit: Int? = nil) throws -> [GameRecord] {
         let context = container.mainContext
         let descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
         return try context.fetch(descriptor)
     }
 
-    class func createGameRecord(
+    public class func createGameRecord(
         sgf: String = defaultSgf,
         currentIndex: Int = 0,
         name: String = defaultName,
@@ -405,7 +404,7 @@ final class GameRecord {
     }
 
     /// Reads SGF string content and filename from a URL without creating a GameRecord.
-    class func readSgfContent(from file: URL) -> (sgf: String, name: String)? {
+    public class func readSgfContent(from file: URL) -> (sgf: String, name: String)? {
         let hasSecurityAccess = file.startAccessingSecurityScopedResource()
         defer {
             if hasSecurityAccess {
@@ -420,21 +419,21 @@ final class GameRecord {
     }
 
     /// Queries SwiftData for an existing GameRecord whose SGF matches exactly.
-    class func findExistingGameRecord(withSgf sgf: String, in modelContext: ModelContext) -> GameRecord? {
+    public class func findExistingGameRecord(withSgf sgf: String, in modelContext: ModelContext) -> GameRecord? {
         let descriptor = FetchDescriptor<GameRecord>(predicate: #Predicate<GameRecord> { $0.sgf == sgf })
         return try? modelContext.fetch(descriptor).first
     }
 
     /// Reads an SGF file, checks for duplicates, and returns an existing or new GameRecord.
     /// The caller must insert the record into the model context when `isNew` is true.
-    class func importGameRecord(from file: URL, in modelContext: ModelContext) -> (gameRecord: GameRecord, isNew: Bool)? {
+    public class func importGameRecord(from file: URL, in modelContext: ModelContext) -> (gameRecord: GameRecord, isNew: Bool)? {
         guard let content = readSgfContent(from: file) else { return nil }
         return importGameRecord(sgf: content.sgf, name: content.name, in: modelContext)
     }
 
     /// Imports a game from pre-read SGF content, checking for duplicates.
     /// The caller must insert the record into the model context when `isNew` is true.
-    class func importGameRecord(sgf: String, name: String, in modelContext: ModelContext) -> (gameRecord: GameRecord, isNew: Bool)? {
+    public class func importGameRecord(sgf: String, name: String, in modelContext: ModelContext) -> (gameRecord: GameRecord, isNew: Bool)? {
         if let existing = findExistingGameRecord(withSgf: sgf, in: modelContext) {
             return (gameRecord: existing, isNew: false)
         }
@@ -453,7 +452,7 @@ final class GameRecord {
         return (gameRecord: newRecord, isNew: true)
     }
 
-    var image: Image? {
+    public var image: Image? {
 #if os(macOS)
         if let thumbnail,
            let uiImage = NSImage(data: thumbnail) {
@@ -471,7 +470,7 @@ final class GameRecord {
 #endif
     }
 
-    func updateToLatestVersion() {
+    public func updateToLatestVersion() {
         if lastModificationDate == nil {
             lastModificationDate = Date.now
         }

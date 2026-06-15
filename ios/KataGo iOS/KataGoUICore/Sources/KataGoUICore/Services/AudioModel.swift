@@ -9,18 +9,18 @@ import AVKit
 import SwiftUI
 
 @Observable
-class AudioModel {
-    var playSoundPlayer: AVAudioPlayer?
-    var captureSoundPlayer: AVAudioPlayer?
+public class AudioModel {
+    public var playSoundPlayer: AVAudioPlayer?
+    public var captureSoundPlayer: AVAudioPlayer?
 
-    init() {
+    public init() {
 #if !os(macOS)
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
         try? AVAudioSession.sharedInstance().setActive(true)
 #endif
     }
 
-    func playPlaySound(soundEffect: Bool) {
+    public func playPlaySound(soundEffect: Bool) {
         if soundEffect {
             let randomIndex = Int.random(in: 1...3)
             let playSoundSource = "PlayGoStone\(randomIndex)"
@@ -33,7 +33,7 @@ class AudioModel {
         }
     }
 
-    func playCaptureSound(soundEffect: Bool) {
+    public func playCaptureSound(soundEffect: Bool) {
         if soundEffect {
             let randomIndex = Int.random(in: 1...3)
             let captureSoundSource = "CaptureGoStone\(randomIndex)"

@@ -6,21 +6,27 @@
 import Foundation
 
 /// The analysis state parsed from one `kata-analyze` output message.
-struct ParsedAnalysis {
-    let info: [BoardPoint: AnalysisInfo]
-    let ownershipUnits: [OwnershipUnit]
+public struct ParsedAnalysis {
+    public let info: [BoardPoint: AnalysisInfo]
+    public let ownershipUnits: [OwnershipUnit]
 }
 
 /// Pure parser for `kata-analyze` lines. Behavior matches the previous
 /// ContentView analysis helpers. `nextColor` is `player.nextColorFromShowBoard`;
 /// winrate/scoreLead/utilityLcb are flipped to Black's perspective when it is
 /// Black to move.
-struct AnalysisLineParser {
+public struct AnalysisLineParser {
     let boardWidth: Int
     let boardHeight: Int
     let nextColor: PlayerColor
 
-    func parse(message: String) -> ParsedAnalysis {
+    public init(boardWidth: Int, boardHeight: Int, nextColor: PlayerColor) {
+        self.boardWidth = boardWidth
+        self.boardHeight = boardHeight
+        self.nextColor = nextColor
+    }
+
+    public func parse(message: String) -> ParsedAnalysis {
         let splitData = message.split(separator: "info")
         let infoDicts = splitData.compactMap { extractAnalysisInfo(dataLine: String($0)) }
         let info = infoDicts.reduce(into: [BoardPoint: AnalysisInfo]()) { acc, dict in

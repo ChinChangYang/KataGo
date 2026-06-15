@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct PlayView: View {
     var gameRecord: GameRecord

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 enum InfoTabs {
     case chart

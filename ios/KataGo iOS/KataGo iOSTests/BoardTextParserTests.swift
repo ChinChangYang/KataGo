@@ -5,6 +5,7 @@
 
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct BoardTextParserTests {
     // A 3x3 showboard sample. First line is the column header (skipped for

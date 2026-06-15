@@ -6,6 +6,7 @@
 import Testing
 import KataGoInterface
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct MoveNumbersTests {
     // 5x5 board, three moves: B top-left, W b-b, B c-c.

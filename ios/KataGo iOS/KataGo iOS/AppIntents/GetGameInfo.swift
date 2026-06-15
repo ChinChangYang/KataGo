@@ -6,6 +6,7 @@
 //
 
 import AppIntents
+import KataGoUICore
 import Foundation
 import SwiftData
 

@@ -8,14 +8,14 @@
 import SwiftUI
 import FoundationModels
 
-enum CommentTone: Int {
+public enum CommentTone: Int {
     case technical = 0
     case educational = 1
     case encouraging = 2
     case enthusiastic = 3
     case poetic = 4
 
-    var prompt: String {
+    public var prompt: String {
         switch self {
         case .educational:
             return "Educational Tone, focusing on why moves are good or bad, explaining the underlying principles (e.g., shape, influence, territory)"
@@ -31,17 +31,17 @@ enum CommentTone: Int {
     }
 }
 
-class Commentator {
-    var gameRecord: GameRecord
-    var turn: Turn
+public class Commentator {
+    public var gameRecord: GameRecord
+    public var turn: Turn
 
-    init(gameRecord: GameRecord, turn: Turn) {
+    public init(gameRecord: GameRecord, turn: Turn) {
         self.gameRecord = gameRecord
         self.turn = turn
     }
 
     @MainActor
-    func generateImprovedComment() async -> String {
+    public func generateImprovedComment() async -> String {
         let original = generateNaturalComment()
         let commentTone: CommentTone = gameRecord.config?.tone ?? .technical
 
@@ -93,7 +93,7 @@ Original Go commentary of the current move to be improved:
         return comment
     }
 
-    func generateAnalysisText(currentIndex: Int) -> String {
+    public func generateAnalysisText(currentIndex: Int) -> String {
         let nextIndex = currentIndex + 1
         let lastMoveText = generateLastMoveText()
         let colorToPlay = turn.nextColorForPlayCommand.name
@@ -167,7 +167,7 @@ Original Go commentary of the current move to be improved:
         return analysisText
     }
 
-    func generateNaturalComment() -> String {
+    public func generateNaturalComment() -> String {
         let currentIndex = gameRecord.currentIndex
         let nextIndex = gameRecord.currentIndex + 1
         let lastMoveText = generateLastMoveText()

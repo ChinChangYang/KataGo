@@ -7,63 +7,64 @@
 
 import SwiftUI
 import KataGoInterface
-import KataGoUICore
 
 @Observable
-class GobanState {
-    var waitingForAnalysis = false
-    var requestingClearAnalysis = false
-    var analysisStatus = AnalysisStatus.run
-    var showBoardCount: Int = 0
-    var isEditing = false
-    var isShownBoard: Bool = false
-    var eyeStatus = EyeStatus.opened
-    var isAutoPlaying: Bool = false
-    var isAutoPlayed: Bool = false
-    var passCount: Int = 0
-    var branchSgf: String = .inActiveSgf
-    var branchIndex: Int = .inActiveCurrentIndex
-    var confirmingAIOverwrite: Bool = false
-    var pendingMoveTurn: String? = nil
-    var pendingMoveVertex: String? = nil
-    var confirmingIllegalMove: Bool = false
-    var confirmingBranchDeactivation: Bool = false
-    var confirmingBranchReplace: Bool = false
-    var confirmingBranchDiscard: Bool = false
-    var illegalMoveReason: String? = nil
-    var pendingMoveTimestamp: Date? = nil
-    var soundEffect: Bool = false
-    var hapticFeedback: Bool = false
-    var showVisitsPerSecond: Bool = false
+public class GobanState {
+    public init() {}
+
+    public var waitingForAnalysis = false
+    public var requestingClearAnalysis = false
+    public var analysisStatus = AnalysisStatus.run
+    public var showBoardCount: Int = 0
+    public var isEditing = false
+    public var isShownBoard: Bool = false
+    public var eyeStatus = EyeStatus.opened
+    public var isAutoPlaying: Bool = false
+    public var isAutoPlayed: Bool = false
+    public var passCount: Int = 0
+    public var branchSgf: String = .inActiveSgf
+    public var branchIndex: Int = .inActiveCurrentIndex
+    public var confirmingAIOverwrite: Bool = false
+    public var pendingMoveTurn: String? = nil
+    public var pendingMoveVertex: String? = nil
+    public var confirmingIllegalMove: Bool = false
+    public var confirmingBranchDeactivation: Bool = false
+    public var confirmingBranchReplace: Bool = false
+    public var confirmingBranchDiscard: Bool = false
+    public var illegalMoveReason: String? = nil
+    public var pendingMoveTimestamp: Date? = nil
+    public var soundEffect: Bool = false
+    public var hapticFeedback: Bool = false
+    public var showVisitsPerSecond: Bool = false
 
     // App-wide display preferences. These mirror GlobalSettings.* @AppStorage
     // (synced in GameSplitView) so they apply across all games instead of being
     // stored per-game. The matching Config fields are now unused — left in place
     // because the SwiftData model must not change. Defaults reuse the Config
     // constants to preserve the previous behavior exactly.
-    var showCoordinate: Bool = Config.defaultShowCoordinate
-    var showPass: Bool = Config.defaultShowPass
-    var verticalFlip: Bool = Config.compatibleVerticalFlip
-    var showOwnership: Bool = Config.defaultShowOwnership
-    var showWinrateBar: Bool = Config.defaultShowWinrateBar
-    var showCharts: Bool = Config.defaultShowCharts
-    var showComments: Bool = Config.defaultShowComments
-    var stoneStyle: Int = Config.defaultStoneStyle
-    var analysisStyle: Int = Config.defaultAnalysisStyle
-    var analysisInformation: Int = Config.defaultAnalysisInformation
-    var moveNumberStyle: Int = Config.defaultMoveNumberStyle
+    public var showCoordinate: Bool = Config.defaultShowCoordinate
+    public var showPass: Bool = Config.defaultShowPass
+    public var verticalFlip: Bool = Config.compatibleVerticalFlip
+    public var showOwnership: Bool = Config.defaultShowOwnership
+    public var showWinrateBar: Bool = Config.defaultShowWinrateBar
+    public var showCharts: Bool = Config.defaultShowCharts
+    public var showComments: Bool = Config.defaultShowComments
+    public var stoneStyle: Int = Config.defaultStoneStyle
+    public var analysisStyle: Int = Config.defaultAnalysisStyle
+    public var analysisInformation: Int = Config.defaultAnalysisInformation
+    public var moveNumberStyle: Int = Config.defaultMoveNumberStyle
 
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
     @ObservationIgnored private var moveNumbersCacheKey: (String, Int)? = nil
     @ObservationIgnored private var moveNumbersCacheResult: MoveNumbers = .empty
 
-    func sendShowBoardCommand(messageList: MessageList) {
+    public func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
         showBoardCount = showBoardCount + 1
     }
 
-    func consumeShowBoardResponse(response: String) -> Bool {
+    public func consumeShowBoardResponse(response: String) -> Bool {
         if response.hasPrefix("= MoveNum") {
             showBoardCount = showBoardCount - 1
             isShownBoard = true
@@ -86,13 +87,13 @@ class GobanState {
         return [config.getKataFastAnalyzeCommand()]
     }
 
-    func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
+    public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
         let commands = getRequestAnalysisCommands(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
         messageList.appendAndSend(commands: commands)
         waitingForAnalysis = true
     }
 
-    func maybeRequestAnalysis(
+    public func maybeRequestAnalysis(
         config: Config,
         nextColorForPlayCommand: PlayerColor?,
         messageList: MessageList
@@ -104,7 +105,7 @@ class GobanState {
         }
     }
 
-    func maybeRequestAnalysis(
+    public func maybeRequestAnalysis(
         config: Config,
         messageList: MessageList
     ) {
@@ -114,7 +115,7 @@ class GobanState {
             messageList: messageList)
     }
 
-    func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
+    public func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
         if let nextColorForPlayCommand {
             return (analysisStatus != .clear) && config.isAnalysisForCurrentPlayer(nextColorForPlayCommand: nextColorForPlayCommand)
         } else {
@@ -122,24 +123,24 @@ class GobanState {
         }
     }
 
-    func maybeRequestClearAnalysisData(config: Config, nextColorForPlayCommand: PlayerColor?) {
+    public func maybeRequestClearAnalysisData(config: Config, nextColorForPlayCommand: PlayerColor?) {
         if !shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand) {
             requestingClearAnalysis = true
         }
     }
 
-    func maybeRequestClearAnalysisData(config: Config) {
+    public func maybeRequestClearAnalysisData(config: Config) {
         maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: nil)
     }
 
-    func maybePauseAnalysis() {
+    public func maybePauseAnalysis() {
         if analysisStatus == .run {
             analysisStatus = .pause
             waitingForAnalysis = true
         }
     }
 
-    func shouldGenMove(config: Config, player: Turn) -> Bool {
+    public func shouldGenMove(config: Config, player: Turn) -> Bool {
         if (!isAutoPlaying) &&
             (analysisStatus == .run) &&
             (passCount < 2) &&
@@ -153,7 +154,7 @@ class GobanState {
         }
     }
 
-    func sendPostExecutionCommands(
+    public func sendPostExecutionCommands(
         config: Config,
         messageList: MessageList,
         player: Turn
@@ -199,7 +200,7 @@ class GobanState {
         }
     }
 
-    func maybeUpdateAnalysisData(
+    public func maybeUpdateAnalysisData(
         gameRecord: GameRecord,
         analysis: Analysis,
         board: BoardSize,
@@ -249,7 +250,7 @@ class GobanState {
         }
     }
 
-    func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
+    public func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
                                                   config: Config,
                                                   messageList: MessageList) {
         if !config.isEqualBlackWhiteHumanSettings && !isAutoPlaying {
@@ -263,14 +264,14 @@ class GobanState {
         }
     }
 
-    func sendCheckMoveCommand(turn: String, move: String, messageList: MessageList) {
+    public func sendCheckMoveCommand(turn: String, move: String, messageList: MessageList) {
         pendingMoveTurn = turn
         pendingMoveVertex = move
         pendingMoveTimestamp = Date()
         messageList.appendAndSend(command: "kata-check-move \(turn) \(move)")
     }
 
-    func clearPendingMove() {
+    public func clearPendingMove() {
         pendingMoveTurn = nil
         pendingMoveVertex = nil
         pendingMoveTimestamp = nil
@@ -280,20 +281,20 @@ class GobanState {
 
     private static let pendingMoveTimeout: TimeInterval = 5.0
 
-    var isPendingMoveStale: Bool {
+    public var isPendingMoveStale: Bool {
         guard pendingMoveTurn != nil, let timestamp = pendingMoveTimestamp else {
             return false
         }
         return Date().timeIntervalSince(timestamp) > GobanState.pendingMoveTimeout
     }
 
-    func resetPendingStatesOnError(stones: Stones) {
+    public func resetPendingStatesOnError(stones: Stones) {
         clearPendingMove()
         waitingForAnalysis = false
         stones.isReady = true
     }
 
-    func playPendingHumanMove(
+    public func playPendingHumanMove(
         gameRecord: GameRecord,
         analysis: Analysis,
         board: BoardSize,
@@ -334,7 +335,7 @@ class GobanState {
         clearPendingMove()
     }
 
-    func play(turn: String, move: String, messageList: MessageList, stones: Stones) {
+    public func play(turn: String, move: String, messageList: MessageList, stones: Stones) {
         stones.isReady = false
         messageList.appendAndSend(command: "play \(turn) \(move)")
 
@@ -345,7 +346,7 @@ class GobanState {
         }
     }
 
-    func playAIMove(
+    public func playAIMove(
         aiMove: String?,
         gameRecord: GameRecord,
         turn: String,
@@ -384,7 +385,7 @@ class GobanState {
         audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
-    func undo(messageList: MessageList, stones: Stones) {
+    public func undo(messageList: MessageList, stones: Stones) {
         stones.isReady = false
         messageList.appendAndSend(command: "undo")
 
@@ -393,11 +394,11 @@ class GobanState {
         }
     }
 
-    var isBranchActive: Bool {
+    public var isBranchActive: Bool {
         return (branchSgf.isActiveSgf) && (branchIndex.isActiveSgfIndex)
     }
 
-    func deactivateBranch() {
+    public func deactivateBranch() {
         branchSgf = .inActiveSgf
         branchIndex = .inActiveCurrentIndex
     }
@@ -407,7 +408,7 @@ class GobanState {
     /// sharing moves) is dropped; clearData must run before currentIndex is
     /// reassigned because gameRecord.currentIndex IS the divergence point
     /// while a branch is active (branch navigation moves branchIndex only).
-    func commitBranch(gameRecord: GameRecord) {
+    public func commitBranch(gameRecord: GameRecord) {
         guard isBranchActive else { return }
 
         gameRecord.clearData(after: gameRecord.currentIndex)
@@ -423,7 +424,7 @@ class GobanState {
     /// divergence point), so clone from the live branch line; per-index data is
     /// only valid up to the divergence point (`gameRecord.currentIndex`), as in
     /// `commitBranch`. Off-branch it is the saved mainline position.
-    func cloneCurrentPosition(gameRecord: GameRecord) -> GameRecord {
+    public func cloneCurrentPosition(gameRecord: GameRecord) -> GameRecord {
         if isBranchActive {
             return gameRecord.clone(
                 upToMove: branchIndex,
@@ -435,13 +436,13 @@ class GobanState {
         }
     }
 
-    func undoBranchIndex() {
+    public func undoBranchIndex() {
         if (branchIndex > 0) {
             branchIndex = branchIndex - 1
         }
     }
 
-    func undoIndex(gameRecord: GameRecord?) {
+    public func undoIndex(gameRecord: GameRecord?) {
         if isBranchActive {
             undoBranchIndex()
         } else {
@@ -449,11 +450,11 @@ class GobanState {
         }
     }
 
-    func getSgf(gameRecord: GameRecord?) -> String? {
+    public func getSgf(gameRecord: GameRecord?) -> String? {
         isBranchActive ? branchSgf : gameRecord?.sgf
     }
 
-    func maybeLoadSgf(gameRecord: GameRecord?, messageList: MessageList) {
+    public func maybeLoadSgf(gameRecord: GameRecord?, messageList: MessageList) {
         if let sgf = getSgf(gameRecord: gameRecord) {
             let file = URL.documentsDirectory.appendingPathComponent("temp.sgf")
             do {
@@ -466,11 +467,11 @@ class GobanState {
         }
     }
 
-    func getCurrentIndex(gameRecord: GameRecord?) -> Int? {
+    public func getCurrentIndex(gameRecord: GameRecord?) -> Int? {
         isBranchActive ? branchIndex : gameRecord?.currentIndex
     }
 
-    func backwardMoves(
+    public func backwardMoves(
         limit: Int?,
         gameRecord: GameRecord,
         messageList: MessageList,
@@ -503,7 +504,7 @@ class GobanState {
         )
     }
 
-    func matchesNextRecordedMove(turn: String, move: String, gameRecord: GameRecord, board: BoardSize) -> Bool {
+    public func matchesNextRecordedMove(turn: String, move: String, gameRecord: GameRecord, board: BoardSize) -> Bool {
         guard let nextMove = getNextMove(gameRecord: gameRecord),
               let nextMoveString = board.locationToMove(location: nextMove.location) else {
             return false
@@ -513,7 +514,7 @@ class GobanState {
         return nextMoveString == move && nextTurn == turn
     }
 
-    func playMainlineStep(
+    public func playMainlineStep(
         turn: String,
         move: String,
         gameRecord: GameRecord,
@@ -529,7 +530,7 @@ class GobanState {
         audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
-    func getNextMove(gameRecord: GameRecord) -> Move? {
+    public func getNextMove(gameRecord: GameRecord) -> Move? {
         guard let sgf = getSgf(gameRecord: gameRecord),
               let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
             return nil
@@ -548,7 +549,7 @@ class GobanState {
         return result
     }
 
-    func getMoveNumbers(gameRecord: GameRecord?) -> MoveNumbers {
+    public func getMoveNumbers(gameRecord: GameRecord?) -> MoveNumbers {
         guard moveNumberStyleChoice != .lastThreeMoves,
               let sgf = getSgf(gameRecord: gameRecord),
               let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
@@ -567,7 +568,7 @@ class GobanState {
         return result
     }
 
-    func forwardMoves(
+    public func forwardMoves(
         limit: Int?,
         gameRecord: GameRecord,
         board: BoardSize,
@@ -614,7 +615,7 @@ class GobanState {
         )
     }
 
-    func go(to targetIndex: Int,
+    public func go(to targetIndex: Int,
             gameRecord: GameRecord,
             board: BoardSize,
             messageList: MessageList,
@@ -652,7 +653,7 @@ class GobanState {
         }
     }
 
-    func isOverwriting(gameRecord: GameRecord) -> Bool {
+    public func isOverwriting(gameRecord: GameRecord) -> Bool {
         guard let sgf = getSgf(gameRecord: gameRecord),
               let moveSize = SgfHelper(sgf: sgf).moveSize,
               let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
@@ -662,7 +663,7 @@ class GobanState {
         return (currentIndex < moveSize) && (isEditing || isBranchActive)
     }
 
-    func maybeUpdateMoves(gameRecord: GameRecord, board: BoardSize, sgfHelper: SgfHelper? = nil) {
+    public func maybeUpdateMoves(gameRecord: GameRecord, board: BoardSize, sgfHelper: SgfHelper? = nil) {
         if gameRecord.moves == nil { gameRecord.moves = [:] }
         let currentIndex = gameRecord.currentIndex
         let previousIndex = currentIndex - 1
@@ -687,57 +688,57 @@ class GobanState {
 // Mirror the equivalent Config computed helpers, reading the app-wide values
 // above so render code can switch from `config.isX` to `gobanState.isX`.
 extension GobanState {
-    var isClassicStoneStyle: Bool {
+    public var isClassicStoneStyle: Bool {
         guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
         return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
     }
 
-    var isClassicAnalysisStyle: Bool {
+    public var isClassicAnalysisStyle: Bool {
         guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return false }
         return Config.analysisStyles[analysisStyle] == Config.classicAnalysisStyle
     }
 
-    var isAnalysisInformationWinrate: Bool {
+    public var isAnalysisInformationWinrate: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
     }
 
-    var isAnalysisInformationScore: Bool {
+    public var isAnalysisInformationScore: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
     }
 
-    var isAnalysisInformationAll: Bool {
+    public var isAnalysisInformationAll: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationAll
     }
 
-    var isAnalysisInformationNone: Bool {
+    public var isAnalysisInformationNone: Bool {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return false }
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationNone
     }
 
-    var stoneStyleText: String {
+    public var stoneStyleText: String {
         guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return Config.defaultStoneStyleText }
         return Config.stoneStyles[stoneStyle]
     }
 
-    var analysisStyleText: String {
+    public var analysisStyleText: String {
         guard (0..<Config.analysisStyles.count).contains(analysisStyle) else { return Config.defaultAnalysisStyleText }
         return Config.analysisStyles[analysisStyle]
     }
 
-    var analysisInformationText: String {
+    public var analysisInformationText: String {
         guard (0..<Config.analysisInformations.count).contains(analysisInformation) else { return Config.defaultAnalysisInformationText }
         return Config.analysisInformations[analysisInformation]
     }
 
-    var moveNumberStyleText: String {
+    public var moveNumberStyleText: String {
         guard (0..<Config.moveNumberStyles.count).contains(moveNumberStyle) else { return Config.defaultMoveNumberStyleText }
         return Config.moveNumberStyles[moveNumberStyle]
     }
 
-    var moveNumberStyleChoice: MoveNumberStyle {
+    public var moveNumberStyleChoice: MoveNumberStyle {
         MoveNumberStyle(rawValue: moveNumberStyle) ?? .lastThreeMoves
     }
 }

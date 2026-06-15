@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoUICore
 
 struct MoveNumberView: View {
     @Environment(Stones.self) var stones

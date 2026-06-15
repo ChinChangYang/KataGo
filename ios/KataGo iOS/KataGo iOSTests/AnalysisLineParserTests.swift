@@ -5,6 +5,7 @@
 
 import Testing
 @testable import KataGo_Anytime
+@testable import KataGoUICore
 
 struct AnalysisLineParserTests {
     // Q16 on a 19x19 board: x = Q = 15, y = 16 -> BoardPoint(x: 15, y: 15).
