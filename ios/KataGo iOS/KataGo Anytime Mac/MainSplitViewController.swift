@@ -2,25 +2,20 @@ import AppKit
 import KataGoUICore
 
 /// The window's 3-pane content: a collapsible Library sidebar, the board (the
-/// resizable content), and a collapsible Inspector. The board placeholder lets
-/// the split build before the real board is wired in Task 4.
+/// resizable content), and a collapsible Inspector. The Library and Inspector
+/// panes are still placeholders (Phase 2 / Phase 4); the board pane hosts the
+/// reused SwiftUI `BoardView` via `BoardViewController`.
 final class MainSplitViewController: NSSplitViewController {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
-    let thumbnailModel: ThumbnailModel
-    let topUIState: TopUIState
 
     init(session: GameSession,
          navigationContext: NavigationContext,
-         audioModel: AudioModel,
-         thumbnailModel: ThumbnailModel,
-         topUIState: TopUIState) {
+         audioModel: AudioModel) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
-        self.thumbnailModel = thumbnailModel
-        self.topUIState = topUIState
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -40,9 +35,7 @@ final class MainSplitViewController: NSSplitViewController {
         let boardVC = BoardViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel,
-            thumbnailModel: thumbnailModel,
-            topUIState: topUIState
+            audioModel: audioModel
         )
         let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(

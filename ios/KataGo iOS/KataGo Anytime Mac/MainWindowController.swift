@@ -32,12 +32,15 @@ final class MainWindowController: NSWindowController {
         w.title = "KataGo Anytime"
         super.init(window: w)
 
+        // Stop the GTP message loop when the window closes (the katago thread
+        // itself runs the engine's own run loop and is left to be torn down by
+        // process exit; `stopRequested` ends `GameSession.run()`/`messaging()`).
+        w.delegate = self
+
         w.contentViewController = MainSplitViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel,
-            thumbnailModel: thumbnailModel,
-            topUIState: topUIState
+            audioModel: audioModel
         )
         w.titlebarAppearsTransparent = false
         w.toolbarStyle = .unified
@@ -277,6 +280,16 @@ private final class AIMoveBox {
     var value: String?
     var binding: Binding<String?> {
         Binding(get: { self.value }, set: { self.value = $0 })
+    }
+}
+
+// MARK: - Window lifecycle
+
+extension MainWindowController: NSWindowDelegate {
+    /// Ends the `GameSession` message loop when the window closes so `run()`
+    /// stops polling `KataGoHelper.getMessageLine()` after teardown.
+    func windowWillClose(_ notification: Notification) {
+        session.stopRequested = true
     }
 }
 

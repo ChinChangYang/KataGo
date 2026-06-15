@@ -79,7 +79,7 @@ public final class GameSession {
         return version
     }
 
-    public func sendInitialCommands(config: Config?) {
+    private func sendInitialCommands(config: Config?) {
         // If a config is not available, initialize KataGo with a default config.
         let config = config ?? Config()
         messageList.appendAndSend(command: config.getKataBoardSizeCommand())
@@ -172,7 +172,7 @@ public final class GameSession {
 
     // MARK: - Collectors
 
-    public func maybeCollectBoard(message: String) async {
+    func maybeCollectBoard(message: String) async {
         // Check if the board is not currently being shown
         guard isShowingBoard else {
             // If the message indicates a new move number
@@ -229,7 +229,7 @@ public final class GameSession {
     }
 
     // Parses the board text to extract and classify positions of stones and moves
-    public func parseBoardPoints(boardText: [String]) {
+    func parseBoardPoints(boardText: [String]) {
         let parsed = BoardTextParser.parse(boardText)
 
         withAnimation(.none) {
@@ -253,7 +253,7 @@ public final class GameSession {
         }
     }
 
-    public func maybeCollectAnalysis(message: String) async {
+    func maybeCollectAnalysis(message: String) async {
         guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
             let sampleTime = ProcessInfo.processInfo.systemUptime
@@ -285,7 +285,7 @@ public final class GameSession {
         }
     }
 
-    public func maybeCollectSgf(
+    func maybeCollectSgf(
         message: String,
         gameRecords: [GameRecord],
         modelContext: ModelContext,
@@ -316,7 +316,7 @@ public final class GameSession {
         }
     }
 
-    public func postProcessAIMove(
+    func postProcessAIMove(
         message: String,
         navigationContext: NavigationContext,
         audioModel: AudioModel,
@@ -358,7 +358,7 @@ public final class GameSession {
         }
     }
 
-    public func maybeCollectPlay(
+    func maybeCollectPlay(
         message: String,
         navigationContext: NavigationContext,
         audioModel: AudioModel,
@@ -375,7 +375,7 @@ public final class GameSession {
         }
     }
 
-    public func maybeCollectCheckMove(
+    func maybeCollectCheckMove(
         message: String,
         navigationContext: NavigationContext,
         audioModel: AudioModel

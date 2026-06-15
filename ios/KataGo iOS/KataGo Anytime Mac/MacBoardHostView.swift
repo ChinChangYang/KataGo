@@ -15,17 +15,15 @@ import KataGoUICore
 /// (`StoneView`/`AnalysisView`/`WinrateBarView`/`BookAnalysisView`/
 /// `MoveNumberView`/`BoardLineView`) read; nothing more.
 ///
-/// The collaborators `NavigationContext`, `ThumbnailModel` and `TopUIState` are
-/// owned by the window controller and passed in so the host can resolve the
-/// currently-selected `GameRecord` (which `BoardView.init` requires) and so the
-/// set is ready for later phases — but they are *not* environment dependencies
-/// of `BoardView` itself, so they are intentionally not injected here.
+/// `NavigationContext` is needed to resolve the currently-selected `GameRecord`
+/// (which `BoardView.init` requires); `AudioModel` is an environment dependency
+/// of the board. The window controller owns other collaborators
+/// (`ThumbnailModel`/`TopUIState`) for later phases, but they are neither read
+/// nor injected here, so they are not threaded into the host chain.
 struct MacBoardHostView: View {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
-    let thumbnailModel: ThumbnailModel
-    let topUIState: TopUIState
 
     /// `BoardView` takes a `FocusState<Bool>.Binding` for its comment field.
     /// Phase 1 has no comment editor on macOS, so this is a private focus state

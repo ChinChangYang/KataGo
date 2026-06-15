@@ -162,23 +162,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu(title: "Navigate")
 
         let back = menu.addItem(withTitle: "Back",
-                                action: Selector(("goBackward:")),
+                                action: #selector(MainWindowController.goBackward(_:)),
                                 keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
         back.keyEquivalentModifierMask = []
 
         let forward = menu.addItem(withTitle: "Forward",
-                                   action: Selector(("goForward:")),
+                                   action: #selector(MainWindowController.goForward(_:)),
                                    keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         forward.keyEquivalentModifierMask = []
         menu.addItem(.separator())
 
         let first = menu.addItem(withTitle: "First",
-                                 action: Selector(("goToStart:")),
+                                 action: #selector(MainWindowController.goToStart(_:)),
                                  keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
         first.keyEquivalentModifierMask = [.command, .option]
 
         let last = menu.addItem(withTitle: "Last",
-                                action: Selector(("goToEnd:")),
+                                action: #selector(MainWindowController.goToEnd(_:)),
                                 keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         last.keyEquivalentModifierMask = [.command, .option]
         return menu
