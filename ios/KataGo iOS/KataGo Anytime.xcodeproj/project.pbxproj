@@ -77,6 +77,7 @@
 		4DAD83EE4AAA5417988F7BA2 /* hashtablez_sampler.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F86021776EC4F7F6498285B /* hashtablez_sampler.cc */; };
 		4F338D9B3B50F39ECAB7CE6E /* crc_x86_arm_combined.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */; };
 		4F75548BBE16A6E47A041601 /* scoped_set_env.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83FDDE9F07972DF926E7D7EB /* scoped_set_env.cc */; };
+		4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D382D5D477A9008C934B67 /* BoardViewController.swift */; };
 		507FBB1A0B147D1D4D34D74D /* NeuralNetwork.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 600FF4D6555CDCE2390DAD5C /* NeuralNetwork.pb.cc */; };
 		515FA523DC4E53FCFE3C14A8 /* cycleclock.cc in Sources */ = {isa = PBXBuildFile; fileRef = 158BDE8AE84A160E7E0A0C85 /* cycleclock.cc */; };
 		524566E0F05CA2B29F9A0FF0 /* seed_sequences.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6611B60F0D28CC462D4FFD4B /* seed_sequences.cc */; };
@@ -107,6 +108,7 @@
 		687D69E61A9400DF3C586285 /* parse_context.cc in Sources */ = {isa = PBXBuildFile; fileRef = 653962734D16C68890A2E6FD /* parse_context.cc */; };
 		691B4CE6D99EB3B7D1A68197 /* log_message.cc in Sources */ = {isa = PBXBuildFile; fileRef = 53BD6F60BC59DC9F59A2F3F7 /* log_message.cc */; };
 		696ECD7E40A40476AA932826 /* cord_rep_btree.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6A50B060363C7FD69195AABA /* cord_rep_btree.cc */; };
+		69FBFAB9B1006AEE42C3312C /* MainSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */; };
 		6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */; };
 		6C3C4578D360047862599751 /* Operations.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9214156EA4D6514A86F1A8E6 /* Operations.cpp */; };
 		6EA0837CBA82FBA413DB2651 /* cord_analysis.cc in Sources */ = {isa = PBXBuildFile; fileRef = B03045E3BA23301B9B7A5D81 /* cord_analysis.cc */; };
@@ -186,6 +188,7 @@
 		A930EA82B20459A633CCD185 /* ModelPackage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DF87CAF0BC8ED9616E552855 /* ModelPackage.cpp */; };
 		A9376AB799D65C8025CD559D /* city.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB8AF52E37193580D79F2CE6 /* city.cc */; };
 		A99D781BD14A278FDA6A49D7 /* die_if_null.cc in Sources */ = {isa = PBXBuildFile; fileRef = 06B5DB05FBA3F5832D7E2109 /* die_if_null.cc */; };
+		AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C81EB8694345D4096093043 /* PlaceholderViewController.swift */; };
 		AABBCCDD2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */; };
 		AABBCCE02A51466C00D335E1 /* BackendConfigSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCE12A51466C00D335E1 /* BackendConfigSheetUITests.swift */; };
 		ABDAD4BE72DFB4372CE86377 /* utf8_range.c in Sources */ = {isa = PBXBuildFile; fileRef = 920FF0ED642A58B9D57848B9 /* utf8_range.c */; };
@@ -619,6 +622,7 @@
 		17FA6DBD4C7BA5955B8953B7 /* bind.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = bind.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/bind.cc"; sourceTree = SOURCE_ROOT; };
 		1BD242602F707FC96E8F9DDC /* thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/thread_identity.cc"; sourceTree = SOURCE_ROOT; };
 		1C46DA09C718B0323CFFFDFB /* crc_memcpy_fallback.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_memcpy_fallback.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_memcpy_fallback.cc"; sourceTree = SOURCE_ROOT; };
+		1C81EB8694345D4096093043 /* PlaceholderViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderViewController.swift; sourceTree = "<group>"; };
 		1E1094C011D3FB807C589B00 /* cord_rep_btree_navigator.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_navigator.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_navigator.cc"; sourceTree = SOURCE_ROOT; };
 		1E8B4040941854E66E2DF899 /* borrowed_fixup_buffer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = borrowed_fixup_buffer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/borrowed_fixup_buffer.cc"; sourceTree = SOURCE_ROOT; };
 		1F057622F097CBED2408A76E /* map.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = map.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/map.cc"; sourceTree = SOURCE_ROOT; };
@@ -670,6 +674,7 @@
 		5290ED5C9410AF244A700A43 /* str_split.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_split.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_split.cc"; sourceTree = SOURCE_ROOT; };
 		53BD6F60BC59DC9F59A2F3F7 /* log_message.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_message.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/log_message.cc"; sourceTree = SOURCE_ROOT; };
 		5421AC611426CA58B63851AA /* proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/proto.cc"; sourceTree = SOURCE_ROOT; };
+		54D382D5D477A9008C934B67 /* BoardViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardViewController.swift; sourceTree = "<group>"; };
 		55915A5FD9CB10142DE64426 /* nullguard.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nullguard.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/nullguard.cc"; sourceTree = SOURCE_ROOT; };
 		55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		5617DDD280230D724D85091A /* str_cat.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_cat.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_cat.cc"; sourceTree = SOURCE_ROOT; };
@@ -706,6 +711,7 @@
 		72957BAFF34FE57DABA3B7E1 /* JsonMap.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = JsonMap.cpp; path = ../../cpp/external/katagocoreml/vendor/modelpackage/src/utils/JsonMap.cpp; sourceTree = SOURCE_ROOT; };
 		731EE3C8F8230B4CE9090477 /* vdso_support.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = vdso_support.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/vdso_support.cc"; sourceTree = SOURCE_ROOT; };
 		735B5C87C4CA780F3E97EBA4 /* crc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc.cc"; sourceTree = SOURCE_ROOT; };
+		735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainSplitViewController.swift; sourceTree = "<group>"; };
 		736413C8053B763DABB40FC3 /* FeatureVectorizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureVectorizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureVectorizer.pb.cc; sourceTree = SOURCE_ROOT; };
 		7434F79FFAACA347E36CDF34 /* MILBuilder.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MILBuilder.cpp; path = ../../cpp/external/katagocoreml/src/builder/MILBuilder.cpp; sourceTree = SOURCE_ROOT; };
 		744518C7A1BEE2A0C3B3133A /* substitute.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = substitute.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/substitute.cc"; sourceTree = SOURCE_ROOT; };
@@ -1229,6 +1235,9 @@
 				4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */,
 				7CCB02B8B6426F2FD06E23D2 /* Info.plist */,
 				99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */,
+				735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */,
+				54D382D5D477A9008C934B67 /* BoardViewController.swift */,
+				1C81EB8694345D4096093043 /* PlaceholderViewController.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2295,6 +2304,9 @@
 				1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */,
 				74F0287281FFC47912543E0A /* MainWindowController.swift in Sources */,
 				162CF665BE9CC9D3F596B306 /* CoreMLComputeHandleLoader.swift in Sources */,
+				69FBFAB9B1006AEE42C3312C /* MainSplitViewController.swift in Sources */,
+				4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */,
+				AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

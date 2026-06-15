@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerCoreMLBridge()  // from the copied CoreMLComputeHandleLoader.swift
         registerDownloadedHasher(BinFileHasher.shared.identityForDownloadedFile)
+        NSApp.mainMenu = buildMainMenu()
         let wc = MainWindowController(modelContainer: modelContainer)
         wc.showWindow(nil)
         windowController = wc
@@ -18,4 +19,167 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
+
+    // MARK: - Main Menu
+
+    @MainActor
+    private func buildMainMenu() -> NSMenu {
+        let mainMenu = NSMenu()
+        mainMenu.addItem(makeSubmenu(appMenu()))
+        mainMenu.addItem(makeSubmenu(fileMenu()))
+        mainMenu.addItem(makeSubmenu(editMenu()))
+        mainMenu.addItem(makeSubmenu(viewMenu()))
+        mainMenu.addItem(makeSubmenu(navigateMenu()))
+
+        let windowMenu = windowMenu()
+        mainMenu.addItem(makeSubmenu(windowMenu))
+        NSApp.windowsMenu = windowMenu
+
+        mainMenu.addItem(makeSubmenu(helpMenu()))
+        return mainMenu
+    }
+
+    /// Wraps a populated menu in the top-level container item the menu bar expects.
+    private func makeSubmenu(_ menu: NSMenu) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.submenu = menu
+        return item
+    }
+
+    @MainActor
+    private func appMenu() -> NSMenu {
+        let name = ProcessInfo.processInfo.processName
+        let menu = NSMenu(title: name)
+        menu.addItem(withTitle: "About \(name)",
+                     action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Settings…",
+                     action: Selector(("showSettings:")),
+                     keyEquivalent: ",")
+        menu.addItem(.separator())
+
+        let hide = menu.addItem(withTitle: "Hide \(name)",
+                                action: #selector(NSApplication.hide(_:)),
+                                keyEquivalent: "h")
+        hide.target = NSApp
+        let hideOthers = menu.addItem(withTitle: "Hide Others",
+                                      action: #selector(NSApplication.hideOtherApplications(_:)),
+                                      keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        hideOthers.target = NSApp
+        let showAll = menu.addItem(withTitle: "Show All",
+                                   action: #selector(NSApplication.unhideAllApplications(_:)),
+                                   keyEquivalent: "")
+        showAll.target = NSApp
+        menu.addItem(.separator())
+
+        let quit = menu.addItem(withTitle: "Quit \(name)",
+                                action: #selector(NSApplication.terminate(_:)),
+                                keyEquivalent: "q")
+        quit.target = NSApp
+        return menu
+    }
+
+    private func fileMenu() -> NSMenu {
+        let menu = NSMenu(title: "File")
+        menu.addItem(withTitle: "New Game",
+                     action: Selector(("newGame:")),
+                     keyEquivalent: "n")
+        menu.addItem(withTitle: "Import…",
+                     action: Selector(("importSGF:")),
+                     keyEquivalent: "o")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Close",
+                     action: #selector(NSWindow.performClose(_:)),
+                     keyEquivalent: "w")
+        return menu
+    }
+
+    private func editMenu() -> NSMenu {
+        let menu = NSMenu(title: "Edit")
+        menu.addItem(withTitle: "Undo",
+                     action: Selector(("undo:")),
+                     keyEquivalent: "z")
+        let redo = menu.addItem(withTitle: "Redo",
+                                action: Selector(("redo:")),
+                                keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Cut",
+                     action: #selector(NSText.cut(_:)),
+                     keyEquivalent: "x")
+        menu.addItem(withTitle: "Copy",
+                     action: #selector(NSText.copy(_:)),
+                     keyEquivalent: "c")
+        menu.addItem(withTitle: "Paste",
+                     action: #selector(NSText.paste(_:)),
+                     keyEquivalent: "v")
+        menu.addItem(withTitle: "Select All",
+                     action: #selector(NSText.selectAll(_:)),
+                     keyEquivalent: "a")
+        return menu
+    }
+
+    private func viewMenu() -> NSMenu {
+        let menu = NSMenu(title: "View")
+        let toggleSidebar = menu.addItem(withTitle: "Toggle Sidebar",
+                                         action: #selector(NSSplitViewController.toggleSidebar(_:)),
+                                         keyEquivalent: "s")
+        toggleSidebar.keyEquivalentModifierMask = [.command, .control]
+
+        let toggleInspector = menu.addItem(withTitle: "Toggle Inspector",
+                                           action: #selector(NSSplitViewController.toggleInspector(_:)),
+                                           keyEquivalent: "i")
+        toggleInspector.keyEquivalentModifierMask = [.command, .control]
+        menu.addItem(.separator())
+
+        let fullScreen = menu.addItem(withTitle: "Enter Full Screen",
+                                      action: #selector(NSWindow.toggleFullScreen(_:)),
+                                      keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.command, .control]
+        return menu
+    }
+
+    private func navigateMenu() -> NSMenu {
+        let menu = NSMenu(title: "Navigate")
+
+        let back = menu.addItem(withTitle: "Back",
+                                action: Selector(("goBackward:")),
+                                keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        back.keyEquivalentModifierMask = []
+
+        let forward = menu.addItem(withTitle: "Forward",
+                                   action: Selector(("goForward:")),
+                                   keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        forward.keyEquivalentModifierMask = []
+        menu.addItem(.separator())
+
+        let first = menu.addItem(withTitle: "First",
+                                 action: Selector(("goToStart:")),
+                                 keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        first.keyEquivalentModifierMask = [.command, .option]
+
+        let last = menu.addItem(withTitle: "Last",
+                                action: Selector(("goToEnd:")),
+                                keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        last.keyEquivalentModifierMask = [.command, .option]
+        return menu
+    }
+
+    @MainActor
+    private func windowMenu() -> NSMenu {
+        let menu = NSMenu(title: "Window")
+        menu.addItem(withTitle: "Minimize",
+                     action: #selector(NSWindow.performMiniaturize(_:)),
+                     keyEquivalent: "m")
+        menu.addItem(withTitle: "Zoom",
+                     action: #selector(NSWindow.performZoom(_:)),
+                     keyEquivalent: "")
+        return menu
+    }
+
+    private func helpMenu() -> NSMenu {
+        NSMenu(title: "Help")
+    }
 }
