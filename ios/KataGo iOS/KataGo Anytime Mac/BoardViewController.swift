@@ -9,13 +9,16 @@ final class BoardViewController: NSViewController {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
+    let readiness: BoardReadiness
 
     init(session: GameSession,
          navigationContext: NavigationContext,
-         audioModel: AudioModel) {
+         audioModel: AudioModel,
+         readiness: BoardReadiness) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
+        self.readiness = readiness
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -26,7 +29,8 @@ final class BoardViewController: NSViewController {
             rootView: MacBoardHostView(
                 session: session,
                 navigationContext: navigationContext,
-                audioModel: audioModel
+                audioModel: audioModel,
+                readiness: readiness
             )
         )
         addChild(host)

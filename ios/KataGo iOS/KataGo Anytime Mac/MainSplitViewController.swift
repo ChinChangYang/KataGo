@@ -11,6 +11,7 @@ final class MainSplitViewController: NSSplitViewController {
     let navigationContext: NavigationContext
     let audioModel: AudioModel
     let libraryStore: LibraryStore
+    let readiness: BoardReadiness
     /// Weak to avoid a retain cycle: the window controller owns this split VC
     /// (as its window's `contentViewController`). The sidebar routes selection
     /// back through it via `selectGame`.
@@ -20,11 +21,13 @@ final class MainSplitViewController: NSSplitViewController {
          navigationContext: NavigationContext,
          audioModel: AudioModel,
          libraryStore: LibraryStore,
+         readiness: BoardReadiness,
          windowController: MainWindowController) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
         self.libraryStore = libraryStore
+        self.readiness = readiness
         self.windowController = windowController
         super.init(nibName: nil, bundle: nil)
     }
@@ -56,7 +59,8 @@ final class MainSplitViewController: NSSplitViewController {
         let boardVC = BoardViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel
+            audioModel: audioModel,
+            readiness: readiness
         )
         let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(

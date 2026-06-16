@@ -48,6 +48,12 @@ final class MainWindowController: NSWindowController {
     /// preferences when `BoardView` first renders.
     private var preferenceSync: MacGlobalPreferenceSync?
 
+    /// Gates the board pane until the engine session has finished its initial
+    /// handshake + board load (see `BoardReadiness`). Without this, the hosted
+    /// `BoardView.onAppear` fires at `init` time — before the engine exists — and
+    /// its premature `showboard` desyncs `showBoardCount`, gating analysis off.
+    let boardReadiness = BoardReadiness()
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
 
@@ -74,6 +80,7 @@ final class MainWindowController: NSWindowController {
             navigationContext: navigationContext,
             audioModel: audioModel,
             libraryStore: libraryStore,
+            readiness: boardReadiness,
             windowController: self
         )
         w.titlebarAppearsTransparent = false
@@ -332,6 +339,13 @@ final class MainWindowController: NSWindowController {
             aiMove: aiMoveBox.binding
         )
 
+        // The engine handshake + initial board load are done. Mount the live
+        // board now (mirrors iOS setting `isInitialized` after `initialize()`):
+        // `BoardView.onAppear` then sends its `showboard` while the run loop below
+        // is active to consume the response, so `showBoardCount` stays balanced
+        // and the `nextColorForPlayCommand` change drives the first analyze.
+        boardReadiness.isEngineReady = true
+
         await session.run(
             gameRecords: gameRecords,
             modelContext: context,
@@ -587,7 +601,8 @@ final class MainWindowController: NSWindowController {
 
             let board = MacBoardHostView(session: self.session,
                                          navigationContext: self.navigationContext,
-                                         audioModel: self.audioModel)
+                                         audioModel: self.audioModel,
+                                         readiness: self.boardReadiness)
                 .frame(width: 760, height: 800)
             let renderer = ImageRenderer(content: board)
             renderer.scale = 2
