@@ -308,6 +308,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Zoom",
                      action: #selector(NSWindow.performZoom(_:)),
                      keyEquivalent: "")
+        menu.addItem(.separator())
+        // Opens the native Models window (P5-T7). `target = nil` routes through
+        // the responder chain to `MainWindowController.showModelsWindow(_:)`.
+        // (P5-T6 adds the toolbar active-model dropdown that opens the same window.)
+        menu.addItem(withTitle: "Manage Models…",
+                     action: #selector(MainWindowController.showModelsWindow(_:)),
+                     keyEquivalent: "")
         return menu
     }
 

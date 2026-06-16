@@ -633,6 +633,33 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    // MARK: - Models window (P5-T7 / P5-T8)
+
+    /// Retains the lazily-created Models window controller so it isn't
+    /// deallocated while on screen. Cleared is unnecessary — the controller is
+    /// cheap and reused across opens.
+    private var modelsWindowController: ModelsWindowController?
+
+    /// Opens (or brings forward) the native Models window. Reached through the
+    /// responder chain from the Window-menu "Manage Models…" item (and, later,
+    /// the P5-T6 toolbar dropdown). The window's "Set Active" path routes back
+    /// into `relaunch(model:)` to switch the active net + relaunch the engine;
+    /// the "Active" badge reads the live `modelSelection.currentModel`.
+    @objc func showModelsWindow(_ sender: Any?) {
+        if modelsWindowController == nil {
+            modelsWindowController = ModelsWindowController(
+                currentModelTitle: { [weak self] in
+                    self?.modelSelection.currentModel.title ?? ""
+                },
+                onSetActive: { [weak self] model in
+                    self?.relaunch(model: model)
+                }
+            )
+        }
+        modelsWindowController?.showWindow(sender)
+        modelsWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
     // MARK: - Launch-time crash recovery (P5-T5)
     //
     // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch
