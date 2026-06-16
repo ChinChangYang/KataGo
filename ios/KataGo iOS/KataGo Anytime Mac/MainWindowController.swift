@@ -41,6 +41,13 @@ final class MainWindowController: NSWindowController {
     /// built in the `.analyze` case) to avoid a retain cycle.
     private weak var analyzeToolbarItem: NSToolbarItem?
 
+    /// AppKit equivalent of the iOS `GlobalPreferenceSync` modifier: seeds the
+    /// shared `GobanState` from the persisted `GlobalSettings.*` UserDefaults and
+    /// writes each subsequent change back. Owned here; created in `init` BEFORE
+    /// the board view appears so `GobanState` already holds the user's display
+    /// preferences when `BoardView` first renders.
+    private var preferenceSync: MacGlobalPreferenceSync?
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
 
@@ -54,6 +61,13 @@ final class MainWindowController: NSWindowController {
         // itself runs the engine's own run loop and is left to be torn down by
         // process exit; `stopRequested` ends `GameSession.run()`/`messaging()`).
         w.delegate = self
+
+        // Seed `GobanState` from the persisted `GlobalSettings.*` UserDefaults
+        // (and begin write-back) BEFORE the content view controller — which hosts
+        // `BoardView` — is built, so the board renders with the user's saved
+        // display preferences from the very first frame. Mirrors the iOS
+        // `GlobalPreferenceSync` `.onAppear` seeding.
+        preferenceSync = MacGlobalPreferenceSync(gobanState: session.gobanState)
 
         w.contentViewController = MainSplitViewController(
             session: session,

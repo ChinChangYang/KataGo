@@ -158,6 +158,7 @@
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
 		8BC1ECD0881AAE40EBD51E9F /* entropy_pool.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F0BA6B9BFF12E6C4D710DFA /* entropy_pool.cc */; };
 		8E94A81C67B68E1C90B0BC6A /* graphcycles.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B723FFDCF4553074736CA50 /* graphcycles.cc */; };
+		8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */; };
 		8FC7D9710283CCB707456D36 /* FeatureTypes.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */; };
 		8FC9F361006D40F7229EECCD /* WeightSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265F6595482BA2DE073D71EF /* WeightSerializer.cpp */; };
 		91891DBEF07F1553186F53B1 /* BoardTextParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */; };
@@ -608,6 +609,7 @@
 /* Begin PBXFileReference section */
 		00551F81D3B391B1AC8F7DE3 /* kernel_timeout.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = kernel_timeout.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/kernel_timeout.cc"; sourceTree = SOURCE_ROOT; };
 		008FE61EE6603F28C0E87C9F /* periodic_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = periodic_sampler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/periodic_sampler.cc"; sourceTree = SOURCE_ROOT; };
+		0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacGlobalPreferenceSync.swift; sourceTree = "<group>"; };
 		01CDD4D97A60DB28A1ADFBD9 /* cordz_sample_token.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_sample_token.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_sample_token.cc"; sourceTree = SOURCE_ROOT; };
 		025B5C9B251E56A5347903A9 /* SoundAnalysisPreprocessing.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SoundAnalysisPreprocessing.pb.cc; path = ../../cpp/external/katagocoreml/generated/SoundAnalysisPreprocessing.pb.cc; sourceTree = SOURCE_ROOT; };
 		04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BinFileHasherTests.swift; path = "KataGo iOSTests/BinFileHasherTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -1256,6 +1258,7 @@
 				9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */,
 				F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */,
 				F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */,
+				0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2333,6 +2336,7 @@
 				A800D354C94992F8BCE4984F /* GameRowView.swift in Sources */,
 				4C362581A79874EBE3D57D44 /* LibrarySidebarViewController.swift in Sources */,
 				DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */,
+				8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
