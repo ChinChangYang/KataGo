@@ -668,6 +668,27 @@ final class MainWindowController: NSWindowController {
         modelsWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
+    // MARK: - Settings window (P5-T11)
+
+    /// Retains the lazily-created Settings window controller so it isn't
+    /// deallocated while on screen. Reused across opens (it reads/writes the
+    /// live `session.gobanState`, so it always reflects the current state).
+    private var settingsWindowController: SettingsWindowController?
+
+    /// Opens (or brings forward) the native Settings window (⌘,). Reached
+    /// through the responder chain from the app menu's "Settings…" item, which
+    /// targets `Selector(("showSettings:"))` — `NSWindowController` is in the
+    /// window's responder chain, so this `@objc` action is what activates that
+    /// menu item. The window's controls read/WRITE `session.gobanState`;
+    /// `MacGlobalPreferenceSync` persists those changes (single writer).
+    @objc func showSettings(_ sender: Any?) {
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController(session: session)
+        }
+        settingsWindowController?.showWindow(sender)
+        settingsWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
     // MARK: - Launch-time crash recovery (P5-T5)
     //
     // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch
