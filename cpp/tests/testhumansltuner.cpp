@@ -136,5 +136,74 @@ void Tests::runHumanSLTunerTests() {
     testAssert(out == "a = 1\nb = 9\n# c = 3\nd = 4\n");
   }
 
+  // Test 7: an unreachable target pins x* to the boundary, never reports "converged",
+  // and keeps the reported CI NaN-safe. Exercises the degenerate extrapolation regime
+  // (candidate far stronger than the target across the whole dial range).
+  {
+    auto winrateOfElo = [](double elo) { return 1.0 / (1.0 + std::pow(10.0, -elo / 400.0)); };
+    std::mt19937_64 playRng(12345);
+    auto playAt = [&](double x) -> std::pair<double,int> {
+      double elo = 150.0 + 100.0 * x; // always >= +150 ELO; the 0.36 (-100 ELO) root lies below xLo
+      double wr = winrateOfElo(elo);
+      int games = 20;
+      std::binomial_distribution<int> binom(games, wr);
+      return std::make_pair((double)binom(playRng), games);
+    };
+    CalibrationResult res = calibrateToTarget(
+      playAt, 0.0, 1.0, 0.36, 20, 30, 25.0, (uint64_t)7, 0.5, nullptr);
+    testAssert(res.converged == false);
+    testAssert(std::fabs(res.xStar - 0.0) < 1e-6); // pinned to xLo
+    testAssert(!std::isnan(res.eloSe));            // honest CI: large/inf allowed, NaN never
+    testAssert(res.eloSe >= 0.0);
+    testAssert(res.totalGames > 0);
+  }
+
+  // Test 8: LogisticRS stays NaN-safe under near-degenerate data.
+  {
+    // (a) Perfectly separable data (all losses below 0, all wins above). The MLE slope
+    // diverges; L2 must keep coefficients finite and the reported CI non-NaN.
+    LogisticRS sep(0.5);
+    sep.addSample(-1.0, 0.0, 50.0);
+    sep.addSample(-1.0, 0.0, 50.0);
+    sep.addSample( 1.0, 50.0, 50.0);
+    sep.addSample( 1.0, 50.0, 50.0);
+    sep.fit();
+    testAssert(std::isfinite(sep.getB0()));
+    testAssert(std::isfinite(sep.getB1()));
+    testAssert(!std::isnan(sep.rootSeElo(0.36)));
+
+    // (b) No spread in x: the slope is unidentified. root() must be NaN (not +-inf) and
+    // rootSeElo() must be a non-NaN sentinel (+inf), with no crash.
+    LogisticRS flat(0.5);
+    for(int i = 0; i < 5; i++) flat.addSample(0.5, 25.0, 50.0);
+    flat.fit();
+    testAssert(std::isfinite(flat.getB0()));
+    testAssert(std::isfinite(flat.getB1()));
+    double r = flat.root(0.36);
+    double se = flat.rootSeElo(0.36);
+    testAssert(std::isnan(r) || std::isfinite(r)); // defined-or-NaN, never an inf trap
+    testAssert(!std::isnan(se));
+  }
+
+  // Test 9: convergence is structurally impossible with fewer than 4 rounds, even on a
+  // clean low-noise reachable surface (it requires >= 4 distinct dial samples). This pins
+  // down the invariant that motivates the CLI's max-rounds warning.
+  {
+    auto winrateOfElo = [](double elo) { return 1.0 / (1.0 + std::pow(10.0, -elo / 400.0)); };
+    std::mt19937_64 playRng(999);
+    auto playAt = [&](double x) -> std::pair<double,int> {
+      double wr = winrateOfElo(-100.0 + 300.0 * (x - 0.5)); // reachable; -100 ELO at x=0.5
+      int games = 200;
+      std::binomial_distribution<int> binom(games, wr);
+      return std::make_pair((double)binom(playRng), games);
+    };
+    for(int mr = 1; mr <= 3; mr++) {
+      CalibrationResult res = calibrateToTarget(
+        playAt, 0.0, 1.0, 0.36, 200, mr, 25.0, (uint64_t)(100 + mr), 0.5, nullptr);
+      testAssert(res.converged == false);
+      testAssert(res.rounds == mr);
+    }
+  }
+
   cout << "Done human SL tuner tests" << endl;
 }

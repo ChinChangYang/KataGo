@@ -126,6 +126,10 @@ int MainCmds::tunehuman(const vector<string>& args) {
   if(eloTol <= 0.0) { cerr << "Error: -elo-tol must be > 0." << endl; return 1; }
   if(searchVisits < 2) { cerr << "Error: -search-visits must be >= 2 (piklLambda needs >1 visit)." << endl; return 1; }
   if(maxRounds < 1) { cerr << "Error: -max-rounds must be >= 1." << endl; return 1; }
+  if(maxRounds < 4)
+    cout << "WARNING: -max-rounds " << maxRounds << " < 4: calibration needs at least 4 rounds to"
+         << " reach 'converged' (it requires 4 distinct dial samples). It will still run and write"
+         << " a best-achievable config, but converged will be false." << endl;
 
   int numGameThreads = numGameThreadsArgVal > 0
     ? numGameThreadsArgVal
