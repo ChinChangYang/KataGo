@@ -28,6 +28,13 @@ final class MainWindowController: NSWindowController {
     let modelContainer: ModelContainer
     private var katagoThread: Thread?
 
+    /// Last-seen values of the two analysis-lifecycle properties we observe, so
+    /// the (property-agnostic) `withObservationTracking` callback can tell which
+    /// one changed and detect the specific transitions iOS reacts to. Seeded from
+    /// the current `gobanState` when `installAnalysisLifecycleObserver()` runs.
+    private var lastWaitingForAnalysis = false
+    private var lastAnalysisStatus = AnalysisStatus.run
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
 
@@ -59,6 +66,15 @@ final class MainWindowController: NSWindowController {
         w.toolbar = toolbar
 
         w.center()
+
+        // Install before the engine starts so the first `true -> false`
+        // `waitingForAnalysis` transition isn't missed. That first analyze is
+        // kicked downstream of the hosted `BoardView`'s `showboard` round-trip:
+        // `maybeCollectBoard` sets `player.nextColorForPlayCommand`, and
+        // `BoardView.onChange(of:)` then calls `maybeRequestAnalysis`, which
+        // flips `waitingForAnalysis` true; the engine's first `info` line flips
+        // it back to false (parsed in `GameSession.maybeCollectAnalysis`).
+        installAnalysisLifecycleObserver()
 
         startEngineAndSession()
 
@@ -303,6 +319,106 @@ final class MainWindowController: NSWindowController {
             audioModel: audioModel,
             aiMove: aiMoveBox.binding
         )
+    }
+
+    // MARK: - Continuous analysis lifecycle
+    //
+    // `GameSession` only PARSES `kata-analyze` output (setting
+    // `gobanState.waitingForAnalysis` in `maybeCollectAnalysis`); it never sends
+    // `kata-analyze`/`stop` itself. On iOS that lifecycle is host-driven by two
+    // SwiftUI `.onChange` handlers in `GameSplitView`; the AppKit
+    // `MainWindowController` is not a SwiftUI view, so without these the overlay
+    // would populate once and go stale. This mirrors those two handlers:
+    //
+    //   • `GameSplitView` lines 414-418 (`processAnalysisStatusChange`): on entry
+    //     into `.clear`, send `stop`.
+    //   • `GameSplitView` lines 483-493 (`processChange(oldWaitingForAnalysis:…)`):
+    //     on a `true -> false` transition of `waitingForAnalysis`, IF there is a
+    //     selected game and `!shouldGenMove`, re-arm by sending `stop` (when
+    //     paused) or `config.getKataAnalyzeCommand()`. iOS's extra auto-play
+    //     forward logic (lines 495-525) is intentionally NOT ported — macOS has
+    //     no auto-play UI yet.
+    //
+    // `withObservationTracking`'s `onChange` is the AppKit-side stand-in for
+    // `.onChange`, with two gotchas this method handles:
+    //   1. It fires exactly ONCE per tracked-property change and is invoked
+    //      *before* the new value is committed, so we hop to `Task { @MainActor }`
+    //      to read the post-change values, and we RE-REGISTER tracking on every
+    //      callback (otherwise observation stops after the first change).
+    //   2. It doesn't say WHICH property changed, so we keep `lastWaitingForAnalysis`
+    //      / `lastAnalysisStatus` snapshots to detect the specific transitions and
+    //      update them at the end of each pass.
+    //
+    // There is a tiny window between a tracked mutation committing and the
+    // deferred `Task` re-registering tracking; a change landing in it isn't
+    // observed. Correctness survives this because the handler re-reads LIVE
+    // `gobanState` values (not whatever `onChange` "saw"), so a coalesced second
+    // mutation is still caught on the next pass. All mutation sites are
+    // `@MainActor`, and `GameSession.messaging` suspends on `await Task.detached`
+    // per line, draining the re-arm `Task` before the next analysis line lands.
+    //
+    // Reacting sends raw GTP via `appendAndSend` directly (not `requestAnalysis`),
+    // which does NOT mutate `waitingForAnalysis`/`analysisStatus`, so there is no
+    // self-trigger loop. (`maybeCollectAnalysis` flips `waitingForAnalysis` back
+    // to `true` only when the engine's next analysis line arrives.)
+
+    /// Seeds the snapshots from the live `gobanState` and starts the
+    /// self-rescheduling observation bridge. Called once, early in `init`.
+    private func installAnalysisLifecycleObserver() {
+        let gobanState = session.gobanState
+        lastWaitingForAnalysis = gobanState.waitingForAnalysis
+        lastAnalysisStatus = gobanState.analysisStatus
+        trackAnalysisLifecycle()
+    }
+
+    /// One observation pass: registers tracking of both properties, and on change
+    /// re-reads the committed values on the main actor, reacts, then re-arms.
+    private func trackAnalysisLifecycle() {
+        withObservationTracking {
+            // Touch both properties so a change to either fires `onChange`.
+            _ = session.gobanState.waitingForAnalysis
+            _ = session.gobanState.analysisStatus
+        } onChange: { [weak self] in
+            // `onChange` runs before the mutation commits; defer to read the new
+            // values, react, then re-register (tracking is one-shot).
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleAnalysisLifecycleChange()
+                self.trackAnalysisLifecycle()
+            }
+        }
+    }
+
+    /// Applies the iOS `GameSplitView` analyze re-arm / stop decision based on the
+    /// transitions detected against the snapshots, then refreshes the snapshots.
+    private func handleAnalysisLifecycleChange() {
+        let gobanState = session.gobanState
+        let newWaitingForAnalysis = gobanState.waitingForAnalysis
+        let newAnalysisStatus = gobanState.analysisStatus
+
+        // Mirror `processAnalysisStatusChange` (lines 414-418): on entry into
+        // `.clear`, stop the running analysis.
+        if newAnalysisStatus == .clear && lastAnalysisStatus != .clear {
+            session.messageList.appendAndSend(command: "stop")
+        }
+
+        // Mirror `processChange(oldWaitingForAnalysis:newWaitingForAnalysis:)`
+        // (lines 483-493): on a `true -> false` transition, re-arm continuous
+        // analysis (or stop, when paused) for the selected game.
+        if lastWaitingForAnalysis && !newWaitingForAnalysis {
+            if let gameRecord = navigationContext.selectedGameRecord,
+               !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player) {
+                if gobanState.analysisStatus == .pause {
+                    session.messageList.appendAndSend(command: "stop")
+                } else {
+                    session.messageList.appendAndSend(
+                        command: gameRecord.concreteConfig.getKataAnalyzeCommand())
+                }
+            }
+        }
+
+        lastWaitingForAnalysis = newWaitingForAnalysis
+        lastAnalysisStatus = newAnalysisStatus
     }
 
     #if DEBUG
