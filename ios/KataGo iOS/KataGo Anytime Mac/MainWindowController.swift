@@ -1,7 +1,15 @@
 import AppKit
+import OSLog
 import SwiftUI
 import SwiftData
 import KataGoUICore
+
+/// Logs the launch-time crash-recovery decision (mirrors the iOS
+/// `ModelRunnerView` `recoveryLogger`, ModelRunnerView.swift lines 12-15).
+private let recoveryLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",
+    category: "engine.recovery"
+)
 
 @MainActor
 final class MainWindowController: NSWindowController {
@@ -13,6 +21,13 @@ final class MainWindowController: NSWindowController {
     let thumbnailModel = ThumbnailModel()
     let topUIState = TopUIState()
     private let engineLifecycle = EngineLifecycle()
+
+    /// Observable engine-launch status (created + wired by the `AppDelegate`,
+    /// which registers the `registerEngineLaunchStatusUpdater` seam against it).
+    /// Held here so P5-T9 can surface its caption in the board pane during a
+    /// cache-miss CoreML compile. Mirrors the iOS `engineLaunchStatus` plumbed
+    /// from `KataGo_iOSApp` into `ContentView`.
+    let engineLaunchStatus: EngineLaunchStatus
 
     /// Backs the Library sidebar's list of persisted games (fetch + observe).
     lazy var libraryStore = LibraryStore(container: modelContainer)
@@ -61,6 +76,21 @@ final class MainWindowController: NSWindowController {
     /// edit mode must cancel any in-flight auto-play.
     private var lastIsEditing = false
 
+    /// Last-seen value of `engineLifecycle.lastLoadedModelTitle`. The
+    /// (property-agnostic) `withObservationTracking` callback diffs against this
+    /// to detect the `nil -> non-nil` transition that signals the engine's first
+    /// GTP response, on which the crash sentinel is cleared (mirrors iOS
+    /// `ModelRunnerView.onChange(of: engineLifecycle.lastLoadedModelTitle)`,
+    /// lines 115-119).
+    private var lastLoadedModelTitle: String?
+
+    /// One-shot guard so the launch-time crash-recovery decision runs EXACTLY
+    /// once for the window's lifetime. Scene/relaunch transitions must not re-run
+    /// recovery — only the very first launch consults the previous run's sentinel.
+    /// Mirrors the iOS `ModelRunnerView.hasDecidedRecovery` (ModelRunnerView.swift
+    /// lines 21, 44-45).
+    private var hasDecidedRecovery = false
+
     /// The toolbar's Analyze item, retained weakly so `refreshAnalyzeToolbarItem()`
     /// can mutate its image/toolTip to reflect `gobanState.analysisStatus`. The
     /// `NSToolbar` owns the item; we only borrow a reference (set when the item is
@@ -80,8 +110,9 @@ final class MainWindowController: NSWindowController {
     /// its premature `showboard` desyncs `showBoardCount`, gating analysis off.
     let boardReadiness = BoardReadiness()
 
-    init(modelContainer: ModelContainer) {
+    init(modelContainer: ModelContainer, engineLaunchStatus: EngineLaunchStatus) {
         self.modelContainer = modelContainer
+        self.engineLaunchStatus = engineLaunchStatus
 
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -146,7 +177,19 @@ final class MainWindowController: NSWindowController {
         // before the engine starts so the first stones-ready transition isn't missed.
         installAutoPlayObserver()
 
-        startEngineAndSession()
+        // Clears the crash sentinel once the engine's first GTP response lands
+        // (`engineLifecycle.lastLoadedModelTitle` goes `nil -> non-nil`). Installed
+        // before the launch so the first response isn't missed. Mirrors the iOS
+        // `ModelRunnerView.onChange(of: engineLifecycle.lastLoadedModelTitle)`.
+        installLastLoadedModelObserver()
+
+        // Run the launch-time crash-recovery decision ONCE, BEFORE arming the
+        // sentinel / launching the engine — it must read the PREVIOUS run's
+        // sentinel (`pendingLoadModelTitle`), which `startEngineAndSession()`
+        // will overwrite (arm) for THIS run. For the non-banner outcomes this
+        // launches the engine immediately; for the banner outcome it defers the
+        // launch until the user dismisses the NSAlert sheet (see `decideRecovery`).
+        decideRecovery()
 
         #if DEBUG
         scheduleSnapshotIfRequested()
@@ -333,9 +376,17 @@ final class MainWindowController: NSWindowController {
         // flags). Same UserDefaults keys as iOS.
         var settings = BackendSettings(model: model)
 
-        // Arm + clear the crash sentinel exactly as `ModelRunnerView` does so the
-        // handshake's `markFirstResponse` is meaningful.
+        // Arm the crash sentinel BEFORE starting the engine thread, exactly as
+        // the iOS `ModelRunnerView` does (lines 92-94). If the engine
+        // OOM-crashes before the first GTP response, this value survives the
+        // process death and the NEXT launch's `decideRecovery()` shows the
+        // recovery alert instead of restarting the same crash. `reset()` first so
+        // the `lastLoadedModelTitle` observer re-fires even when the same model
+        // is (re)launched; `synchronize()` flushes the sentinel to disk
+        // immediately so an imminent crash can't lose it.
         engineLifecycle.reset()
+        modelSelection.pendingLoadModelTitle = model.title
+        UserDefaults.standard.synchronize()
 
         startKataGoThread(
             modelPath: modelPath,
@@ -580,6 +631,164 @@ final class MainWindowController: NSWindowController {
             await stopEngineAndSession()
             startEngineAndSession()
         }
+    }
+
+    // MARK: - Launch-time crash recovery (P5-T5)
+    //
+    // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch
+    // (ModelRunnerView.swift lines 41-70) + the `lastLoadedModelTitle` clear
+    // (lines 115-119), adapted for AppKit. iOS has a picker screen at launch;
+    // macOS does not, so where iOS would `.showPicker` / show a banner, the Mac
+    // app falls back to launching the BUILT-IN net (never re-launching a model
+    // that apparently just crashed).
+    //
+    // Ordering is the crux: the decision reads `pendingLoadModelTitle` /
+    // `selectedModelTitle` reflecting the PREVIOUS run, and must run BEFORE
+    // `startEngineAndSession()` arms `pendingLoadModelTitle` for THIS run. So
+    // `init` calls `decideRecovery()` (not `startEngineAndSession()` directly):
+    //   • `.autoRestore` / `.showPicker` -> launch immediately.
+    //   • `.showPickerWithBanner` (a prior load crashed) -> DEFER launch until
+    //     the user dismisses the NSAlert sheet; both alert buttons fall back to
+    //     the built-in net for safety (never retry the crashing model on Mac).
+
+    /// Runs the launch-time recovery decision exactly once and either launches
+    /// the engine immediately or defers to the recovery alert. Guarded by
+    /// `hasDecidedRecovery` so scene/relaunch transitions can't re-run it.
+    private func decideRecovery() {
+        guard !hasDecidedRecovery else { return }
+        hasDecidedRecovery = true
+
+        #if DEBUG
+        let isDebug = true
+        #else
+        let isDebug = false
+        #endif
+
+        // These reflect the PREVIOUS run (set by the last launch's arming /
+        // first-response clear); `startEngineAndSession()` overwrites `pending`
+        // for THIS run only after the decision below.
+        let pending = modelSelection.pendingLoadModelTitle
+        let selected = modelSelection.selectedModelTitle
+
+        switch RecoveryDecision.decide(
+            pendingLoadModelTitle: pending,
+            selectedModelTitle: selected,
+            isDebug: isDebug
+        ) {
+        case .autoRestore:
+            // `modelSelection.currentModel` already resolves the active model
+            // from `selectedModelTitle`, so a normal launch restores it.
+            startEngineAndSession()
+
+        case .showPicker:
+            // Fresh install / DEBUG: macOS has no launch picker, so default to
+            // the built-in net.
+            if let builtIn = NeuralNetworkModel.builtInModel {
+                modelSelection.setActiveModel(builtIn)
+            }
+            startEngineAndSession()
+
+        case .showPickerWithBanner:
+            // A prior load apparently crashed before the engine ever responded.
+            // Do NOT launch yet — present the recovery alert once the window is
+            // on screen; its completion launches the built-in net.
+            recoveryLogger.error(
+                "Recovered from apparent crash loading model: \(pending, privacy: .public)"
+            )
+            presentRecoveryAlert(pending: pending)
+        }
+    }
+
+    /// Presents the crash-recovery NSAlert as a SHEET on the window, then (in the
+    /// completion) clears the sentinel and launches the BUILT-IN net regardless of
+    /// which button was chosen — on Mac we never retry the crashing model. Mirrors
+    /// the spec's locked decision. The window is on screen by the time `init`
+    /// returns and `showWindow` runs, but we defer to the next run-loop turn so
+    /// the sheet attaches to a presented window; if there's still no window we
+    /// fall back to a windowless built-in launch.
+    private func presentRecoveryAlert(pending: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard let window = self.window else {
+                // No window to host the sheet — clear the sentinel and launch the
+                // built-in net so the app isn't left engine-less.
+                self.recoverWithBuiltIn()
+                return
+            }
+
+            let alert = NSAlert()
+            alert.messageText = "Loading “\(pending)” may not have finished last time."
+            alert.informativeText =
+                "The app restarted before that network finished loading, which can "
+                + "happen if it ran out of memory. To be safe, the built-in network "
+                + "will be used instead. You can switch networks again from the "
+                + "Models window."
+            // First-added button is the default (rightmost / return-key).
+            alert.addButton(withTitle: "Use Built-in Network")
+            alert.addButton(withTitle: "Choose Later")
+
+            alert.beginSheetModal(for: window) { [weak self] _ in
+                // BOTH responses fall back to the built-in net — never retry the
+                // model that apparently crashed.
+                self?.recoverWithBuiltIn()
+            }
+        }
+    }
+
+    /// Clears the crash sentinel, makes the built-in net the active model, and
+    /// launches it. Used by both recovery-alert buttons and the no-window path.
+    private func recoverWithBuiltIn() {
+        recoveryLogger.notice("Crash recovery: falling back to the built-in network.")
+        modelSelection.pendingLoadModelTitle = ""
+        if let builtIn = NeuralNetworkModel.builtInModel {
+            modelSelection.setActiveModel(builtIn)
+        }
+        startEngineAndSession()
+    }
+
+    // MARK: - First-response sentinel clear (P5-T4)
+    //
+    // Port of the iOS `ModelRunnerView.onChange(of: engineLifecycle.lastLoadedModelTitle)`
+    // (lines 115-119): when the engine's first GTP response lands,
+    // `GameSession.initialize` calls `engineLifecycle.markFirstResponse(...)`,
+    // which sets `lastLoadedModelTitle`. On that `nil -> non-nil` transition we
+    // record the title as the last-good selection and CLEAR the crash sentinel.
+    // Same self-rescheduling `withObservationTracking` pattern (and gotchas) as
+    // the other observers; `lastLoadedModelTitle` is one-way per launch
+    // (`reset()` -> nil before each launch, set once on first response), so the
+    // snapshot diff just detects that single edge.
+
+    /// Seeds the snapshot from the live `engineLifecycle` and starts the
+    /// self-rescheduling observation bridge. Called once in `init`.
+    private func installLastLoadedModelObserver() {
+        lastLoadedModelTitle = engineLifecycle.lastLoadedModelTitle
+        trackLastLoadedModel()
+    }
+
+    /// One observation pass: tracks `lastLoadedModelTitle`, and on change re-reads
+    /// the committed value on the main actor, reacts, then re-arms (one-shot).
+    private func trackLastLoadedModel() {
+        withObservationTracking {
+            _ = engineLifecycle.lastLoadedModelTitle
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleLastLoadedModelChange()
+                self.trackLastLoadedModel()
+            }
+        }
+    }
+
+    /// On `lastLoadedModelTitle` becoming non-nil, persist it as the last-good
+    /// selection and clear the crash sentinel (mirrors ModelRunnerView lines
+    /// 116-118). Refreshes the snapshot at the end.
+    private func handleLastLoadedModelChange() {
+        let newValue = engineLifecycle.lastLoadedModelTitle
+        if let title = newValue {
+            modelSelection.selectedModelTitle = title
+            modelSelection.pendingLoadModelTitle = ""
+        }
+        lastLoadedModelTitle = newValue
     }
 
     // MARK: - Continuous analysis lifecycle

@@ -27,8 +27,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerCoreMLBridge()  // from the copied CoreMLComputeHandleLoader.swift
         registerDownloadedHasher(BinFileHasher.shared.identityForDownloadedFile)
+
+        // Wire the engine-launch status updater seam so the board pane (P5-T9)
+        // can show a secondary caption during cache-miss CoreML compiles. Created
+        // BEFORE the window controller and passed in, exactly as the iOS
+        // `KataGo_iOSApp.init` does (the local `status` is captured in the
+        // updater closure; the same closure-capture pattern, since at this point
+        // the controller does not yet exist). `registerEngineLaunchStatusUpdater`
+        // is the Mac target's own `CoreMLComputeHandleLoader` seam — the same
+        // file that already vends `registerCoreMLBridge`/`registerDownloadedHasher`.
+        let engineLaunchStatus = EngineLaunchStatus()
+        registerEngineLaunchStatusUpdater { phase in
+            await MainActor.run { engineLaunchStatus.phase = phase }
+        }
+
         NSApp.mainMenu = buildMainMenu()
-        let wc = MainWindowController(modelContainer: modelContainer)
+        let wc = MainWindowController(modelContainer: modelContainer,
+                                      engineLaunchStatus: engineLaunchStatus)
         wc.showWindow(nil)
         windowController = wc
         NSApp.setActivationPolicy(.regular)
