@@ -51,5 +51,39 @@ void Tests::runHumanSLTunerTests() {
     testAssert(big.rootSeElo(0.36) < small.rootSeElo(0.36));
   }
 
+  // Test 4: dial schedule monotonicity and continuity.
+  {
+    StrengthDialConfig c; // defaults
+    double prevDtauA = 1e18;
+    double prevPiklB = 1e18;
+    int prevVisC = -1;
+    for(int i = 0; i <= 60; i++) {
+      double x = i * 0.05;
+      StrengthDialParams p = strengthDialToParams(x, c);
+      if(x < 1.0) {
+        testAssert(p.maxVisits == 1);
+        testAssert(p.piklLambda == StrengthDialConfig::PIKL_INERT);
+        testAssert(p.deltaTau <= prevDtauA + 1e-12);
+        prevDtauA = p.deltaTau;
+      } else if(x < 2.0) {
+        testAssert(p.maxVisits == c.searchVisits);
+        testAssert(p.deltaTau == 0.0);
+        testAssert(p.piklLambda <= prevPiklB + 1e-9);
+        prevPiklB = p.piklLambda;
+      } else {
+        testAssert(std::fabs(p.piklLambda - c.piklFloor) < 1e-12);
+        testAssert(p.maxVisits >= prevVisC);
+        prevVisC = p.maxVisits;
+      }
+    }
+    // Continuity at x == 2: both sides give maxVisits == searchVisits and piklLambda == piklFloor.
+    StrengthDialParams justBelow = strengthDialToParams(2.0 - 1e-9, c);
+    StrengthDialParams at2 = strengthDialToParams(2.0, c);
+    testAssert(at2.maxVisits == c.searchVisits);
+    testAssert(justBelow.maxVisits == c.searchVisits);
+    testAssert(std::fabs(at2.piklLambda - c.piklFloor) < 1e-9);
+    testAssert(std::fabs(justBelow.piklLambda - c.piklFloor) < 1e-6);
+  }
+
   cout << "Done human SL tuner tests" << endl;
 }

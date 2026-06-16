@@ -40,4 +40,23 @@ class LogisticRS {
   bool fitted;
 };
 
+struct StrengthDialParams {
+  double piklLambda;
+  int    maxVisits;
+  double deltaTau;
+};
+
+struct StrengthDialConfig {
+  double piklFloor = 0.02;
+  double piklMax = 1.0e4;
+  int    searchVisits = 100; // must be >= 2
+  int    maxVisitsCap = 400;
+  double dtauMax = 0.6;
+  static constexpr double PIKL_INERT = 1.0e9; // KataGo default; "off"
+};
+
+// Maps a scalar strength coordinate x in [0,3] (low=weak, high=strong) to the three dials,
+// globally monotone in strength. Clamps x to [0,3].
+StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c);
+
 #endif // PROGRAM_HUMANSLTUNER_H_

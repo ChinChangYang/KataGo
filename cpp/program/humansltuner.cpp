@@ -8,6 +8,8 @@ static double clipd(double v, double lo, double hi) {
   return v < lo ? lo : (v > hi ? hi : v);
 }
 
+static double lerp(double a, double b, double t) { return a + (b - a) * t; }
+
 LogisticRS::LogisticRS(double l2_)
   : l2(l2_), xs(), ws(), ns(), b0(0.0), b1(0.0), fitted(false) {
   cov[0][0] = 0.0; cov[0][1] = 0.0; cov[1][0] = 0.0; cov[1][1] = 0.0;
@@ -102,4 +104,28 @@ int LogisticRS::distinctXCount(double eps) const {
       count++;
   }
   return count;
+}
+
+StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c) {
+  x = clipd(x, 0.0, 3.0);
+  StrengthDialParams out;
+  if(x < 1.0) {
+    // Segment A (weak): temperature lever at 1 visit (piklLambda is inert at 1 visit).
+    out.maxVisits = 1;
+    out.piklLambda = StrengthDialConfig::PIKL_INERT;
+    out.deltaTau = c.dtauMax * (1.0 - x);
+  } else if(x < 2.0) {
+    // Segment B (mid): piklLambda lever with search on.
+    out.maxVisits = c.searchVisits;
+    double lg = lerp(std::log10(c.piklMax), std::log10(c.piklFloor), x - 1.0);
+    out.piklLambda = std::pow(10.0, lg);
+    out.deltaTau = 0.0;
+  } else {
+    // Segment C (strong): visits lever, piklLambda fully trusted.
+    double lg = lerp(std::log2((double)c.searchVisits), std::log2((double)c.maxVisitsCap), x - 2.0);
+    out.maxVisits = (int)std::lround(std::pow(2.0, lg));
+    out.piklLambda = c.piklFloor;
+    out.deltaTau = 0.0;
+  }
+  return out;
 }
