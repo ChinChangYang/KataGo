@@ -49,6 +49,7 @@
 		333BEE14A50F37F646EF8944 /* barrier.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB10D18C7B3E859EF854E089 /* barrier.cc */; };
 		35491F6DE241E3E76736D1D5 /* LinkedModel.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = D4487A85C0D851B8CFC37E0A /* LinkedModel.pb.cc */; };
 		367C2E7E4E5B24126E925FDE /* coded_stream.cc in Sources */ = {isa = PBXBuildFile; fileRef = E98294CF60C54235D0A2B334 /* coded_stream.cc */; };
+		36C67794F79C07CBC3122F44 /* InspectorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886CE8718894DE10D2123089 /* InspectorViewController.swift */; };
 		374E95A7E769402F90845CE9 /* float_conversion.cc in Sources */ = {isa = PBXBuildFile; fileRef = C46D581335E6C102593371C6 /* float_conversion.cc */; };
 		3836D358405B891B6E3572BB /* time_zone_lookup.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */; };
 		388867FB58FBF0496FEA6178 /* mlxwinotuner.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
@@ -96,6 +97,7 @@
 		583282835D75E870D91DFCF5 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4C159FB921FB252C225F18A /* AppIntents.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		585A135BE268886E031FA9A2 /* time_zone_fixed.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */; };
 		5AD1A5BA9300BBAABC9954F8 /* demangle.cc in Sources */ = {isa = PBXBuildFile; fileRef = FDB0EF5683E83342322E62D3 /* demangle.cc */; };
+		5C0A871DE2E1FB7FEA2FA8A8 /* InspectorTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */; };
 		5C0FB63877615EF37C82B458 /* elf_mem_image.cc in Sources */ = {isa = PBXBuildFile; fileRef = BC369E122AA45A565227D30F /* elf_mem_image.cc */; };
 		5CF354385061AA2AF9FDB640 /* thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1BD242602F707FC96E8F9DDC /* thread_identity.cc */; };
 		5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D702E277C8397612E300DEC9 /* MacBoardHostView.swift */; };
@@ -745,6 +747,7 @@
 		879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CategoricalMapping.pb.cc; path = ../../cpp/external/katagocoreml/generated/CategoricalMapping.pb.cc; sourceTree = SOURCE_ROOT; };
 		87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThirdPartyLicensesTests.swift; sourceTree = "<group>"; };
+		886CE8718894DE10D2123089 /* InspectorViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorViewController.swift; sourceTree = "<group>"; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MLXTuneExperimentView.swift; sourceTree = "<group>"; };
@@ -759,6 +762,7 @@
 		9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameRowView.swift; sourceTree = "<group>"; };
 		940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Scaler.pb.cc; path = ../../cpp/external/katagocoreml/generated/Scaler.pb.cc; sourceTree = SOURCE_ROOT; };
 		959FD21C12D9EA5999A3D914 /* notification.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = notification.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/notification.cc"; sourceTree = SOURCE_ROOT; };
+		992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorTabs.swift; sourceTree = "<group>"; };
 		99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = KataGoAnytimeMac.entitlements; sourceTree = "<group>"; };
 		9A84A6291B2BFE5CE2182097 /* check_op.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = check_op.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/check_op.cc"; sourceTree = SOURCE_ROOT; };
 		9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
@@ -1262,6 +1266,8 @@
 				F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */,
 				0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */,
 				BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */,
+				886CE8718894DE10D2123089 /* InspectorViewController.swift */,
+				992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2341,6 +2347,8 @@
 				DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */,
 				8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */,
 				DE413A7DD5252929FD9EC41C /* MacBoardInteractionLayer.swift in Sources */,
+				36C67794F79C07CBC3122F44 /* InspectorViewController.swift in Sources */,
+				5C0A871DE2E1FB7FEA2FA8A8 /* InspectorTabs.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

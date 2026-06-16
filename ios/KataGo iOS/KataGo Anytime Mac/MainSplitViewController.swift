@@ -67,8 +67,15 @@ final class MainSplitViewController: NSSplitViewController {
             NSLayoutConstraint.Priority.defaultLow.rawValue - 1)
 
         // Inspector — collapsible trailing pane (macOS 14+ has a dedicated API).
+        // Tabbed Chart/Comments/Moves/Info inspector (Phase 4); routes through the
+        // same readiness gate + collaborators as the board host.
         let inspectorItem: NSSplitViewItem
-        let inspectorVC = PlaceholderViewController(labelText: "Inspector (Phase 4)")
+        let inspectorVC = InspectorViewController(
+            session: session,
+            navigationContext: navigationContext,
+            audioModel: audioModel,
+            readiness: readiness
+        )
         if #available(macOS 14.0, *) {
             inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorVC)
         } else {
