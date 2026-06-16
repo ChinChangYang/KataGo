@@ -61,7 +61,13 @@ final class InspectorViewController: NSTabViewController {
                                  accessibilityDescription: "Comments")
 
         let moves = NSTabViewItem(
-            viewController: PlaceholderViewController(labelText: "Moves (Phase 4)")
+            viewController: NSHostingController(
+                rootView: MovesTabView(
+                    session: session,
+                    navigationContext: navigationContext,
+                    readiness: readiness
+                )
+            )
         )
         moves.label = "Moves"
         moves.image = NSImage(systemSymbolName: "list.number",

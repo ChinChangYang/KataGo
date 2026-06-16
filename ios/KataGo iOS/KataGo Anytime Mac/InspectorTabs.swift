@@ -38,6 +38,32 @@ struct ChartTabView: View {
     }
 }
 
+/// Moves tab: hosts the package's `MovesListView` (flat list of the active
+/// line with per-move win% / score).
+///
+/// `MovesListView` reads EXACTLY `GobanState`, `BoardSize`, `MessageList`,
+/// `Turn`, `Stones` — the same set `GobanState.go(to:)` needs to navigate —
+/// so those are the only environment objects injected here.
+struct MovesTabView: View {
+    let session: GameSession
+    let navigationContext: NavigationContext
+    let readiness: BoardReadiness
+
+    var body: some View {
+        if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
+            MovesListView(gameRecord: gameRecord)
+                .environment(session.gobanState)
+                .environment(session.board)
+                .environment(session.player)
+                .environment(session.messageList)
+                .environment(session.stones)
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 /// Comments tab: hosts the package's `CommentView`.
 ///
 /// `CommentView` reads EXACTLY `GobanState`, `Analysis`, `Stones`, `BoardSize`,
