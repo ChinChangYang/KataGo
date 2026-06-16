@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <random>
 
 static double clipd(double v, double lo, double hi) {
   return v < lo ? lo : (v > hi ? hi : v);
@@ -128,4 +129,59 @@ StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c) {
     out.deltaTau = 0.0;
   }
   return out;
+}
+
+CalibrationResult calibrateToTarget(
+  const std::function<std::pair<double,int>(double)>& playAt,
+  double xLo, double xHi, double targetWinrate,
+  int gamesPerRound, int maxRounds, double eloTol,
+  uint64_t rngSeed, double l2,
+  const std::function<void(int,double,double,int,int)>& onRound
+) {
+  (void)gamesPerRound; // games count comes from playAt's return value
+  LogisticRS rs(l2);
+  double xStar = 0.5 * (xLo + xHi);
+  double se = std::numeric_limits<double>::infinity();
+  int totalGames = 0;
+  bool converged = false;
+  int roundsRun = 0;
+  std::mt19937_64 rng(rngSeed);
+  std::uniform_real_distribution<double> uniform(xLo, xHi);
+
+  for(int rnd = 0; rnd < maxRounds; rnd++) {
+    roundsRun = rnd + 1;
+    double x;
+    if(rnd < 2) {
+      x = uniform(rng); // explore uniformly the first 2 rounds
+    } else {
+      double sigma = std::max(0.05, 0.5 * (xHi - xLo) * std::pow(0.85, (double)rnd));
+      std::normal_distribution<double> gaussian(0.0, sigma);
+      x = clipd(xStar + gaussian(rng), xLo, xHi);
+    }
+    std::pair<double,int> res = playAt(x);
+    double wins = res.first;
+    int games = res.second;
+    rs.addSample(x, wins, (double)games);
+    rs.fit();
+    double r = rs.root(targetWinrate);
+    if(std::isfinite(r))
+      xStar = clipd(r, xLo, xHi);
+    se = rs.rootSeElo(targetWinrate);
+    totalGames += games;
+    if(onRound)
+      onRound(rnd, xStar, se, rs.distinctXCount(), totalGames);
+    if(rnd >= 3 && rs.distinctXCount() >= 4 && se <= eloTol) {
+      converged = true;
+      break;
+    }
+  }
+
+  CalibrationResult result;
+  result.xStar = xStar;
+  result.eloSe = se;
+  result.totalGames = totalGames;
+  result.rounds = roundsRun;
+  result.converged = converged;
+  result.model = rs;
+  return result;
 }

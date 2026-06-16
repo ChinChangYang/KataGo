@@ -59,4 +59,22 @@ struct StrengthDialConfig {
 // globally monotone in strength. Clamps x to [0,3].
 StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c);
 
+struct CalibrationResult {
+  double xStar;
+  double eloSe;     // 1-sigma CI half-width in ELO at xStar
+  int    totalGames;
+  int    rounds;
+  bool   converged;
+  LogisticRS model; // final fitted surface (for reporting fitted ELO)
+};
+
+// playAt(x) plays a batch at dial x and returns {wins, games}; wins may be fractional.
+// onRound(round, xStar, eloSe, distinctXs, totalGames) is optional progress logging.
+CalibrationResult calibrateToTarget(
+  const std::function<std::pair<double,int>(double)>& playAt,
+  double xLo, double xHi, double targetWinrate,
+  int gamesPerRound, int maxRounds, double eloTol,
+  uint64_t rngSeed, double l2 = 0.5,
+  const std::function<void(int,double,double,int,int)>& onRound = nullptr);
+
 #endif // PROGRAM_HUMANSLTUNER_H_
