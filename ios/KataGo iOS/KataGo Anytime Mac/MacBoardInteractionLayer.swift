@@ -78,6 +78,13 @@ struct MacBoardInteractionLayer: View {
                 // It owns every gesture so the overlay is the single input handler.
                 Color.clear
                     .contentShape(Rectangle())
+                    // Minimal VoiceOver support (P6-T8): announce the board as a
+                    // single element with a play hint. Deliberately NOT per-
+                    // intersection — the goal is "VoiceOver announces the board",
+                    // not full board navigation.
+                    .accessibilityElement()
+                    .accessibilityLabel("Go board")
+                    .accessibilityHint("Click an intersection to play")
                     // Display-only hover preview (ghost stone + optional win%/score).
                     // Layered ON TOP of the hit-testable Color.clear but with hit
                     // testing disabled, so it never intercepts the clicks/hover the

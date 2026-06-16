@@ -110,6 +110,7 @@
 		5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D702E277C8397612E300DEC9 /* MacBoardHostView.swift */; };
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
+		5F3CF90C655E08F4E22C0ADA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD670F6165FDC95F54701F7A /* Assets.xcassets */; };
 		5FFDE5149A7967CD92997B05 /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D93FBBF1207325A5E8D3E42 /* KataGoUICore */; };
 		61BCF2BF2E6863B7D939DE3D /* status_internal.cc in Sources */ = {isa = PBXBuildFile; fileRef = F42A3F61F5D728D923150B06 /* status_internal.cc */; };
 		61C325C8BFAD3AB5D9F8C34A /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
@@ -155,6 +156,7 @@
 		8136C4DCABCF7FB15724B736 /* blocking_counter.cc in Sources */ = {isa = PBXBuildFile; fileRef = DB916B370975783C74200B08 /* blocking_counter.cc */; };
 		84AF9FF552710D9A69E2AEBA /* casts.cc in Sources */ = {isa = PBXBuildFile; fileRef = A384C5A1A349F4B5F0FC3169 /* casts.cc */; };
 		8514DA92E7C49142B62D8A66 /* initialize.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5E86CB9461F2B8990E7855E /* initialize.cc */; };
+		8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		858F8565771AF705AFD936CA /* usage.cc in Sources */ = {isa = PBXBuildFile; fileRef = D567C3AB127FDCD977020697 /* usage.cc */; };
 		85B66099A32069E08E277B43 /* inlined_string_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7D5F183562E888ACF1F14799 /* inlined_string_field.cc */; };
 		85C8570C668A4704F2899EEB /* message_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83CB0B5B98E841B031CC4355 /* message_lite.cc */; };
@@ -210,6 +212,7 @@
 		ABDAD4BE72DFB4372CE86377 /* utf8_range.c in Sources */ = {isa = PBXBuildFile; fileRef = 920FF0ED642A58B9D57848B9 /* utf8_range.c */; };
 		AD38793CC430FE93C7EB51A3 /* extension_set.cc in Sources */ = {isa = PBXBuildFile; fileRef = A56F240AFB6311B643324AAC /* extension_set.cc */; };
 		ADDB71762E8FC9DCB6625131 /* output.cc in Sources */ = {isa = PBXBuildFile; fileRef = A45EF436A160EEA1E0BD3205 /* output.cc */; };
+		AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		AE45237315F8D1F22A84E18C /* check_op.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9A84A6291B2BFE5CE2182097 /* check_op.cc */; };
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
@@ -532,6 +535,7 @@
 		FA5430856C8BDD6E5742B95C /* StorageWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 173B40EDB188F4C5507FD264 /* StorageWriter.cpp */; };
 		FB012692B20C7765AA97DA3D /* Converter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6B854DB5E08ABE9A30321B1D /* Converter.cpp */; };
 		FB0B1590EBA7CACFEFD6379D /* arenastring.cc in Sources */ = {isa = PBXBuildFile; fileRef = BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */; };
+		FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
 		FB32590892D4D77692B06440 /* proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5421AC611426CA58B63851AA /* proto.cc */; };
 		FB7896588E7AD07358BB0F87 /* low_level_alloc.cc in Sources */ = {isa = PBXBuildFile; fileRef = F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */; };
 		FB837966B539CDE805A6F7E7 /* mlxbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
@@ -823,6 +827,7 @@
 		BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheKeyTests.swift; path = "KataGo iOSTests/CoreMLCacheKeyTests.swift"; sourceTree = SOURCE_ROOT; };
 		BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacBoardInteractionLayer.swift; sourceTree = "<group>"; };
 		BD22490FB6D2F00C83C1BD22 /* Fp16.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp16.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp16.cpp; sourceTree = SOURCE_ROOT; };
+		BD670F6165FDC95F54701F7A /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE2564FBAA9E809482077069 /* arenaz_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arenaz_sampler.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arenaz_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		C07C938A94269699C0D07E21 /* strerror.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = strerror.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/strerror.cc"; sourceTree = SOURCE_ROOT; };
 		C1F2D57889B86325ADEFAD16 /* GobanStateBranchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateBranchTests.swift; sourceTree = "<group>"; };
@@ -1295,6 +1300,7 @@
 				6E148BFDAF75668F928411F5 /* ModelRowView.swift */,
 				EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */,
 				3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */,
+				BD670F6165FDC95F54701F7A /* Assets.xcassets */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2308,6 +2314,7 @@
 				CA36A405FB842DD6BE6516CD /* default_model.bin.gz in Resources */,
 				B3FEEEA4AAB839BA36DCFCB3 /* default_gtp.cfg in Resources */,
 				61C325C8BFAD3AB5D9F8C34A /* b18c384nbt-humanv0.bin.gz in Resources */,
+				5F3CF90C655E08F4E22C0ADA /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2385,6 +2392,9 @@
 				3E869E6B682BD483B8357165 /* ModelRowView.swift in Sources */,
 				200E2726222793045A3D463E /* SettingsWindowController.swift in Sources */,
 				995DCC993AF4FE53572CEFE2 /* SettingsViewController.swift in Sources */,
+				FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */,
+				AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */,
+				8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2888,6 +2898,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LM_FORCE_LINK_GENERATION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";
@@ -2921,6 +2932,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LM_FORCE_LINK_GENERATION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";

@@ -1,4 +1,5 @@
 import AppKit
+import AppIntents
 import SwiftData
 import KataGoUICore
 
@@ -27,6 +28,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerCoreMLBridge()  // from the copied CoreMLComputeHandleLoader.swift
         registerDownloadedHasher(BinFileHasher.shared.identityForDownloadedFile)
+
+        // Register the App Shortcuts provider (P6-T9). Mirrors the iOS
+        // `KataGo_iOSApp.init`: `updateAppShortcutParameters()` refreshes the
+        // system's snapshot of the shortcut phrases/parameters so the Shortcuts
+        // app and Spotlight pick them up. `KataGoShortcuts` is shared with the
+        // iOS target (same files, two targets).
+        KataGoShortcuts.updateAppShortcutParameters()
 
         // Wire the engine-launch status updater seam so the board pane (P5-T9)
         // can show a secondary caption during cache-miss CoreML compiles. Created

@@ -2444,6 +2444,7 @@ extension MainWindowController: NSToolbarDelegate {
     private func makeActiveModelItem(_ identifier: NSToolbarItem.Identifier) -> NSMenuToolbarItem {
         let item = NSMenuToolbarItem(itemIdentifier: identifier)
         item.label = "Model"
+        item.toolTip = "Active Network"
         item.image = NSImage(systemSymbolName: "square.stack.3d.up",
                              accessibilityDescription: "Active Network")
         // Don't collapse into the chevron-arrow style; show the pulldown directly.
