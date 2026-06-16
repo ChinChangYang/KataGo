@@ -128,5 +128,13 @@ void Tests::runHumanSLTunerTests() {
     runScenario([](double x) { double d = x - 0.5; return -100.0 + 250.0 * d + 500.0 * d * d * d; });
   }
 
+  // Test 6: overrideConfigText replaces existing keys, ignores comments, appends new keys.
+  {
+    std::string input = "a = 1\nb=2\n# c = 3\n";
+    std::vector<std::pair<std::string,std::string>> ov = {{"b", "9"}, {"d", "4"}};
+    std::string out = overrideConfigText(input, ov);
+    testAssert(out == "a = 1\nb = 9\n# c = 3\nd = 4\n");
+  }
+
   cout << "Done human SL tuner tests" << endl;
 }

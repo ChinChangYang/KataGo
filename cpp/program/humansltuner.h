@@ -77,4 +77,11 @@ CalibrationResult calibrateToTarget(
   uint64_t rngSeed, double l2 = 0.5,
   const std::function<void(int,double,double,int,int)>& onRound = nullptr);
 
+// Rewrites baselineText, replacing the value of each override key on its existing
+// non-comment "key = value" line (preserving the key spelling), or appending
+// "key = value" at the end if absent. All other lines/comments are left intact.
+std::string overrideConfigText(
+  const std::string& baselineText,
+  const std::vector<std::pair<std::string,std::string>>& overrides);
+
 #endif // PROGRAM_HUMANSLTUNER_H_

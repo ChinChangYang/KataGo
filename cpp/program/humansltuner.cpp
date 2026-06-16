@@ -185,3 +185,59 @@ CalibrationResult calibrateToTarget(
   result.model = rs;
   return result;
 }
+
+std::string overrideConfigText(
+  const std::string& baselineText,
+  const std::vector<std::pair<std::string,std::string>>& overrides
+) {
+  // Split into lines (dropping CR), remembering content; we re-join with '\n'.
+  std::vector<std::string> lines;
+  {
+    std::string cur;
+    for(char ch : baselineText) {
+      if(ch == '\n') { lines.push_back(cur); cur.clear(); }
+      else if(ch == '\r') { /* drop */ }
+      else cur.push_back(ch);
+    }
+    lines.push_back(cur);
+  }
+
+  std::vector<bool> applied(overrides.size(), false);
+
+  for(std::string& line : lines) {
+    size_t start = 0;
+    while(start < line.size() && (line[start] == ' ' || line[start] == '\t'))
+      start++;
+    if(start >= line.size() || line[start] == '#')
+      continue;
+    size_t eq = line.find('=', start);
+    if(eq == std::string::npos)
+      continue;
+    size_t keyEnd = start;
+    while(keyEnd < eq && line[keyEnd] != ' ' && line[keyEnd] != '\t')
+      keyEnd++;
+    std::string key = line.substr(start, keyEnd - start);
+    for(size_t k = 0; k < overrides.size(); k++) {
+      if(!applied[k] && key == overrides[k].first) {
+        line = line.substr(0, start) + key + " = " + overrides[k].second;
+        applied[k] = true;
+        break;
+      }
+    }
+  }
+
+  std::string out;
+  for(size_t i = 0; i < lines.size(); i++) {
+    out += lines[i];
+    if(i + 1 < lines.size())
+      out += "\n";
+  }
+  for(size_t k = 0; k < overrides.size(); k++) {
+    if(!applied[k]) {
+      if(!out.empty() && out.back() != '\n')
+        out += "\n";
+      out += overrides[k].first + " = " + overrides[k].second + "\n";
+    }
+  }
+  return out;
+}
