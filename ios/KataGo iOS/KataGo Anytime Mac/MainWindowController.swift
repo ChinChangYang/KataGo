@@ -377,7 +377,9 @@ extension MainWindowController: NSMenuItemValidation {
     /// else defaults to enabled.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(renameSelectedGame(_:)), #selector(deleteSelectedGame(_:)):
+        case #selector(renameSelectedGame(_:)),
+             #selector(deleteSelectedGame(_:)),
+             #selector(shareSelectedGame(_:)):
             return navigationContext.selectedGameRecord != nil
         default:
             return canPerformNavigation(menuItem.action)
@@ -452,7 +454,7 @@ extension MainWindowController: NSToolbarDelegate {
             return makeItem(itemIdentifier,
                             label: "Import",
                             symbol: "square.and.arrow.down",
-                            action: Selector(("importSGF:")))
+                            action: #selector(importSGF(_:)))
         case .analyze:
             return makeItem(itemIdentifier,
                             label: "Analyze",

@@ -37,6 +37,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
 
+    /// Finder deep-link: opening one or more `.sgf` files (double-click, drag-to-
+    /// Dock-icon, `open` CLI) routes through here once the document type is
+    /// declared in Info.plist. We forward to the same `importAndSelect(from:)`
+    /// path as the open panel and drag-drop so all three behave identically.
+    /// `open(urls:)` arrives after `applicationDidFinishLaunching`, so the window
+    /// controller is created by the time we're called — but we guard anyway.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        windowController?.importAndSelect(from: urls)
+    }
+
     // MARK: - Main Menu
 
     @MainActor
@@ -104,8 +114,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      action: #selector(MainWindowController.newGame(_:)),
                      keyEquivalent: "n")
         menu.addItem(withTitle: "Import…",
-                     action: Selector(("importSGF:")),
+                     action: #selector(MainWindowController.importSGF(_:)),
                      keyEquivalent: "o")
+        menu.addItem(.separator())
+        // Shares the currently-selected game's SGF via the system share sheet
+        // (gated on a selection by `validateMenuItem`). Routed through the
+        // responder chain to `MainWindowController`.
+        menu.addItem(withTitle: "Share…",
+                     action: #selector(MainWindowController.shareSelectedGame(_:)),
+                     keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close",
                      action: #selector(NSWindow.performClose(_:)),

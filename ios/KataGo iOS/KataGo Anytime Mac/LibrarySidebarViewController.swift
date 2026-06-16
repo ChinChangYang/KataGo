@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import KataGoUICore
 
 /// Receives the sidebar's right-click context-menu actions, acting on an
@@ -10,6 +11,14 @@ protocol LibraryActionsDelegate: AnyObject {
     func cloneCurrentPosition(of game: GameRecord)
     func renameGame(_ game: GameRecord)
     func deleteGame(_ game: GameRecord)
+    /// Presents the system share sheet for `game`'s SGF, anchored to `rect`
+    /// within `view` (the clicked table row). `view` may be `nil` for menu-bar
+    /// invocations, in which case the implementation falls back to a sensible
+    /// window-relative anchor.
+    func shareGame(_ game: GameRecord, from view: NSView?, rect: NSRect)
+    /// Imports the SGF files at `urls` and switches the board to the last one.
+    /// Used by the sidebar's drag-and-drop drop handler.
+    func importAndSelect(from urls: [URL])
 }
 
 /// The native Library sidebar: a search field over a view-based `NSTableView`
@@ -83,6 +92,12 @@ final class LibrarySidebarViewController: NSViewController {
             guard let self, let game = self.contextTargetGame else { return }
             self.actionsDelegate?.deleteGame(game)
         }
+        // Dropping `.sgf`/`.txt` files onto the list imports them, mirroring the
+        // iOS `onDrop` handler. The table reads/filters the dropped URLs and
+        // forwards them here; we route to the window controller's shared import.
+        tableView.onDropFiles = { [weak self] urls in
+            self?.actionsDelegate?.importAndSelect(from: urls)
+        }
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = tableView
@@ -140,8 +155,7 @@ final class LibrarySidebarViewController: NSViewController {
 
 extension LibrarySidebarViewController {
     /// Builds the right-click menu for the table. Items target this VC; AppKit
-    /// drives enablement through `validateMenuItem` (auto-enable). The Share item
-    /// is intentionally omitted for now — added in Task 5 — to avoid a dead entry.
+    /// drives enablement through `validateMenuItem` (auto-enable).
     private func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(withTitle: "Clone",
@@ -152,6 +166,9 @@ extension LibrarySidebarViewController {
                      keyEquivalent: "")
         menu.addItem(withTitle: "Rename",
                      action: #selector(renameClickedGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Share",
+                     action: #selector(shareClickedGame(_:)),
                      keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Delete",
@@ -184,6 +201,15 @@ extension LibrarySidebarViewController {
     @objc private func renameClickedGame(_ sender: Any?) {
         guard let game = contextTargetGame else { return }
         actionsDelegate?.renameGame(game)
+    }
+
+    /// Shares the clicked (or selected) row's SGF, anchoring the share popover to
+    /// that row's rect in the table so it points at the game being shared.
+    @objc private func shareClickedGame(_ sender: Any?) {
+        guard let game = contextTargetGame else { return }
+        let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        let rowRect = row >= 0 ? tableView.rect(ofRow: row) : tableView.bounds
+        actionsDelegate?.shareGame(game, from: tableView, rect: rowRect)
     }
 
     @objc private func deleteClickedGame(_ sender: Any?) {
@@ -267,14 +293,32 @@ extension LibrarySidebarViewController: NSSearchFieldDelegate {
 /// equivalent, they never swallow Return/Delete in the search field or the
 /// rename dialog. The owning controller supplies the actual behavior via the
 /// closures; type-select and arrow-key navigation fall through to `super`.
+///
+/// It also accepts dropped `.sgf`/`.txt` file URLs (Finder, other apps) and
+/// forwards them to `onDropFiles` for import — the AppKit analogue of the iOS
+/// `.onDrop` handler.
 final class LibraryTableView: NSTableView {
     var onReturnKey: (() -> Void)?
     var onDeleteKey: (() -> Void)?
+    var onDropFiles: (([URL]) -> Void)?
 
     /// Hardware virtual key codes (layout-independent): Return, keypad Enter,
     /// and Delete (Backspace).
     private static let returnKeyCodes: Set<UInt16> = [36, 76]
     private static let deleteKeyCode: UInt16 = 51
+
+    /// File extensions we accept on a drop (matches the open panel / iOS drop).
+    private static let acceptedExtensions: Set<String> = ["sgf", "txt"]
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
 
     override func keyDown(with event: NSEvent) {
         if selectedRow >= 0, Self.returnKeyCodes.contains(event.keyCode) {
@@ -286,5 +330,31 @@ final class LibraryTableView: NSTableView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    // MARK: - Drag-and-drop
+
+    /// Reads `.sgf`/`.txt` file URLs from a dragging pasteboard, filtered by
+    /// extension. Returns an empty array when the drag carries none (so callers
+    /// can reject the operation).
+    private func sgfURLs(from pasteboard: NSPasteboard) -> [URL] {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let urls = (pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL]) ?? []
+        return urls.filter { Self.acceptedExtensions.contains($0.pathExtension.lowercased()) }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        sgfURLs(from: sender.draggingPasteboard).isEmpty ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        sgfURLs(from: sender.draggingPasteboard).isEmpty ? [] : .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = sgfURLs(from: sender.draggingPasteboard)
+        guard !urls.isEmpty else { return false }
+        onDropFiles?(urls)
+        return true
     }
 }
