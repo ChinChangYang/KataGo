@@ -475,62 +475,9 @@ struct GameSplitView: View {
     }
 
     private func processChange(oldGameRecord: GameRecord?, newGameRecord: GameRecord?) {
-        player.nextColorForPlayCommand = .unknown
-        gobanState.deactivateBranch()
-        gobanState.clearPendingMove()
-        withAnimation {
-            bookLookup.resetToRoot()
-        }
-
-        if let newGameRecord {
-            if newGameRecord.concreteConfig.isBookCompatible {
-                bookLookup.loadIfNeeded()
-            } else if gobanState.eyeStatus == .book {
-                gobanState.eyeStatus = .opened
-            }
-            newGameRecord.updateToLatestVersion()
-            gobanState.isAutoPlaying = false
-            gobanState.isAutoPlayed = false
-            if newGameRecord.sgf == GameRecord.defaultSgf {
-                gobanState.isEditing = true
-            } else {
-                gobanState.isEditing = false
-            }
-            let currentIndex = newGameRecord.currentIndex
-            let sgfHelper = SgfHelper(sgf: newGameRecord.sgf)
-            newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
-
-            gobanState.maybeLoadSgf(
-                gameRecord: newGameRecord,
-                messageList: messageList
-            )
-
-            while newGameRecord.currentIndex > currentIndex {
-                newGameRecord.undo()
-                gobanState.undo(messageList: messageList, stones: stones)
-            }
-            let config = newGameRecord.concreteConfig
-            config.koRule = sgfHelper.rules.koRule
-            config.scoringRule = sgfHelper.rules.scoringRule
-            config.taxRule = sgfHelper.rules.taxRule
-            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
-            config.hasButton = sgfHelper.rules.hasButton
-            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
-            config.komi = sgfHelper.rules.komi
-
-            if let oldGameRecord,
-               oldGameRecord.concreteConfig.boardWidth != config.boardWidth ||
-                oldGameRecord.concreteConfig.boardHeight != config.boardHeight {
-                placeLoadingBoard(width: config.boardWidth, height: config.boardHeight)
-            }
-
-            messageList.appendAndSend(commands: config.ruleCommands)
-            messageList.appendAndSend(command: config.getKataKomiCommand())
-            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
-            gobanState.sendShowBoardCommand(messageList: messageList)
-        }
+        gobanState.loadGame(gameRecord: newGameRecord, previous: oldGameRecord,
+                            player: player, bookLookup: bookLookup,
+                            messageList: messageList, board: board, stones: stones)
     }
 
     private func processChange(oldWaitingForAnalysis: Bool,
@@ -614,19 +561,6 @@ struct GameSplitView: View {
 
         withAnimation {
             bookLookup.syncFromMoves(moves, boardWidth: width, boardHeight: height)
-        }
-    }
-
-    private func placeLoadingBoard(width: Int, height: Int) {
-        withAnimation {
-            board.width = CGFloat(width)
-            board.height = CGFloat(height)
-            stones.blackPoints.removeAll()
-            stones.whitePoints.removeAll()
-            stones.moveOrder.removeAll()
-            stones.blackStonesCaptured = 0
-            stones.whiteStonesCaptured = 0
-            stones.isReady = false
         }
     }
 }

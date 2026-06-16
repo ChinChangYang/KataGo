@@ -681,6 +681,94 @@ public class GobanState {
             }
         }
     }
+
+    /// Resets the visible board to a blank `width`×`height` grid. Mutates only
+    /// the shared `BoardSize`/`Stones` model objects (no SwiftUI view code), so
+    /// it lives here in the package rather than in the iOS view. Used by
+    /// `loadGame` when switching to a game whose board size differs from the
+    /// previous one, so the old stones don't linger while the new SGF loads.
+    @MainActor
+    private func placeLoadingBoard(width: Int, height: Int, board: BoardSize, stones: Stones) {
+        withAnimation {
+            board.width = CGFloat(width)
+            board.height = CGFloat(height)
+            stones.blackPoints.removeAll()
+            stones.whitePoints.removeAll()
+            stones.moveOrder.removeAll()
+            stones.blackStonesCaptured = 0
+            stones.whiteStonesCaptured = 0
+            stones.isReady = false
+        }
+    }
+
+    /// Reloads the board for a newly selected game, mirroring the previous
+    /// `GameSplitView.processChange(oldGameRecord:newGameRecord:)` exactly. The
+    /// iOS-only thumbnail render stays in the view's `onChange` wrapper.
+    @MainActor
+    public func loadGame(gameRecord newGameRecord: GameRecord?,
+                         previous oldGameRecord: GameRecord?,
+                         player: Turn,
+                         bookLookup: BookLookup,
+                         messageList: MessageList,
+                         board: BoardSize,
+                         stones: Stones) {
+        player.nextColorForPlayCommand = .unknown
+        deactivateBranch()
+        clearPendingMove()
+        withAnimation {
+            bookLookup.resetToRoot()
+        }
+
+        if let newGameRecord {
+            if newGameRecord.concreteConfig.isBookCompatible {
+                bookLookup.loadIfNeeded()
+            } else if eyeStatus == .book {
+                eyeStatus = .opened
+            }
+            newGameRecord.updateToLatestVersion()
+            isAutoPlaying = false
+            isAutoPlayed = false
+            if newGameRecord.sgf == GameRecord.defaultSgf {
+                isEditing = true
+            } else {
+                isEditing = false
+            }
+            let currentIndex = newGameRecord.currentIndex
+            let sgfHelper = SgfHelper(sgf: newGameRecord.sgf)
+            newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
+
+            maybeLoadSgf(
+                gameRecord: newGameRecord,
+                messageList: messageList
+            )
+
+            while newGameRecord.currentIndex > currentIndex {
+                newGameRecord.undo()
+                undo(messageList: messageList, stones: stones)
+            }
+            let config = newGameRecord.concreteConfig
+            config.koRule = sgfHelper.rules.koRule
+            config.scoringRule = sgfHelper.rules.scoringRule
+            config.taxRule = sgfHelper.rules.taxRule
+            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
+            config.hasButton = sgfHelper.rules.hasButton
+            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
+            config.komi = sgfHelper.rules.komi
+
+            if let oldGameRecord,
+               oldGameRecord.concreteConfig.boardWidth != config.boardWidth ||
+                oldGameRecord.concreteConfig.boardHeight != config.boardHeight {
+                placeLoadingBoard(width: config.boardWidth, height: config.boardHeight, board: board, stones: stones)
+            }
+
+            messageList.appendAndSend(commands: config.ruleCommands)
+            messageList.appendAndSend(command: config.getKataKomiCommand())
+            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+            sendShowBoardCommand(messageList: messageList)
+        }
+    }
 }
 
 // MARK: - Global display-preference helpers
