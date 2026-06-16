@@ -190,17 +190,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Game menu (iOS spec order: File / Edit / Game / …). Hosts branch-exit and
-    /// (later, P6-T7) edit-mode actions. All items carry `target = nil`, so AppKit
-    /// routes them through the responder chain to `MainWindowController`;
-    /// `validateMenuItem` owns their enable state from the LIVE `gobanState`.
+    /// edit-mode actions. All items carry `target = nil`, so AppKit routes them
+    /// through the responder chain to `MainWindowController`; `validateMenuItem`
+    /// owns their enable state (and the Lock-Editing checkmark) from the LIVE
+    /// `gobanState`.
     private func gameMenu() -> NSMenu {
         let menu = NSMenu(title: "Game")
+
+        // Toggles edit mode (`gobanState.isEditing`) — the same flag the iOS Chart
+        // wand / edit affordances drive. `validateMenuItem` sets the checkmark from
+        // the live state. ⌘E (E for Edit) — not used by any other global item.
+        let lockEditing = menu.addItem(withTitle: "Lock Editing",
+                                       action: #selector(MainWindowController.toggleEditing(_:)),
+                                       keyEquivalent: "e")
+        lockEditing.keyEquivalentModifierMask = [.command]
+        menu.addItem(.separator())
 
         // Exits an active branch (the implicit variation entered by playing an
         // off-mainline move). Sets `confirmingBranchDeactivation`, which the
         // window controller's confirmation observer turns into the Replace /
         // Discard chooser sheet. No key equivalent (an infrequent action).
-        // (P6-T7 will add a "Lock Editing" item to this same menu.)
         menu.addItem(withTitle: "Deactivate Branch",
                      action: #selector(MainWindowController.deactivateBranchAction(_:)),
                      keyEquivalent: "")
@@ -242,6 +251,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      keyEquivalent: "")
         menu.addItem(withTitle: "Show Pass",
                      action: #selector(MainWindowController.togglePass(_:)),
+                     keyEquivalent: "")
+        // Cycles the board↔book↔hidden visibility (the iOS eye button). A 3-state
+        // cycle, so no checkmark — `validateMenuItem` only owns its enable state.
+        // No key equivalent (infrequent; bare letters/symbols risk collisions).
+        menu.addItem(withTitle: "Toggle Board/Book View",
+                     action: #selector(MainWindowController.toggleEyeStatus(_:)),
                      keyEquivalent: "")
         menu.addItem(withTitle: "Show Win-Rate Bar",
                      action: #selector(MainWindowController.toggleWinrateBar(_:)),

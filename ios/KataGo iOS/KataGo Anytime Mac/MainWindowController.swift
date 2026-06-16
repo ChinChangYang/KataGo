@@ -91,6 +91,18 @@ final class MainWindowController: NSWindowController {
     /// edit mode must cancel any in-flight auto-play.
     private var lastIsEditing = false
 
+    /// Last-seen value of `session.bookLookup.isLoaded`, so the book-state observer
+    /// (P6-T5) can detect the `false -> true` edge that iOS reacts to
+    /// (`processBookLoadedChange`) and re-sync the book to the current move. Seeded
+    /// in `installBookStateObserver()` and re-seeded on relaunch.
+    private var lastBookLoaded = false
+
+    /// Last-seen value of `gobanState.eyeStatus`, so the book-state observer (P6-T5)
+    /// can detect the `-> .book` edge that iOS reacts to (`processEyeStatusChange`)
+    /// and re-sync the book. Seeded in `installBookStateObserver()` and re-seeded on
+    /// relaunch.
+    private var lastEyeStatus = EyeStatus.opened
+
     /// Last-seen value of `engineLifecycle.lastLoadedModelTitle`. The
     /// (property-agnostic) `withObservationTracking` callback diffs against this
     /// to detect the `nil -> non-nil` transition that signals the engine's first
@@ -206,6 +218,16 @@ final class MainWindowController: NSWindowController {
         // analysis observer instead, keyed off `waitingForAnalysis`.) Installed
         // before the engine starts so the first stones-ready transition isn't missed.
         installAutoPlayObserver()
+
+        // Keeps the opening-book lookup walked to the current position so the
+        // `.book` overlay (rendered by the hosted `BoardView`) reflects the right
+        // node. Reacts to the book `isLoaded` false->true edge and the
+        // `eyeStatus -> .book` edge (P6-T5); the stones-ready sync lives in the
+        // auto-play observer's `handleStonesReadyChange()`. Mirrors the iOS
+        // `GameSplitView` `processBookLoadedChange` / `processEyeStatusChange`
+        // handlers. Installed before the engine starts so the first book load
+        // isn't missed.
+        installBookStateObserver()
 
         // Clears the crash sentinel once the engine's first GTP response lands
         // (`engineLifecycle.lastLoadedModelTitle` goes `nil -> non-nil`). Installed
@@ -644,6 +666,10 @@ final class MainWindowController: NSWindowController {
         // (which reloads the board itself) doesn't spuriously fire the reload
         // observer on an unrelated `branchSgf` value carried across the relaunch.
         lastBranchSgf = gobanState.branchSgf
+        // Re-seed the book-state snapshots so the still-armed observer doesn't read
+        // a relaunch's fresh book-load / eye-status as a spurious edge.
+        lastBookLoaded = session.bookLookup.isLoaded
+        lastEyeStatus = gobanState.eyeStatus
     }
 
     /// Switches the active model and relaunches the engine in-process. Records
@@ -1192,10 +1218,10 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    /// Port of `GameSplitView.processStonesReadyChange` (iOS lines 268-293), minus
-    /// the iOS `syncBookState()` call (book sync is a Phase 6 concern not yet wired
-    /// on macOS). Persists the just-settled stones into the record at the current
-    /// index and, when an auto-play step just played, advances `currentIndex`.
+    /// Port of `GameSplitView.processStonesReadyChange` (iOS lines 268-293).
+    /// Persists the just-settled stones into the record at the current index and,
+    /// when an auto-play step just played, advances `currentIndex`. Ends by
+    /// re-syncing the opening-book state (P6-T5), exactly as iOS does (line 291).
     ///
     /// CAVEAT: this is the one observed edge whose miss is NOT self-correcting. The
     /// `withObservationTracking` re-arm gap (see `handleAnalysisLifecycleChange`'s
@@ -1228,7 +1254,115 @@ final class MainWindowController: NSWindowController {
             gameRecord.currentIndex += 1
         }
 
-        // TODO(Phase 6): book sync (iOS calls `syncBookState()` here).
+        // Sync book state after undo/forward/backward (mirrors iOS line 291).
+        syncBookState()
+    }
+
+    // MARK: - Opening-book state sync (P6-T5)
+    //
+    // Port of `GameSplitView.syncBookState()` (GameSplitView.swift lines 537-565).
+    // The hosted `BoardView` already RENDERS the book overlay + win-rate bar when
+    // `gobanState.eyeStatus == .book`; this just keeps `session.bookLookup` walked
+    // to the current position so that overlay reflects the right book node. iOS
+    // calls it from three places — stones-ready, the book `isLoaded` false->true
+    // edge, and the `eyeStatus -> .book` edge — and so do we (the stones-ready
+    // call is in `handleStonesReadyChange()`; the two edges are dedicated
+    // observers below). `withAnimation` is dropped: there is no SwiftUI animation
+    // transaction in an `NSWindowController`, and `syncFromMoves` is a pure data
+    // walk — the overlay animates from the hosted SwiftUI side regardless.
+
+    /// Replays the book lookup to the current move index so the `.book` overlay
+    /// reflects the right node. Mirrors `GameSplitView.syncBookState()`: a
+    /// `justAdvanced` hint short-circuits (the book already advanced itself during
+    /// a play, so re-walking would be redundant), otherwise it is gated on a
+    /// selected, book-compatible game with a loaded book, then walks moves
+    /// `0..<currentIndex` from the authoritative SGF.
+    private func syncBookState() {
+        let bookLookup = session.bookLookup
+
+        if bookLookup.justAdvanced {
+            bookLookup.clearJustAdvanced()
+            return
+        }
+
+        guard let gameRecord = navigationContext.selectedGameRecord,
+              gameRecord.concreteConfig.isBookCompatible,
+              bookLookup.isLoaded else {
+            return
+        }
+
+        let gobanState = session.gobanState
+        let sgf = gobanState.getSgf(gameRecord: gameRecord) ?? gameRecord.sgf
+        let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord) ?? gameRecord.currentIndex
+        let sgfHelper = SgfHelper(sgf: sgf)
+        let width = Int(session.board.width)
+        let height = Int(session.board.height)
+
+        var moves: [BoardPoint] = []
+        for i in 0..<currentIndex {
+            if let move = sgfHelper.getMove(at: i) {
+                moves.append(BoardPoint(location: move.location, width: width, height: height))
+            }
+        }
+
+        bookLookup.syncFromMoves(moves, boardWidth: width, boardHeight: height)
+    }
+
+    // MARK: - Book-loaded + eye-status observers (P6-T5)
+    //
+    // iOS reacts to two `GameSplitView` `.onChange` handlers that the Mac app is
+    // missing because it hosts `BoardView` but not `GameSplitView`:
+    //   • `processBookLoadedChange` (line 420-424): on the book `isLoaded`
+    //     false->true edge, sync the book state (the book finished loading after a
+    //     book-compatible game was already selected — walk it to the current move).
+    //   • `processEyeStatusChange` (line 426-430): on `eyeStatus` becoming `.book`,
+    //     sync (the overlay is about to show, so make sure it's at the right node).
+    // Both fold into ONE self-rescheduling `withObservationTracking` observer (the
+    // SAME pattern + gotchas as the analysis/confirmation/branch observers): track
+    // both properties, hop to `Task { @MainActor }` to read committed values,
+    // detect each edge against a snapshot, react, refresh snapshots, re-arm.
+
+    /// Seeds the snapshots from the live state and starts the self-rescheduling
+    /// observation bridge for `bookLookup.isLoaded` + `gobanState.eyeStatus`.
+    /// Called once in `init`.
+    private func installBookStateObserver() {
+        lastBookLoaded = session.bookLookup.isLoaded
+        lastEyeStatus = session.gobanState.eyeStatus
+        trackBookState()
+    }
+
+    /// One observation pass: registers tracking of both properties, and on change
+    /// re-reads the committed values on the main actor, reacts, then re-arms.
+    private func trackBookState() {
+        withObservationTracking {
+            // Touch both so a change to either fires `onChange`.
+            _ = session.bookLookup.isLoaded
+            _ = session.gobanState.eyeStatus
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleBookStateChange()
+                self.trackBookState()
+            }
+        }
+    }
+
+    /// Detects the book `isLoaded` false->true edge and the `eyeStatus -> .book`
+    /// edge against the snapshots, calls `syncBookState()` on either, then refreshes
+    /// the snapshots. Mirrors iOS `processBookLoadedChange` / `processEyeStatusChange`.
+    private func handleBookStateChange() {
+        let newBookLoaded = session.bookLookup.isLoaded
+        let newEyeStatus = session.gobanState.eyeStatus
+
+        if newBookLoaded && !lastBookLoaded {
+            syncBookState()
+        }
+        if newEyeStatus == .book && lastEyeStatus != .book {
+            syncBookState()
+        }
+
+        lastBookLoaded = newBookLoaded
+        lastEyeStatus = newEyeStatus
     }
 
     // MARK: - Move confirmation dialogs
@@ -1749,6 +1883,56 @@ final class MainWindowController: NSWindowController {
         session.gobanState.showPass.toggle()
     }
 
+    // MARK: - Board/Book visibility (P6-T4)
+    //
+    // Port of the iOS `StatusToolbarItems.eyeAction()` (StatusToolbarItems.swift
+    // lines 243-258) 3-state cycle over `gobanState.eyeStatus`:
+    //   • `.opened` -> `.book` (only when the game is book-compatible AND the book
+    //                 is loaded), else `.closed`
+    //   • `.book`   -> `.closed`
+    //   • `.closed` -> `.opened`
+    // The hosted `BoardView` renders the board (`.opened`), the opening-book
+    // overlay + win-rate bar (`.book`), or a hidden board (`.closed`) off this
+    // state — no rendering work here. The `eyeStatus -> .book` edge is picked up by
+    // the book-state observer, which re-syncs `bookLookup` to the current move.
+    // `withAnimation` is dropped (no SwiftUI transaction in an NSWindowController;
+    // the hosted SwiftUI layer animates the change itself).
+
+    /// View-menu "Toggle Board/Book View": cycles board -> book -> hidden.
+    /// Mirrors `eyeAction()`. With no selected game the book branch is impossible
+    /// (no `concreteConfig`), so `.opened` falls straight to `.closed`.
+    @objc func toggleEyeStatus(_ sender: Any?) {
+        let gobanState = session.gobanState
+        let isBookCompatible =
+            navigationContext.selectedGameRecord?.concreteConfig.isBookCompatible ?? false
+
+        switch gobanState.eyeStatus {
+        case .opened:
+            if isBookCompatible && session.bookLookup.isLoaded {
+                gobanState.eyeStatus = .book
+            } else {
+                gobanState.eyeStatus = .closed
+            }
+        case .book:
+            gobanState.eyeStatus = .closed
+        case .closed:
+            gobanState.eyeStatus = .opened
+        }
+    }
+
+    // MARK: - Edit-mode lock (P6-T7)
+    //
+    // Toggles `gobanState.isEditing`, the same flag the iOS Chart wand / edit
+    // affordances drive. Leaving edit mode (`true -> false`) is already handled by
+    // the auto-play observer's `isEditing` branch (it cancels any in-flight
+    // auto-play), so this action just flips the flag.
+
+    /// Game-menu "Lock Editing": toggles edit mode. `validateMenuItem` shows the
+    /// checkmark from the live `gobanState.isEditing`.
+    @objc func toggleEditing(_ sender: Any?) {
+        session.gobanState.isEditing.toggle()
+    }
+
     /// View-menu Inspector tab shortcuts (⌘1 Chart · ⌘2 Comments · ⌘3 Moves ·
     /// ⌘4 Info). The menu item's `tag` (0–3) is the tab index; route through the
     /// split VC, which expands the Inspector pane first if it's collapsed.
@@ -2001,6 +2185,17 @@ extension MainWindowController: NSMenuItemValidation {
             guard let gameRecord = navigationContext.selectedGameRecord else { return false }
             return gobanState.isBranchActive
                 && !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
+
+        // Game menu "Lock Editing": checkmark reflects the live `isEditing`,
+        // enabled when a game is selected.
+        case #selector(toggleEditing(_:)):
+            menuItem.state = gobanState.isEditing ? .on : .off
+            return hasGame
+
+        // View menu "Toggle Board/Book View": a 3-state cycle, so no checkmark.
+        // Enabled when a game is selected.
+        case #selector(toggleEyeStatus(_:)):
+            return hasGame
 
         // Analysis menu: checkmark reflects the live status, enabled with a game.
         case #selector(toggleAnalysis(_:)):
