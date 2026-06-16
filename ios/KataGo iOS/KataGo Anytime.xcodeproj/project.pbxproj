@@ -78,6 +78,7 @@
 		4F338D9B3B50F39ECAB7CE6E /* crc_x86_arm_combined.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */; };
 		4F75548BBE16A6E47A041601 /* scoped_set_env.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83FDDE9F07972DF926E7D7EB /* scoped_set_env.cc */; };
 		4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D382D5D477A9008C934B67 /* BoardViewController.swift */; };
+		5077E4DBC05604CDBDF3BDB8 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */; };
 		507FBB1A0B147D1D4D34D74D /* NeuralNetwork.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 600FF4D6555CDCE2390DAD5C /* NeuralNetwork.pb.cc */; };
 		515FA523DC4E53FCFE3C14A8 /* cycleclock.cc in Sources */ = {isa = PBXBuildFile; fileRef = 158BDE8AE84A160E7E0A0C85 /* cycleclock.cc */; };
 		524566E0F05CA2B29F9A0FF0 /* seed_sequences.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6611B60F0D28CC462D4FFD4B /* seed_sequences.cc */; };
@@ -642,6 +643,7 @@
 		265F6595482BA2DE073D71EF /* WeightSerializer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WeightSerializer.cpp; path = ../../cpp/external/katagocoreml/src/serializer/WeightSerializer.cpp; sourceTree = SOURCE_ROOT; };
 		284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Normalizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/Normalizer.pb.cc; sourceTree = SOURCE_ROOT; };
 		2895D7938D3FA33D9E35700F /* SVM.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SVM.pb.cc; path = ../../cpp/external/katagocoreml/generated/SVM.pb.cc; sourceTree = SOURCE_ROOT; };
+		28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		2A1A02066A3354353FCEF4E2 /* time_zone_info.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_info.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_info.cc"; sourceTree = SOURCE_ROOT; };
 		2B43A2B22F763467E4437FEE /* leak_check.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = leak_check.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/leak_check.cc"; sourceTree = SOURCE_ROOT; };
 		2E68FA51F431F3FDCF3DA465 /* randen_hwaes.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_hwaes.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_hwaes.cc"; sourceTree = SOURCE_ROOT; };
@@ -1244,6 +1246,7 @@
 				54D382D5D477A9008C934B67 /* BoardViewController.swift */,
 				1C81EB8694345D4096093043 /* PlaceholderViewController.swift */,
 				D702E277C8397612E300DEC9 /* MacBoardHostView.swift */,
+				28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2317,6 +2320,7 @@
 				4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */,
 				AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */,
 				5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */,
+				5077E4DBC05604CDBDF3BDB8 /* LibraryStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
