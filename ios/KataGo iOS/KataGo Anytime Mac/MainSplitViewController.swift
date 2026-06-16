@@ -44,6 +44,9 @@ final class MainSplitViewController: NSSplitViewController {
                 windowController?.selectGame(game)
             }
         )
+        // Route the right-click context-menu CRUD actions back through the window
+        // controller (weak — see the property's doc comment for the cycle).
+        librarySidebarVC.actionsDelegate = windowController
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: librarySidebarVC)
         sidebarItem.canCollapse = true
         sidebarItem.minimumThickness = 180

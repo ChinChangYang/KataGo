@@ -23,7 +23,9 @@ final class MainWindowController: NSWindowController {
     /// changing the `GameSession` signature (which would force re-verifying iOS).
     private let aiMoveBox = AIMoveBox()
 
-    private let modelContainer: ModelContainer
+    /// `internal` (not `private`) so the `LibraryActions` extension — in a
+    /// separate file — can reach the main context for inserts/deletes.
+    let modelContainer: ModelContainer
     private var katagoThread: Thread?
 
     init(modelContainer: ModelContainer) {
@@ -369,11 +371,17 @@ extension MainWindowController: NSWindowDelegate {
 // MARK: - Menu item validation
 
 extension MainWindowController: NSMenuItemValidation {
-    /// Enables/disables the Navigate menu items (Back/Forward/First/Last) via
-    /// the responder chain, using the same `canGoBackward` / `canGoForward`
-    /// tests as the toolbar. Non-navigation items default to enabled.
+    /// Enables/disables menu items via the responder chain. Navigate items
+    /// (Back/Forward/First/Last) use the same `canGoBackward` / `canGoForward`
+    /// tests as the toolbar; Rename/Delete require a selected game; everything
+    /// else defaults to enabled.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        canPerformNavigation(menuItem.action)
+        switch menuItem.action {
+        case #selector(renameSelectedGame(_:)), #selector(deleteSelectedGame(_:)):
+            return navigationContext.selectedGameRecord != nil
+        default:
+            return canPerformNavigation(menuItem.action)
+        }
     }
 }
 
@@ -439,7 +447,7 @@ extension MainWindowController: NSToolbarDelegate {
             return makeItem(itemIdentifier,
                             label: "New",
                             symbol: "plus",
-                            action: Selector(("newGame:")))
+                            action: #selector(newGame(_:)))
         case .importSGF:
             return makeItem(itemIdentifier,
                             label: "Import",

@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func fileMenu() -> NSMenu {
         let menu = NSMenu(title: "File")
         menu.addItem(withTitle: "New Game",
-                     action: Selector(("newGame:")),
+                     action: #selector(MainWindowController.newGame(_:)),
                      keyEquivalent: "n")
         menu.addItem(withTitle: "Import…",
                      action: Selector(("importSGF:")),
@@ -135,6 +135,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Select All",
                      action: #selector(NSText.selectAll(_:)),
                      keyEquivalent: "a")
+        menu.addItem(.separator())
+
+        // Library record actions, routed through the responder chain to
+        // `MainWindowController` (enabled only when a game is selected, via
+        // `validateMenuItem`). Bare ⏎ / ⌫ are NOT used as global menu key
+        // equivalents — with an empty modifier mask they would intercept Return
+        // and Delete everywhere (e.g. editing the search field), so Return-to-
+        // rename and Delete-to-remove are handled contextually by the sidebar
+        // table only when it is first responder (see `LibraryTableView`). Here
+        // Rename carries no shortcut and Delete uses the standard ⌘⌫.
+        menu.addItem(withTitle: "Rename",
+                     action: #selector(MainWindowController.renameSelectedGame(_:)),
+                     keyEquivalent: "")
+        let delete = menu.addItem(withTitle: "Delete",
+                                  action: #selector(MainWindowController.deleteSelectedGame(_:)),
+                                  keyEquivalent: "\u{8}")
+        delete.keyEquivalentModifierMask = [.command]
         return menu
     }
 

@@ -1,17 +1,35 @@
 import AppKit
 import KataGoUICore
 
+/// Receives the sidebar's right-click context-menu actions, acting on an
+/// explicit `GameRecord` (the clicked row — not necessarily the loaded game).
+/// Implemented by `MainWindowController` via its `LibraryActions` extension.
+@MainActor
+protocol LibraryActionsDelegate: AnyObject {
+    func cloneGame(_ game: GameRecord)
+    func cloneCurrentPosition(of game: GameRecord)
+    func renameGame(_ game: GameRecord)
+    func deleteGame(_ game: GameRecord)
+}
+
 /// The native Library sidebar: a search field over a view-based `NSTableView`
 /// of the persisted games (driven by `LibraryStore`). Selecting a row reports
 /// the chosen `GameRecord` through `onSelect`, which the window controller
-/// routes to `GobanState.loadGame` to switch the board.
+/// routes to `GobanState.loadGame` to switch the board. A right-click context
+/// menu (Clone / Clone Current Position / Rename / Delete) acts on the clicked
+/// row through `actionsDelegate`.
 final class LibrarySidebarViewController: NSViewController {
     private let store: LibraryStore
     private let navigationContext: NavigationContext
     private let onSelect: (GameRecord?) -> Void
 
+    /// Weak to avoid a retain cycle: the delegate is the window controller, which
+    /// owns the split VC that owns this sidebar VC (window controller → split VC →
+    /// sidebar VC). A strong reference back would close that loop.
+    weak var actionsDelegate: LibraryActionsDelegate?
+
     private let searchField = NSSearchField()
-    private let tableView = NSTableView()
+    private let tableView = LibraryTableView()
     private let scrollView = NSScrollView()
 
     /// Set while we drive the selection ourselves (initial launch reflection and
@@ -51,6 +69,20 @@ final class LibrarySidebarViewController: NSViewController {
         tableView.allowsMultipleSelection = false
         tableView.dataSource = self
         tableView.delegate = self
+        tableView.menu = makeContextMenu()
+        // Finder-style bare keys, active only while the table is first responder
+        // (so they never clash with the search field / rename dialog): ⏎ renames
+        // and ⌫ deletes the selected game, via the same `actionsDelegate` path as
+        // the context menu. `contextTargetGame` resolves to the selected row here
+        // because there is no clicked row during a key press.
+        tableView.onReturnKey = { [weak self] in
+            guard let self, let game = self.contextTargetGame else { return }
+            self.actionsDelegate?.renameGame(game)
+        }
+        tableView.onDeleteKey = { [weak self] in
+            guard let self, let game = self.contextTargetGame else { return }
+            self.actionsDelegate?.deleteGame(game)
+        }
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = tableView
@@ -104,6 +136,77 @@ final class LibrarySidebarViewController: NSViewController {
     }
 }
 
+// MARK: - Context menu
+
+extension LibrarySidebarViewController {
+    /// Builds the right-click menu for the table. Items target this VC; AppKit
+    /// drives enablement through `validateMenuItem` (auto-enable). The Share item
+    /// is intentionally omitted for now — added in Task 5 — to avoid a dead entry.
+    private func makeContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Clone",
+                     action: #selector(cloneClickedGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Clone Current Position",
+                     action: #selector(cloneCurrentPositionOfClickedGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Rename",
+                     action: #selector(renameClickedGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Delete",
+                     action: #selector(deleteClickedGame(_:)),
+                     keyEquivalent: "")
+        for item in menu.items where item.action != nil {
+            item.target = self
+        }
+        return menu
+    }
+
+    /// Resolves the record the context menu should act on: the right-clicked row
+    /// when there is one, otherwise the selected row.
+    private var contextTargetGame: GameRecord? {
+        let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        guard row >= 0, row < store.games.count else { return nil }
+        return store.games[row]
+    }
+
+    @objc private func cloneClickedGame(_ sender: Any?) {
+        guard let game = contextTargetGame else { return }
+        actionsDelegate?.cloneGame(game)
+    }
+
+    @objc private func cloneCurrentPositionOfClickedGame(_ sender: Any?) {
+        guard let game = contextTargetGame else { return }
+        actionsDelegate?.cloneCurrentPosition(of: game)
+    }
+
+    @objc private func renameClickedGame(_ sender: Any?) {
+        guard let game = contextTargetGame else { return }
+        actionsDelegate?.renameGame(game)
+    }
+
+    @objc private func deleteClickedGame(_ sender: Any?) {
+        guard let game = contextTargetGame else { return }
+        actionsDelegate?.deleteGame(game)
+    }
+}
+
+// MARK: - NSMenuItemValidation
+
+extension LibrarySidebarViewController: NSMenuItemValidation {
+    /// Disables every context-menu item when there's no target row; enables
+    /// "Clone Current Position" only for the currently-loaded game, since it
+    /// clones the live board position.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard let game = contextTargetGame else { return false }
+        if menuItem.action == #selector(cloneCurrentPositionOfClickedGame(_:)) {
+            return game === navigationContext.selectedGameRecord
+        }
+        return true
+    }
+}
+
 // MARK: - NSTableViewDataSource
 
 extension LibrarySidebarViewController: NSTableViewDataSource {
@@ -153,5 +256,35 @@ extension LibrarySidebarViewController: NSSearchFieldDelegate {
     func controlTextDidChange(_ notification: Notification) {
         guard let field = notification.object as? NSSearchField else { return }
         store.searchText = field.stringValue
+    }
+}
+
+// MARK: - LibraryTableView
+
+/// `NSTableView` that adds Finder-style bare-key handling for the library list:
+/// Return renames the selected game and Delete (Backspace) removes it. These
+/// fire only while the table is first responder — so, unlike a global menu key
+/// equivalent, they never swallow Return/Delete in the search field or the
+/// rename dialog. The owning controller supplies the actual behavior via the
+/// closures; type-select and arrow-key navigation fall through to `super`.
+final class LibraryTableView: NSTableView {
+    var onReturnKey: (() -> Void)?
+    var onDeleteKey: (() -> Void)?
+
+    /// Hardware virtual key codes (layout-independent): Return, keypad Enter,
+    /// and Delete (Backspace).
+    private static let returnKeyCodes: Set<UInt16> = [36, 76]
+    private static let deleteKeyCode: UInt16 = 51
+
+    override func keyDown(with event: NSEvent) {
+        if selectedRow >= 0, Self.returnKeyCodes.contains(event.keyCode) {
+            onReturnKey?()
+            return
+        }
+        if selectedRow >= 0, event.keyCode == Self.deleteKeyCode {
+            onDeleteKey?()
+            return
+        }
+        super.keyDown(with: event)
     }
 }

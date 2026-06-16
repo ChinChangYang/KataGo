@@ -254,6 +254,7 @@
 		DB71C9CC1F94AC22E78C18F5 /* cord_rep_btree_navigator.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1E1094C011D3FB807C589B00 /* cord_rep_btree_navigator.cc */; };
 		DBC1AFC0053EB14FB17F9A7C /* crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = 735B5C87C4CA780F3E97EBA4 /* crc.cc */; };
 		DD2A02CBBD4C336E9FA48A60 /* private_handle_accessor.cc in Sources */ = {isa = PBXBuildFile; fileRef = 22D8D0DC676FBF50F1B5ABDB /* private_handle_accessor.cc */; };
+		DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */; };
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
@@ -1104,6 +1105,7 @@
 		F04A118B614A6178B0B239E6 /* sysinfo.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = sysinfo.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/sysinfo.cc"; sourceTree = SOURCE_ROOT; };
 		F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxwinotuner.cpp; sourceTree = "<group>"; };
 		F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = low_level_alloc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/low_level_alloc.cc"; sourceTree = SOURCE_ROOT; };
+		F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryActions.swift; sourceTree = "<group>"; };
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
 		F4C159FB921FB252C225F18A /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
@@ -1253,6 +1255,7 @@
 				28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */,
 				9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */,
 				F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */,
+				F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2329,6 +2332,7 @@
 				5077E4DBC05604CDBDF3BDB8 /* LibraryStore.swift in Sources */,
 				A800D354C94992F8BCE4984F /* GameRowView.swift in Sources */,
 				4C362581A79874EBE3D57D44 /* LibrarySidebarViewController.swift in Sources */,
+				DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

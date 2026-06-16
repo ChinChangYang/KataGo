@@ -9,7 +9,11 @@ import KataGoUICore
     /// Called whenever `games` changes (the sidebar reloads its table here).
     var onChange: (() -> Void)?
 
-    private var allGames: [GameRecord] = []
+    /// The full, unfiltered fetch (`games` is this list narrowed by `searchText`).
+    /// Exposed so callers that must reason about every game — e.g. choosing a
+    /// replacement after deleting the loaded game — aren't misled by an active
+    /// search filter.
+    private(set) var allGames: [GameRecord] = []
     private var observer: NSObjectProtocol?
 
     init(container: ModelContainer) {
