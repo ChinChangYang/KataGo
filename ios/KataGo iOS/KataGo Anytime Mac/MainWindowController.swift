@@ -28,6 +28,11 @@ final class MainWindowController: NSWindowController {
     let modelContainer: ModelContainer
     private var katagoThread: Thread?
 
+    /// Persisted model-selection store (same `ModelRunnerView.*` UserDefaults keys
+    /// as iOS). `startEngineAndSession()` reads `currentModel` to decide which net
+    /// to launch; `relaunch(model:)` writes the user's choice via `setActiveModel`.
+    let modelSelection = MacModelSelection()
+
     /// Last-seen values of the two analysis-lifecycle properties we observe, so
     /// the (property-agnostic) `withObservationTracking` callback can tell which
     /// one changed and detect the specific transitions iOS reacts to. Seeded from
@@ -295,35 +300,82 @@ final class MainWindowController: NSWindowController {
 
     /// Mirrors the iOS launch (`ModelRunnerView` engine thread + `ContentView`
     /// initialization sequence): start KataGo on a background thread loading the
-    /// built-in network, then run the version handshake, initial commands, board
-    /// load and the GTP message loop. macOS defaults inside `KataGoHelper`
-    /// (MLX/GPU, 16 search threads) are used as-is — no overrides.
+    /// ACTIVE network (resolved from the persisted `modelSelection`), then run the
+    /// version handshake, initial commands, board load and the GTP message loop.
+    ///
+    /// The engine launch is parameterized by `BackendSettings` (same per-model
+    /// UserDefaults the iOS `ModelRunnerView` uses), NOT by the per-game `Config`:
+    /// backend device, NN-buffer max board length, exact-NN-len, and the Winograd
+    /// tuner flags all come from `BackendSettings`. The per-game `Config` still
+    /// drives rules/komi/board size via `loadGame` (`initializeSession`), unchanged.
     private func startEngineAndSession() {
-        guard let builtIn = NeuralNetworkModel.builtInModel,
-              let modelPath = Bundle.main.path(forResource: "default_model", ofType: "bin.gz") else {
-            assertionFailure("Built-in model not bundled in the Mac target's Resources.")
-            return
+        // Resolve the active model and its file path. A downloaded model that is
+        // somehow active but no longer present on disk would yield a nil path;
+        // rather than crash, fall back to the built-in net + its bundled path.
+        var model = modelSelection.currentModel
+        var modelPath = model.builtIn
+            ? Bundle.main.path(forResource: "default_model", ofType: "bin.gz")
+            : model.downloadedURL?.path()
+
+        if modelPath == nil {
+            guard let builtIn = NeuralNetworkModel.builtInModel,
+                  let builtInPath = Bundle.main.path(forResource: "default_model", ofType: "bin.gz") else {
+                assertionFailure("Built-in model not bundled in the Mac target's Resources.")
+                return
+            }
+            model = builtIn
+            modelPath = builtInPath
         }
+
+        guard let modelPath else { return } // unreachable — fallback set it above.
+
+        // Per-model engine settings (backend device, board-size NN buffer, tuner
+        // flags). Same UserDefaults keys as iOS.
+        var settings = BackendSettings(model: model)
 
         // Arm + clear the crash sentinel exactly as `ModelRunnerView` does so the
         // handshake's `markFirstResponse` is meaningful.
         engineLifecycle.reset()
 
-        startKataGoThread(modelPath: modelPath)
+        startKataGoThread(
+            modelPath: modelPath,
+            mlxDeviceToUse: settings.backend.mlxDeviceToUse,
+            maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
+            requireExactNNLen: settings.requireExactNNLen,
+            tunerFull: settings.tunerFull,
+            reTune: settings.reTune
+        )
+
+        // One-shot: consume a pending re-tune so it fires exactly once. Only when
+        // MLX/GPU actually uses it — the CoreML/NE path ignores `reTune`, so a
+        // request made there is left intact for a later MLX/GPU load (mirrors iOS
+        // `ModelRunnerView` lines 111-113).
+        if settings.reTune && settings.backend == .mlxGPU {
+            settings.reTune = false
+        }
 
         let context = modelContainer.mainContext
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
         let selected = ensureSelectedGameRecord(gameRecords: gameRecords, context: context)
 
         Task { @MainActor in
-            await initializeSession(builtIn: builtIn, selected: selected, context: context)
+            await initializeSession(model: model, selected: selected, context: context)
         }
     }
 
-    private func startKataGoThread(modelPath: String) {
+    private func startKataGoThread(modelPath: String,
+                                   mlxDeviceToUse: Int,
+                                   maxBoardSizeForNNBuffer: Int,
+                                   requireExactNNLen: Bool,
+                                   tunerFull: Bool,
+                                   reTune: Bool) {
         let katagoThread = Thread {
-            // macOS defaults (MLX/GPU device, 16 threads) live inside runGtp.
-            KataGoHelper.runGtp(modelPath: modelPath)
+            KataGoHelper.runGtp(modelPath: modelPath,
+                                mlxDeviceToUse: mlxDeviceToUse,
+                                maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
+                                requireExactNNLen: requireExactNNLen,
+                                tunerFull: tunerFull,
+                                reTune: reTune)
         }
         // Expand the stack size to resolve a stack overflow problem (mirrors iOS).
         katagoThread.stackSize = 4096 * 256
@@ -354,12 +406,12 @@ final class MainWindowController: NSWindowController {
         return newGame
     }
 
-    private func initializeSession(builtIn: NeuralNetworkModel,
+    private func initializeSession(model: NeuralNetworkModel,
                                    selected: GameRecord,
                                    context: ModelContext) async {
         // Mirror `ContentView.initializationTask`: handshake → initial commands.
         await session.initialize(
-            selectedModelTitle: builtIn.title,
+            selectedModelTitle: model.title,
             engineLifecycle: engineLifecycle,
             config: selected.concreteConfig
         )
@@ -506,20 +558,24 @@ final class MainWindowController: NSWindowController {
         lastIsEditing = gobanState.isEditing
     }
 
-    /// Tears the running engine down and starts a fresh one in-process. This is
-    /// the basis for Phase 5 model switching.
+    /// Switches the active model and relaunches the engine in-process. Records
+    /// `model` as the authoritative user selection (`modelSelection.setActiveModel`)
+    /// BEFORE tearing the old engine down, so the fresh `startEngineAndSession()`
+    /// resolves `modelSelection.currentModel == model` and launches it via
+    /// `BackendSettings` (P5-T2). This makes `relaunch(.builtIn)` and
+    /// `relaunch(otherDownloadedNet)` both genuinely switch.
     ///
-    /// The `model` parameter is accepted now so P5-T2/T3 can route a user-chosen
-    /// model through here; for THIS spike the actual launch reuses the built-in
-    /// path inside `startEngineAndSession()` (the model-param → `runGtp` wiring is
-    /// P5-T2's job). `startEngineAndSession()` re-runs the FULL init
-    /// (handshake → showboard/printsgf → messaging → run) and re-gates
+    /// `startEngineAndSession()` re-runs the FULL init (handshake →
+    /// showboard/printsgf → messaging → run) and re-gates
     /// `boardReadiness.isEngineReady` true after init, so the board re-mounts and
     /// analysis re-arms exactly as on first launch. A fresh `initializeSession`
     /// Task is started there, after `stopEngineAndSession()` has confirmed the old
     /// `run()` loop ended — so there are never two concurrent `run()` loops.
+    ///
+    /// NOTE: arming/clearing the crash sentinel (`pendingLoadModelTitle`) around
+    /// this launch is P5-T4's job; this method only records the selection.
     func relaunch(model: NeuralNetworkModel) {
-        _ = model // P5-T2 will thread this through to `runGtp`.
+        modelSelection.setActiveModel(model)
         Task { @MainActor in
             await stopEngineAndSession()
             startEngineAndSession()

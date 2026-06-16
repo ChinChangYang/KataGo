@@ -20,6 +20,7 @@
 		0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
+		0E214CE4E7C5883F3D89C7C5 /* MacModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E695144B2B1485A6D87400 /* MacModelSelection.swift */; };
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
 		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
@@ -1109,6 +1110,7 @@
 		E5A4D92CF0E9CE8E3EF817C6 /* sem_waiter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = sem_waiter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/sem_waiter.cc"; sourceTree = SOURCE_ROOT; };
 		E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxbackend.cpp; sourceTree = "<group>"; };
 		E5B49A6D9F23E639CE1F5B23 /* gaussian_distribution.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = gaussian_distribution.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/gaussian_distribution.cc"; sourceTree = SOURCE_ROOT; };
+		E5E695144B2B1485A6D87400 /* MacModelSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacModelSelection.swift; sourceTree = "<group>"; };
 		E5E86CB9461F2B8990E7855E /* initialize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = initialize.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/initialize.cc"; sourceTree = SOURCE_ROOT; };
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
@@ -1277,6 +1279,7 @@
 				8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */,
 				8F928DADF19E916D9C547562 /* InspectorInfoViewController.swift */,
 				ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */,
+				E5E695144B2B1485A6D87400 /* MacModelSelection.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2361,6 +2364,7 @@
 				EAFCACEFEE7FACDCE6220B08 /* ConfigEditingSupport.swift in Sources */,
 				37D62DCDF8356332B0965DFF /* InspectorInfoViewController.swift in Sources */,
 				45DDFBF168ECF122EA1B2592 /* ConfigEditorViewController.swift in Sources */,
+				0E214CE4E7C5883F3D89C7C5 /* MacModelSelection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
