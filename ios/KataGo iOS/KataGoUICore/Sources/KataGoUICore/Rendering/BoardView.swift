@@ -225,17 +225,13 @@ public struct BoardView: View {
     }
 
     func locationToCoordinate(location: CGPoint, dimensions: Dimensions) -> Coordinate? {
-        // Function to calculate the board coordinate based on the provided point, margin, and square length
-        func calculateCoordinate(from point: CGFloat, margin: CGFloat, length: CGFloat) -> Int {
-            return Int(round((point - margin) / length))
-        }
-
-        let boardY = calculateCoordinate(from: location.y, margin: dimensions.boardLineStartY, length: dimensions.squareLength) + 1
-        let boardX = calculateCoordinate(from: location.x, margin: dimensions.boardLineStartX, length: dimensions.squareLength)
-        let height = Int(board.height)
-        let verticalFlipWithPass = gobanState.verticalFlip || ((boardY - 1) == BoardPoint.passY(height: height))
-        let adjustedY = verticalFlipWithPass ? boardY : (height - boardY + 1)
-        return Coordinate(x: boardX, y: adjustedY, width: Int(board.width), height: height)
+        // Delegates to the shared `Coordinate.from` so the macOS right-click menu
+        // and hover preview map points to vertices identically to this tap path.
+        Coordinate.from(location: location,
+                        dimensions: dimensions,
+                        boardWidth: Int(board.width),
+                        boardHeight: Int(board.height),
+                        verticalFlip: gobanState.verticalFlip)
     }
 }
 

@@ -659,6 +659,29 @@ public struct Coordinate {
             return nil
         }
     }
+
+    /// Maps a point in the board's `Dimensions` coordinate space to a board
+    /// `Coordinate` (nil when the point falls outside the board / pass area, via
+    /// the failable `init`). Extracted verbatim from `BoardView.locationToCoordinate`
+    /// so non-SwiftUI callers (the macOS right-click menu + hover preview) map a
+    /// point to a vertex IDENTICALLY to the board's tap gesture — a single source
+    /// of truth keeps them from drifting. Callers supply the live board size and
+    /// `verticalFlip` (the values `BoardView` reads from `BoardSize`/`GobanState`).
+    static func from(location: CGPoint,
+                     dimensions: Dimensions,
+                     boardWidth: Int,
+                     boardHeight: Int,
+                     verticalFlip: Bool) -> Coordinate? {
+        func calculateCoordinate(from point: CGFloat, margin: CGFloat, length: CGFloat) -> Int {
+            return Int(round((point - margin) / length))
+        }
+
+        let boardY = calculateCoordinate(from: location.y, margin: dimensions.boardLineStartY, length: dimensions.squareLength) + 1
+        let boardX = calculateCoordinate(from: location.x, margin: dimensions.boardLineStartX, length: dimensions.squareLength)
+        let verticalFlipWithPass = verticalFlip || ((boardY - 1) == BoardPoint.passY(height: boardHeight))
+        let adjustedY = verticalFlipWithPass ? boardY : (boardHeight - boardY + 1)
+        return Coordinate(x: boardX, y: adjustedY, width: boardWidth, height: boardHeight)
+    }
 }
 
 extension Coordinate {
