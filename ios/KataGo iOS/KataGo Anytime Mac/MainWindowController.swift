@@ -247,6 +247,7 @@ final class MainWindowController: NSWindowController {
         scheduleSnapshotIfRequested()
         scheduleAutoPlayTestIfRequested()
         scheduleRelaunchTestIfRequested()
+        scheduleAIPlayTestIfRequested()
         #endif
     }
 
@@ -2118,6 +2119,76 @@ final class MainWindowController: NSWindowController {
                   "analysisInfo=\(self.session.analysis.info.count) " +
                   "showBoardCount=\(gobanState.showBoardCount) " +
                   "nextColor=\(self.session.player.nextColorForPlayCommand)")
+            fflush(stdout)
+        }
+    }
+
+    // MARK: - AI move-generation self-test (DEBUG only)
+    //
+    // When `KATAGO_MAC_AIPLAY_TEST` is set, verify the gen-move → play chain
+    // headlessly (the highest-risk Phase 6 wiring): enabling an AI color mid-game
+    // (here Black, on a fresh empty board where it's Black's turn) must make the
+    // engine GENERATE a move (`kata-search_analyze_cancellable`) and the shared
+    // `GameSession.postProcessAIMove` must PLAY it. Waits ~8s after the engine is
+    // ready (so the first analysis is flowing), then sets Black's `maxTime` and
+    // re-arms analysis — exactly what the config editor's `setBlackMaxTime` now
+    // does, so this also exercises that re-arm path. ~12s later prints a one-line
+    // summary and flushes. Does NOT terminate.
+    private func scheduleAIPlayTestIfRequested() {
+        guard let flag = ProcessInfo.processInfo.environment["KATAGO_MAC_AIPLAY_TEST"],
+              !flag.isEmpty else { return }
+        waitForEngineReadyThenRunAIPlayTest()
+    }
+
+    /// Polls `boardReadiness.isEngineReady` via the same one-shot
+    /// `withObservationTracking` style used by the other DEBUG self-tests; once
+    /// ready, starts the test after an ~8s settle delay so the first engine's
+    /// analysis is flowing before we enable AI play.
+    private func waitForEngineReadyThenRunAIPlayTest() {
+        if boardReadiness.isEngineReady {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+                self?.runAIPlayTest()
+            }
+            return
+        }
+        withObservationTracking {
+            _ = boardReadiness.isEngineReady
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.waitForEngineReadyThenRunAIPlayTest()
+            }
+        }
+    }
+
+    private func runAIPlayTest() {
+        guard let gameRecord = navigationContext.selectedGameRecord else {
+            print("KATAGO_AIPLAY_ERROR no selected game")
+            fflush(stdout)
+            return
+        }
+
+        // Enable Black for AI play (computed setter persists to
+        // `optionalBlackMaxTime`) and force a re-evaluation of
+        // `getRequestAnalysisCommands` — on a fresh game it's Black's turn, so
+        // this issues the gen-move set. Mirrors the config editor's re-arm.
+        gameRecord.concreteConfig.blackMaxTime = 1.0
+        session.gobanState.maybeRequestAnalysis(
+            config: gameRecord.concreteConfig,
+            nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+            messageList: session.messageList
+        )
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            guard let self else { return }
+            let config = gameRecord.concreteConfig
+            let player = self.session.player
+            let lastPlayLine = self.session.messageList.messages
+                .last { $0.text.hasPrefix("play ") }?.text ?? "<none>"
+            print("KATAGO_AIPLAY blackMaxTime=\(config.blackMaxTime) " +
+                  "nextColor=\(player.nextColorForPlayCommand) " +
+                  "blackStones=\(self.session.stones.blackPoints.count) " +
+                  "whiteStones=\(self.session.stones.whitePoints.count) " +
+                  "lastPlayLine=\(lastPlayLine)")
             fflush(stdout)
         }
     }

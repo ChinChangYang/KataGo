@@ -205,18 +205,41 @@ enum ConfigEngineSync {
     // iOS `ConfigView.swift` lines 460-461 (Black) / 492-493 (White): no GTP
     // command — the property alone is read when `getKataGenMoveAnalyzeCommands`
     // runs (`GobanState.getRequestAnalysisCommands`). So these only write the
-    // `Config` prop. They take effect on the next analysis request.
+    // `Config` prop.
+    //
+    // On iOS the change takes effect on the next color toggle (the hosted
+    // `BoardView.onChange(of: player.nextColorForPlayCommand)` re-evaluates
+    // `getRequestAnalysisCommands` → issues the gen-move). But ENABLING an AI
+    // color MID-GAME (`maxTime` 0 → >0 with no color change) doesn't toggle the
+    // color, so nothing re-evaluates and no gen-move is issued until the next
+    // move. We therefore RE-ARM analysis after writing the value (same as
+    // `setMaxAnalysisMoves`/`setAnalysisInterval`): if it's now that color's
+    // turn, `getRequestAnalysisCommands` returns the gen-move set and the engine
+    // generates immediately. `rearmAnalysis` no-ops when analysis is cleared /
+    // not for the current player, so disabling (>0 → 0) is harmless.
 
     /// Sets Black's per-move max time (`config.blackMaxTime` →
-    /// `optionalBlackMaxTime`). No GTP command (read on the next gen-move).
-    static func setBlackMaxTime(_ seconds: Float, config: Config) {
+    /// `optionalBlackMaxTime`) and re-arms analysis so enabling Black mid-game
+    /// (0 → >0) issues the gen-move now when it's Black's turn.
+    static func setBlackMaxTime(_ seconds: Float,
+                                config: Config,
+                                gobanState: GobanState,
+                                player: Turn,
+                                messageList: MessageList) {
         config.blackMaxTime = seconds
+        rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
 
     /// Sets White's per-move max time (`config.whiteMaxTime` →
-    /// `optionalWhiteMaxTime`). No GTP command (read on the next gen-move).
-    static func setWhiteMaxTime(_ seconds: Float, config: Config) {
+    /// `optionalWhiteMaxTime`) and re-arms analysis so enabling White mid-game
+    /// (0 → >0) issues the gen-move now when it's White's turn.
+    static func setWhiteMaxTime(_ seconds: Float,
+                                config: Config,
+                                gobanState: GobanState,
+                                player: Turn,
+                                messageList: MessageList) {
         config.whiteMaxTime = seconds
+        rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
 
     // MARK: Analysis params (no dedicated GTP command)
@@ -257,10 +280,14 @@ enum ConfigEngineSync {
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
 
-    /// Re-issues a continuous-analysis request for the current position so a
-    /// just-changed analysis parameter (interval / maxmoves) is applied now.
-    /// Uses the same gate iOS relies on downstream (`maybeRequestAnalysis`):
-    /// it no-ops when analysis is cleared or not for the current player.
+    /// Re-issues a continuous-analysis (or gen-move) request for the current
+    /// position so a just-changed parameter (interval / maxmoves / per-color
+    /// maxTime) is applied now. `getRequestAnalysisCommands` re-reads the config,
+    /// so when a color was just enabled and it's that color's turn this issues
+    /// the gen-move set (`kata-search_analyze_cancellable`); otherwise it
+    /// re-issues `kata-analyze`. Uses the same gate iOS relies on downstream
+    /// (`maybeRequestAnalysis`): it no-ops when analysis is cleared or not for
+    /// the current player.
     private static func rearmAnalysis(config: Config,
                                       gobanState: GobanState,
                                       player: Turn,

@@ -299,8 +299,12 @@ final class InspectorInfoViewController: NSViewController {
                 maxValue: 60,
                 step: 0.5,
                 format: { Self.secondsText(Float($0)) },
-                onChange: { newValue in
-                    ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config)
+                onChange: { [weak self] newValue in
+                    guard let self else { return }
+                    ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
+                                                     gobanState: self.gobanState,
+                                                     player: self.player,
+                                                     messageList: self.messageList)
                 }))
 
         // White
@@ -324,8 +328,12 @@ final class InspectorInfoViewController: NSViewController {
                 maxValue: 60,
                 step: 0.5,
                 format: { Self.secondsText(Float($0)) },
-                onChange: { newValue in
-                    ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config)
+                onChange: { [weak self] newValue in
+                    guard let self else { return }
+                    ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
+                                                     gobanState: self.gobanState,
+                                                     player: self.player,
+                                                     messageList: self.messageList)
                 }))
     }
 
