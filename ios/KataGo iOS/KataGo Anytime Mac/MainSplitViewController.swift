@@ -4,8 +4,8 @@ import KataGoUICore
 /// The window's 3-pane content: a collapsible Library sidebar, the board (the
 /// resizable content), and a collapsible Inspector. The board pane hosts the
 /// reused SwiftUI `BoardView` via `BoardViewController`; the sidebar hosts the
-/// native `LibrarySidebarViewController` (Phase 2). The Inspector pane is still
-/// a placeholder (Phase 4).
+/// native `LibrarySidebarViewController` (Phase 2); the Inspector hosts the
+/// tabbed `InspectorViewController` (Phase 4: Chart/Comments/Moves/Info).
 final class MainSplitViewController: NSSplitViewController {
     let session: GameSession
     let navigationContext: NavigationContext
@@ -16,6 +16,12 @@ final class MainSplitViewController: NSSplitViewController {
     /// (as its window's `contentViewController`). The sidebar routes selection
     /// back through it via `selectGame`.
     private weak var windowController: MainWindowController?
+
+    /// The Inspector's tabbed controller + its split item, retained so the
+    /// View-menu tab shortcuts (⌘1–4, via `showInspectorTab`) can select a tab
+    /// and expand the pane if it's collapsed.
+    private var inspectorViewController: InspectorViewController?
+    private var inspectorSplitItem: NSSplitViewItem?
 
     init(session: GameSession,
          navigationContext: NavigationContext,
@@ -84,7 +90,21 @@ final class MainSplitViewController: NSSplitViewController {
         inspectorItem.canCollapse = true
         inspectorItem.minimumThickness = 220
         inspectorItem.maximumThickness = 360
+        self.inspectorViewController = inspectorVC
+        self.inspectorSplitItem = inspectorItem
 
         splitViewItems = [sidebarItem, boardItem, inspectorItem]
+    }
+
+    /// Selects an Inspector tab by index (0=Chart, 1=Comments, 2=Moves, 3=Info),
+    /// first expanding the Inspector pane if it's collapsed. Backs the ⌘1–4
+    /// View-menu shortcuts routed through `MainWindowController.selectInspectorTab`.
+    func showInspectorTab(_ index: Int) {
+        if inspectorSplitItem?.isCollapsed == true {
+            inspectorSplitItem?.isCollapsed = false
+        }
+        guard let inspectorVC = inspectorViewController,
+              inspectorVC.tabViewItems.indices.contains(index) else { return }
+        inspectorVC.selectedTabViewItemIndex = index
     }
 }

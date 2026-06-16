@@ -1034,6 +1034,14 @@ final class MainWindowController: NSWindowController {
         session.gobanState.showPass.toggle()
     }
 
+    /// View-menu Inspector tab shortcuts (⌘1 Chart · ⌘2 Comments · ⌘3 Moves ·
+    /// ⌘4 Info). The menu item's `tag` (0–3) is the tab index; route through the
+    /// split VC, which expands the Inspector pane first if it's collapsed.
+    @objc func selectInspectorTab(_ sender: NSMenuItem) {
+        (window?.contentViewController as? MainSplitViewController)?
+            .showInspectorTab(sender.tag)
+    }
+
     /// Updates the Analyze toolbar item's image + toolTip from the live
     /// `gobanState.analysisStatus`. Called after the item is built (initial
     /// state), at the end of T1's `handleAnalysisLifecycleChange()` (so any path

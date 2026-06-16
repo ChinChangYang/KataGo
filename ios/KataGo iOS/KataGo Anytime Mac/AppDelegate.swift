@@ -184,6 +184,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                            action: #selector(NSSplitViewController.toggleInspector(_:)),
                                            keyEquivalent: "i")
         toggleInspector.keyEquivalentModifierMask = [.command, .control]
+
+        // Inspector tab shortcuts: ⌘1 Chart · ⌘2 Comments · ⌘3 Moves · ⌘4 Info.
+        // The item `tag` (0–3) is the tab index; `selectInspectorTab` routes to
+        // the split VC, which expands the Inspector pane first if collapsed.
+        // (A bare digit keyEquivalent defaults to the ⌘ modifier.)
+        for (index, title) in ["Chart", "Comments", "Moves", "Info"].enumerated() {
+            let item = menu.addItem(withTitle: title,
+                                    action: #selector(MainWindowController.selectInspectorTab(_:)),
+                                    keyEquivalent: "\(index + 1)")
+            item.tag = index
+        }
         menu.addItem(.separator())
 
         // Display toggles routed through the responder chain to
