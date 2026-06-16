@@ -8,8 +8,9 @@ import KataGoUICore
 /// The Chart and Comments tabs reuse the shared SwiftUI views (`LinePlotView` /
 /// `CommentView`) via `NSHostingController`, fed from the engine-backed
 /// `GameSession` plus the Mac-side UI collaborators (mirroring
-/// `BoardViewController` / `MacBoardHostView`). The Moves and Info tabs are
-/// simple placeholders until later Phase 4 tasks fill them in.
+/// `BoardViewController` / `MacBoardHostView`). The Moves tab hosts the shared
+/// `MovesListView`; the Info tab is the native `InspectorInfoViewController`
+/// (game summary + inline common settings).
 final class InspectorViewController: NSTabViewController {
     let session: GameSession
     let navigationContext: NavigationContext
@@ -74,7 +75,10 @@ final class InspectorViewController: NSTabViewController {
                               accessibilityDescription: "Moves")
 
         let info = NSTabViewItem(
-            viewController: PlaceholderViewController(labelText: "Info (Phase 4)")
+            viewController: InspectorInfoViewController(
+                session: session,
+                navigationContext: navigationContext
+            )
         )
         info.label = "Info"
         info.image = NSImage(systemSymbolName: "info.circle",
