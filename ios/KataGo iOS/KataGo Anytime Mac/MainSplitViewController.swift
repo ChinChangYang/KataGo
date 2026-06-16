@@ -12,6 +12,9 @@ final class MainSplitViewController: NSSplitViewController {
     let audioModel: AudioModel
     let libraryStore: LibraryStore
     let readiness: BoardReadiness
+    /// Drives the board pane's pre-ready status caption (P5-T9). Threaded down to
+    /// `BoardViewController` alongside `readiness`.
+    let engineLaunchStatus: EngineLaunchStatus
     /// Weak to avoid a retain cycle: the window controller owns this split VC
     /// (as its window's `contentViewController`). The sidebar routes selection
     /// back through it via `selectGame`.
@@ -28,12 +31,14 @@ final class MainSplitViewController: NSSplitViewController {
          audioModel: AudioModel,
          libraryStore: LibraryStore,
          readiness: BoardReadiness,
+         engineLaunchStatus: EngineLaunchStatus,
          windowController: MainWindowController) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
         self.libraryStore = libraryStore
         self.readiness = readiness
+        self.engineLaunchStatus = engineLaunchStatus
         self.windowController = windowController
         super.init(nibName: nil, bundle: nil)
     }
@@ -66,7 +71,9 @@ final class MainSplitViewController: NSSplitViewController {
             session: session,
             navigationContext: navigationContext,
             audioModel: audioModel,
-            readiness: readiness
+            readiness: readiness,
+            engineLaunchStatus: engineLaunchStatus,
+            activeModelTitle: windowController?.modelSelection.currentModel.title ?? ""
         )
         let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(

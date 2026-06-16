@@ -97,6 +97,13 @@ final class MainWindowController: NSWindowController {
     /// built in the `.analyze` case) to avoid a retain cycle.
     private weak var analyzeToolbarItem: NSToolbarItem?
 
+    /// The toolbar's active-model dropdown (P5-T6), retained weakly so
+    /// `refreshActiveModelToolbarItem()` can update its displayed title after a
+    /// model switch (the menu rebuilds itself live via `menuNeedsUpdate(_:)`, but
+    /// the always-visible item title is set imperatively). The `NSToolbar` owns the
+    /// item; we only borrow a reference (set when the item is built).
+    private weak var activeModelToolbarItem: NSMenuToolbarItem?
+
     /// AppKit equivalent of the iOS `GlobalPreferenceSync` modifier: seeds the
     /// shared `GobanState` from the persisted `GlobalSettings.*` UserDefaults and
     /// writes each subsequent change back. Owned here; created in `init` BEFORE
@@ -138,6 +145,7 @@ final class MainWindowController: NSWindowController {
             audioModel: audioModel,
             libraryStore: libraryStore,
             readiness: boardReadiness,
+            engineLaunchStatus: engineLaunchStatus,
             windowController: self
         )
         w.titlebarAppearsTransparent = false
@@ -1515,7 +1523,9 @@ final class MainWindowController: NSWindowController {
             let board = MacBoardHostView(session: self.session,
                                          navigationContext: self.navigationContext,
                                          audioModel: self.audioModel,
-                                         readiness: self.boardReadiness)
+                                         readiness: self.boardReadiness,
+                                         engineLaunchStatus: self.engineLaunchStatus,
+                                         activeModelTitle: self.modelSelection.currentModel.title)
                 .frame(width: 760, height: 800)
             let renderer = ImageRenderer(content: board)
             renderer.scale = 2
@@ -1670,6 +1680,19 @@ extension MainWindowController: NSWindowDelegate {
 
 // MARK: - Toolbar
 
+// MARK: - Active-model dropdown menu
+
+extension MainWindowController: NSMenuDelegate {
+    /// Rebuilds the active-model toolbar dropdown's menu just before it opens, so
+    /// checkmarks (active net) and per-item enablement (downloaded?) are live. The
+    /// controller is the delegate of ONLY that menu, but we guard on identity so a
+    /// future shared use can't accidentally trigger a rebuild of the wrong menu.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === activeModelToolbarItem?.menu else { return }
+        rebuildActiveModelMenu(menu)
+    }
+}
+
 // MARK: - Menu item validation
 
 extension MainWindowController: NSMenuItemValidation {
@@ -1717,6 +1740,15 @@ extension MainWindowController: NSMenuItemValidation {
             menuItem.state = gobanState.showVisitsPerSecond ? .on : .off
             return true
 
+        // Active-model dropdown rows: keep the per-item enablement set during the
+        // menu rebuild (availability), but additionally disable ALL switching while
+        // a launch is in flight so the user can't trigger a re-entrant relaunch.
+        case #selector(selectActiveModel(_:)):
+            return menuItem.isEnabled && boardReadiness.isEngineReady
+        // "Manage Models…" is always available.
+        case #selector(showModelsWindow(_:)):
+            return true
+
         default:
             return canPerformNavigation(menuItem.action)
         }
@@ -1731,6 +1763,13 @@ extension MainWindowController: NSToolbarItemValidation {
     /// this responder; non-navigation items default to enabled. Uses the same
     /// `canGoBackward` / `canGoForward` tests as the Navigate menu.
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        // Active-model dropdown: always enabled; opportunistically refresh its
+        // displayed title so it tracks the live selection even when the model was
+        // changed elsewhere (Models window "Set Active", crash recovery).
+        if item.itemIdentifier == .activeModel {
+            refreshActiveModelToolbarItem()
+            return true
+        }
         if item.action == #selector(toggleAnalysis(_:)) {
             // Analyze only makes sense with a game loaded; refresh its on/off
             // appearance opportunistically while we're here.
@@ -1745,6 +1784,7 @@ private extension NSToolbarItem.Identifier {
     static let toggleSidebar = NSToolbarItem.Identifier("toggleSidebar")
     static let newGame = NSToolbarItem.Identifier("newGame")
     static let importSGF = NSToolbarItem.Identifier("importSGF")
+    static let activeModel = NSToolbarItem.Identifier("activeModel")
     static let navGroup = NSToolbarItem.Identifier("navGroup")
     static let analyze = NSToolbarItem.Identifier("analyze")
     static let toggleInspector = NSToolbarItem.Identifier("toggleInspector")
@@ -1756,6 +1796,7 @@ extension MainWindowController: NSToolbarDelegate {
             .toggleSidebar,
             .newGame,
             .importSGF,
+            .activeModel,
             .flexibleSpace,
             .navGroup,
             .analyze,
@@ -1769,6 +1810,7 @@ extension MainWindowController: NSToolbarDelegate {
             .toggleSidebar,
             .newGame,
             .importSGF,
+            .activeModel,
             .navGroup,
             .analyze,
             .toggleInspector,
@@ -1807,6 +1849,8 @@ extension MainWindowController: NSToolbarDelegate {
             analyzeToolbarItem = item
             refreshAnalyzeToolbarItem()
             return item
+        case .activeModel:
+            return makeActiveModelItem(itemIdentifier)
         case .toggleInspector:
             // macOS 14+ NSSplitViewController responds to toggleInspector:.
             return makeItem(itemIdentifier,
@@ -1833,6 +1877,82 @@ extension MainWindowController: NSToolbarDelegate {
         item.target = nil  // first responder
         item.action = action
         return item
+    }
+
+    /// Active-model dropdown (P5-T6): an `NSMenuToolbarItem` whose title shows the
+    /// current net and whose menu lists every visible model (checkmark = active,
+    /// disabled = not yet downloaded) plus a "Manage Models…" item. The menu is
+    /// rebuilt fresh each time it opens (via `menuNeedsUpdate(_:)`) so checkmarks /
+    /// availability are always live.
+    private func makeActiveModelItem(_ identifier: NSToolbarItem.Identifier) -> NSMenuToolbarItem {
+        let item = NSMenuToolbarItem(itemIdentifier: identifier)
+        item.label = "Model"
+        item.image = NSImage(systemSymbolName: "square.stack.3d.up",
+                             accessibilityDescription: "Active Network")
+        // Don't collapse into the chevron-arrow style; show the pulldown directly.
+        item.showsIndicator = true
+
+        // The menu's delegate is this controller, so `menuNeedsUpdate(_:)` rebuilds
+        // the items on every open (live checkmarks + availability).
+        let menu = NSMenu()
+        menu.delegate = self
+        item.menu = menu
+
+        activeModelToolbarItem = item
+        refreshActiveModelToolbarItem()
+        return item
+    }
+
+    /// Rebuilds the active-model dropdown's menu items from the live catalog +
+    /// selection. Called from `menuNeedsUpdate(_:)` each time the menu opens, so
+    /// checkmarks (active model) and enablement (downloaded?) are always current.
+    fileprivate func rebuildActiveModelMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let currentTitle = modelSelection.currentModel.title
+
+        for model in NeuralNetworkModel.allCases.filter({ $0.visible }) {
+            let menuItem = NSMenuItem(title: model.title,
+                                      action: #selector(selectActiveModel(_:)),
+                                      keyEquivalent: "")
+            menuItem.target = self
+            menuItem.representedObject = model
+            menuItem.state = (model.title == currentTitle) ? .on : .off
+            // Built-in is always available; others only when the file is present.
+            // A non-downloaded model is disabled — the Models window is where it
+            // gets downloaded.
+            let available = model.builtIn
+                || (model.downloadedURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false)
+            menuItem.isEnabled = available
+            menu.addItem(menuItem)
+        }
+
+        menu.addItem(.separator())
+        let manage = NSMenuItem(title: "Manage Models…",
+                                action: #selector(showModelsWindow(_:)),
+                                keyEquivalent: "")
+        manage.target = self
+        menu.addItem(manage)
+    }
+
+    /// Updates the active-model dropdown's displayed title to the current net.
+    /// Called when the item is built and after a switch (the menu rebuilds itself,
+    /// but the always-visible title is set imperatively).
+    private func refreshActiveModelToolbarItem() {
+        activeModelToolbarItem?.title = modelSelection.currentModel.title
+    }
+
+    /// Switches the active network from the toolbar dropdown. Resolves the chosen
+    /// model from the menu item's `representedObject` and relaunches the engine via
+    /// `relaunch(model:)`. Guarded on `boardReadiness.isEngineReady` to avoid a
+    /// re-entrant relaunch while a launch is already in flight.
+    @objc func selectActiveModel(_ sender: NSMenuItem) {
+        guard let model = sender.representedObject as? NeuralNetworkModel else { return }
+        // Don't switch mid-launch (avoids re-entrant teardown/relaunch).
+        guard boardReadiness.isEngineReady else { return }
+        // No-op if it's already the active net.
+        guard model.title != modelSelection.currentModel.title else { return }
+        relaunch(model: model)
+        refreshActiveModelToolbarItem()
     }
 
     /// ⏮ ◀ ▶ ⏭ as a segmented navigation group routed through the responder chain.

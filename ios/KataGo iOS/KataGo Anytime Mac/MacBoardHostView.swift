@@ -45,6 +45,15 @@ struct MacBoardHostView: View {
     /// Gates the live board so `BoardView.onAppear` only fires once the engine is
     /// initialized (see `BoardReadiness`); until then the pane shows a spinner.
     let readiness: BoardReadiness
+    /// Drives the pre-ready status caption (P5-T9): while the board is gated off,
+    /// the spinner shows a phase-specific message (CoreML compile progress, or a
+    /// generic MLX/GPU "Loading…"). `@Observable`, so reading `.phase` in `body`
+    /// keeps the caption live as the launch path advances it.
+    let engineLaunchStatus: EngineLaunchStatus
+    /// Title of the model currently being launched, shown under the caption so the
+    /// user knows which net is loading. Passed in (not threaded as state) — it is a
+    /// snapshot for display only.
+    let activeModelTitle: String
 
     /// `BoardView` takes a `FocusState<Bool>.Binding` for its comment field.
     /// Phase 1 has no comment editor on macOS, so this is a private focus state
@@ -87,9 +96,51 @@ struct MacBoardHostView: View {
                         .environment(session.analysis)
                 }
             } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EngineLaunchStatusView(
+                    engineLaunchStatus: engineLaunchStatus,
+                    activeModelTitle: activeModelTitle
+                )
             }
         }
+    }
+}
+
+/// Pre-ready board-pane placeholder: a spinner plus a caption driven by
+/// `engineLaunchStatus.phase`. Replaces the bare `ProgressView()` so a cache-miss
+/// CoreML compile (which can take a while on first launch) surfaces a reassuring
+/// message instead of an unexplained wait. The MLX/GPU path emits no phase, so
+/// `.idle` falls back to a generic "Loading…". Mirrors the iOS `LoadingView`
+/// `secondaryLine`, with an added generic fallback for macOS's MLX default.
+private struct EngineLaunchStatusView: View {
+    let engineLaunchStatus: EngineLaunchStatus
+    let activeModelTitle: String
+
+    /// Phase-specific caption. Unlike iOS (`secondaryLine` is `nil` for `.idle`,
+    /// because the iOS LoadingView already shows its own primary text), macOS
+    /// shows a generic "Loading…" for `.idle` so the spinner is never caption-less
+    /// on the MLX/GPU default path (which never advances the phase).
+    private var caption: String {
+        switch engineLaunchStatus.phase {
+        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
+        case .awaitingPrecompile:       "Finishing Core ML compile…"
+        case .idle:                     "Loading…"
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text(caption)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if !activeModelTitle.isEmpty {
+                Text(activeModelTitle)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
