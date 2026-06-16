@@ -146,6 +146,7 @@ final class MainWindowController: NSWindowController {
         #if DEBUG
         scheduleSnapshotIfRequested()
         scheduleAutoPlayTestIfRequested()
+        scheduleRelaunchTestIfRequested()
         #endif
     }
 
@@ -332,8 +333,17 @@ final class MainWindowController: NSWindowController {
 
     /// Loads the first persisted `GameRecord`, or creates and inserts a default
     /// 19×19 game when the store is empty, and selects it.
+    ///
+    /// Relaunch-safe: if a game is ALREADY selected (the common case on relaunch,
+    /// where the engine restarts but the user's game shouldn't change), keep it
+    /// rather than re-selecting `gameRecords.first` or inserting a new default —
+    /// inserting unconditionally would create a duplicate empty game on every
+    /// relaunch. Only the empty-store first-launch path inserts a default.
     private func ensureSelectedGameRecord(gameRecords: [GameRecord],
                                           context: ModelContext) -> GameRecord {
+        if let current = navigationContext.selectedGameRecord {
+            return current
+        }
         if let first = gameRecords.first {
             navigationContext.selectedGameRecord = first
             return first
@@ -392,6 +402,128 @@ final class MainWindowController: NSWindowController {
             audioModel: audioModel,
             aiMove: aiMoveBox.binding
         )
+    }
+
+    // MARK: - Engine teardown + relaunch (Phase 5 model switching)
+    //
+    // The Mac app launches KataGo once at window init and (until now) never
+    // restarts it. Phase 5 model switching needs to tear the engine down and
+    // relaunch it IN-PROCESS. This is the proven iOS `QuitButton` mechanism
+    // (`KataGoHelper.sendCommand("quit")` → the engine's GTP loop exits so
+    // `runGtp` returns and the `katagoThread` ends; `session.stopRequested =
+    // true` ends `GameSession.run()`/`messaging()`), adapted for an in-process
+    // relaunch rather than an app exit.
+    //
+    // IMPORTANT detail about the bridge (`KataGoCpp.cpp`): the to/from-engine
+    // streams are GLOBAL, persistent `ThreadSafeStreamBuf`s, and their `done`
+    // flag is never set — so `getMessageLine()` (`getline`) does NOT see EOF when
+    // the engine exits; it blocks on the buffer's condition variable once drained.
+    // `GameSession.messaging` is suspended inside `await Task.detached {
+    // KataGoHelper.getMessageLine() }` at that moment. Flipping `stopRequested`
+    // alone would NOT release that blocked `getline`, so the previous `run()`
+    // Task would hang forever — and a second engine's output would interleave
+    // into the same global buffer feeding a still-alive consumer. So we mirror
+    // iOS exactly and NUDGE the consumer with `sendMessage("\n")` (which writes a
+    // newline into the from-engine buffer) to unblock that final `getline`; the
+    // `messaging` body then sees `stopRequested == true` and the outer `run()`
+    // loop exits. That guarantees the old `run()` Task ends before the new one
+    // starts — i.e. never two concurrent `run()` loops on one shared buffer.
+
+    /// Tears down the running engine + session so a fresh engine can be launched
+    /// in-process. Async so the engine-thread join polls with `Task.sleep`
+    /// (cooperative) instead of blocking the main thread.
+    ///
+    /// Ordering (matches the iOS `QuitButton` teardown, with an explicit join):
+    ///   1. `stopRequested = true` first, so the `messaging` per-line guard skips
+    ///      the engine's quit-response lines and `run()` exits on its next check.
+    ///   2. `sendCommand("quit")` → the GTP loop sets `shouldQuitAfterResponse`,
+    ///      finishes, and `runGtp` returns, ending `katagoThread`.
+    ///   3. `sendMessage("\n")` → unblocks the consumer's currently-suspended
+    ///      `getMessageLine`/`getline` so the previous `run()` Task can observe
+    ///      `stopRequested` and terminate (see section comment).
+    ///   4. Poll `katagoThread?.isFinished` up to a bounded timeout so we never
+    ///      start a second engine while the first is still alive (and thus avoid
+    ///      two engines fighting over the shared MLX/Metal global state).
+    ///   5. Reset all per-launch state and re-seed the observer snapshots so the
+    ///      existing `withObservationTracking` observers don't fire spurious
+    ///      transitions against stale `lastX` values on the fresh engine.
+    private func stopEngineAndSession() async {
+        // (1) End the GTP message loop. `messaging`'s `if !stopRequested` guard
+        // and `run`'s `while !stopRequested` both collapse on this.
+        session.stopRequested = true
+
+        // (2) Make the engine's GTP loop exit so `runGtp` returns and the old
+        // engine thread finishes.
+        KataGoHelper.sendCommand("quit")
+
+        // (3) Unblock the consumer's suspended `getMessageLine` so the old
+        // `run()` Task observes `stopRequested` and terminates. Without this the
+        // old consumer stays blocked in `getline` on the shared global buffer.
+        KataGoHelper.sendMessage("\n")
+
+        // (4) Wait (bounded, non-blocking) for the old engine thread to finish so
+        // we don't launch a second engine alongside the first. ~5s budget in
+        // 50ms slices.
+        let deadline = Date().addingTimeInterval(5)
+        while let thread = katagoThread, !thread.isFinished, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+        if let thread = katagoThread, !thread.isFinished {
+            // Should not happen — the engine acked `quit` and cleaned up. Log and
+            // proceed; the old thread will exit on its own once `runGtp` returns.
+            print("KATAGO_RELAUNCH_WARNING old engine thread did not finish within timeout")
+            fflush(stdout)
+        }
+
+        // (5) Reset for the next launch.
+        boardReadiness.isEngineReady = false
+        session.stopRequested = false
+        engineLifecycle.reset()
+        katagoThread = nil
+
+        // Re-seed the observer snapshots from the LIVE state so the still-armed
+        // `withObservationTracking` observers don't interpret the fresh engine's
+        // first mutations as spurious transitions. We do NOT re-register tracking
+        // here — the observers self-reschedule; we only refresh the `lastX`
+        // values they diff against.
+        reseedObservers()
+    }
+
+    /// Refreshes the `lastX` observer snapshots from the current `gobanState` /
+    /// `stones` WITHOUT re-registering `withObservationTracking` (the observers
+    /// reschedule themselves on every callback, so double-registering would arm a
+    /// second, redundant tracking closure). Used by `stopEngineAndSession()` so a
+    /// relaunch's fresh engine doesn't replay stale transitions. Mirrors exactly
+    /// the seeding the three `installX` methods do up front.
+    private func reseedObservers() {
+        let gobanState = session.gobanState
+        lastWaitingForAnalysis = gobanState.waitingForAnalysis
+        lastAnalysisStatus = gobanState.analysisStatus
+        lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
+        lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        lastIsAutoPlaying = gobanState.isAutoPlaying
+        lastStonesReady = session.stones.isReady
+        lastIsEditing = gobanState.isEditing
+    }
+
+    /// Tears the running engine down and starts a fresh one in-process. This is
+    /// the basis for Phase 5 model switching.
+    ///
+    /// The `model` parameter is accepted now so P5-T2/T3 can route a user-chosen
+    /// model through here; for THIS spike the actual launch reuses the built-in
+    /// path inside `startEngineAndSession()` (the model-param → `runGtp` wiring is
+    /// P5-T2's job). `startEngineAndSession()` re-runs the FULL init
+    /// (handshake → showboard/printsgf → messaging → run) and re-gates
+    /// `boardReadiness.isEngineReady` true after init, so the board re-mounts and
+    /// analysis re-arms exactly as on first launch. A fresh `initializeSession`
+    /// Task is started there, after `stopEngineAndSession()` has confirmed the old
+    /// `run()` loop ended — so there are never two concurrent `run()` loops.
+    func relaunch(model: NeuralNetworkModel) {
+        _ = model // P5-T2 will thread this through to `runGtp`.
+        Task { @MainActor in
+            await stopEngineAndSession()
+            startEngineAndSession()
+        }
     }
 
     // MARK: - Continuous analysis lifecycle
@@ -1156,6 +1288,67 @@ final class MainWindowController: NSWindowController {
                 .map { SgfHelper(sgf: $0.sgf).moveSize ?? -1 } ?? -1
             print("KATAGO_AUTOPLAY scoreLeads=\(scoreLeads) currentIndex=\(currentIndex) " +
                   "isAutoPlaying=\(gobanState.isAutoPlaying) moves=\(moves)")
+            fflush(stdout)
+        }
+    }
+
+    // MARK: - Engine relaunch self-test (DEBUG only)
+    //
+    // When `KATAGO_MAC_RELAUNCH_TEST` is set, exercise the in-process teardown +
+    // relaunch headlessly so an automated run can confirm a SECOND engine launch
+    // reaches "GTP ready" with analysis live again — or surfaces a crash/hang
+    // (MLX/Metal global state being the risk this spike exists to probe). Waits
+    // ~8s after the FIRST engine becomes ready (so the first analysis is
+    // flowing), prints a `KATAGO_RELAUNCH_STARTED` marker, calls
+    // `relaunch(model:)` with the built-in net, then ~12s after that prints a
+    // one-line summary and flushes. Does NOT terminate — the snapshot hook (if
+    // also requested) handles that; otherwise the run is left for the caller.
+    private func scheduleRelaunchTestIfRequested() {
+        guard let flag = ProcessInfo.processInfo.environment["KATAGO_MAC_RELAUNCH_TEST"],
+              !flag.isEmpty else { return }
+        waitForEngineReadyThenRunRelaunchTest()
+    }
+
+    /// Polls `boardReadiness.isEngineReady` via the same one-shot
+    /// `withObservationTracking` style used by the auto-play test; once ready,
+    /// starts the relaunch test after an ~8s settle delay so the first engine's
+    /// analysis is flowing before we tear it down.
+    private func waitForEngineReadyThenRunRelaunchTest() {
+        if boardReadiness.isEngineReady {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+                self?.runRelaunchTest()
+            }
+            return
+        }
+        withObservationTracking {
+            _ = boardReadiness.isEngineReady
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.waitForEngineReadyThenRunRelaunchTest()
+            }
+        }
+    }
+
+    private func runRelaunchTest() {
+        guard let builtIn = NeuralNetworkModel.builtInModel else {
+            print("KATAGO_RELAUNCH_ERROR builtInModel missing")
+            fflush(stdout)
+            return
+        }
+        print("KATAGO_RELAUNCH_STARTED")
+        fflush(stdout)
+        relaunch(model: builtIn)
+
+        // ~12s after kicking the relaunch, report whether the SECOND engine
+        // reached "GTP ready" (ready=true) with analysis live again
+        // (analysisInfo>0) and a balanced showboard count (showBoardCount=0).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            print("KATAGO_RELAUNCH ready=\(self.boardReadiness.isEngineReady) " +
+                  "analysisInfo=\(self.session.analysis.info.count) " +
+                  "showBoardCount=\(gobanState.showBoardCount) " +
+                  "nextColor=\(self.session.player.nextColorForPlayCommand)")
             fflush(stdout)
         }
     }
