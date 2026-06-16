@@ -76,13 +76,15 @@ struct MacBoardHostView: View {
 
                     MacBoardInteractionLayer(gameRecord: gameRecord)
                         // The same environment objects the overlay reads
-                        // (BoardSize / Turn / GobanState / Stones / MessageList),
-                        // injected exactly as BoardView's are.
+                        // (BoardSize / Turn / GobanState / Stones / MessageList /
+                        // Analysis — the last drives T9's hover preview), injected
+                        // exactly as BoardView's are.
                         .environment(session.board)
                         .environment(session.player)
                         .environment(session.gobanState)
                         .environment(session.stones)
                         .environment(session.messageList)
+                        .environment(session.analysis)
                 }
             } else {
                 ProgressView()

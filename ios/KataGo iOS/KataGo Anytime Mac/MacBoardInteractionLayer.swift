@@ -39,6 +39,7 @@ struct MacBoardInteractionLayer: View {
     @Environment(GobanState.self) private var gobanState
     @Environment(Stones.self) private var stones
     @Environment(MessageList.self) private var messageList
+    @Environment(Analysis.self) private var analysis
 
     let gameRecord: GameRecord
 
@@ -77,6 +78,14 @@ struct MacBoardInteractionLayer: View {
                 // It owns every gesture so the overlay is the single input handler.
                 Color.clear
                     .contentShape(Rectangle())
+                    // Display-only hover preview (ghost stone + optional win%/score).
+                    // Layered ON TOP of the hit-testable Color.clear but with hit
+                    // testing disabled, so it never intercepts the clicks/hover the
+                    // Color.clear owns (the overlay stays the single input handler).
+                    .overlay {
+                        ghostPreview(dimensions: dimensions)
+                            .allowsHitTesting(false)
+                    }
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
@@ -177,6 +186,95 @@ struct MacBoardInteractionLayer: View {
                 NSPasteboard.general.setString(move, forType: .string)
             }
         }
+    }
+
+    // MARK: - Hover preview (display-only "what-if")
+
+    /// Pre-resolved state for the hover preview, computed OUTSIDE the `@ViewBuilder`
+    /// body. Like `ContextMenuState`, keeping the suppression guards in plain Swift
+    /// (not the result-builder) avoids the type-checker complexity blowup that
+    /// crashed the frontend when guards were inlined into a `@ViewBuilder`.
+    private struct GhostState {
+        /// The empty, playable vertex under the cursor that should be previewed.
+        let point: BoardPoint
+        /// The side-to-move's stone color for the ghost (`.black` / `.white`).
+        let color: Color
+        /// The analysis readout for `point`, if a candidate move sits there.
+        let info: AnalysisInfo?
+    }
+
+    /// Resolves whether — and what — to preview under the cursor. Returns `nil`
+    /// (draw nothing) unless ALL suppression rules hold:
+    /// stones are ready; analysis is running; no live pending move; the vertex is
+    /// empty; it is not the pass area; and the side to move is known. This is a
+    /// purely visual "what-if": it sends NO GTP and mutates NO engine state.
+    private func ghostState(dimensions: Dimensions) -> GhostState? {
+        guard let location = hoveredLocation,
+              let coordinate = coordinate(at: location, dimensions: dimensions),
+              let point = coordinate.point else {
+            return nil
+        }
+
+        guard stones.isReady,
+              gobanState.analysisStatus == .run,
+              gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale,
+              !stones.blackPoints.contains(point),
+              !stones.whitePoints.contains(point),
+              !point.isPass(width: Int(board.width), height: Int(board.height)),
+              player.nextColorForPlayCommand != .unknown else {
+            return nil
+        }
+
+        let color: Color = (player.nextColorForPlayCommand == .black) ? .black : .white
+        return GhostState(point: point, color: color, info: analysis.info[point])
+    }
+
+    /// The translucent ghost stone + optional win%/score readout drawn at the
+    /// hovered vertex. Display-only; everything is `.allowsHitTesting(false)` at
+    /// the call site so it never steals input from the underlying `Color.clear`.
+    @ViewBuilder
+    private func ghostPreview(dimensions: Dimensions) -> some View {
+        if let state = ghostState(dimensions: dimensions) {
+            let positionX = dimensions.boardLineStartX + CGFloat(state.point.x) * dimensions.squareLength
+            let positionY = dimensions.boardLineStartY + state.point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength
+
+            ZStack {
+                // Translucent ghost stone in the side-to-move's color. A subtle
+                // stroke keeps a white ghost visible against the wood.
+                Circle()
+                    .fill(state.color.opacity(0.4))
+                    .overlay {
+                        Circle()
+                            .stroke(Color.black.opacity(0.4), lineWidth: dimensions.squareLength / 24)
+                    }
+                    .frame(width: dimensions.squareLength * 0.95,
+                           height: dimensions.squareLength * 0.95)
+
+                // Win% / score readout for the candidate move at this vertex, if any.
+                if let info = state.info {
+                    ghostReadout(info: info, dimensions: dimensions)
+                        .offset(y: -dimensions.squareLength * 0.8)
+                }
+            }
+            .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+            .position(x: positionX, y: positionY)
+        }
+    }
+
+    /// Compact win%/score label shown above the ghost stone. Win rate and score
+    /// match `AnalysisView`'s on-board overlay perspective (`info.winrate` /
+    /// `info.scoreLead`).
+    private func ghostReadout(info: AnalysisInfo, dimensions: Dimensions) -> some View {
+        VStack(spacing: 0) {
+            Text(String(format: "%.0f%%", info.winrate * 100))
+                .bold()
+            Text(String(format: "%+.1f", info.scoreLead))
+        }
+        .font(.system(size: max(8, dimensions.squareLength * 0.28), design: .monospaced))
+        .foregroundStyle(.primary)
+        .padding(2)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
+        .fixedSize()
     }
 
     // MARK: - Play path (faithful copy of BoardView's tap guards)
