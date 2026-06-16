@@ -384,10 +384,15 @@ final class InspectorInfoViewController: NSViewController {
         formStack.addArrangedSubview(button)
     }
 
-    /// Stub: P4-T6 fills this in with the full native config editor sheet.
-    // TODO(P4-T6): present full native config editor
+    /// Presents the full native config editor (`ConfigEditorViewController`) as a
+    /// sheet for the currently-selected game. Every row in that sheet commits
+    /// live through `ConfigEngineSync` (same as this Info tab), so when the sheet
+    /// is dismissed the form here is rebuilt in `viewWillAppear` to reflect any
+    /// changes made while it was open.
     @objc private func presentFullEditor(_ sender: Any?) {
-        // Intentionally a no-op until P4-T6.
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        let editor = ConfigEditorViewController(session: session, gameRecord: gameRecord)
+        presentAsSheet(editor)
     }
 
     // MARK: - Helpers

@@ -68,6 +68,7 @@
 		43B75FC65B7A720F7E866FB0 /* implicit_weak_message.cc in Sources */ = {isa = PBXBuildFile; fileRef = C811320B1287C5DE661DB7FB /* implicit_weak_message.cc */; };
 		43C89D813BC1AE9D8A64374B /* wire_format_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = 59BDE2664FA33EFE5A79F545 /* wire_format_lite.cc */; };
 		43E47A3301F897D4BAF27075 /* raw_logging.cc in Sources */ = {isa = PBXBuildFile; fileRef = B5F263A20FAF107D96F1690F /* raw_logging.cc */; };
+		45DDFBF168ECF122EA1B2592 /* ConfigEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */; };
 		47C6B3CE7956A48F12456E71 /* cordz_functions.cc in Sources */ = {isa = PBXBuildFile; fileRef = C9F89828D2403A414EAD1B94 /* cordz_functions.cc */; };
 		47EC7188CA66EDBD902E8F4C /* flag.cc in Sources */ = {isa = PBXBuildFile; fileRef = 60CA0A3D8E5E961B5623F5E4 /* flag.cc */; };
 		4A1EB931521CC51A0258E020 /* stack_consumption.cc in Sources */ = {isa = PBXBuildFile; fileRef = C4E1A7267F0FD9F81B825BA1 /* stack_consumption.cc */; };
@@ -788,6 +789,7 @@
 		AC8906AF025B8EBA6668E166 /* Fp8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp8.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp8.cpp; sourceTree = SOURCE_ROOT; };
 		AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_ptr.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/raw_ptr.cc"; sourceTree = SOURCE_ROOT; };
 		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheFooterView.swift; path = "KataGo iOS/CoreMLCacheFooterView.swift"; sourceTree = SOURCE_ROOT; };
+		ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConfigEditorViewController.swift; sourceTree = "<group>"; };
 		AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = structured_proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/structured_proto.cc"; sourceTree = SOURCE_ROOT; };
 		AF678317B766C097616B662A /* charconv_parse.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = charconv_parse.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/charconv_parse.cc"; sourceTree = SOURCE_ROOT; };
 		AF86110D7D6760AEB8931511 /* log_sink_set.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_sink_set.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/log_sink_set.cc"; sourceTree = SOURCE_ROOT; };
@@ -1274,6 +1276,7 @@
 				992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */,
 				8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */,
 				8F928DADF19E916D9C547562 /* InspectorInfoViewController.swift */,
+				ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2357,6 +2360,7 @@
 				5C0A871DE2E1FB7FEA2FA8A8 /* InspectorTabs.swift in Sources */,
 				EAFCACEFEE7FACDCE6220B08 /* ConfigEditingSupport.swift in Sources */,
 				37D62DCDF8356332B0965DFF /* InspectorInfoViewController.swift in Sources */,
+				45DDFBF168ECF122EA1B2592 /* ConfigEditorViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

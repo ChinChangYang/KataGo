@@ -91,6 +91,48 @@ enum ConfigEngineSync {
         messageList.appendAndSend(command: config.taxRuleCommand)
     }
 
+    // MARK: Multi-stone suicide
+    //
+    // iOS `ConfigView.swift` lines 252-254 (`RuleConfigView`):
+    //   config.multiStoneSuicideLegal = newValue
+    //   messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+
+    /// Sets `config.multiStoneSuicideLegal` and replays
+    /// `kata-set-rule suicide <bool>`.
+    static func setMultiStoneSuicideLegal(_ isOn: Bool, config: Config, messageList: MessageList) {
+        config.multiStoneSuicideLegal = isOn
+        messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+    }
+
+    // MARK: Has button
+    //
+    // iOS `ConfigView.swift` lines 262-264 (`RuleConfigView`):
+    //   config.hasButton = newValue
+    //   messageList.appendAndSend(command: config.hasButtonCommand)
+
+    /// Sets `config.hasButton` and replays `kata-set-rule hasButton <bool>`.
+    static func setHasButton(_ isOn: Bool, config: Config, messageList: MessageList) {
+        config.hasButton = isOn
+        messageList.appendAndSend(command: config.hasButtonCommand)
+    }
+
+    // MARK: White handicap bonus
+    //
+    // iOS `ConfigView.swift` lines 276-280 (`RuleConfigView`):
+    //   config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
+    //   messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+    // The picker index maps 1:1 onto `WhiteHandicapBonusRule.rawValue`
+    // (both index `Config.whiteHandicapBonusRules`).
+
+    /// Sets `config.whiteHandicapBonusRule` and replays
+    /// `kata-set-rule whiteHandicapBonus <TEXT>`.
+    static func setWhiteHandicapBonusRule(_ rule: WhiteHandicapBonusRule,
+                                          config: Config,
+                                          messageList: MessageList) {
+        config.whiteHandicapBonusRule = rule
+        messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+    }
+
     // MARK: Playout doubling advantage (White advantage)
     //
     // iOS `ConfigView.swift` lines 427-429 (`AIConfigView`):
