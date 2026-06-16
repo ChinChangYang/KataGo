@@ -25,8 +25,8 @@ protocol LibraryActionsDelegate: AnyObject {
 /// of the persisted games (driven by `LibraryStore`). Selecting a row reports
 /// the chosen `GameRecord` through `onSelect`, which the window controller
 /// routes to `GobanState.loadGame` to switch the board. A right-click context
-/// menu (Clone / Clone Current Position / Rename / Delete) acts on the clicked
-/// row through `actionsDelegate`.
+/// menu (Clone / Clone Current Position / Rename / Share / Delete) acts on the
+/// clicked row through `actionsDelegate`.
 final class LibrarySidebarViewController: NSViewController {
     private let store: LibraryStore
     private let navigationContext: NavigationContext
