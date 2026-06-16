@@ -35,6 +35,13 @@ final class MainWindowController: NSWindowController {
     private var lastWaitingForAnalysis = false
     private var lastAnalysisStatus = AnalysisStatus.run
 
+    /// Last-seen values of the two confirmation flags the second observer
+    /// watches, so its (property-agnostic) `withObservationTracking` callback can
+    /// detect the specific `false -> true` transitions that should present an
+    /// NSAlert. Seeded from the live `gobanState` in `installConfirmationObserver()`.
+    private var lastConfirmingIllegalMove = false
+    private var lastConfirmingAIOverwrite = false
+
     /// The toolbar's Analyze item, retained weakly so `refreshAnalyzeToolbarItem()`
     /// can mutate its image/toolTip to reflect `gobanState.analysisStatus`. The
     /// `NSToolbar` owns the item; we only borrow a reference (set when the item is
@@ -102,6 +109,14 @@ final class MainWindowController: NSWindowController {
         // flips `waitingForAnalysis` true; the engine's first `info` line flips
         // it back to false (parsed in `GameSession.maybeCollectAnalysis`).
         installAnalysisLifecycleObserver()
+
+        // Bridge the two `GobanState` confirmation flags (illegal-move / AI-
+        // overwrite) to AppKit NSAlert sheets. The shared `GobanState` already
+        // SETS these flags (`GameSession.maybeCollectCheckMove` /
+        // `postProcessAIMove`); the Mac app just lacks the iOS dialogs that react
+        // to them. Installed right after the analysis observer so the same
+        // self-rescheduling pattern is armed before the engine starts.
+        installConfirmationObserver()
 
         startEngineAndSession()
 
@@ -460,6 +475,200 @@ final class MainWindowController: NSWindowController {
         // refreshing here, since they all funnel an `analysisStatus` change
         // through this observer.
         refreshAnalyzeToolbarItem()
+    }
+
+    // MARK: - Move confirmation dialogs
+    //
+    // Mirror the two SwiftUI `.confirmationDialog`s in `GameSplitView.detailView`
+    // (GameSplitView.swift lines 144-195) that the Mac app is missing because it
+    // hosts `BoardView` but not `GameSplitView`. The shared `GobanState` already
+    // drives the underlying state: `GameSession.maybeCollectCheckMove` sets
+    // `confirmingIllegalMove` (+ `illegalMoveReason`) on ko/superko/suicide, and
+    // `GameSession.postProcessAIMove` sets `confirmingAIOverwrite`; only the
+    // AppKit presentation is absent.
+    //
+    // Presented as NSAlert SHEETS (`beginSheetModal(for:)`), never `runModal()`:
+    // a modal run loop would block this `@MainActor` while the GTP run loop
+    // (`GameSession.run`/`messaging`) needs it, risking deadlock/reentrancy. The
+    // completion handler is invoked on the main actor, so the play/clear work
+    // happens there.
+    //
+    // Re-fire prevention has two layers, matching the analysis observer:
+    //   1. We act only on a `false -> true` transition (snapshot diff against
+    //      `lastConfirmingIllegalMove` / `lastConfirmingAIOverwrite`), so a flag
+    //      already true on a later pass isn't re-presented.
+    //   2. Every handling path clears the triggering flag (illegal:
+    //      `playPendingHumanMove`/`clearPendingMove` reset `confirmingIllegalMove`,
+    //      and we also set it false defensively before presenting; overwrite:
+    //      `playAIMove` does NOT touch the flag, so the handler clears it
+    //      explicitly, and Cancel clears it as iOS does).
+    // The snapshots are refreshed at the end of `handleConfirmationChange()`.
+    //
+    // Same `withObservationTracking` gotchas as the analysis observer apply:
+    // `onChange` fires once per change, before the mutation commits and without
+    // saying which property changed — so we hop to `Task { @MainActor }` to read
+    // committed values, then re-register tracking (it's one-shot).
+
+    /// Seeds the snapshots from the live `gobanState` and starts the
+    /// self-rescheduling observation bridge for the two confirmation flags.
+    /// Called once in `init`, right after `installAnalysisLifecycleObserver()`.
+    private func installConfirmationObserver() {
+        let gobanState = session.gobanState
+        lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
+        lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        trackConfirmations()
+    }
+
+    /// One observation pass: registers tracking of both confirmation flags, and
+    /// on change re-reads the committed values on the main actor, reacts, then
+    /// re-arms.
+    private func trackConfirmations() {
+        withObservationTracking {
+            // Touch both flags so a change to either fires `onChange`.
+            _ = session.gobanState.confirmingIllegalMove
+            _ = session.gobanState.confirmingAIOverwrite
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleConfirmationChange()
+                self.trackConfirmations()
+            }
+        }
+    }
+
+    /// Presents the matching NSAlert sheet on each `false -> true` transition,
+    /// then refreshes the snapshots. If both flip in the same pass, the
+    /// illegal-move alert is presented first; the overwrite flag stays true and
+    /// is presented on the next pass (acceptable — see section comment).
+    private func handleConfirmationChange() {
+        let gobanState = session.gobanState
+        let newConfirmingIllegalMove = gobanState.confirmingIllegalMove
+        let newConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+
+        if newConfirmingIllegalMove && !lastConfirmingIllegalMove {
+            presentIllegalMoveAlert()
+        } else if newConfirmingAIOverwrite && !lastConfirmingAIOverwrite {
+            presentAIOverwriteAlert()
+        }
+
+        lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
+        lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+    }
+
+    /// Mirrors `GameSplitView` lines 171-195 (illegal-move dialog). Title is the
+    /// `illegalMoveReasonText` switch over `gobanState.illegalMoveReason`; buttons
+    /// are "Play Anyway" (destructive) and "Cancel". With no window we can't
+    /// present, so we clear the pending move rather than leave it dangling.
+    private func presentIllegalMoveAlert() {
+        let gobanState = session.gobanState
+        guard let window else {
+            gobanState.clearPendingMove()
+            lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = illegalMoveReasonText
+        // Order matters: the first added button is the default (rightmost).
+        let playAnyway = alert.addButton(withTitle: "Play Anyway")
+        playAnyway.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            // Defensive: both branches reset `confirmingIllegalMove`, but the
+            // `playPendingHumanMove` guard can early-return without clearing if
+            // there is no pending move, so set it false up front (idempotent).
+            gobanState.confirmingIllegalMove = false
+
+            if response == .alertFirstButtonReturn {
+                // "Play Anyway"
+                if let gameRecord = self.navigationContext.selectedGameRecord {
+                    gobanState.playPendingHumanMove(
+                        gameRecord: gameRecord,
+                        analysis: self.session.analysis,
+                        board: self.session.board,
+                        stones: self.session.stones,
+                        messageList: self.session.messageList,
+                        player: self.session.player,
+                        audioModel: self.audioModel
+                    )
+                } else {
+                    gobanState.clearPendingMove()
+                }
+            } else {
+                // "Cancel"
+                gobanState.clearPendingMove()
+            }
+
+            self.lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
+        }
+    }
+
+    /// Mirrors `GameSplitView` lines 144-170 (AI-overwrite dialog). Title is the
+    /// fixed "Do you allow AI overwriting this move?"; buttons are "Overwrite"
+    /// (destructive) and "Cancel". `playAIMove` does not clear the flag, so the
+    /// handler clears it on every path (matching iOS Cancel, which also sets
+    /// `analysisStatus = .clear`). With no window, just clear the flag.
+    private func presentAIOverwriteAlert() {
+        let gobanState = session.gobanState
+        guard let window else {
+            gobanState.confirmingAIOverwrite = false
+            lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Do you allow AI overwriting this move?"
+        let overwrite = alert.addButton(withTitle: "Overwrite")
+        overwrite.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+
+            if response == .alertFirstButtonReturn {
+                // "Overwrite": guard the AI move + turn exactly as iOS does.
+                if let gameRecord = self.navigationContext.selectedGameRecord,
+                   let aiMove = self.aiMoveBox.value,
+                   let turn = self.session.player.nextColorSymbolForPlayCommand {
+                    gobanState.playAIMove(
+                        aiMove: aiMove,
+                        gameRecord: gameRecord,
+                        turn: turn,
+                        analysis: self.session.analysis,
+                        board: self.session.board,
+                        stones: self.session.stones,
+                        messageList: self.session.messageList,
+                        player: self.session.player,
+                        audioModel: self.audioModel
+                    )
+                }
+                // `playAIMove` never touches the flag — clear it so the observer
+                // does not re-present.
+                gobanState.confirmingAIOverwrite = false
+            } else {
+                // "Cancel": iOS clears the flag AND drops analysis to `.clear`.
+                gobanState.confirmingAIOverwrite = false
+                gobanState.analysisStatus = .clear
+            }
+
+            self.lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        }
+    }
+
+    /// Title text for the illegal-move alert, mirroring `GameSplitView`'s
+    /// `illegalMoveReasonText` computed property (lines 252-259) over the
+    /// optional `gobanState.illegalMoveReason`.
+    private var illegalMoveReasonText: String {
+        switch session.gobanState.illegalMoveReason {
+        case "ko": return "This move violates the ko rule."
+        case "suicide": return "This move is a suicide (self-capture)."
+        case "superko": return "This move violates the superko rule."
+        default: return "This move is illegal."
+        }
     }
 
     // MARK: - Analyze toggle
