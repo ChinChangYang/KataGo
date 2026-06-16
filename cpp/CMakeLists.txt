@@ -367,6 +367,7 @@ add_executable(katago
   command/selfplay.cpp
   command/startposes.cpp
   command/tune.cpp
+  command/tunehuman.cpp
   command/writetrainingdata.cpp
   main.cpp
   )
