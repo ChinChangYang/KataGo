@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(makeSubmenu(appMenu()))
         mainMenu.addItem(makeSubmenu(fileMenu()))
         mainMenu.addItem(makeSubmenu(editMenu()))
+        mainMenu.addItem(makeSubmenu(gameMenu()))
         mainMenu.addItem(makeSubmenu(viewMenu()))
         mainMenu.addItem(makeSubmenu(navigateMenu()))
         mainMenu.addItem(makeSubmenu(analysisMenu()))
@@ -185,6 +186,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                   action: #selector(MainWindowController.deleteSelectedGame(_:)),
                                   keyEquivalent: "\u{8}")
         delete.keyEquivalentModifierMask = [.command]
+        return menu
+    }
+
+    /// Game menu (iOS spec order: File / Edit / Game / …). Hosts branch-exit and
+    /// (later, P6-T7) edit-mode actions. All items carry `target = nil`, so AppKit
+    /// routes them through the responder chain to `MainWindowController`;
+    /// `validateMenuItem` owns their enable state from the LIVE `gobanState`.
+    private func gameMenu() -> NSMenu {
+        let menu = NSMenu(title: "Game")
+
+        // Exits an active branch (the implicit variation entered by playing an
+        // off-mainline move). Sets `confirmingBranchDeactivation`, which the
+        // window controller's confirmation observer turns into the Replace /
+        // Discard chooser sheet. No key equivalent (an infrequent action).
+        // (P6-T7 will add a "Lock Editing" item to this same menu.)
+        menu.addItem(withTitle: "Deactivate Branch",
+                     action: #selector(MainWindowController.deactivateBranchAction(_:)),
+                     keyEquivalent: "")
         return menu
     }
 

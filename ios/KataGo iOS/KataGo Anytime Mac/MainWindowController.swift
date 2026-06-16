@@ -62,6 +62,21 @@ final class MainWindowController: NSWindowController {
     private var lastConfirmingIllegalMove = false
     private var lastConfirmingAIOverwrite = false
 
+    /// Last-seen values of the three branch-exit confirmation flags the same
+    /// confirmation observer also watches (P6-T2), so its property-agnostic
+    /// `withObservationTracking` callback can detect each `false -> true`
+    /// transition that should present a branch NSAlert sheet. Seeded from the live
+    /// `gobanState` in `installConfirmationObserver()`.
+    private var lastConfirmingBranchDeactivation = false
+    private var lastConfirmingBranchReplace = false
+    private var lastConfirmingBranchDiscard = false
+
+    /// Last-seen value of `gobanState.branchSgf`, snapshotted so the branch-reload
+    /// observer (P6-T3) can detect the active->inactive transition (the branch
+    /// being committed or discarded) and rebuild the engine board from the saved
+    /// SGF. Seeded in `installBranchReloadObserver()` and re-seeded on relaunch.
+    private var lastBranchSgf: String = .inActiveSgf
+
     /// Last-seen values of the two properties the auto-play observer watches.
     /// `lastIsAutoPlaying` lets the (property-agnostic) `withObservationTracking`
     /// callback detect either edge of `gobanState.isAutoPlaying` (it reacts to ANY
@@ -175,6 +190,13 @@ final class MainWindowController: NSWindowController {
         // to them. Installed right after the analysis observer so the same
         // self-rescheduling pattern is armed before the engine starts.
         installConfirmationObserver()
+
+        // Rebuilds the engine board from the saved SGF when an active branch is
+        // exited (committed or discarded) — both end via `deactivateBranch`,
+        // flipping `branchSgf` inactive. Mirrors the iOS `GameSplitView`
+        // `branchSgf` reload observer (lines 104-107 / 530-535). Installed before
+        // the engine starts so the first transition isn't missed.
+        installBranchReloadObserver()
 
         // Port of the iOS auto-play machinery (the Chart tab's wand button drives
         // `gobanState.isAutoPlaying`). iOS reacts via two `GameSplitView`
@@ -612,9 +634,16 @@ final class MainWindowController: NSWindowController {
         lastAnalysisStatus = gobanState.analysisStatus
         lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
         lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        lastConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+        lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
+        lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
         lastIsAutoPlaying = gobanState.isAutoPlaying
         lastStonesReady = session.stones.isReady
         lastIsEditing = gobanState.isEditing
+        // Re-seed the branch-reload snapshot too, so a relaunch's fresh engine
+        // (which reloads the board itself) doesn't spuriously fire the reload
+        // observer on an unrelated `branchSgf` value carried across the relaunch.
+        lastBranchSgf = gobanState.branchSgf
     }
 
     /// Switches the active model and relaunches the engine in-process. Records
@@ -1241,6 +1270,9 @@ final class MainWindowController: NSWindowController {
         let gobanState = session.gobanState
         lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
         lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        lastConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+        lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
+        lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
         trackConfirmations()
     }
 
@@ -1249,9 +1281,12 @@ final class MainWindowController: NSWindowController {
     /// re-arms.
     private func trackConfirmations() {
         withObservationTracking {
-            // Touch both flags so a change to either fires `onChange`.
+            // Touch every flag so a change to any one fires `onChange`.
             _ = session.gobanState.confirmingIllegalMove
             _ = session.gobanState.confirmingAIOverwrite
+            _ = session.gobanState.confirmingBranchDeactivation
+            _ = session.gobanState.confirmingBranchReplace
+            _ = session.gobanState.confirmingBranchDiscard
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -1269,15 +1304,27 @@ final class MainWindowController: NSWindowController {
         let gobanState = session.gobanState
         let newConfirmingIllegalMove = gobanState.confirmingIllegalMove
         let newConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        let newConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+        let newConfirmingBranchReplace = gobanState.confirmingBranchReplace
+        let newConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
 
         if newConfirmingIllegalMove && !lastConfirmingIllegalMove {
             presentIllegalMoveAlert()
         } else if newConfirmingAIOverwrite && !lastConfirmingAIOverwrite {
             presentAIOverwriteAlert()
+        } else if newConfirmingBranchDeactivation && !lastConfirmingBranchDeactivation {
+            presentBranchDeactivationAlert()
+        } else if newConfirmingBranchReplace && !lastConfirmingBranchReplace {
+            presentBranchReplaceAlert()
+        } else if newConfirmingBranchDiscard && !lastConfirmingBranchDiscard {
+            presentBranchDiscardAlert()
         }
 
         lastConfirmingIllegalMove = gobanState.confirmingIllegalMove
         lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
+        lastConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+        lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
+        lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
     }
 
     /// Mirrors `GameSplitView` lines 171-195 (illegal-move dialog). Title is the
@@ -1382,6 +1429,221 @@ final class MainWindowController: NSWindowController {
 
             self.lastConfirmingAIOverwrite = gobanState.confirmingAIOverwrite
         }
+    }
+
+    // MARK: - Branch-exit dialogs (P6-T2)
+    //
+    // Mirror the three SwiftUI branch `.confirmationDialog`s in
+    // `GameSplitView.detailView` (GameSplitView.swift lines 196-249) that the Mac
+    // app is missing. A "branch" is the temporary variation entered IMPLICITLY by
+    // playing an off-mainline move (driven by the shared `GobanState`, already
+    // working on Mac); these dialogs are how it is EXITED. The flow is a chooser
+    // (`confirmingBranchDeactivation`) that branches into a Replace
+    // (`confirmingBranchReplace`) or Discard (`confirmingBranchDiscard`) confirm.
+    //
+    // Presented as NSAlert SHEETS (`beginSheetModal(for:)`), never `runModal()` —
+    // same reasoning as the move-confirmation sheets above (a modal run loop would
+    // block this `@MainActor` while the GTP run loop needs it). Each handler clears
+    // its triggering flag in the completion so the snapshot-diff observer doesn't
+    // re-present, exactly as the illegal-move / AI-overwrite sheets do.
+    //
+    // The chooser's Replace/Discard buttons set the SECOND flag on the NEXT runloop
+    // turn (`DispatchQueue.main.async`), mirroring the iOS comment (lines 202-210):
+    // presenting the second sheet while the first is still dismissing is fragile, so
+    // we let the first sheet's dismissal complete before the next flag flips and the
+    // observer presents the follow-up sheet.
+
+    /// Chooser sheet (on `confirmingBranchDeactivation` true). Mirrors
+    /// `GameSplitView` lines 196-220. With no window we can't present, so just
+    /// clear the flag so the branch isn't left stuck mid-confirmation.
+    private func presentBranchDeactivationAlert() {
+        let gobanState = session.gobanState
+        guard let window else {
+            gobanState.confirmingBranchDeactivation = false
+            lastConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText =
+            "Branch moves are temporary. Replace the original game with this branch, or discard it?"
+        // Order matters: the first added button is the default (rightmost).
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Discard Branch")
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            // Clear the chooser flag in the completion so the observer doesn't
+            // re-fire when we (possibly) flip a follow-up flag below.
+            gobanState.confirmingBranchDeactivation = false
+
+            switch response {
+            case .alertFirstButtonReturn:
+                // "Replace": defer to the next runloop so this chooser sheet fully
+                // dismisses before the Replace-confirm sheet presents (see comment).
+                DispatchQueue.main.async {
+                    gobanState.confirmingBranchReplace = true
+                }
+            case .alertSecondButtonReturn:
+                // "Discard Branch": same next-runloop hop for the Discard sheet.
+                DispatchQueue.main.async {
+                    gobanState.confirmingBranchDiscard = true
+                }
+            default:
+                break // "Cancel"
+            }
+
+            self.lastConfirmingBranchDeactivation = gobanState.confirmingBranchDeactivation
+        }
+    }
+
+    /// Replace-confirm sheet (on `confirmingBranchReplace` true). Mirrors
+    /// `GameSplitView` lines 221-238. "Replace" commits the branch onto the saved
+    /// record (or, with no game, just deactivates); "Cancel" backs out. The
+    /// active->inactive `branchSgf` flip this triggers fires the reload observer.
+    private func presentBranchReplaceAlert() {
+        let gobanState = session.gobanState
+        guard let window else {
+            gobanState.confirmingBranchReplace = false
+            lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText =
+            "Replace the original game with this branch? "
+            + "The original game’s moves after this point will be permanently lost."
+        let replace = alert.addButton(withTitle: "Replace")
+        replace.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            gobanState.confirmingBranchReplace = false
+
+            if response == .alertFirstButtonReturn {
+                // "Replace": commit synchronously. `commitBranch` reassigns the
+                // record's sgf/currentIndex THEN calls `deactivateBranch()`, so the
+                // reload observer (which reads the committed sgf) runs after this.
+                if let gameRecord = self.navigationContext.selectedGameRecord {
+                    gobanState.commitBranch(gameRecord: gameRecord)
+                } else {
+                    // No game to replace (unreachable in practice): exit branch
+                    // mode anyway so confirming never leaves the branch stuck.
+                    gobanState.deactivateBranch()
+                }
+            }
+            // else "Cancel": nothing to do beyond clearing the flag above.
+
+            self.lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
+        }
+    }
+
+    /// Discard-confirm sheet (on `confirmingBranchDiscard` true). Mirrors
+    /// `GameSplitView` lines 239-249. "Discard Branch" deactivates the branch
+    /// (dropping the newly played stones); "Cancel" backs out. The deactivation
+    /// flips `branchSgf` inactive, firing the reload observer.
+    private func presentBranchDiscardAlert() {
+        let gobanState = session.gobanState
+        guard let window else {
+            gobanState.confirmingBranchDiscard = false
+            lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Discard this branch? Your newly played stones will be lost."
+        let discard = alert.addButton(withTitle: "Discard Branch")
+        discard.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            gobanState.confirmingBranchDiscard = false
+
+            if response == .alertFirstButtonReturn {
+                // "Discard Branch"
+                gobanState.deactivateBranch()
+            }
+            // else "Cancel".
+
+            self.lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
+        }
+    }
+
+    // MARK: - Branch-exit affordance (P6-T1)
+
+    /// Game-menu "Deactivate Branch" (routed through the responder chain). Sets
+    /// `confirmingBranchDeactivation`, which the confirmation observer turns into
+    /// the chooser sheet. Branch ENTRY stays implicit (shared `GobanState`); this
+    /// only provides the EXIT path the Mac app was missing. Enabled state is owned
+    /// by `validateMenuItem`.
+    @objc func deactivateBranchAction(_ sender: Any?) {
+        session.gobanState.confirmingBranchDeactivation = true
+    }
+
+    // MARK: - Branch reload-on-deactivation observer (P6-T3)
+    //
+    // Port of the iOS `GameSplitView` `branchSgf` reload observer (lines 104-107
+    // -> `processChange(oldBranchStateSgf:newBranchStateSgf:)` lines 530-535). When
+    // an active branch is exited — by either commit (`commitBranch`) or discard
+    // (`deactivateBranch`), both of which end by flipping `branchSgf` inactive —
+    // the engine board must be rebuilt from the now-authoritative saved SGF, or it
+    // stays desynced on the branch line. iOS reacts to the active->inactive
+    // `branchSgf.isActiveSgf` transition by calling `loadGame`; this is its AppKit
+    // stand-in, using the same self-rescheduling `withObservationTracking` pattern
+    // (and the same gotchas) as the other observers.
+    //
+    // Commit ordering is the crux: `commitBranch` reassigns `gameRecord.sgf` /
+    // `currentIndex` and THEN calls `deactivateBranch()` (which flips `branchSgf`).
+    // Because `commitBranch` is synchronous and runs fully before this observer's
+    // deferred `Task` hops, the `loadGame` below reads the ALREADY-committed sgf.
+
+    /// Seeds the `branchSgf` snapshot from the live state and starts the
+    /// self-rescheduling observation bridge. Called once in `init`.
+    private func installBranchReloadObserver() {
+        lastBranchSgf = session.gobanState.branchSgf
+        trackBranchReload()
+    }
+
+    /// One observation pass: tracks `branchSgf`, and on change re-reads the
+    /// committed value on the main actor, reacts, then re-arms (one-shot).
+    private func trackBranchReload() {
+        withObservationTracking {
+            _ = session.gobanState.branchSgf
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleBranchReloadChange()
+                self.trackBranchReload()
+            }
+        }
+    }
+
+    /// On the active->inactive `branchSgf` transition (branch committed or
+    /// discarded), rebuild the engine board from the saved SGF, then refresh the
+    /// snapshot. Mirrors `processChange(oldBranchStateSgf:newBranchStateSgf:)`.
+    private func handleBranchReloadChange() {
+        let gobanState = session.gobanState
+        let newBranchSgf = gobanState.branchSgf
+
+        if lastBranchSgf.isActiveSgf && !newBranchSgf.isActiveSgf {
+            gobanState.loadGame(
+                gameRecord: navigationContext.selectedGameRecord,
+                previous: nil,
+                player: session.player,
+                bookLookup: session.bookLookup,
+                messageList: session.messageList,
+                board: session.board,
+                stones: session.stones
+            )
+        }
+
+        lastBranchSgf = gobanState.branchSgf
     }
 
     /// Title text for the illegal-move alert, mirroring `GameSplitView`'s
@@ -1731,6 +1993,14 @@ extension MainWindowController: NSMenuItemValidation {
              #selector(deleteSelectedGame(_:)),
              #selector(shareSelectedGame(_:)):
             return hasGame
+
+        // Game menu "Deactivate Branch": only meaningful when a branch is active
+        // and the engine isn't mid-move-generation (mirrors the iOS gating). With
+        // no game there is no branch to exit, so it's disabled.
+        case #selector(deactivateBranchAction(_:)):
+            guard let gameRecord = navigationContext.selectedGameRecord else { return false }
+            return gobanState.isBranchActive
+                && !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
 
         // Analysis menu: checkmark reflects the live status, enabled with a game.
         case #selector(toggleAnalysis(_:)):
