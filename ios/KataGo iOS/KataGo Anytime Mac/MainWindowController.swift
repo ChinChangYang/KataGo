@@ -42,6 +42,20 @@ final class MainWindowController: NSWindowController {
     private var lastConfirmingIllegalMove = false
     private var lastConfirmingAIOverwrite = false
 
+    /// Last-seen values of the two properties the auto-play observer watches.
+    /// `lastIsAutoPlaying` lets the (property-agnostic) `withObservationTracking`
+    /// callback detect either edge of `gobanState.isAutoPlaying` (it reacts to ANY
+    /// `old != new`, matching iOS's `onChange(of: isAutoPlaying)`); `lastStonesReady`
+    /// detects the `false -> true` transition of `session.stones.isReady` that iOS
+    /// reacts to (`onChange(of: stones.isReady)`). Seeded from the live state in
+    /// `installAutoPlayObserver()`.
+    private var lastIsAutoPlaying = false
+    private var lastStonesReady = false
+    /// Detects the `true -> false` transition of `gobanState.isEditing` that iOS
+    /// reacts to (`onChange(of: isEditing)` -> `processIsEditingChange`): leaving
+    /// edit mode must cancel any in-flight auto-play.
+    private var lastIsEditing = false
+
     /// The toolbar's Analyze item, retained weakly so `refreshAnalyzeToolbarItem()`
     /// can mutate its image/toolTip to reflect `gobanState.analysisStatus`. The
     /// `NSToolbar` owns the item; we only borrow a reference (set when the item is
@@ -118,10 +132,20 @@ final class MainWindowController: NSWindowController {
         // self-rescheduling pattern is armed before the engine starts.
         installConfirmationObserver()
 
+        // Port of the iOS auto-play machinery (the Chart tab's wand button drives
+        // `gobanState.isAutoPlaying`). iOS reacts via two `GameSplitView`
+        // `.onChange` handlers (`onChange(of: isAutoPlaying)` +
+        // `onChange(of: stones.isReady)`); this observer is their AppKit stand-in.
+        // (The per-move stepping branch — iOS lines 495-525 — lives in the EXISTING
+        // analysis observer instead, keyed off `waitingForAnalysis`.) Installed
+        // before the engine starts so the first stones-ready transition isn't missed.
+        installAutoPlayObserver()
+
         startEngineAndSession()
 
         #if DEBUG
         scheduleSnapshotIfRequested()
+        scheduleAutoPlayTestIfRequested()
         #endif
     }
 
@@ -463,6 +487,57 @@ final class MainWindowController: NSWindowController {
                     session.messageList.appendAndSend(
                         command: gameRecord.concreteConfig.getKataAnalyzeCommand())
                 }
+
+                // Auto-play stepping (port of `GameSplitView` lines 495-525,
+                // nested in the same `true -> false` / selected-game / !shouldGenMove
+                // block on iOS). While auto-playing, once the engine has produced an
+                // analysis for the current position and the board stones are settled,
+                // persist that analysis (fills `scoreLeads`/`winRates` for the move)
+                // and advance to the next SGF move; when none remains, stop the loop.
+                // The advance plays a stone but goes through `gobanState.play`/
+                // `sendShowBoardCommand`, NOT `requestAnalysis`, so it does not itself
+                // flip `waitingForAnalysis`. NOTE: during auto-play `analysisStatus`
+                // is `.pause`, so the re-arm branch above sends `stop` (not analyze);
+                // the NEXT position's analysis is re-armed by the hosted
+                // `BoardView.onChange(of: player.nextColorForPlayCommand)` (fired by
+                // the `toggleNextColorForPlayCommand()` below) -> `maybeRequestAnalysis`.
+                // That next `info` line is the next `true -> false` edge, and the
+                // `sendShowBoardCommand` round-trip's `stones.isReady` false->true edge
+                // is what the auto-play observer turns into `currentIndex += 1`. The
+                // terminal `getMove` miss sets `isAutoPlaying = false`, ending the loop.
+                if gobanState.isAutoPlaying,
+                   !session.analysis.info.isEmpty,
+                   session.stones.isReady {
+                    gobanState.maybeUpdateAnalysisData(
+                        gameRecord: gameRecord,
+                        analysis: session.analysis,
+                        board: session.board,
+                        stones: session.stones
+                    )
+
+                    // forward move
+                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+
+                    if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
+                       let move = session.board.locationToMove(location: nextMove.location) {
+                        let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+
+                        gobanState.play(
+                            turn: nextPlayer,
+                            move: String(move),
+                            messageList: session.messageList,
+                            stones: session.stones
+                        )
+
+                        session.player.toggleNextColorForPlayCommand()
+                        gobanState.sendShowBoardCommand(messageList: session.messageList)
+                        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
+                        gobanState.isAutoPlayed = true
+                    } else {
+                        gobanState.isAutoPlaying = false
+                        gobanState.isAutoPlayed = false
+                    }
+                }
             }
         }
 
@@ -475,6 +550,203 @@ final class MainWindowController: NSWindowController {
         // refreshing here, since they all funnel an `analysisStatus` change
         // through this observer.
         refreshAnalyzeToolbarItem()
+    }
+
+    // MARK: - Auto-play
+    //
+    // Ports the iOS auto-play machinery (`GameSplitView`) so the Chart tab's wand
+    // button — which sets `gobanState.isEditing = true; isAutoPlaying.toggle()` —
+    // actually re-runs the loaded game, refilling `gameRecord.scoreLeads` /
+    // `winRates` move-by-move. iOS wires this with three `.onChange` handlers; on
+    // macOS the host is this `NSWindowController`, so two of them become a
+    // self-rescheduling `withObservationTracking` observer here (the SAME pattern
+    // as the analysis / confirmation observers), and the third (the per-move
+    // stepping branch) lives in `handleAnalysisLifecycleChange()` above since it
+    // keys off `waitingForAnalysis`. The two handled here:
+    //
+    //   • `processIsAutoPlayingChange` (iOS `GameSplitView` lines 295-349): on
+    //     `isAutoPlaying` becoming TRUE — pause analysis, open the eye, deactivate
+    //     any branch, rewind to the game start, install the "AI" profile, and send
+    //     post-execution commands. On becoming FALSE — clear analysis, restore the
+    //     human profile, and forward to recover `currentIndex`.
+    //   • `processStonesReadyChange` (iOS lines 268-293): on `stones.isReady`
+    //     going `false -> true` with a selected game, persist the current stones
+    //     into the record and, when an auto-play step just landed, bump
+    //     `currentIndex`. (iOS's `syncBookState()` is a Phase 6 concern — see TODO.)
+    //
+    // Same `withObservationTracking` gotchas as the other observers: `onChange`
+    // fires ONCE per tracked-property change, BEFORE the mutation commits, and
+    // doesn't say which property changed. So we hop to `Task { @MainActor }`, read
+    // LIVE committed values, react, update both snapshots, and re-register tracking
+    // (it's one-shot). iOS's `onChange(of: isAutoPlaying)` reacts to either edge
+    // (`old != new`); `onChange(of: stones.isReady)` only to `false -> true`.
+    //
+    // Re-entrancy: handler (1)'s TRUE branch mutates `analysisStatus`/`eyeStatus`
+    // (both tracked by OTHER observers) and the stones via `undo`. None of those
+    // observers re-enter this one, and this observer's reactions send raw GTP /
+    // mutate state without itself flipping `isAutoPlaying` (except the explicit
+    // terminal `false`, handled by the stepping branch, not here). The stepping
+    // loop's terminal condition (`getMove` miss -> `isAutoPlaying = false`)
+    // guarantees the cycle stops. See the orchestrator notes for the full trace.
+
+    /// Seeds the snapshots from the live state and starts the self-rescheduling
+    /// observation bridge for `isAutoPlaying` + `stones.isReady`. Called once in
+    /// `init`, right after `installConfirmationObserver()`.
+    private func installAutoPlayObserver() {
+        lastIsAutoPlaying = session.gobanState.isAutoPlaying
+        lastStonesReady = session.stones.isReady
+        lastIsEditing = session.gobanState.isEditing
+        trackAutoPlay()
+    }
+
+    /// One observation pass: registers tracking of the properties, and on change
+    /// re-reads the committed values on the main actor, reacts, then re-arms.
+    private func trackAutoPlay() {
+        withObservationTracking {
+            // Touch each property so a change to any fires `onChange`.
+            _ = session.gobanState.isAutoPlaying
+            _ = session.stones.isReady
+            _ = session.gobanState.isEditing
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleAutoPlayChange()
+                self.trackAutoPlay()
+            }
+        }
+    }
+
+    /// Detects which transition occurred against the snapshots and ports the
+    /// matching iOS handler, then refreshes both snapshots.
+    private func handleAutoPlayChange() {
+        let gobanState = session.gobanState
+        let newIsAutoPlaying = gobanState.isAutoPlaying
+        let newStonesReady = session.stones.isReady
+
+        // iOS `onChange(of: gobanState.isAutoPlaying)` -> `processIsAutoPlayingChange`
+        // reacts to ANY change (it reads the live `isAutoPlaying` rather than the
+        // edge), so mirror with `old != new`.
+        if newIsAutoPlaying != lastIsAutoPlaying {
+            handleIsAutoPlayingChange()
+        }
+
+        // iOS `onChange(of: stones.isReady)` -> `processStonesReadyChange` reacts
+        // only on the `false -> true` transition.
+        if newStonesReady && !lastStonesReady {
+            handleStonesReadyChange()
+        }
+
+        // iOS `onChange(of: gobanState.isEditing)` -> `processIsEditingChange`:
+        // leaving edit mode cancels auto-play (parity + safety — guarantees the
+        // loop can't be left running with no edit session). iOS lines 351-356.
+        if !gobanState.isEditing && lastIsEditing {
+            gobanState.isAutoPlaying = false
+            gobanState.isAutoPlayed = false
+        }
+
+        lastIsAutoPlaying = gobanState.isAutoPlaying
+        lastStonesReady = session.stones.isReady
+        lastIsEditing = gobanState.isEditing
+    }
+
+    /// Port of `GameSplitView.processIsAutoPlayingChange` (iOS lines 295-349).
+    /// Reads the LIVE `isAutoPlaying` exactly as iOS does (the handler branches on
+    /// `gobanState.isAutoPlaying`, not the captured old/new pair). Uses
+    /// `concreteConfig` everywhere for consistency with the rest of this file
+    /// (iOS reads `gameRecord.config` optionally in the FALSE branch).
+    private func handleIsAutoPlayingChange() {
+        let gobanState = session.gobanState
+
+        if gobanState.isAutoPlaying,
+           let gameRecord = navigationContext.selectedGameRecord {
+            gobanState.analysisStatus = .pause
+            gobanState.eyeStatus = .opened
+            gobanState.deactivateBranch()
+
+            // Rewind to the start of the game (mirrors iOS's `while ... undo()`).
+            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+            while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
+                gameRecord.undo()
+                gobanState.undo(messageList: session.messageList, stones: session.stones)
+                session.player.toggleNextColorForPlayCommand()
+            }
+
+            // auto-play analysis by best AI profile
+            if let humanSLModel = HumanSLModel(profile: "AI") {
+                session.messageList.appendAndSend(commands: humanSLModel.commands)
+                session.messageList.appendAndSend(command: "kata-set-param playoutDoublingAdvantage 0")
+                session.messageList.appendAndSend(command: "kata-set-param analysisWideRootNoise 0")
+            }
+
+            gobanState.sendPostExecutionCommands(
+                config: gameRecord.concreteConfig,
+                messageList: session.messageList,
+                player: session.player
+            )
+        } else {
+            gobanState.analysisStatus = .clear
+
+            // restore human profile for the next player
+            if let gameRecord = navigationContext.selectedGameRecord {
+                let config = gameRecord.concreteConfig
+                gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+                    nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                    config: config,
+                    messageList: session.messageList)
+
+                session.messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+                session.messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+
+                // current index might not be correct, recover it
+                gobanState.forwardMoves(
+                    limit: nil,
+                    gameRecord: gameRecord,
+                    board: session.board,
+                    messageList: session.messageList,
+                    player: session.player,
+                    audioModel: audioModel,
+                    stones: session.stones)
+            }
+        }
+    }
+
+    /// Port of `GameSplitView.processStonesReadyChange` (iOS lines 268-293), minus
+    /// the iOS `syncBookState()` call (book sync is a Phase 6 concern not yet wired
+    /// on macOS). Persists the just-settled stones into the record at the current
+    /// index and, when an auto-play step just played, advances `currentIndex`.
+    ///
+    /// CAVEAT: this is the one observed edge whose miss is NOT self-correcting. The
+    /// `withObservationTracking` re-arm gap (see `handleAnalysisLifecycleChange`'s
+    /// note) is harmless for `waitingForAnalysis` (re-read live + self-correct), but
+    /// a dropped `stones.isReady` false->true edge during auto-play would skip one
+    /// `currentIndex += 1`, permanently mis-indexing later `scoreLeads`/`winRates`
+    /// writes. In practice the edges are spaced by full `showboard` round-trips and
+    /// the re-arm `Task` drains on `messaging`'s per-line `await` well before the
+    /// next edge, so a miss is not reachable in this flow — but auto-play is the one
+    /// path to revisit if that assumption ever changes.
+    private func handleStonesReadyChange() {
+        let gobanState = session.gobanState
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+
+        let currentIndex = gameRecord.currentIndex
+
+        gameRecord.blackStones?[currentIndex] = BoardPoint.toString(
+            session.stones.blackPoints,
+            width: Int(session.board.width),
+            height: Int(session.board.height)
+        )
+
+        gameRecord.whiteStones?[currentIndex] = BoardPoint.toString(
+            session.stones.whitePoints,
+            width: Int(session.board.width),
+            height: Int(session.board.height)
+        )
+
+        if gobanState.isAutoPlayed {
+            gameRecord.currentIndex += 1
+        }
+
+        // TODO(Phase 6): book sync (iOS calls `syncBookState()` here).
     }
 
     // MARK: - Move confirmation dialogs
@@ -825,6 +1097,58 @@ final class MainWindowController: NSWindowController {
             print("KATAGO_SNAPSHOT_DIR=\(dirURL.path)")
             fflush(stdout)
             NSApp.terminate(nil)
+        }
+    }
+
+    // MARK: - Auto-play smoke test (DEBUG only)
+    //
+    // When `KATAGO_MAC_AUTOPLAY_TEST` is set, drive the auto-play loop headlessly
+    // so an automated run can confirm it advances/fills (when the loaded game has
+    // moves) or cleanly STOPS (when empty) without hanging. Waits ~6s after the
+    // engine is ready (so the first analysis is flowing), flips the same flags the
+    // Chart wand button sets (`isEditing = true; isAutoPlaying = true`), then ~12s
+    // later prints a one-line summary and flushes. Does NOT terminate — the
+    // existing snapshot hook (if `KATAGO_MAC_SNAPSHOT` is also set) handles that;
+    // otherwise the run is left for the caller to stop.
+    private func scheduleAutoPlayTestIfRequested() {
+        guard let flag = ProcessInfo.processInfo.environment["KATAGO_MAC_AUTOPLAY_TEST"],
+              !flag.isEmpty else { return }
+        waitForEngineReadyThenRunAutoPlayTest()
+    }
+
+    /// Polls `boardReadiness.isEngineReady` via the same self-rescheduling
+    /// `withObservationTracking` style used elsewhere; once ready, starts the test
+    /// after a short settle delay. (A one-shot observer is enough: `isEngineReady`
+    /// only ever flips `false -> true` once.)
+    private func waitForEngineReadyThenRunAutoPlayTest() {
+        if boardReadiness.isEngineReady {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                self?.runAutoPlayTest()
+            }
+            return
+        }
+        withObservationTracking {
+            _ = boardReadiness.isEngineReady
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.waitForEngineReadyThenRunAutoPlayTest()
+            }
+        }
+    }
+
+    private func runAutoPlayTest() {
+        session.gobanState.isEditing = true
+        session.gobanState.isAutoPlaying = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            guard let self else { return }
+            let gobanState = self.session.gobanState
+            let scoreLeads = self.navigationContext.selectedGameRecord?.scoreLeads?.count ?? -1
+            let currentIndex = self.navigationContext.selectedGameRecord?.currentIndex ?? -1
+            let moves = self.navigationContext.selectedGameRecord
+                .map { SgfHelper(sgf: $0.sgf).moveSize ?? -1 } ?? -1
+            print("KATAGO_AUTOPLAY scoreLeads=\(scoreLeads) currentIndex=\(currentIndex) " +
+                  "isAutoPlaying=\(gobanState.isAutoPlaying) moves=\(moves)")
+            fflush(stdout)
         }
     }
     #endif
