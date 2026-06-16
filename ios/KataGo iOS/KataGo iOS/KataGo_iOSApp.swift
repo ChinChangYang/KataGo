@@ -62,24 +62,22 @@ struct KataGo_iOSApp: App {
             }
     }
 
+    // The macOS build of this (old, cross-platform SwiftUI) app target was
+    // retired in Phase 6 — `KataGo Anytime` now builds for iOS/visionOS only,
+    // and the native AppKit `KataGo Anytime Mac` target is the macOS product.
+    // So this scene is no longer conditionalised on `os(macOS)`.
     var scene: some Scene {
-        #if os(macOS)
-            Window("KataGo Anytime", id: "KataGo Anytime") {
+        WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains(MLXTuneExperimentView.launchArg) {
+                MLXTuneExperimentView()
+            } else {
                 modelRunnerRoot
             }
-        #else
-            WindowGroup {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains(MLXTuneExperimentView.launchArg) {
-                    MLXTuneExperimentView()
-                } else {
-                    modelRunnerRoot
-                }
-                #else
-                modelRunnerRoot
-                #endif
-            }
-        #endif
+            #else
+            modelRunnerRoot
+            #endif
+        }
     }
 
     var body: some Scene {
