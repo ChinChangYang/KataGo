@@ -57,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(makeSubmenu(editMenu()))
         mainMenu.addItem(makeSubmenu(viewMenu()))
         mainMenu.addItem(makeSubmenu(navigateMenu()))
+        mainMenu.addItem(makeSubmenu(analysisMenu()))
 
         let windowMenu = windowMenu()
         mainMenu.addItem(makeSubmenu(windowMenu))
@@ -185,6 +186,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggleInspector.keyEquivalentModifierMask = [.command, .control]
         menu.addItem(.separator())
 
+        // Display toggles routed through the responder chain to
+        // `MainWindowController`. No key equivalents — these are infrequent
+        // display preferences and bare letters/symbols would risk collisions.
+        // Checkmarks (reflecting the live `gobanState` flags) and enable state
+        // are set in `MainWindowController.validateMenuItem`. Ownership is NOT
+        // here: it lives only in the Analysis menu to avoid duplication.
+        menu.addItem(withTitle: "Show Coordinates",
+                     action: #selector(MainWindowController.toggleCoordinates(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Show Pass",
+                     action: #selector(MainWindowController.togglePass(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Show Win-Rate Bar",
+                     action: #selector(MainWindowController.toggleWinrateBar(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Show Visits per Second",
+                     action: #selector(MainWindowController.toggleVisitsPerSecond(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
+
         let fullScreen = menu.addItem(withTitle: "Enter Full Screen",
                                       action: #selector(NSWindow.toggleFullScreen(_:)),
                                       keyEquivalent: "f")
@@ -215,6 +236,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 action: #selector(MainWindowController.goToEnd(_:)),
                                 keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         last.keyEquivalentModifierMask = [.command, .option]
+        return menu
+    }
+
+    /// Analysis menu. All items carry `target = nil`, so AppKit routes them
+    /// through the responder chain to `MainWindowController` (the window controller
+    /// sits in the window's responder chain). `MainWindowController.validateMenuItem`
+    /// sets each item's checkmark from the LIVE `gobanState.analysisStatus` /
+    /// `showOwnership` (re-read every time the menu opens) and its enable state, so
+    /// the menu always mirrors the current engine/analysis state. "Show Ownership"
+    /// is intentionally placed ONLY here (not in the View menu) to avoid
+    /// duplicating the same toggle in two places.
+    private func analysisMenu() -> NSMenu {
+        let menu = NSMenu(title: "Analysis")
+
+        // ⌘↩ cycles run → pause → clear (same 3-way machine as the toolbar
+        // Analyze button). Return is otherwise only handled contextually by the
+        // sidebar table, so ⌘↩ does not collide with a global menu equivalent.
+        let toggle = menu.addItem(withTitle: "Toggle Analysis",
+                                  action: #selector(MainWindowController.toggleAnalysis(_:)),
+                                  keyEquivalent: "\r")
+        toggle.keyEquivalentModifierMask = [.command]
+        menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Pause",
+                     action: #selector(MainWindowController.pauseAnalysis(_:)),
+                     keyEquivalent: "")
+        menu.addItem(withTitle: "Clear",
+                     action: #selector(MainWindowController.clearAnalysis(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Show Ownership",
+                     action: #selector(MainWindowController.toggleOwnership(_:)),
+                     keyEquivalent: "")
         return menu
     }
 

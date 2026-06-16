@@ -488,6 +488,57 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    // MARK: - Analysis & view menu actions
+    //
+    // Backing actions for the Analysis menu (Toggle/Pause/Clear/Show Ownership)
+    // and the View menu's display toggles (Coordinates/Pass/Win-Rate Bar/Visits
+    // per Second). All are reached through the responder chain — the menu items
+    // are built with `target = nil` (see `AppDelegate`), so AppKit walks from the
+    // first responder up to this `NSWindowController` and lands here. Each one
+    // simply mutates the shared `gobanState`; T6's `MacGlobalPreferenceSync`
+    // persists any display-flag change automatically, so no UserDefaults writes
+    // are needed here. Checkmarks are NOT set on the actions — `validateMenuItem`
+    // owns checkmark + enable state so they always reflect the LIVE state.
+
+    /// Analysis menu "Pause": pause a running analysis. `maybePauseAnalysis()`
+    /// transitions only from `.run`, so calling it while clear/paused is a no-op.
+    @objc func pauseAnalysis(_ sender: Any?) {
+        session.gobanState.maybePauseAnalysis()
+    }
+
+    /// Analysis menu "Clear": stop and clear analysis. Sets `.clear` only — T1's
+    /// `handleAnalysisLifecycleChange()` observer sends `"stop"` on entry into
+    /// `.clear`, so sending it here too would double-send.
+    @objc func clearAnalysis(_ sender: Any?) {
+        session.gobanState.analysisStatus = .clear
+    }
+
+    /// Analysis menu "Show Ownership": toggle the ownership overlay. (Lives only
+    /// in the Analysis menu, intentionally not duplicated in View.)
+    @objc func toggleOwnership(_ sender: Any?) {
+        session.gobanState.showOwnership.toggle()
+    }
+
+    /// View menu "Show Visits per Second": toggle the visits/s readout.
+    @objc func toggleVisitsPerSecond(_ sender: Any?) {
+        session.gobanState.showVisitsPerSecond.toggle()
+    }
+
+    /// View menu "Show Win-Rate Bar": toggle the win-rate bar.
+    @objc func toggleWinrateBar(_ sender: Any?) {
+        session.gobanState.showWinrateBar.toggle()
+    }
+
+    /// View menu "Show Coordinates": toggle the board coordinate labels.
+    @objc func toggleCoordinates(_ sender: Any?) {
+        session.gobanState.showCoordinate.toggle()
+    }
+
+    /// View menu "Show Pass": toggle display of the pass indicator.
+    @objc func togglePass(_ sender: Any?) {
+        session.gobanState.showPass.toggle()
+    }
+
     /// Updates the Analyze toolbar item's image + toolTip from the live
     /// `gobanState.analysisStatus`. Called after the item is built (initial
     /// state), at the end of T1's `handleAnalysisLifecycleChange()` (so any path
@@ -581,16 +632,50 @@ extension MainWindowController: NSWindowDelegate {
 // MARK: - Menu item validation
 
 extension MainWindowController: NSMenuItemValidation {
-    /// Enables/disables menu items via the responder chain. Navigate items
-    /// (Back/Forward/First/Last) use the same `canGoBackward` / `canGoForward`
-    /// tests as the toolbar; Rename/Delete require a selected game; everything
-    /// else defaults to enabled.
+    /// Enables/disables menu items via the responder chain, and sets the
+    /// checkmark on the toggling Analysis/View items so they always reflect the
+    /// LIVE `analysisStatus` / `gobanState` (AppKit calls this just before a menu
+    /// opens). Navigate items (Back/Forward/First/Last) use the same
+    /// `canGoBackward` / `canGoForward` tests as the toolbar; Rename/Delete/Share
+    /// require a selected game; everything else defaults to enabled.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        let gobanState = session.gobanState
+        let hasGame = navigationContext.selectedGameRecord != nil
         switch menuItem.action {
         case #selector(renameSelectedGame(_:)),
              #selector(deleteSelectedGame(_:)),
              #selector(shareSelectedGame(_:)):
-            return navigationContext.selectedGameRecord != nil
+            return hasGame
+
+        // Analysis menu: checkmark reflects the live status, enabled with a game.
+        case #selector(toggleAnalysis(_:)):
+            menuItem.state = gobanState.analysisStatus != .clear ? .on : .off
+            return hasGame
+        case #selector(pauseAnalysis(_:)):
+            menuItem.state = gobanState.analysisStatus == .pause ? .on : .off
+            return hasGame
+        case #selector(clearAnalysis(_:)):
+            menuItem.state = gobanState.analysisStatus == .clear ? .on : .off
+            return hasGame
+        case #selector(toggleOwnership(_:)):
+            menuItem.state = gobanState.showOwnership ? .on : .off
+            return hasGame
+
+        // View menu display toggles: checkmark reflects the live flag; these are
+        // pure display preferences, always available regardless of selection.
+        case #selector(toggleCoordinates(_:)):
+            menuItem.state = gobanState.showCoordinate ? .on : .off
+            return true
+        case #selector(togglePass(_:)):
+            menuItem.state = gobanState.showPass ? .on : .off
+            return true
+        case #selector(toggleWinrateBar(_:)):
+            menuItem.state = gobanState.showWinrateBar ? .on : .off
+            return true
+        case #selector(toggleVisitsPerSecond(_:)):
+            menuItem.state = gobanState.showVisitsPerSecond ? .on : .off
+            return true
+
         default:
             return canPerformNavigation(menuItem.action)
         }
