@@ -256,6 +256,7 @@
 		DBC1AFC0053EB14FB17F9A7C /* crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = 735B5C87C4CA780F3E97EBA4 /* crc.cc */; };
 		DD2A02CBBD4C336E9FA48A60 /* private_handle_accessor.cc in Sources */ = {isa = PBXBuildFile; fileRef = 22D8D0DC676FBF50F1B5ABDB /* private_handle_accessor.cc */; };
 		DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */; };
+		DE413A7DD5252929FD9EC41C /* MacBoardInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */; };
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
@@ -800,6 +801,7 @@
 		BC2CF6DCF3C1E8EF28EA94A2 /* MMapFileReaderFactory.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReaderFactory.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReaderFactory.cpp; sourceTree = SOURCE_ROOT; };
 		BC369E122AA45A565227D30F /* elf_mem_image.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = elf_mem_image.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/elf_mem_image.cc"; sourceTree = SOURCE_ROOT; };
 		BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheKeyTests.swift; path = "KataGo iOSTests/CoreMLCacheKeyTests.swift"; sourceTree = SOURCE_ROOT; };
+		BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacBoardInteractionLayer.swift; sourceTree = "<group>"; };
 		BD22490FB6D2F00C83C1BD22 /* Fp16.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp16.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp16.cpp; sourceTree = SOURCE_ROOT; };
 		BE2564FBAA9E809482077069 /* arenaz_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arenaz_sampler.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arenaz_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		C07C938A94269699C0D07E21 /* strerror.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = strerror.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/strerror.cc"; sourceTree = SOURCE_ROOT; };
@@ -1259,6 +1261,7 @@
 				F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */,
 				F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */,
 				0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */,
+				BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2337,6 +2340,7 @@
 				4C362581A79874EBE3D57D44 /* LibrarySidebarViewController.swift in Sources */,
 				DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */,
 				8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */,
+				DE413A7DD5252929FD9EC41C /* MacBoardInteractionLayer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

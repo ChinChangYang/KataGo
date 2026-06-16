@@ -54,18 +54,36 @@ struct MacBoardHostView: View {
     var body: some View {
         Group {
             if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
-                BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
-                    // Exactly the environment set BoardView + its subviews read:
-                    .environment(session.stones)
-                    .environment(session.board)
-                    .environment(session.player)
-                    .environment(session.analysis)
-                    .environment(session.gobanState)
-                    .environment(session.rootWinrate)
-                    .environment(session.rootScore)
-                    .environment(session.bookLookup)
-                    .environment(session.messageList)
-                    .environment(audioModel)
+                // The interaction overlay is Z-stacked ON TOP of BoardView so it
+                // is the single native input handler (left-click play /
+                // right-click menu / hover). It replicates BoardView's
+                // `VStack { Spacer(minLength: 20); GeometryReader }` outer layout
+                // so the ZStack sizes both identically and they share one
+                // coordinate space (see MacBoardInteractionLayer).
+                ZStack {
+                    BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+                        // Exactly the environment set BoardView + its subviews read:
+                        .environment(session.stones)
+                        .environment(session.board)
+                        .environment(session.player)
+                        .environment(session.analysis)
+                        .environment(session.gobanState)
+                        .environment(session.rootWinrate)
+                        .environment(session.rootScore)
+                        .environment(session.bookLookup)
+                        .environment(session.messageList)
+                        .environment(audioModel)
+
+                    MacBoardInteractionLayer(gameRecord: gameRecord)
+                        // The same environment objects the overlay reads
+                        // (BoardSize / Turn / GobanState / Stones / MessageList),
+                        // injected exactly as BoardView's are.
+                        .environment(session.board)
+                        .environment(session.player)
+                        .environment(session.gobanState)
+                        .environment(session.stones)
+                        .environment(session.messageList)
+                }
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

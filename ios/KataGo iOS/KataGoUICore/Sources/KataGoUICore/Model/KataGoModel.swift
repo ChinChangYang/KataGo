@@ -667,11 +667,11 @@ public struct Coordinate {
     /// point to a vertex IDENTICALLY to the board's tap gesture — a single source
     /// of truth keeps them from drifting. Callers supply the live board size and
     /// `verticalFlip` (the values `BoardView` reads from `BoardSize`/`GobanState`).
-    static func from(location: CGPoint,
-                     dimensions: Dimensions,
-                     boardWidth: Int,
-                     boardHeight: Int,
-                     verticalFlip: Bool) -> Coordinate? {
+    public static func from(location: CGPoint,
+                            dimensions: Dimensions,
+                            boardWidth: Int,
+                            boardHeight: Int,
+                            verticalFlip: Bool) -> Coordinate? {
         func calculateCoordinate(from point: CGFloat, margin: CGFloat, length: CGFloat) -> Int {
             return Int(round((point - margin) / length))
         }
