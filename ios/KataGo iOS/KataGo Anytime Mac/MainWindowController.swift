@@ -35,6 +35,12 @@ final class MainWindowController: NSWindowController {
     private var lastWaitingForAnalysis = false
     private var lastAnalysisStatus = AnalysisStatus.run
 
+    /// The toolbar's Analyze item, retained weakly so `refreshAnalyzeToolbarItem()`
+    /// can mutate its image/toolTip to reflect `gobanState.analysisStatus`. The
+    /// `NSToolbar` owns the item; we only borrow a reference (set when the item is
+    /// built in the `.analyze` case) to avoid a retain cycle.
+    private weak var analyzeToolbarItem: NSToolbarItem?
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
 
@@ -419,6 +425,80 @@ final class MainWindowController: NSWindowController {
 
         lastWaitingForAnalysis = newWaitingForAnalysis
         lastAnalysisStatus = newAnalysisStatus
+
+        // Keep the toolbar's Analyze button in sync with `analysisStatus` from
+        // EVERY path that mutates it — the `toggleAnalysis` action, a future
+        // Analysis menu, and the overwrite-cancel path a later task adds — by
+        // refreshing here, since they all funnel an `analysisStatus` change
+        // through this observer.
+        refreshAnalyzeToolbarItem()
+    }
+
+    // MARK: - Analyze toggle
+    //
+    // Drives the toolbar's Analyze button. Mirrors the iOS `StatusToolbarItems`
+    // `sparkleAction()` (StatusToolbarItems.swift lines 217-225) 3-way state
+    // machine over `gobanState.analysisStatus`:
+    //   • `.pause` -> stop (`.clear`)
+    //   • `.run`   -> pause
+    //   • `.clear` -> start (`.run`)
+    //
+    // The `.clear` branch only sets `analysisStatus = .clear`; it does NOT send
+    // `"stop"` — T1's `handleAnalysisLifecycleChange()` observer sends that on
+    // entry into `.clear`, and duplicating it here would double-send.
+
+    /// Toolbar Analyze button (`Selector(("toggleAnalysis:"))` resolves here via
+    /// the responder chain). Cycles analysis on -> paused -> off, mirroring iOS
+    /// `sparkleAction()`.
+    @objc func toggleAnalysis(_ sender: Any?) {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        let gobanState = session.gobanState
+
+        if gobanState.analysisStatus == .pause {
+            // stopAction(): T1's observer sends `"stop"` on entry into `.clear`.
+            gobanState.analysisStatus = .clear
+        } else if gobanState.analysisStatus == .run {
+            // pauseAnalysisAction()
+            gobanState.maybePauseAnalysis()
+        } else {
+            // startAnalysisAction(): set `.run`, then reset the visits/s session
+            // BEFORE the request so a prior pause doesn't inflate the elapsed-time
+            // denominator (matches the iOS ordering), then arm continuous analysis.
+            gobanState.analysisStatus = .run
+            session.analysis.resetVisitsPerSecondSession()
+            gobanState.maybeRequestAnalysis(
+                config: gameRecord.concreteConfig,
+                nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                messageList: session.messageList
+            )
+        }
+    }
+
+    /// Updates the Analyze toolbar item's image + toolTip from the live
+    /// `gobanState.analysisStatus`. Called after the item is built (initial
+    /// state), at the end of T1's `handleAnalysisLifecycleChange()` (so any path
+    /// that changes `analysisStatus` refreshes the button), and defensively from
+    /// `validateToolbarItem`. Uses the SF Symbol `wand.and.stars` throughout —
+    /// the iOS `custom.sparkle` asset is not guaranteed in the Mac catalog.
+    private func refreshAnalyzeToolbarItem() {
+        guard let item = analyzeToolbarItem else { return }
+        let base = NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Analyze")
+        switch session.gobanState.analysisStatus {
+        case .clear:
+            // Analysis OFF: red tint signals "tap to start", toolTip says so.
+            item.image = base?.withSymbolConfiguration(
+                .init(paletteColors: [.systemRed]))
+            item.toolTip = "Start Analysis"
+        case .run:
+            // Running: plain template image, toolTip offers to pause.
+            item.image = base
+            item.toolTip = "Pause Analysis"
+        case .pause:
+            // Paused: dimmed tint distinguishes it from running, toolTip resumes.
+            item.image = base?.withSymbolConfiguration(
+                .init(hierarchicalColor: .secondaryLabelColor))
+            item.toolTip = "Resume Analysis"
+        }
     }
 
     #if DEBUG
@@ -511,7 +591,13 @@ extension MainWindowController: NSToolbarItemValidation {
     /// this responder; non-navigation items default to enabled. Uses the same
     /// `canGoBackward` / `canGoForward` tests as the Navigate menu.
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
-        canPerformNavigation(item.action)
+        if item.action == #selector(toggleAnalysis(_:)) {
+            // Analyze only makes sense with a game loaded; refresh its on/off
+            // appearance opportunistically while we're here.
+            refreshAnalyzeToolbarItem()
+            return navigationContext.selectedGameRecord != nil
+        }
+        return canPerformNavigation(item.action)
     }
 }
 
@@ -572,10 +658,15 @@ extension MainWindowController: NSToolbarDelegate {
                             symbol: "square.and.arrow.down",
                             action: #selector(importSGF(_:)))
         case .analyze:
-            return makeItem(itemIdentifier,
-                            label: "Analyze",
-                            symbol: "wand.and.stars",
-                            action: Selector(("toggleAnalysis:")))
+            let item = makeItem(itemIdentifier,
+                                label: "Analyze",
+                                symbol: "wand.and.stars",
+                                action: #selector(toggleAnalysis(_:)))
+            // Borrow a weak reference so `refreshAnalyzeToolbarItem()` can reflect
+            // `analysisStatus` on the button, and seed its initial appearance.
+            analyzeToolbarItem = item
+            refreshAnalyzeToolbarItem()
+            return item
         case .toggleInspector:
             // macOS 14+ NSSplitViewController responds to toggleInspector:.
             return makeItem(itemIdentifier,
