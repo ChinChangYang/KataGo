@@ -72,6 +72,7 @@
 		4B0E65E8B31DCE61244E1281 /* waiter_base.cc in Sources */ = {isa = PBXBuildFile; fileRef = 58D05F34FDBFCFC1406CF9AA /* waiter_base.cc */; };
 		4B6A76D11A40CC19F07366C5 /* str_replace.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2046C4C524A0E412392C39EB /* str_replace.cc */; };
 		4BE3B175E385B9B52F7B7E24 /* crc_memcpy_fallback.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1C46DA09C718B0323CFFFDFB /* crc_memcpy_fallback.cc */; };
+		4C362581A79874EBE3D57D44 /* LibrarySidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */; };
 		4C5FCDCDE87987C36952FA30 /* vdso_support.cc in Sources */ = {isa = PBXBuildFile; fileRef = 731EE3C8F8230B4CE9090477 /* vdso_support.cc */; };
 		4D616E5948976253C9B7E84E /* log_entry.cc in Sources */ = {isa = PBXBuildFile; fileRef = AC27E7594F1C810B8C50390D /* log_entry.cc */; };
 		4DAD83EE4AAA5417988F7BA2 /* hashtablez_sampler.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F86021776EC4F7F6498285B /* hashtablez_sampler.cc */; };
@@ -187,6 +188,7 @@
 		A42B269D4421AE4425A1CD22 /* time_zone_format.cc in Sources */ = {isa = PBXBuildFile; fileRef = F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */; };
 		A6AE3BC7D126E3F5EEB32D01 /* MIL.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = BA88218FE439761B96AE38F7 /* MIL.pb.cc */; };
 		A6D80A79C45FBC852FF91AA1 /* DictVectorizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 081E2F8909C4E3DCDAC21F71 /* DictVectorizer.pb.cc */; };
+		A800D354C94992F8BCE4984F /* GameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */; };
 		A84A7CE2088AD0308688DA08 /* MMapFileReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */; };
 		A930EA82B20459A633CCD185 /* ModelPackage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DF87CAF0BC8ED9616E552855 /* ModelPackage.cpp */; };
 		A9376AB799D65C8025CD559D /* city.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB8AF52E37193580D79F2CE6 /* city.cc */; };
@@ -750,6 +752,7 @@
 		9214156EA4D6514A86F1A8E6 /* Operations.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Operations.cpp; path = ../../cpp/external/katagocoreml/src/builder/Operations.cpp; sourceTree = SOURCE_ROOT; };
 		924DAEA6A848345285DD2ACB /* globals.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = globals.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/globals.cc"; sourceTree = SOURCE_ROOT; };
 		927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CoreMLSerializer.cpp; path = ../../cpp/external/katagocoreml/src/serializer/CoreMLSerializer.cpp; sourceTree = SOURCE_ROOT; };
+		9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameRowView.swift; sourceTree = "<group>"; };
 		940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Scaler.pb.cc; path = ../../cpp/external/katagocoreml/generated/Scaler.pb.cc; sourceTree = SOURCE_ROOT; };
 		959FD21C12D9EA5999A3D914 /* notification.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = notification.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/notification.cc"; sourceTree = SOURCE_ROOT; };
 		99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = KataGoAnytimeMac.entitlements; sourceTree = "<group>"; };
@@ -1107,6 +1110,7 @@
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
 		F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureTypes.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureTypes.pb.cc; sourceTree = SOURCE_ROOT; };
 		F6CA708020D63562D4FEC662 /* spinlock_wait.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock_wait.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock_wait.cc"; sourceTree = SOURCE_ROOT; };
+		F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibrarySidebarViewController.swift; sourceTree = "<group>"; };
 		F76F77D2854F4AF2862EF966 /* profile_builder.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = profile_builder.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/profile_builder.cc"; sourceTree = SOURCE_ROOT; };
 		F7CDB1E48C91DD79F0008B2C /* statusor.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = statusor.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/statusor.cc"; sourceTree = SOURCE_ROOT; };
 		F9E318D52312E92994233C24 /* time_zone_posix.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_posix.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_posix.cc"; sourceTree = SOURCE_ROOT; };
@@ -1247,6 +1251,8 @@
 				1C81EB8694345D4096093043 /* PlaceholderViewController.swift */,
 				D702E277C8397612E300DEC9 /* MacBoardHostView.swift */,
 				28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */,
+				9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */,
+				F757D3154AA5033E78C92302 /* LibrarySidebarViewController.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -2321,6 +2327,8 @@
 				AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */,
 				5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */,
 				5077E4DBC05604CDBDF3BDB8 /* LibraryStore.swift in Sources */,
+				A800D354C94992F8BCE4984F /* GameRowView.swift in Sources */,
+				4C362581A79874EBE3D57D44 /* LibrarySidebarViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

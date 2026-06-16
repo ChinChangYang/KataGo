@@ -2,20 +2,30 @@ import AppKit
 import KataGoUICore
 
 /// The window's 3-pane content: a collapsible Library sidebar, the board (the
-/// resizable content), and a collapsible Inspector. The Library and Inspector
-/// panes are still placeholders (Phase 2 / Phase 4); the board pane hosts the
-/// reused SwiftUI `BoardView` via `BoardViewController`.
+/// resizable content), and a collapsible Inspector. The board pane hosts the
+/// reused SwiftUI `BoardView` via `BoardViewController`; the sidebar hosts the
+/// native `LibrarySidebarViewController` (Phase 2). The Inspector pane is still
+/// a placeholder (Phase 4).
 final class MainSplitViewController: NSSplitViewController {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
+    let libraryStore: LibraryStore
+    /// Weak to avoid a retain cycle: the window controller owns this split VC
+    /// (as its window's `contentViewController`). The sidebar routes selection
+    /// back through it via `selectGame`.
+    private weak var windowController: MainWindowController?
 
     init(session: GameSession,
          navigationContext: NavigationContext,
-         audioModel: AudioModel) {
+         audioModel: AudioModel,
+         libraryStore: LibraryStore,
+         windowController: MainWindowController) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
+        self.libraryStore = libraryStore
+        self.windowController = windowController
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -24,9 +34,17 @@ final class MainSplitViewController: NSSplitViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Sidebar (Library) — collapsible leading pane.
-        let sidebarItem = NSSplitViewItem(
-            sidebarWithViewController: PlaceholderViewController(labelText: "Library (Phase 2)"))
+        // Sidebar (Library) — collapsible leading pane hosting the native
+        // game list. A row selection routes back through the window controller
+        // to switch the board (`selectGame` → `GobanState.loadGame`).
+        let librarySidebarVC = LibrarySidebarViewController(
+            store: libraryStore,
+            navigationContext: navigationContext,
+            onSelect: { [weak windowController] game in
+                windowController?.selectGame(game)
+            }
+        )
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: librarySidebarVC)
         sidebarItem.canCollapse = true
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 320

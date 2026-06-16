@@ -14,6 +14,9 @@ final class MainWindowController: NSWindowController {
     let topUIState = TopUIState()
     private let engineLifecycle = EngineLifecycle()
 
+    /// Backs the Library sidebar's list of persisted games (fetch + observe).
+    lazy var libraryStore = LibraryStore(container: modelContainer)
+
     /// `GameSession.run`/`messaging` take a `Binding<String?>` for the AI's last
     /// move (the iOS app drives a confirmation flow off it). Phase 1 on macOS
     /// has no AI play, so we back the binding with a throwaway box rather than
@@ -40,7 +43,9 @@ final class MainWindowController: NSWindowController {
         w.contentViewController = MainSplitViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel
+            audioModel: audioModel,
+            libraryStore: libraryStore,
+            windowController: self
         )
         w.titlebarAppearsTransparent = false
         w.toolbarStyle = .unified
@@ -176,6 +181,29 @@ final class MainWindowController: NSWindowController {
         default:
             return true
         }
+    }
+
+    // MARK: - Library selection
+
+    /// Switches the board to a game chosen from the Library sidebar. Mirrors the
+    /// iOS `GameSplitView.processChange` flow via the reusable
+    /// `GobanState.loadGame`. The initial launch load stays in
+    /// `initializeSession`; this only runs for genuine post-launch row changes
+    /// (identity-different from the currently-selected game).
+    func selectGame(_ game: GameRecord?) {
+        let previous = navigationContext.selectedGameRecord
+        guard game !== previous else { return }
+
+        navigationContext.selectedGameRecord = game
+        session.gobanState.loadGame(
+            gameRecord: game,
+            previous: previous,
+            player: session.player,
+            bookLookup: session.bookLookup,
+            messageList: session.messageList,
+            board: session.board,
+            stones: session.stones
+        )
     }
 
     // MARK: - Engine launch + session loop
