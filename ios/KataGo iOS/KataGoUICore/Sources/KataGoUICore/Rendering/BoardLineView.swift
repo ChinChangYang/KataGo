@@ -71,7 +71,7 @@ public struct BoardLineView: View {
 
     private func drawBoardBackground(dimensions: Dimensions) -> some View {
         Group {
-            Image("Wood")
+            Image("Wood", bundle: .module)
                 .resizable()
                 .frame(width: dimensions.gobanWidth,
                        height: dimensions.gobanHeight)
@@ -85,7 +85,7 @@ public struct BoardLineView: View {
         Group {
             let passPoint = BoardPoint.pass(width: Int(board.width), height: Int(board.height))
 
-            Image("Wood")
+            Image("Wood", bundle: .module)
                 .resizable()
                 .frame(width: dimensions.squareLength,
                        height: dimensions.squareLength)
