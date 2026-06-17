@@ -168,7 +168,9 @@ CalibrationResult calibrateToTarget(
   double xLo, double xHi, double targetWinrate,
   int gamesPerRound, int maxRounds, double eloTol,
   uint64_t rngSeed, double l2,
-  const std::function<void(int,double,double,int,int)>& onRound
+  const std::function<void(int,double,double,int,int)>& onRound,
+  const std::vector<CalibrationSample>& initialSamples,
+  const std::function<void(double,double,double)>& onSampleCollected
 ) {
   (void)gamesPerRound; // games count comes from playAt's return value
   LogisticRS rs(l2);
@@ -176,11 +178,32 @@ CalibrationResult calibrateToTarget(
   double se = std::numeric_limits<double>::infinity();
   int totalGames = 0;
   bool converged = false;
-  int roundsRun = 0;
-  std::mt19937_64 rng(rngSeed);
+
+  // Resume: seed the fit with any prior rounds' samples so an interrupted calibration continues instead
+  // of restarting. The round loop then begins at initialSamples.size().
+  for(const CalibrationSample& s : initialSamples) {
+    rs.addSample(s.x, s.wins, s.games);
+    totalGames += (int)s.games;
+  }
+  const int startRound = (int)initialSamples.size();
+  int roundsRun = startRound;
+  if(startRound > 0) {
+    rs.fit();
+    double r0 = rs.root(targetWinrate);
+    if(std::isfinite(r0))
+      xStar = clipd(r0, xLo, xHi);
+    se = rs.rootSeElo(targetWinrate);
+    // If the reloaded samples already satisfy convergence, finish without playing any more games.
+    if(startRound >= 4 && rs.distinctXCount() >= 4 && se <= eloTol)
+      converged = true;
+  }
+
+  // Perturbing the seed by startRound keeps each resumed chunk exploring fresh offsets; for the
+  // from-scratch path (startRound == 0) this is exactly rngSeed, so that path is byte-identical to before.
+  std::mt19937_64 rng(rngSeed + 0x9e3779b97f4a7c15ULL * (uint64_t)startRound);
   std::uniform_real_distribution<double> uniform(xLo, xHi);
 
-  for(int rnd = 0; rnd < maxRounds; rnd++) {
+  for(int rnd = startRound; !converged && rnd < maxRounds; rnd++) {
     roundsRun = rnd + 1;
     double x;
     if(rnd < 2) {
@@ -200,6 +223,8 @@ CalibrationResult calibrateToTarget(
       xStar = clipd(r, xLo, xHi);
     se = rs.rootSeElo(targetWinrate);
     totalGames += games;
+    if(onSampleCollected)
+      onSampleCollected(x, wins, (double)games);
     if(onRound)
       onRound(rnd, xStar, se, rs.distinctXCount(), totalGames);
     if(rnd >= 3 && rs.distinctXCount() >= 4 && se <= eloTol) {

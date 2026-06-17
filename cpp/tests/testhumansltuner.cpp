@@ -390,5 +390,94 @@ void Tests::runHumanSLTunerTests() {
     testAssert(effectiveXHi(raised, 0.0, 3.0) == 3.0);           // real visit gradient -> keep full range
   }
 
+  // Test 20: resume. A calibration can be checkpointed per-round and continued across process restarts
+  // (the `tunehuman` command persists each round so an environment runtime cap can't lose progress).
+  // (a) onSampleCollected fires exactly once per NEW round. (b) Resuming with an already-converged sample
+  // set returns converged WITHOUT playing more games and reproduces the same fit. (c) A split run
+  // (chunk1, then resume) continues the round/game counts and still converges accurately.
+  {
+    auto winrateOfElo = [](double elo) { return 1.0 / (1.0 + std::pow(10.0, -elo / 400.0)); };
+    auto eloFn = [](double x) { return -100.0 + 300.0 * (x - 0.5); }; // reachable; -100 ELO at x=0.5
+
+    // (a) one onSampleCollected call per round, each carrying that round's games.
+    {
+      std::mt19937_64 playRng(2024);
+      auto playAt = [&](double x) -> std::pair<double,int> {
+        int games = 50;
+        std::binomial_distribution<int> binom(games, winrateOfElo(eloFn(x)));
+        return std::make_pair((double)binom(playRng), games);
+      };
+      std::vector<CalibrationSample> collected;
+      auto onSample = [&](double x, double wins, double games) {
+        collected.push_back(CalibrationSample{x, wins, games});
+      };
+      CalibrationResult res = calibrateToTarget(
+        playAt, 0.0, 1.0, 0.36, 50, 6, 25.0, (uint64_t)42, 0.5, nullptr,
+        std::vector<CalibrationSample>(), onSample);
+      testAssert((int)collected.size() == res.rounds);
+      double sumGames = 0.0;
+      for(const CalibrationSample& s : collected) { testAssert(s.games == 50.0); sumGames += s.games; }
+      testAssert((int)sumGames == res.totalGames);
+    }
+
+    // (b) resuming with a converged sample set short-circuits: playAt never called, fit reproduced exactly.
+    {
+      std::mt19937_64 playRng(7);
+      auto playAt = [&](double x) -> std::pair<double,int> {
+        int games = 200;
+        std::binomial_distribution<int> binom(games, winrateOfElo(eloFn(x)));
+        return std::make_pair((double)binom(playRng), games);
+      };
+      std::vector<CalibrationSample> samples;
+      auto cap = [&](double x, double wins, double games) {
+        samples.push_back(CalibrationSample{x, wins, games});
+      };
+      CalibrationResult full = calibrateToTarget(
+        playAt, 0.0, 1.0, 0.36, 200, 30, 25.0, (uint64_t)123, 0.5, nullptr,
+        std::vector<CalibrationSample>(), cap);
+      testAssert(full.converged);
+      testAssert((int)samples.size() == full.rounds);
+
+      bool playCalled = false;
+      auto noPlay = [&](double x) -> std::pair<double,int> {
+        (void)x; playCalled = true; return std::make_pair(0.0, 0);
+      };
+      CalibrationResult resumed = calibrateToTarget(
+        noPlay, 0.0, 1.0, 0.36, 200, 30, 25.0, (uint64_t)123, 0.5, nullptr, samples, nullptr);
+      testAssert(!playCalled);                                    // no new games played
+      testAssert(resumed.converged);
+      testAssert(resumed.rounds == (int)samples.size());
+      testAssert(std::fabs(resumed.xStar - full.xStar) < 1e-9);   // identical fit from identical samples
+      testAssert(resumed.totalGames == full.totalGames);
+    }
+
+    // (c) split run: chunk1 (3 rounds, not yet converged) then resume continues and converges.
+    {
+      std::mt19937_64 playRng(555);
+      auto playAt = [&](double x) -> std::pair<double,int> {
+        int games = 200;
+        std::binomial_distribution<int> binom(games, winrateOfElo(eloFn(x)));
+        return std::make_pair((double)binom(playRng), games);
+      };
+      std::vector<CalibrationSample> s;
+      auto cap = [&](double x, double wins, double games) { s.push_back(CalibrationSample{x, wins, games}); };
+      CalibrationResult chunk1 = calibrateToTarget(
+        playAt, 0.0, 1.0, 0.36, 200, 3, 25.0, (uint64_t)900, 0.5, nullptr,
+        std::vector<CalibrationSample>(), cap);
+      testAssert(chunk1.converged == false);
+      testAssert((int)s.size() == 3);
+
+      std::vector<CalibrationSample> seed = s; // resume from the 3 checkpointed rounds
+      CalibrationResult chunk2 = calibrateToTarget(
+        playAt, 0.0, 1.0, 0.36, 200, 30, 25.0, (uint64_t)900, 0.5, nullptr, seed, cap);
+      testAssert(chunk2.rounds > 3);                  // continued past the checkpoint
+      testAssert(chunk2.rounds == (int)s.size());     // every NEW round was checkpointed too
+      double allGames = 0.0; for(const CalibrationSample& cs : s) allGames += cs.games;
+      testAssert((int)allGames == chunk2.totalGames); // total accounts for prior + new games
+      testAssert(chunk2.converged);
+      testAssert(std::fabs(eloFn(chunk2.xStar) + 100.0) < 60.0); // accurate near -100 ELO
+    }
+  }
+
   cout << "Done human SL tuner tests" << endl;
 }

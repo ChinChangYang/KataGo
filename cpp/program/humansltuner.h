@@ -94,14 +94,29 @@ struct CalibrationResult {
   LogisticRS model; // final fitted surface (for reporting fitted ELO)
 };
 
+// One played round's outcome: a dial coordinate and its {wins, games} tally. Persisted to disk by the
+// `tunehuman` command (one per round) so a calibration that is interrupted -- e.g. the process is killed
+// by an environment runtime cap -- can be resumed from where it left off instead of restarting.
+struct CalibrationSample {
+  double x;
+  double wins;  // may be fractional (draws = 0.5)
+  double games;
+};
+
 // playAt(x) plays a batch at dial x and returns {wins, games}; wins may be fractional.
 // onRound(round, xStar, eloSe, distinctXs, totalGames) is optional progress logging.
+// initialSamples seeds the fit with prior rounds (for resume): the round loop starts at
+// initialSamples.size() and, if those samples already satisfy convergence, returns without playing more.
+// onSampleCollected(x, wins, games) fires once per NEWLY played round (not for initialSamples), so the
+// caller can durably append each round's outcome to a checkpoint file.
 CalibrationResult calibrateToTarget(
   const std::function<std::pair<double,int>(double)>& playAt,
   double xLo, double xHi, double targetWinrate,
   int gamesPerRound, int maxRounds, double eloTol,
   uint64_t rngSeed, double l2 = 0.5,
-  const std::function<void(int,double,double,int,int)>& onRound = nullptr);
+  const std::function<void(int,double,double,int,int)>& onRound = nullptr,
+  const std::vector<CalibrationSample>& initialSamples = std::vector<CalibrationSample>(),
+  const std::function<void(double,double,double)>& onSampleCollected = nullptr);
 
 // Rewrites baselineText, replacing the value of each override key on its existing
 // non-comment "key = value" line (preserving the key spelling), or appending

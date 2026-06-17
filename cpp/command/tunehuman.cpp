@@ -19,6 +19,7 @@
 #include "../main.h"
 
 #include <atomic>
+#include <cmath>
 #include <fstream>
 #include <functional>
 #include <mutex>
@@ -42,6 +43,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   int maxRounds = 24;
   int numGameThreadsArgVal = -1;
   string seedStr = "tunehuman";
+  string resumeFile;
   int searchVisits = -1;
   int maxVisitsCap = -1;
   double piklFloor = 0.02;
@@ -63,6 +65,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     TCLAP::ValueArg<int> maxRoundsArg("","max-rounds","Hard cap on rounds.",false,24,"N");
     TCLAP::ValueArg<int> numGameThreadsArg("","num-game-threads","Parallel games within a round.",false,-1,"N");
     TCLAP::ValueArg<string> seedArg("","seed","Master seed for reproducibility.",false,"tunehuman","SEED");
+    TCLAP::ValueArg<string> resumeFileArg("","resume-file","Per-round checkpoint file for resumable calibration. Empty = auto (<output-config>.samples).",false,"","FILE");
     TCLAP::ValueArg<int> searchVisitsArg("","search-visits","Visits in the piklLambda segment (>=2). -1 = auto (anchor to baseline maxVisits).",false,-1,"N");
     TCLAP::ValueArg<int> maxVisitsCapArg("","max-visits-cap","Visits at the strong end. -1 = auto (anchor to baseline maxVisits).",false,-1,"N");
     TCLAP::ValueArg<double> piklFloorArg("","pikl-floor","Smallest piklLambda (strongest).",false,0.02,"F");
@@ -79,6 +82,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     cmd.add(maxRoundsArg);
     cmd.add(numGameThreadsArg);
     cmd.add(seedArg);
+    cmd.add(resumeFileArg);
     cmd.add(searchVisitsArg);
     cmd.add(maxVisitsCapArg);
     cmd.add(piklFloorArg);
@@ -99,6 +103,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     maxRounds = maxRoundsArg.getValue();
     numGameThreadsArgVal = numGameThreadsArg.getValue();
     seedStr = seedArg.getValue();
+    resumeFile = resumeFileArg.getValue();
     searchVisits = searchVisitsArg.getValue();
     maxVisitsCap = maxVisitsCapArg.getValue();
     piklFloor = piklFloorArg.getValue();
@@ -148,6 +153,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   cout << "  max-rounds      = " << maxRounds << endl;
   cout << "  num-game-threads= " << numGameThreads << endl;
   cout << "  seed            = " << seedStr << endl;
+  cout << "  resume-file     = " << (resumeFile.empty() ? string("auto (<output-config>.samples)") : resumeFile) << endl;
   cout << "  search-visits   = " << (searchVisits < 0 ? string("auto") : Global::intToString(searchVisits)) << endl;
   cout << "  max-visits-cap  = " << (maxVisitsCap < 0 ? string("auto") : Global::intToString(maxVisitsCap)) << endl;
   cout << "  pikl-floor      = " << piklFloor << endl;
@@ -370,10 +376,112 @@ int MainCmds::tunehuman(const vector<string>& args) {
       " deltaTau=" + Global::doubleToString(d.deltaTau) + "]");
   };
 
+  // ---- resume support: a per-round checkpoint so an interrupted run continues instead of restarting ----
+  // The checkpoint stores each round's (x, wins, games). A signature header guards against pooling samples
+  // from a different matchup/dial: only the fields that define the candidate-vs-baseline winrate at a given
+  // dial x are included (NOT target/tol/range/seed, which affect only sampling and stopping).
+  string resumeFilePath = resumeFile.empty() ? (outputConfigPath + ".samples") : resumeFile;
+  string resumeHeader =
+    string("# tunehuman-samples v1") +
+    " profile=" + profile +
+    " model=" + modelFile +
+    " human=" + humanModelFile +
+    " baseline=" + baselineConfigPath +
+    " mid=" + Global::intToString(vb.midVisits) +
+    " cap=" + Global::intToString(vb.maxVisitsCap) +
+    " piklFloor=" + Global::doubleToString(piklFloor) +
+    " piklMax=" + Global::doubleToString(piklMax) +
+    " dtau=" + Global::doubleToString(dtauMax);
+
+  std::vector<CalibrationSample> initialSamples;
+  if(FileUtils::exists(resumeFilePath)) {
+    ifstream in(resumeFilePath);
+    if(!in.good()) { cerr << "Error: cannot open resume-file for reading: " << resumeFilePath << endl; return 1; }
+    string line;
+    bool headerSeen = false;
+    int lineNum = 0;
+    while(std::getline(in, line)) {
+      lineNum++;
+      string t = Global::trim(line);
+      if(t.empty())
+        continue;
+      if(t[0] == '#') {
+        if(!headerSeen) {
+          if(t != resumeHeader) {
+            cerr << "Error: resume-file " << resumeFilePath << " was written for a different configuration.\n"
+                 << "  found:    " << t << "\n"
+                 << "  expected: " << resumeHeader << "\n"
+                 << "Remove it to start fresh, or pass a different -resume-file." << endl;
+            return 1;
+          }
+          headerSeen = true;
+        }
+        continue;
+      }
+      // Tolerate a malformed line (warn + skip) rather than fail: a hard kill mid-append can leave a
+      // truncated final line, and a fatal parse would then permanently block resume. Bad numeric tokens
+      // are skipped the same way (tryStringToDouble never throws).
+      std::vector<string> parts = Global::split(t, ' ');
+      CalibrationSample s;
+      if(parts.size() != 3 ||
+         !Global::tryStringToDouble(parts[0], s.x) ||
+         !Global::tryStringToDouble(parts[1], s.wins) ||
+         !Global::tryStringToDouble(parts[2], s.games)) {
+        logger.write("WARNING: skipping malformed resume-file line " + Global::intToString(lineNum) + " in " +
+                     resumeFilePath + " (likely a partial write from an interrupted run): '" + line + "'");
+        continue;
+      }
+      // Semantic gate: a kill mid-write can truncate the LAST token (games) into a still-parseable but
+      // wrong value (e.g. wins > games), which would silently poison the fit. Every clean round has
+      // games >= 1 and 0 <= wins <= games, so this never rejects a valid sample -- only a corrupt one.
+      if(!std::isfinite(s.x) || !std::isfinite(s.wins) || !std::isfinite(s.games) ||
+         s.games < 1.0 || s.wins < -1e-9 || s.wins > s.games + 1e-9) {
+        logger.write("WARNING: skipping out-of-range resume-file line " + Global::intToString(lineNum) + " in " +
+                     resumeFilePath + " (likely a partial write from an interrupted run): '" + line + "'");
+        continue;
+      }
+      initialSamples.push_back(s);
+    }
+    in.close();
+    if(!headerSeen) {
+      if(!initialSamples.empty()) {
+        cerr << "Error: resume-file " << resumeFilePath << " has samples but no recognizable signature header." << endl;
+        return 1;
+      }
+      // File exists but is empty/headerless (0-byte file, or a header write killed mid-flush by the
+      // runtime cap). Recreate the header so the per-round appends below land in a well-formed file --
+      // otherwise the NEXT restart would see samples-without-header and fatally refuse to resume.
+      ofstream hdrOut(resumeFilePath, std::ios::trunc);
+      if(!hdrOut.good()) { cerr << "Error: cannot (re)create resume-file: " << resumeFilePath << endl; return 1; }
+      hdrOut << resumeHeader << "\n";
+      hdrOut.close();
+      logger.write("Resume-file " + resumeFilePath + " had no header (empty/partial write); recreated it.");
+    }
+    logger.write("Resuming calibration from " + Global::intToString((int)initialSamples.size()) +
+                 " checkpointed round(s) in " + resumeFilePath + ".");
+  }
+  else {
+    ofstream hdrOut(resumeFilePath);
+    if(!hdrOut.good()) { cerr << "Error: cannot create resume-file: " << resumeFilePath << endl; return 1; }
+    hdrOut << resumeHeader << "\n";
+    hdrOut.close();
+    logger.write("Checkpointing each round to " + resumeFilePath + " (resumable across restarts).");
+  }
+
+  // Durable per-round append: open/flush/close each call so a hard kill mid-run can't lose a completed round.
+  auto onSampleCollected = [&](double x, double wins, double games) {
+    ofstream app(resumeFilePath, std::ios::app);
+    app << Global::doubleToStringHighPrecision(x) << " "
+        << Global::doubleToStringHighPrecision(wins) << " "
+        << Global::doubleToStringHighPrecision(games) << "\n";
+    app.close();
+  };
+
   // ---- run calibration ----
   uint64_t rngSeed = (uint64_t)std::hash<std::string>()(seedStr);
   CalibrationResult result = calibrateToTarget(
-    playAt, xLo, effXHi, targetWinrate, gamesPerRound, maxRounds, eloTol, rngSeed, 0.5, onRound);
+    playAt, xLo, effXHi, targetWinrate, gamesPerRound, maxRounds, eloTol, rngSeed, 0.5, onRound,
+    initialSamples, onSampleCollected);
 
   // ---- compute final dials + fitted ELO ----
   StrengthDialParams finalDials = strengthDialToParams(result.xStar, dialConfig);
