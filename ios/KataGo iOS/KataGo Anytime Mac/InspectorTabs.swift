@@ -2,23 +2,25 @@
 //  InspectorTabs.swift
 //  KataGo Anytime Mac
 //
-//  Phase 4 Task 1: SwiftUI bridges that host the package's `LinePlotView` and
-//  `CommentView` inside the AppKit Inspector tabs (via `NSHostingController`),
-//  fed from the engine-driven `GameSession`. Analogous to `MacBoardHostView`:
-//  each gates on `navigationContext.selectedGameRecord != nil &&
-//  readiness.isEngineReady` (else a spinner) and injects exactly the
+//  Phase 4 Task 1: SwiftUI bridges that host the package's `LinePlotView`,
+//  `MovesListView`, and `CommentView` inside the AppKit Inspector tabs (via
+//  `NSHostingController`), fed from the engine-driven `GameSession`. Analogous
+//  to `MacBoardHostView`: each gates on `navigationContext.selectedGameRecord
+//  != nil && readiness.isEngineReady` (else a spinner) and injects exactly the
 //  `@Environment` objects the wrapped view reads — nothing more.
 //
 
 import SwiftUI
 import KataGoUICore
 
-/// Chart tab: hosts the package's `LinePlotView` (win rate / score chart).
+/// Top pane of the combined Chart tab: hosts the package's `LinePlotView`
+/// (win-rate / score chart). Stacked over `MovesPaneView` by the native
+/// `ChartMovesSplitViewController`.
 ///
 /// `LinePlotView` reads EXACTLY `GobanState`, `BoardSize`, `MessageList`,
 /// `Turn`, `Stones` — it does NOT declare `Analysis`, so that is intentionally
 /// not injected here.
-struct ChartTabView: View {
+struct ChartPaneView: View {
     let session: GameSession
     let navigationContext: NavigationContext
     let readiness: BoardReadiness
@@ -38,13 +40,14 @@ struct ChartTabView: View {
     }
 }
 
-/// Moves tab: hosts the package's `MovesListView` (flat list of the active
-/// line with per-move win% / score).
+/// Bottom pane of the combined Chart tab: hosts the package's `MovesListView`
+/// (flat list of the active line with per-move win% / score). Stacked under
+/// `ChartPaneView` by the native `ChartMovesSplitViewController`.
 ///
 /// `MovesListView` reads EXACTLY `GobanState`, `BoardSize`, `MessageList`,
-/// `Turn`, `Stones` — the same set `GobanState.go(to:)` needs to navigate —
-/// so those are the only environment objects injected here.
-struct MovesTabView: View {
+/// `Turn`, `Stones` — the same set `GobanState.go(to:)` needs to navigate — so
+/// those are the only environment objects injected here.
+struct MovesPaneView: View {
     let session: GameSession
     let navigationContext: NavigationContext
     let readiness: BoardReadiness

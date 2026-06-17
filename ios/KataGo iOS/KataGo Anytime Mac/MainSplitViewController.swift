@@ -21,7 +21,7 @@ final class MainSplitViewController: NSSplitViewController {
     private weak var windowController: MainWindowController?
 
     /// The Inspector's tabbed controller + its split item, retained so the
-    /// View-menu tab shortcuts (⌘1–4, via `showInspectorTab`) can select a tab
+    /// View-menu tab shortcuts (⌘1–3, via `showInspectorTab`) can select a tab
     /// and expand the pane if it's collapsed.
     private var inspectorViewController: InspectorViewController?
     private var inspectorSplitItem: NSSplitViewItem?
@@ -109,9 +109,9 @@ final class MainSplitViewController: NSSplitViewController {
         splitViewItems = [sidebarItem, boardItem, inspectorItem]
     }
 
-    /// Selects an Inspector tab by index (0=Chart, 1=Comments, 2=Moves, 3=Info),
-    /// first expanding the Inspector pane if it's collapsed. Backs the ⌘1–4
-    /// View-menu shortcuts routed through `MainWindowController.selectInspectorTab`.
+    /// Selects an Inspector tab by index (0=Chart [chart + moves], 1=Comments,
+    /// 2=Info), first expanding the Inspector pane if it's collapsed. Backs the
+    /// ⌘1–3 View-menu shortcuts routed through `MainWindowController.selectInspectorTab`.
     func showInspectorTab(_ index: Int) {
         if inspectorSplitItem?.isCollapsed == true {
             inspectorSplitItem?.isCollapsed = false

@@ -2,12 +2,14 @@
 //  MovesListView.swift
 //  KataGo Anytime
 //
-//  Phase 4 Task 3: the Inspector "Moves" tab. A flat ordered list of the
-//  ACTIVE line (no variation tree). Each row shows the move number, the
-//  player glyph (● black / ○ white), the coordinate, and the per-move
-//  win% / score. Win%/score are always shown; rows whose metric isn't
-//  populated yet render a blank placeholder ("—"), because the stored
-//  dictionaries are sparse (filled lazily during navigation / auto-play).
+//  Phase 4 Task 3: the moves list (the bottom pane of the macOS Inspector's
+//  combined "Chart" tab). A flat ordered list of the ACTIVE line (no variation
+//  tree) under a fixed column header (# / Move / Win Rate / Score Lead). Each
+//  row shows the move number, the player glyph (● black / ○ white), the
+//  coordinate, and the per-move win% / score. Win%/score are always shown;
+//  rows whose metric isn't populated yet render a blank placeholder ("—"),
+//  because the stored dictionaries are sparse (filled lazily during
+//  navigation / auto-play).
 //
 //  Tapping a row navigates the board to that move via `GobanState.go(to:)`,
 //  mirroring `LinePlotView`'s `.onChange(of: selectedMove)` jump.
@@ -118,31 +120,50 @@ public struct MovesListView: View {
         // Observable read -> the highlight auto-updates as you navigate.
         let currentIndex = gobanState.getCurrentIndex(gameRecord: gameRecord)
 
-        ScrollViewReader { proxy in
-            List {
-                ForEach(rows) { row in
-                    MoveRowView(row: row, isCurrent: row.displayNumber == currentIndex)
-                        .id(row.displayNumber)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            jump(to: row.displayNumber)
-                        }
-                }
-            }
-            .onChange(of: currentIndex) { _, newValue in
-                if let newValue {
-                    withAnimation {
-                        proxy.scrollTo(newValue, anchor: .center)
+        VStack(spacing: 0) {
+            // Fixed column header (does not scroll with the rows) labelling what
+            // the win% / score columns mean. Uses the SAME fixed column widths as
+            // `MoveRowView`, and both it and the rows share a leading/trailing
+            // inset of `Self.rowInset` so the columns line up.
+            MovesHeaderRow()
+                .padding(.horizontal, Self.rowInset)
+                .padding(.vertical, 4)
+            Divider()
+
+            ScrollViewReader { proxy in
+                List {
+                    ForEach(rows) { row in
+                        MoveRowView(row: row, isCurrent: row.displayNumber == currentIndex)
+                            .id(row.displayNumber)
+                            .listRowInsets(EdgeInsets(top: 2, leading: Self.rowInset,
+                                                      bottom: 2, trailing: Self.rowInset))
+                            .listRowSeparator(.hidden)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                jump(to: row.displayNumber)
+                            }
                     }
                 }
-            }
-            .onAppear {
-                if let currentIndex {
-                    proxy.scrollTo(currentIndex, anchor: .center)
+                .listStyle(.plain)
+                .onChange(of: currentIndex) { _, newValue in
+                    if let newValue {
+                        withAnimation {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                    }
+                }
+                .onAppear {
+                    if let currentIndex {
+                        proxy.scrollTo(currentIndex, anchor: .center)
+                    }
                 }
             }
         }
     }
+
+    /// Shared leading/trailing inset for the header and the list rows, so their
+    /// fixed-width columns align.
+    fileprivate static let rowInset: CGFloat = 12
 
     /// Navigate the board to the given move number, guarded exactly like
     /// `LinePlotView`'s jump.
@@ -157,6 +178,40 @@ public struct MovesListView: View {
             audioModel: nil,
             stones: stones
         )
+    }
+}
+
+/// Column header for the moves list. Mirrors `MoveRowView`'s exact column
+/// widths (40 / 16 / 44 / spacer / 56 / 56) and spacing so the labels sit over
+/// their columns: "#" over the move number, "Move" over the coordinate, then
+/// "Win Rate" / "Score Lead" over the two metric columns. Compact secondary
+/// styling; `minimumScaleFactor` lets the longer metric labels fit their 56pt
+/// columns without truncating.
+private struct MovesHeaderRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("#")
+                .frame(width: 40, alignment: .trailing)
+
+            Text("")
+                .frame(width: 16)
+
+            Text("Move")
+                .frame(width: 44, alignment: .leading)
+
+            Spacer(minLength: 8)
+
+            Text("Win Rate")
+                .frame(width: 56, alignment: .trailing)
+
+            Text("Score Lead")
+                .frame(width: 56, alignment: .trailing)
+        }
+        .font(.caption)
+        .fontWeight(.semibold)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
     }
 }
 

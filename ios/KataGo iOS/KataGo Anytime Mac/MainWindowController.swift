@@ -1963,8 +1963,8 @@ final class MainWindowController: NSWindowController {
         session.gobanState.isEditing.toggle()
     }
 
-    /// View-menu Inspector tab shortcuts (⌘1 Chart · ⌘2 Comments · ⌘3 Moves ·
-    /// ⌘4 Info). The menu item's `tag` (0–3) is the tab index; route through the
+    /// View-menu Inspector tab shortcuts (⌘1 Chart [chart + moves] · ⌘2 Comments
+    /// · ⌘3 Info). The menu item's `tag` (0–2) is the tab index; route through the
     /// split VC, which expands the Inspector pane first if it's collapsed.
     @objc func selectInspectorTab(_ sender: NSMenuItem) {
         (window?.contentViewController as? MainSplitViewController)?

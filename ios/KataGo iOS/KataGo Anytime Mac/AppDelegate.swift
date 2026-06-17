@@ -237,11 +237,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                            keyEquivalent: "i")
         toggleInspector.keyEquivalentModifierMask = [.command, .control]
 
-        // Inspector tab shortcuts: ⌘1 Chart · ⌘2 Comments · ⌘3 Moves · ⌘4 Info.
-        // The item `tag` (0–3) is the tab index; `selectInspectorTab` routes to
-        // the split VC, which expands the Inspector pane first if collapsed.
-        // (A bare digit keyEquivalent defaults to the ⌘ modifier.)
-        for (index, title) in ["Chart", "Comments", "Moves", "Info"].enumerated() {
+        // Inspector tab shortcuts: ⌘1 Chart (chart + moves) · ⌘2 Comments ·
+        // ⌘3 Info. The item `tag` (0–2) is the tab index; `selectInspectorTab`
+        // routes to the split VC, which expands the Inspector pane first if
+        // collapsed. (A bare digit keyEquivalent defaults to the ⌘ modifier.)
+        for (index, title) in ["Chart", "Comments", "Info"].enumerated() {
             let item = menu.addItem(withTitle: title,
                                     action: #selector(MainWindowController.selectInspectorTab(_:)),
                                     keyEquivalent: "\(index + 1)")
