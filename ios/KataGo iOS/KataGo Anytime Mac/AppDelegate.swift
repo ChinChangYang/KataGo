@@ -215,6 +215,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lockEditing.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
 
+        // Board-move shortcuts mirroring LizzieYzy: `,` plays the engine's current
+        // best move (the top analysis candidate) and `P` passes. Both are BARE keys
+        // (no modifier), matching LizzieYzy; they route through the responder chain
+        // to `MainWindowController`, which plays them via the same human-move entry
+        // the board tap uses. `validateMenuItem` returns false for them while a text
+        // control is first responder so the key types instead of playing (the same
+        // reason bare ⏎/⌫ are NOT used as global equivalents — see the Edit menu).
+        let playBest = menu.addItem(withTitle: "Play Best Move",
+                                    action: #selector(MainWindowController.playBestMove(_:)),
+                                    keyEquivalent: ",")
+        playBest.keyEquivalentModifierMask = []
+        let pass = menu.addItem(withTitle: "Pass",
+                                action: #selector(MainWindowController.passMove(_:)),
+                                keyEquivalent: "p")
+        pass.keyEquivalentModifierMask = []
+        menu.addItem(.separator())
+
         // Exits an active branch (the implicit variation entered by playing an
         // off-mainline move). Sets `confirmingBranchDeactivation`, which the
         // window controller's confirmation observer turns into the Replace /
@@ -319,13 +336,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func analysisMenu() -> NSMenu {
         let menu = NSMenu(title: "Analysis")
 
-        // ⌘↩ cycles run → pause → clear (same 3-way machine as the toolbar
-        // Analyze button). Return is otherwise only handled contextually by the
-        // sidebar table, so ⌘↩ does not collide with a global menu equivalent.
+        // Space cycles run → pause → clear (same 3-way machine as the toolbar
+        // Analyze button), mirroring LizzieYzy's Space = toggle analysis. BARE key
+        // (no modifier); `MainWindowController.validateMenuItem` disables it while a
+        // text control is first responder so Space still types normally there (the
+        // same reason bare ⏎/⌫ are avoided as global equivalents — see the Edit menu).
         let toggle = menu.addItem(withTitle: "Toggle Analysis",
                                   action: #selector(MainWindowController.toggleAnalysis(_:)),
-                                  keyEquivalent: "\r")
-        toggle.keyEquivalentModifierMask = [.command]
+                                  keyEquivalent: " ")
+        toggle.keyEquivalentModifierMask = []
         menu.addItem(.separator())
 
         menu.addItem(withTitle: "Pause",

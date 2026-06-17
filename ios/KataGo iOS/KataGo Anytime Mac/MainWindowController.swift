@@ -138,6 +138,12 @@ final class MainWindowController: NSWindowController {
     /// preferences when `BoardView` first renders.
     private var preferenceSync: MacGlobalPreferenceSync?
 
+    /// Local key-down monitor backing the LizzieYzy board shortcuts (Space =
+    /// toggle analysis, `,` = play best move, `P` = pass). Installed in `init`,
+    /// removed in `windowWillClose`. See `installBoardShortcutMonitor()` for why a
+    /// monitor (not just the menu key equivalents) is needed.
+    private var boardShortcutMonitor: Any?
+
     /// Gates the board pane until the engine session has finished its initial
     /// handshake + board load (see `BoardReadiness`). Without this, the hosted
     /// `BoardView.onAppear` fires at `init` time — before the engine exists — and
@@ -248,6 +254,13 @@ final class MainWindowController: NSWindowController {
         // launches the engine immediately; for the banner outcome it defers the
         // launch until the user dismisses the NSAlert sheet (see `decideRecovery`).
         decideRecovery()
+
+        // Arm the LizzieYzy board shortcuts (Space / `,` / `P`). A local monitor —
+        // not just the Game/Analysis menu key equivalents — because a bare letter
+        // like `P` is otherwise swallowed by the sidebar `NSTableView`'s type-select
+        // (jumping to a game beginning with "P") before any menu equivalent fires,
+        // and clicking the board does not move first responder off that table.
+        installBoardShortcutMonitor()
 
         #if DEBUG
         scheduleSnapshotIfRequested()
@@ -1913,6 +1926,138 @@ final class MainWindowController: NSWindowController {
         session.gobanState.showPass.toggle()
     }
 
+    // MARK: - Board move shortcuts (LizzieYzy keys: `,` best move · `P` pass)
+    //
+    // Keyboard equivalents for two board actions, mirroring LizzieYzy: `,` plays
+    // the engine's current best move (the top analysis candidate) and `P` passes.
+    // Both route through `GobanState.sendCheckMoveCommand` — the SAME human-move
+    // entry the board tap uses (`MacBoardInteractionLayer.attemptPlay`) — so branch
+    // handling, the illegal-move alert, analysis re-arm, audio and SGF update all
+    // happen identically; they just supply the move string ("pass" or a vertex like
+    // "Q16") in place of a clicked vertex. Reached through the responder chain from
+    // the Game menu (`target = nil`); enable/text-input gating lives in
+    // `validateMenuItem`.
+
+    /// Game-menu "Play Best Move" (`,`): play the top analysis candidate for the
+    /// side to move. No-op when there is no live analysis (no best move yet).
+    @objc func playBestMove(_ sender: Any?) {
+        guard let move = session.analysis.getBestMove(
+            width: Int(session.board.width),
+            height: Int(session.board.height)
+        ) else { return }
+        attemptKeyboardPlay(move: move)
+    }
+
+    /// Game-menu "Pass" (`P`): play a pass for the side to move.
+    @objc func passMove(_ sender: Any?) {
+        attemptKeyboardPlay(move: "pass")
+    }
+
+    /// Shared guard + dispatch for the keyboard board actions. Replicates
+    /// `MacBoardInteractionLayer.attemptPlay`'s guards exactly (stones ready, not
+    /// auto-playing, no live pending move, a known side to move, and AI play not
+    /// armed for that side), clears a stale pending move first, then either confirms
+    /// an overwrite (edit/branch mid-line) via an NSAlert sheet — as the board tap's
+    /// `confirmingOverwrite` dialog does — or sends the move straight through.
+    private func attemptKeyboardPlay(move: String) {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        let gobanState = session.gobanState
+
+        guard session.stones.isReady,
+              !gobanState.isAutoPlaying,
+              gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale,
+              let turn = session.player.nextColorSymbolForPlayCommand,
+              !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
+        else { return }
+
+        if gobanState.isPendingMoveStale {
+            gobanState.clearPendingMove()
+        }
+
+        if gobanState.isOverwriting(gameRecord: gameRecord) {
+            presentKeyboardOverwriteAlert(turn: turn, move: move)
+        } else {
+            gobanState.sendCheckMoveCommand(turn: turn, move: move, messageList: session.messageList)
+        }
+    }
+
+    /// Overwrite confirmation for a keyboard-driven play, mirroring
+    /// `MacBoardInteractionLayer`'s "Are you sure you want to overwrite this move?"
+    /// dialog (and the AI-overwrite NSAlert pattern). Presented as a SHEET so it
+    /// never blocks the GTP run loop on this `@MainActor`; with no window we just
+    /// play (matching the board layer's no-window fallbacks).
+    private func presentKeyboardOverwriteAlert(turn: String, move: String) {
+        guard let window else {
+            session.gobanState.sendCheckMoveCommand(
+                turn: turn, move: move, messageList: session.messageList)
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Are you sure you want to overwrite this move?"
+        let overwrite = alert.addButton(withTitle: "Overwrite")
+        overwrite.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            self.session.gobanState.sendCheckMoveCommand(
+                turn: turn, move: move, messageList: self.session.messageList)
+        }
+    }
+
+    /// Installs the local key-down monitor that actually drives the bare-key board
+    /// shortcuts. The Game/Analysis menu items carry the matching key equivalents
+    /// (Space / `,` / `P`) for discoverability and mouse use, but a bare LETTER like
+    /// `P` never reaches a menu equivalent when the sidebar `NSTableView` is first
+    /// responder: the table's type-select consumes it first (it jumps to a game
+    /// starting with "P"), and clicking the board does NOT move first responder off
+    /// the table. A local monitor runs inside `-[NSApplication sendEvent:]` BEFORE
+    /// key-equivalent dispatch and the responder chain, so it wins that race — while
+    /// still deferring to text editing (so Space / `,` / `P` type normally in the
+    /// search field, the rename field, the Config editor, and the comment editor).
+    private func installBoardShortcutMonitor() {
+        boardShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            // Returning nil swallows the event (we handled it); returning the event
+            // lets normal dispatch (menus, responder chain, type-select) proceed.
+            return self.handleBoardShortcut(event) ? nil : event
+        }
+    }
+
+    /// Handles a key-down for the LizzieYzy board shortcuts. Returns true when the
+    /// event was one of them AND was actionable (so the caller swallows it). Bare
+    /// keys only (no ⌘/⌥/⌃), only for THIS window's events, never while a text
+    /// control is editing, and only with a selected game — otherwise it returns
+    /// false so the key keeps its normal meaning (typing, scrolling, type-select).
+    private func handleBoardShortcut(_ event: NSEvent) -> Bool {
+        guard event.window === window,
+              event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+              !isTextInputActive,
+              navigationContext.selectedGameRecord != nil,
+              let chars = event.charactersIgnoringModifiers, chars.count == 1
+        else { return false }
+
+        switch chars.lowercased() {
+        case " ":
+            toggleAnalysis(nil)
+            return true
+        case ",":
+            // Only swallow `,` when there is actually a best move to play, so the
+            // key falls through otherwise (mirrors the menu item's enable rule).
+            guard session.analysis.getBestMove(
+                width: Int(session.board.width),
+                height: Int(session.board.height)) != nil else { return false }
+            playBestMove(nil)
+            return true
+        case "p":
+            passMove(nil)
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Board/Book visibility (P6-T4)
     //
     // Port of the iOS `StatusToolbarItems.eyeAction()` (StatusToolbarItems.swift
@@ -2242,6 +2387,10 @@ extension MainWindowController: NSWindowDelegate {
     /// stops polling `KataGoHelper.getMessageLine()` after teardown.
     func windowWillClose(_ notification: Notification) {
         session.stopRequested = true
+        if let boardShortcutMonitor {
+            NSEvent.removeMonitor(boardShortcutMonitor)
+            self.boardShortcutMonitor = nil
+        }
     }
 
     // Persist the windowed-vs-full-screen choice so the next launch restores it
@@ -2281,6 +2430,18 @@ extension MainWindowController: NSMenuItemValidation {
     /// opens). Navigate items (Back/Forward/First/Last) use the same
     /// `canGoBackward` / `canGoForward` tests as the toolbar; Rename/Delete/Share
     /// require a selected game; everything else defaults to enabled.
+    /// True when the key window's first responder is a text input. On macOS,
+    /// AppKit and SwiftUI text editing both run through an `NSText`/`NSTextView`
+    /// field editor, so this catches the library search field, the rename field,
+    /// the Config editor, and the SwiftUI comment editor alike. The bare-key board
+    /// shortcuts (Space / `,` / `P`, mirroring LizzieYzy) return `false` from
+    /// `validateMenuItem` while this holds, so the keystroke falls through to the
+    /// focused text control rather than triggering the command — the same reasoning
+    /// that keeps bare ⏎/⌫ from being global menu equivalents.
+    private var isTextInputActive: Bool {
+        window?.firstResponder is NSText
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let gobanState = session.gobanState
         let hasGame = navigationContext.selectedGameRecord != nil
@@ -2309,10 +2470,23 @@ extension MainWindowController: NSMenuItemValidation {
         case #selector(toggleEyeStatus(_:)):
             return hasGame
 
+        // Game-menu board-move shortcuts: bare `,` / `P` (LizzieYzy). Disabled
+        // while a text control is editing so the key types instead of playing.
+        // "Play Best Move" additionally requires a live best move (analysis on).
+        case #selector(playBestMove(_:)):
+            let hasBestMove = session.analysis.getBestMove(
+                width: Int(session.board.width),
+                height: Int(session.board.height)) != nil
+            return hasGame && hasBestMove && !isTextInputActive
+        case #selector(passMove(_:)):
+            return hasGame && !isTextInputActive
+
         // Analysis menu: checkmark reflects the live status, enabled with a game.
+        // `toggleAnalysis` is bound to bare Space (LizzieYzy), so it is also
+        // disabled while a text control is editing — `false` lets Space type there.
         case #selector(toggleAnalysis(_:)):
             menuItem.state = gobanState.analysisStatus != .clear ? .on : .off
-            return hasGame
+            return hasGame && !isTextInputActive
         case #selector(pauseAnalysis(_:)):
             menuItem.state = gobanState.analysisStatus == .pause ? .on : .off
             return hasGame
