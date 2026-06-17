@@ -42,8 +42,8 @@ int MainCmds::tunehuman(const vector<string>& args) {
   int maxRounds = 24;
   int numGameThreadsArgVal = -1;
   string seedStr = "tunehuman";
-  int searchVisits = 100;
-  int maxVisitsCap = 400;
+  int searchVisits = -1;
+  int maxVisitsCap = -1;
   double piklFloor = 0.02;
   double piklMax = 1.0e4;
   double dtauMax = 0.6;
@@ -63,8 +63,8 @@ int MainCmds::tunehuman(const vector<string>& args) {
     TCLAP::ValueArg<int> maxRoundsArg("","max-rounds","Hard cap on rounds.",false,24,"N");
     TCLAP::ValueArg<int> numGameThreadsArg("","num-game-threads","Parallel games within a round.",false,-1,"N");
     TCLAP::ValueArg<string> seedArg("","seed","Master seed for reproducibility.",false,"tunehuman","SEED");
-    TCLAP::ValueArg<int> searchVisitsArg("","search-visits","Visits in the piklLambda segment (>=2).",false,100,"N");
-    TCLAP::ValueArg<int> maxVisitsCapArg("","max-visits-cap","Visits at the strong end.",false,400,"N");
+    TCLAP::ValueArg<int> searchVisitsArg("","search-visits","Visits in the piklLambda segment (>=2). -1 = auto (anchor to baseline maxVisits).",false,-1,"N");
+    TCLAP::ValueArg<int> maxVisitsCapArg("","max-visits-cap","Visits at the strong end. -1 = auto (anchor to baseline maxVisits).",false,-1,"N");
     TCLAP::ValueArg<double> piklFloorArg("","pikl-floor","Smallest piklLambda (strongest).",false,0.02,"F");
     TCLAP::ValueArg<double> piklMaxArg("","pikl-max","Largest active piklLambda.",false,1.0e4,"F");
     TCLAP::ValueArg<double> dtauMaxArg("","dtau-max","Max temperature offset at the weak end.",false,0.6,"F");
@@ -124,7 +124,8 @@ int MainCmds::tunehuman(const vector<string>& args) {
   if(gamesPerRound < 1) { cerr << "Error: -games-per-round must be >= 1." << endl; return 1; }
   if(xLo >= xHi) { cerr << "Error: -x-lo must be < -x-hi." << endl; return 1; }
   if(eloTol <= 0.0) { cerr << "Error: -elo-tol must be > 0." << endl; return 1; }
-  if(searchVisits < 2) { cerr << "Error: -search-visits must be >= 2 (piklLambda needs >1 visit)." << endl; return 1; }
+  if(searchVisits != -1 && searchVisits < 2) { cerr << "Error: -search-visits must be >= 2 (piklLambda needs >1 visit), or -1 for auto." << endl; return 1; }
+  if(maxVisitsCap != -1 && maxVisitsCap < 1) { cerr << "Error: -max-visits-cap must be >= 1, or -1 for auto." << endl; return 1; }
   if(maxRounds < 1) { cerr << "Error: -max-rounds must be >= 1." << endl; return 1; }
   if(maxRounds < 4)
     cout << "WARNING: -max-rounds " << maxRounds << " < 4: calibration needs at least 4 rounds to"
@@ -147,8 +148,8 @@ int MainCmds::tunehuman(const vector<string>& args) {
   cout << "  max-rounds      = " << maxRounds << endl;
   cout << "  num-game-threads= " << numGameThreads << endl;
   cout << "  seed            = " << seedStr << endl;
-  cout << "  search-visits   = " << searchVisits << endl;
-  cout << "  max-visits-cap  = " << maxVisitsCap << endl;
+  cout << "  search-visits   = " << (searchVisits < 0 ? string("auto") : Global::intToString(searchVisits)) << endl;
+  cout << "  max-visits-cap  = " << (maxVisitsCap < 0 ? string("auto") : Global::intToString(maxVisitsCap)) << endl;
   cout << "  pikl-floor      = " << piklFloor << endl;
   cout << "  pikl-max        = " << piklMax << endl;
   cout << "  dtau-max        = " << dtauMax << endl;
@@ -161,6 +162,46 @@ int MainCmds::tunehuman(const vector<string>& args) {
   const bool hasHumanModel = true;
   SearchParams baselineParams = Setup::loadSingleParams(baselineCfg, Setup::SETUP_FOR_GTP, hasHumanModel);
   string baselineText = baselineCfg.getContents();
+
+  // ---- resolve the candidate visit budget, anchored to the baseline's own maxVisits ----
+  // Honors "don't spend more compute than the baseline unless explicitly asked": with both
+  // -search-visits and -max-visits-cap on auto (-1), the budget collapses onto baselineParams.maxVisits,
+  // so the dial's visits never exceed the baseline. Visits rise above baseline only on explicit opt-in.
+  VisitBudget vb = resolveVisitBudget(baselineParams.maxVisits, searchVisits, maxVisitsCap);
+  string baselineDesc = vb.baselineHasCap ? Global::int64ToString(baselineParams.maxVisits) : string("uncapped");
+  logger.write(
+    "Resolved visit budget: mid(segment-B)=" + Global::intToString(vb.midVisits) +
+    " cap(segment-C)=" + Global::intToString(vb.maxVisitsCap) +
+    " (baseline maxVisits=" + baselineDesc + ")");
+  if(!vb.baselineHasCap)
+    logger.write("INFO: baseline config has no maxVisits cap (search bounded by time/playouts); "
+                 "anchoring tuner visit budget to mid=" + Global::intToString(vb.midVisits) +
+                 " cap=" + Global::intToString(vb.maxVisitsCap) + "." +
+                 ((searchVisits == -1 || maxVisitsCap == -1)
+                    ? string(" Pass -search-visits/-max-visits-cap to override.") : string("")));
+  if(maxVisitsCap != -1 && maxVisitsCap < vb.midVisits)
+    logger.write("WARNING: -max-visits-cap " + Global::intToString(maxVisitsCap) +
+                 " < resolved search-visits " + Global::intToString(vb.midVisits) +
+                 "; raised cap to " + Global::intToString(vb.midVisits) +
+                 " to keep strength monotone in segment C.");
+  if(vb.flooredFromBelow2)
+    logger.write("NOTE: resolved segment-B visits were below 2 (piklLambda needs >=2 visits to act); "
+                 "running segment B at the 2-visit minimum (baseline maxVisits=" + baselineDesc +
+                 ", -search-visits=" + (searchVisits < 0 ? string("auto") : Global::intToString(searchVisits)) + ").");
+  // Loud over-baseline warning: fire whenever the OPERATOR explicitly set a lever above the anchor the
+  // budget is judged against (effectiveBaseline). This is independent of the mandatory sub-2 mid floor
+  // (so an explicit big -max-visits-cap still warns even when -search-visits was floored), and covers
+  // both finite-cap baselines and uncapped baselines (where the anchor is the legacy 100).
+  bool userMidRaise = (searchVisits != -1) && (vb.midVisits > vb.effectiveBaseline);
+  bool userCapRaise = (maxVisitsCap != -1) && (vb.maxVisitsCap > vb.effectiveBaseline);
+  if(userMidRaise || userCapRaise)
+    logger.write("WARNING: you explicitly set a visit budget (mid=" + Global::intToString(vb.midVisits) +
+                 ", cap=" + Global::intToString(vb.maxVisitsCap) + ") above the " +
+                 (vb.baselineHasCap
+                    ? ("baseline maxVisits=" + baselineDesc)
+                    : ("legacy anchor of " + Global::intToString(vb.effectiveBaseline) + " (baseline is uncapped)")) +
+                 ". A weaker target may then cost MORE compute than the baseline, and a large visit count "
+                 "significantly increases time per move. Omit -search-visits/-max-visits-cap to anchor to the baseline.");
 
   SearchParams candidateBaseParams = baselineParams;
   try {
@@ -214,9 +255,25 @@ int MainCmds::tunehuman(const vector<string>& args) {
   StrengthDialConfig dialConfig;
   dialConfig.piklFloor = piklFloor;
   dialConfig.piklMax = piklMax;
-  dialConfig.searchVisits = searchVisits;
-  dialConfig.maxVisitsCap = maxVisitsCap;
+  dialConfig.searchVisits = vb.midVisits;
+  dialConfig.maxVisitsCap = vb.maxVisitsCap;
   dialConfig.dtauMax = dtauMax;
+
+  // When segment C is flat (cap == mid, the auto outcome), the strong third of the dial [2,3] collapses
+  // to a single indistinguishable point. effectiveXHi restricts calibration to [xLo, 2.0] so we neither
+  // waste rounds on that plateau nor let an unreachable-strong target settle mid-plateau and dodge the
+  // boundary warning.
+  double effXHi = effectiveXHi(vb, xLo, xHi);
+  if(effXHi < xHi)
+    logger.write("INFO: strong-end visit budget equals mid (segment C is flat at " +
+                 Global::intToString(vb.midVisits) + " visits); restricting calibration to x in [" +
+                 Global::doubleToString(xLo) + ", 2.0]. Raise -max-visits-cap above the baseline to "
+                 "calibrate stronger play.");
+  if(vb.maxVisitsCap == vb.midVisits && xLo >= 2.0)
+    logger.write("WARNING: segment C is flat (cap == mid) and -x-lo " + Global::doubleToString(xLo) +
+                 " >= 2.0, so the entire calibration range lies on the flat strong plateau; every dial maps "
+                 "to identical play and calibration cannot discriminate strength. Raise -max-visits-cap above "
+                 "the baseline, or lower -x-lo below 2.0.");
 
   const double TEMP_CAP = 1.0;
   auto clipTemp = [TEMP_CAP](double v) { return v < 0.0 ? 0.0 : (v > TEMP_CAP ? TEMP_CAP : v); };
@@ -316,7 +373,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   // ---- run calibration ----
   uint64_t rngSeed = (uint64_t)std::hash<std::string>()(seedStr);
   CalibrationResult result = calibrateToTarget(
-    playAt, xLo, xHi, targetWinrate, gamesPerRound, maxRounds, eloTol, rngSeed, 0.5, onRound);
+    playAt, xLo, effXHi, targetWinrate, gamesPerRound, maxRounds, eloTol, rngSeed, 0.5, onRound);
 
   // ---- compute final dials + fitted ELO ----
   StrengthDialParams finalDials = strengthDialToParams(result.xStar, dialConfig);
@@ -324,7 +381,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   double tempEarly = clipTemp(baselineParams.chosenMoveTemperatureEarly + finalDials.deltaTau);
   double fittedWinrate = result.model.predict(result.xStar);
   double fittedElo = 400.0 * std::log10(fittedWinrate / (1.0 - fittedWinrate));
-  bool reachedBoundary = (result.xStar <= xLo + 1e-6) || (result.xStar >= xHi - 1e-6);
+  bool reachedBoundary = (result.xStar <= xLo + 1e-6) || (result.xStar >= effXHi - 1e-6);
 
   // ---- build header + overridden config text ----
   std::ostringstream hdr;

@@ -55,6 +55,32 @@ struct StrengthDialConfig {
   static constexpr double PIKL_INERT = 1.0e9; // KataGo default; "off"
 };
 
+// Resolved per-run visit budget, anchored to the baseline config's own maxVisits so the
+// candidate never spends MORE compute than the baseline unless the operator explicitly opts in.
+struct VisitBudget {
+  int  midVisits;            // -> StrengthDialConfig.searchVisits (segment B depth / segment-C low anchor)
+  int  maxVisitsCap;         // -> StrengthDialConfig.maxVisitsCap (segment C strong end); always >= midVisits
+  bool raisesAboveBaseline;  // true iff baseline has a finite cap and (midVisits > B || maxVisitsCap > B)
+  bool flooredFromBelow2;    // true iff a sub-2 mid (incl. a B<2 auto baseline) was bumped up to 2
+  int  effectiveBaseline;    // the anchor: baseline cap (clamped to 1e6) when finite, else the legacy 100;
+                             // this is the value an explicit -search-visits/-max-visits-cap is judged against
+  bool baselineHasCap;       // false when the baseline omits maxVisits (search bounded by time/playouts)
+};
+
+// Pure, NN-free. baselineMaxVisits is SearchParams.maxVisits (int64_t; the ctor default 1<<50 means
+// "no real cap" -- search is bounded by time/playouts instead). userSearchVisits / userMaxVisitsCap
+// use -1 as the "auto" sentinel (anchor to the baseline); any other value is the explicit operator
+// override. midVisits is floored to 2 (piklLambda is inert below 2 visits) and maxVisitsCap is clamped
+// up to midVisits (so segment C's log2 interpolation never runs downward). A finite-but-absurd baseline
+// (> 1e6 yet < 1<<50) is clamped to 1e6 so the int dial fields cannot overflow.
+VisitBudget resolveVisitBudget(int64_t baselineMaxVisits, int userSearchVisits, int userMaxVisitsCap);
+
+// Returns the strength-coordinate upper bound to actually calibrate over. When segment C is flat
+// (maxVisitsCap == midVisits, the auto outcome), the strong third [2,3] collapses to a single point,
+// so calibrating there is meaningless: shrink to 2.0 (only when the original range straddles it,
+// i.e. xHi > 2.0 && xLo < 2.0). Otherwise returns xHi unchanged. Pure, NN-free.
+double effectiveXHi(const VisitBudget& vb, double xLo, double xHi);
+
 // Maps a scalar strength coordinate x in [0,3] (low=weak, high=strong) to the three dials,
 // globally monotone in strength. Clamps x to [0,3].
 StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c);

@@ -107,6 +107,38 @@ int LogisticRS::distinctXCount(double eps) const {
   return count;
 }
 
+VisitBudget resolveVisitBudget(int64_t baselineMaxVisits, int userSearchVisits, int userMaxVisitsCap) {
+  const int64_t NO_REAL_CAP   = (int64_t)1 << 50; // == SearchParams ctor default (search bounded elsewhere)
+  const int     LEGACY_ANCHOR = 100;              // fallback anchor when the baseline has no finite cap
+  const int     ABS_MAX       = 1000000;          // hard ceiling so a finite-but-huge int64 baseline can't overflow int
+
+  bool baselineHasCap = (baselineMaxVisits > 0 && baselineMaxVisits < NO_REAL_CAP);
+  int  anchor = baselineHasCap
+                  ? (int)std::min<int64_t>(baselineMaxVisits, (int64_t)ABS_MAX)
+                  : LEGACY_ANCHOR;
+
+  // Segment B depth: piklLambda is inert below 2 visits, so floor at 2.
+  int  rawMid = (userSearchVisits == -1) ? anchor : userSearchVisits;
+  int  midVisits = std::max(2, rawMid);
+  bool flooredFromBelow2 = (rawMid < 2);
+
+  // Segment C strong end: auto climbs back to the baseline anchor (never above it); explicit is honored
+  // but never below mid, so the segment-C log2 interpolation never runs downward.
+  int  rawCap = (userMaxVisitsCap == -1) ? std::max(midVisits, anchor) : userMaxVisitsCap;
+  int  maxVisitsCap = std::max(midVisits, rawCap);
+
+  bool raisesAboveBaseline = baselineHasCap &&
+      ((int64_t)midVisits > baselineMaxVisits || (int64_t)maxVisitsCap > baselineMaxVisits);
+
+  return VisitBudget{midVisits, maxVisitsCap, raisesAboveBaseline, flooredFromBelow2, anchor, baselineHasCap};
+}
+
+double effectiveXHi(const VisitBudget& vb, double xLo, double xHi) {
+  if(vb.maxVisitsCap == vb.midVisits && xHi > 2.0 && xLo < 2.0)
+    return 2.0;
+  return xHi;
+}
+
 StrengthDialParams strengthDialToParams(double x, const StrengthDialConfig& c) {
   x = clipd(x, 0.0, 3.0);
   StrengthDialParams out;

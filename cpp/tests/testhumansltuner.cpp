@@ -205,5 +205,190 @@ void Tests::runHumanSLTunerTests() {
     }
   }
 
+  // Test 10: resolveVisitBudget auto+auto anchors mid==cap==baseline and never raises (B in {2,12,400}).
+  // This is the headline requirement: with both knobs auto, the candidate's visit budget collapses
+  // onto the baseline, so segment C is flat and visits can never exceed the baseline.
+  {
+    int Bs[] = {2, 12, 400};
+    for(int B : Bs) {
+      VisitBudget vb = resolveVisitBudget((int64_t)B, -1, -1);
+      testAssert(vb.midVisits == B);
+      testAssert(vb.maxVisitsCap == B);
+      testAssert(vb.raisesAboveBaseline == false);
+      testAssert(vb.flooredFromBelow2 == false);
+      testAssert(vb.midVisits >= 2);
+      testAssert(vb.maxVisitsCap >= vb.midVisits);
+    }
+  }
+
+  // Test 11: explicit -max-visits-cap above baseline is honored and flags raisesAboveBaseline
+  // (the only intended way visits exceed the baseline -- so the CLI can warn).
+  {
+    VisitBudget vb = resolveVisitBudget((int64_t)12, -1, 400);
+    testAssert(vb.midVisits == 12);
+    testAssert(vb.maxVisitsCap == 400);
+    testAssert(vb.raisesAboveBaseline == true);
+    testAssert(vb.maxVisitsCap >= vb.midVisits);
+  }
+
+  // Test 12: explicit -max-visits-cap below baseline is clamped UP to mid (segment C never drops below
+  // segment B, else the log2 interpolation would run downward and break monotonicity); no raise.
+  {
+    VisitBudget vb = resolveVisitBudget((int64_t)12, -1, 5);
+    testAssert(vb.midVisits == 12);
+    testAssert(vb.maxVisitsCap == 12);
+    testAssert(vb.maxVisitsCap >= vb.midVisits);
+    testAssert(vb.raisesAboveBaseline == false);
+  }
+
+  // Test 13: explicit -search-visits below 2 is floored to 2 (piklLambda needs >1 visit), cap auto-anchors.
+  {
+    VisitBudget vb = resolveVisitBudget((int64_t)12, 1, -1);
+    testAssert(vb.midVisits == 2);
+    testAssert(vb.maxVisitsCap == 12);
+    testAssert(vb.flooredFromBelow2 == true);
+    testAssert(vb.raisesAboveBaseline == false);
+    VisitBudget vb0 = resolveVisitBudget((int64_t)12, 0, -1);
+    testAssert(vb0.midVisits == 2);
+    testAssert(vb0.maxVisitsCap == 12);
+    testAssert(vb0.flooredFromBelow2 == true);
+    testAssert(vb0.raisesAboveBaseline == false);
+  }
+
+  // Test 14: baseline maxVisits==1 edge. piklLambda is inert at 1 visit, so segment B must run at 2;
+  // that unavoidably raises above the degenerate 1-visit baseline, and the helper must report it (the
+  // CLI then emits the *soft* floor warning, gated on flooredFromBelow2, not the loud over-baseline one).
+  // The adjacent non-degenerate baseline B==2 must NOT raise.
+  {
+    VisitBudget vb = resolveVisitBudget((int64_t)1, -1, -1);
+    testAssert(vb.midVisits == 2);
+    testAssert(vb.maxVisitsCap == 2);
+    testAssert(vb.raisesAboveBaseline == true);
+    testAssert(vb.flooredFromBelow2 == true);
+    VisitBudget vb2 = resolveVisitBudget((int64_t)2, -1, -1);
+    testAssert(vb2.midVisits == 2);
+    testAssert(vb2.maxVisitsCap == 2);
+    testAssert(vb2.raisesAboveBaseline == false);
+    testAssert(vb2.flooredFromBelow2 == false);
+  }
+
+  // Test 15: no-cap sentinel. A baseline that omits maxVisits gets SearchParams' ctor default 1<<50;
+  // the helper must treat that as "no real cap" and anchor to the legacy 100, NEVER to 2^50 (which an
+  // int signature would have truncated/exploded). B==0 is likewise treated as no-cap.
+  {
+    VisitBudget vb = resolveVisitBudget(((int64_t)1) << 50, -1, -1);
+    testAssert(vb.midVisits == 100);
+    testAssert(vb.maxVisitsCap == 100);
+    testAssert(vb.raisesAboveBaseline == false);
+    testAssert(vb.baselineHasCap == false);
+    testAssert(vb.effectiveBaseline == 100);
+    VisitBudget vb0 = resolveVisitBudget((int64_t)0, -1, -1);
+    testAssert(vb0.midVisits == 100);
+    testAssert(vb0.maxVisitsCap == 100);
+    testAssert(vb0.raisesAboveBaseline == false);
+    testAssert(vb0.baselineHasCap == false);
+
+    // Finite-but-absurd baseline in (1e6, 1<<50): the int64->int anchor clamp must hold at 1e6, NOT
+    // truncate. Without the ABS_MAX clamp, (int)(1<<40) == 0 and midVisits would collapse to 2.
+    VisitBudget vbBig = resolveVisitBudget(((int64_t)1) << 40, -1, -1);
+    testAssert(vbBig.midVisits == 1000000);
+    testAssert(vbBig.maxVisitsCap == 1000000);
+    testAssert(vbBig.effectiveBaseline == 1000000);
+    testAssert(vbBig.raisesAboveBaseline == false);
+    VisitBudget vbCtl = resolveVisitBudget((int64_t)5000000, -1, -1); // just inside the clamp window
+    testAssert(vbCtl.midVisits == 1000000);
+    testAssert(vbCtl.maxVisitsCap == 1000000);
+
+    // No-cap baseline + explicit override: raisesAboveBaseline must stay false (no finite baseline to
+    // exceed), guarding the baselineHasCap gate; the explicit cap is still honored.
+    VisitBudget vbNoCapExplicit = resolveVisitBudget(((int64_t)1) << 50, -1, 9999);
+    testAssert(vbNoCapExplicit.midVisits == 100);
+    testAssert(vbNoCapExplicit.maxVisitsCap == 9999);
+    testAssert(vbNoCapExplicit.raisesAboveBaseline == false);
+    testAssert(vbNoCapExplicit.baselineHasCap == false);
+    testAssert(vbNoCapExplicit.effectiveBaseline == 100);
+  }
+
+  // Test 16: dial invariant under auto -- a StrengthDialConfig built from resolveVisitBudget keeps
+  // strengthDialToParams' maxVisits <= baseline for ALL x (B>=2), and segment C is flat at B on [2,3].
+  // This binds the "visits never increase under auto" requirement to the actual dial output.
+  {
+    int Bs[] = {2, 12, 400};
+    for(int B : Bs) {
+      VisitBudget vb = resolveVisitBudget((int64_t)B, -1, -1);
+      testAssert(vb.raisesAboveBaseline == false);
+      StrengthDialConfig c; // defaults for pikl*/dtau
+      c.searchVisits = vb.midVisits;
+      c.maxVisitsCap = vb.maxVisitsCap;
+      for(int i = 0; i <= 300; i++) {
+        double x = i * 0.01; // 0.00 .. 3.00
+        StrengthDialParams p = strengthDialToParams(x, c);
+        testAssert(p.maxVisits <= B);
+        testAssert(p.maxVisits >= 1);
+        testAssert(p.maxVisits <= c.maxVisitsCap);
+        if(x >= 2.0)
+          testAssert(p.maxVisits == B); // segment C flat at baseline
+      }
+    }
+  }
+
+  // Test 17: positive control -- when the user explicitly raises the cap, segment C DOES climb above
+  // baseline, confirming Test 16's invariant is gated on auto and not vacuously true.
+  {
+    int B = 12;
+    VisitBudget vb = resolveVisitBudget((int64_t)B, -1, 400);
+    testAssert(vb.raisesAboveBaseline == true);
+    StrengthDialConfig c;
+    c.searchVisits = vb.midVisits;
+    c.maxVisitsCap = vb.maxVisitsCap;
+    StrengthDialParams strong = strengthDialToParams(3.0, c);
+    StrengthDialParams mid = strengthDialToParams(1.5, c);
+    StrengthDialParams weak = strengthDialToParams(0.0, c);
+    testAssert(strong.maxVisits == 400);
+    testAssert(strong.maxVisits > B);
+    testAssert(mid.maxVisits == 12);
+    testAssert(weak.maxVisits == 1);
+  }
+
+  // Test 18: explicit -search-visits >= 2 passes through unchanged (SC-3), and an explicit mid above a
+  // finite baseline raises via the mid lever with flooredFromBelow2==false (SC-5) -- the exact precondition
+  // for the loud over-baseline warning to fire through the mid lever (no current test reached this).
+  {
+    VisitBudget pass = resolveVisitBudget((int64_t)400, 50, -1);
+    testAssert(pass.midVisits == 50);          // explicit mid honored, not anchored to 400
+    testAssert(pass.flooredFromBelow2 == false);
+    testAssert(pass.maxVisitsCap == 400);      // auto cap anchors to baseline >= mid
+    testAssert(pass.raisesAboveBaseline == false); // 50 < 400, 400 == 400
+
+    VisitBudget midRaise = resolveVisitBudget((int64_t)12, 50, -1);
+    testAssert(midRaise.midVisits == 50);
+    testAssert(midRaise.maxVisitsCap == 50);   // cap auto = max(mid=50, anchor=12) = 50
+    testAssert(midRaise.flooredFromBelow2 == false);
+    testAssert(midRaise.raisesAboveBaseline == true); // mid 50 > baseline 12
+    testAssert(midRaise.effectiveBaseline == 12);
+
+    // The MF-1 scenario: a floored mid (-search-visits 1 -> 2) AND an explicit cap far above baseline.
+    // flooredFromBelow2 must NOT suppress the cap-driven over-baseline signal: the CLI's loud warning
+    // gates on (maxVisitsCap != -1 && maxVisitsCap > effectiveBaseline), which is true here.
+    VisitBudget capRaiseFloored = resolveVisitBudget((int64_t)12, 1, 400);
+    testAssert(capRaiseFloored.midVisits == 2);
+    testAssert(capRaiseFloored.maxVisitsCap == 400);
+    testAssert(capRaiseFloored.flooredFromBelow2 == true);
+    testAssert(capRaiseFloored.raisesAboveBaseline == true);
+    testAssert(capRaiseFloored.effectiveBaseline == 12);
+    testAssert(capRaiseFloored.maxVisitsCap > capRaiseFloored.effectiveBaseline); // -> loud warning fires
+  }
+
+  // Test 19: effectiveXHi shrinks the calibration range to 2.0 only when segment C is flat (cap==mid,
+  // the auto outcome) AND the range straddles x=2; otherwise it returns xHi unchanged.
+  {
+    VisitBudget flat = resolveVisitBudget((int64_t)12, -1, -1);   // cap==mid==12 -> flat segment C
+    testAssert(effectiveXHi(flat, 0.0, 3.0) == 2.0);             // auto/flat, straddles 2 -> shrink
+    testAssert(effectiveXHi(flat, 0.0, 1.5) == 1.5);             // xHi already <= 2 -> no shrink
+    testAssert(effectiveXHi(flat, 2.5, 3.0) == 3.0);             // xLo >= 2 (all-in-plateau) -> not shrunk here
+    VisitBudget raised = resolveVisitBudget((int64_t)12, -1, 400); // cap 400 != mid 12 -> non-flat
+    testAssert(effectiveXHi(raised, 0.0, 3.0) == 3.0);           // real visit gradient -> keep full range
+  }
+
   cout << "Done human SL tuner tests" << endl;
 }
