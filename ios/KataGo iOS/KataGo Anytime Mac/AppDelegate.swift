@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
+        wc.restoreWindowStateOnLaunch()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }

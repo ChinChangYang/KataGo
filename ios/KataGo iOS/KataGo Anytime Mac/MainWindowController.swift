@@ -185,6 +185,12 @@ final class MainWindowController: NSWindowController {
         w.toolbar = toolbar
 
         w.center()
+        // Remember the windowed size/position across launches. If a frame was
+        // saved under this name, this applies it (overriding the center() above);
+        // on the first-ever launch there's none, so the centered 1100×720 stands.
+        // The full-screen state is remembered separately (see
+        // `restoreWindowStateOnLaunch` + the full-screen delegate callbacks).
+        w.setFrameAutosaveName("KataGoAnytimeMainWindow")
 
         // Install before the engine starts so the first `true -> false`
         // `waitingForAnalysis` transition isn't missed. That first analyze is
@@ -252,6 +258,29 @@ final class MainWindowController: NSWindowController {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// UserDefaults key persisting whether the main window was full-screen at last
+    /// use, so launch restores the user's last windowed-vs-full-screen choice (the
+    /// windowed frame itself is remembered separately via the window's
+    /// frame-autosave name, set in `init`).
+    private static let wasFullScreenKey = "MainWindow.wasFullScreen"
+
+    /// Restores the user's last windowed-vs-full-screen choice on launch. If the
+    /// window was full-screen when last used, re-enter full screen on top of the
+    /// restored windowed frame; otherwise leave it windowed. Deferred to the next
+    /// run-loop turn so the window is fully on-screen first, and guarded so it
+    /// never toggles redundantly. The window already advertises full-screen
+    /// support (the View ▸ Enter Full Screen menu item works), so no
+    /// `collectionBehavior` change is needed.
+    func restoreWindowStateOnLaunch() {
+        guard UserDefaults.standard.bool(forKey: Self.wasFullScreenKey) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window else { return }
+            if !window.styleMask.contains(.fullScreen) {
+                window.toggleFullScreen(nil)
+            }
+        }
+    }
 
     // MARK: - Move navigation
     //
@@ -2213,6 +2242,18 @@ extension MainWindowController: NSWindowDelegate {
     /// stops polling `KataGoHelper.getMessageLine()` after teardown.
     func windowWillClose(_ notification: Notification) {
         session.stopRequested = true
+    }
+
+    // Persist the windowed-vs-full-screen choice so the next launch restores it
+    // (read back in `restoreWindowStateOnLaunch`). These fire on every transition,
+    // so the saved flag matches the state the window is left in at quit — including
+    // quitting straight from full screen (no exit transition occurs, flag stays true).
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        UserDefaults.standard.set(true, forKey: Self.wasFullScreenKey)
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        UserDefaults.standard.set(false, forKey: Self.wasFullScreenKey)
     }
 }
 

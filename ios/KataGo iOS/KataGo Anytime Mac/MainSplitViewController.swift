@@ -78,6 +78,12 @@ final class MainSplitViewController: NSSplitViewController {
         let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(
             NSLayoutConstraint.Priority.defaultLow.rawValue - 1)
+        // The board is the non-collapsible content pane; without a floor it can be
+        // squeezed to ~0 width at a narrow window (the sidebar's 180 + the
+        // inspector's 220 minimums otherwise eat all the space). A minimum keeps
+        // the board (and its win-rate bar) usable, and makes AppKit collapse the
+        // sidebar/inspector first — and bound the window's own minimum width.
+        boardItem.minimumThickness = 480
 
         // Inspector — collapsible trailing pane (macOS 14+ has a dedicated API).
         // Tabbed Chart/Comments/Moves/Info inspector (Phase 4); routes through the
