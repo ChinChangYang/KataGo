@@ -11,13 +11,14 @@
 //      downloading, and a trash button for a downloaded non-built-in model).
 //      Mirrors the iOS `ModelDetailView` tri-state + `ModelTrashButton`.
 //
-//    • `ModelBackendPaneView` — the per-model backend-config detail pane,
-//      built from `ConfigFormBuilder` rows backed by `BackendSettings`. FULL
-//      parity with the iOS `BackendConfigSheet` (backend, max board size,
-//      autotuning, re-tune), using the SAME per-model UserDefaults keys. Each
-//      change persists immediately via the `BackendSettings` setters; the pane
-//      shows a "Changes apply when this model is next loaded." note rather than
-//      forcing a relaunch on every tweak (see the type doc).
+//    • `ModelBackendPaneView` — the per-model engine-config detail pane,
+//      built from `ConfigFormBuilder` rows backed by `BackendSettings`. macOS
+//      runs a fixed 1 GPU + 2 ANE mux (no backend picker), so the pane exposes
+//      only the MLX/GPU-side controls (max board size + autotuning + re-tune),
+//      using the SAME per-model UserDefaults keys as iOS. Each change persists
+//      immediately via the `BackendSettings` setters; the pane shows a
+//      "Changes apply when this model is next loaded." note rather than forcing
+//      a relaunch on every tweak (see the type doc).
 //
 
 import AppKit
@@ -270,24 +271,22 @@ final class ModelRowView: NSTableCellView {
 /// model is loaded (the engine reads `BackendSettings` at launch in
 /// `MainWindowController.startEngineAndSession`). The pane shows a
 /// "Changes apply when this model is next loaded." note rather than forcing a
-/// relaunch on every backend tweak — matching the iOS sheet, which also only
-/// persists and relies on the next load. (Selecting the model as Active from the
-/// table is the explicit relaunch path.)
+/// relaunch on every tweak. (Selecting the model as Active from the table is the
+/// explicit relaunch path.)
 ///
-/// The pane rebuilds itself (via the owner's `onBackendChanged`) when the backend
-/// popup flips, so the right board-size control (MLX max board size vs CoreML
-/// compiled board size) is shown.
+/// macOS has no backend picker: the engine always runs the fixed 1 GPU + 2 ANE
+/// mux (`MainWindowController.engineDeviceAssignments`). The pane therefore shows
+/// only the MLX/GPU-side controls (max board size + Winograd autotuning), which
+/// govern the engine-wide NN buffer geometry and the GPU server thread.
 @MainActor
 final class ModelBackendPaneView: NSView {
 
     private let model: NeuralNetworkModel
     private var settings: BackendSettings
-    private let onBackendChanged: () -> Void
 
-    init(model: NeuralNetworkModel, onBackendChanged: @escaping () -> Void) {
+    init(model: NeuralNetworkModel) {
         self.model = model
         self.settings = BackendSettings(model: model)
-        self.onBackendChanged = onBackendChanged
         super.init(frame: .zero)
         build()
     }
@@ -308,77 +307,53 @@ final class ModelBackendPaneView: NSView {
         header.lineBreakMode = .byTruncatingTail
         stack.addArrangedSubview(header)
 
-        // Backend.
-        stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Backend"))
-        let backendOptions = BackendChoice.allCases.map { $0.rawValue }
-        let backendIndex = BackendChoice.allCases.firstIndex(of: settings.backend) ?? 0
-        let backendRow = ConfigFormBuilder.popupRow(
-            title: "Backend",
-            options: backendOptions,
-            selectedIndex: backendIndex
-        ) { [weak self] index in
-            guard let self, BackendChoice.allCases.indices.contains(index) else { return }
-            self.settings.backend = BackendChoice.allCases[index]
-            // Swap the board-size control to match the new backend.
-            self.onBackendChanged()
-        }
-        stack.addArrangedSubview(backendRow)
+        // Engine summary: macOS always runs the fixed 1 GPU + 2 ANE mux, so
+        // there is no backend picker. The controls below tune the MLX/GPU side
+        // of that mux (board geometry + Winograd autotuning).
+        stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Engine"))
+        stack.addArrangedSubview(note(
+            "Runs a fixed mux of 1 GPU + 2 Neural Engine threads for best throughput."))
 
-        // Board size — MLX max board size or CoreML compiled board size,
-        // depending on the current backend.
+        // Max board size — drives the engine-wide NN buffer geometry (both the
+        // GPU and ANE server threads convert/allocate to this size) and the size
+        // the Winograd tuner optimizes for.
         let sizeOptions = BoardSizeChoice.allCases.map { $0.label }
-        if settings.backend == .mlxGPU {
-            stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Max Board Size"))
-            let index = BoardSizeChoice.allCases.firstIndex(of: settings.mlxBoardSize) ?? 0
-            let row = ConfigFormBuilder.popupRow(
-                title: "Board Size",
-                options: sizeOptions,
-                selectedIndex: index
-            ) { [weak self] idx in
-                guard let self, BoardSizeChoice.allCases.indices.contains(idx) else { return }
-                self.settings.mlxBoardSize = BoardSizeChoice.allCases[idx]
-            }
-            stack.addArrangedSubview(row)
-            stack.addArrangedSubview(note(
-                "Largest board MLX/GPU can play and the size the tuner optimizes for."))
-
-            // Autotuning (MLX-only).
-            stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Performance Tuning"))
-            let autotuneRow = ConfigFormBuilder.popupRow(
-                title: "Autotuning",
-                options: ["Fast", "Full"],
-                selectedIndex: settings.tunerFull ? 1 : 0
-            ) { [weak self] idx in
-                self?.settings.tunerFull = (idx == 1)
-            }
-            stack.addArrangedSubview(autotuneRow)
-
-            let reTuneRow = ConfigFormBuilder.checkboxRow(
-                title: "Re-tune on next load",
-                isOn: settings.reTune
-            ) { [weak self] isOn in
-                self?.settings.reTune = isOn
-            }
-            stack.addArrangedSubview(reTuneRow)
-            stack.addArrangedSubview(note(
-                "Fast tunes a coarse grid in seconds; Full is more thorough but much "
-                + "slower on device. Re-tune discards the cached tuning once, the next "
-                + "time this model loads."))
-        } else {
-            stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Compiled Board Size"))
-            let index = BoardSizeChoice.allCases.firstIndex(of: settings.coremlBoardSize) ?? 0
-            let row = ConfigFormBuilder.popupRow(
-                title: "Board Size",
-                options: sizeOptions,
-                selectedIndex: index
-            ) { [weak self] idx in
-                guard let self, BoardSizeChoice.allCases.indices.contains(idx) else { return }
-                self.settings.coremlBoardSize = BoardSizeChoice.allCases[idx]
-            }
-            stack.addArrangedSubview(row)
-            stack.addArrangedSubview(note(
-                "Power-efficient. The first launch for a board size takes time to compile."))
+        stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Max Board Size"))
+        let sizeIndex = BoardSizeChoice.allCases.firstIndex(of: settings.mlxBoardSize) ?? 0
+        let sizeRow = ConfigFormBuilder.popupRow(
+            title: "Board Size",
+            options: sizeOptions,
+            selectedIndex: sizeIndex
+        ) { [weak self] idx in
+            guard let self, BoardSizeChoice.allCases.indices.contains(idx) else { return }
+            self.settings.mlxBoardSize = BoardSizeChoice.allCases[idx]
         }
+        stack.addArrangedSubview(sizeRow)
+        stack.addArrangedSubview(note(
+            "Largest board the engine can play and the size the GPU tuner optimizes for."))
+
+        // Autotuning (drives the MLX/GPU server thread).
+        stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Performance Tuning"))
+        let autotuneRow = ConfigFormBuilder.popupRow(
+            title: "Autotuning",
+            options: ["Fast", "Full"],
+            selectedIndex: settings.tunerFull ? 1 : 0
+        ) { [weak self] idx in
+            self?.settings.tunerFull = (idx == 1)
+        }
+        stack.addArrangedSubview(autotuneRow)
+
+        let reTuneRow = ConfigFormBuilder.checkboxRow(
+            title: "Re-tune on next load",
+            isOn: settings.reTune
+        ) { [weak self] isOn in
+            self?.settings.reTune = isOn
+        }
+        stack.addArrangedSubview(reTuneRow)
+        stack.addArrangedSubview(note(
+            "Fast tunes a coarse grid in seconds; Full is more thorough but much "
+            + "slower on device. Re-tune discards the cached tuning once, the next "
+            + "time this model loads."))
 
         // Apply-on-next-load note.
         let applyNote = note("Changes apply when this model is next loaded.")

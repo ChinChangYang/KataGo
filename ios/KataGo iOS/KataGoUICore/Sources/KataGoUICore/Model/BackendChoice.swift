@@ -130,6 +130,13 @@ public struct BackendSettings {
         }
     }
 
+    /// NN-buffer board length for the macOS GPU+ANE mux engine. The mux always
+    /// includes an MLX/GPU path, so the engine-wide NN buffer geometry and the
+    /// Winograd tuner key off the MLX/GPU board size, independent of the
+    /// (macOS-removed) per-model backend picker. Both the GPU and ANE server
+    /// threads convert/allocate to this same single geometry.
+    public var muxMaxBoardLength: Int { min(mlxBoardSize.rawValue, model.nnLen) }
+
     public var requireExactNNLen: Bool {
         switch backend {
         case .coremlNE: return false

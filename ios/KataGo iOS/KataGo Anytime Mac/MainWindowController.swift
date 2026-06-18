@@ -496,8 +496,8 @@ final class MainWindowController: NSWindowController {
 
         let engineStarted = startKataGoThread(
             modelPath: modelPath,
-            mlxDeviceToUse: settings.backend.mlxDeviceToUse,
-            maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
+            deviceAssignments: Self.engineDeviceAssignments,
+            maxBoardSizeForNNBuffer: settings.muxMaxBoardLength,
             requireExactNNLen: settings.requireExactNNLen,
             tunerFull: settings.tunerFull,
             reTune: settings.reTune
@@ -511,11 +511,10 @@ final class MainWindowController: NSWindowController {
             return
         }
 
-        // One-shot: consume a pending re-tune so it fires exactly once. Only when
-        // MLX/GPU actually uses it — the CoreML/NE path ignores `reTune`, so a
-        // request made there is left intact for a later MLX/GPU load (mirrors iOS
-        // `ModelRunnerView` lines 111-113).
-        if settings.reTune && settings.backend == .mlxGPU {
+        // One-shot: consume a pending re-tune so it fires exactly once. The mux
+        // always runs MLX/GPU server threads (which read the Winograd tuner
+        // flags), so a re-tune request is always consumed here.
+        if settings.reTune {
             settings.reTune = false
         }
 
@@ -528,11 +527,26 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    /// The macOS "best throughput" engine mux: 1 MLX/GPU + 2 CoreML/ANE NN
+    /// server threads. The 2 ANE threads run unserialized and overlap the GPU
+    /// work (all GPU work serializes on `mlxGpuEvalMutex` — one Apple GPU — so a
+    /// 2nd GPU thread only adds contention; the throughput win is GPU∥ANE
+    /// concurrency). Measured fastest on-device (~1.25× the old single-GPU
+    /// default). `0` = MLX/GPU, `100` = CoreML/ANE, matching
+    /// `BackendChoice.mlxDeviceToUse`. This replaces the per-model backend picker
+    /// on macOS; iOS/visionOS stay single-backend.
+    static let engineDeviceAssignments: [Int] = [
+        BackendChoice.mlxGPU.mlxDeviceToUse,    // GPU
+        BackendChoice.coremlNE.mlxDeviceToUse,  // ANE
+        BackendChoice.coremlNE.mlxDeviceToUse,  // ANE
+    ]
+
     /// Spawns the `katago-engine` child process and wires the session's GTP I/O
     /// to it (the macOS replacement for the in-process `KataGoHelper.runGtp`
     /// thread). The child reads model/config paths + `-override-config` flags
-    /// from argv, mirroring the proven in-process invocation built in
-    /// `KataGoCpp.cpp`. (Method name kept for the existing callers.)
+    /// from argv. `deviceAssignments` becomes the per-server-thread device mux
+    /// (`numNNServerThreadsPerModel` + `mlxDeviceToUseThread<i>`). (Method name
+    /// kept for the existing callers.)
     /// Returns `true` if the engine child spawned. On `false` the caller MUST NOT
     /// start the session message loop: on macOS `session.engine` is still the
     /// default in-process bridge, whose global stream buffers were never
@@ -540,7 +554,7 @@ final class MainWindowController: NSWindowController {
     /// would block `getMessageLine` forever and hang the UI.
     @discardableResult
     private func startKataGoThread(modelPath: String,
-                                   mlxDeviceToUse: Int,
+                                   deviceAssignments: [Int],
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
@@ -558,7 +572,7 @@ final class MainWindowController: NSWindowController {
             modelPath: modelPath,
             humanModelPath: humanModelPath,
             configPath: configPath,
-            mlxDeviceToUse: mlxDeviceToUse,
+            deviceAssignments: deviceAssignments,
             numSearchThreads: KataGoHelper.mlxNumSearchThreads,
             nnMaxBatchSize: KataGoHelper.mlxNnMaxBatchSize,
             maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,

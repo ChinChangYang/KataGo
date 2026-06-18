@@ -347,18 +347,15 @@ final class ModelsViewController: NSViewController {
     }
 
     /// Rebuilds the backend-config pane for the current selection. Called on
-    /// selection change and whenever the backend popup flips (to swap the MLX vs
-    /// CoreML board-size control).
+    /// selection change. (macOS has no backend picker — the engine runs a fixed
+    /// GPU+ANE mux — so the pane no longer rebuilds on a backend flip.)
     private func rebuildDetailPane() {
         backendPane?.removeFromSuperview()
         backendPane = nil
 
         guard let model = selectedModel else { return }
 
-        let pane = ModelBackendPaneView(model: model) { [weak self] in
-            // Backend changed -> rebuild so the right board-size control shows.
-            self?.rebuildDetailPane()
-        }
+        let pane = ModelBackendPaneView(model: model)
         pane.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(pane)
         NSLayoutConstraint.activate([
