@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -879,7 +879,7 @@
 		C4E1A7267F0FD9F81B825BA1 /* stack_consumption.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stack_consumption.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/stack_consumption.cc"; sourceTree = SOURCE_ROOT; };
 		C4F10454A06915C16510616D /* discrete_distribution.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = discrete_distribution.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/discrete_distribution.cc"; sourceTree = SOURCE_ROOT; };
 		C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_crc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_crc.cc"; sourceTree = SOURCE_ROOT; };
-		C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime Mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KataGoAnytimeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C661B0E86E990AC64120A0B1 /* examine_stack.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = examine_stack.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/examine_stack.cc"; sourceTree = SOURCE_ROOT; };
 		C811320B1287C5DE661DB7FB /* implicit_weak_message.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = implicit_weak_message.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/implicit_weak_message.cc"; sourceTree = SOURCE_ROOT; };
 		C8269527CA97AE161731B9CB /* unscaledcycleclock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = unscaledcycleclock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/unscaledcycleclock.cc"; sourceTree = SOURCE_ROOT; };
@@ -1181,7 +1181,7 @@
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
 		F4C159FB921FB252C225F18A /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
-		F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */ = {isa = PBXFileReference; includeInIndex = 0; path = "KataGo Engine Helper"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; name = "KataGo Engine Helper"; path = "katago-engine"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
 		F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureTypes.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureTypes.pb.cc; sourceTree = SOURCE_ROOT; };
 		F6CA708020D63562D4FEC662 /* spinlock_wait.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock_wait.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock_wait.cc"; sourceTree = SOURCE_ROOT; };
@@ -1364,7 +1364,6 @@
 				BD670F6165FDC95F54701F7A /* Assets.xcassets */,
 				B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */,
 			);
-			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
 			sourceTree = "<group>";
 		};
@@ -1976,7 +1975,7 @@
 				E18F3E272A51466C00D335E1 /* KataGo AnytimeUITests.xctest */,
 				E118EE902B081C3200637D44 /* katago.framework */,
 				E11887E12B0830C900637D44 /* KataGoSwift.framework */,
-				C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */,
+				C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */,
 				F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */,
 			);
 			name = Products;
@@ -2212,7 +2211,7 @@
 				B8D9B3A7C9D6AA463C92F6FD /* KataGoEngineIPC */,
 			);
 			productName = "KataGo Anytime Mac";
-			productReference = C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */;
+			productReference = C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */;
 			productType = "com.apple.product-type.application";
 		};
 		D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */ = {
@@ -2348,10 +2347,6 @@
 					E118EE8F2B081C3200637D44 = {
 						CreatedOnToolsVersion = 15.0.1;
 					};
-					E12A6F152C37FE710002DED0 = {
-						CreatedOnToolsVersion = 15.4;
-						LastSwiftMigration = 1540;
-					};
 					E18F3E0C2A51466A00D335E1 = {
 						CreatedOnToolsVersion = 14.3.1;
 						LastSwiftMigration = 1430;
@@ -2376,7 +2371,7 @@
 			);
 			mainGroup = E18F3E042A51466A00D335E1;
 			packageReferences = (
-				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */,
+				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */,
 				2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */,
 				485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */,
 			);
@@ -2999,7 +2994,7 @@
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 273;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3016,7 +3011,7 @@
 				LM_FORCE_LINK_GENERATION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 7.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = KataGoAnytimeMac;
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -3092,7 +3087,7 @@
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 273;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3109,7 +3104,7 @@
 				LM_FORCE_LINK_GENERATION = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 7.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac";
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw";
 				PRODUCT_NAME = KataGoAnytimeMac;
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -3524,7 +3519,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "KataGo iOS/KataGo iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 227;
+				CURRENT_PROJECT_VERSION = 273;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
@@ -3586,7 +3581,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "KataGo iOS/KataGo iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 227;
+				CURRENT_PROJECT_VERSION = 273;
 				DEVELOPMENT_ASSET_PATHS = "\"KataGo iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
@@ -3812,7 +3807,7 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = KataGoEngineIPC;
 		};
-		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */ = {
+		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "ThirdParty/mlx-swift";
 		};
@@ -3836,7 +3831,7 @@
 		};
 		E1013E562FD8322700D0A4F0 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */;
+			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */;
 			productName = MLX;
 		};
 /* End XCSwiftPackageProductDependency section */
