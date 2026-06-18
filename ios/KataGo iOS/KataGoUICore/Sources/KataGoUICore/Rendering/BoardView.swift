@@ -57,7 +57,9 @@ public struct BoardView: View {
                         dimensions: dimensions,
                         isClassicStoneStyle: gobanState.isClassicStoneStyle,
                         verticalFlip: gobanState.verticalFlip,
-                        speedText: speedText
+                        speedText: speedText,
+                        blackPlayerName: config.playerLabel(for: .black),
+                        whitePlayerName: config.playerLabel(for: .white)
                     )
 
                     drawNextMove(dimensions: dimensions,

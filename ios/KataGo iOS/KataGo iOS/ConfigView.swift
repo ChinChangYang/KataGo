@@ -36,6 +36,9 @@ struct ConfigFloatItem: View {
     let maxValue: Float
     let format: ValueFormat
     var postFix: String?
+    /// Optional identifier applied to the Stepper so UI tests can address a
+    /// specific control when several share the same visible title.
+    var stepperAccessibilityID: String?
 
     var body: some View {
         HStack {
@@ -45,6 +48,7 @@ struct ConfigFloatItem: View {
                 Text(formattedValue + (postFix ?? ""))
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .accessibilityIdentifier(stepperAccessibilityID ?? "")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -453,7 +457,8 @@ struct AIConfigView: View {
                             minValue: 0,
                             maxValue: 60,
                             format: .number,
-                            postFix: "s")
+                            postFix: "s",
+                            stepperAccessibilityID: "blackTimePerMove")
             .onAppear {
                 blackMaxTime = config.blackMaxTime
             }
@@ -485,7 +490,8 @@ struct AIConfigView: View {
                             minValue: 0,
                             maxValue: 60,
                             format: .number,
-                            postFix: "s")
+                            postFix: "s",
+                            stepperAccessibilityID: "whiteTimePerMove")
             .onAppear {
                 whiteMaxTime = config.whiteMaxTime
             }

@@ -16,17 +16,26 @@ public struct StoneView: View {
     let verticalFlip: Bool
     var isDrawingCapturedStones: Bool = true
     var speedText: String? = nil
+    /// Name shown beside each color's captured-stone count: the engine profile
+    /// (e.g. "AI" / "rank_9d") when that side plays with thinking time, or
+    /// "Human" otherwise. `nil` hides the label (e.g. the game-list thumbnail).
+    var blackPlayerName: String? = nil
+    var whitePlayerName: String? = nil
 
     public init(dimensions: Dimensions,
                 isClassicStoneStyle: Bool,
                 verticalFlip: Bool,
                 isDrawingCapturedStones: Bool = true,
-                speedText: String? = nil) {
+                speedText: String? = nil,
+                blackPlayerName: String? = nil,
+                whitePlayerName: String? = nil) {
         self.dimensions = dimensions
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
         self.isDrawingCapturedStones = isDrawingCapturedStones
         self.speedText = speedText
+        self.blackPlayerName = blackPlayerName
+        self.whitePlayerName = whitePlayerName
     }
 
     public var body: some View {
@@ -36,28 +45,54 @@ public struct StoneView: View {
             drawCapturedStones(color: .black,
                                count: stones.blackStonesCaptured,
                                xOffset: 0,
+                               name: blackPlayerName,
+                               nameAccessibilityID: "blackPlayerName",
                                dimensions: dimensions)
             drawCapturedStones(color: .white,
                                count: stones.whiteStonesCaptured,
                                xOffset: 1,
+                               name: whitePlayerName,
+                               nameAccessibilityID: "whitePlayerName",
                                dimensions: dimensions)
 
             if let speedText {
                 drawSpeedText(speedText, dimensions: dimensions)
             }
-            
+
         }
     }
 
-    private func drawCapturedStones(color: Color, count: Int, xOffset: CGFloat, dimensions: Dimensions) -> some View {
-        HStack {
+    private func drawCapturedStones(color: Color,
+                                    count: Int,
+                                    xOffset: CGFloat,
+                                    name: String?,
+                                    nameAccessibilityID: String,
+                                    dimensions: Dimensions) -> some View {
+        HStack(spacing: dimensions.squareLengthDiv8) {
+            if let name, !name.isEmpty {
+                // The engine profile ("AI"/"rank_9d"/"proyear_1810") or "Human",
+                // shown just before (left of) the stone. This is the ADAPTIVE
+                // element: it shrinks (down to minimumScaleFactor) to fit whatever
+                // width is left after the fixed-size stone and count, so a long
+                // profile never squeezes the count. (Empty guarded out:
+                // playerLabel returns "" for .unknown.)
+                Text(name)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.2)
+                    .font(.system(size: dimensions.capturedStonesHeight * 0.7))
+                    .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+                    .accessibilityIdentifier(nameAccessibilityID)
+            }
             Circle()
                 .foregroundStyle(color)
+                .frame(width: dimensions.capturedStonesHeight, height: dimensions.capturedStonesHeight)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+            // The captured count keeps a STATIC size (fixedSize → never scaled
+            // down by the adaptive name beside it).
             Text("x\(count)")
                 .contentTransition(.numericText())
-                .font(.system(size: 500, design: .monospaced))
-                .minimumScaleFactor(0.01)
+                .font(.system(size: dimensions.capturedStonesHeight * 0.85, design: .monospaced))
+                .fixedSize()
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
         }
         .frame(width: dimensions.capturedStonesWidth, height: dimensions.capturedStonesHeight)
@@ -226,6 +261,36 @@ public struct StoneView: View {
                                 BoardPoint(x: 1, y: 0): "4"]
         }
     }
+}
+
+// Exercises the captured-stone labels with a SHORT name on one side and a LONG
+// profile ("proyear_1810") on the other: the "x12"/"x7" counts must stay the
+// same (static) size while only the long name scales down to fit.
+#Preview("Captured labels — long profile") {
+    let stones = Stones()
+
+    return ZStack {
+        Rectangle()
+            .foregroundStyle(.brown)
+
+        GeometryReader { geometry in
+            StoneView(dimensions: Dimensions(size: geometry.size,
+                                             width: 19,
+                                             height: 19,
+                                             showCoordinate: true),
+                      isClassicStoneStyle: false,
+                      verticalFlip: false,
+                      blackPlayerName: "Human",
+                      whitePlayerName: "proyear_1810")
+        }
+        .environment(stones)
+        .environment(GobanState())
+        .onAppear() {
+            stones.blackStonesCaptured = 12
+            stones.whiteStonesCaptured = 7
+        }
+    }
+    .frame(width: 393, height: 640)
 }
 
 #Preview {

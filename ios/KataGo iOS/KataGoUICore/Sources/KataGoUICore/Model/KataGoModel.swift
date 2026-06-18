@@ -428,7 +428,10 @@ public struct Dimensions {
     public let gobanStartX: CGFloat
     public let gobanStartY: CGFloat
     public let coordinate: Bool
-    public let capturedStonesWidth: CGFloat = 80
+    // Wide enough to hold the captured-stone count plus the player-name label
+    // ("AI" / a human-SL profile / "Human"). On real boards gobanWidth/2 governs
+    // the left/right cluster spread, so this only sizes the text frame.
+    public let capturedStonesWidth: CGFloat = 120
     public let capturedStonesHeight: CGFloat
     public let capturedStonesStartY: CGFloat
     public let totalWidth: CGFloat
