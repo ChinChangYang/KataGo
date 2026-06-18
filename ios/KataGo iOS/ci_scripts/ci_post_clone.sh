@@ -82,10 +82,15 @@ HUMAN_MODEL_RES="../Resources/b18c384nbt-humanv0.bin.gz"
 curl -L --retry 5 --retry-delay 3 -o "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_URL"
 cp -f "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_RES"
 
-# Download 9x9 opening book
+# Download 9x9 opening book.
+# NOTE: unlike the .bin.gz networks (app-target ../Resources/), the book is a
+# KataGoUICore SwiftPM package resource loaded via Bundle.module (see refactor
+# 405f34c1). It MUST land in the package's Resources dir so `.process("Resources")`
+# bundles it into KataGoUICore_KataGoUICore.bundle; otherwise BookLookupTests
+# .loadsRealBundledBook() fails in CI (Bundle.module can't resolve it).
 BOOK_GZ="book9x9jp-20260226.kbook.gz"
 BOOK_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.16.4-coreml1/book9x9jp-20260226.kbook.gz"
-BOOK_RES="../Resources/book9x9jp-20260226.kbook.gz"
+BOOK_RES="../KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz"
 
 curl -L --retry 5 --retry-delay 3 -o "$BOOK_GZ" "$BOOK_URL"
 cp -f "$BOOK_GZ" "$BOOK_RES"

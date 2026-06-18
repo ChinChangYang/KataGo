@@ -13,7 +13,7 @@ The --av-threshold flag filters moves by adjusted visits.
 Usage:
     python scripts/build_book_db.py \
         --book-dir ~/Code/KataGoBooks/book9x9jp-20260226 \
-        --output "ios/KataGo iOS/Resources/book9x9jp-20260226.kbook.gz" \\
+        --output "ios/KataGo iOS/KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz" \\
         --av-threshold 10000
 """
 
