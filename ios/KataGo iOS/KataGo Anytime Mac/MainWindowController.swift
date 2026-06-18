@@ -3,6 +3,7 @@ import OSLog
 import SwiftUI
 import SwiftData
 import KataGoUICore
+import KataGoEngineIPC
 
 /// Logs the launch-time crash-recovery decision (mirrors the iOS
 /// `ModelRunnerView` `recoveryLogger`, ModelRunnerView.swift lines 12-15).
@@ -41,7 +42,17 @@ final class MainWindowController: NSWindowController {
     /// `internal` (not `private`) so the `LibraryActions` extension — in a
     /// separate file — can reach the main context for inserts/deletes.
     let modelContainer: ModelContainer
-    private var katagoThread: Thread?
+
+    /// The per-window KataGo engine, now an out-of-process `katago-engine` child
+    /// (was an in-process `Thread` running `KataGoHelper.runGtp`). Owning it here
+    /// means each window has its own independent engine.
+    private var engineProcess: SubprocessKataGoEngine?
+
+    /// The Task running `initializeSession` → `session.run()` (the steady-state
+    /// GTP loop). Tracked so `stopEngineAndSession()` can AWAIT it before a
+    /// relaunch injects a new engine — `GameSession` is reused across relaunch,
+    /// so the old loop must finish before the new engine is wired in.
+    private var sessionTask: Task<Void, Never>?
 
     /// Persisted model-selection store (same `ModelRunnerView.*` UserDefaults keys
     /// as iOS). `startEngineAndSession()` reads `currentModel` to decide which net
@@ -483,7 +494,7 @@ final class MainWindowController: NSWindowController {
         modelSelection.pendingLoadModelTitle = model.title
         UserDefaults.standard.synchronize()
 
-        startKataGoThread(
+        let engineStarted = startKataGoThread(
             modelPath: modelPath,
             mlxDeviceToUse: settings.backend.mlxDeviceToUse,
             maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
@@ -491,6 +502,14 @@ final class MainWindowController: NSWindowController {
             tunerFull: settings.tunerFull,
             reTune: settings.reTune
         )
+
+        // The engine helper failed to spawn. Do NOT start the session loop — it
+        // would drive the uninitialized in-process bridge and hang. Surface the
+        // failure instead; the app stays responsive.
+        guard engineStarted else {
+            presentEngineStartFailureAlert()
+            return
+        }
 
         // One-shot: consume a pending re-tune so it fires exactly once. Only when
         // MLX/GPU actually uses it — the CoreML/NE path ignores `reTune`, so a
@@ -504,29 +523,78 @@ final class MainWindowController: NSWindowController {
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
         let selected = ensureSelectedGameRecord(gameRecords: gameRecords, context: context)
 
-        Task { @MainActor in
+        sessionTask = Task { @MainActor in
             await initializeSession(model: model, selected: selected, context: context)
         }
     }
 
+    /// Spawns the `katago-engine` child process and wires the session's GTP I/O
+    /// to it (the macOS replacement for the in-process `KataGoHelper.runGtp`
+    /// thread). The child reads model/config paths + `-override-config` flags
+    /// from argv, mirroring the proven in-process invocation built in
+    /// `KataGoCpp.cpp`. (Method name kept for the existing callers.)
+    /// Returns `true` if the engine child spawned. On `false` the caller MUST NOT
+    /// start the session message loop: on macOS `session.engine` is still the
+    /// default in-process bridge, whose global stream buffers were never
+    /// initialized (the in-process `runGtp` is not used on macOS), so driving it
+    /// would block `getMessageLine` forever and hang the UI.
+    @discardableResult
     private func startKataGoThread(modelPath: String,
                                    mlxDeviceToUse: Int,
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
-                                   reTune: Bool) {
-        let katagoThread = Thread {
-            KataGoHelper.runGtp(modelPath: modelPath,
-                                mlxDeviceToUse: mlxDeviceToUse,
-                                maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                                requireExactNNLen: requireExactNNLen,
-                                tunerFull: tunerFull,
-                                reTune: reTune)
+                                   reTune: Bool) -> Bool {
+        guard let helperURL = SubprocessKataGoEngine.bundledHelperURL else {
+            assertionFailure("katago-engine helper is not embedded in the app bundle (Contents/MacOS).")
+            return false
         }
-        // Expand the stack size to resolve a stack overflow problem (mirrors iOS).
-        katagoThread.stackSize = 4096 * 256
-        katagoThread.start()
-        self.katagoThread = katagoThread
+        // The parent resolves the bundled human-SL model + GTP config and passes
+        // absolute paths to the child (the child's own Bundle.main is the app).
+        let humanModelPath = Bundle.main.path(forResource: "b18c384nbt-humanv0", ofType: "bin.gz") ?? ""
+        let configPath = Bundle.main.path(forResource: "default_gtp", ofType: "cfg") ?? ""
+
+        let arguments = KataGoEngineArguments.gtp(
+            modelPath: modelPath,
+            humanModelPath: humanModelPath,
+            configPath: configPath,
+            mlxDeviceToUse: mlxDeviceToUse,
+            numSearchThreads: KataGoHelper.mlxNumSearchThreads,
+            nnMaxBatchSize: KataGoHelper.mlxNnMaxBatchSize,
+            maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
+            requireExactNNLen: requireExactNNLen,
+            // macOS: the default ~/.katago home-data dir is writable, so (like
+            // the in-process bridge) no homeDataDir override is needed.
+            homeDataDir: "",
+            tunerFull: tunerFull,
+            reTune: reTune)
+
+        let engine = SubprocessKataGoEngine(helperURL: helperURL, arguments: arguments)
+        do {
+            try engine.start()
+        } catch {
+            assertionFailure("Failed to spawn katago-engine: \(error)")
+            return false
+        }
+        session.useEngine(engine)
+        self.engineProcess = engine
+        return true
+    }
+
+    /// Critical-failure UX when the engine helper can't spawn (should never
+    /// happen in a correctly built/installed bundle). Shown as a sheet so the
+    /// app stays responsive instead of hanging on a dead engine.
+    private func presentEngineStartFailureAlert() {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "The analysis engine couldn’t start."
+        alert.informativeText = "KataGo Anytime couldn’t launch its engine helper. Please reopen the app; if this keeps happening, reinstall the app."
+        alert.addButton(withTitle: "OK")
+        if let window {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
     }
 
     /// Loads the first persisted `GameRecord`, or creates and inserts a default
@@ -604,45 +672,28 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Engine teardown + relaunch (Phase 5 model switching)
     //
-    // The Mac app launches KataGo once at window init and (until now) never
-    // restarts it. Phase 5 model switching needs to tear the engine down and
-    // relaunch it IN-PROCESS. This is the proven iOS `QuitButton` mechanism
-    // (`KataGoHelper.sendCommand("quit")` → the engine's GTP loop exits so
-    // `runGtp` returns and the `katagoThread` ends; `session.stopRequested =
-    // true` ends `GameSession.run()`/`messaging()`), adapted for an in-process
-    // relaunch rather than an app exit.
-    //
-    // IMPORTANT detail about the bridge (`KataGoCpp.cpp`): the to/from-engine
-    // streams are GLOBAL, persistent `ThreadSafeStreamBuf`s, and their `done`
-    // flag is never set — so `getMessageLine()` (`getline`) does NOT see EOF when
-    // the engine exits; it blocks on the buffer's condition variable once drained.
-    // `GameSession.messaging` is suspended inside `await Task.detached {
-    // KataGoHelper.getMessageLine() }` at that moment. Flipping `stopRequested`
-    // alone would NOT release that blocked `getline`, so the previous `run()`
-    // Task would hang forever — and a second engine's output would interleave
-    // into the same global buffer feeding a still-alive consumer. So we mirror
-    // iOS exactly and NUDGE the consumer with `sendMessage("\n")` (which writes a
-    // newline into the from-engine buffer) to unblock that final `getline`; the
-    // `messaging` body then sees `stopRequested == true` and the outer `run()`
-    // loop exits. That guarantees the old `run()` Task ends before the new one
-    // starts — i.e. never two concurrent `run()` loops on one shared buffer.
+    // The Mac app launches KataGo at window init and relaunches it on model
+    // switch. The engine is now an OUT-OF-PROCESS `katago-engine` child, which
+    // makes teardown clean: quitting the child closes its stdout, and that real
+    // EOF unblocks the run loop's suspended `getMessageLine` (the
+    // `SubprocessKataGoEngine` reports `hasReachedEOF`, so `GameSession.messaging`
+    // observes EOF and stops). No "\n" nudge / shared-global-buffer juggling
+    // (that was needed only by the in-process bridge, whose global streams never
+    // EOF). Because `GameSession` is reused across relaunch, we AWAIT the old
+    // run-loop Task (`sessionTask`) before `startEngineAndSession()` wires in a
+    // new engine — so there are never two concurrent `run()` loops.
 
-    /// Tears down the running engine + session so a fresh engine can be launched
-    /// in-process. Async so the engine-thread join polls with `Task.sleep`
-    /// (cooperative) instead of blocking the main thread.
+    /// Tears down the running engine + session so a fresh engine can be launched.
+    /// Async so it can await the old run loop's completion cooperatively.
     ///
-    /// Ordering (matches the iOS `QuitButton` teardown, with an explicit join):
-    ///   1. `stopRequested = true` first, so the `messaging` per-line guard skips
+    /// Ordering:
+    ///   1. `stopRequested = true` first, so `messaging`'s per-line guard skips
     ///      the engine's quit-response lines and `run()` exits on its next check.
-    ///   2. `sendCommand("quit")` → the GTP loop sets `shouldQuitAfterResponse`,
-    ///      finishes, and `runGtp` returns, ending `katagoThread`.
-    ///   3. `sendMessage("\n")` → unblocks the consumer's currently-suspended
-    ///      `getMessageLine`/`getline` so the previous `run()` Task can observe
-    ///      `stopRequested` and terminate (see section comment).
-    ///   4. Poll `katagoThread?.isFinished` up to a bounded timeout so we never
-    ///      start a second engine while the first is still alive (and thus avoid
-    ///      two engines fighting over the shared MLX/Metal global state).
-    ///   5. Reset all per-launch state and re-seed the observer snapshots so the
+    ///   2. `sendCommand("quit")` + `terminate()` → the child exits and EOFs its
+    ///      stdout, unblocking the consumer's suspended `getMessageLine`.
+    ///   3. `await sessionTask` → guarantees the old `run()` loop finished before
+    ///      a new engine is injected (no two concurrent loops on one session).
+    ///   4. Reset all per-launch state and re-seed the observer snapshots so the
     ///      existing `withObservationTracking` observers don't fire spurious
     ///      transitions against stale `lastX` values on the fresh engine.
     private func stopEngineAndSession() async {
@@ -650,34 +701,30 @@ final class MainWindowController: NSWindowController {
         // and `run`'s `while !stopRequested` both collapse on this.
         session.stopRequested = true
 
-        // (2) Make the engine's GTP loop exit so `runGtp` returns and the old
-        // engine thread finishes.
-        KataGoHelper.sendCommand("quit")
-
-        // (3) Unblock the consumer's suspended `getMessageLine` so the old
-        // `run()` Task observes `stopRequested` and terminates. Without this the
-        // old consumer stays blocked in `getline` on the shared global buffer.
-        KataGoHelper.sendMessage("\n")
-
-        // (4) Wait (bounded, non-blocking) for the old engine thread to finish so
-        // we don't launch a second engine alongside the first. ~5s budget in
-        // 50ms slices.
-        let deadline = Date().addingTimeInterval(5)
-        while let thread = katagoThread, !thread.isFinished, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-        }
-        if let thread = katagoThread, !thread.isFinished {
-            // Should not happen — the engine acked `quit` and cleaned up. Log and
-            // proceed; the old thread will exit on its own once `runGtp` returns.
-            print("KATAGO_RELAUNCH_WARNING old engine thread did not finish within timeout")
-            fflush(stdout)
+        // (2) Ask the engine to quit, then force the child down. Closing its
+        // stdin (and SIGTERM if needed) makes the child exit, which EOFs its
+        // stdout — that is what unblocks the run loop's suspended
+        // `getMessageLine` (no in-process "\n" nudge needed out-of-process).
+        // terminate() is synchronous (brief), so run it OFF the main actor to
+        // keep the UI responsive and to let the run loop's main-actor
+        // continuation make progress once EOF arrives.
+        engineProcess?.sendCommand("quit")
+        if let engine = engineProcess {
+            await Task.detached { engine.terminate() }.value
         }
 
-        // (5) Reset for the next launch.
+        // (3) Await the old run loop's completion before wiring a new engine —
+        // `GameSession` is reused across relaunch, so the old loop (which reads
+        // through `session.engine`) must finish first. The child's EOF lets it
+        // observe `stopRequested` and exit; this Task then completes.
+        await sessionTask?.value
+        sessionTask = nil
+
+        // (4) Reset for the next launch.
         boardReadiness.isEngineReady = false
         session.stopRequested = false
         engineLifecycle.reset()
-        katagoThread = nil
+        engineProcess = nil
 
         // Re-seed the observer snapshots from the LIVE state so the still-armed
         // `withObservationTracking` observers don't interpret the fresh engine's
@@ -2385,8 +2432,26 @@ private final class AIMoveBox {
 extension MainWindowController: NSWindowDelegate {
     /// Ends the `GameSession` message loop when the window closes so `run()`
     /// stops polling `KataGoHelper.getMessageLine()` after teardown.
+    /// Backstop teardown invoked from `AppDelegate.applicationWillTerminate` so a
+    /// ⌘Q (which may not fire `windowWillClose`) still kills the engine child.
+    /// Bounded `terminate()` → app quit never hangs.
+    func shutdownEngineForAppTermination() {
+        session.stopRequested = true
+        engineProcess?.terminate()
+        engineProcess = nil
+    }
+
     func windowWillClose(_ notification: Notification) {
         session.stopRequested = true
+        // Kill the engine child so closing the window never leaves an orphaned
+        // katago-engine process. terminate() can block briefly (grace period +
+        // SIGTERM/SIGKILL escalation), so run it OFF the main thread to keep
+        // window close responsive; the child also self-exits on stdin EOF, and
+        // KataGoEngineProcess.deinit is the final backstop.
+        if let engine = engineProcess {
+            engineProcess = nil
+            Task.detached { engine.terminate() }
+        }
         if let boardShortcutMonitor {
             NSEvent.removeMonitor(boardShortcutMonitor)
             self.boardShortcutMonitor = nil

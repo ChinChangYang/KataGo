@@ -61,6 +61,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
 
+    /// Backstop: kill the engine child on app quit even if `windowWillClose`
+    /// didn't fire (it may not on ⌘Q). The child also self-exits when the app's
+    /// pipe fds close (stdin EOF / SIGPIPE), but this terminates it immediately
+    /// and deterministically. `terminate()` is bounded, so quit never hangs.
+    func applicationWillTerminate(_ notification: Notification) {
+        windowController?.shutdownEngineForAppTermination()
+    }
+
     /// Finder deep-link: opening one or more `.sgf` files (double-click, drag-to-
     /// Dock-icon, `open` CLI) routes through here once the document type is
     /// declared in Info.plist. We forward to the same `importAndSelect(from:)`

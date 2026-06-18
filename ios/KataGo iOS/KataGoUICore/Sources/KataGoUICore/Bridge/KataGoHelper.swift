@@ -11,11 +11,11 @@ import CKataGoBridge
 public class KataGoHelper {
 
 #if os(macOS)
-    static let mlxNumSearchThreads = 16
-    static let mlxNnMaxBatchSize = 8
+    public static let mlxNumSearchThreads = 16
+    public static let mlxNnMaxBatchSize = 8
 #else
-    static let mlxNumSearchThreads = 2
-    static let mlxNnMaxBatchSize = 1
+    public static let mlxNumSearchThreads = 2
+    public static let mlxNnMaxBatchSize = 1
 #endif
 
 #if os(macOS)

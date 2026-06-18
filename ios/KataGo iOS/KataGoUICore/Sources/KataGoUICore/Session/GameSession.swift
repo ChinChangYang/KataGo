@@ -35,10 +35,25 @@ public final class GameSession {
     /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
     public var stopRequested = false
 
+    /// Transport to the engine. Defaults to the in-process C++ bridge
+    /// (iOS/visionOS, and the default everywhere); the macOS app injects a
+    /// per-window subprocess transport via `useEngine(_:)`.
+    @ObservationIgnored
+    public var engine: KataGoEngineIO = InProcessKataGoEngine()
+
     private var isShowingBoard = false
     private var boardText: [String] = []
 
     public init() {}
+
+    /// Routes this session's GTP I/O — reads happen here, sends go through
+    /// `messageList` — through `engine`. Call BEFORE `initialize`. The macOS app
+    /// uses this to drive a per-window `katago-engine` subprocess; iOS/visionOS
+    /// keep the default in-process bridge.
+    public func useEngine(_ engine: KataGoEngineIO) {
+        self.engine = engine
+        self.messageList.engine = engine
+    }
 
     // MARK: - Initialization
 
@@ -57,9 +72,10 @@ public final class GameSession {
         messageList.messages.append(Message(text: "Initializing..."))
         messageList.appendAndSend(command: "version")
 
+        let engine = self.engine
         let version = await Task.detached {
             // Get a message line from KataGo
-            return KataGoHelper.getMessageLine()
+            return engine.getMessageLine()
         }.value
 
         // Crash-loop recovery signal: the first line Swift sees from KataGo is
@@ -101,10 +117,20 @@ public final class GameSession {
         audioModel: AudioModel,
         aiMove: Binding<String?>
     ) async {
+        let engine = self.engine
         let line = await Task.detached {
             // Get a message line from KataGo
-            return KataGoHelper.getMessageLine()
+            return engine.getMessageLine()
         }.value
+
+        // A subprocess engine reports EOF when it exits (a clean `quit` or a
+        // crash). Stop the loop instead of busy-spinning on empty EOF reads. The
+        // in-process bridge never reports EOF (its global buffer has no EOF), so
+        // iOS/visionOS are unaffected. A normal blank GTP line is NOT EOF.
+        if line.isEmpty && engine.hasReachedEOF {
+            stopRequested = true
+            return
+        }
 
         if !stopRequested {
             // Create a message with the line

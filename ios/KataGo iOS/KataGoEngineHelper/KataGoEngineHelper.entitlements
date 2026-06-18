@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The helper is spawned by the sandboxed Mac app. `inherit` makes it run
+	     inside the parent's sandbox container (same redirected $HOME for the
+	     ~/.katago tuner cache, same read access to the app bundle's models /
+	     config / metallib). With inherit, NO other sandbox capability may be
+	     listed — the child gets exactly the parent's. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+</dict>
+</plist>

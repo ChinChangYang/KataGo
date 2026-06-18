@@ -11,6 +11,7 @@
 		011085AC1F2879F10A33ADB9 /* cord_rep_btree_reader.cc in Sources */ = {isa = PBXBuildFile; fileRef = F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */; };
 		011559ABD37118152E2411A3 /* any_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = B0BBA9D4195D76AB26782D5D /* any_lite.cc */; };
 		019C3DF15337BE4A6D127E10 /* reflection.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65FC60A967D3BF05C4BCDE0E /* reflection.cc */; };
+		02262F2BEA344FF66E4A58B7 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2BD71A6F8B7C39DEAE8AC40 /* Cocoa.framework */; };
 		034DD5AE98939A92963FFE07 /* utf8.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65B171D51E58CA4E1C3B9057 /* utf8.cc */; };
 		05470F856DFE711A42601AE2 /* raw_ptr.cc in Sources */ = {isa = PBXBuildFile; fileRef = AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */; };
 		05700CC069820338A0DA9EF3 /* Parameters.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 56670017B37208754039FF64 /* Parameters.pb.cc */; };
@@ -108,6 +109,7 @@
 		5C0FB63877615EF37C82B458 /* elf_mem_image.cc in Sources */ = {isa = PBXBuildFile; fileRef = BC369E122AA45A565227D30F /* elf_mem_image.cc */; };
 		5CF354385061AA2AF9FDB640 /* thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1BD242602F707FC96E8F9DDC /* thread_identity.cc */; };
 		5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D702E277C8397612E300DEC9 /* MacBoardHostView.swift */; };
+		5CF9C75827A28D3C714722BB /* SubprocessKataGoEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */; };
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
 		5F3CF90C655E08F4E22C0ADA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD670F6165FDC95F54701F7A /* Assets.xcassets */; };
@@ -134,6 +136,7 @@
 		7355BB5F52FB13C6F999DF88 /* randen_hwaes.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2E68FA51F431F3FDCF3DA465 /* randen_hwaes.cc */; };
 		73D1DC8DDD07CA0A5AF0BF71 /* io_win32.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6EB13268A687A719E6147560 /* io_win32.cc */; };
 		747AA0D367E87CC4A09A691D /* generated_message_tctable_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC7C132EBC65528DED098F5A /* generated_message_tctable_lite.cc */; };
+		749FD4BE6F579683503405B0 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		74F0287281FFC47912543E0A /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */; };
 		74F31654F67CF26602AAD91E /* ThirdPartyLicensesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87EA50DF1E5FD4A2313105C1 /* ThirdPartyLicensesTests.swift */; };
 		74FD21F6D90C6C17BD8C1ACA /* cpu_detect.cc in Sources */ = {isa = PBXBuildFile; fileRef = 65CE6FCF54B90459C06242BB /* cpu_detect.cc */; };
@@ -180,6 +183,7 @@
 		948CAEF78641599449997CFF /* statusor.cc in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB1E48C91DD79F0008B2C /* statusor.cc */; };
 		94BDAF9907F26647CC4164CF /* match.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC52A0100425C29AA86E3502 /* match.cc */; };
 		9621D8C7B7B6D544E921F80A /* Normalizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */; };
+		9684E8C2E0AB0218DAE402E9 /* KataGo Engine Helper in Embed Engine Helper */ = {isa = PBXBuildFile; fileRef = F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */; settings = {ATTRIBUTES = (); }; };
 		995DCC993AF4FE53572CEFE2 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */; };
 		9A99DAF7FAF58A89DBC0FBF1 /* cord.cc in Sources */ = {isa = PBXBuildFile; fileRef = 69B53B35A548BA23172D03D3 /* cord.cc */; };
 		9AF72428AFC387AA832A900E /* MoveNumbersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */; };
@@ -228,6 +232,7 @@
 		BDD321DAA44964C4887A5E06 /* repeated_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC5101F03317F990C4EC6BD2 /* repeated_field.cc */; };
 		BF60411C8AF4BB983A288118 /* CoreMLCacheKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */; };
 		BF74CD58671D6C823D184CBE /* spinlock.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE3B9C2481C85939173A3A70 /* spinlock.cc */; };
+		C1E744A481D0CCB9C6F2501D /* KataGoEngineIPC in Frameworks */ = {isa = PBXBuildFile; productRef = B8D9B3A7C9D6AA463C92F6FD /* KataGoEngineIPC */; };
 		C227A0DD211C513793F83741 /* SVM.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2895D7938D3FA33D9E35700F /* SVM.pb.cc */; };
 		C2A52329D071C9B48F741698 /* micro_string.cc in Sources */ = {isa = PBXBuildFile; fileRef = ED8A19C5ADB919AB8323042B /* micro_string.cc */; };
 		C2C18632DF0DF9087130C2DE /* raw_hash_set.cc in Sources */ = {isa = PBXBuildFile; fileRef = 443359A03212D5FAD2383192 /* raw_hash_set.cc */; };
@@ -533,6 +538,7 @@
 		F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8BBC0B17931482DDF9473F56 /* zone_info_source.cc */; };
 		F979745D76CA700E059779B1 /* ostringstream.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDEE19300417942D1C2D57DA /* ostringstream.cc */; };
 		FA5430856C8BDD6E5742B95C /* StorageWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 173B40EDB188F4C5507FD264 /* StorageWriter.cpp */; };
+		FA97856F39DFD6A0067F7963 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A81F4103D02B5507AC828451 /* main.cpp */; };
 		FB012692B20C7765AA97DA3D /* Converter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6B854DB5E08ABE9A30321B1D /* Converter.cpp */; };
 		FB0B1590EBA7CACFEFD6379D /* arenastring.cc in Sources */ = {isa = PBXBuildFile; fileRef = BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */; };
 		FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
@@ -545,6 +551,13 @@
 
 /* Begin PBXContainerItemProxy section */
 		0B993F24760BC3B1DBA414EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E118EE8F2B081C3200637D44;
+			remoteInfo = katago;
+		};
+		45E17778ADF719EF9379250B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
 			proxyType = 1;
@@ -579,6 +592,13 @@
 			remoteGlobalIDString = E118EE8F2B081C3200637D44;
 			remoteInfo = katago;
 		};
+		E15D6FC131F5013EB1E8807D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D4DD2DE3BF68E02D3E6ACD2D;
+			remoteInfo = "KataGo Engine Helper";
+		};
 		E18F3E1E2A51466C00D335E1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
@@ -606,6 +626,17 @@
 				B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		83012D1E856547C6F72A08B6 /* Embed Engine Helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				9684E8C2E0AB0218DAE402E9 /* KataGo Engine Helper in Embed Engine Helper */,
+			);
+			name = "Embed Engine Helper";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E118EE842B0819E500637D44 /* Embed Frameworks */ = {
@@ -793,6 +824,7 @@
 		A56F240AFB6311B643324AAC /* extension_set.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = extension_set.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/extension_set.cc"; sourceTree = SOURCE_ROOT; };
 		A6ADEC4D58AA590CCB7723B6 /* usage_config.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage_config.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/usage_config.cc"; sourceTree = SOURCE_ROOT; };
 		A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TreeEnsemble.pb.cc; path = ../../cpp/external/katagocoreml/generated/TreeEnsemble.pb.cc; sourceTree = SOURCE_ROOT; };
+		A81F4103D02B5507AC828451 /* main.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; name = main.cpp; path = KataGoEngineHelper/main.cpp; sourceTree = "<group>"; };
 		A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = exponential_biased.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/exponential_biased.cc"; sourceTree = SOURCE_ROOT; };
 		AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterUITests.swift; sourceTree = "<group>"; };
 		AABBCCE12A51466C00D335E1 /* BackendConfigSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfigSheetUITests.swift; sourceTree = "<group>"; };
@@ -815,6 +847,7 @@
 		B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReader.cpp; sourceTree = SOURCE_ROOT; };
 		B55A917374F587FC1DBCF8EA /* format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/format.cc"; sourceTree = SOURCE_ROOT; };
 		B5F263A20FAF107D96F1690F /* raw_logging.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_logging.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/raw_logging.cc"; sourceTree = SOURCE_ROOT; };
+		B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubprocessKataGoEngine.swift; sourceTree = "<group>"; };
 		B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfTruncationTests.swift; sourceTree = "<group>"; };
 		B797CDE40306D2B33B324106 /* status.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status.cc"; sourceTree = SOURCE_ROOT; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
@@ -1115,6 +1148,7 @@
 		E1CF18DD2CAA0D7D009F0154 /* KataGo iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "KataGo iOS.entitlements"; sourceTree = "<group>"; };
 		E1D7D3AF2AA897C000556DFB /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigView.swift; sourceTree = "<group>"; };
+		E2BD71A6F8B7C39DEAE8AC40 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ItemSimilarityRecommender.pb.cc; path = ../../cpp/external/katagocoreml/generated/ItemSimilarityRecommender.pb.cc; sourceTree = SOURCE_ROOT; };
 		E3C8DC0A8F9AF1ACB13FFEC5 /* poison.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = poison.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/poison.cc"; sourceTree = SOURCE_ROOT; };
 		E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordTagger.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordTagger.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -1140,6 +1174,7 @@
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
 		F4C159FB921FB252C225F18A /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
+		F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */ = {isa = PBXFileReference; includeInIndex = 0; path = "KataGo Engine Helper"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
 		F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureTypes.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureTypes.pb.cc; sourceTree = SOURCE_ROOT; };
 		F6CA708020D63562D4FEC662 /* spinlock_wait.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock_wait.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock_wait.cc"; sourceTree = SOURCE_ROOT; };
@@ -1157,6 +1192,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		07068A55A24D4E4E4C680A72 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02262F2BEA344FF66E4A58B7 /* Cocoa.framework in Frameworks */,
+				749FD4BE6F579683503405B0 /* katago.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5BC10027239988B6F3835D6A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1166,6 +1210,7 @@
 				0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */,
 				771C2416FAE06C95AE5E73E0 /* katago.framework in Frameworks */,
 				583282835D75E870D91DFCF5 /* AppIntents.framework in Frameworks */,
+				C1E744A481D0CCB9C6F2501D /* KataGoEngineIPC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1214,6 +1259,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0E62DBC58E2CD16A457DF483 /* KataGoEngineHelper */ = {
+			isa = PBXGroup;
+			children = (
+				A81F4103D02B5507AC828451 /* main.cpp */,
+			);
+			name = KataGoEngineHelper;
+			sourceTree = "<group>";
+		};
 		23307B682B2772DF57823B68 /* proto_generated */ = {
 			isa = PBXGroup;
 			children = (
@@ -1258,6 +1311,7 @@
 			isa = PBXGroup;
 			children = (
 				BB4E92E3543C8AD66A38752E /* Cocoa.framework */,
+				E2BD71A6F8B7C39DEAE8AC40 /* Cocoa.framework */,
 			);
 			name = "OS X";
 			sourceTree = "<group>";
@@ -1301,6 +1355,7 @@
 				EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */,
 				3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */,
 				BD670F6165FDC95F54701F7A /* Assets.xcassets */,
+				B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */,
 			);
 			name = "KataGo Anytime Mac";
 			path = "KataGo Anytime Mac";
@@ -1902,6 +1957,7 @@
 				CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */,
 				CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */,
 				6B70C95C29A013E1C0FA60AC /* KataGo Anytime Mac */,
+				0E62DBC58E2CD16A457DF483 /* KataGoEngineHelper */,
 			);
 			sourceTree = "<group>";
 		};
@@ -1914,6 +1970,7 @@
 				E118EE902B081C3200637D44 /* katago.framework */,
 				E11887E12B0830C900637D44 /* KataGoSwift.framework */,
 				C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */,
+				F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -2130,20 +2187,40 @@
 				5BC10027239988B6F3835D6A /* Frameworks */,
 				CCBE38050DC98ECFA5E176E1 /* Resources */,
 				0B683B14037DC3C6BDD811AB /* Embed Frameworks */,
+				83012D1E856547C6F72A08B6 /* Embed Engine Helper */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				6E3FB0FE24CC569305ED27DD /* PBXTargetDependency */,
 				F94C46C9F70DBE70D5765886 /* PBXTargetDependency */,
+				5C4B9BBE0E8FA345F7EAA049 /* PBXTargetDependency */,
 			);
 			name = "KataGo Anytime Mac";
 			packageProductDependencies = (
 				0D93FBBF1207325A5E8D3E42 /* KataGoUICore */,
+				B8D9B3A7C9D6AA463C92F6FD /* KataGoEngineIPC */,
 			);
 			productName = "KataGo Anytime Mac";
 			productReference = C609E9D63CD15FAF86CFCE71 /* KataGo Anytime Mac.app */;
 			productType = "com.apple.product-type.application";
+		};
+		D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 22602205419FB19493E5478B /* Build configuration list for PBXNativeTarget "KataGo Engine Helper" */;
+			buildPhases = (
+				A126E8121E3D9B2BD2B6B67C /* Sources */,
+				07068A55A24D4E4E4C680A72 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				01C8553613D0C538AD10FBB6 /* PBXTargetDependency */,
+			);
+			name = "KataGo Engine Helper";
+			productName = "KataGo Engine Helper";
+			productReference = F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */;
+			productType = "com.apple.product-type.tool";
 		};
 		E11887E02B0830C900637D44 /* KataGoSwift */ = {
 			isa = PBXNativeTarget;
@@ -2291,6 +2368,7 @@
 			packageReferences = (
 				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */,
 				2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */,
+				485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */,
 			);
 			productRefGroup = E18F3E0E2A51466A00D335E1 /* Products */;
 			projectDirPath = "";
@@ -2302,6 +2380,7 @@
 				E118EE8F2B081C3200637D44 /* katago */,
 				E11887E02B0830C900637D44 /* KataGoSwift */,
 				12B6A655CD5C9237380A43AE /* KataGo Anytime Mac */,
+				D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */,
 			);
 		};
 /* End PBXProject section */
@@ -2364,6 +2443,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A126E8121E3D9B2BD2B6B67C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA97856F39DFD6A0067F7963 /* main.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AC7F972F910D3C0E79431C3A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2395,6 +2482,7 @@
 				FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */,
 				AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */,
 				8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */,
+				5CF9C75827A28D3C714722BB /* SubprocessKataGoEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2838,6 +2926,18 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		01C8553613D0C538AD10FBB6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = katago;
+			target = E118EE8F2B081C3200637D44 /* katago */;
+			targetProxy = 45E17778ADF719EF9379250B /* PBXContainerItemProxy */;
+		};
+		5C4B9BBE0E8FA345F7EAA049 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "KataGo Engine Helper";
+			target = D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */;
+			targetProxy = E15D6FC131F5013EB1E8807D /* PBXContainerItemProxy */;
+		};
 		6E3FB0FE24CC569305ED27DD /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = katago;
@@ -2911,6 +3011,64 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
+		};
+		8E46FBE0704C82F05150AB94 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGN_ENTITLEMENTS = KataGoEngineHelper/KataGoEngineHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac.engine";
+				PRODUCT_NAME = "katago-engine";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Debug;
+		};
+		A7836D80D5AC5A867FF3E394 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGN_ENTITLEMENTS = KataGoEngineHelper/KataGoEngineHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.mac.engine";
+				PRODUCT_NAME = "katago-engine";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Release;
 		};
 		D3B3D4B2EC41BD9094262C32 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -3555,6 +3713,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		22602205419FB19493E5478B /* Build configuration list for PBXNativeTarget "KataGo Engine Helper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7836D80D5AC5A867FF3E394 /* Release */,
+				8E46FBE0704C82F05150AB94 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		6898BF5F74C7AC5B5E37CCA7 /* Build configuration list for PBXNativeTarget "KataGo Anytime Mac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -3625,6 +3792,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = KataGoUICore;
 		};
+		485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = KataGoEngineIPC;
+		};
 		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "ThirdParty/mlx-swift";
@@ -3636,6 +3807,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
 			productName = KataGoUICore;
+		};
+		B8D9B3A7C9D6AA463C92F6FD /* KataGoEngineIPC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */;
+			productName = KataGoEngineIPC;
 		};
 		D92F4C4766099217B210A9D1 /* KataGoUICore */ = {
 			isa = XCSwiftPackageProductDependency;
