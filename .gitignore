@@ -83,6 +83,8 @@ DerivedData/
 ios/KataGo\ iOS/Resources/*.bin.gz
 ios/KataGo\ iOS/Resources/*.mlpackage
 ios/KataGo\ iOS/KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz
+ios/KataGo\ iOS/Libraries/
+ios/KataGo\ iOS/.derived-data-log-*
 
 # misc
 cpp/external/httplib/cpp-httplib/
