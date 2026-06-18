@@ -4,6 +4,21 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Smart Game Format</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>ccy.KataGo-iOS.sgf</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconName</key>
@@ -20,38 +35,25 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Chin-Chang Yang. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>Smart Game Format</string>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>ccy.KataGo-iOS.sgf</string>
-			</array>
-		</dict>
-	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>ccy.KataGo-iOS.sgf</string>
-			<key>UTTypeDescription</key>
-			<string>Smart Game Format</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.plain-text</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Smart Game Format</string>
+			<key>UTTypeIdentifier</key>
+			<string>ccy.KataGo-iOS.sgf</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
