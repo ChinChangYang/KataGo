@@ -70,8 +70,8 @@ struct ContentView: View {
                     aiMove: $aiMove
                 )
             }
-        } else if let model = selectedModel {
-            LoadingView(version: $version, selectedModel: model)
+        } else if selectedModel != nil {
+            LoadingView(version: $version)
                 .task {
                     await initializationTask()
                 }
@@ -84,6 +84,13 @@ struct ContentView: View {
             engineLifecycle: engineLifecycle,
             config: gameRecords.first?.concreteConfig
         )
+
+        // Surface the model name + engine version in the Configurations sheet.
+        // The launch screen used to linger for a few seconds just to show
+        // these; that wait is gone, so stash them where the gear button can
+        // reach them (TopUIState rides the environment into ConfigView).
+        topUIState.modelName = selectedModel?.title
+        topUIState.engineVersion = version
 
         navigationContext.selectedGameRecord = gameRecords.first
         navigationContext.selectedGameRecord?.updateToLatestVersion()
@@ -105,7 +112,6 @@ struct ContentView: View {
             audioModel: audioModel,
             aiMove: $aiMove
         )
-        try? await Task.sleep(for: .seconds(3))
         isInitialized = true
     }
 }

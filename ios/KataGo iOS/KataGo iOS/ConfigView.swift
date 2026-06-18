@@ -808,6 +808,7 @@ struct GameSettingsView: View {
 struct ConfigView: View {
     var gameRecord: GameRecord
     var maxBoardLength: Int
+    @Environment(TopUIState.self) private var topUIState
 
     var body: some View {
         List {
@@ -821,6 +822,28 @@ struct ConfigView: View {
 
             NavigationLink("Open-Source Licenses") {
                 AcknowledgmentsView()
+            }
+
+            // Model name + engine version, surfaced here now that the launch
+            // screen no longer pauses to show them. Both are populated during
+            // engine initialization (ContentView) and ride TopUIState in via
+            // the environment.
+            if topUIState.modelName != nil || topUIState.engineVersionDisplay != nil {
+                Section("Engine") {
+                    if let modelName = topUIState.modelName {
+                        LabeledContent("Model", value: modelName)
+                    }
+
+                    if let version = topUIState.engineVersionDisplay {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Version")
+                            Text(version)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Configurations")

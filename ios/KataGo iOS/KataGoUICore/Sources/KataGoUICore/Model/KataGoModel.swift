@@ -717,4 +717,39 @@ public class TopUIState {
 
     public var importing = false
     public var confirmingDeletion = false
+
+    /// The currently-loaded model's friendly name (e.g. "Official KataGo
+    /// Network"). Surfaced in the Configurations sheet now that the launch
+    /// screen no longer lingers for a few seconds to show it. nil until the
+    /// engine has been initialized.
+    public var modelName: String?
+
+    /// The raw engine `version` GTP reply, e.g.
+    /// "= 1.16.3+b18c384nbt-s…+b18c384nbt-humanv0-s…" — the KataGo version
+    /// concatenated (with "+") to the abbreviated internal net names
+    /// (`gtp.cpp`'s `version` command). nil until the engine handshake
+    /// completes. Use `engineVersionDisplay` for presentation.
+    public var engineVersion: String?
+
+    /// `engineVersion` cleaned for display: the leading GTP success token
+    /// ("= ") and surrounding whitespace stripped. nil when no version has
+    /// been captured yet or nothing meaningful remains after stripping.
+    public var engineVersionDisplay: String? {
+        guard let engineVersion else { return nil }
+        var cleaned = engineVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A GTP failure reply ("? …") means the version handshake produced no
+        // version (mirrors GameSession.initialize's "= " success gate), so
+        // show nothing rather than leaking the raw error text.
+        if cleaned.hasPrefix("?") {
+            return nil
+        }
+        // Drop the GTP success token, then re-trim: stripping the "=" first
+        // (rather than matching "= ") also collapses a bare "=" / "= " reply
+        // to empty, so nothing meaningless leaks into the UI.
+        if cleaned.hasPrefix("=") {
+            cleaned.removeFirst()
+            cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return cleaned.isEmpty ? nil : cleaned
+    }
 }
