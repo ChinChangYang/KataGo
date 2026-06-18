@@ -826,10 +826,6 @@ struct ConfigView: View {
                 GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             }
 
-            NavigationLink("Open-Source Licenses") {
-                AcknowledgmentsView()
-            }
-
             // Model name + engine version, surfaced here now that the launch
             // screen no longer pauses to show them. Both are populated during
             // engine initialization (ContentView) and ride TopUIState in via
@@ -850,6 +846,11 @@ struct ConfigView: View {
                         }
                     }
                 }
+            }
+
+            // Kept at the bottom: secondary, rarely-visited reference content.
+            NavigationLink("Open-Source Licenses") {
+                AcknowledgmentsView()
             }
         }
         .navigationTitle("Configurations")

@@ -263,7 +263,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "Configurations menu item not found")
         configurations.tap()
 
-        // The new third row opens the Open-Source Licenses list.
+        // The bottom row opens the Open-Source Licenses list.
         let licensesRow = app.buttons["Open-Source Licenses"].firstMatch
         XCTAssertTrue(licensesRow.waitForExistence(timeout: 10),
                       "'Open-Source Licenses' row missing from Configurations")
