@@ -22,6 +22,7 @@
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
 		0E214CE4E7C5883F3D89C7C5 /* MacModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E695144B2B1485A6D87400 /* MacModelSelection.swift */; };
+		0E4E80892074A1CBB7AD12FA /* GlobalSettingsKeysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */; };
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
 		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
@@ -793,6 +794,7 @@
 		7CCB02B8B6426F2FD06E23D2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
+		7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GlobalSettingsKeysTests.swift; path = GlobalSettingsKeysTests.swift; sourceTree = "<group>"; };
 		805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_non_temporal_memcpy.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_non_temporal_memcpy.cc"; sourceTree = SOURCE_ROOT; };
 		822989D034C2C811FDDD8811 /* time_zone_impl.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_impl.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_impl.cc"; sourceTree = SOURCE_ROOT; };
 		822F1C257F53350EAC096A2A /* generic_printer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generic_printer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/generic_printer.cc"; sourceTree = SOURCE_ROOT; };
@@ -2029,6 +2031,7 @@
 				B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */,
 				AD31E739D75B74BF613C62AB /* EngineVersionDisplayTests.swift */,
 				83334D6F46703D747BA7BD0C /* PlayerLabelTests.swift */,
+				7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -2926,6 +2929,7 @@
 				D36117496D6E0EFF45DF02C1 /* SgfTruncationTests.swift in Sources */,
 				A7712D171CB447E119D1C2A3 /* EngineVersionDisplayTests.swift in Sources */,
 				E8882E1BFDCEFFBAC8BFCE06 /* PlayerLabelTests.swift in Sources */,
+				0E4E80892074A1CBB7AD12FA /* GlobalSettingsKeysTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -20,24 +20,6 @@ import KataGoUICore
 /// avoid a controller→sync→(closure→self) retain cycle.
 @MainActor
 final class MacGlobalPreferenceSync {
-    /// The 14 `GlobalSettings.*` UserDefaults keys, named exactly as iOS.
-    private enum Key {
-        static let soundEffect = "GlobalSettings.soundEffect"
-        static let hapticFeedback = "GlobalSettings.hapticFeedback"
-        static let showVisitsPerSecond = "GlobalSettings.showVisitsPerSecond"
-        static let showCoordinate = "GlobalSettings.showCoordinate"
-        static let showPass = "GlobalSettings.showPass"
-        static let verticalFlip = "GlobalSettings.verticalFlip"
-        static let showOwnership = "GlobalSettings.showOwnership"
-        static let showWinrateBar = "GlobalSettings.showWinrateBar"
-        static let showCharts = "GlobalSettings.showCharts"
-        static let showComments = "GlobalSettings.showComments"
-        static let stoneStyle = "GlobalSettings.stoneStyle"
-        static let moveNumberStyle = "GlobalSettings.moveNumberStyle"
-        static let analysisStyle = "GlobalSettings.analysisStyle"
-        static let analysisInformation = "GlobalSettings.analysisInformation"
-    }
-
     private let gobanState: GobanState
 
     init(gobanState: GobanState) {
@@ -59,20 +41,20 @@ final class MacGlobalPreferenceSync {
     private func seedFromDefaults() {
         let defaults = UserDefaults.standard
 
-        gobanState.soundEffect = (defaults.object(forKey: Key.soundEffect) as? Bool) ?? false
-        gobanState.hapticFeedback = (defaults.object(forKey: Key.hapticFeedback) as? Bool) ?? false
-        gobanState.showVisitsPerSecond = (defaults.object(forKey: Key.showVisitsPerSecond) as? Bool) ?? false
-        gobanState.showCoordinate = (defaults.object(forKey: Key.showCoordinate) as? Bool) ?? Config.defaultShowCoordinate
-        gobanState.showPass = (defaults.object(forKey: Key.showPass) as? Bool) ?? Config.defaultShowPass
-        gobanState.verticalFlip = (defaults.object(forKey: Key.verticalFlip) as? Bool) ?? Config.compatibleVerticalFlip
-        gobanState.showOwnership = (defaults.object(forKey: Key.showOwnership) as? Bool) ?? Config.defaultShowOwnership
-        gobanState.showWinrateBar = (defaults.object(forKey: Key.showWinrateBar) as? Bool) ?? Config.defaultShowWinrateBar
-        gobanState.showCharts = (defaults.object(forKey: Key.showCharts) as? Bool) ?? Config.defaultShowCharts
-        gobanState.showComments = (defaults.object(forKey: Key.showComments) as? Bool) ?? Config.defaultShowComments
-        gobanState.stoneStyle = (defaults.object(forKey: Key.stoneStyle) as? Int) ?? Config.defaultStoneStyle
-        gobanState.moveNumberStyle = (defaults.object(forKey: Key.moveNumberStyle) as? Int) ?? Config.defaultMoveNumberStyle
-        gobanState.analysisStyle = (defaults.object(forKey: Key.analysisStyle) as? Int) ?? Config.defaultAnalysisStyle
-        gobanState.analysisInformation = (defaults.object(forKey: Key.analysisInformation) as? Int) ?? Config.defaultAnalysisInformation
+        gobanState.soundEffect = (defaults.object(forKey: GlobalSettingsKeys.soundEffect) as? Bool) ?? false
+        gobanState.hapticFeedback = (defaults.object(forKey: GlobalSettingsKeys.hapticFeedback) as? Bool) ?? false
+        gobanState.showVisitsPerSecond = (defaults.object(forKey: GlobalSettingsKeys.showVisitsPerSecond) as? Bool) ?? false
+        gobanState.showCoordinate = (defaults.object(forKey: GlobalSettingsKeys.showCoordinate) as? Bool) ?? Config.defaultShowCoordinate
+        gobanState.showPass = (defaults.object(forKey: GlobalSettingsKeys.showPass) as? Bool) ?? Config.defaultShowPass
+        gobanState.verticalFlip = (defaults.object(forKey: GlobalSettingsKeys.verticalFlip) as? Bool) ?? Config.compatibleVerticalFlip
+        gobanState.showOwnership = (defaults.object(forKey: GlobalSettingsKeys.showOwnership) as? Bool) ?? Config.defaultShowOwnership
+        gobanState.showWinrateBar = (defaults.object(forKey: GlobalSettingsKeys.showWinrateBar) as? Bool) ?? Config.defaultShowWinrateBar
+        gobanState.showCharts = (defaults.object(forKey: GlobalSettingsKeys.showCharts) as? Bool) ?? Config.defaultShowCharts
+        gobanState.showComments = (defaults.object(forKey: GlobalSettingsKeys.showComments) as? Bool) ?? Config.defaultShowComments
+        gobanState.stoneStyle = (defaults.object(forKey: GlobalSettingsKeys.stoneStyle) as? Int) ?? Config.defaultStoneStyle
+        gobanState.moveNumberStyle = (defaults.object(forKey: GlobalSettingsKeys.moveNumberStyle) as? Int) ?? Config.defaultMoveNumberStyle
+        gobanState.analysisStyle = (defaults.object(forKey: GlobalSettingsKeys.analysisStyle) as? Int) ?? Config.defaultAnalysisStyle
+        gobanState.analysisInformation = (defaults.object(forKey: GlobalSettingsKeys.analysisInformation) as? Int) ?? Config.defaultAnalysisInformation
     }
 
     // MARK: - Write-back (GobanState -> UserDefaults)
@@ -122,19 +104,19 @@ final class MacGlobalPreferenceSync {
     private func persistToDefaults() {
         let defaults = UserDefaults.standard
 
-        defaults.set(gobanState.soundEffect, forKey: Key.soundEffect)
-        defaults.set(gobanState.hapticFeedback, forKey: Key.hapticFeedback)
-        defaults.set(gobanState.showVisitsPerSecond, forKey: Key.showVisitsPerSecond)
-        defaults.set(gobanState.showCoordinate, forKey: Key.showCoordinate)
-        defaults.set(gobanState.showPass, forKey: Key.showPass)
-        defaults.set(gobanState.verticalFlip, forKey: Key.verticalFlip)
-        defaults.set(gobanState.showOwnership, forKey: Key.showOwnership)
-        defaults.set(gobanState.showWinrateBar, forKey: Key.showWinrateBar)
-        defaults.set(gobanState.showCharts, forKey: Key.showCharts)
-        defaults.set(gobanState.showComments, forKey: Key.showComments)
-        defaults.set(gobanState.stoneStyle, forKey: Key.stoneStyle)
-        defaults.set(gobanState.moveNumberStyle, forKey: Key.moveNumberStyle)
-        defaults.set(gobanState.analysisStyle, forKey: Key.analysisStyle)
-        defaults.set(gobanState.analysisInformation, forKey: Key.analysisInformation)
+        defaults.set(gobanState.soundEffect, forKey: GlobalSettingsKeys.soundEffect)
+        defaults.set(gobanState.hapticFeedback, forKey: GlobalSettingsKeys.hapticFeedback)
+        defaults.set(gobanState.showVisitsPerSecond, forKey: GlobalSettingsKeys.showVisitsPerSecond)
+        defaults.set(gobanState.showCoordinate, forKey: GlobalSettingsKeys.showCoordinate)
+        defaults.set(gobanState.showPass, forKey: GlobalSettingsKeys.showPass)
+        defaults.set(gobanState.verticalFlip, forKey: GlobalSettingsKeys.verticalFlip)
+        defaults.set(gobanState.showOwnership, forKey: GlobalSettingsKeys.showOwnership)
+        defaults.set(gobanState.showWinrateBar, forKey: GlobalSettingsKeys.showWinrateBar)
+        defaults.set(gobanState.showCharts, forKey: GlobalSettingsKeys.showCharts)
+        defaults.set(gobanState.showComments, forKey: GlobalSettingsKeys.showComments)
+        defaults.set(gobanState.stoneStyle, forKey: GlobalSettingsKeys.stoneStyle)
+        defaults.set(gobanState.moveNumberStyle, forKey: GlobalSettingsKeys.moveNumberStyle)
+        defaults.set(gobanState.analysisStyle, forKey: GlobalSettingsKeys.analysisStyle)
+        defaults.set(gobanState.analysisInformation, forKey: GlobalSettingsKeys.analysisInformation)
     }
 }

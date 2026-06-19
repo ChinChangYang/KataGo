@@ -573,20 +573,20 @@ struct GameSplitView: View {
 private struct GlobalPreferenceSync: ViewModifier {
     let gobanState: GobanState
 
-    @AppStorage("GlobalSettings.soundEffect") private var soundEffect = false
-    @AppStorage("GlobalSettings.hapticFeedback") private var hapticFeedback = false
-    @AppStorage("GlobalSettings.showVisitsPerSecond") private var showVisitsPerSecond = false
-    @AppStorage("GlobalSettings.showCoordinate") private var showCoordinate = Config.defaultShowCoordinate
-    @AppStorage("GlobalSettings.showPass") private var showPass = Config.defaultShowPass
-    @AppStorage("GlobalSettings.verticalFlip") private var verticalFlip = Config.compatibleVerticalFlip
-    @AppStorage("GlobalSettings.showOwnership") private var showOwnership = Config.defaultShowOwnership
-    @AppStorage("GlobalSettings.showWinrateBar") private var showWinrateBar = Config.defaultShowWinrateBar
-    @AppStorage("GlobalSettings.showCharts") private var showCharts = Config.defaultShowCharts
-    @AppStorage("GlobalSettings.showComments") private var showComments = Config.defaultShowComments
-    @AppStorage("GlobalSettings.stoneStyle") private var stoneStyle = Config.defaultStoneStyle
-    @AppStorage("GlobalSettings.moveNumberStyle") private var moveNumberStyle = Config.defaultMoveNumberStyle
-    @AppStorage("GlobalSettings.analysisStyle") private var analysisStyle = Config.defaultAnalysisStyle
-    @AppStorage("GlobalSettings.analysisInformation") private var analysisInformation = Config.defaultAnalysisInformation
+    @AppStorage(GlobalSettingsKeys.soundEffect) private var soundEffect = false
+    @AppStorage(GlobalSettingsKeys.hapticFeedback) private var hapticFeedback = false
+    @AppStorage(GlobalSettingsKeys.showVisitsPerSecond) private var showVisitsPerSecond = false
+    @AppStorage(GlobalSettingsKeys.showCoordinate) private var showCoordinate = Config.defaultShowCoordinate
+    @AppStorage(GlobalSettingsKeys.showPass) private var showPass = Config.defaultShowPass
+    @AppStorage(GlobalSettingsKeys.verticalFlip) private var verticalFlip = Config.compatibleVerticalFlip
+    @AppStorage(GlobalSettingsKeys.showOwnership) private var showOwnership = Config.defaultShowOwnership
+    @AppStorage(GlobalSettingsKeys.showWinrateBar) private var showWinrateBar = Config.defaultShowWinrateBar
+    @AppStorage(GlobalSettingsKeys.showCharts) private var showCharts = Config.defaultShowCharts
+    @AppStorage(GlobalSettingsKeys.showComments) private var showComments = Config.defaultShowComments
+    @AppStorage(GlobalSettingsKeys.stoneStyle) private var stoneStyle = Config.defaultStoneStyle
+    @AppStorage(GlobalSettingsKeys.moveNumberStyle) private var moveNumberStyle = Config.defaultMoveNumberStyle
+    @AppStorage(GlobalSettingsKeys.analysisStyle) private var analysisStyle = Config.defaultAnalysisStyle
+    @AppStorage(GlobalSettingsKeys.analysisInformation) private var analysisInformation = Config.defaultAnalysisInformation
 
     func body(content: Content) -> some View {
         content
