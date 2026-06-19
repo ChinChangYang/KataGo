@@ -26,7 +26,15 @@ namespace MainCmds {
 int gtp(const std::vector<std::string>& args);
 }
 
+// Installs the persistent Core ML cache bridge (EngineCoreMLBridge.swift) so the
+// MLX backend's ANE path reuses the on-disk cache instead of recompiling Core ML
+// to /tmp on every launch. Must run before MainCmds::gtp creates any compute
+// handle. The in-process katago_coreml_bridge seam the app installs does NOT
+// cross the process boundary, so the subprocess installs its own here.
+extern "C" void katago_register_coreml_bridge(void);
+
 int main(int argc, const char* const* argv) {
+  katago_register_coreml_bridge();
   std::vector<std::string> args;
   args.reserve(argc > 1 ? static_cast<size_t>(argc - 1) : 0);
   for (int i = 1; i < argc; ++i) {
