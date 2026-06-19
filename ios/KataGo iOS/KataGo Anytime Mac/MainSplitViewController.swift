@@ -26,6 +26,12 @@ final class MainSplitViewController: NSSplitViewController {
     private var inspectorViewController: InspectorViewController?
     private var inspectorSplitItem: NSSplitViewItem?
 
+    /// The board pane's container view. The window controller uses it as the
+    /// window's `initialFirstResponder` (and as the target of the launch-time
+    /// focus fallback) so keyboard focus lands on the board, not the sidebar
+    /// `NSSearchField`, keeping the LizzieYzy shortcuts live from the first frame.
+    private(set) var boardFirstResponderView: NSView?
+
     init(session: GameSession,
          navigationContext: NavigationContext,
          audioModel: AudioModel,
@@ -75,6 +81,11 @@ final class MainSplitViewController: NSSplitViewController {
             engineLaunchStatus: engineLaunchStatus,
             activeModelTitle: windowController?.modelSelection.currentModel.title ?? ""
         )
+        // Force the board VC's view to load now and remember it, so the window
+        // controller can make it the window's `initialFirstResponder` (it's a
+        // `BoardContainerView` that accepts first responder — see
+        // `BoardViewController.loadView`).
+        boardFirstResponderView = boardVC.view
         let boardItem = NSSplitViewItem(viewController: boardVC)
         boardItem.holdingPriority = NSLayoutConstraint.Priority(
             NSLayoutConstraint.Priority.defaultLow.rawValue - 1)

@@ -183,7 +183,7 @@ final class MainWindowController: NSWindowController {
         // `GlobalPreferenceSync` `.onAppear` seeding.
         preferenceSync = MacGlobalPreferenceSync(gobanState: session.gobanState)
 
-        w.contentViewController = MainSplitViewController(
+        let splitVC = MainSplitViewController(
             session: session,
             navigationContext: navigationContext,
             audioModel: audioModel,
@@ -192,6 +192,16 @@ final class MainWindowController: NSWindowController {
             engineLaunchStatus: engineLaunchStatus,
             windowController: self
         )
+        w.contentViewController = splitVC
+        // Land keyboard focus on the board pane — not the sidebar `NSSearchField`
+        // — when the window first appears, so the LizzieYzy board shortcuts
+        // (Space / `,` / `P`) work immediately. Without this, AppKit's key-view-
+        // loop default focuses the search field; its field editor is an `NSText`,
+        // so `isTextInputActive` is true and the shortcuts type into the search
+        // box instead of toggling analysis / playing best / passing. (Setting
+        // `contentViewController` above has already loaded the split view's
+        // children, so `boardFirstResponderView` is populated here.)
+        w.initialFirstResponder = splitVC.boardFirstResponderView
         w.titlebarAppearsTransparent = false
         w.toolbarStyle = .unified
 
@@ -302,6 +312,29 @@ final class MainWindowController: NSWindowController {
             guard let window = self?.window else { return }
             if !window.styleMask.contains(.fullScreen) {
                 window.toggleFullScreen(nil)
+            }
+        }
+    }
+
+    /// Belt-and-suspenders for `init`'s `initialFirstResponder`: if the sidebar
+    /// `NSSearchField` still won the key-view-loop race when the window first
+    /// became key, move focus back to the board pane so the LizzieYzy shortcuts
+    /// (Space / `,` / `P`) are live immediately. Guarded so it ONLY corrects an
+    /// auto-focused text field — it never steals focus the user placed somewhere
+    /// deliberately. Deferred one run-loop turn (like `restoreWindowStateOnLaunch`)
+    /// so it runs after the window is fully on-screen and the initial focus has
+    /// settled.
+    func focusBoardOnLaunch() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  let window = self.window,
+                  let boardView = (window.contentViewController as? MainSplitViewController)?
+                      .boardFirstResponderView
+            else { return }
+            // The field editor for a focused search/text field is an `NSText`.
+            // Only then do we redirect focus; otherwise leave it untouched.
+            if window.firstResponder is NSText {
+                window.makeFirstResponder(boardView)
             }
         }
     }

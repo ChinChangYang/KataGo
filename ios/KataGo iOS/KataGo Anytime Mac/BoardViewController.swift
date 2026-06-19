@@ -47,6 +47,27 @@ final class BoardViewController: NSViewController {
             )
         )
         addChild(host)
-        view = host.view
+        // Wrap the SwiftUI hosting view in a container that accepts first
+        // responder, so the window can land keyboard focus on the board pane —
+        // not the sidebar `NSSearchField` — at launch. That keeps the LizzieYzy
+        // board shortcuts (Space / `,` / `P`) live from the first frame: they're
+        // gated on the first responder NOT being an `NSText`
+        // (`MainWindowController.isTextInputActive`), and an empty search field
+        // grabbing focus would otherwise swallow them as typed text. Board input
+        // itself still flows through the SwiftUI gesture overlay inside `host`.
+        let container = BoardContainerView()
+        host.view.frame = container.bounds
+        host.view.autoresizingMask = [.width, .height]
+        container.addSubview(host.view)
+        view = container
     }
+}
+
+/// Board-pane container that accepts first responder. It deliberately handles no
+/// keys itself — the LizzieYzy shortcuts run through the window's local key
+/// monitor and board clicks through the SwiftUI overlay; this only exists so the
+/// window has a concrete, non-`NSText` view to hold keyboard focus on launch
+/// (see `BoardViewController.loadView`).
+private final class BoardContainerView: NSView {
+    override var acceptsFirstResponder: Bool { true }
 }

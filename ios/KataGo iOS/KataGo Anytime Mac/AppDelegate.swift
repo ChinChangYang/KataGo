@@ -57,6 +57,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         wc.restoreWindowStateOnLaunch()
+        // Ensure keyboard focus lands on the board, not the sidebar search field,
+        // so the LizzieYzy shortcuts (Space / `,` / `P`) work from launch. The
+        // window's `initialFirstResponder` (set in the controller's `init`)
+        // normally handles this; this is the guarded fallback for the case where
+        // the search field still grabbed focus when the window became key.
+        wc.focusBoardOnLaunch()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
