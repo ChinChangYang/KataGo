@@ -645,3 +645,33 @@ EOF
 - **Spec coverage:** §Components 1 (extract module) → Task 1; §Components 2–4 (shim, helper wiring, main.cpp) → Task 2; §Verification plan → Task 3 (builds, unit tests, cold/warm, correctness, codesign, adversarial review). All covered.
 - **Placeholders:** The only intentional fill-ins are `INTEROP_SETTINGS` values, which Step 3 discovers with an exact command before Step 4 uses them — not a vague instruction.
 - **Type consistency:** `katago_register_coreml_bridge` (C symbol) matches between EngineCoreMLBridge.swift `@_cdecl`, main.cpp `extern "C"`, and the Step 6 `nm` check. `CoreMLModelCache`/`PinnedCacheURL`/`BinFileHasher` APIs match Task 1's Produces block and the existing app loader. `CoreMLCacheKit` product name matches Package.swift, the gem script, and the test imports.
+
+---
+
+## Verification Results (2026-06-19)
+
+**Builds:** iOS Simulator, macOS (`KataGo Anytime Mac`), visionOS Simulator — all `BUILD SUCCEEDED`.
+
+**Unit tests:** cache suites 49/49 (`CoreMLModelCacheTests`, `CoreMLCacheKeyTests`, `BinFileHasherTests`, `CoreMLCacheReadinessProjectionTests`); full iOS suite 262/262 across 19 suites; `KataGoEngineIPC` 13/13. No regressions.
+
+**Helper integrity:** `katago_register_coreml_bridge` exported (`nm`); helper links `@rpath/KataGoSwift.framework` + statically links CoreMLCacheKit; `codesign --verify --deep --strict` valid + satisfies Designated Requirement; helper retains `app-sandbox` + `inherit`.
+
+**Headless cold/warm measurement** (re-signed helper run in place, mux `[0,100,100]`, b18 default + human SL nets):
+
+| Scenario | Model-load time |
+|---|---|
+| Cold (recompile — every launch *before* the fix) | **12.96 s** |
+| Warm (cache hit — relaunch *after* the fix) | **2.22 s** (steady 2.16 s) |
+| **Per-launch saving** | **≈10.7 s (~6× faster load)** |
+
+- `"CoreML bridge not registered, using direct-compile path"` occurrences: **0** across all runs (fix is active).
+- Cache populated at `Application Support/chinchangyang.KataGo-iOS.tw/coreml/` (`index.json` + **2** digests — the two ANE threads per net **dedupe** to one entry; main + human = 2).
+- Warm-run `.mlmodelc` mtimes **identical** to cold-run → genuine cache hit, no recompilation; no new PID-named `/tmp` `.mlmodelc`.
+- Inference correct on the warm-cached model: `genmove w` → `D4`; `kata-genmove_analyze` returns valid winrates/score (e.g. `winrate 0.654 scoreMean 0.80`).
+
+**Adversarial review** (4-lens workflow + verify pass): 9 "confirmed" findings — **0 warrant a code change**:
+- 5 (incl. 3 HIGH) rest on a false premise that the helper uses bundle ID `…mac.engine`. Refuted: the helper tool has **no embedded `__info_plist`**, so `Bundle.main` resolves to the enclosing `.app` (`chinchangyang.KataGo-iOS.tw`) — empirically confirmed (cache landed there; warm hits across separate process launches).
+- 3 describe the proven app-loader timeout/fallback/pin behavior (copied verbatim; returns a fallback, only on an unrealistic >600 s compile) — out of scope, not regressions.
+- 1 (app+subprocess compile race) is a non-issue on Mac (app never loads models in-process) and benign-by-design (atomic commit + orphan sweep). LOW items are cosmetic / shared with the app loader.
+
+**Real sandboxed-app container check:** attempted but blocked by an environmental `cfprefsd` wedge (PlistBuddy on the container prefs hung; crash-recovery sentinel could not be cleared to force a clean auto-spawn). Not a product issue. The container path is otherwise established: the headless probe proved `Bundle.main.bundleIdentifier = chinchangyang.KataGo-iOS.tw` (no embedded plist), and the sandboxed engine demonstrably writes its container (`Data/.katago/mlxwinotuning/` tuner cache; `Data/Library/Application Support/default.store`), so the cache resolves to `Data/Library/Application Support/chinchangyang.KataGo-iOS.tw/coreml/` via the same FileManager API. Deferred: a clean on-screen relaunch check once the prefs system is unwedged.
