@@ -169,18 +169,40 @@ public struct LinePlotView: View {
             }
         }
         .onChange(of: selectedMove) { _, newSelectedMove in
-            if !gobanState.isAutoPlaying, let newSelectedMove {
-                gobanState.go(
-                    to: newSelectedMove,
-                    gameRecord: gameRecord,
-                    board: board,
-                    messageList: messageList,
-                    player: player,
-                    audioModel: nil,
-                    stones: stones
-                )
-            }
+            // On iOS/visionOS `chartXSelection` is driven by an intentional
+            // touch gesture (tap/drag), so a selection change *is* the user
+            // asking to navigate. On macOS the same binding is driven by mouse
+            // *hover*, which must only update the on-chart annotation — never
+            // move the board. There the commit happens on click (below).
+            #if !os(macOS)
+            navigateBoard(to: newSelectedMove)
+            #endif
         }
+        #if os(macOS)
+        // macOS: hovering only previews the position via the chart annotation
+        // (the red rule mark + "Move N / Lead X" label above). A *click* is the
+        // explicit "jump to this move" commit, mirroring `MovesListView`'s
+        // tap-to-navigate. By click time the pointer is already hovering the
+        // target, so `selectedMove` holds the move under the cursor.
+        .onTapGesture {
+            navigateBoard(to: selectedMove)
+        }
+        #endif
+    }
+
+    /// Navigate the board to `move`, guarded exactly like the original hover
+    /// jump: a no-op while auto-playing or when `move` is nil.
+    private func navigateBoard(to move: Int?) {
+        guard !gobanState.isAutoPlaying, let move else { return }
+        gobanState.go(
+            to: move,
+            gameRecord: gameRecord,
+            board: board,
+            messageList: messageList,
+            player: player,
+            audioModel: nil,
+            stones: stones
+        )
     }
 
     public var body: some View {
