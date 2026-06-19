@@ -189,7 +189,10 @@ require 'xcodeproj'
 project = Xcodeproj::Project.open('KataGo Anytime.xcodeproj')
 target = project.targets.find { |t| t.name == 'KataGo AnytimeTests' }
 group = project.main_group.find_subpath('KataGo iOSTests', true)
-ref = group.new_file('KataGo iOSTests/GlobalSettingsKeysTests.swift')
+# Pass the FILENAME ONLY: the group already has path "KataGo iOSTests", so a
+# path-qualified arg here produces a doubled "KataGo iOSTests/KataGo iOSTests/…"
+# fileRef. (Reuse this snippet for later test files — swap the filename.)
+ref = group.new_file('GlobalSettingsKeysTests.swift')
 target.add_file_references([ref])
 project.save
 ```
