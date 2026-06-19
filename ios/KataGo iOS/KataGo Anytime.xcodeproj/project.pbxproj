@@ -25,7 +25,6 @@
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
 		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
-		162CF665BE9CC9D3F596B306 /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */; };
 		16DA2B0F2603C5AC4D072362 /* SubByteTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */; };
 		1821247E1EAEBBC73694BAFD /* ItemSimilarityRecommender.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */; };
 		1898CE597D3A65A0C6455C0A /* program_name.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3198312DEEC29C7E79A119D6 /* program_name.cc */; };
@@ -118,6 +117,7 @@
 		61C325C8BFAD3AB5D9F8C34A /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		630898D664665D951808FD3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		6335453FC03E1E0E180004A2 /* CoreMLSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */; };
+		642C6A1C725869998B65456C /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
 		64D06643D3E232A5332C28D0 /* bind.cc in Sources */ = {isa = PBXBuildFile; fileRef = 17FA6DBD4C7BA5955B8953B7 /* bind.cc */; };
 		6711A05635634AE5B5C6DE5C /* randen_slow.cc in Sources */ = {isa = PBXBuildFile; fileRef = E549A394F12A2C25F11CE915 /* randen_slow.cc */; };
@@ -736,7 +736,6 @@
 		4B723FFDCF4553074736CA50 /* graphcycles.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = graphcycles.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/graphcycles.cc"; sourceTree = SOURCE_ROOT; };
 		4BE7511F72FFCCBFDD1A791A /* int128.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = int128.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/numeric/int128.cc"; sourceTree = SOURCE_ROOT; };
 		4C85AEF2A31A0C2D1B3878EA /* ModelsViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelsViewController.swift; sourceTree = "<group>"; };
-		4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreMLComputeHandleLoader.swift; sourceTree = "<group>"; };
 		4D052BCCBD2D036B1E839690 /* vlog_config.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = vlog_config.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/vlog_config.cc"; sourceTree = SOURCE_ROOT; };
 		4D6E52745365E94504045919 /* create_thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = create_thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/create_thread_identity.cc"; sourceTree = SOURCE_ROOT; };
 		4FA4F0662AABA7D774C87B46 /* conditions.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = conditions.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/conditions.cc"; sourceTree = SOURCE_ROOT; };
@@ -1344,7 +1343,6 @@
 			children = (
 				55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */,
 				5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */,
-				4CFF2F7052C047D05F36374B /* CoreMLComputeHandleLoader.swift */,
 				7CCB02B8B6426F2FD06E23D2 /* Info.plist */,
 				99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */,
 				735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */,
@@ -2474,7 +2472,6 @@
 			files = (
 				1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */,
 				74F0287281FFC47912543E0A /* MainWindowController.swift in Sources */,
-				162CF665BE9CC9D3F596B306 /* CoreMLComputeHandleLoader.swift in Sources */,
 				69FBFAB9B1006AEE42C3312C /* MainSplitViewController.swift in Sources */,
 				4FBCBA87E6873D8BC02DF632 /* BoardViewController.swift in Sources */,
 				AA9F3F283902DB0660700FAC /* PlaceholderViewController.swift in Sources */,
@@ -2500,6 +2497,7 @@
 				AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */,
 				8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */,
 				5CF9C75827A28D3C714722BB /* SubprocessKataGoEngine.swift in Sources */,
+				642C6A1C725869998B65456C /* CoreMLComputeHandleLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
