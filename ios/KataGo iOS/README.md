@@ -5,7 +5,7 @@
 
 It runs on **iOS 26+, macOS 26+ (native), and visionOS 26+**, and is optimized for power-efficient inference on Apple silicon. On iPhone, iPad, and Apple Vision Pro the engine runs on Apple's [Neural Engine](https://machinelearning.apple.com/research/neural-engine-transformers) (NE) via CoreML; on macOS it runs on the GPU via an [MLX](https://github.com/ml-explore/mlx) backend.
 
-![Screenshot of the board view](GobanView.png)
+![Screenshot of the board view](docs/screenshots/GobanView.png)
 
 ## Inference Backends and Power Efficiency
 The app ships a single compiled C++ neural-network backend (MLX) that multiplexes two user-selectable inference paths:
@@ -101,7 +101,7 @@ Configure code signing in Xcode under the project's "Signing & Capabilities" sec
 
 Refer to the screenshot below for guidance on configuring code signing in Xcode:
 
-![Screenshot of Xcode signing](Xcode_Signing.png)
+![Screenshot of Xcode signing](docs/screenshots/Xcode_Signing.png)
 
 ### Building and Running the Application
 You can build and run from Xcode via "Product -> Run" (or `Command + R`), targeting a simulator or connected device.
@@ -208,12 +208,12 @@ Tapping **Clone** asks how much of the game to copy:
 - **Whole Game** — a full copy.
 - **Current Position** — a copy truncated to the move you're currently viewing; later moves are dropped, so the copy starts from that position. Handy for practicing a particular position later.
 
-![Clone dialog](CloneDialog.png)
+![Clone dialog](docs/screenshots/CloneDialog.png)
 
 #### Developer Mode (GTP Console)
 The raw [GTP command](https://github.com/ChinChangYang/KataGo/blob/metal-coreml-stable/docs/GTP_Extensions.md) console still exists, but it is now reached through **More -> Developer Mode**, which opens as a sheet. It shows a scrolling message log and a text field for entering GTP commands (e.g. `list_commands`).
 
-![GTP Console Screenshot](CommandView.png)
+![GTP Console Screenshot](docs/screenshots/CommandView.png)
 
 #### Branch Mode
 When you play a move while reviewing earlier history (and not editing), the app enters **branch mode**: it snapshots the current line so your exploratory stones don't overwrite the saved game. While a branch is active, the board is drawn with a **red border** to remind you that the branch stones are temporary, and the detail toolbar shows a **Deactivate Branch** button.
@@ -230,7 +230,7 @@ Settings are reached through **More -> Configurations**, which presents a hierar
 - **Game Settings** — per-game settings for the currently selected game.
 - **Open-Source Licenses** — third-party license information.
 
-![Configurations Screenshot](ConfigView.png)
+![Configurations Screenshot](docs/screenshots/ConfigView.png)
 
 #### Global Settings
 Global Settings are app-wide and are grouped into three sections:

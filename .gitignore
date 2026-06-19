@@ -107,3 +107,9 @@ cpp/build.ninja
 cpp/KataGoSwift.*
 cpp/include/KataGoSwift/KataGoSwift-swift.h
 cpp/external/katagocoreml/proto/
+
+# Swift Package Manager build artifacts
+.build/
+
+# macOS archive extraction artifacts
+__MACOSX/
