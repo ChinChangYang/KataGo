@@ -11,6 +11,7 @@
 //  like `BackendSettings` and `NeuralNetworkModel`.
 //
 
+import CoreMLCacheKit
 import Foundation
 
 /// Primitive inputs for `CoreMLModelCache.projectedDigest`.

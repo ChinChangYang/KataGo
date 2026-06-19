@@ -6,6 +6,7 @@
 //  signal consumed by the model picker's green checkmark.
 //
 
+import CoreMLCacheKit
 import Foundation
 import Observation
 import OSLog

@@ -58,7 +58,11 @@ let package = Package(
         // simulators and emits a build warning. The test target therefore does
         // NOT also link this product (only the app does) to avoid SwiftPM's
         // static-duplication diagnostic.
-        .library(name: "KataGoUICore", type: .static, targets: ["KataGoUICore"])
+        .library(name: "KataGoUICore", type: .static, targets: ["KataGoUICore"]),
+        // Dependency-light Core ML cache, split out so the headless
+        // katago-engine helper can link it without the UI core (SwiftUI,
+        // SwiftData, FoundationModels, …). Foundation/OSLog/CryptoKit only.
+        .library(name: "CoreMLCacheKit", type: .static, targets: ["CoreMLCacheKit"]),
     ],
     targets: [
         // C++ bridge between Swift and the KataGo engine. Folded in from the
@@ -83,9 +87,16 @@ let package = Package(
                 .unsafeFlags(engineHeaderFlags),
             ]
         ),
+        // Pure-Swift, dependency-light Core ML cache (no CKataGoBridge, no Cxx
+        // interop). Its `@_silgen_name("katagocoreml_converter_version")` symbol
+        // resolves at the consumer's link against katago.framework, mirroring
+        // CKataGoBridge's deferred-link pattern.
+        .target(
+            name: "CoreMLCacheKit"
+        ),
         .target(
             name: "KataGoUICore",
-            dependencies: ["CKataGoBridge"],
+            dependencies: ["CKataGoBridge", "CoreMLCacheKit"],
             resources: [
                 .process("Resources")
             ],

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CoreMLCacheKit
 @testable import KataGo_Anytime
 @testable import KataGoUICore
 
