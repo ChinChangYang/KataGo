@@ -18,7 +18,11 @@ struct GtpCommandBuilderTests {
         b.maxAnalysisMoves = 30
         b.analysisInterval = 25
         b.blackMaxTime = 3; b.whiteMaxTime = 0
-        return [a, b]
+        // profiles equal but ratios differ — exercises the asymmetric branch
+        let c = Config()
+        c.humanRatioForBlack = 0.5
+        c.humanRatioForWhite = 0.0
+        return [a, b, c]
     }
 
     @Test func builderMatchesConfigForAllScalarCommands() {
@@ -47,7 +51,7 @@ struct GtpCommandBuilderTests {
                 whiteHandicapBonus: c.whiteHandicapBonusRuleText) == c.ruleCommands)
             #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: c.blackMaxTime, interval: c.analysisInterval, maxMoves: c.maxAnalysisMoves)
                     == c.getKataGenMoveAnalyzeCommands(maxTime: c.blackMaxTime))
-            #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(blackProfile: c.humanProfileForBlack, whiteProfile: c.humanProfileForWhite)
+            #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: c.humanSLProfile, humanProfileForWhite: c.humanProfileForWhite, humanRatioForBlack: c.humanRatioForBlack, humanRatioForWhite: c.humanRatioForWhite)
                     == c.getSymmetricHumanAnalysisCommands())
         }
     }

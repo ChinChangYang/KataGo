@@ -77,12 +77,14 @@ public enum GtpCommandBuilder {
                 whiteHandicapBonusCommand(whiteHandicapBonus)]
     }
 
-    public static func symmetricHumanAnalysisCommands(blackProfile: String, whiteProfile: String) -> [String] {
-        if blackProfile == whiteProfile,
-           let humanSLModel = HumanSLModel(profile: blackProfile) {
-            return humanSLModel.commands
-        } else {
-            return []
+    public static func symmetricHumanAnalysisCommands(humanSLProfile: String,
+                                                      humanProfileForWhite: String,
+                                                      humanRatioForBlack: Float,
+                                                      humanRatioForWhite: Float) -> [String] {
+        let isEqual = (humanSLProfile == humanProfileForWhite) && (humanRatioForBlack == humanRatioForWhite)
+        if isEqual, let model = HumanSLModel(profile: humanSLProfile) {
+            return model.commands
         }
+        return []
     }
 }
