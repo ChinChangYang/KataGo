@@ -24,7 +24,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 291-294 (`RuleConfigView`):
     //   config.komi = min(1_000, max(-1_000, ((Float(newValue) ?? defaultKomi) * 2).rounded() / 2))
-    //   messageList.appendAndSend(command: config.getKataKomiCommand())
+    //   messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
     // We clamp + half-point-round the same way, write `config.komi`, then send.
 
     /// Sets `config.komi` (clamped to ±1000, rounded to the nearest 0.5 exactly
@@ -38,7 +38,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 211-215:
     //   config.koRule = KoRule(rawValue: rawValue) ?? .simple
-    //   messageList.appendAndSend(command: config.koRuleCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.koRuleCommand(config.koRuleText))
 
     /// Sets `config.koRule` and replays `kata-set-rule ko <TEXT>`.
     public static func setKoRule(_ koRule: KoRule, config: Config, messageList: MessageList) {
@@ -50,7 +50,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 226-229:
     //   config.scoringRule = ScoringRule(rawValue: rawValue) ?? .area
-    //   messageList.appendAndSend(command: config.scoringRuleCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.scoringRuleCommand(config.scoringRuleText))
 
     /// Sets `config.scoringRule` and replays `kata-set-rule scoring <TEXT>`.
     public static func setScoringRule(_ scoringRule: ScoringRule, config: Config, messageList: MessageList) {
@@ -62,7 +62,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 241-244:
     //   config.taxRule = TaxRule(rawValue: rawValue) ?? .none
-    //   messageList.appendAndSend(command: config.taxRuleCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.taxRuleCommand(config.taxRuleText))
 
     /// Sets `config.taxRule` and replays `kata-set-rule tax <TEXT>`.
     public static func setTaxRule(_ taxRule: TaxRule, config: Config, messageList: MessageList) {
@@ -74,7 +74,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 252-254 (`RuleConfigView`):
     //   config.multiStoneSuicideLegal = newValue
-    //   messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.multiStoneSuicideCommand(config.multiStoneSuicideLegal))
 
     /// Sets `config.multiStoneSuicideLegal` and replays
     /// `kata-set-rule suicide <bool>`.
@@ -87,7 +87,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 262-264 (`RuleConfigView`):
     //   config.hasButton = newValue
-    //   messageList.appendAndSend(command: config.hasButtonCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.hasButtonCommand(config.hasButton))
 
     /// Sets `config.hasButton` and replays `kata-set-rule hasButton <bool>`.
     public static func setHasButton(_ isOn: Bool, config: Config, messageList: MessageList) {
@@ -99,7 +99,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 276-280 (`RuleConfigView`):
     //   config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
-    //   messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+    //   messageList.appendAndSend(command: GtpCommandBuilder.whiteHandicapBonusCommand(config.whiteHandicapBonusRuleText))
     // The picker index maps 1:1 onto `WhiteHandicapBonusRule.rawValue`
     // (both index `Config.whiteHandicapBonusRules`).
 
@@ -116,7 +116,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 427-429 (`AIConfigView`):
     //   config.playoutDoublingAdvantage = newValue
-    //   messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+    //   messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
 
     /// Sets `config.playoutDoublingAdvantage` and replays
     /// `kata-set-param playoutDoublingAdvantage <value>`.
@@ -129,7 +129,7 @@ public enum ConfigEngineSync {
     //
     // iOS `ConfigView.swift` lines 380-382 (`AnalysisConfigView`):
     //   config.analysisWideRootNoise = min(1, max(0, Float(newValue) ?? default))
-    //   messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+    //   messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
 
     /// Sets `config.analysisWideRootNoise` (clamped 0...1 as iOS) and replays
     /// `kata-set-param analysisWideRootNoise <value>`.
@@ -226,10 +226,11 @@ public enum ConfigEngineSync {
     // iOS `ConfigView.swift` lines 356-358 (`analysisForWhom`), 389-391
     // (`maxAnalysisMoves`), 397-399 (`analysisInterval`): each only sets the
     // `Config` property — there is NO dedicated GTP command; they are read when
-    // analysis is next requested (`getKataAnalyzeCommand`/`getKataFastAnalyzeCommand`
-    // embed `analysisInterval` + `maxAnalysisMoves`). After changing
-    // `maxAnalysisMoves`/`analysisInterval` we MAY re-arm so the change takes
-    // effect immediately, mirroring how iOS re-requests analysis downstream.
+    // analysis is next requested (`GtpCommandBuilder.analyzeCommand` /
+    // `GtpCommandBuilder.fastAnalyzeCommand` embed `analysisInterval` +
+    // `maxAnalysisMoves`). After changing `maxAnalysisMoves`/`analysisInterval`
+    // we MAY re-arm so the change takes effect immediately, mirroring how iOS
+    // re-requests analysis downstream.
 
     /// Sets `config.analysisForWhom`. No GTP command (gates which player's
     /// positions get analyzed on the next request).

@@ -197,51 +197,6 @@ extension Config {
 }
 
 extension Config {
-    public func getKataAnalyzeCommand(analysisInterval: Int) -> String {
-        return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"
-    }
-
-    public func getKataAnalyzeCommand() -> String {
-        return getKataAnalyzeCommand(analysisInterval: analysisInterval)
-    }
-
-    public func getKataFastAnalyzeCommand() -> String {
-        return getKataAnalyzeCommand(analysisInterval: 10);
-    }
-
-    public func getKataGenMoveAnalyzeCommands(maxTime: Float) -> [String] {
-        return [
-            "kata-set-param maxTime \(max(maxTime, 0.5))",
-            "kata-search_analyze_cancellable interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true rootInfo true"]
-    }
-
-    public func getKataBoardSizeCommand() -> String {
-        return "rectangular_boardsize \(boardWidth) \(boardHeight)"
-    }
-
-    public func getKataKomiCommand() -> String {
-        return "komi \(komi)"
-    }
-
-    public func getKataPlayoutDoublingAdvantageCommand() -> String {
-        return "kata-set-param playoutDoublingAdvantage \(playoutDoublingAdvantage)"
-    }
-
-    public func getKataAnalysisWideRootNoiseCommand() -> String {
-        return "kata-set-param analysisWideRootNoise \(analysisWideRootNoise)"
-    }
-
-    public func getSymmetricHumanAnalysisCommands() -> [String] {
-        if isEqualBlackWhiteHumanSettings,
-           let humanSLModel = HumanSLModel(profile: humanSLProfile) {
-            return humanSLModel.commands
-        } else {
-            return []
-        }
-    }
-}
-
-extension Config {
     public static let defaultBoardWidth = 19
     public static let defaultBoardHeight = 19
     public static let defaultKomi: Float = 7.0
@@ -255,14 +210,6 @@ extension Config {
 extension Config {
     public static let defaultRule = 0
     public static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
-
-    public func getKataRuleCommand() -> String {
-        guard (0..<Config.rules.count).contains(rule) else {
-            return "kata-set-rules \(Config.rules[Config.defaultRule])"
-        }
-
-        return "kata-set-rules \(Config.rules[rule])"
-    }
 }
 
 extension Config {
@@ -573,10 +520,6 @@ extension Config {
         return Config.koRules[koRule.rawValue]
     }
 
-    public var koRuleCommand: String {
-        return "kata-set-rule ko \(koRuleText)"
-    }
-
     public static let defaultScoringRule: Int = 0
     public static let scoringRules = ["AREA", "TERRITORY"]
     public static let defaultScoringRuleText = scoringRules[defaultScoringRule]
@@ -594,10 +537,6 @@ extension Config {
     public var scoringRuleText: String {
         guard scoringRule.rawValue < Config.scoringRules.count else { return "" }
         return Config.scoringRules[scoringRule.rawValue]
-    }
-
-    public var scoringRuleCommand: String {
-        return "kata-set-rule scoring \(scoringRuleText)"
     }
 
     public static let defaultTaxRule: Int = 0
@@ -619,24 +558,16 @@ extension Config {
         return Config.taxRules[taxRule.rawValue]
     }
 
-    public var taxRuleCommand: String {
-        return "kata-set-rule tax \(taxRuleText)"
-    }
-
     public static let defaultMultiStoneSuicideLegal: Bool = false
 
     public var multiStoneSuicideLegal: Bool {
         get {
             return optionalMultiStoneSuicideLegal ?? Config.defaultMultiStoneSuicideLegal
         }
-        
+
         set(newValue) {
             optionalMultiStoneSuicideLegal = newValue
         }
-    }
-
-    public var multiStoneSuicideLegalCommand: String {
-        return "kata-set-rule suicide \(multiStoneSuicideLegal)"
     }
 
     public static let defaultHasButton: Bool = false
@@ -645,14 +576,10 @@ extension Config {
         get {
             return optionalHasButton ?? Config.defaultHasButton
         }
-        
+
         set(newValue) {
             optionalHasButton = newValue
         }
-    }
-
-    public var hasButtonCommand: String {
-        return "kata-set-rule hasButton \(hasButton)"
     }
 
     public static let defaultWhiteHandicapBonusRule: Int = 0
@@ -672,19 +599,6 @@ extension Config {
     public var whiteHandicapBonusRuleText: String {
         guard whiteHandicapBonusRule.rawValue < Config.whiteHandicapBonusRules.count else { return "" }
         return Config.whiteHandicapBonusRules[whiteHandicapBonusRule.rawValue]
-    }
-
-    public var whiteHandicapBonusRuleCommand: String {
-        return "kata-set-rule whiteHandicapBonus \(whiteHandicapBonusRuleText)"
-    }
-
-    public var ruleCommands: [String] {
-        return [koRuleCommand,
-                scoringRuleCommand,
-                taxRuleCommand,
-                multiStoneSuicideLegalCommand,
-                hasButtonCommand,
-                whiteHandicapBonusRuleCommand]
     }
 }
 

@@ -26,34 +26,83 @@ struct GtpCommandBuilderTests {
     }
 
     @Test func builderMatchesConfigForAllScalarCommands() {
-        for c in makeConfigs() {
-            #expect(GtpCommandBuilder.analyzeCommand(interval: c.analysisInterval, maxMoves: c.maxAnalysisMoves) == c.getKataAnalyzeCommand())
-            #expect(GtpCommandBuilder.fastAnalyzeCommand(maxMoves: c.maxAnalysisMoves) == c.getKataFastAnalyzeCommand())
-            #expect(GtpCommandBuilder.boardSizeCommand(width: c.boardWidth, height: c.boardHeight) == c.getKataBoardSizeCommand())
-            #expect(GtpCommandBuilder.komiCommand(c.komi) == c.getKataKomiCommand())
-            #expect(GtpCommandBuilder.playoutDoublingAdvantageCommand(c.playoutDoublingAdvantage) == c.getKataPlayoutDoublingAdvantageCommand())
-            #expect(GtpCommandBuilder.analysisWideRootNoiseCommand(c.analysisWideRootNoise) == c.getKataAnalysisWideRootNoiseCommand())
-            #expect(GtpCommandBuilder.rulesetCommand(Config.rules[c.rule]) == c.getKataRuleCommand())
-            #expect(GtpCommandBuilder.koRuleCommand(c.koRuleText) == c.koRuleCommand)
-            #expect(GtpCommandBuilder.scoringRuleCommand(c.scoringRuleText) == c.scoringRuleCommand)
-            #expect(GtpCommandBuilder.taxRuleCommand(c.taxRuleText) == c.taxRuleCommand)
-            #expect(GtpCommandBuilder.multiStoneSuicideCommand(c.multiStoneSuicideLegal) == c.multiStoneSuicideLegalCommand)
-            #expect(GtpCommandBuilder.hasButtonCommand(c.hasButton) == c.hasButtonCommand)
-            #expect(GtpCommandBuilder.whiteHandicapBonusCommand(c.whiteHandicapBonusRuleText) == c.whiteHandicapBonusRuleCommand)
-        }
+        // config a — defaults
+        let a = makeConfigs()[0]
+        #expect(GtpCommandBuilder.analyzeCommand(interval: a.analysisInterval, maxMoves: a.maxAnalysisMoves)
+                == "kata-analyze interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true")
+        #expect(GtpCommandBuilder.fastAnalyzeCommand(maxMoves: a.maxAnalysisMoves)
+                == "kata-analyze interval 10 maxmoves 50 ownership true ownershipStdev true rootInfo true")
+        #expect(GtpCommandBuilder.boardSizeCommand(width: a.boardWidth, height: a.boardHeight)
+                == "rectangular_boardsize 19 19")
+        #expect(GtpCommandBuilder.komiCommand(a.komi) == "komi 7.0")
+        #expect(GtpCommandBuilder.playoutDoublingAdvantageCommand(a.playoutDoublingAdvantage)
+                == "kata-set-param playoutDoublingAdvantage 0.0")
+        #expect(GtpCommandBuilder.analysisWideRootNoiseCommand(a.analysisWideRootNoise)
+                == "kata-set-param analysisWideRootNoise 0.03125")
+        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[a.rule]) == "kata-set-rules chinese")
+        #expect(GtpCommandBuilder.koRuleCommand(a.koRuleText) == "kata-set-rule ko SIMPLE")
+        #expect(GtpCommandBuilder.scoringRuleCommand(a.scoringRuleText) == "kata-set-rule scoring AREA")
+        #expect(GtpCommandBuilder.taxRuleCommand(a.taxRuleText) == "kata-set-rule tax NONE")
+        #expect(GtpCommandBuilder.multiStoneSuicideCommand(a.multiStoneSuicideLegal) == "kata-set-rule suicide false")
+        #expect(GtpCommandBuilder.hasButtonCommand(a.hasButton) == "kata-set-rule hasButton false")
+        #expect(GtpCommandBuilder.whiteHandicapBonusCommand(a.whiteHandicapBonusRuleText) == "kata-set-rule whiteHandicapBonus 0")
+
+        // config b — custom values
+        let b = makeConfigs()[1]
+        #expect(GtpCommandBuilder.analyzeCommand(interval: b.analysisInterval, maxMoves: b.maxAnalysisMoves)
+                == "kata-analyze interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true")
+        #expect(GtpCommandBuilder.fastAnalyzeCommand(maxMoves: b.maxAnalysisMoves)
+                == "kata-analyze interval 10 maxmoves 30 ownership true ownershipStdev true rootInfo true")
+        #expect(GtpCommandBuilder.boardSizeCommand(width: b.boardWidth, height: b.boardHeight)
+                == "rectangular_boardsize 13 13")
+        #expect(GtpCommandBuilder.komiCommand(b.komi) == "komi 0.5")
+        #expect(GtpCommandBuilder.playoutDoublingAdvantageCommand(b.playoutDoublingAdvantage)
+                == "kata-set-param playoutDoublingAdvantage 1.5")
+        #expect(GtpCommandBuilder.analysisWideRootNoiseCommand(b.analysisWideRootNoise)
+                == "kata-set-param analysisWideRootNoise 0.1")
+        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[b.rule]) == "kata-set-rules chinese")
+
+        // config c — same rule defaults as a
+        let c = makeConfigs()[2]
+        #expect(GtpCommandBuilder.analyzeCommand(interval: c.analysisInterval, maxMoves: c.maxAnalysisMoves)
+                == "kata-analyze interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true")
     }
 
     @Test func builderMatchesConfigForArrayCommands() {
-        for c in makeConfigs() {
-            #expect(GtpCommandBuilder.ruleCommandsBundle(
-                ko: c.koRuleText, scoring: c.scoringRuleText, tax: c.taxRuleText,
-                multiStoneSuicide: c.multiStoneSuicideLegal, hasButton: c.hasButton,
-                whiteHandicapBonus: c.whiteHandicapBonusRuleText) == c.ruleCommands)
-            #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: c.blackMaxTime, interval: c.analysisInterval, maxMoves: c.maxAnalysisMoves)
-                    == c.getKataGenMoveAnalyzeCommands(maxTime: c.blackMaxTime))
-            #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: c.humanSLProfile, humanProfileForWhite: c.humanProfileForWhite, humanRatioForBlack: c.humanRatioForBlack, humanRatioForWhite: c.humanRatioForWhite)
-                    == c.getSymmetricHumanAnalysisCommands())
-        }
+        // config a — defaults: all default rule values
+        let a = makeConfigs()[0]
+        #expect(GtpCommandBuilder.ruleCommandsBundle(
+            ko: a.koRuleText, scoring: a.scoringRuleText, tax: a.taxRuleText,
+            multiStoneSuicide: a.multiStoneSuicideLegal, hasButton: a.hasButton,
+            whiteHandicapBonus: a.whiteHandicapBonusRuleText)
+            == ["kata-set-rule ko SIMPLE",
+                "kata-set-rule scoring AREA",
+                "kata-set-rule tax NONE",
+                "kata-set-rule suicide false",
+                "kata-set-rule hasButton false",
+                "kata-set-rule whiteHandicapBonus 0"])
+        // config a: blackMaxTime=0 → clamped to 0.5
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: a.blackMaxTime, interval: a.analysisInterval, maxMoves: a.maxAnalysisMoves)
+                == ["kata-set-param maxTime 0.5",
+                    "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+        // config a: profiles equal ("AI") and ratios equal (0) → symmetric → non-empty commands
+        #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(
+            humanSLProfile: a.humanSLProfile, humanProfileForWhite: a.humanProfileForWhite,
+            humanRatioForBlack: a.humanRatioForBlack, humanRatioForWhite: a.humanRatioForWhite)
+            == HumanSLModel(profile: a.humanSLProfile)?.commands ?? [])
+
+        // config b: blackMaxTime=3 → max(3, 0.5) = 3.0
+        let b = makeConfigs()[1]
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: b.blackMaxTime, interval: b.analysisInterval, maxMoves: b.maxAnalysisMoves)
+                == ["kata-set-param maxTime 3.0",
+                    "kata-search_analyze_cancellable interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true"])
+
+        // config c: profiles equal but ratios differ → asymmetric → []
+        let c = makeConfigs()[2]
+        #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(
+            humanSLProfile: c.humanSLProfile, humanProfileForWhite: c.humanProfileForWhite,
+            humanRatioForBlack: c.humanRatioForBlack, humanRatioForWhite: c.humanRatioForWhite)
+            == [])
     }
 }
 

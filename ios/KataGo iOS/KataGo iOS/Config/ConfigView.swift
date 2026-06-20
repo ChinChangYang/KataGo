@@ -302,7 +302,7 @@ struct RuleConfigView: View {
         .onDisappear {
             if isBoardSizeChanged {
                 player.nextColorForPlayCommand = .unknown
-                messageList.appendAndSend(command: config.getKataBoardSizeCommand())
+                messageList.appendAndSend(command: GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight))
                 gobanState.sendShowBoardCommand(messageList: messageList)
             } else if isRuleChanged {
                 // The "printsgf" will trigger the app to save the printed sgf to the game record, so this ensures the printed sgf contains all moves.
@@ -576,11 +576,16 @@ struct SgfConfigView: View {
                             messageList: messageList
                         )
 
-                        messageList.appendAndSend(commands: config.ruleCommands)
-                        messageList.appendAndSend(command: config.getKataKomiCommand())
-                        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-                        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+                        messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(
+                            ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText,
+                            multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton,
+                            whiteHandicapBonus: config.whiteHandicapBonusRuleText))
+                        messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
+                        messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+                        messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
+                        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
+                            humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite,
+                            humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")
                     }

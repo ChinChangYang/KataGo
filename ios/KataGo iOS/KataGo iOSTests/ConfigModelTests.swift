@@ -135,61 +135,6 @@ struct ConfigModelTests {
         #expect(config.isEqualBlackWhiteHumanSettings == true)
     }
 
-    // 3. Command Methods Tests
-    @Test func testKataAnalyzeCommand() async throws {
-        let config = Config()
-        #expect(config.getKataAnalyzeCommand() == "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) ownership true ownershipStdev true rootInfo true")
-    }
-
-    @Test func testGetKataAnalyzeCommandWithCustomInterval() async throws {
-        let config = Config()
-        config.analysisInterval = 30
-        config.maxAnalysisMoves = 60
-        let command = config.getKataAnalyzeCommand(analysisInterval: 30)
-        #expect(command == "kata-analyze interval 30 maxmoves 60 ownership true ownershipStdev true rootInfo true")
-    }
-
-    @Test func testGetKataFastAnalyzeCommand() async throws {
-        let config = Config()
-        config.maxAnalysisMoves = 70
-        let command = config.getKataFastAnalyzeCommand()
-        #expect(command == "kata-analyze interval 10 maxmoves 70 ownership true ownershipStdev true rootInfo true")
-    }
-
-    @Test func testGetKataBoardSizeCommand() async throws {
-        let config = Config(boardWidth: 13, boardHeight: 13)
-        let command = config.getKataBoardSizeCommand()
-        #expect(command == "rectangular_boardsize 13 13")
-    }
-
-    @Test func testGetKataKomiCommand() async throws {
-        let config = Config(komi: 6.5)
-        let command = config.getKataKomiCommand()
-        #expect(command == "komi 6.5")
-    }
-
-    @Test func testGetKataPlayoutDoublingAdvantageCommand() async throws {
-        let config = Config(playoutDoublingAdvantage: 1.5)
-        let command = config.getKataPlayoutDoublingAdvantageCommand()
-        #expect(command == "kata-set-param playoutDoublingAdvantage 1.5")
-    }
-
-    @Test func testGetKataAnalysisWideRootNoiseCommand() async throws {
-        let config = Config(analysisWideRootNoise: 0.05)
-        let command = config.getKataAnalysisWideRootNoiseCommand()
-        #expect(command == "kata-set-param analysisWideRootNoise 0.05")
-    }
-
-    @Test func testGetKataRuleCommand() async throws {
-        let config = Config(rule: 2) // Assuming rule index 2 corresponds to "korean"
-        var command = config.getKataRuleCommand()
-        #expect(command == "kata-set-rules korean")
-
-        config.rule = 4 // Assuming rule index 4 corresponds to "bga"
-        command = config.getKataRuleCommand()
-        #expect(command == "kata-set-rules bga")
-    }
-
     // 4. Computed Properties Tests
     @Test func testAnalysisInformationComputedProperties() async throws {
         let config = Config()
@@ -301,25 +246,12 @@ struct ConfigModelTests {
     }
 
     // 6. Edge Cases and Error Handling
-    @Test func testInvalidRuleIndex() async throws {
-        let config = Config(rule: -1)
-        #expect(config.getKataRuleCommand() == "kata-set-rules \(Config.rules[Config.defaultRule])")
-    }
-
     @Test func testInvalidStoneStyleIndex() async throws {
         let config = Config(stoneStyle: -1)
         // Depending on implementation, this might crash or handle gracefully
         // Here, assuming it sets to an invalid state
         #expect(config.isFastStoneStyle == false)
         #expect(config.isClassicStoneStyle == false)
-    }
-
-    @Test func testAllKataRuleCommands() async throws {
-        for (index, rule) in Config.rules.enumerated() {
-            let config = Config(rule: index)
-            let command = config.getKataRuleCommand()
-            #expect(command == "kata-set-rules \(rule)")
-        }
     }
 
     @Test func testAllStoneStyles() async throws {
@@ -408,13 +340,6 @@ struct ConfigModelTests {
         #expect(config.optionalHumanProfileForWhite == clone.optionalHumanProfileForWhite)
         #expect(config.optionalSoundEffect == clone.optionalSoundEffect)
         #expect(config.optionalShowComments == clone.optionalShowComments)
-    }
-
-    @Test func kataAnalyzeCommand() async throws {
-        let config = Config()
-        let defaultCommand = "kata-analyze interval \(Config.defaultAnalysisInterval) maxmoves \(Config.defaultMaxAnalysisMoves) ownership true ownershipStdev true rootInfo true"
-        #expect(config.getKataAnalyzeCommand() == config.getKataAnalyzeCommand(analysisInterval: Config.defaultAnalysisInterval))
-        #expect(config.getKataAnalyzeCommand() == defaultCommand)
     }
 
     @Test func analysisInformation() async throws {
