@@ -513,11 +513,11 @@ public class MessageList {
 
     public var messages: [Message] = []
 
-    /// Transport that `appendAndSend` writes to. Defaults to the in-process C++
-    /// bridge; `GameSession.useEngine(_:)` swaps in a subprocess transport on
-    /// macOS. `@ObservationIgnored` — it is wiring, not observable UI state.
+    /// Back-reference to the owning `GameSession`. `appendAndSend` routes
+    /// commands through `session?.engine` so `GameSession` is the sole engine
+    /// owner. `@ObservationIgnored` — it is wiring, not observable UI state.
     @ObservationIgnored
-    public var engine: KataGoEngineIO = InProcessKataGoEngine()
+    public weak var session: GameSession?
 
     public func shrink() {
         while messages.count > MessageList.defaultMaxMessageLines {
@@ -531,7 +531,7 @@ public class MessageList {
 
     public func appendAndSend(command: String) {
         append(command: command)
-        engine.sendCommand(command)
+        session?.engine.sendCommand(command)
     }
 
     public func appendAndSend(commands: [String]) {

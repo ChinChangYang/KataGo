@@ -99,6 +99,7 @@
 		54B602C8743645F1976D603E /* MMapFileReaderFactory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BC2CF6DCF3C1E8EF28EA94A2 /* MMapFileReaderFactory.cpp */; };
 		553DBC10CF58E3BB94880AA4 /* arg.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0B40E0A9D40BE4F1BFF2939B /* arg.cc */; };
 		55F3DCC168CA4E457E7516A7 /* mutex.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0A85319AE10A8198A3117ADE /* mutex.cc */; };
+		56E6C075D618CDFE21EA4E39 /* MessageListEngineOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */; };
 		57106766F3F29CAD99F9BF2D /* nullguard.cc in Sources */ = {isa = PBXBuildFile; fileRef = 55915A5FD9CB10142DE64426 /* nullguard.cc */; };
 		57AB2F792F63982215ED36A6 /* TextClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B353F521781321D83987622 /* TextClassifier.pb.cc */; };
 		57C30FBD9D80117903FCC4E2 /* TreeEnsemble.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */; };
@@ -795,6 +796,7 @@
 		7796CFED474942C453ABC091 /* Gazetteer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Gazetteer.pb.cc; path = ../../cpp/external/katagocoreml/generated/Gazetteer.pb.cc; sourceTree = SOURCE_ROOT; };
 		79E54583C05CD001102C9D93 /* AnalysisLineParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisLineParserTests.swift; sourceTree = "<group>"; };
 		7B39F29BDB2F8D7E127040D4 /* log_severity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_severity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/log_severity.cc"; sourceTree = SOURCE_ROOT; };
+		7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageListEngineOwnershipTests.swift; sourceTree = "<group>"; };
 		7CCB02B8B6426F2FD06E23D2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
@@ -2101,6 +2103,7 @@
 				7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */,
 				1A8ED9537F21CA76CCD0ACC5 /* GtpCommandBuilderTests.swift */,
 				6A8F496C46C725561F7C5FE5 /* SgfOperationsTests.swift */,
+				7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3001,6 +3004,7 @@
 				0E4E80892074A1CBB7AD12FA /* GlobalSettingsKeysTests.swift in Sources */,
 				C4DC9178B85214AA496604D5 /* GtpCommandBuilderTests.swift in Sources */,
 				DD2995ADAC6DF33E2A0675C8 /* SgfOperationsTests.swift in Sources */,
+				56E6C075D618CDFE21EA4E39 /* MessageListEngineOwnershipTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

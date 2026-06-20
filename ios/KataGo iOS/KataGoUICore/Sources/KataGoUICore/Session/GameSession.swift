@@ -38,13 +38,18 @@ public final class GameSession {
     /// Transport to the engine. Defaults to the in-process C++ bridge
     /// (iOS/visionOS, and the default everywhere); the macOS app injects a
     /// per-window subprocess transport via `useEngine(_:)`.
+    /// `nonisolated(unsafe)`: `engine` is Sendable and only mutated on the
+    /// main actor via `useEngine(_:)`; reads from `MessageList.appendAndSend`
+    /// (also main-actor-called in practice) are safe.
     @ObservationIgnored
-    public var engine: KataGoEngineIO = InProcessKataGoEngine()
+    public nonisolated(unsafe) var engine: KataGoEngineIO = InProcessKataGoEngine()
 
     private var isShowingBoard = false
     private var boardText: [String] = []
 
-    public init() {}
+    public init() {
+        messageList.session = self
+    }
 
     /// Routes this session's GTP I/O — reads happen here, sends go through
     /// `messageList` — through `engine`. Call BEFORE `initialize`. The macOS app
@@ -52,7 +57,6 @@ public final class GameSession {
     /// keep the default in-process bridge.
     public func useEngine(_ engine: KataGoEngineIO) {
         self.engine = engine
-        self.messageList.engine = engine
     }
 
     // MARK: - Initialization
