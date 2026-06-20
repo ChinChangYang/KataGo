@@ -33,7 +33,7 @@ import KataGoUICore
 final class ModelRowView: NSTableCellView {
 
     private let titleField = NSTextField(labelWithString: "")
-    private let descriptionField = NSTextField(labelWithString: "")
+    private let descriptionField = NSTextField(wrappingLabelWithString: "")
     private let sizeField = NSTextField(labelWithString: "")
     private let statusField = NSTextField(labelWithString: "")
     private let progressIndicator = NSProgressIndicator()
@@ -78,10 +78,28 @@ final class ModelRowView: NSTableCellView {
         descriptionField.translatesAutoresizingMaskIntoConstraints = false
         descriptionField.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         descriptionField.textColor = .secondaryLabelColor
-        descriptionField.lineBreakMode = .byTruncatingTail
+        // A wrapping label that grows to two lines then ellipsizes. The row is a
+        // teaser; the full text lives in the detail pane (see `shortDescription`).
+        // `wrappingLabelWithString` already sets `.byWordWrapping`; pairing that
+        // with `truncatesLastVisibleLine` ellipsizes the second line. (A plain
+        // `.byTruncatingTail` here would force a SINGLE truncated line — NSCell
+        // tail-truncation is inherently single-line — which is why the row only
+        // ever showed one line.)
         descriptionField.maximumNumberOfLines = 2
-        descriptionField.cell?.wraps = true
+        descriptionField.cell?.truncatesLastVisibleLine = true
+        descriptionField.isSelectable = false
         addSubview(descriptionField)
+
+        // Reserve two lines for the teaser. `NSTableView` automatic row heights
+        // measure a wrapping label at a single line (its wrapping width isn't
+        // resolved until after the sizing pass), so without a fixed height the row
+        // collapses to one line. Size the box to two line heights plus the cell's
+        // vertical text insets: `truncatesLastVisibleLine` counts visible lines
+        // from the bounds height, so a box of exactly 2×lineHeight (no inset
+        // slack) would collapse back to one line. Display wrapping uses the
+        // field's resolved frame width, so no `preferredMaxLayoutWidth` is needed.
+        let descLineHeight = NSLayoutManager().defaultLineHeight(for: descriptionField.font!)
+        descriptionField.heightAnchor.constraint(equalToConstant: ceil(descLineHeight * 2) + 8).isActive = true
 
         sizeField.translatesAutoresizingMaskIntoConstraints = false
         sizeField.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -307,6 +325,22 @@ final class ModelBackendPaneView: NSView {
         header.lineBreakMode = .byTruncatingTail
         stack.addArrangedSubview(header)
 
+        // Full model description — parity with the iOS `ModelDetailView`, which
+        // shows the complete text (the table row only shows a one/two-line
+        // teaser). It wraps to the pane width; the whole pane scrolls (see
+        // `build()`'s scroll view) so even the longest multi-paragraph
+        // description stays fully readable regardless of window height.
+        if !model.description.isEmpty {
+            let description = NSTextField(wrappingLabelWithString: model.description)
+            description.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            description.textColor = .secondaryLabelColor
+            description.isSelectable = true
+            description.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(description)
+            description.widthAnchor.constraint(equalTo: stack.widthAnchor,
+                                               constant: -28).isActive = true
+        }
+
         // Engine summary: macOS always runs the fixed 1 GPU + 2 ANE mux, so
         // there is no backend picker. The controls below tune the MLX/GPU side
         // of that mux (board geometry + Winograd autotuning).
@@ -360,12 +394,36 @@ final class ModelBackendPaneView: NSView {
         applyNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
         stack.addArrangedSubview(applyNote)
 
-        addSubview(stack)
+        // Host the stack in a vertical scroll view so the combined description +
+        // config is always fully reachable, however long the description or short
+        // the window. The document view's width tracks the clip view (no
+        // horizontal scroll — content wraps), its height grows with the stack.
+        // It is flipped (top-left origin) so the scroll view shows the content
+        // from the TOP — a default bottom-left view would reveal the end of a
+        // long description first.
+        let documentView = FlippedView()
+        documentView.translatesAutoresizingMaskIntoConstraints = false
+        documentView.addSubview(stack)
+
+        let scroll = NSScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.documentView = documentView
+
+        addSubview(scroll)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
+            scroll.topAnchor.constraint(equalTo: topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            stack.topAnchor.constraint(equalTo: documentView.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
+
+            documentView.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
         ])
     }
 
@@ -379,4 +437,14 @@ final class ModelBackendPaneView: NSView {
         label.widthAnchor.constraint(lessThanOrEqualToConstant: 320).isActive = true
         return label
     }
+}
+
+// MARK: - FlippedView
+
+/// A top-left-origin container used as the backend pane's scroll document view so
+/// content lays out and scrolls from the top (AppKit's default bottom-left origin
+/// would otherwise reveal the end of a long description first).
+@MainActor
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
