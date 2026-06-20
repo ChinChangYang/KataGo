@@ -214,8 +214,8 @@ struct RuleConfigView: View {
             }
             .onChange(of: koRuleText) { _, newValue in
                 let rawValue = Config.koRules.firstIndex(of: newValue) ?? Config.defaultKoRule
-                config.koRule = KoRule(rawValue: rawValue) ?? .simple
-                messageList.appendAndSend(command: config.koRuleCommand)
+                let koRule = KoRule(rawValue: rawValue) ?? .simple
+                ConfigEngineSync.setKoRule(koRule, config: config, messageList: messageList)
                 isRuleChanged = true
             }
 
@@ -229,8 +229,8 @@ struct RuleConfigView: View {
             }
             .onChange(of: scoringRuleText) { _, _ in
                 let rawValue = Config.scoringRules.firstIndex(of: scoringRuleText) ?? Config.defaultScoringRule
-                config.scoringRule = ScoringRule(rawValue: rawValue) ?? .area
-                messageList.appendAndSend(command: config.scoringRuleCommand)
+                let scoringRule = ScoringRule(rawValue: rawValue) ?? .area
+                ConfigEngineSync.setScoringRule(scoringRule, config: config, messageList: messageList)
                 isRuleChanged = true
             }
 
@@ -244,8 +244,8 @@ struct RuleConfigView: View {
             }
             .onChange(of: taxRuleText) { _, _ in
                 let rawValue = Config.taxRules.firstIndex(of: taxRuleText) ?? Config.defaultTaxRule
-                config.taxRule = TaxRule(rawValue: rawValue) ?? .none
-                messageList.appendAndSend(command: config.taxRuleCommand)
+                let taxRule = TaxRule(rawValue: rawValue) ?? .none
+                ConfigEngineSync.setTaxRule(taxRule, config: config, messageList: messageList)
                 isRuleChanged = true
             }
 
@@ -254,8 +254,7 @@ struct RuleConfigView: View {
                     multiStoneSuicideLegal = config.multiStoneSuicideLegal
                 }
                 .onChange(of: multiStoneSuicideLegal) { _, newValue in
-                    config.multiStoneSuicideLegal = newValue
-                    messageList.appendAndSend(command: config.multiStoneSuicideLegalCommand)
+                    ConfigEngineSync.setMultiStoneSuicideLegal(newValue, config: config, messageList: messageList)
                     isRuleChanged = true
                 }
 
@@ -264,8 +263,7 @@ struct RuleConfigView: View {
                     hasButton = config.hasButton
                 }
                 .onChange(of: hasButton) { _, newValue in
-                    config.hasButton = newValue
-                    messageList.appendAndSend(command: config.hasButtonCommand)
+                    ConfigEngineSync.setHasButton(newValue, config: config, messageList: messageList)
                     isRuleChanged = true
                 }
 
@@ -279,8 +277,8 @@ struct RuleConfigView: View {
             }
             .onChange(of: whiteHandicapBonusRuleText) { _, _ in
                 let rawValue = Config.whiteHandicapBonusRules.firstIndex(of: whiteHandicapBonusRuleText) ?? Config.defaultWhiteHandicapBonusRule
-                config.whiteHandicapBonusRule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
-                messageList.appendAndSend(command: config.whiteHandicapBonusRuleCommand)
+                let rule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
+                ConfigEngineSync.setWhiteHandicapBonusRule(rule, config: config, messageList: messageList)
                 isRuleChanged = true
             }
 
@@ -293,8 +291,7 @@ struct RuleConfigView: View {
                 komiText = String(komi)
             }
             .onChange(of: komiText) { _, newValue in
-                config.komi = min(1_000, max(-1_000, ((Float(newValue) ?? Config.defaultKomi) * 2).rounded() / 2))
-                messageList.appendAndSend(command: config.getKataKomiCommand())
+                ConfigEngineSync.setKomi(Float(newValue) ?? Config.defaultKomi, config: config, messageList: messageList)
                 isRuleChanged = true
             }
         }
@@ -382,8 +379,7 @@ struct AnalysisConfigView: View {
                 analysisWideRootNoiseText = String(config.analysisWideRootNoise)
             }
             .onChange(of: analysisWideRootNoiseText) { _, newValue in
-                config.analysisWideRootNoise = min(1, max(0, Float(newValue) ?? Config.defaultAnalysisWideRootNoise))
-                messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                ConfigEngineSync.setAnalysisWideRootNoise(Float(newValue) ?? Config.defaultAnalysisWideRootNoise, config: config, messageList: messageList)
             }
 
             ConfigIntItem(title: "Max analysis moves", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
@@ -429,8 +425,7 @@ struct AIConfigView: View {
                 playoutDoublingAdvantage = config.playoutDoublingAdvantage
             }
             .onChange(of: playoutDoublingAdvantage) { _, newValue in
-                config.playoutDoublingAdvantage = newValue
-                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
+                ConfigEngineSync.setPlayoutDoublingAdvantage(newValue, config: config, messageList: messageList)
             }
 
             Text("Black AI".uppercased())
@@ -444,11 +439,8 @@ struct AIConfigView: View {
                     blackHumanSLModel.profile = config.humanProfileForBlack
                 }
                 .onChange(of: humanProfileForBlack) { _, newValue in
-                    config.humanSLProfile = newValue
                     blackHumanSLModel.profile = newValue
-                    if player.nextColorForPlayCommand != .white {
-                        messageList.appendAndSend(commands: blackHumanSLModel.commands)
-                    }
+                    ConfigEngineSync.setBlackHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
 
             ConfigFloatItem(title: "Time per move",
@@ -477,11 +469,8 @@ struct AIConfigView: View {
                     whiteHumanSLModel.profile = config.humanProfileForWhite
                 }
                 .onChange(of: humanProfileForWhite) { _, newValue in
-                    config.humanProfileForWhite = newValue
                     whiteHumanSLModel.profile = newValue
-                    if player.nextColorForPlayCommand != .black {
-                        messageList.appendAndSend(commands: whiteHumanSLModel.commands)
-                    }
+                    ConfigEngineSync.setWhiteHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
 
             ConfigFloatItem(title: "Time per move",
