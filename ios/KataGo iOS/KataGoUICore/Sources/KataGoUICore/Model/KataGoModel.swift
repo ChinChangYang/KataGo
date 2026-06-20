@@ -516,6 +516,10 @@ public class MessageList {
     /// Back-reference to the owning `GameSession`. `appendAndSend` routes
     /// commands through `session?.engine` so `GameSession` is the sole engine
     /// owner. `@ObservationIgnored` — it is wiring, not observable UI state.
+    ///
+    /// `weak`: breaks the `GameSession → messageList → session` retain cycle.
+    /// `GameSession` owns `messageList` as a `let`, so `session` always
+    /// outlives `messageList`; the reference is never nil during a live session.
     @ObservationIgnored
     public weak var session: GameSession?
 

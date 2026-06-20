@@ -38,9 +38,18 @@ public final class GameSession {
     /// Transport to the engine. Defaults to the in-process C++ bridge
     /// (iOS/visionOS, and the default everywhere); the macOS app injects a
     /// per-window subprocess transport via `useEngine(_:)`.
-    /// `nonisolated(unsafe)`: `engine` is Sendable and only mutated on the
-    /// main actor via `useEngine(_:)`; reads from `MessageList.appendAndSend`
-    /// (also main-actor-called in practice) are safe.
+    ///
+    /// `nonisolated(unsafe)` rationale — concurrency invariant:
+    /// - MUTATION: `engine` is only ever mutated by `useEngine(_:)`, which is
+    ///   always called on the main actor **before** the message loop starts.
+    ///   After that point, `engine` is read-only for the lifetime of the session.
+    /// - READS: `MessageList.appendAndSend` reads `engine` (sometimes off the
+    ///   main actor, from non-`@MainActor` `GobanState` call sites) but never
+    ///   mutates it. Because there is no concurrent mutation, the
+    ///   `nonisolated(unsafe)` opt-out is sound.
+    /// - CAUTION: do NOT add `@MainActor` to `appendAndSend` to "fix" this.
+    ///   It is intentionally callable off the main actor by `GobanState`, and
+    ///   annotating it would break those call sites.
     @ObservationIgnored
     public nonisolated(unsafe) var engine: KataGoEngineIO = InProcessKataGoEngine()
 
