@@ -800,7 +800,7 @@
 		7CCB02B8B6426F2FD06E23D2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
-		7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GlobalSettingsKeysTests.swift; path = GlobalSettingsKeysTests.swift; sourceTree = "<group>"; };
+		7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalSettingsKeysTests.swift; sourceTree = "<group>"; };
 		805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_non_temporal_memcpy.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_non_temporal_memcpy.cc"; sourceTree = SOURCE_ROOT; };
 		822989D034C2C811FDDD8811 /* time_zone_impl.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_impl.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_impl.cc"; sourceTree = SOURCE_ROOT; };
 		822F1C257F53350EAC096A2A /* generic_printer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generic_printer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/generic_printer.cc"; sourceTree = SOURCE_ROOT; };
@@ -852,7 +852,7 @@
 		AC8906AF025B8EBA6668E166 /* Fp8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp8.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp8.cpp; sourceTree = SOURCE_ROOT; };
 		AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_ptr.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/raw_ptr.cc"; sourceTree = SOURCE_ROOT; };
 		AD31E739D75B74BF613C62AB /* EngineVersionDisplayTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineVersionDisplayTests.swift; sourceTree = "<group>"; };
-		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheFooterView.swift; path = CoreMLCacheFooterView.swift; sourceTree = "<group>"; };
+		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterView.swift; sourceTree = "<group>"; };
 		ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConfigEditorViewController.swift; sourceTree = "<group>"; };
 		AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = structured_proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/structured_proto.cc"; sourceTree = SOURCE_ROOT; };
 		AF678317B766C097616B662A /* charconv_parse.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = charconv_parse.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/charconv_parse.cc"; sourceTree = SOURCE_ROOT; };
@@ -1346,7 +1346,6 @@
 				E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */,
 				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
 			);
-			name = Misc;
 			path = Misc;
 			sourceTree = "<group>";
 		};
@@ -1356,7 +1355,6 @@
 				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
 				CC00000000000000BC000004 /* BackendConfigSheet.swift */,
 			);
-			name = Config;
 			path = Config;
 			sourceTree = "<group>";
 		};
@@ -1367,7 +1365,6 @@
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
 			);
-			name = Game;
 			path = Game;
 			sourceTree = "<group>";
 		};
@@ -1420,7 +1417,6 @@
 				E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */,
 				ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */,
 			);
-			name = Models;
 			path = Models;
 			sourceTree = "<group>";
 		};
@@ -1433,7 +1429,6 @@
 				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
 			);
-			name = GameList;
 			path = GameList;
 			sourceTree = "<group>";
 		};
@@ -1481,7 +1476,6 @@
 				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
 			);
-			name = App;
 			path = App;
 			sourceTree = "<group>";
 		};
@@ -1491,7 +1485,6 @@
 				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
 				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
 			);
-			name = Toolbars;
 			path = Toolbars;
 			sourceTree = "<group>";
 		};
@@ -2454,7 +2447,7 @@
 			);
 			mainGroup = E18F3E042A51466A00D335E1;
 			packageReferences = (
-				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */,
+				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */,
 				2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */,
 				485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */,
 			);
@@ -3082,7 +3075,7 @@
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 273;
+				CURRENT_PROJECT_VERSION = 275;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3181,7 +3174,7 @@
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Mac/KataGoAnytimeMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 273;
+				CURRENT_PROJECT_VERSION = 275;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3901,7 +3894,7 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = KataGoEngineIPC;
 		};
-		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */ = {
+		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "ThirdParty/mlx-swift";
 		};
@@ -3930,7 +3923,7 @@
 		};
 		E1013E562FD8322700D0A4F0 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */;
+			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */;
 			productName = MLX;
 		};
 /* End XCSwiftPackageProductDependency section */
