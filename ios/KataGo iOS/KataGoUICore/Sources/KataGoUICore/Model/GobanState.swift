@@ -481,7 +481,7 @@ public class GobanState {
             return
         }
 
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfOperations(sgf: sgf)
         var movesExecuted = 0
 
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
@@ -539,7 +539,7 @@ public class GobanState {
             return nextMoveCacheResult
         }
 
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfOperations(sgf: sgf)
         let result = sgfHelper.getMove(at: currentIndex)
 
         nextMoveCacheKey = (sgf, currentIndex)
@@ -580,7 +580,7 @@ public class GobanState {
             return
         }
 
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfOperations(sgf: sgf)
         var movesExecuted = 0
 
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
@@ -654,7 +654,7 @@ public class GobanState {
 
     public func isOverwriting(gameRecord: GameRecord) -> Bool {
         guard let sgf = getSgf(gameRecord: gameRecord),
-              let moveSize = SgfHelper(sgf: sgf).moveSize,
+              let moveSize = SgfOperations(sgf: sgf).moveSize,
               let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
             return false
         }
@@ -662,14 +662,14 @@ public class GobanState {
         return (currentIndex < moveSize) && (isEditing || isBranchActive)
     }
 
-    public func maybeUpdateMoves(gameRecord: GameRecord, board: BoardSize, sgfHelper: SgfHelper? = nil) {
+    public func maybeUpdateMoves(gameRecord: GameRecord, board: BoardSize, sgfHelper: SgfOperations? = nil) {
         if gameRecord.moves == nil { gameRecord.moves = [:] }
         let currentIndex = gameRecord.currentIndex
         let previousIndex = currentIndex - 1
 
         if isEditing || gameRecord.moves?[currentIndex] == nil ||
             (previousIndex >= 0 && gameRecord.moves?[previousIndex] == nil) {
-            let sgfHelper = sgfHelper ?? SgfHelper(sgf: gameRecord.sgf)
+            let sgfHelper = sgfHelper ?? SgfOperations(sgf: gameRecord.sgf)
 
             if let location = sgfHelper.getMove(at: currentIndex)?.location {
                 gameRecord.moves?[currentIndex] = board.locationToMove(location: location)
@@ -734,7 +734,7 @@ public class GobanState {
                 isEditing = false
             }
             let currentIndex = newGameRecord.currentIndex
-            let sgfHelper = SgfHelper(sgf: newGameRecord.sgf)
+            let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
             newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
 
             maybeLoadSgf(

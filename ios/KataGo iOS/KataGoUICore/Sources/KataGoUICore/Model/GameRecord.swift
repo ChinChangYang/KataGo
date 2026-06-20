@@ -369,7 +369,7 @@ public final class GameRecord {
         }()
 
         let config = Config()
-        let sgfHelper = SgfHelper(sgf: resolvedSgf)
+        let sgfHelper = SgfOperations(sgf: resolvedSgf)
         config.boardWidth = sgfHelper.xSize
         config.boardHeight = sgfHelper.ySize
         config.komi = sgfHelper.rules.komi
@@ -437,7 +437,7 @@ public final class GameRecord {
             return (gameRecord: existing, isNew: false)
         }
 
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfOperations(sgf: sgf)
         guard let moveSize = sgfHelper.moveSize else { return nil }
 
         let comments = (0...moveSize)
@@ -526,7 +526,7 @@ public final class GameRecord {
             ownershipScales = [:]
         }
 
-        let sgfHelper = SgfHelper(sgf: sgf)
+        let sgfHelper = SgfOperations(sgf: sgf)
 
         width = sgfHelper.xSize
         height = sgfHelper.ySize

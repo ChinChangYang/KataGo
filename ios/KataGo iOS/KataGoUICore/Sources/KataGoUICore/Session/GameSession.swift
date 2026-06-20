@@ -321,7 +321,7 @@ public final class GameSession {
         if message.hasPrefix(sgfPrefix) {
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
-                let sgfHelper = SgfHelper(sgf: sgfString)
+                let sgfHelper = SgfOperations(sgf: sgfString)
                 let currentIndex = sgfHelper.moveSize ?? 0
                 if gameRecords.isEmpty {
                     // Automatically generate and select a new game when there are no games in the list
