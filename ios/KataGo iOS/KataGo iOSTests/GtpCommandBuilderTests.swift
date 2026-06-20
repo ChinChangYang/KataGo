@@ -56,3 +56,16 @@ struct GtpCommandBuilderTests {
         }
     }
 }
+
+// MARK: - ConfigEngineSync focused orchestrator test
+
+@MainActor
+struct ConfigEngineSyncTests {
+    @Test func setKomiUpdatesConfigAndEnqueuesKomiCommand() {
+        let config = Config()
+        let messageList = MessageList()
+        ConfigEngineSync.setKomi(6.5, config: config, messageList: messageList)
+        #expect(config.komi == 6.5)
+        #expect(messageList.messages.last?.text == "> \(GtpCommandBuilder.komiCommand(6.5))")
+    }
+}
