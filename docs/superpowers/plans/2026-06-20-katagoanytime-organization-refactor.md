@@ -461,7 +461,7 @@ public enum GtpCommandBuilder {
     public static func ruleCommandsBundle(ko: String, scoring: String, tax: String,
                                           multiStoneSuicide: Bool, hasButton: Bool,
                                           whiteHandicapBonus: String) -> [String]
-    public static func symmetricHumanAnalysisCommands(blackProfile: String, whiteProfile: String) -> [String]
+    public static func symmetricHumanAnalysisCommands(humanSLProfile: String, humanProfileForWhite: String, humanRatioForBlack: Float, humanRatioForWhite: Float) -> [String]
 }
 ```
 
@@ -489,7 +489,10 @@ struct GtpCommandBuilderTests {
         b.maxAnalysisMoves = 30
         b.analysisInterval = 25
         b.blackMaxTime = 3; b.whiteMaxTime = 0
-        return [a, b]
+        let c = Config()                          // profiles equal (defaults) but ratios differ -> asymmetric
+        c.humanRatioForBlack = 0.5
+        c.humanRatioForWhite = 0.0
+        return [a, b, c]
     }
 
     @Test func builderMatchesConfigForAllScalarCommands() {
@@ -518,7 +521,7 @@ struct GtpCommandBuilderTests {
                 whiteHandicapBonus: c.whiteHandicapBonusRuleText) == c.ruleCommands)
             #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: c.blackMaxTime, interval: c.analysisInterval, maxMoves: c.maxAnalysisMoves)
                     == c.getKataGenMoveAnalyzeCommands(maxTime: c.blackMaxTime))
-            #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(blackProfile: c.humanProfileForBlack, whiteProfile: c.humanProfileForWhite)
+            #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: c.humanSLProfile, humanProfileForWhite: c.humanProfileForWhite, humanRatioForBlack: c.humanRatioForBlack, humanRatioForWhite: c.humanRatioForWhite)
                     == c.getSymmetricHumanAnalysisCommands())
         }
     }
@@ -548,7 +551,7 @@ import Foundation
 Composite functions:
 - `analyzeCommand` / `fastAnalyzeCommand` / `genMoveAnalyzeCommands`: relocate from `getKataAnalyzeCommand(analysisInterval:)`, `getKataFastAnalyzeCommand()`, `getKataGenMoveAnalyzeCommands(maxTime:)`.
 - `ruleCommandsBundle`: returns the six rule strings in the SAME order `ConfigModel.ruleCommands` uses — build it by calling the six individual rule builders so order is guaranteed.
-- `symmetricHumanAnalysisCommands`: relocate the body of `getSymmetricHumanAnalysisCommands()`, taking the two profiles as parameters; keep the `HumanSLModel` usage identical.
+- `symmetricHumanAnalysisCommands`: relocate the body of `getSymmetricHumanAnalysisCommands()`. It takes `humanSLProfile`, `humanProfileForWhite`, `humanRatioForBlack`, `humanRatioForWhite` and replicates `isEqualBlackWhiteHumanSettings` EXACTLY — `(humanSLProfile == humanProfileForWhite) && (humanRatioForBlack == humanRatioForWhite)` — returning `HumanSLModel(profile: humanSLProfile)?.commands ?? []` when equal, else `[]`. Profile equality ALONE is insufficient; the ratio check is required to preserve behavior.
 - `rulesetCommand` (from `getKataRuleCommand()`, `kata-set-rules …`): this generator appears in **no** migration table in Task B4 — it has no live app caller today. Still add `rulesetCommand` + its equivalence assertion for completeness so B5 can delete `getKataRuleCommand` with proven parity; the builder function will simply be unused (harmless). If, while implementing, a grep confirms zero callers AND you prefer not to carry dead code, you may omit both `rulesetCommand` and its test line — but then still delete `getKataRuleCommand` from `ConfigModel` in B5.
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -700,9 +703,9 @@ These call the generators outside config-editing. Replace each with the equivale
 | 765 | `…config.getKataKomiCommand())` | `…GtpCommandBuilder.komiCommand(config.komi))` |
 | 766 | `…config.getKataPlayoutDoublingAdvantageCommand())` | `…GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))` |
 | 767 | `…config.getKataAnalysisWideRootNoiseCommand())` | `…GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))` |
-| 768 | `…config.getSymmetricHumanAnalysisCommands())` | `…GtpCommandBuilder.symmetricHumanAnalysisCommands(blackProfile: config.humanProfileForBlack, whiteProfile: config.humanProfileForWhite))` |
+| 768 | `…config.getSymmetricHumanAnalysisCommands())` | `…GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))` |
 
-`KataGoUICore/Sources/KataGoUICore/Session/GameSession.swift` (`sendInitialCommands`, 101–108): apply the same substitutions — `getKataBoardSizeCommand()` → `GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight)`; `ruleCommands` → `ruleCommandsBundle(...)`; `getKataKomiCommand()` → `komiCommand(config.komi)`; `getKataPlayoutDoublingAdvantageCommand()` → `playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage)`; `getKataAnalysisWideRootNoiseCommand()` → `analysisWideRootNoiseCommand(config.analysisWideRootNoise)`; `getSymmetricHumanAnalysisCommands()` → `symmetricHumanAnalysisCommands(blackProfile:whiteProfile:)`. Leave line 105 (`kata-set-rule friendlyPassOk false` literal) unchanged.
+`KataGoUICore/Sources/KataGoUICore/Session/GameSession.swift` (`sendInitialCommands`, 101–108): apply the same substitutions — `getKataBoardSizeCommand()` → `GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight)`; `ruleCommands` → `ruleCommandsBundle(...)`; `getKataKomiCommand()` → `komiCommand(config.komi)`; `getKataPlayoutDoublingAdvantageCommand()` → `playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage)`; `getKataAnalysisWideRootNoiseCommand()` → `analysisWideRootNoiseCommand(config.analysisWideRootNoise)`; `getSymmetricHumanAnalysisCommands()` → `symmetricHumanAnalysisCommands(humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite)`. Leave line 105 (`kata-set-rule friendlyPassOk false` literal) unchanged.
 
 `KataGo iOS/Game/GameSplitView.swift` (post-A4 path):
 | Line | Before | After |
