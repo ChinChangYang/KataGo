@@ -363,15 +363,17 @@ MAPPING.each do |folder, files|
   FileUtils.mkdir_p("KataGo iOS/#{folder}")
   subgroup = ios_group.find_subpath(folder, true)
   subgroup.set_source_tree('<group>')
+  # RELATIVE to the parent group (which already carries path "KataGo iOS").
+  # Setting "KataGo iOS/#{folder}" here would double to "KataGo iOS/KataGo iOS/#{folder}".
+  subgroup.set_path(folder)
   files.each do |fname|
     # physical move (preserve git history)
     system('git', 'mv', "KataGo iOS/#{fname}", "KataGo iOS/#{folder}/#{fname}") or raise "git mv failed: #{fname}"
-    # find the existing fileRef and reparent + repath
+    # find the existing fileRef by its CURRENT (pre-move) resolved location and reparent + repath
     ref = project.files.find { |f| f.path&.end_with?(fname) && f.real_path.to_s.include?('/KataGo iOS/KataGo iOS/') }
     raise "fileRef not found: #{fname}" unless ref
     ref.move(subgroup)
-    ref.path = fname            # path is now relative to the folder group
-    subgroup.set_path("KataGo iOS/#{folder}")
+    ref.path = fname            # bare filename — resolves via the folder group to "KataGo iOS/#{folder}/#{fname}"
   end
 end
 
