@@ -13,10 +13,12 @@ import KataGoUICore
 /// a weak back-reference held by the sidebar VC.
 ///
 /// Every mutating op finishes with `libraryStore.refetch()` so the sidebar table
-/// reflects the change immediately (the `ModelContext.didSave` observer is only a
-/// secondary net for CloudKit-synced arrivals). All work runs on the main thread,
-/// so — unlike the iOS `safelyDelete` async wrap — a direct `modelContext.delete`
-/// is correct here (no SwiftData background-context race to dodge).
+/// reflects the change immediately (`LibraryStore`'s store-change observers —
+/// `.NSPersistentStoreRemoteChange` for CloudKit arrivals from other devices and
+/// `ModelContext.didSave` for local autosaves — are the secondary net). All work
+/// runs on the main thread, so — unlike the iOS `safelyDelete` async wrap — a
+/// direct `modelContext.delete` is correct here (no SwiftData background-context
+/// race to dodge).
 extension MainWindowController: LibraryActionsDelegate {
     /// The shared `ModelContext` for inserts/deletes (the container's main context).
     private var modelContext: ModelContext { modelContainer.mainContext }

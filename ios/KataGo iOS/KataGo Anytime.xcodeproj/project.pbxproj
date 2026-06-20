@@ -123,6 +123,7 @@
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
 		64D06643D3E232A5332C28D0 /* bind.cc in Sources */ = {isa = PBXBuildFile; fileRef = 17FA6DBD4C7BA5955B8953B7 /* bind.cc */; };
 		6711A05635634AE5B5C6DE5C /* randen_slow.cc in Sources */ = {isa = PBXBuildFile; fileRef = E549A394F12A2C25F11CE915 /* randen_slow.cc */; };
+		6826E0C3454E6CA27BDA74D9 /* CoalescedTriggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018AEC457BBC84F3E7FB2B1E /* CoalescedTriggerTests.swift */; };
 		687D69E61A9400DF3C586285 /* parse_context.cc in Sources */ = {isa = PBXBuildFile; fileRef = 653962734D16C68890A2E6FD /* parse_context.cc */; };
 		691B4CE6D99EB3B7D1A68197 /* log_message.cc in Sources */ = {isa = PBXBuildFile; fileRef = 53BD6F60BC59DC9F59A2F3F7 /* log_message.cc */; };
 		696ECD7E40A40476AA932826 /* cord_rep_btree.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6A50B060363C7FD69195AABA /* cord_rep_btree.cc */; };
@@ -668,6 +669,7 @@
 		00551F81D3B391B1AC8F7DE3 /* kernel_timeout.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = kernel_timeout.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/kernel_timeout.cc"; sourceTree = SOURCE_ROOT; };
 		008FE61EE6603F28C0E87C9F /* periodic_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = periodic_sampler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/periodic_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacGlobalPreferenceSync.swift; sourceTree = "<group>"; };
+		018AEC457BBC84F3E7FB2B1E /* CoalescedTriggerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoalescedTriggerTests.swift; sourceTree = "<group>"; };
 		01CDD4D97A60DB28A1ADFBD9 /* cordz_sample_token.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_sample_token.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_sample_token.cc"; sourceTree = SOURCE_ROOT; };
 		025B5C9B251E56A5347903A9 /* SoundAnalysisPreprocessing.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SoundAnalysisPreprocessing.pb.cc; path = ../../cpp/external/katagocoreml/generated/SoundAnalysisPreprocessing.pb.cc; sourceTree = SOURCE_ROOT; };
 		042C978BB6C7792853C12AC3 /* EngineCoreMLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EngineCoreMLBridge.swift; path = KataGoEngineHelper/EngineCoreMLBridge.swift; sourceTree = "<group>"; };
@@ -2097,6 +2099,7 @@
 				1A8ED9537F21CA76CCD0ACC5 /* GtpCommandBuilderTests.swift */,
 				6A8F496C46C725561F7C5FE5 /* SgfOperationsTests.swift */,
 				7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */,
+				018AEC457BBC84F3E7FB2B1E /* CoalescedTriggerTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -2447,7 +2450,7 @@
 			);
 			mainGroup = E18F3E042A51466A00D335E1;
 			packageReferences = (
-				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */,
+				8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */,
 				2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */,
 				485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */,
 			);
@@ -2998,6 +3001,7 @@
 				C4DC9178B85214AA496604D5 /* GtpCommandBuilderTests.swift in Sources */,
 				DD2995ADAC6DF33E2A0675C8 /* SgfOperationsTests.swift in Sources */,
 				56E6C075D618CDFE21EA4E39 /* MessageListEngineOwnershipTests.swift in Sources */,
+				6826E0C3454E6CA27BDA74D9 /* CoalescedTriggerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3894,7 +3898,7 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = KataGoEngineIPC;
 		};
-		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */ = {
+		8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "ThirdParty/mlx-swift";
 		};
@@ -3923,7 +3927,7 @@
 		};
 		E1013E562FD8322700D0A4F0 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "ThirdParty/mlx-swift" */;
+			package = 8882D791140EC43E4C6E37FE /* XCLocalSwiftPackageReference "mlx-swift" */;
 			productName = MLX;
 		};
 /* End XCSwiftPackageProductDependency section */
