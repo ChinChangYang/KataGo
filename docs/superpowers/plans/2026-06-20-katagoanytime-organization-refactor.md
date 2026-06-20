@@ -756,10 +756,16 @@ Now that every caller uses `GtpCommandBuilder` (direct or via `ConfigEngineSync`
 **Files:**
 - Modify: `ios/KataGo iOS/KataGoUICore/Sources/KataGoUICore/Model/ConfigModel.swift` (remove the 19 generators)
 - Modify: `ios/KataGo iOS/KataGo iOSTests/GtpCommandBuilderTests.swift` (convert the equivalence tests to standalone literal assertions)
+- Modify: `ios/KataGo iOS/KataGo iOSTests/ConfigModelTests.swift` (remove the ~11 generator-testing `@Test` functions — they reference the deleted methods and will NOT compile otherwise)
+- Optional: `ios/KataGo iOS/KataGoUICore/Sources/KataGoUICore/Session/ConfigEngineSync.swift` (refresh stale `//` doc comments that quote the now-deleted `config.getX()` lines)
 
-- [ ] **Step 1: Snapshot the proven outputs, then convert the equivalence tests**
+> The existing `ConfigModelTests.swift` already asserts the exact literal command strings for most generators (e.g. `testKataAnalyzeCommand` expects `"kata-analyze interval … ownership true ownershipStdev true rootInfo true"`). Reuse those literals as the `GtpCommandBuilderTests` expected values, then delete the now-redundant `ConfigModelTests` generator tests.
 
-The B1 equivalence tests reference the soon-to-be-deleted generators, so they must become self-contained. Before deleting, capture the exact strings: temporarily add `print()` of each builder output in a test run (or read them from the green test output), then rewrite each `#expect(builder == config.getX())` as `#expect(builder == "<captured literal>")`. Keep the same `Config` matrix. This preserves the characterization coverage without referencing `ConfigModel`.
+- [ ] **Step 1: Snapshot the proven outputs, convert the equivalence tests, and prune `ConfigModelTests`**
+
+The B1 equivalence tests reference the soon-to-be-deleted generators, so they must become self-contained. Before deleting, capture the exact strings (reuse the literals already asserted in `ConfigModelTests.swift`, or temporarily `print()` each builder output), then rewrite each `#expect(builder == config.getX())` in `GtpCommandBuilderTests.swift` as `#expect(builder == "<captured literal>")`. Keep the same `Config` matrix. This preserves the characterization coverage without referencing `ConfigModel`.
+
+Then remove the generator-testing `@Test` functions from `ConfigModelTests.swift` (they call the soon-deleted generators): `testKataAnalyzeCommand`, `testGetKataAnalyzeCommandWithCustomInterval`, `testGetKataFastAnalyzeCommand`, `testGetKataBoardSizeCommand`, `testGetKataKomiCommand`, `testGetKataPlayoutDoublingAdvantageCommand`, `testGetKataAnalysisWideRootNoiseCommand`, `testGetKataRuleCommand`, `testAllKataRuleCommands`, `testInvalidRuleIndex` (it asserts the deleted `getKataRuleCommand` bounds-guard), and `kataAnalyzeCommand`. KEEP every non-generator test, including `testIsEqualBlackWhiteHumanSettings` (the `isEqualBlackWhiteHumanSettings` property is NOT deleted). If a function mixes generator and non-generator assertions, remove only the generator assertions and keep the rest.
 
 - [ ] **Step 2: Delete the 19 generators from `ConfigModel.swift`**
 
@@ -770,9 +776,9 @@ Remove `getKataAnalyzeCommand()` / `getKataAnalyzeCommand(analysisInterval:)`, `
 ```bash
 cd "ios/KataGo iOS"
 grep -rnE 'getKata(Analyze|FastAnalyze|GenMoveAnalyze|BoardSize|Komi|PlayoutDoublingAdvantage|AnalysisWideRootNoise|Rule)Command|getSymmetricHumanAnalysisCommands|\bruleCommands\b' \
-  KataGoUICore "KataGo iOS" "KataGo Anytime Mac" | grep -vE 'DerivedData|/\.build/|GtpCommandBuilder|//'
+  KataGoUICore "KataGo iOS" "KataGo Anytime Mac" "KataGo iOSTests" | grep -vE 'DerivedData|/\.build/|GtpCommandBuilder|//'
 ```
-Expected: no output (all command generation now lives in `GtpCommandBuilder`).
+Expected: no output (all command generation now lives in `GtpCommandBuilder`; the only remaining matches would be `//` comments, which are excluded). If any non-comment line appears, that caller/test was missed — fix it before building.
 
 - [ ] **Step 4: Build all three platforms + run unit tests**
 
