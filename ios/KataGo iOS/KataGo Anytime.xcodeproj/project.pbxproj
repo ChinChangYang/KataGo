@@ -846,7 +846,7 @@
 		AC8906AF025B8EBA6668E166 /* Fp8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Fp8.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Fp8.cpp; sourceTree = SOURCE_ROOT; };
 		AD0DED6C38D9932BA63EC190 /* raw_ptr.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_ptr.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/raw_ptr.cc"; sourceTree = SOURCE_ROOT; };
 		AD31E739D75B74BF613C62AB /* EngineVersionDisplayTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineVersionDisplayTests.swift; sourceTree = "<group>"; };
-		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheFooterView.swift; path = "KataGo iOS/CoreMLCacheFooterView.swift"; sourceTree = SOURCE_ROOT; };
+		ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheFooterView.swift; path = CoreMLCacheFooterView.swift; sourceTree = "<group>"; };
 		ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConfigEditorViewController.swift; sourceTree = "<group>"; };
 		AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = structured_proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/structured_proto.cc"; sourceTree = SOURCE_ROOT; };
 		AF678317B766C097616B662A /* charconv_parse.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = charconv_parse.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/charconv_parse.cc"; sourceTree = SOURCE_ROOT; };
@@ -1331,6 +1331,40 @@
 			name = "OS X";
 			sourceTree = "<group>";
 		};
+		3141174AFAB4A8F80841CB96 /* Misc */ = {
+			isa = PBXGroup;
+			children = (
+				E184F5E32EC022B700C06AEB /* InfoView.swift */,
+				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
+				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
+				E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */,
+				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
+			);
+			name = Misc;
+			path = Misc;
+			sourceTree = "<group>";
+		};
+		431F7E46611D59F6743593EB /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
+				CC00000000000000BC000004 /* BackendConfigSheet.swift */,
+			);
+			name = Config;
+			path = Config;
+			sourceTree = "<group>";
+		};
+		458793AE7C59601D11C4103D /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				E15A220A2EE6AED800708C25 /* GameSplitView.swift */,
+				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
+				E14FBF832C8F300C00C702BE /* PlayView.swift */,
+			);
+			name = Game;
+			path = Game;
+			sourceTree = "<group>";
+		};
 		5B5E3386297452CB52ECF0A8 /* ModelPackage */ = {
 			isa = PBXGroup;
 			children = (
@@ -1374,6 +1408,29 @@
 			path = "KataGo Anytime Mac";
 			sourceTree = "<group>";
 		};
+		6C9A5DE2496B2344A1968419 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */,
+				ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */,
+			);
+			name = Models;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		73E8B4E3CC38BF8F97EED6FF /* GameList */ = {
+			isa = PBXGroup;
+			children = (
+				E13828622C5B8C3600670FD3 /* GameListView.swift */,
+				E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */,
+				E12DF7092E875D4500521B20 /* GameListToolbar.swift */,
+				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
+				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
+			);
+			name = GameList;
+			path = GameList;
+			sourceTree = "<group>";
+		};
 		951FEDFF2F773F62044F2154 /* MILBlob */ = {
 			isa = PBXGroup;
 			children = (
@@ -1408,6 +1465,28 @@
 				265F6595482BA2DE073D71EF /* WeightSerializer.cpp */,
 			);
 			name = katagocoreml;
+			sourceTree = "<group>";
+		};
+		A058B978EFD11A86AB4F12C5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */,
+				E18F3E122A51466A00D335E1 /* ContentView.swift */,
+				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
+				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
+			);
+			name = App;
+			path = App;
+			sourceTree = "<group>";
+		};
+		A64EAC1288A8E07782E35F30 /* Toolbars */ = {
+			isa = PBXGroup;
+			children = (
+				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
+				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
+			);
+			name = Toolbars;
+			path = Toolbars;
 			sourceTree = "<group>";
 		};
 		CA7700351A0F72F2E050BF53 /* abseil */ = {
@@ -1918,27 +1997,7 @@
 		E16BC8242C47E9CF00EA3A1E /* View */ = {
 			isa = PBXGroup;
 			children = (
-				CC00000000000000BC000004 /* BackendConfigSheet.swift */,
-				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
-				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
-				E18F3E122A51466A00D335E1 /* ContentView.swift */,
-				E1C6D0C62CDF0E38002C1921 /* GameLinkView.swift */,
-				E12DF7092E875D4500521B20 /* GameListToolbar.swift */,
-				E13828622C5B8C3600670FD3 /* GameListView.swift */,
-				E15A220A2EE6AED800708C25 /* GameSplitView.swift */,
-				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
-				E184F5E32EC022B700C06AEB /* InfoView.swift */,
-				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
-				E13B92812DD9FF32009F8A1A /* ModelPickerView.swift */,
-				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
-				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
-				E14FBF832C8F300C00C702BE /* PlayView.swift */,
-				E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */,
-				E1A143AB2E80FAD200FAA1BF /* QuitButton.swift */,
 				E1D7D3AF2AA897C000556DFB /* Shaders.metal */,
-				E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */,
-				E138288E2C6A436700670FD3 /* TopToolbarView.swift */,
-				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
 				D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */,
 			);
 			name = View;
@@ -1963,7 +2022,6 @@
 				E11887E22B0830C900637D44 /* KataGoSwift */,
 				E18F3E0E2A51466A00D335E1 /* Products */,
 				E18F3F702A5149AB00D335E1 /* Frameworks */,
-				ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */,
 				BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */,
 				757D4B93AD8FB611D5BE3C60 /* CoreMLModelCacheTests.swift */,
 				04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */,
@@ -1998,10 +2056,15 @@
 				E16BC8242C47E9CF00EA3A1E /* View */,
 				E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */,
 				E18F3E142A51466C00D335E1 /* Assets.xcassets */,
-				E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */,
 				E18F3E162A51466C00D335E1 /* Preview Content */,
-				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
 				879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */,
+				A058B978EFD11A86AB4F12C5 /* App */,
+				458793AE7C59601D11C4103D /* Game */,
+				73E8B4E3CC38BF8F97EED6FF /* GameList */,
+				431F7E46611D59F6743593EB /* Config */,
+				6C9A5DE2496B2344A1968419 /* Models */,
+				A64EAC1288A8E07782E35F30 /* Toolbars */,
+				3141174AFAB4A8F80841CB96 /* Misc */,
 			);
 			path = "KataGo iOS";
 			sourceTree = "<group>";
