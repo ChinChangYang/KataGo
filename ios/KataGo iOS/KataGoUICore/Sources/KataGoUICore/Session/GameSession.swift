@@ -98,14 +98,14 @@ public final class GameSession {
     private func sendInitialCommands(config: Config?) {
         // If a config is not available, initialize KataGo with a default config.
         let config = config ?? Config()
-        messageList.appendAndSend(command: config.getKataBoardSizeCommand())
-        messageList.appendAndSend(commands: config.ruleCommands)
-        messageList.appendAndSend(command: config.getKataKomiCommand())
+        messageList.appendAndSend(command: GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight))
+        messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText, multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton, whiteHandicapBonus: config.whiteHandicapBonusRuleText))
+        messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
         // Disable friendly pass to avoid a memory shortage problem
         messageList.appendAndSend(command: "kata-set-rule friendlyPassOk false")
-        messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-        messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-        messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+        messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+        messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
+        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
     }
 
     // MARK: - Message loop

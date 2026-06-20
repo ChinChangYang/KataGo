@@ -1130,7 +1130,7 @@ final class MainWindowController: NSWindowController {
                     session.messageList.appendAndSend(command: "stop")
                 } else {
                     session.messageList.appendAndSend(
-                        command: gameRecord.concreteConfig.getKataAnalyzeCommand())
+                        command: GtpCommandBuilder.analyzeCommand(interval: gameRecord.concreteConfig.analysisInterval, maxMoves: gameRecord.concreteConfig.maxAnalysisMoves))
                 }
 
                 // Auto-play stepping (port of `GameSplitView` lines 495-525,
@@ -1339,8 +1339,8 @@ final class MainWindowController: NSWindowController {
                     config: config,
                     messageList: session.messageList)
 
-                session.messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                session.messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                session.messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+                session.messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
 
                 // current index might not be correct, recover it
                 gobanState.forwardMoves(

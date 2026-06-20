@@ -332,8 +332,8 @@ struct GameSplitView: View {
                     config: config,
                     messageList: messageList)
 
-                messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-                messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
+                messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+                messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
 
                 // current index might not be correct, recover it
                 gobanState.forwardMoves(
@@ -489,7 +489,7 @@ struct GameSplitView: View {
                 if gobanState.analysisStatus == .pause {
                     messageList.appendAndSend(command: "stop")
                 } else {
-                    messageList.appendAndSend(command: config.getKataAnalyzeCommand())
+                    messageList.appendAndSend(command: GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
                 }
 
                 if gobanState.isAutoPlaying && !analysis.info.isEmpty && stones.isReady {

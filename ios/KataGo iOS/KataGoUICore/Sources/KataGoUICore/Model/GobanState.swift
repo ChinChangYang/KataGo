@@ -77,13 +77,13 @@ public class GobanState {
 
         if (analysisStatus == .run) && (!isAutoPlaying) && (passCount < 2) {
             if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
-                return config.getKataGenMoveAnalyzeCommands(maxTime: config.blackMaxTime)
+                return GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: config.blackMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
             } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
-                return config.getKataGenMoveAnalyzeCommands(maxTime: config.whiteMaxTime)
+                return GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: config.whiteMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
             }
         }
 
-        return [config.getKataFastAnalyzeCommand()]
+        return [GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
     }
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
@@ -761,11 +761,11 @@ public class GobanState {
                 placeLoadingBoard(width: config.boardWidth, height: config.boardHeight, board: board, stones: stones)
             }
 
-            messageList.appendAndSend(commands: config.ruleCommands)
-            messageList.appendAndSend(command: config.getKataKomiCommand())
-            messageList.appendAndSend(command: config.getKataPlayoutDoublingAdvantageCommand())
-            messageList.appendAndSend(command: config.getKataAnalysisWideRootNoiseCommand())
-            messageList.appendAndSend(commands: config.getSymmetricHumanAnalysisCommands())
+            messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText, multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton, whiteHandicapBonus: config.whiteHandicapBonusRuleText))
+            messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
+            messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+            messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
+            messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
             sendShowBoardCommand(messageList: messageList)
         }
     }
