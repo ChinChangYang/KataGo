@@ -7,9 +7,10 @@
 //    * a side with a positive "Time per move" (AI) shows its profile ("AI"),
 //    * a side with zero "Time per move" shows "Human".
 //
-//  The labels are SwiftUI Texts carrying the accessibility identifiers
-//  "blackPlayerName" / "whitePlayerName" (see StoneView.drawCapturedStones);
-//  their accessibility `label` is the displayed string. The test drives the
+//  The labels are SwiftUI Buttons (tappable AI/Human capsules) carrying the
+//  accessibility identifiers "blackPlayerName" / "whitePlayerName" (see
+//  StoneView.drawCapturedStones); tapping one flips that side Human<->AI.
+//  Their accessibility `label` is the displayed string. The test drives the
 //  real config screen (More ▸ Configurations ▸ Game Settings ▸ AI) so it also
 //  proves the board reflects the configuration end-to-end.
 //
@@ -55,7 +56,13 @@ final class PlayerNameLabelUITests: XCTestCase {
         openAIConfig(app)
         adjustStepper(app, "whiteTimePerMove", increments: 1)  // 0s -> 0.5s
         dismissConfig(app)
-        waitForLabel(app, "whitePlayerName", equals: aiLabel)
+        // White label should now show the AI profile name (not "Human").
+        // The exact profile name varies by simulator state, so check ≠ humanLabel.
+        let whiteBtn = app.buttons["whitePlayerName"]
+        XCTAssertTrue(whiteBtn.waitForExistence(timeout: 10), "whitePlayerName button not found")
+        let aiDeadline = Date().addingTimeInterval(10)
+        while whiteBtn.label == humanLabel && Date() < aiDeadline { usleep(200_000) }
+        XCTAssertNotEqual(whiteBtn.label, humanLabel, "White label should be AI (non-Human) when time > 0")
         waitForLabel(app, "blackPlayerName", equals: humanLabel)
 
         // Attach a board screenshot so the label layout can be eyeballed.
@@ -69,6 +76,46 @@ final class PlayerNameLabelUITests: XCTestCase {
         adjustStepper(app, "whiteTimePerMove", decrements: 4)
         dismissConfig(app)
         waitForLabel(app, "whitePlayerName", equals: humanLabel)
+    }
+
+    /// Taps the WHITE capsule directly on the board and verifies it flips
+    /// Human -> AI -> Human, with Black unaffected. White is used so the toggle
+    /// never makes the side-to-move (Black, at the opening) auto-play into an
+    /// uncommitted branch — keeping the board stable and the test idempotent.
+    @MainActor
+    func testTappingWhiteLabelTogglesAIAndHuman() throws {
+        let app = XCUIApplication()
+        launchToBoard(app)
+
+        // Baseline: force both sides Human via the config steppers (robust against
+        // state persisted by a previous run).
+        openAIConfig(app)
+        adjustStepper(app, "blackTimePerMove", decrements: 4)
+        adjustStepper(app, "whiteTimePerMove", decrements: 4)
+        dismissConfig(app)
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
+
+        // Tap WHITE's capsule -> becomes AI (shows profile name, not necessarily "AI").
+        let white = app.buttons["whitePlayerName"]
+        XCTAssertTrue(white.waitForExistence(timeout: 10), "White capsule button not found")
+        white.tap()
+        // Verify: white label is no longer "Human" (AI is now active). The exact
+        // profile name may vary by simulator state, so we check ≠ humanLabel.
+        let aiDeadline = Date().addingTimeInterval(10)
+        while white.label == humanLabel && Date() < aiDeadline { usleep(200_000) }
+        XCTAssertNotEqual(white.label, humanLabel, "White should be AI (non-Human) after tap")
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)  // unaffected
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "WhiteToggledToAI"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // Tap again -> back to Human (restores the clean baseline for reruns).
+        app.buttons["whitePlayerName"].tap()
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
     }
 
     // MARK: - Navigation helpers
@@ -165,7 +212,7 @@ final class PlayerNameLabelUITests: XCTestCase {
                               _ identifier: String,
                               equals expected: String,
                               timeout: TimeInterval = 10) {
-        let element = app.staticTexts[identifier]
+        let element = app.buttons[identifier]
         XCTAssertTrue(element.waitForExistence(timeout: timeout),
                       "Player-name label '\(identifier)' not found on the board")
 
