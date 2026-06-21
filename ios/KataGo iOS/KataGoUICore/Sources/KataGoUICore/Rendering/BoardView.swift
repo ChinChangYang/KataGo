@@ -59,7 +59,8 @@ public struct BoardView: View {
                         verticalFlip: gobanState.verticalFlip,
                         speedText: speedText,
                         blackPlayerName: config.playerLabel(for: .black),
-                        whitePlayerName: config.playerLabel(for: .white)
+                        whitePlayerName: config.playerLabel(for: .white),
+                        onToggleAI: { toggleAI(for: $0) }
                     )
 
                     drawNextMove(dimensions: dimensions,
@@ -192,6 +193,29 @@ public struct BoardView: View {
             if let sc = bookLookup.bestBlackScore {
                 rootScore.black = sc
             }
+        }
+    }
+
+    /// Flip a color between Human (thinking time 0) and AI (0.5s) when its
+    /// captured-stone capsule is tapped. Reuses `ConfigEngineSync.set*MaxTime`,
+    /// which writes the live `Config` (label updates via Observation) and re-arms
+    /// analysis so an enabled side-to-move generates a move immediately.
+    private func toggleAI(for color: PlayerColor) {
+        switch color {
+        case .black:
+            ConfigEngineSync.setBlackMaxTime(config.toggledMaxTime(for: .black),
+                                             config: config,
+                                             gobanState: gobanState,
+                                             player: player,
+                                             messageList: messageList)
+        case .white:
+            ConfigEngineSync.setWhiteMaxTime(config.toggledMaxTime(for: .white),
+                                             config: config,
+                                             gobanState: gobanState,
+                                             player: player,
+                                             messageList: messageList)
+        case .unknown:
+            break
         }
     }
 
