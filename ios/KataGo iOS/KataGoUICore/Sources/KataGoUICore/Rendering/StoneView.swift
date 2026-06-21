@@ -102,21 +102,19 @@ public struct StoneView: View {
     }
 
     // The per-color name. With a toggle handler (live board) it is a tappable
-    // tinted capsule button — accent fill when AI, neutral when Human; without
-    // one (thumbnail / previews) it is the original plain, non-interactive text.
+    // button styled like the on-board toolbar controls (`.glass`); without one
+    // (thumbnail / previews) it is the original plain, non-interactive text.
     @ViewBuilder
     private func playerNameLabel(name: String,
                                  playerColor: PlayerColor,
                                  nameAccessibilityID: String,
                                  dimensions: Dimensions) -> some View {
         if let onToggleAI {
-            Button {
-                onToggleAI(playerColor)
-            } label: {
-                capsuleNameLabel(name: name, dimensions: dimensions)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(nameAccessibilityID)
+            glassNameButton(name: name,
+                            playerColor: playerColor,
+                            onToggleAI: onToggleAI,
+                            dimensions: dimensions)
+                .accessibilityIdentifier(nameAccessibilityID)
         } else {
             Text(name)
                 .lineLimit(1)
@@ -127,23 +125,42 @@ public struct StoneView: View {
         }
     }
 
-    // The capsule used for the tappable name. `isAI` (this side has an engine
-    // profile rather than the "Human" label) tints it with the accent color;
-    // Human uses a subtle neutral fill. Horizontal-only padding keeps the
-    // capsule height within the 20pt captured-stones strip.
-    private func capsuleNameLabel(name: String, dimensions: Dimensions) -> some View {
+    // The tappable AI/Human button. Mirrors the on-board toolbar idiom
+    // (StatusToolbarItems uses `.glass`): an accent-tinted prominent glass when
+    // the side is AI (`isAI` = an engine profile rather than the "Human" label),
+    // a neutral glass when Human, with state shown by prominence. `.mini`
+    // control size keeps it within the ~20pt captured-stones strip. visionOS
+    // doesn't support the glass styles (same as StatusToolbarItems), so it
+    // falls back to the bordered system styles there.
+    @ViewBuilder
+    private func glassNameButton(name: String,
+                                 playerColor: PlayerColor,
+                                 onToggleAI: @escaping (PlayerColor) -> Void,
+                                 dimensions: Dimensions) -> some View {
         let isAI = (name != Config.humanPlayerLabel)
-        return Text(name)
-            .lineLimit(1)
-            .minimumScaleFactor(0.2)
-            .font(.system(size: dimensions.capturedStonesHeight * 0.7))
-            .foregroundStyle(isAI ? Color.white : Color.primary)
-            .padding(.horizontal, dimensions.squareLengthDiv8)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isAI ? Color.accentColor : Color.secondary.opacity(0.25))
-            )
-            .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+        let button = Button {
+            onToggleAI(playerColor)
+        } label: {
+            Text(name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.2)
+                .font(.system(size: dimensions.capturedStonesHeight * 0.7))
+        }
+        .controlSize(.mini)
+
+#if os(visionOS)
+        if isAI {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
+#else
+        if isAI {
+            button.buttonStyle(.glassProminent)
+        } else {
+            button.buttonStyle(.glass)
+        }
+#endif
     }
 
     // Shows the visits/s readout centered in the empty gap between the captured-stone
@@ -366,10 +383,10 @@ public struct StoneView: View {
     }
 }
 
-// Interactive capsule toggle: the names render as tappable capsules (Human =
-// neutral fill, AI/profile = accent fill). Verifies the capsule fits the 20pt
-// strip beside the static "x..." counts.
-#Preview("Captured labels — tappable capsules") {
+// Interactive AI/Human toggle: the names render as tappable glass buttons
+// (Human = neutral `.glass`, AI/profile = accent `.glassProminent`). Verifies
+// the buttons fit the 20pt strip beside the static "x..." counts.
+#Preview("Captured labels — tappable toggle") {
     let stones = Stones()
 
     return ZStack {
