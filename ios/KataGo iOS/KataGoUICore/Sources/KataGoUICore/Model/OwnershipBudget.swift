@@ -31,20 +31,26 @@ import Foundation
 enum OwnershipBudget {
 
     /// Conservative upper bound on the encoded size of one `Float` inside the
-    /// JSON the SwiftData store uses for `[Int:[Float]]` (full precision, e.g.
-    /// `0.39000002`). Measured across real on-disk games: ≈5.25 B/float for a
-    /// calm 294-move game, up to ≈6.34 for a contested 188-move one (averaged
-    /// over a full board). 8 covers the worst observed with ~27% margin, so the
-    /// estimate never *under*-counts and the cap's stated budget holds for real
-    /// data — not just the uniform values a synthetic test would produce.
-    static let estimatedBytesPerFloat = 8
+    /// serialization the SwiftData store uses for `[Int:[Float]]` (full
+    /// precision, e.g. `0.38999999`). Real on-disk games measured ≈5.25 B/float
+    /// (a calm 294-move game) to ≈6.34 (a contested 188-move one), but those
+    /// boards are mostly *settled* — ±1 / 0.5 encode in ~3 chars and pull the
+    /// average down. A genuinely full-precision board (every point contested)
+    /// serializes at ≈11.15 B/float, measured directly by
+    /// `OwnershipBudgetTests.contestedBoardSerializesUnderCloudKitLimit` (which
+    /// encodes a worst-case board as JSON; JSON ≥ the on-disk format, so it is a
+    /// safe upper bound). 12 covers that worst case, so the estimate never
+    /// *under*-counts and `combinedByteBudget` genuinely bounds real data —
+    /// including the contested endgame this cap exists to protect.
+    static let estimatedBytesPerFloat = 12
 
     /// Combined byte budget for `ownershipWhiteness` + `ownershipScales`. Held
     /// well under CloudKit's ~1 MB residual CKRecord ceiling (1,048,576 B) so
     /// that, even with the SGF, per-move stone lists, thumbnail and analysis
     /// scalars sharing the record, the whole thing stays uploadable. Tunable:
     /// raising it retains more historical ownership at the cost of CloudKit
-    /// headroom. At this value: ~103 most-recent moves at 19×19, ~27 at 37×37.
+    /// headroom. At this value with the estimate above: ~69 most-recent moves at
+    /// 19×19, ~18 at 37×37.
     static let combinedByteBudget = 600_000
 
     /// Largest number of move-indices whose ownership (two `pointsPerMove`-length

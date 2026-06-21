@@ -9,13 +9,14 @@
 //  uploadable" behaviour is covered by the live two-device sync test.
 //
 
+import Foundation
 import Testing
 @testable import KataGoUICore
 
 @Suite("OwnershipBudget")
 struct OwnershipBudgetTests {
 
-    /// Standard board point count; 600_000 / (2 * 361 * 8) = 103 retained indices.
+    /// Standard board point count; 600_000 / (2 * 361 * 12) = 69 retained indices.
     private let points19 = 19 * 19
 
     // Builds an ownership-shaped dictionary: one full-board Float array per index.
@@ -23,6 +24,27 @@ struct OwnershipBudgetTests {
         var dict: [Int: [Float]] = [:]
         for index in indices {
             dict[index] = Array(repeating: 0.5, count: points)
+        }
+        return dict
+    }
+
+    // Deterministic, full-precision contested ownership: each value is a hashed
+    // Float spread across (-1, 1) whose shortest round-trippable decimal needs
+    // ~8-9 significant digits — the worst case for the byte budget, unlike the
+    // uniform 0.5 of `sampleOwnership` (which encodes in ~3 chars and so cannot
+    // surface an under-count in the per-float estimate).
+    private func contestedValue(_ seed: Int) -> Float {
+        var h = UInt32(truncatingIfNeeded: seed &* 2_654_435_761)
+        h ^= h >> 15
+        h = h &* 2_246_822_519
+        h ^= h >> 13
+        return Float(h) / Float(UInt32.max) * 2 - 1
+    }
+
+    private func contestedOwnership(indices: Range<Int>, points: Int) -> [Int: [Float]] {
+        var dict: [Int: [Float]] = [:]
+        for index in indices {
+            dict[index] = (0..<points).map { contestedValue(index &* 100_003 &+ $0) }
         }
         return dict
     }
@@ -123,6 +145,39 @@ struct OwnershipBudgetTests {
         let estimatedBytes =
             (out.whiteness.count + out.scales.count) * points19 * OwnershipBudget.estimatedBytesPerFloat
         #expect(estimatedBytes <= OwnershipBudget.combinedByteBudget)
+    }
+
+    /// The estimate-based test above only verifies `pruned` obeys its OWN
+    /// per-float estimate — a tautology that can't catch the estimate being too
+    /// low. This pins the real invariant the cap exists for: the ACTUALLY
+    /// serialized ownership of a capped record stays bounded, even for a long
+    /// game whose every retained point is contested (full-precision Floats), the
+    /// costliest case to encode (and the one — contested endgames — the cap most
+    /// needs to survive). JSON is a conservative stand-in for the on-disk encoding
+    /// of `[Int:[Float]]` (JSON ≥ the binary store), so passing here guarantees
+    /// the real store passes. Because `estimatedBytesPerFloat` is a true upper
+    /// bound on the measured ≈11.15 B/float, the worst case fits within
+    /// `combinedByteBudget` itself — which sits well under CloudKit's 1 MB ceiling.
+    @Test("A fully-contested pruned board serializes within the ownership budget")
+    func contestedBoardSerializesUnderCloudKitLimit() throws {
+        let total = 400   // well over the ~69-index cap at 19×19
+        let whiteness = contestedOwnership(indices: 0..<total, points: points19)
+        let scales = contestedOwnership(indices: 0..<total, points: points19)
+        let out = OwnershipBudget.pruned(
+            whiteness: whiteness, scales: scales, pointsPerMove: points19, keeping: total - 1)
+
+        let encoder = JSONEncoder()
+        let encoded = try encoder.encode(out.whiteness).count
+                    + (try encoder.encode(out.scales).count)
+
+        // Conservative: even verbose JSON of a fully-contested board stays within
+        // the self-imposed budget, which is itself far under CloudKit's 1 MB
+        // (1_048_576 B) per-record ceiling.
+        #expect(
+            encoded <= OwnershipBudget.combinedByteBudget,
+            "pruned contested ownership serialized to \(encoded) B; must stay within the \(OwnershipBudget.combinedByteBudget) B ownership budget"
+        )
+        #expect(encoded < 1_048_576)
     }
 
     @Test("Larger boards retain proportionally fewer indices")
