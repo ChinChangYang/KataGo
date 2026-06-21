@@ -68,3 +68,53 @@ struct PlayerLabelTests {
         #expect(config.playerLabel(for: .unknown) == "")
     }
 }
+
+/// `Config.toggledMaxTime(for:)` computes the per-move time a side gets when its
+/// AI/Human label is tapped: human (0) → 0.5s, AI (>0) → 0. `.unknown` is a 0
+/// no-op. The Config form can still set any other value; this is only the
+/// quick-toggle default.
+struct AIHumanToggleTests {
+
+    @Test func humanBlackTogglesToHalfSecond() {
+        let config = Config(optionalBlackMaxTime: 0)
+        #expect(config.toggledMaxTime(for: .black) == 0.5)
+    }
+
+    @Test func aiBlackTogglesToZero() {
+        let config = Config(optionalBlackMaxTime: 0.5)
+        #expect(config.toggledMaxTime(for: .black) == 0)
+    }
+
+    @Test func aiBlackWithCustomTimeTogglesToZero() {
+        // A custom time set via the Config form still toggles back to human.
+        let config = Config(optionalBlackMaxTime: 3.0)
+        #expect(config.toggledMaxTime(for: .black) == 0)
+    }
+
+    @Test func humanWhiteTogglesToHalfSecond() {
+        let config = Config(optionalWhiteMaxTime: 0)
+        #expect(config.toggledMaxTime(for: .white) == 0.5)
+    }
+
+    @Test func aiWhiteTogglesToZero() {
+        let config = Config(optionalWhiteMaxTime: 2.0)
+        #expect(config.toggledMaxTime(for: .white) == 0)
+    }
+
+    @Test func eachColorTogglesIndependently() {
+        // Black AI (1s), White human (0): toggling black turns it off; white turns on.
+        let config = Config(optionalBlackMaxTime: 1.0, optionalWhiteMaxTime: 0.0)
+        #expect(config.toggledMaxTime(for: .black) == 0)
+        #expect(config.toggledMaxTime(for: .white) == 0.5)
+    }
+
+    @Test func togglesUseTheNamedDefaultConstant() {
+        let config = Config(optionalBlackMaxTime: 0)
+        #expect(config.toggledMaxTime(for: .black) == Config.toggleAIThinkingTime)
+    }
+
+    @Test func unknownColorTogglesToZero() {
+        let config = Config()
+        #expect(config.toggledMaxTime(for: .unknown) == 0)
+    }
+}

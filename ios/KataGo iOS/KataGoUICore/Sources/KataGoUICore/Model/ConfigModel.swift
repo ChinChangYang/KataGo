@@ -197,6 +197,25 @@ extension Config {
 }
 
 extension Config {
+    /// The per-move thinking time (seconds) a side is given when the user taps
+    /// its AI/Human label to enable AI. The Config form can still set any other
+    /// value; this is only the quick-toggle default.
+    public static let toggleAIThinkingTime: Float = 0.5
+
+    /// The new per-move max time for `color` when its AI/Human label is tapped:
+    /// a side that is currently AI (time > 0) becomes `0` (human); a side that is
+    /// currently human (`0`) becomes `toggleAIThinkingTime` (0.5s). `.unknown`
+    /// returns `0` (no-op).
+    public func toggledMaxTime(for color: PlayerColor) -> Float {
+        switch color {
+        case .black: return blackMaxTime > 0 ? 0 : Config.toggleAIThinkingTime
+        case .white: return whiteMaxTime > 0 ? 0 : Config.toggleAIThinkingTime
+        case .unknown: return 0
+        }
+    }
+}
+
+extension Config {
     public static let defaultBoardWidth = 19
     public static let defaultBoardHeight = 19
     public static let defaultKomi: Float = 7.0
