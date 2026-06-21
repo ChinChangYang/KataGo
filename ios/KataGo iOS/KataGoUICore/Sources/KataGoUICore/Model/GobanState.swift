@@ -122,6 +122,27 @@ public class GobanState {
         }
     }
 
+    /// Continuous analysis is hidden AND pointless to run, so it can be paused
+    /// to save power: a human-vs-AI game (exactly one side has a positive
+    /// per-move thinking time), the analysis overlay is not visible
+    /// (eye `.book`/`.closed`), and it is the human's turn. The AI's own turn is
+    /// never suppressed — the engine must still `genmove` — and both-human /
+    /// both-AI games are unaffected. No-op on macOS, whose always-on analysis is
+    /// intentionally left unchanged.
+    public func isAnalysisHiddenForPowerSaving(config: Config,
+                                               nextColorForPlayCommand: PlayerColor?) -> Bool {
+        #if os(macOS)
+        return false
+        #else
+        guard eyeStatus != .opened, let nextColorForPlayCommand else { return false }
+        switch nextColorForPlayCommand {
+        case .black: return config.blackMaxTime == 0 && config.whiteMaxTime > 0
+        case .white: return config.whiteMaxTime == 0 && config.blackMaxTime > 0
+        case .unknown: return false
+        }
+        #endif
+    }
+
     public func maybeRequestClearAnalysisData(config: Config, nextColorForPlayCommand: PlayerColor?) {
         if !shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand) {
             requestingClearAnalysis = true
