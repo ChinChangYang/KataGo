@@ -2633,6 +2633,12 @@ extension MainWindowController: NSMenuItemValidation {
         case #selector(showModelsWindow(_:)):
             return true
 
+        // File ▸ "Re-sync from iCloud…": always available — it presents its own
+        // confirmation (and a stronger warning when not signed into iCloud), so it
+        // never needs a selected game or any particular engine/analysis state.
+        case #selector(resyncLibraryFromICloud(_:)):
+            return true
+
         default:
             return canPerformNavigation(menuItem.action)
         }

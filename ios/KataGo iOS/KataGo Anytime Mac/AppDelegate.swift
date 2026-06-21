@@ -12,14 +12,13 @@ import KataGoUICore
 enum AppMain {
     static func main() {
         let app = NSApplication.shared
-        // DEBUG-only: if the sidebar's "Re-sync from iCloud" button requested a
-        // reset, delete the local SwiftData/CloudKit store HERE — after the app
-        // object exists (so the reset can wait for the previous instance to exit)
-        // but BEFORE `AppDelegate()` constructs its eager `modelContainer` — so the
-        // fresh container re-imports the whole zone from CloudKit.
-        #if DEBUG
-        DebugStoreReset.performIfRequested()
-        #endif
+        // If the File-menu "Re-sync from iCloud…" command requested a reset, delete
+        // the local SwiftData/CloudKit store HERE — after the app object exists (so
+        // the reset can wait for the previous instance to exit) but BEFORE
+        // `AppDelegate()` constructs its eager `modelContainer` — so the fresh
+        // container re-imports the whole zone from CloudKit. No-op (returns early)
+        // unless the flag is set, so it is safe to call on every launch.
+        CloudKitStoreReset.performIfRequested()
         let delegate = AppDelegate()
         app.delegate = delegate
         // Keep the delegate alive for the lifetime of the run loop.
@@ -170,6 +169,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // responder chain to `MainWindowController`.
         menu.addItem(withTitle: "Share…",
                      action: #selector(MainWindowController.shareSelectedGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
+        // Discards the local SwiftData store and re-imports the whole zone from
+        // CloudKit on the next launch (`CloudKitStoreReset`). Available in DEBUG
+        // *and* RELEASE: DEBUG and TestFlight/App-Store builds share the same
+        // CloudKit data, so a wedged/diverged local store can strike either, and
+        // both need the recovery path. No key equivalent — it's an infrequent,
+        // destructive action and an accidental keystroke must never wipe the store.
+        // Routed (target = nil) through the responder chain to `MainWindowController`,
+        // which presents the confirmation and relaunch.
+        menu.addItem(withTitle: "Re-sync from iCloud…",
+                     action: #selector(MainWindowController.resyncLibraryFromICloud(_:)),
                      keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close",
@@ -407,18 +418,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-#if DEBUG
-/// DEBUG-only support for the sidebar's "Re-sync from iCloud" button. The button
-/// sets `flagKey` and relaunches; `performIfRequested()` runs at the very top of
-/// `AppMain.main()` (before the `ModelContainer` is created) and, if the flag is
-/// set, removes the local SwiftData store so the new container re-imports the whole
-/// zone from CloudKit.
+/// Backs the File-menu "Re-sync from iCloud…" command (available in DEBUG *and*
+/// RELEASE). The command sets `flagKey` and relaunches; `performIfRequested()`
+/// runs at the very top of `AppMain.main()` (before the `ModelContainer` is
+/// created) and, if the flag is set, removes the local SwiftData store so the new
+/// container re-imports the whole zone from CloudKit.
 ///
 /// It deletes the STORE FILES, not the records, on purpose: deleting records would
 /// propagate cloud deletions and wipe the games on every device. The files go to
 /// the Trash (recoverable); engine/model data is left untouched.
-enum DebugStoreReset {
-    static let flagKey = "DebugResetCloudKitStoreOnLaunch"
+enum CloudKitStoreReset {
+    static let flagKey = "ResyncCloudKitStoreOnLaunch"
 
     /// Non-`default.store*` sidecars the SwiftData/CloudKit store leaves alongside the
     /// SQLite files (Core Data external-storage support + the CloudKit asset cache).
@@ -426,8 +436,13 @@ enum DebugStoreReset {
 
     static func performIfRequested() {
         guard UserDefaults.standard.bool(forKey: flagKey) else { return }
-        // Clear the flag FIRST so a partial failure can't trap the app in a reset loop.
+        // Clear the flag FIRST so a partial failure can't trap the app in a reset loop,
+        // and flush it to disk immediately: the CloudKit re-import that follows can run
+        // for minutes, and if the app crashes before this clear is persisted the stale
+        // on-disk flag would re-trigger the wipe on the next launch. `synchronize()`
+        // makes the clear durable now (symmetric with the set side, which flushes too).
         UserDefaults.standard.removeObject(forKey: flagKey)
+        UserDefaults.standard.synchronize()
 
         // Wait until this is the ONLY running instance before touching the store, so
         // the delete never overlaps a previous instance that still has it open — this
@@ -448,7 +463,7 @@ enum DebugStoreReset {
             for: .applicationSupportDirectory, in: .userDomainMask,
             appropriateFor: nil, create: false
         ) else {
-            NSLog("[DebugStoreReset] could not resolve Application Support — reset skipped")
+            NSLog("[CloudKitStoreReset] could not resolve Application Support — reset skipped")
             return
         }
 
@@ -464,7 +479,6 @@ enum DebugStoreReset {
                 try? fileManager.removeItem(at: url)  // fall back to permanent removal
             }
         }
-        NSLog("[DebugStoreReset] reset store at \(appSupport.path) — trashed \(targets.count) artifact(s): \(targets) — re-importing from iCloud")
+        NSLog("[CloudKitStoreReset] reset store at \(appSupport.path) — trashed \(targets.count) artifact(s): \(targets) — re-importing from iCloud")
     }
 }
-#endif

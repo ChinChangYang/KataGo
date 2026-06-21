@@ -67,19 +67,6 @@ final class LibrarySidebarViewController: NSViewController {
         searchField.delegate = self
         container.addSubview(searchField)
 
-        #if DEBUG
-        // DEBUG-only: re-sync the library from iCloud (discard the local store and
-        // re-import from CloudKit on relaunch). Compiled out of release/TestFlight.
-        let debugResyncButton = NSButton()
-        debugResyncButton.translatesAutoresizingMaskIntoConstraints = false
-        debugResyncButton.bezelStyle = .rounded
-        debugResyncButton.controlSize = .small
-        debugResyncButton.title = "↻ Re-sync from iCloud (Debug)"
-        debugResyncButton.target = self
-        debugResyncButton.action = #selector(debugResyncFromICloud)
-        container.addSubview(debugResyncButton)
-        #endif
-
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("game"))
         column.resizingMask = .autoresizingMask
         tableView.addTableColumn(column)
@@ -118,7 +105,8 @@ final class LibrarySidebarViewController: NSViewController {
         scrollView.drawsBackground = false
         container.addSubview(scrollView)
 
-        var constraints: [NSLayoutConstraint] = [
+        let constraints: [NSLayoutConstraint] = [
+            searchField.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
             searchField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
             searchField.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
 
@@ -127,17 +115,6 @@ final class LibrarySidebarViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ]
-        #if DEBUG
-        // The debug button takes the top; the search field sits just below it.
-        constraints += [
-            debugResyncButton.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-            debugResyncButton.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            debugResyncButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            searchField.topAnchor.constraint(equalTo: debugResyncButton.bottomAnchor, constant: 8),
-        ]
-        #else
-        constraints.append(searchField.topAnchor.constraint(equalTo: container.topAnchor, constant: 8))
-        #endif
         NSLayoutConstraint.activate(constraints)
 
         view = container
@@ -152,45 +129,6 @@ final class LibrarySidebarViewController: NSViewController {
         // Reflect the launch-selected game without re-loading it.
         reloadPreservingSelection()
     }
-
-    #if DEBUG
-    /// DEBUG-only: discard the local SwiftData store and re-import from iCloud.
-    /// Confirms, sets the reset flag (applied at the next launch by
-    /// `DebugStoreReset.performIfRequested()`, before the `ModelContainer` is built),
-    /// then relaunches. Compiled out of release/TestFlight builds.
-    @objc private func debugResyncFromICloud() {
-        let alert = NSAlert()
-        alert.messageText = "Re-sync games from iCloud?"
-        alert.informativeText = "This discards the local database — including any changes not yet uploaded to iCloud — and re-downloads everything from CloudKit. The app will relaunch."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Re-sync & Relaunch")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        UserDefaults.standard.set(true, forKey: DebugStoreReset.flagKey)
-
-        // Spawn a genuinely new instance, then terminate this one; the new instance's
-        // `DebugStoreReset.performIfRequested()` waits for this one to exit before it
-        // deletes the store. `allowsRunningApplicationSubstitution = false` forces a
-        // real new process — without it LaunchServices may just re-activate this
-        // (dying) instance, so the relaunch would silently fail.
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        configuration.allowsRunningApplicationSubstitution = false
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL,
-                                           configuration: configuration) { _, error in
-            Task { @MainActor in
-                if let error {
-                    // Launch declined: keep this instance alive (don't strand a quit
-                    // app). The flag still fires the reset on the next manual launch.
-                    NSLog("[DebugStoreReset] relaunch failed: \(error.localizedDescription) — reset deferred to next launch")
-                } else {
-                    NSApp.terminate(nil)
-                }
-            }
-        }
-    }
-    #endif
 
     // MARK: - Selection sync
 

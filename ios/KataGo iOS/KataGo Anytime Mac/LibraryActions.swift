@@ -233,4 +233,78 @@ extension MainWindowController: LibraryActionsDelegate {
         guard let game = navigationContext.selectedGameRecord else { return }
         shareGame(game, from: nil, rect: .zero)
     }
+
+    // MARK: - Re-sync from iCloud
+
+    /// File ▸ "Re-sync from iCloud…": discard the local SwiftData store and let
+    /// `NSPersistentCloudKitContainer` re-import the whole zone from CloudKit on the
+    /// next launch. Confirms first (it is destructive — local-only changes are lost),
+    /// arms the `CloudKitStoreReset` flag, then relaunches; the new instance's
+    /// `CloudKitStoreReset.performIfRequested()` (top of `AppMain.main`, before the
+    /// `ModelContainer` is built) waits for this instance to exit, then trashes the
+    /// store files. It deletes FILES, never records — record deletion would
+    /// propagate cloud deletes and wipe every device.
+    ///
+    /// Available in DEBUG and RELEASE: both build configs share the same CloudKit
+    /// data, so a wedged/diverged local store can strike either and both need the
+    /// recovery path.
+    @objc func resyncLibraryFromICloud(_ sender: Any?) {
+        // Re-sync only restores what is actually in iCloud. With no iCloud account
+        // there is nothing to re-import, so wiping the local store would be pure
+        // data loss — make the safe choice (Cancel) the default and force an
+        // explicit opt-in to proceed. `ubiquityIdentityToken` is a cheap, synchronous
+        // proxy for "signed into iCloud" (non-nil iff an iCloud account is present).
+        let signedIntoICloud = FileManager.default.ubiquityIdentityToken != nil
+
+        let alert = NSAlert()
+        alert.messageText = "Re-sync games from iCloud?"
+        if signedIntoICloud {
+            alert.informativeText = "This discards the local database — including any changes not yet uploaded to iCloud — and re-downloads everything from CloudKit. The app will relaunch."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Re-sync & Relaunch")   // first button == default (⏎)
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        } else {
+            alert.informativeText = "You don’t appear to be signed into iCloud. Re-syncing now will erase the local database — including games not yet uploaded — and there may be nothing in iCloud to restore them from. Sign into iCloud first, or continue only if you’re sure."
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: "Cancel")               // first button == default (⏎) → safe
+            alert.addButton(withTitle: "Erase & Re-sync Anyway")
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+        }
+
+        UserDefaults.standard.set(true, forKey: CloudKitStoreReset.flagKey)
+        // Force the flag to disk before spawning the new instance: it reads the flag
+        // at startup, and `set` only schedules an async write — `synchronize()` makes
+        // the cross-process handoff deterministic so the new process can't miss it.
+        UserDefaults.standard.synchronize()
+
+        // Spawn a genuinely new instance, then terminate this one; the new instance's
+        // `CloudKitStoreReset.performIfRequested()` waits for this one to exit before
+        // it deletes the store. `allowsRunningApplicationSubstitution = false` forces
+        // a real new process — without it LaunchServices may just re-activate this
+        // (dying) instance, so the relaunch would silently fail.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.allowsRunningApplicationSubstitution = false
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL,
+                                           configuration: configuration) { _, error in
+            Task { @MainActor in
+                if let error {
+                    // Launch declined: keep this instance alive (don't strand a quit
+                    // app) and clear the flag so the next ordinary launch doesn't
+                    // surprise-wipe the store. Surface the failure to the user.
+                    UserDefaults.standard.removeObject(forKey: CloudKitStoreReset.flagKey)
+                    NSLog("[CloudKitStoreReset] relaunch failed: \(error.localizedDescription) — reset cancelled")
+                    let failure = NSAlert()
+                    failure.messageText = "Couldn’t relaunch to re-sync"
+                    failure.informativeText = "The app couldn’t start a new instance, so re-sync was cancelled and your local games are unchanged. Please quit and reopen the app, then try again."
+                    failure.alertStyle = .warning
+                    failure.addButton(withTitle: "OK")
+                    failure.runModal()
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+    }
 }
