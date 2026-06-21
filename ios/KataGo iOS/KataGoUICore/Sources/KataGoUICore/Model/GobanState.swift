@@ -116,7 +116,9 @@ public class GobanState {
 
     public func shouldRequestAnalysis(config: Config, nextColorForPlayCommand: PlayerColor?) -> Bool {
         if let nextColorForPlayCommand {
-            return (analysisStatus != .clear) && config.isAnalysisForCurrentPlayer(nextColorForPlayCommand: nextColorForPlayCommand)
+            return (analysisStatus != .clear)
+                && config.isAnalysisForCurrentPlayer(nextColorForPlayCommand: nextColorForPlayCommand)
+                && !isAnalysisHiddenForPowerSaving(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
         } else {
             return (analysisStatus != .clear)
         }

@@ -95,4 +95,30 @@ struct AnalysisPowerSavingTests {
             config: mixedHumanBlackVsAIWhite(),
             nextColorForPlayCommand: .unknown) == false)
     }
+
+    // MARK: - shouldRequestAnalysis integration
+
+    @Test func shouldRequestAnalysisFalseWhenPowerSaving() {
+        let state = GobanState()            // analysisStatus defaults to .run
+        state.eyeStatus = .closed
+        #expect(state.shouldRequestAnalysis(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black) == false)
+    }
+
+    @Test func shouldRequestAnalysisTrueOnAITurnWhenHidden() {
+        let state = GobanState()
+        state.eyeStatus = .closed
+        #expect(state.shouldRequestAnalysis(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .white) == true)
+    }
+
+    @Test func shouldRequestAnalysisTrueWhenEyeOpened() {
+        let state = GobanState()
+        state.eyeStatus = .opened
+        #expect(state.shouldRequestAnalysis(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black) == true)
+    }
 }
