@@ -12,6 +12,14 @@ import KataGoUICore
 enum AppMain {
     static func main() {
         let app = NSApplication.shared
+        // DEBUG-only: if the sidebar's "Re-sync from iCloud" button requested a
+        // reset, delete the local SwiftData/CloudKit store HERE — after the app
+        // object exists (so the reset can wait for the previous instance to exit)
+        // but BEFORE `AppDelegate()` constructs its eager `modelContainer` — so the
+        // fresh container re-imports the whole zone from CloudKit.
+        #if DEBUG
+        DebugStoreReset.performIfRequested()
+        #endif
         let delegate = AppDelegate()
         app.delegate = delegate
         // Keep the delegate alive for the lifetime of the run loop.
@@ -398,3 +406,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSMenu(title: "Help")
     }
 }
+
+#if DEBUG
+/// DEBUG-only support for the sidebar's "Re-sync from iCloud" button. The button
+/// sets `flagKey` and relaunches; `performIfRequested()` runs at the very top of
+/// `AppMain.main()` (before the `ModelContainer` is created) and, if the flag is
+/// set, removes the local SwiftData store so the new container re-imports the whole
+/// zone from CloudKit.
+///
+/// It deletes the STORE FILES, not the records, on purpose: deleting records would
+/// propagate cloud deletions and wipe the games on every device. The files go to
+/// the Trash (recoverable); engine/model data is left untouched.
+enum DebugStoreReset {
+    static let flagKey = "DebugResetCloudKitStoreOnLaunch"
+
+    /// Non-`default.store*` sidecars the SwiftData/CloudKit store leaves alongside the
+    /// SQLite files (Core Data external-storage support + the CloudKit asset cache).
+    private static let sidecars: Set<String> = [".default_SUPPORT", "default_ckAssets"]
+
+    static func performIfRequested() {
+        guard UserDefaults.standard.bool(forKey: flagKey) else { return }
+        // Clear the flag FIRST so a partial failure can't trap the app in a reset loop.
+        UserDefaults.standard.removeObject(forKey: flagKey)
+
+        // Wait until this is the ONLY running instance before touching the store, so
+        // the delete never overlaps a previous instance that still has it open — this
+        // restores the verified-good "quit first, then delete" ordering. Bounded so a
+        // declined/stuck relaunch can't hang startup (the overlap is benign anyway:
+        // unlink detaches the inode and we create a fresh store).
+        if let bundleID = Bundle.main.bundleIdentifier {
+            var waited = 0.0
+            while waited < 5.0,
+                  NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
+                Thread.sleep(forTimeInterval: 0.1)
+                waited += 0.1
+            }
+        }
+
+        let fileManager = FileManager.default
+        guard let appSupport = try? fileManager.url(
+            for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: false
+        ) else {
+            NSLog("[DebugStoreReset] could not resolve Application Support — reset skipped")
+            return
+        }
+
+        // Match the whole SQLite family (default.store, -shm, -wal, -journal, …) by
+        // prefix, plus the named sidecars, so a stray sidecar can't survive the reset.
+        let entries = (try? fileManager.contentsOfDirectory(atPath: appSupport.path)) ?? []
+        let targets = entries.filter { $0.hasPrefix("default.store") || sidecars.contains($0) }
+        for name in targets {
+            let url = appSupport.appendingPathComponent(name)
+            do {
+                try fileManager.trashItem(at: url, resultingItemURL: nil)  // recoverable
+            } catch {
+                try? fileManager.removeItem(at: url)  // fall back to permanent removal
+            }
+        }
+        NSLog("[DebugStoreReset] reset store at \(appSupport.path) — trashed \(targets.count) artifact(s): \(targets) — re-importing from iCloud")
+    }
+}
+#endif
