@@ -21,6 +21,10 @@ public struct StoneView: View {
     /// "Human" otherwise. `nil` hides the label (e.g. the game-list thumbnail).
     var blackPlayerName: String? = nil
     var whitePlayerName: String? = nil
+    /// When set (live board), the per-color name renders as a tappable capsule
+    /// button that calls this with the tapped color. When nil (game-list
+    /// thumbnail / previews) the name is plain, non-interactive text.
+    var onToggleAI: ((PlayerColor) -> Void)? = nil
 
     public init(dimensions: Dimensions,
                 isClassicStoneStyle: Bool,
@@ -28,7 +32,8 @@ public struct StoneView: View {
                 isDrawingCapturedStones: Bool = true,
                 speedText: String? = nil,
                 blackPlayerName: String? = nil,
-                whitePlayerName: String? = nil) {
+                whitePlayerName: String? = nil,
+                onToggleAI: ((PlayerColor) -> Void)? = nil) {
         self.dimensions = dimensions
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
@@ -36,6 +41,7 @@ public struct StoneView: View {
         self.speedText = speedText
         self.blackPlayerName = blackPlayerName
         self.whitePlayerName = whitePlayerName
+        self.onToggleAI = onToggleAI
     }
 
     public var body: some View {
@@ -43,12 +49,14 @@ public struct StoneView: View {
 
         if isDrawingCapturedStones {
             drawCapturedStones(color: .black,
+                               playerColor: .black,
                                count: stones.blackStonesCaptured,
                                xOffset: 0,
                                name: blackPlayerName,
                                nameAccessibilityID: "blackPlayerName",
                                dimensions: dimensions)
             drawCapturedStones(color: .white,
+                               playerColor: .white,
                                count: stones.whiteStonesCaptured,
                                xOffset: 1,
                                name: whitePlayerName,
@@ -63,6 +71,7 @@ public struct StoneView: View {
     }
 
     private func drawCapturedStones(color: Color,
+                                    playerColor: PlayerColor,
                                     count: Int,
                                     xOffset: CGFloat,
                                     name: String?,
@@ -70,18 +79,10 @@ public struct StoneView: View {
                                     dimensions: Dimensions) -> some View {
         HStack(spacing: dimensions.squareLengthDiv8) {
             if let name, !name.isEmpty {
-                // The engine profile ("AI"/"rank_9d"/"proyear_1810") or "Human",
-                // shown just before (left of) the stone. This is the ADAPTIVE
-                // element: it shrinks (down to minimumScaleFactor) to fit whatever
-                // width is left after the fixed-size stone and count, so a long
-                // profile never squeezes the count. (Empty guarded out:
-                // playerLabel returns "" for .unknown.)
-                Text(name)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.2)
-                    .font(.system(size: dimensions.capturedStonesHeight * 0.7))
-                    .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
-                    .accessibilityIdentifier(nameAccessibilityID)
+                playerNameLabel(name: name,
+                                playerColor: playerColor,
+                                nameAccessibilityID: nameAccessibilityID,
+                                dimensions: dimensions)
             }
             Circle()
                 .foregroundStyle(color)
@@ -98,6 +99,51 @@ public struct StoneView: View {
         .frame(width: dimensions.capturedStonesWidth, height: dimensions.capturedStonesHeight)
         .position(x: dimensions.getCapturedStoneStartX(xOffset: xOffset),
                   y: dimensions.capturedStonesStartY)
+    }
+
+    // The per-color name. With a toggle handler (live board) it is a tappable
+    // tinted capsule button — accent fill when AI, neutral when Human; without
+    // one (thumbnail / previews) it is the original plain, non-interactive text.
+    @ViewBuilder
+    private func playerNameLabel(name: String,
+                                 playerColor: PlayerColor,
+                                 nameAccessibilityID: String,
+                                 dimensions: Dimensions) -> some View {
+        if let onToggleAI {
+            Button {
+                onToggleAI(playerColor)
+            } label: {
+                capsuleNameLabel(name: name, dimensions: dimensions)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(nameAccessibilityID)
+        } else {
+            Text(name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.2)
+                .font(.system(size: dimensions.capturedStonesHeight * 0.7))
+                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+                .accessibilityIdentifier(nameAccessibilityID)
+        }
+    }
+
+    // The capsule used for the tappable name. `isAI` (this side has an engine
+    // profile rather than the "Human" label) tints it with the accent color;
+    // Human uses a subtle neutral fill. Horizontal-only padding keeps the
+    // capsule height within the 20pt captured-stones strip.
+    private func capsuleNameLabel(name: String, dimensions: Dimensions) -> some View {
+        let isAI = (name != Config.humanPlayerLabel)
+        return Text(name)
+            .lineLimit(1)
+            .minimumScaleFactor(0.2)
+            .font(.system(size: dimensions.capturedStonesHeight * 0.7))
+            .foregroundStyle(isAI ? Color.white : Color.primary)
+            .padding(.horizontal, dimensions.squareLengthDiv8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isAI ? Color.accentColor : Color.secondary.opacity(0.25))
+            )
+            .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
     }
 
     // Shows the visits/s readout centered in the empty gap between the captured-stone
@@ -318,4 +364,35 @@ public struct StoneView: View {
                                 BoardPoint(x: 1, y: 0): "4"]
         }
     }
+}
+
+// Interactive capsule toggle: the names render as tappable capsules (Human =
+// neutral fill, AI/profile = accent fill). Verifies the capsule fits the 20pt
+// strip beside the static "x..." counts.
+#Preview("Captured labels — tappable capsules") {
+    let stones = Stones()
+
+    return ZStack {
+        Rectangle()
+            .foregroundStyle(.brown)
+
+        GeometryReader { geometry in
+            StoneView(dimensions: Dimensions(size: geometry.size,
+                                             width: 19,
+                                             height: 19,
+                                             showCoordinate: true),
+                      isClassicStoneStyle: false,
+                      verticalFlip: false,
+                      blackPlayerName: "Human",
+                      whitePlayerName: "AI",
+                      onToggleAI: { _ in })
+        }
+        .environment(stones)
+        .environment(GobanState())
+        .onAppear {
+            stones.blackStonesCaptured = 12
+            stones.whiteStonesCaptured = 7
+        }
+    }
+    .frame(width: 393, height: 640)
 }
