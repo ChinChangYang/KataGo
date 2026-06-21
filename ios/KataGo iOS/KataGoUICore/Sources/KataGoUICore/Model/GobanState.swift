@@ -246,6 +246,27 @@ public class GobanState {
 
             gameRecord.ownershipWhiteness?[currentIndex] = ownershipWhiteness
             gameRecord.ownershipScales?[currentIndex] = ownershipScales
+
+            // Bound the persisted ownership so a long analyzed game can't grow
+            // this GameRecord past CloudKit's ~1 MB per-record limit and wedge
+            // iCloud sync. The schema is frozen, so we cap the data (evict the
+            // oldest move-indices) rather than the field's storage class. Only
+            // re-assign when something was actually evicted, to avoid dirtying
+            // the record (and re-uploading) on every analyzed move.
+            // See OwnershipBudget / project_mac_icloud_list_live_refresh.
+            if let whiteness = gameRecord.ownershipWhiteness,
+               let scales = gameRecord.ownershipScales {
+                let trimmed = OwnershipBudget.pruned(
+                    whiteness: whiteness,
+                    scales: scales,
+                    pointsPerMove: width * height,
+                    keeping: currentIndex
+                )
+                if trimmed.whiteness.count != whiteness.count {
+                    gameRecord.ownershipWhiteness = trimmed.whiteness
+                    gameRecord.ownershipScales = trimmed.scales
+                }
+            }
         }
     }
 
