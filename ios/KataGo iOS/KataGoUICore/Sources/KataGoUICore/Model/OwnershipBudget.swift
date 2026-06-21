@@ -31,17 +31,20 @@ import Foundation
 enum OwnershipBudget {
 
     /// Conservative upper bound on the encoded size of one `Float` inside the
-    /// JSON the SwiftData store uses for `[Int:[Float]]`. Measured ≈5.4 bytes per
-    /// float (averaged over a full board) on a real 19×19 record; 6 leaves
-    /// margin so the estimate never *under*-counts and lets a record slip the cap.
-    static let estimatedBytesPerFloat = 6
+    /// JSON the SwiftData store uses for `[Int:[Float]]` (full precision, e.g.
+    /// `0.39000002`). Measured across real on-disk games: ≈5.25 B/float for a
+    /// calm 294-move game, up to ≈6.34 for a contested 188-move one (averaged
+    /// over a full board). 8 covers the worst observed with ~27% margin, so the
+    /// estimate never *under*-counts and the cap's stated budget holds for real
+    /// data — not just the uniform values a synthetic test would produce.
+    static let estimatedBytesPerFloat = 8
 
     /// Combined byte budget for `ownershipWhiteness` + `ownershipScales`. Held
     /// well under CloudKit's ~1 MB residual CKRecord ceiling (1,048,576 B) so
     /// that, even with the SGF, per-move stone lists, thumbnail and analysis
     /// scalars sharing the record, the whole thing stays uploadable. Tunable:
     /// raising it retains more historical ownership at the cost of CloudKit
-    /// headroom. At this value: ~138 most-recent moves at 19×19, ~36 at 37×37.
+    /// headroom. At this value: ~103 most-recent moves at 19×19, ~27 at 37×37.
     static let combinedByteBudget = 600_000
 
     /// Largest number of move-indices whose ownership (two `pointsPerMove`-length

@@ -15,7 +15,7 @@ import Testing
 @Suite("OwnershipBudget")
 struct OwnershipBudgetTests {
 
-    /// Standard board point count; 600_000 / (2 * 361 * 6) = 138 retained indices.
+    /// Standard board point count; 600_000 / (2 * 361 * 8) = 103 retained indices.
     private let points19 = 19 * 19
 
     // Builds an ownership-shaped dictionary: one full-board Float array per index.
