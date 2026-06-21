@@ -4,7 +4,8 @@
 //
 //  Verifies the per-color player-name label shown beside each captured-stone
 //  count on the board:
-//    * a side with a positive "Time per move" (AI) shows its profile ("AI"),
+//    * a side with a positive "Time per move" (AI) shows its profile name
+//      (e.g. "AI" or a human-SL profile like "proyear_1817"),
 //    * a side with zero "Time per move" shows "Human".
 //
 //  The labels are SwiftUI Buttons (tappable AI/Human capsules) carrying the
@@ -25,7 +26,6 @@ final class PlayerNameLabelUITests: XCTestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let humanLabel = "Human"
-    private let aiLabel = "AI"  // the default human-SL profile name
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -58,11 +58,7 @@ final class PlayerNameLabelUITests: XCTestCase {
         dismissConfig(app)
         // White label should now show the AI profile name (not "Human").
         // The exact profile name varies by simulator state, so check ≠ humanLabel.
-        let whiteBtn = app.buttons["whitePlayerName"]
-        XCTAssertTrue(whiteBtn.waitForExistence(timeout: 10), "whitePlayerName button not found")
-        let aiDeadline = Date().addingTimeInterval(10)
-        while whiteBtn.label == humanLabel && Date() < aiDeadline { usleep(200_000) }
-        XCTAssertNotEqual(whiteBtn.label, humanLabel, "White label should be AI (non-Human) when time > 0")
+        waitForAILabel(app, "whitePlayerName")
         waitForLabel(app, "blackPlayerName", equals: humanLabel)
 
         // Attach a board screenshot so the label layout can be eyeballed.
@@ -102,9 +98,7 @@ final class PlayerNameLabelUITests: XCTestCase {
         white.tap()
         // Verify: white label is no longer "Human" (AI is now active). The exact
         // profile name may vary by simulator state, so we check ≠ humanLabel.
-        let aiDeadline = Date().addingTimeInterval(10)
-        while white.label == humanLabel && Date() < aiDeadline { usleep(200_000) }
-        XCTAssertNotEqual(white.label, humanLabel, "White should be AI (non-Human) after tap")
+        waitForAILabel(app, "whitePlayerName")
         waitForLabel(app, "blackPlayerName", equals: humanLabel)  // unaffected
 
         let shot = XCTAttachment(screenshot: app.screenshot())
@@ -222,5 +216,24 @@ final class PlayerNameLabelUITests: XCTestCase {
         }
         XCTAssertEqual(element.label, expected,
                        "Label '\(identifier)' expected '\(expected)' but was '\(element.label)'")
+    }
+
+    /// Poll until the label is NOT the human label (i.e. the side became AI —
+    /// its profile name, whatever the persisted profile is). Mirrors
+    /// `waitForLabel`'s single-timeout existence-then-poll.
+    @MainActor
+    private func waitForAILabel(_ app: XCUIApplication,
+                               _ identifier: String,
+                               timeout: TimeInterval = 10) {
+        let element = app.buttons[identifier]
+        XCTAssertTrue(element.waitForExistence(timeout: timeout),
+                      "Player-name button '\(identifier)' not found on the board")
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while element.label == humanLabel && Date() < deadline {
+            usleep(200_000)  // 0.2s
+        }
+        XCTAssertNotEqual(element.label, humanLabel,
+                          "Label '\(identifier)' expected to leave 'Human' (became AI) but was 'Human'")
     }
 }
