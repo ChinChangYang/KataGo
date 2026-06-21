@@ -130,8 +130,8 @@ struct GameSplitView: View {
         .onChange(of: bookLookup.isLoaded) { _, newValue in
             processBookLoadedChange(newValue: newValue)
         }
-        .onChange(of: gobanState.eyeStatus) { _, newEyeStatus in
-            processEyeStatusChange(newEyeStatus: newEyeStatus)
+        .onChange(of: gobanState.eyeStatus) { oldEyeStatus, newEyeStatus in
+            processEyeStatusChange(oldEyeStatus: oldEyeStatus, newEyeStatus: newEyeStatus)
         }
     }
 
@@ -423,9 +423,26 @@ struct GameSplitView: View {
         }
     }
 
-    private func processEyeStatusChange(newEyeStatus: EyeStatus) {
+    private func processEyeStatusChange(oldEyeStatus: EyeStatus, newEyeStatus: EyeStatus) {
         if newEyeStatus == .book {
             syncBookState()
+        }
+
+        // Revealing the overlay again resumes the continuous analysis that
+        // power-saving stopped while it was hidden. Only the human's turn in a
+        // human-vs-AI game was ever stopped, so skip while the engine is
+        // generating an AI move (avoids double-issuing kata-analyze) and for
+        // both-human / both-AI games (nothing was stopped).
+        if newEyeStatus == .opened,
+           oldEyeStatus != .opened,
+           gobanState.analysisStatus == .run,
+           let config = navigationContext.selectedGameRecord?.config,
+           !gobanState.shouldGenMove(config: config, player: player) {
+            gobanState.maybeRequestAnalysis(
+                config: config,
+                nextColorForPlayCommand: player.nextColorForPlayCommand,
+                messageList: messageList
+            )
         }
     }
 
@@ -486,7 +503,8 @@ struct GameSplitView: View {
             if let gameRecord = navigationContext.selectedGameRecord,
                let config = gameRecord.config,
                !gobanState.shouldGenMove(config: config, player: player) {
-                if gobanState.analysisStatus == .pause {
+                if gobanState.analysisStatus == .pause
+                    || gobanState.isAnalysisHiddenForPowerSaving(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
                     messageList.appendAndSend(command: "stop")
                 } else {
                     messageList.appendAndSend(command: GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
