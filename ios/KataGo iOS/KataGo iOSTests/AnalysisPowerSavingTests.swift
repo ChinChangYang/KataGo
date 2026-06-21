@@ -121,4 +121,58 @@ struct AnalysisPowerSavingTests {
             config: mixedHumanBlackVsAIWhite(),
             nextColorForPlayCommand: .black) == true)
     }
+
+    // MARK: - maybeStopAnalysisForPowerSaving
+    //
+    // Stopping an already-running analysis when the overlay is hidden relies on
+    // forcing a `waitingForAnalysis` edge (the continuous-analysis loop sends
+    // "stop" on the next streamed line — the same mechanism the manual Pause
+    // button uses). These assert the arming flag, which is the unit-testable
+    // half; the actual "stop" send is view glue verified in the simulator.
+
+    @Test func armsStopWhenHiddenOnHumanTurnClosed() {
+        let state = GobanState()            // analysisStatus .run, waitingForAnalysis false
+        state.eyeStatus = .closed
+        state.maybeStopAnalysisForPowerSaving(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black)
+        #expect(state.waitingForAnalysis == true)
+    }
+
+    @Test func armsStopWhenHiddenOnHumanTurnBook() {
+        let state = GobanState()
+        state.eyeStatus = .book
+        state.maybeStopAnalysisForPowerSaving(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black)
+        #expect(state.waitingForAnalysis == true)
+    }
+
+    @Test func doesNotArmStopWhenEyeOpened() {
+        let state = GobanState()
+        state.eyeStatus = .opened
+        state.maybeStopAnalysisForPowerSaving(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black)
+        #expect(state.waitingForAnalysis == false)
+    }
+
+    @Test func doesNotArmStopOnAITurn() {
+        let state = GobanState()
+        state.eyeStatus = .closed
+        state.maybeStopAnalysisForPowerSaving(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .white)
+        #expect(state.waitingForAnalysis == false)
+    }
+
+    @Test func doesNotArmStopWhenAnalysisNotRunning() {
+        let state = GobanState()
+        state.analysisStatus = .clear
+        state.eyeStatus = .closed
+        state.maybeStopAnalysisForPowerSaving(
+            config: mixedHumanBlackVsAIWhite(),
+            nextColorForPlayCommand: .black)
+        #expect(state.waitingForAnalysis == false)
+    }
 }

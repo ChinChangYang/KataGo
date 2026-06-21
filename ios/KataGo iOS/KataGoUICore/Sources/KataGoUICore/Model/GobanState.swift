@@ -145,6 +145,20 @@ public class GobanState {
         #endif
     }
 
+    /// Stop a running analysis when the overlay has just been hidden in the
+    /// power-saving case. The continuous-analysis loop only sends "stop" on a
+    /// `waitingForAnalysis` true→false edge, which does not occur on its own
+    /// while `kata-analyze` streams; forcing the flag true makes the next
+    /// streamed line drive that edge (the same trick `maybePauseAnalysis()`
+    /// uses), without disturbing the user's `analysisStatus` intent. No-op on
+    /// macOS, where `isAnalysisHiddenForPowerSaving` returns false.
+    public func maybeStopAnalysisForPowerSaving(config: Config, nextColorForPlayCommand: PlayerColor?) {
+        if (analysisStatus == .run) &&
+            isAnalysisHiddenForPowerSaving(config: config, nextColorForPlayCommand: nextColorForPlayCommand) {
+            waitingForAnalysis = true
+        }
+    }
+
     public func maybeRequestClearAnalysisData(config: Config, nextColorForPlayCommand: PlayerColor?) {
         if !shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand) {
             requestingClearAnalysis = true

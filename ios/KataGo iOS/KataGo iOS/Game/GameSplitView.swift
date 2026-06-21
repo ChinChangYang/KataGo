@@ -444,6 +444,20 @@ struct GameSplitView: View {
                 messageList: messageList
             )
         }
+
+        // Hiding the overlay stops an already-running analysis to save power.
+        // The continuous-analysis loop won't send "stop" on its own here (no
+        // `waitingForAnalysis` edge occurs mid-stream), so arm one. Only fires
+        // on the human's turn of a human-vs-AI game; the resume branch above
+        // restarts it on reveal.
+        if oldEyeStatus == .opened,
+           newEyeStatus != .opened,
+           let config = navigationContext.selectedGameRecord?.config {
+            gobanState.maybeStopAnalysisForPowerSaving(
+                config: config,
+                nextColorForPlayCommand: player.nextColorForPlayCommand
+            )
+        }
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {

@@ -136,3 +136,25 @@ public func isAnalysisHiddenForPowerSaving(config: Config,
   - (macOS no-op is compile-time; not unit-tested on the iOS test target.)
 - **Build** iOS, visionOS, and macOS targets.
 - **Run** the iOS test plan.
+
+## Addendum (2026-06-21): runtime finding + fix
+
+Simulator verification (iPhone 17, measuring the in-process engine's CPU) found
+the original design's stop path **did not fire** when the user toggled the eye
+off while sitting on their turn: CPU stayed pinned at ~250–390% with the overlay
+hidden. Root cause: the `"stop"` was delivered only by
+`GameSplitView.processChange(oldWaitingForAnalysis:)` on a `waitingForAnalysis`
+true→false edge, but `maybeCollectAnalysis` sets `waitingForAnalysis =
+parsed.info.isEmpty` (`false` for every real analysis line), so during a
+continuous `kata-analyze` stream that flag stays `false` — no edge occurs on a
+bare eye toggle, so `processChange` never ran. (The manual Pause button avoids
+this because `maybePauseAnalysis()` explicitly sets `waitingForAnalysis = true`.)
+
+**Fix:** added `GobanState.maybeStopAnalysisForPowerSaving(config:nextColorForPlayCommand:)`,
+which forces `waitingForAnalysis = true` when `analysisStatus == .run` and
+`isAnalysisHiddenForPowerSaving(...)` holds (no change to `analysisStatus`).
+`processEyeStatusChange` calls it on the transition **into** a hidden state
+(`oldEyeStatus == .opened && newEyeStatus != .opened`). The next streamed line
+then drives the existing `processChange` stop. Re-verified in the simulator:
+eye open ~303% → eye closed **3.6%** → reopened ~295%; the AI still plays its own
+moves while hidden; analysis stays suppressed on the human's turn after each move.
