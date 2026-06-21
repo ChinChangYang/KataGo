@@ -126,18 +126,15 @@ public struct StoneView: View {
     }
 
     // The tappable AI/Human button. Mirrors the on-board toolbar idiom
-    // (StatusToolbarItems uses `.glass`): an accent-tinted prominent glass when
-    // the side is AI (`isAI` = an engine profile rather than the "Human" label),
-    // a neutral glass when Human, with state shown by prominence. `.mini`
-    // control size keeps it within the ~20pt captured-stones strip. visionOS
-    // doesn't support the glass styles (same as StatusToolbarItems), so it
-    // falls back to the bordered system styles there.
-    @ViewBuilder
+    // (StatusToolbarItems uses `.glass`): the same neutral glass for both
+    // states, with the side (Human vs the engine profile) shown by the label
+    // text. `.mini` control size keeps it within the ~20pt captured-stones
+    // strip. visionOS doesn't support the glass styles (same as
+    // StatusToolbarItems), so it falls back to `.bordered` there.
     private func glassNameButton(name: String,
                                  playerColor: PlayerColor,
                                  onToggleAI: @escaping (PlayerColor) -> Void,
                                  dimensions: Dimensions) -> some View {
-        let isAI = (name != Config.humanPlayerLabel)
         let button = Button {
             onToggleAI(playerColor)
         } label: {
@@ -149,17 +146,9 @@ public struct StoneView: View {
         .controlSize(.mini)
 
 #if os(visionOS)
-        if isAI {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button.buttonStyle(.bordered)
-        }
+        return button.buttonStyle(.bordered)
 #else
-        if isAI {
-            button.buttonStyle(.glassProminent)
-        } else {
-            button.buttonStyle(.glass)
-        }
+        return button.buttonStyle(.glass)
 #endif
     }
 
@@ -383,9 +372,9 @@ public struct StoneView: View {
     }
 }
 
-// Interactive AI/Human toggle: the names render as tappable glass buttons
-// (Human = neutral `.glass`, AI/profile = accent `.glassProminent`). Verifies
-// the buttons fit the 20pt strip beside the static "x..." counts.
+// Interactive AI/Human toggle: the names render as tappable neutral `.glass`
+// buttons (both states), the side shown by the label text. Verifies the
+// buttons fit the 20pt strip beside the static "x..." counts.
 #Preview("Captured labels — tappable toggle") {
     let stones = Stones()
 
