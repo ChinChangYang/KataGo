@@ -7,6 +7,7 @@
 
 import Foundation
 import AppIntents
+import KataGoUICore
 
 final class KataGoShortcuts: AppShortcutsProvider {
 

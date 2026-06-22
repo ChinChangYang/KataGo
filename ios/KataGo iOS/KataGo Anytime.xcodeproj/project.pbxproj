@@ -80,6 +80,7 @@
 		478BEF81C6C032740ABF6277 /* AnalysisPowerSavingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51F0F70DC402DCC7315E723 /* AnalysisPowerSavingTests.swift */; };
 		47C6B3CE7956A48F12456E71 /* cordz_functions.cc in Sources */ = {isa = PBXBuildFile; fileRef = C9F89828D2403A414EAD1B94 /* cordz_functions.cc */; };
 		47EC7188CA66EDBD902E8F4C /* flag.cc in Sources */ = {isa = PBXBuildFile; fileRef = 60CA0A3D8E5E961B5623F5E4 /* flag.cc */; };
+		480BF88693042BD20831538A /* GameEntityQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4436137B816E4C5938931D3 /* GameEntityQueryTests.swift */; };
 		4A1EB931521CC51A0258E020 /* stack_consumption.cc in Sources */ = {isa = PBXBuildFile; fileRef = C4E1A7267F0FD9F81B825BA1 /* stack_consumption.cc */; };
 		4B0E65E8B31DCE61244E1281 /* waiter_base.cc in Sources */ = {isa = PBXBuildFile; fileRef = 58D05F34FDBFCFC1406CF9AA /* waiter_base.cc */; };
 		4B6A76D11A40CC19F07366C5 /* str_replace.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2046C4C524A0E412392C39EB /* str_replace.cc */; };
@@ -528,7 +529,6 @@
 		E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */; };
 		E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */; };
 		E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */; };
-		E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
 		E1B675282C95C1430043E527 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		E1BB32A12C70C72A00690E67 /* NavigationContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */; };
 		E1BB32A52C70CD7100690E67 /* KataGoModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */; };
@@ -566,7 +566,6 @@
 		FA97856F39DFD6A0067F7963 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A81F4103D02B5507AC828451 /* main.cpp */; };
 		FB012692B20C7765AA97DA3D /* Converter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6B854DB5E08ABE9A30321B1D /* Converter.cpp */; };
 		FB0B1590EBA7CACFEFD6379D /* arenastring.cc in Sources */ = {isa = PBXBuildFile; fileRef = BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */; };
-		FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675252C95B42C0043E527 /* GameEntity.swift */; };
 		FB32590892D4D77692B06440 /* proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5421AC611426CA58B63851AA /* proto.cc */; };
 		FB7896588E7AD07358BB0F87 /* low_level_alloc.cc in Sources */ = {isa = PBXBuildFile; fileRef = F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */; };
 		FB837966B539CDE805A6F7E7 /* mlxbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
@@ -924,6 +923,7 @@
 		B0BBA9D4195D76AB26782D5D /* any_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = any_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/any_lite.cc"; sourceTree = SOURCE_ROOT; };
 		B2E7B68715B470B69222FD6B /* NonMaximumSuppression.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = NonMaximumSuppression.pb.cc; path = ../../cpp/external/katagocoreml/generated/NonMaximumSuppression.pb.cc; sourceTree = SOURCE_ROOT; };
 		B40A2E883D27DAD9014AA433 /* repeated_ptr_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = repeated_ptr_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/repeated_ptr_field.cc"; sourceTree = SOURCE_ROOT; };
+		B4436137B816E4C5938931D3 /* GameEntityQueryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameEntityQueryTests.swift; sourceTree = "<group>"; };
 		B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReader.cpp; sourceTree = SOURCE_ROOT; };
 		B55A917374F587FC1DBCF8EA /* format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/format.cc"; sourceTree = SOURCE_ROOT; };
 		B5F263A20FAF107D96F1690F /* raw_logging.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_logging.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/raw_logging.cc"; sourceTree = SOURCE_ROOT; };
@@ -1216,7 +1216,6 @@
 		E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusMenuView.swift; sourceTree = "<group>"; };
 		E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FastTestPlan.xctestplan; sourceTree = "<group>"; };
 		E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = FullTestPlan.xctestplan; sourceTree = "<group>"; };
-		E1B675252C95B42C0043E527 /* GameEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEntity.swift; sourceTree = "<group>"; };
 		E1B675272C95C1430043E527 /* GetGameInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetGameInfo.swift; sourceTree = "<group>"; };
 		E1BB32A02C70C72A00690E67 /* NavigationContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContextTests.swift; sourceTree = "<group>"; };
 		E1BB32A42C70CD7100690E67 /* KataGoModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoModelTests.swift; sourceTree = "<group>"; };
@@ -2082,7 +2081,6 @@
 			isa = PBXGroup;
 			children = (
 				E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */,
-				E1B675252C95B42C0043E527 /* GameEntity.swift */,
 				E1B675272C95C1430043E527 /* GetGameInfo.swift */,
 			);
 			path = AppIntents;
@@ -2199,6 +2197,7 @@
 				CF36A72AB240CF1EBD48C4E7 /* GobanStateOwnershipPersistenceTests.swift */,
 				A51F0F70DC402DCC7315E723 /* AnalysisPowerSavingTests.swift */,
 				440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */,
+				B4436137B816E4C5938931D3 /* GameEntityQueryTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -2708,7 +2707,6 @@
 				3E869E6B682BD483B8357165 /* ModelRowView.swift in Sources */,
 				200E2726222793045A3D463E /* SettingsWindowController.swift in Sources */,
 				995DCC993AF4FE53572CEFE2 /* SettingsViewController.swift in Sources */,
-				FB2FF26E5CBC3E8B6B000441 /* GameEntity.swift in Sources */,
 				AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */,
 				8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */,
 				5CF9C75827A28D3C714722BB /* SubprocessKataGoEngine.swift in Sources */,
@@ -3098,7 +3096,6 @@
 				E1C6D0C72CDF0E38002C1921 /* GameLinkView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
 				E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */,
-				E1B675262C95B42C0043E527 /* GameEntity.swift in Sources */,
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
@@ -3150,6 +3147,7 @@
 				E832DBD5F2668D11E378C700 /* GobanStateOwnershipPersistenceTests.swift in Sources */,
 				478BEF81C6C032740ABF6277 /* AnalysisPowerSavingTests.swift in Sources */,
 				87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */,
+				480BF88693042BD20831538A /* GameEntityQueryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
