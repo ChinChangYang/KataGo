@@ -99,7 +99,11 @@ struct GameSplitView: View {
                           newWaitingForAnalysis: newWaitingForAnalysis)
         }
         .onOpenURL { url in
-            importAndSelect(from: url)
+            if let id = GameDeepLink.gameID(from: url) {
+                selectGame(byID: id)
+            } else {
+                importAndSelect(from: url)
+            }
         }
         .onChange(of: scenePhase) { _, newScenePhase in
             processChange(newScenePhase: newScenePhase)
@@ -487,6 +491,13 @@ struct GameSplitView: View {
     private func importFiles(result: Result<[URL], any Error>) {
         guard case .success(let files) = result else { return }
         files.forEach { importAndSelect(from: $0) }
+    }
+
+    @MainActor
+    private func selectGame(byID id: UUID) {
+        guard let match = try? GameRecord.fetchGameRecords(container: modelContext.container)
+            .first(where: { $0.uuid == id }) else { return }
+        navigationContext.selectedGameRecord = match
     }
 
     private func importAndSelect(from file: URL) {

@@ -82,13 +82,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController?.shutdownEngineForAppTermination()
     }
 
-    /// Finder deep-link: opening one or more `.sgf` files (double-click, drag-to-
-    /// Dock-icon, `open` CLI) routes through here once the document type is
-    /// declared in Info.plist. We forward to the same `importAndSelect(from:)`
-    /// path as the open panel and drag-drop so all three behave identically.
+    /// Finder / system URL open: handles both `.sgf` file imports and
+    /// `katago-anytime://open-game?id=<uuid>` deep links from the widget.
+    /// Deep-link URLs are routed to `selectGame(byID:)` on the window controller;
+    /// everything else falls through to the same `importAndSelect(from:)` path as
+    /// the open panel and drag-drop.
     /// `open(urls:)` arrives after `applicationDidFinishLaunching`, so the window
     /// controller is created by the time we're called — but we guard anyway.
     func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            if let id = GameDeepLink.gameID(from: url) {
+                windowController?.selectGame(byID: id)
+                return
+            }
+        }
         windowController?.importAndSelect(from: urls)
     }
 

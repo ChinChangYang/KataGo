@@ -48,5 +48,16 @@
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>chinchangyang.KataGo-iOS.tw.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>katago-anytime</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

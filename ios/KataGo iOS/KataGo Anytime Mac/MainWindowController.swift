@@ -478,6 +478,15 @@ final class MainWindowController: NSWindowController {
         )
     }
 
+    /// Deep-link entry: fetch the game with the given UUID from the model store
+    /// and select it — mirrors the iOS `GameSplitView.selectGame(byID:)` helper.
+    @MainActor
+    func selectGame(byID id: UUID) {
+        guard let match = try? GameRecord.fetchGameRecords(container: modelContainer)
+            .first(where: { $0.uuid == id }) else { return }
+        selectGame(match)
+    }
+
     // MARK: - Engine launch + session loop
 
     /// Mirrors the iOS launch (`ModelRunnerView` engine thread + `ContentView`
