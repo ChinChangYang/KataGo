@@ -310,12 +310,12 @@ public class GobanState {
     public func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
                                                   config: Config,
                                                   messageList: MessageList) {
-        if !config.isEqualBlackWhiteHumanSettings && !isAutoPlaying {
+        if !config.isEqualBlackWhiteEffectiveHumanSettings && !isAutoPlaying {
             if nextColorForPlayCommand == .black,
-               let humanSLModel = HumanSLModel(profile: config.humanProfileForBlack) {
+               let humanSLModel = HumanSLModel(profile: config.effectiveHumanProfileForBlack) {
                 messageList.appendAndSend(commands: humanSLModel.commands)
             } else if nextColorForPlayCommand == .white,
-                      let humanSLModel = HumanSLModel(profile: config.humanProfileForWhite) {
+                      let humanSLModel = HumanSLModel(profile: config.effectiveHumanProfileForWhite) {
                 messageList.appendAndSend(commands: humanSLModel.commands)
             }
         }
@@ -823,7 +823,7 @@ public class GobanState {
             messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
             messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
             messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
-            messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
+            messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.effectiveHumanProfileForBlack, humanProfileForWhite: config.effectiveHumanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
             sendShowBoardCommand(messageList: messageList)
         }
     }

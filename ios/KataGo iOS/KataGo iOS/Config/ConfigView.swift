@@ -412,6 +412,7 @@ struct AIConfigView: View {
     @State var whiteHumanSLModel = HumanSLModel()
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
+    @Environment(GobanState.self) var gobanState
 
     var body: some View {
         List {
@@ -455,7 +456,11 @@ struct AIConfigView: View {
                 blackMaxTime = config.blackMaxTime
             }
             .onChange(of: blackMaxTime) { _, newValue in
-                config.blackMaxTime = newValue
+                // Route through ConfigEngineSync (like macOS / the board's name-label
+                // toggle) so flipping Black to/from Human here also reconfigures the
+                // engine's human-SL state for analysis, not just the stored value.
+                ConfigEngineSync.setBlackMaxTime(newValue, config: config, gobanState: gobanState,
+                                                 player: player, messageList: messageList)
             }
 
             Text("White AI".uppercased())
@@ -485,7 +490,11 @@ struct AIConfigView: View {
                 whiteMaxTime = config.whiteMaxTime
             }
             .onChange(of: whiteMaxTime) { _, newValue in
-                config.whiteMaxTime = newValue
+                // Route through ConfigEngineSync (like macOS / the board's name-label
+                // toggle) so flipping White to/from Human here also reconfigures the
+                // engine's human-SL state for analysis, not just the stored value.
+                ConfigEngineSync.setWhiteMaxTime(newValue, config: config, gobanState: gobanState,
+                                                 player: player, messageList: messageList)
             }
         }
     }
@@ -584,7 +593,7 @@ struct SgfConfigView: View {
                         messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
                         messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
                         messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
-                            humanSLProfile: config.humanSLProfile, humanProfileForWhite: config.humanProfileForWhite,
+                            humanSLProfile: config.effectiveHumanProfileForBlack, humanProfileForWhite: config.effectiveHumanProfileForWhite,
                             humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         messageList.appendAndSend(command: "printsgf")

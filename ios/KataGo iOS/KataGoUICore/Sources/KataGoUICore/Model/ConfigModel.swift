@@ -435,6 +435,36 @@ extension Config {
 }
 
 extension Config {
+    /// The human-SL profile that should actually drive analysis and gen-move for a
+    /// side, accounting for whether that side is currently played by a person.
+    ///
+    /// A side with zero per-move thinking time reads "Human" (see
+    /// `playerLabel(for:)`); its analysis must be produced by the strongest net,
+    /// i.e. the `"AI"` profile — `HumanSLModel(profile: "AI")` zeroes the
+    /// human-style bias (`humanSLChosenMoveProp 0`,
+    /// `humanSLRootExploreProbWeightless 0`, `winLossUtilityFactor 1`). A side with
+    /// a positive thinking time is played by the engine and keeps its configured
+    /// human-style profile. `"AI"` is the same sentinel the auto-play path already
+    /// uses for best-AI analysis.
+    public var effectiveHumanProfileForBlack: String {
+        blackMaxTime > 0 ? humanProfileForBlack : "AI"
+    }
+
+    public var effectiveHumanProfileForWhite: String {
+        whiteMaxTime > 0 ? humanProfileForWhite : "AI"
+    }
+
+    /// Like `isEqualBlackWhiteHumanSettings`, but over the *effective* profiles so a
+    /// side toggled to Human (→ `"AI"`) is correctly treated as different from an AI
+    /// side running a human-style profile. Drives symmetric-vs-asymmetric routing
+    /// of the human-SL analysis commands.
+    public var isEqualBlackWhiteEffectiveHumanSettings: Bool {
+        return (effectiveHumanProfileForBlack == effectiveHumanProfileForWhite)
+            && (humanRatioForBlack == humanRatioForWhite)
+    }
+}
+
+extension Config {
     public static let defaultSoundEffect = true
 
     public var soundEffect: Bool {

@@ -159,8 +159,11 @@ public enum ConfigEngineSync {
                                             player: Turn,
                                             messageList: MessageList) {
         config.humanProfileForBlack = profile
+        // Emit the *effective* profile: if Black is currently played by a person
+        // (`blackMaxTime == 0`) analysis must stay on the strongest net ("AI"),
+        // not the just-picked human-style profile.
         if player.nextColorForPlayCommand != .white,
-           let model = HumanSLModel(profile: profile) {
+           let model = HumanSLModel(profile: config.effectiveHumanProfileForBlack) {
             messageList.appendAndSend(commands: model.commands)
         }
     }
@@ -173,8 +176,11 @@ public enum ConfigEngineSync {
                                             player: Turn,
                                             messageList: MessageList) {
         config.humanProfileForWhite = profile
+        // Emit the *effective* profile: if White is currently played by a person
+        // (`whiteMaxTime == 0`) analysis must stay on the strongest net ("AI"),
+        // not the just-picked human-style profile.
         if player.nextColorForPlayCommand != .black,
-           let model = HumanSLModel(profile: profile) {
+           let model = HumanSLModel(profile: config.effectiveHumanProfileForWhite) {
             messageList.appendAndSend(commands: model.commands)
         }
     }
@@ -206,6 +212,7 @@ public enum ConfigEngineSync {
                                        player: Turn,
                                        messageList: MessageList) {
         config.blackMaxTime = seconds
+        resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
 
@@ -218,7 +225,38 @@ public enum ConfigEngineSync {
                                        player: Turn,
                                        messageList: MessageList) {
         config.whiteMaxTime = seconds
+        resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
+    }
+
+    /// Re-establishes the engine's human-SL state for the current side to move
+    /// after a side's Human/AI status changes (e.g. the captured-stone name label
+    /// is tapped). A side now played by a person must be analyzed by the strongest
+    /// net — its *effective* profile becomes `"AI"` — so the previously-pushed
+    /// human-style bundle has to be replaced; conversely, switching a side back to
+    /// AI restores its configured human-style bias. Mirrors the init / turn-change
+    /// emission: the symmetric one-shot covers the case where both sides' effective
+    /// profiles match (and is a no-op `[]` otherwise), and the per-color asymmetric
+    /// send covers the side to move when they differ. Must run BEFORE `rearmAnalysis`
+    /// so the next `kata-analyze` runs with the corrected parameters.
+    private static func resendEffectiveHumanAnalysisCommands(config: Config,
+                                                             gobanState: GobanState,
+                                                             player: Turn,
+                                                             messageList: MessageList) {
+        // During auto-play the auto-play path owns the engine's human-SL state
+        // (it forces the best-AI "AI" profile), so leave it untouched here —
+        // mirrors the `!isAutoPlaying` guard in
+        // `GobanState.maybeSendAsymmetricHumanAnalysisCommands`.
+        guard !gobanState.isAutoPlaying else { return }
+        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
+            humanSLProfile: config.effectiveHumanProfileForBlack,
+            humanProfileForWhite: config.effectiveHumanProfileForWhite,
+            humanRatioForBlack: config.humanRatioForBlack,
+            humanRatioForWhite: config.humanRatioForWhite))
+        gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+            nextColorForPlayCommand: player.nextColorForPlayCommand,
+            config: config,
+            messageList: messageList)
     }
 
     // MARK: Analysis params (no dedicated GTP command)

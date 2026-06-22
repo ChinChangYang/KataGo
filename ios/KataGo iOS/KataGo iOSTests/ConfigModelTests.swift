@@ -135,6 +135,45 @@ struct ConfigModelTests {
         #expect(config.isEqualBlackWhiteHumanSettings == true)
     }
 
+    @Test func testEffectiveHumanProfileFollowsHumanAIState() async throws {
+        let config = Config()
+        config.humanProfileForBlack = "rank_5k"
+        config.humanProfileForWhite = "proyear_2000"
+
+        // Both sides Human (thinking time 0): analysis must use the strongest net,
+        // so the effective profile is "AI" regardless of the configured profile.
+        config.blackMaxTime = 0
+        config.whiteMaxTime = 0
+        #expect(config.effectiveHumanProfileForBlack == "AI")
+        #expect(config.effectiveHumanProfileForWhite == "AI")
+
+        // A side enabled for AI (thinking time > 0) keeps its human-style profile.
+        config.blackMaxTime = Config.toggleAIThinkingTime
+        config.whiteMaxTime = 1.0
+        #expect(config.effectiveHumanProfileForBlack == "rank_5k")
+        #expect(config.effectiveHumanProfileForWhite == "proyear_2000")
+    }
+
+    @Test func testIsEqualBlackWhiteEffectiveHumanSettings() async throws {
+        let config = Config()
+        config.humanProfileForBlack = "rank_5k"
+        config.humanProfileForWhite = "proyear_2000"
+
+        // Both Human → both effective "AI" → equal, despite different raw profiles.
+        config.blackMaxTime = 0
+        config.whiteMaxTime = 0
+        #expect(config.isEqualBlackWhiteEffectiveHumanSettings == true)
+
+        // One Human, one AI with a real profile → effective profiles differ.
+        config.whiteMaxTime = Config.toggleAIThinkingTime
+        #expect(config.isEqualBlackWhiteEffectiveHumanSettings == false)
+
+        // Both AI with the same profile → equal again.
+        config.blackMaxTime = Config.toggleAIThinkingTime
+        config.humanProfileForBlack = "proyear_2000"
+        #expect(config.isEqualBlackWhiteEffectiveHumanSettings == true)
+    }
+
     // 4. Computed Properties Tests
     @Test func testAnalysisInformationComputedProperties() async throws {
         let config = Config()
