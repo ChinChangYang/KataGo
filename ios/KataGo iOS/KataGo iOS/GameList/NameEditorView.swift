@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoUICore
+import WidgetKit
 
 struct NameEditorView: View {
     let gameRecord: GameRecord?
@@ -32,6 +33,7 @@ struct NameEditorView: View {
 
                             dismiss()
                         }
+                        WidgetCenter.shared.reloadAllTimelines()
                     }
                 }
 

@@ -8,6 +8,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import KataGoUICore
+import WidgetKit
 
 struct GameSplitView: View {
     @Binding var selectedModel: NeuralNetworkModel?
@@ -51,6 +52,7 @@ struct GameSplitView: View {
                     if let gameRecord = navigationContext.selectedGameRecord {
                         navigationContext.selectedGameRecord = nil
                         modelContext.safelyDelete(gameRecord: gameRecord)
+                        WidgetCenter.shared.reloadAllTimelines()
                     }
                 }
 
@@ -89,6 +91,7 @@ struct GameSplitView: View {
         .modifier(GlobalPreferenceSync(gobanState: gobanState))
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)
+            WidgetCenter.shared.reloadAllTimelines()
             processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
         }
         .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in

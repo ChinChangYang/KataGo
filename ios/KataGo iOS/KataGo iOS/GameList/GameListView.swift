@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import KataGoUICore
+import WidgetKit
 
 struct GameLinksView: View {
     @Binding var selectedGameRecord: GameRecord?
@@ -49,6 +50,7 @@ struct GameLinksView: View {
                 }
                 modelContext.safelyDelete(gameRecord: record)
             }
+            WidgetCenter.shared.reloadAllTimelines()
         }
 
         if isSearchActive {

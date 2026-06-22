@@ -2,6 +2,7 @@ import AppKit
 import SwiftData
 import UniformTypeIdentifiers
 import KataGoUICore
+import WidgetKit
 
 /// Library CRUD actions (New / Clone / Clone Current Position / Rename / Delete).
 ///
@@ -32,6 +33,7 @@ extension MainWindowController: LibraryActionsDelegate {
         modelContext.insert(new)
         selectGame(new)
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Clone
@@ -44,6 +46,7 @@ extension MainWindowController: LibraryActionsDelegate {
         modelContext.insert(clone)
         selectGame(clone)
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Clones `game` truncated to the position currently on the board. Only
@@ -55,6 +58,7 @@ extension MainWindowController: LibraryActionsDelegate {
         modelContext.insert(clone)
         selectGame(clone)
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Rename
@@ -85,6 +89,7 @@ extension MainWindowController: LibraryActionsDelegate {
 
         game.name = newName
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Delete
@@ -122,6 +127,7 @@ extension MainWindowController: LibraryActionsDelegate {
 
         modelContext.delete(game)
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Import
@@ -148,6 +154,7 @@ extension MainWindowController: LibraryActionsDelegate {
         guard let lastImported else { return }
         selectGame(lastImported)
         libraryStore.refetch()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// File ▸ Import… (⌘O) and the toolbar `Import` item: present an open panel

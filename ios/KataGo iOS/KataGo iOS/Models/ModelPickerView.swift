@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoUICore
+import WidgetKit
 
 extension Int {
     var humanFileSize: String {
@@ -245,6 +246,7 @@ struct ModelPickerView: View {
             if let result = GameRecord.importGameRecord(from: url, in: modelContext) {
                 if result.isNew {
                     modelContext.insert(result.gameRecord)
+                    WidgetCenter.shared.reloadAllTimelines()
                 }
                 if selectedModel == nil,
                    let builtInModel = NeuralNetworkModel.builtInModel {
