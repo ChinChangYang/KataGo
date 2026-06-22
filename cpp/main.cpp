@@ -36,7 +36,7 @@ match : Run self-play match games based on a config, more efficient than gtp due
 version : Print version and exit.
 
 analysis : Runs an engine designed to analyze entire games in parallel.
-tuner : (OpenCL only) Run tuning to find and optimize parameters that work on your GPU.
+tuner : (OpenCL and MLX) Run tuning to find and optimize parameters that work on your GPU.
 tunehuman : Tune human-SL play parameters to hit a target ELO offset relative to a baseline config.
 
 ---Selfplay training subcommands---------
@@ -249,6 +249,8 @@ string Version::getKataGoVersionFullInfo() {
   out << "Using OpenCL backend" << endl;
 #elif defined(USE_EIGEN_BACKEND)
   out << "Using Eigen(CPU) backend" << endl;
+#elif defined(USE_MLX_BACKEND)
+  out << "Using MLX backend" << endl;
 #else
   out << "Using dummy backend" << endl;
 #endif
@@ -285,6 +287,8 @@ string Version::getGitRevisionWithBackend() {
   s += "-opencl";
 #elif defined(USE_EIGEN_BACKEND)
   s += "-eigen";
+#elif defined(USE_MLX_BACKEND)
+  s += "-mlx";
 #else
   s += "-dummy";
 #endif
