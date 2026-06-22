@@ -441,10 +441,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum CloudKitStoreReset {
     static let flagKey = "ResyncCloudKitStoreOnLaunch"
 
-    /// Non-`default.store*` sidecars the SwiftData/CloudKit store leaves alongside the
-    /// SQLite files (Core Data external-storage support + the CloudKit asset cache).
-    private static let sidecars: Set<String> = [".default_SUPPORT", "default_ckAssets"]
-
     static func performIfRequested() {
         guard UserDefaults.standard.bool(forKey: flagKey) else { return }
         // Clear the flag FIRST so a partial failure can't trap the app in a reset loop,
@@ -469,27 +465,32 @@ enum CloudKitStoreReset {
             }
         }
 
+        // Wipe the store family from EVERY location it can live (F16): the
+        // App-Group container holds the live store post-migration, and the app's
+        // own sandbox container holds the pre-App-Group / migration-source copy —
+        // both must go or re-sync either no-ops (live store survived) or the stale
+        // copy gets re-migrated back next launch. `SharedModelContainer` owns the
+        // directory + artifact-name layout so it stays in sync with the store URLs.
         let fileManager = FileManager.default
-        guard let appSupport = try? fileManager.url(
-            for: .applicationSupportDirectory, in: .userDomainMask,
-            appropriateFor: nil, create: false
-        ) else {
-            NSLog("[CloudKitStoreReset] could not resolve Application Support — reset skipped")
-            return
-        }
-
-        // Match the whole SQLite family (default.store, -shm, -wal, -journal, …) by
-        // prefix, plus the named sidecars, so a stray sidecar can't survive the reset.
-        let entries = (try? fileManager.contentsOfDirectory(atPath: appSupport.path)) ?? []
-        let targets = entries.filter { $0.hasPrefix("default.store") || sidecars.contains($0) }
-        for name in targets {
-            let url = appSupport.appendingPathComponent(name)
-            do {
-                try fileManager.trashItem(at: url, resultingItemURL: nil)  // recoverable
-            } catch {
-                try? fileManager.removeItem(at: url)  // fall back to permanent removal
+        let directories = SharedModelContainer.storeResetDirectories()
+        var trashedTotal = 0
+        for dir in directories {
+            // Match the whole SQLite family (default.store, -shm, -wal, -journal, …)
+            // by prefix, plus the named sidecars, so a stray sidecar can't survive.
+            let entries = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? []
+            let targets = SharedModelContainer.storeArtifactNames(in: entries)
+            guard !targets.isEmpty else { continue }
+            for name in targets {
+                let url = dir.appendingPathComponent(name)
+                do {
+                    try fileManager.trashItem(at: url, resultingItemURL: nil)  // recoverable
+                } catch {
+                    try? fileManager.removeItem(at: url)  // fall back to permanent removal
+                }
             }
+            trashedTotal += targets.count
+            NSLog("[CloudKitStoreReset] reset store at \(dir.path) — trashed \(targets.count) artifact(s): \(targets)")
         }
-        NSLog("[CloudKitStoreReset] reset store at \(appSupport.path) — trashed \(targets.count) artifact(s): \(targets) — re-importing from iCloud")
+        NSLog("[CloudKitStoreReset] re-importing from iCloud — trashed \(trashedTotal) artifact(s) across \(directories.count) location(s)")
     }
 }

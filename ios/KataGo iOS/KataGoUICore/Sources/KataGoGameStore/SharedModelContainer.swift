@@ -291,7 +291,7 @@ public enum SharedModelContainer {
     }
 
     /// Where SwiftData's default (pre-App-Group) store lived.
-    static func defaultStoreURL() -> URL {
+    public static func defaultStoreURL() -> URL {
         URL.applicationSupportDirectory.appending(path: "default.store")
     }
 
@@ -303,5 +303,49 @@ public enum SharedModelContainer {
         FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
             .appending(path: "Library/Application Support/default.store")
+    }
+
+    // MARK: - CloudKit store reset (F16)
+
+    /// Store-layout knowledge for the macOS "Re-sync from iCloud" command. It
+    /// lives here — not in the app target — so the set of directories and files
+    /// that constitute the on-disk store has ONE owner alongside the store URLs,
+    /// and so the pure logic is unit-testable from the iOS test target (the
+    /// macOS app target has no test target).
+
+    /// Non-`default.store*` sidecars SwiftData/CloudKit leaves beside the SQLite
+    /// files (Core Data external-storage support + the CloudKit asset cache).
+    public static let storeResetSidecars: Set<String> = [".default_SUPPORT", "default_ckAssets"]
+
+    /// Every Application Support directory that may hold a copy of the SwiftData
+    /// store, so a CloudKit re-import wipes ALL of them:
+    ///
+    /// 1. the **App-Group** container (`appGroupStoreURL()`'s parent) — where the
+    ///    live store lives after migration; the old reset code never touched this,
+    ///    so re-sync silently no-oped (F16); and
+    /// 2. the app's **own sandbox** container (`defaultStoreURL()`'s parent) — the
+    ///    pre-App-Group / migration-source copy, which `migrateStore` leaves in
+    ///    place (it copies, not moves). It must ALSO go, or `shared` sees
+    ///    `oldExists && !newExists` next launch and re-migrates the stale store
+    ///    back, defeating the re-import.
+    ///
+    /// Directories may or may not exist; callers tolerate absence.
+    public static func storeResetDirectories() -> [URL] {
+        var dirs: [URL] = []
+        // 1. App-Group container — the live store post-migration (the F16 fix).
+        if let groupParent = appGroupStoreURL()?.deletingLastPathComponent() {
+            dirs.append(groupParent)
+        }
+        // 2. App's own container — the pre-App-Group / migration-source copy.
+        dirs.append(defaultStoreURL().deletingLastPathComponent())
+        return dirs
+    }
+
+    /// Pure: the store-artifact file names within a directory listing — the whole
+    /// SQLite family (`default.store`, `-wal`, `-shm`, `-journal`, …) matched by
+    /// prefix, plus the named sidecars. Everything else (engine/model data,
+    /// unrelated files) is left untouched.
+    public static func storeArtifactNames(in entries: [String]) -> [String] {
+        entries.filter { $0.hasPrefix("default.store") || storeResetSidecars.contains($0) }
     }
 }

@@ -226,4 +226,50 @@ struct SharedModelContainerTests {
         let records = try container.mainContext.fetch(FetchDescriptor<GameRecord>())
         #expect(records.isEmpty)
     }
+
+    // MARK: - CloudKit store-reset directories (F16)
+
+    @Test func storeResetDirectories_includeAppGroupStoreLocation() throws {
+        // F16 regression: after migration the LIVE store is in the App-Group
+        // container; re-sync must wipe THAT location, not only the app's own
+        // sandbox container (the old reset deleted a stale leftover and no-oped).
+        let groupParent = try #require(SharedModelContainer.appGroupStoreURL(),
+                                       "App Group not provisioned in this test host")
+            .deletingLastPathComponent()
+        let paths = SharedModelContainer.storeResetDirectories().map { $0.path }
+        #expect(paths.contains(groupParent.path))
+    }
+
+    @Test func storeResetDirectories_includeMigrationSourceLocation() {
+        // The pre-App-Group / migration-source store in the app's own container
+        // must ALSO be removed, or `shared` re-migrates it back next launch and
+        // defeats the re-import (migrateStore copies, it doesn't move).
+        let defaultParent = SharedModelContainer.defaultStoreURL().deletingLastPathComponent()
+        let paths = SharedModelContainer.storeResetDirectories().map { $0.path }
+        #expect(paths.contains(defaultParent.path))
+    }
+
+    @Test func storeResetDirectories_groupAndAppContainerAreDistinct() throws {
+        // Sanity: the two reset locations are genuinely different directories, so
+        // covering both is meaningful (not the same path twice).
+        let groupParent = try #require(SharedModelContainer.appGroupStoreURL())
+            .deletingLastPathComponent()
+        let defaultParent = SharedModelContainer.defaultStoreURL().deletingLastPathComponent()
+        #expect(groupParent.path != defaultParent.path)
+    }
+
+    // MARK: - CloudKit store-artifact filter (F16)
+
+    @Test func storeArtifactNames_matchesSqliteFamilyAndSidecars() {
+        let entries = ["default.store", "default.store-wal", "default.store-shm",
+                       "default.store-journal", ".default_SUPPORT", "default_ckAssets"]
+        #expect(Set(SharedModelContainer.storeArtifactNames(in: entries)) == Set(entries))
+    }
+
+    @Test func storeArtifactNames_leavesEngineAndModelDataUntouched() {
+        // The reset deletes store files only; engine/model/unrelated data stays.
+        let entries = ["default.store", "default_model.bin.gz", "b18c384nbt-humanv0.bin.gz",
+                       "KataGoData", "prefs.plist", "other.store"]
+        #expect(SharedModelContainer.storeArtifactNames(in: entries) == ["default.store"])
+    }
 }
