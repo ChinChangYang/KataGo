@@ -5,6 +5,7 @@
 #include "../core/rand.h"
 #include "../game/board.h"
 #include "../game/boardhistory.h"
+#include "../game/rules.h"
 #include "../neuralnet/nninputs.h"
 #include "../neuralnet/nneval.h"
 #include "../neuralnet/sgfmetadata.h"
@@ -49,8 +50,11 @@ int MainCmds::tunehuman(const vector<string>& args) {
   double piklFloor = 0.02;
   double piklMax = 1.0e4;
   double dtauMax = 0.6;
+  double candHumanRootExplore = -1.0;
   double xLo = 0.0;
   double xHi = 3.0;
+  double komi = 7.5;
+  string candColor = "auto";
 
   try {
     KataGoCommandLine cmd("Tune human-SL play parameters to hit a target ELO offset vs a baseline config.");
@@ -71,8 +75,11 @@ int MainCmds::tunehuman(const vector<string>& args) {
     TCLAP::ValueArg<double> piklFloorArg("","pikl-floor","Smallest piklLambda (strongest).",false,0.02,"F");
     TCLAP::ValueArg<double> piklMaxArg("","pikl-max","Largest active piklLambda.",false,1.0e4,"F");
     TCLAP::ValueArg<double> dtauMaxArg("","dtau-max","Max temperature offset at the weak end.",false,0.6,"F");
+    TCLAP::ValueArg<double> candHumanRootExploreArg("","cand-human-root-explore","Override the CANDIDATE's humanSLRootExploreProbWeightless (lower = less human-policy exploration = stronger). -1 = use baseline config's value.",false,-1.0,"F");
     TCLAP::ValueArg<double> xLoArg("","x-lo","Low end of the strength coordinate search range.",false,0.0,"F");
     TCLAP::ValueArg<double> xHiArg("","x-hi","High end of the strength coordinate search range.",false,3.0,"F");
+    TCLAP::ValueArg<double> komiArg("","komi","Komi for the games. Use 0.5 for a KGS 1-rank handicap (stronger=White gets no compensation).",false,7.5,"F");
+    TCLAP::ValueArg<string> candColorArg("","cand-color","Candidate's color: auto (alternate, removes color bias), black, or white. Use 'black' with -komi 0.5 for a 1-rank handicap match (weaker candidate as Black).",false,"auto","COLOR");
     cmd.add(baselineConfigArg);
     cmd.add(profileArg);
     cmd.add(targetEloArg);
@@ -88,8 +95,11 @@ int MainCmds::tunehuman(const vector<string>& args) {
     cmd.add(piklFloorArg);
     cmd.add(piklMaxArg);
     cmd.add(dtauMaxArg);
+    cmd.add(candHumanRootExploreArg);
     cmd.add(xLoArg);
     cmd.add(xHiArg);
+    cmd.add(komiArg);
+    cmd.add(candColorArg);
     cmd.parseArgs(args);
 
     modelFile = cmd.getModelFile();
@@ -109,8 +119,11 @@ int MainCmds::tunehuman(const vector<string>& args) {
     piklFloor = piklFloorArg.getValue();
     piklMax = piklMaxArg.getValue();
     dtauMax = dtauMaxArg.getValue();
+    candHumanRootExplore = candHumanRootExploreArg.getValue();
     xLo = xLoArg.getValue();
     xHi = xHiArg.getValue();
+    komi = komiArg.getValue();
+    candColor = candColorArg.getValue();
   }
   catch(TCLAP::ArgException& e) {
     cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
@@ -128,6 +141,9 @@ int MainCmds::tunehuman(const vector<string>& args) {
   if(!FileUtils::exists(humanModelFile)) { cerr << "Error: human-model not found: " << humanModelFile << endl; return 1; }
   if(gamesPerRound < 1) { cerr << "Error: -games-per-round must be >= 1." << endl; return 1; }
   if(xLo >= xHi) { cerr << "Error: -x-lo must be < -x-hi." << endl; return 1; }
+  if(candColor != "auto" && candColor != "black" && candColor != "white") {
+    cerr << "Error: -cand-color must be auto, black, or white." << endl; return 1;
+  }
   if(eloTol <= 0.0) { cerr << "Error: -elo-tol must be > 0." << endl; return 1; }
   if(searchVisits != -1 && searchVisits < 2) { cerr << "Error: -search-visits must be >= 2 (piklLambda needs >1 visit), or -1 for auto." << endl; return 1; }
   if(maxVisitsCap != -1 && maxVisitsCap < 1) { cerr << "Error: -max-visits-cap must be >= 1, or -1 for auto." << endl; return 1; }
@@ -159,7 +175,10 @@ int MainCmds::tunehuman(const vector<string>& args) {
   cout << "  pikl-floor      = " << piklFloor << endl;
   cout << "  pikl-max        = " << piklMax << endl;
   cout << "  dtau-max        = " << dtauMax << endl;
+  cout << "  cand-human-root-explore = " << (candHumanRootExplore < 0.0 ? string("(baseline)") : Global::doubleToString(candHumanRootExplore)) << endl;
   cout << "  x-lo / x-hi     = " << xLo << " / " << xHi << endl;
+  cout << "  komi            = " << komi << endl;
+  cout << "  cand-color      = " << candColor << (candColor == "auto" ? " (alternate)" : (komi != 7.5 ? " (handicap match)" : "")) << endl;
 
   // ---- load baseline config, logger, params, nets ----
   ConfigParser baselineCfg(baselineConfigPath);
@@ -240,15 +259,24 @@ int MainCmds::tunehuman(const vector<string>& args) {
     logger.write("WARNING: -human-model was not trained from SGF metadata; profile may have no effect.");
 
   // ---- minimal game-setup config (rules/board/komi only; bot strength comes from BotSpec) ----
+  // Inherit the board ruleset from the baseline config (a deployed gtp_human<rank>.cfg, e.g.
+  // "rules = japanese") so tuning games are scored EXACTLY like real play. Calibrating under a
+  // different ruleset than the configs are deployed with would be an avoidable confound (area vs
+  // territory scoring changes endgame play, and the human-SL net's KGS-rank conditioning is most
+  // faithful under the ruleset its KGS training games used). Falls back to Japanese if unspecified.
+  Rules gameRules = Rules::parseRules(baselineCfg.contains("rules") ? baselineCfg.getString("rules") : "japanese");
+  logger.write("Tuning-game ruleset (inherited from baseline config): " + gameRules.toStringNoKomi());
   std::map<string,string> gameCfgMap = {
-    {"koRules", "SIMPLE"},
-    {"scoringRules", "AREA"},
-    {"taxRules", "NONE"},
-    {"multiStoneSuicideLegals", "false"},
-    {"hasButtons", "false"},
+    {"koRules", Rules::writeKoRule(gameRules.koRule)},
+    {"scoringRules", Rules::writeScoringRule(gameRules.scoringRule)},
+    {"taxRules", Rules::writeTaxRule(gameRules.taxRule)},
+    {"multiStoneSuicideLegals", gameRules.multiStoneSuicideLegal ? "true" : "false"},
+    {"hasButtons", gameRules.hasButton ? "true" : "false"},
     {"bSizes", "19"},
     {"bSizeRelProbs", "1"},
-    {"komiMean", "7.5"},
+    {"komiMean", Global::doubleToString(komi)},
+    {"komiStdev", "0.0"},
+    {"komiAllowIntegerProb", "0.0"},
     {"logSearchInfo", "false"},
     {"logMoves", "false"},
     {"maxMovesPerGame", "1200"},
@@ -296,6 +324,11 @@ int MainCmds::tunehuman(const vector<string>& args) {
     cand.maxVisits = dials.maxVisits;
     cand.chosenMoveTemperature = clipTemp(baselineParams.chosenMoveTemperature + dials.deltaTau);
     cand.chosenMoveTemperatureEarly = clipTemp(baselineParams.chosenMoveTemperatureEarly + dials.deltaTau);
+    // Optional: strengthen the candidate by reducing its human-policy SEARCH exploration (the piklLambda
+    // lever only affects move SELECTION; the ~100-ELO preaz_9d-vs-rank_9d gap lives in which moves get
+    // explored). Lower = less human exploration = closer to pure main-net search = stronger.
+    if(candHumanRootExplore >= 0.0)
+      cand.humanSLRootExploreProbWeightless = candHumanRootExplore;
 
     std::atomic<int> nextGameIdx(0);
     double candidateWins = 0.0;
@@ -307,7 +340,9 @@ int MainCmds::tunehuman(const vector<string>& args) {
         int gameIdx = nextGameIdx.fetch_add(1);
         if(gameIdx >= gamesPerRound)
           break;
-        bool candIsBlack = (gameIdx % 2 == 0);
+        bool candIsBlack = (candColor == "black") ? true
+                         : (candColor == "white") ? false
+                         : (gameIdx % 2 == 0);   // auto: alternate to remove color bias
         string seed = seedStr + ":r" + Global::intToString(round) + ":g" + Global::intToString(gameIdx);
 
         MatchPairer::BotSpec specCand;
@@ -338,9 +373,9 @@ int MainCmds::tunehuman(const vector<string>& args) {
           counted = false;
         } else {
           Player winner = g->endHist.winner;
-          Player candColor = candIsBlack ? P_BLACK : P_WHITE;
+          Player candPlayerColor = candIsBlack ? P_BLACK : P_WHITE;
           if(winner == C_EMPTY) winInc = 0.5;          // draw
-          else winInc = (winner == candColor) ? 1.0 : 0.0;
+          else winInc = (winner == candPlayerColor) ? 1.0 : 0.0;
         }
         delete g;
 
@@ -517,6 +552,8 @@ int MainCmds::tunehuman(const vector<string>& args) {
   overrides.push_back(std::make_pair("maxVisits", Global::intToString(finalDials.maxVisits)));
   overrides.push_back(std::make_pair("chosenMoveTemperature", Global::doubleToString(tempBase)));
   overrides.push_back(std::make_pair("chosenMoveTemperatureEarly", Global::doubleToString(tempEarly)));
+  if(candHumanRootExplore >= 0.0)
+    overrides.push_back(std::make_pair("humanSLRootExploreProbWeightless", Global::doubleToString(candHumanRootExplore)));
 
   string finalText = hdr.str() + overrideConfigText(baselineText, overrides);
 
