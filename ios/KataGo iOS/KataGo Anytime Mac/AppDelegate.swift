@@ -90,13 +90,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `open(urls:)` arrives after `applicationDidFinishLaunching`, so the window
     /// controller is created by the time we're called — but we guard anyway.
     func application(_ application: NSApplication, open urls: [URL]) {
+        var remaining: [URL] = []
         for url in urls {
             if let id = GameDeepLink.gameID(from: url) {
                 windowController?.selectGame(byID: id)
-                return
+            } else {
+                remaining.append(url)
             }
         }
-        windowController?.importAndSelect(from: urls)
+        if !remaining.isEmpty {
+            windowController?.importAndSelect(from: remaining)
+        }
     }
 
     // MARK: - Main Menu
