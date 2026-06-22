@@ -22,10 +22,12 @@
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
 		0E214CE4E7C5883F3D89C7C5 /* MacModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E695144B2B1485A6D87400 /* MacModelSelection.swift */; };
+		0E2F0EC5BBB28E8747AC6A46 /* KataGoAnytimeWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0E4E80892074A1CBB7AD12FA /* GlobalSettingsKeysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */; };
 		0E9649E972B42E97A3BB3415 /* time.cc in Sources */ = {isa = PBXBuildFile; fileRef = 25D1DEE9AEB16CE3578E7F54 /* time.cc */; };
 		102FD3AC15B18CB952C905AE /* charconv.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1533B4E526236E0A4A1F31CA /* charconv.cc */; };
 		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
+		15E7FF25B06E8121F6E53669 /* SavedGameProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0359992D4550BD5E766B73 /* SavedGameProvider.swift */; };
 		16DA2B0F2603C5AC4D072362 /* SubByteTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */; };
 		1821247E1EAEBBC73694BAFD /* ItemSimilarityRecommender.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */; };
 		1898CE597D3A65A0C6455C0A /* program_name.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3198312DEEC29C7E79A119D6 /* program_name.cc */; };
@@ -48,6 +50,7 @@
 		2E729A68CA06A3B50CCC5BA3 /* seed_material.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */; };
 		2EF6C52FFFFCBD893D25E617 /* arena_align.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5FEAA2F338D54F48ED93BEC0 /* arena_align.cc */; };
 		2F3A00319E5D81A8D094CAED /* log_sink_set.cc in Sources */ = {isa = PBXBuildFile; fileRef = AF86110D7D6760AEB8931511 /* log_sink_set.cc */; };
+		2F7AB7F5262213ECA72A6626 /* SavedGameWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73565E05B00F390767359DED /* SavedGameWidget.swift */; };
 		31F7121B755A4A3D39196A16 /* periodic_sampler.cc in Sources */ = {isa = PBXBuildFile; fileRef = 008FE61EE6603F28C0E87C9F /* periodic_sampler.cc */; };
 		333BEE14A50F37F646EF8944 /* barrier.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB10D18C7B3E859EF854E089 /* barrier.cc */; };
 		352C29EDD9C86AC81A68D6F8 /* ModelsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7787C9AF15E3ED8811688D3D /* ModelsWindowController.swift */; };
@@ -105,7 +108,9 @@
 		57AB2F792F63982215ED36A6 /* TextClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B353F521781321D83987622 /* TextClassifier.pb.cc */; };
 		57C30FBD9D80117903FCC4E2 /* TreeEnsemble.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */; };
 		583282835D75E870D91DFCF5 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F4C159FB921FB252C225F18A /* AppIntents.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
+		58588878BFF4FE0A09BD0352 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 07EE140D5EE71D5EF16E0E27 /* Foundation.framework */; };
 		585A135BE268886E031FA9A2 /* time_zone_fixed.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */; };
+		59957A85C884C1E8B577B507 /* SavedGameWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3769E551EAA2A9E3729CFA14 /* SavedGameWidgetView.swift */; };
 		5AD1A5BA9300BBAABC9954F8 /* demangle.cc in Sources */ = {isa = PBXBuildFile; fileRef = FDB0EF5683E83342322E62D3 /* demangle.cc */; };
 		5C0A871DE2E1FB7FEA2FA8A8 /* InspectorTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */; };
 		5C0FB63877615EF37C82B458 /* elf_mem_image.cc in Sources */ = {isa = PBXBuildFile; fileRef = BC369E122AA45A565227D30F /* elf_mem_image.cc */; };
@@ -153,6 +158,7 @@
 		79FC99D1FE195C3BDC7AE8D8 /* commandlineflag.cc in Sources */ = {isa = PBXBuildFile; fileRef = E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */; };
 		7A43A80CA476432883E1E82F /* Model.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F5D1E35537739536323FC2B /* Model.pb.cc */; };
 		7B0589FD3D239038D3CFBB38 /* status.cc in Sources */ = {isa = PBXBuildFile; fileRef = B797CDE40306D2B33B324106 /* status.cc */; };
+		7C5092DB71E45CB5DB9D92FA /* KataGoAnytimeWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8C5F426AC374D3E6189EB0A /* KataGoAnytimeWidgetBundle.swift */; };
 		7D34ADD11221A60E7A036EF1 /* damerau_levenshtein_distance.cc in Sources */ = {isa = PBXBuildFile; fileRef = EF0CC4F8F6E31E9BBD5658E0 /* damerau_levenshtein_distance.cc */; };
 		7DB3636F90125AD66BC73FAF /* JsonMap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72957BAFF34FE57DABA3B7E1 /* JsonMap.cpp */; };
 		7EB9A9DD7D95056BC596B38A /* parse.cc in Sources */ = {isa = PBXBuildFile; fileRef = CFF4187E328E507D1C765E42 /* parse.cc */; };
@@ -217,6 +223,7 @@
 		A7712D171CB447E119D1C2A3 /* EngineVersionDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD31E739D75B74BF613C62AB /* EngineVersionDisplayTests.swift */; };
 		A800D354C94992F8BCE4984F /* GameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */; };
 		A84A7CE2088AD0308688DA08 /* MMapFileReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */; };
+		A8C30D2BBAE027E02053A822 /* KataGoAnytimeWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A930EA82B20459A633CCD185 /* ModelPackage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DF87CAF0BC8ED9616E552855 /* ModelPackage.cpp */; };
 		A9376AB799D65C8025CD559D /* city.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB8AF52E37193580D79F2CE6 /* city.cc */; };
 		A99D781BD14A278FDA6A49D7 /* die_if_null.cc in Sources */ = {isa = PBXBuildFile; fileRef = 06B5DB05FBA3F5832D7E2109 /* die_if_null.cc */; };
@@ -236,6 +243,7 @@
 		B47AC320EAC8ADA4B2B4649E /* structured_proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = AE2B3C4E69E536BFB55E4DF9 /* structured_proto.cc */; };
 		B49E0366C2D6EF8344A465B9 /* AudioFeaturePrint.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */; };
 		B4B0885216435F927C9C8DD6 /* flags.cc in Sources */ = {isa = PBXBuildFile; fileRef = C20921B07C4FBDCCC06193B2 /* flags.cc */; };
+		B59D82BF89513E0B26AAEE7A /* SelectGameIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B4857B5D73F0EE2240F12A /* SelectGameIntent.swift */; };
 		B626693C0B450357CC169C96 /* arena.cc in Sources */ = {isa = PBXBuildFile; fileRef = 441832CA01954D9736462744 /* arena.cc */; };
 		B8142EDF0FB945E3AFC3B9B3 /* hashtable.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7532F75F2E7D28AE11E46FB7 /* hashtable.cc */; };
 		BB566FAF6A2CC73012B21674 /* substitute.cc in Sources */ = {isa = PBXBuildFile; fileRef = 744518C7A1BEE2A0C3B3133A /* substitute.cc */; };
@@ -275,6 +283,7 @@
 		D36117496D6E0EFF45DF02C1 /* SgfTruncationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */; };
 		D3972BDB14B2168CF7CFC034 /* commandlineflag.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3868FD871D534F045C3DCEB6 /* commandlineflag.cc */; };
 		D628E00D67E997DE0C897236 /* log_sink.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5E1405189D7D3837B2A46C2C /* log_sink.cc */; };
+		D6D4DD60BAB45D967FF2F8E6 /* KataGoGameStore in Frameworks */ = {isa = PBXBuildFile; productRef = BE3F2C08C52FF50E7E3FE7EB /* KataGoGameStore */; };
 		D7AB7F05CAFE3E1DCA02217D /* time_zone_libc.cc in Sources */ = {isa = PBXBuildFile; fileRef = 42760A66F532E2E8D114E32A /* time_zone_libc.cc */; };
 		D84376026AA68631857E15E7 /* DataStructures.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = DBEBF4527BDE5A1922B5D4B3 /* DataStructures.pb.cc */; };
 		D89C3188FF516CA5FE3547E3 /* FeatureVectorizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 736413C8053B763DABB40FC3 /* FeatureVectorizer.pb.cc */; };
@@ -587,6 +596,20 @@
 			remoteGlobalIDString = E11887E02B0830C900637D44;
 			remoteInfo = KataGoSwift;
 		};
+		892D77E21C40923352A30994 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8151A47FB047FE500278D8E6;
+			remoteInfo = KataGoAnytimeWidget;
+		};
+		ADBE1A5E64880BA1ADBD3ECA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8151A47FB047FE500278D8E6;
+			remoteInfo = KataGoAnytimeWidget;
+		};
 		E11887E52B0830C900637D44 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
@@ -655,6 +678,17 @@
 			name = "Embed Engine Helper";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		925035C0ADE556DBA5823DBE /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0E2F0EC5BBB28E8747AC6A46 /* KataGoAnytimeWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E118EE842B0819E500637D44 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -665,6 +699,17 @@
 				E11887E82B0830C900637D44 /* KataGoSwift.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC8B40ECD4ECB5A000637496 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A8C30D2BBAE027E02053A822 /* KataGoAnytimeWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -679,6 +724,7 @@
 		042C978BB6C7792853C12AC3 /* EngineCoreMLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EngineCoreMLBridge.swift; path = KataGoEngineHelper/EngineCoreMLBridge.swift; sourceTree = "<group>"; };
 		04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BinFileHasherTests.swift; path = "KataGo iOSTests/BinFileHasherTests.swift"; sourceTree = SOURCE_ROOT; };
 		06B5DB05FBA3F5832D7E2109 /* die_if_null.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = die_if_null.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/die_if_null.cc"; sourceTree = SOURCE_ROOT; };
+		07EE140D5EE71D5EF16E0E27 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		081E2F8909C4E3DCDAC21F71 /* DictVectorizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = DictVectorizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/DictVectorizer.pb.cc; sourceTree = SOURCE_ROOT; };
 		0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_lookup.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_lookup.cc"; sourceTree = SOURCE_ROOT; };
 		098B90970A3612EEF180A94B /* throw_delegate.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = throw_delegate.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/throw_delegate.cc"; sourceTree = SOURCE_ROOT; };
@@ -695,6 +741,7 @@
 		15BA1592C87481A57E8CC1BE /* crc32c.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc32c.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/crc32c.cc"; sourceTree = SOURCE_ROOT; };
 		173B40EDB188F4C5507FD264 /* StorageWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageWriter.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageWriter.cpp; sourceTree = SOURCE_ROOT; };
 		17FA6DBD4C7BA5955B8953B7 /* bind.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = bind.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/bind.cc"; sourceTree = SOURCE_ROOT; };
+		19F59A699C5AFFAC024AA40C /* KataGoAnytimeWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = KataGoAnytimeWidget.entitlements; path = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements; sourceTree = "<group>"; };
 		1A8ED9537F21CA76CCD0ACC5 /* GtpCommandBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GtpCommandBuilderTests.swift; sourceTree = "<group>"; };
 		1BD242602F707FC96E8F9DDC /* thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/thread_identity.cc"; sourceTree = SOURCE_ROOT; };
 		1C46DA09C718B0323CFFFDFB /* crc_memcpy_fallback.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_memcpy_fallback.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_memcpy_fallback.cc"; sourceTree = SOURCE_ROOT; };
@@ -722,11 +769,14 @@
 		2E68FA51F431F3FDCF3DA465 /* randen_hwaes.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_hwaes.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_hwaes.cc"; sourceTree = SOURCE_ROOT; };
 		2F23D1C2FC87B93A4D059F1B /* randen_detect.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_detect.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_detect.cc"; sourceTree = SOURCE_ROOT; };
 		2F5D1E35537739536323FC2B /* Model.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Model.pb.cc; path = ../../cpp/external/katagocoreml/generated/Model.pb.cc; sourceTree = SOURCE_ROOT; };
+		2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KataGoAnytimeWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_fixed.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_fixed.cc"; sourceTree = SOURCE_ROOT; };
 		2F86021776EC4F7F6498285B /* hashtablez_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		309424B4F2E53DB007EACE23 /* GLMClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GLMClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/GLMClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
 		3198312DEEC29C7E79A119D6 /* program_name.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = program_name.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/program_name.cc"; sourceTree = SOURCE_ROOT; };
 		34CB7A74633C707C6093A25B /* address_is_readable.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = address_is_readable.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/address_is_readable.cc"; sourceTree = SOURCE_ROOT; };
+		3769E551EAA2A9E3729CFA14 /* SavedGameWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SavedGameWidgetView.swift; path = KataGoAnytimeWidget/SavedGameWidgetView.swift; sourceTree = "<group>"; };
+		37B4857B5D73F0EE2240F12A /* SelectGameIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SelectGameIntent.swift; path = KataGoAnytimeWidget/SelectGameIntent.swift; sourceTree = "<group>"; };
 		37D71180F3F13CF1C05D3E20 /* per_thread_sem.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = per_thread_sem.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/per_thread_sem.cc"; sourceTree = SOURCE_ROOT; };
 		3868FD871D534F045C3DCEB6 /* commandlineflag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = commandlineflag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/commandlineflag.cc"; sourceTree = SOURCE_ROOT; };
 		3C39B0A142771516A0722DE4 /* pthread_waiter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = pthread_waiter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/pthread_waiter.cc"; sourceTree = SOURCE_ROOT; };
@@ -793,6 +843,7 @@
 		7277C8329AF7F301DC2BFAD2 /* memutil.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = memutil.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/memutil.cc"; sourceTree = SOURCE_ROOT; };
 		72957BAFF34FE57DABA3B7E1 /* JsonMap.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = JsonMap.cpp; path = ../../cpp/external/katagocoreml/vendor/modelpackage/src/utils/JsonMap.cpp; sourceTree = SOURCE_ROOT; };
 		731EE3C8F8230B4CE9090477 /* vdso_support.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = vdso_support.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/vdso_support.cc"; sourceTree = SOURCE_ROOT; };
+		73565E05B00F390767359DED /* SavedGameWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SavedGameWidget.swift; path = KataGoAnytimeWidget/SavedGameWidget.swift; sourceTree = "<group>"; };
 		735B5C87C4CA780F3E97EBA4 /* crc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc.cc"; sourceTree = SOURCE_ROOT; };
 		735D74FB2A51F967BDE4B61B /* MainSplitViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainSplitViewController.swift; sourceTree = "<group>"; };
 		736413C8053B763DABB40FC3 /* FeatureVectorizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FeatureVectorizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/FeatureVectorizer.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -807,6 +858,7 @@
 		7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageListEngineOwnershipTests.swift; sourceTree = "<group>"; };
 		7CCB02B8B6426F2FD06E23D2 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
+		7E0359992D4550BD5E766B73 /* SavedGameProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SavedGameProvider.swift; path = KataGoAnytimeWidget/SavedGameProvider.swift; sourceTree = "<group>"; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
 		7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalSettingsKeysTests.swift; sourceTree = "<group>"; };
 		805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_non_temporal_memcpy.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_non_temporal_memcpy.cc"; sourceTree = SOURCE_ROOT; };
@@ -851,6 +903,7 @@
 		A6ADEC4D58AA590CCB7723B6 /* usage_config.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage_config.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/usage_config.cc"; sourceTree = SOURCE_ROOT; };
 		A73862C30379DA9F05C0DF6C /* TreeEnsemble.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TreeEnsemble.pb.cc; path = ../../cpp/external/katagocoreml/generated/TreeEnsemble.pb.cc; sourceTree = SOURCE_ROOT; };
 		A81F4103D02B5507AC828451 /* main.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; name = main.cpp; path = KataGoEngineHelper/main.cpp; sourceTree = "<group>"; };
+		A8C5F426AC374D3E6189EB0A /* KataGoAnytimeWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoAnytimeWidgetBundle.swift; path = KataGoAnytimeWidget/KataGoAnytimeWidgetBundle.swift; sourceTree = "<group>"; };
 		A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = exponential_biased.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/exponential_biased.cc"; sourceTree = SOURCE_ROOT; };
 		AABBCCDE2A51466C00D335E1 /* CoreMLCacheFooterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLCacheFooterUITests.swift; sourceTree = "<group>"; };
 		AABBCCE12A51466C00D335E1 /* BackendConfigSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfigSheetUITests.swift; sourceTree = "<group>"; };
@@ -894,6 +947,7 @@
 		C20921B07C4FBDCCC06193B2 /* flags.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = flags.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/flags.cc"; sourceTree = SOURCE_ROOT; };
 		C253BE842822B3F43B08DFEB /* failure_signal_handler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = failure_signal_handler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/failure_signal_handler.cc"; sourceTree = SOURCE_ROOT; };
 		C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zero_copy_stream_impl.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/zero_copy_stream_impl.cc"; sourceTree = SOURCE_ROOT; };
+		C295029DCB4CE496129AE703 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeWidget/Info.plist; sourceTree = "<group>"; };
 		C2CAE39DAF390823C7066E1F /* decode_rust_punycode.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = decode_rust_punycode.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/decode_rust_punycode.cc"; sourceTree = SOURCE_ROOT; };
 		C46D581335E6C102593371C6 /* float_conversion.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = float_conversion.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/float_conversion.cc"; sourceTree = SOURCE_ROOT; };
 		C4E1A7267F0FD9F81B825BA1 /* stack_consumption.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stack_consumption.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/stack_consumption.cc"; sourceTree = SOURCE_ROOT; };
@@ -1231,6 +1285,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		10CE1143E22349DE69871B28 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				58588878BFF4FE0A09BD0352 /* Foundation.framework in Frameworks */,
+				D6D4DD60BAB45D967FF2F8E6 /* KataGoGameStore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5BC10027239988B6F3835D6A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1289,6 +1352,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		05ECFA5A490B99C88979CEF4 /* KataGoAnytimeWidget */ = {
+			isa = PBXGroup;
+			children = (
+				A8C5F426AC374D3E6189EB0A /* KataGoAnytimeWidgetBundle.swift */,
+				73565E05B00F390767359DED /* SavedGameWidget.swift */,
+				37B4857B5D73F0EE2240F12A /* SelectGameIntent.swift */,
+				7E0359992D4550BD5E766B73 /* SavedGameProvider.swift */,
+				3769E551EAA2A9E3729CFA14 /* SavedGameWidgetView.swift */,
+				C295029DCB4CE496129AE703 /* Info.plist */,
+				19F59A699C5AFFAC024AA40C /* KataGoAnytimeWidget.entitlements */,
+			);
+			name = KataGoAnytimeWidget;
+			sourceTree = SOURCE_ROOT;
+		};
 		0E62DBC58E2CD16A457DF483 /* KataGoEngineHelper */ = {
 			isa = PBXGroup;
 			children = (
@@ -1376,6 +1453,14 @@
 				E14FBF832C8F300C00C702BE /* PlayView.swift */,
 			);
 			path = Game;
+			sourceTree = "<group>";
+		};
+		49848119587CCF33BD80E102 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				07EE140D5EE71D5EF16E0E27 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		5B5E3386297452CB52ECF0A8 /* ModelPackage */ = {
@@ -2038,6 +2123,7 @@
 				CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */,
 				6B70C95C29A013E1C0FA60AC /* KataGo Anytime Mac */,
 				0E62DBC58E2CD16A457DF483 /* KataGoEngineHelper */,
+				05ECFA5A490B99C88979CEF4 /* KataGoAnytimeWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -2051,6 +2137,7 @@
 				E11887E12B0830C900637D44 /* KataGoSwift.framework */,
 				C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */,
 				F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */,
+				2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -2134,6 +2221,7 @@
 				E18F3F712A5149AB00D335E1 /* libz.tbd */,
 				30687D37E5124884C6DACCF2 /* OS X */,
 				F4C159FB921FB252C225F18A /* AppIntents.framework */,
+				49848119587CCF33BD80E102 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -2285,6 +2373,7 @@
 				CCBE38050DC98ECFA5E176E1 /* Resources */,
 				0B683B14037DC3C6BDD811AB /* Embed Frameworks */,
 				83012D1E856547C6F72A08B6 /* Embed Engine Helper */,
+				925035C0ADE556DBA5823DBE /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -2292,6 +2381,7 @@
 				6E3FB0FE24CC569305ED27DD /* PBXTargetDependency */,
 				F94C46C9F70DBE70D5765886 /* PBXTargetDependency */,
 				5C4B9BBE0E8FA345F7EAA049 /* PBXTargetDependency */,
+				72AD55B881E15B799D3184EB /* PBXTargetDependency */,
 			);
 			name = "KataGo Anytime Mac";
 			packageProductDependencies = (
@@ -2301,6 +2391,26 @@
 			productName = "KataGo Anytime Mac";
 			productReference = C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */;
 			productType = "com.apple.product-type.application";
+		};
+		8151A47FB047FE500278D8E6 /* KataGoAnytimeWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9862760D82381156402817C5 /* Build configuration list for PBXNativeTarget "KataGoAnytimeWidget" */;
+			buildPhases = (
+				384FAD76324EC47CA5B6ADCC /* Sources */,
+				10CE1143E22349DE69871B28 /* Frameworks */,
+				61721E8CD117882800E944C8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KataGoAnytimeWidget;
+			packageProductDependencies = (
+				BE3F2C08C52FF50E7E3FE7EB /* KataGoGameStore */,
+			);
+			productName = KataGoAnytimeWidget;
+			productReference = 2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */ = {
 			isa = PBXNativeTarget;
@@ -2370,12 +2480,14 @@
 				E18F3E0A2A51466A00D335E1 /* Frameworks */,
 				E18F3E0B2A51466A00D335E1 /* Resources */,
 				E118EE842B0819E500637D44 /* Embed Frameworks */,
+				EC8B40ECD4ECB5A000637496 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				E118EE952B081C3300637D44 /* PBXTargetDependency */,
 				E11887E62B0830C900637D44 /* PBXTargetDependency */,
+				A1CAB4D1CF247C86C62C54B8 /* PBXTargetDependency */,
 			);
 			name = "KataGo Anytime";
 			packageProductDependencies = (
@@ -2477,11 +2589,19 @@
 				E11887E02B0830C900637D44 /* KataGoSwift */,
 				12B6A655CD5C9237380A43AE /* KataGo Anytime Mac */,
 				D4DD2DE3BF68E02D3E6ACD2D /* KataGo Engine Helper */,
+				8151A47FB047FE500278D8E6 /* KataGoAnytimeWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		61721E8CD117882800E944C8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CCBE38050DC98ECFA5E176E1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2540,6 +2660,18 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		384FAD76324EC47CA5B6ADCC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7C5092DB71E45CB5DB9D92FA /* KataGoAnytimeWidgetBundle.swift in Sources */,
+				2F7AB7F5262213ECA72A6626 /* SavedGameWidget.swift in Sources */,
+				B59D82BF89513E0B26AAEE7A /* SelectGameIntent.swift in Sources */,
+				15E7FF25B06E8121F6E53669 /* SavedGameProvider.swift in Sources */,
+				59957A85C884C1E8B577B507 /* SavedGameWidgetView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A126E8121E3D9B2BD2B6B67C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -3054,6 +3186,18 @@
 			target = E118EE8F2B081C3200637D44 /* katago */;
 			targetProxy = 0B993F24760BC3B1DBA414EB /* PBXContainerItemProxy */;
 		};
+		72AD55B881E15B799D3184EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KataGoAnytimeWidget;
+			target = 8151A47FB047FE500278D8E6 /* KataGoAnytimeWidget */;
+			targetProxy = 892D77E21C40923352A30994 /* PBXContainerItemProxy */;
+		};
+		A1CAB4D1CF247C86C62C54B8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KataGoAnytimeWidget;
+			target = 8151A47FB047FE500278D8E6 /* KataGoAnytimeWidget */;
+			targetProxy = ADBE1A5E64880BA1ADBD3ECA /* PBXContainerItemProxy */;
+		};
 		E11887E62B0830C900637D44 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E11887E02B0830C900637D44 /* KataGoSwift */;
@@ -3088,6 +3232,35 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		30D3F033A1C56B54A9720035 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KataGoAnytimeWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.widget";
+				PRODUCT_NAME = KataGoAnytimeWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
 		44CDF9CA09F398C0EC185B4C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -3221,6 +3394,34 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
+		};
+		D5E88DDED4CD33E038A3E2BE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KataGoAnytimeWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.widget";
+				PRODUCT_NAME = KataGoAnytimeWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
 		};
 		E11887EA2B0830C900637D44 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -3849,6 +4050,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		9862760D82381156402817C5 /* Build configuration list for PBXNativeTarget "KataGoAnytimeWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				30D3F033A1C56B54A9720035 /* Release */,
+				D5E88DDED4CD33E038A3E2BE /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E11887E92B0830C900637D44 /* Build configuration list for PBXNativeTarget "KataGoSwift" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -3935,6 +4145,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */;
 			productName = KataGoEngineIPC;
+		};
+		BE3F2C08C52FF50E7E3FE7EB /* KataGoGameStore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = KataGoGameStore;
 		};
 		D92F4C4766099217B210A9D1 /* KataGoUICore */ = {
 			isa = XCSwiftPackageProductDependency;
