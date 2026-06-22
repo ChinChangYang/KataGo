@@ -46,6 +46,8 @@ widget.build_configurations.each do |c|
   s['LD_RUNPATH_SEARCH_PATHS']            = ['$(inherited)', '@executable_path/Frameworks',
                                              '@executable_path/../../Frameworks']
   s['SWIFT_EMIT_LOC_STRINGS']             = 'YES'
+  s['MARKETING_VERSION']                  = '7.0'
+  s['CURRENT_PROJECT_VERSION']            = '276'
 end
 
 # 2. Link the bridge-free product.

@@ -3238,6 +3238,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 276;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KataGoAnytimeWidget/Info.plist;
@@ -3248,6 +3249,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.widget";
 				PRODUCT_NAME = KataGoAnytimeWidget;
 				SDKROOT = iphoneos;
@@ -3401,6 +3403,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 276;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KataGoAnytimeWidget/Info.plist;
@@ -3411,6 +3414,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.widget";
 				PRODUCT_NAME = KataGoAnytimeWidget;
 				SDKROOT = iphoneos;
