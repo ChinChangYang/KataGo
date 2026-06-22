@@ -38,6 +38,82 @@ struct GobanStateBranchTests {
         #expect(gobanState.branchIndex == .inActiveCurrentIndex)
     }
 
+    @Test func commitBranchUnlocksEditing() {
+        // A branch only forms while the game is locked (isEditing == false).
+        // Replacing the original game with the branch is an explicit edit, so
+        // committing must unlock the game (isEditing == true) — see
+        // 2026-06-22-unlock-on-branch-replace-design.md.
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: Self.originalSgf,
+            currentIndex: 2
+        )
+        let gobanState = GobanState()
+        gobanState.isEditing = false // locked, as it always is during a branch
+        gobanState.branchSgf = Self.branchLineSgf
+        gobanState.branchIndex = 5
+
+        gobanState.commitBranch(gameRecord: gameRecord)
+
+        #expect(gobanState.isEditing == true)
+    }
+
+    @Test func commitBranchRequestsUnlockOnReload() {
+        // commitBranch ends by deactivating the branch, which drives a board
+        // reload through loadGame (the last writer of isEditing). The flag
+        // carries the unlock intent across that reload.
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: Self.originalSgf,
+            currentIndex: 2
+        )
+        let gobanState = GobanState()
+        gobanState.branchSgf = Self.branchLineSgf
+        gobanState.branchIndex = 5
+
+        gobanState.commitBranch(gameRecord: gameRecord)
+
+        #expect(gobanState.unlockEditingOnReload == true)
+    }
+
+    @Test func deactivateBranchKeepsLockState() {
+        // The Discard / Cancel path deactivates the branch without committing.
+        // Only the Replace path (commitBranch) unlocks, so deactivating must
+        // leave the game locked (isEditing == false) and must NOT request an
+        // unlock on the reload it triggers.
+        let gobanState = GobanState()
+        gobanState.isEditing = false
+        gobanState.branchSgf = Self.branchLineSgf
+        gobanState.branchIndex = 5
+
+        gobanState.deactivateBranch()
+
+        #expect(gobanState.isEditing == false)
+        #expect(gobanState.unlockEditingOnReload == false)
+        #expect(gobanState.isBranchActive == false)
+    }
+
+    @Test func consumeUnlockEditingOnReloadReadsAndClears() {
+        // loadGame consumes the one-shot intent via this helper. It must return
+        // the pending value AND clear it, so the intent can never leak into a
+        // later, unrelated load.
+        let gobanState = GobanState()
+        gobanState.unlockEditingOnReload = true
+
+        #expect(gobanState.consumeUnlockEditingOnReload() == true)
+        #expect(gobanState.unlockEditingOnReload == false)
+        // Idempotent: a second consume (e.g. a later unrelated load) sees no intent.
+        #expect(gobanState.consumeUnlockEditingOnReload() == false)
+    }
+
+    @Test func editingAfterLoadDecidesUnlock() {
+        // A brand-new default game starts unlocked for immediate play; a
+        // committed-branch reload requests unlock; any other loaded game stays
+        // locked.
+        #expect(GobanState.editingAfterLoad(sgf: GameRecord.defaultSgf, unlockRequested: false) == true)
+        #expect(GobanState.editingAfterLoad(sgf: Self.originalSgf, unlockRequested: false) == false)
+        #expect(GobanState.editingAfterLoad(sgf: Self.originalSgf, unlockRequested: true) == true)
+        #expect(GobanState.editingAfterLoad(sgf: GameRecord.defaultSgf, unlockRequested: true) == true)
+    }
+
     @Test func commitBranchWithoutActiveBranchIsNoOp() {
         let gameRecord = GameRecord.createGameRecord(
             sgf: Self.originalSgf,

@@ -16,6 +16,10 @@ public class GobanState {
     public var analysisStatus = AnalysisStatus.run
     public var showBoardCount: Int = 0
     public var isEditing = false
+    /// Set by `commitBranch` so the board reload it triggers (via branch
+    /// deactivation) lands in unlocked (editing) mode — replacing the original
+    /// game with the branch is an explicit edit. Consumed (reset) by `loadGame`.
+    public var unlockEditingOnReload = false
     public var isShownBoard: Bool = false
     public var eyeStatus = EyeStatus.opened
     public var isAutoPlaying: Bool = false
@@ -465,6 +469,8 @@ public class GobanState {
     /// sharing moves) is dropped; clearData must run before currentIndex is
     /// reassigned because gameRecord.currentIndex IS the divergence point
     /// while a branch is active (branch navigation moves branchIndex only).
+    /// Also unlocks editing (`isEditing = true`): choosing to replace the
+    /// original game is an explicit intent to change it.
     public func commitBranch(gameRecord: GameRecord) {
         guard isBranchActive else { return }
 
@@ -472,6 +478,17 @@ public class GobanState {
         gameRecord.sgf = branchSgf
         gameRecord.currentIndex = branchIndex
         gameRecord.lastModificationDate = Date.now
+        // Replacing the original game with the branch is an explicit edit, so
+        // unlock the game (a branch only ever forms while isEditing == false).
+        // Two writes are deliberate, not redundant:
+        //   * `isEditing = true` is the immediate post-condition (and a guard
+        //     for any future caller that commits without a reload).
+        //   * `unlockEditingOnReload` is what SURVIVES the reload that the
+        //     deactivateBranch() below triggers: flipping branchSgf inactive
+        //     drives loadGame — the last writer of isEditing — which would
+        //     otherwise relock this (now non-default) game.
+        isEditing = true
+        unlockEditingOnReload = true
         deactivateBranch()
     }
 
@@ -759,6 +776,24 @@ public class GobanState {
         }
     }
 
+    /// Decides the editing (unlock) state after a board (re)load. A brand-new
+    /// default game starts unlocked for immediate play; a committed-branch
+    /// reload requests unlock (replacing the original game is an explicit edit);
+    /// any other loaded game starts locked.
+    static func editingAfterLoad(sgf: String, unlockRequested: Bool) -> Bool {
+        sgf == GameRecord.defaultSgf || unlockRequested
+    }
+
+    /// Reads and clears the one-shot unlock-on-reload intent set by
+    /// `commitBranch`, returning whether the upcoming load should land unlocked.
+    /// Clearing on read ensures the intent can never leak into a later,
+    /// unrelated load.
+    func consumeUnlockEditingOnReload() -> Bool {
+        let requested = unlockEditingOnReload
+        unlockEditingOnReload = false
+        return requested
+    }
+
     /// Reloads the board for a newly selected game, mirroring the previous
     /// `GameSplitView.processChange(oldGameRecord:newGameRecord:)` exactly. The
     /// iOS-only thumbnail render stays in the view's `onChange` wrapper.
@@ -771,6 +806,9 @@ public class GobanState {
                          board: BoardSize,
                          stones: Stones) {
         player.nextColorForPlayCommand = .unknown
+        // Consume the one-shot unlock intent set by commitBranch up front, so it
+        // can never leak into a later, unrelated game load.
+        let unlockRequested = consumeUnlockEditingOnReload()
         deactivateBranch()
         clearPendingMove()
         withAnimation {
@@ -786,11 +824,8 @@ public class GobanState {
             newGameRecord.updateToLatestVersion()
             isAutoPlaying = false
             isAutoPlayed = false
-            if newGameRecord.sgf == GameRecord.defaultSgf {
-                isEditing = true
-            } else {
-                isEditing = false
-            }
+            isEditing = Self.editingAfterLoad(sgf: newGameRecord.sgf,
+                                              unlockRequested: unlockRequested)
             let currentIndex = newGameRecord.currentIndex
             let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
             newGameRecord.currentIndex = sgfHelper.moveSize ?? 0

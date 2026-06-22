@@ -29,8 +29,30 @@ Deactivate, Cancel) keep the current locked state.
 
 ## Design
 
-Set `isEditing = true` inside `GobanState.commitBranch(gameRecord:)`, immediately before
-`deactivateBranch()`:
+> **Revision (after runtime verification).** Setting `isEditing = true` inside
+> `commitBranch` alone is **not sufficient**. `commitBranch` ends by calling
+> `deactivateBranch()`, which flips `branchSgf` to inactive. That transition drives a
+> board reload through the shared `GobanState.loadGame(...)` — on iOS via
+> `GameSplitView`'s `onChange(of: branchSgf)` → `processChange(oldBranchStateSgf:)`
+> (`GameSplitView.swift:104,562`), and on macOS via `MainWindowController`'s branch
+> reload observer (`MainWindowController.swift:1901-1914`). `loadGame` is the **last
+> writer** of `isEditing` and resets it to `false` for any non-default sgf
+> (`GobanState.swift:794-797`), clobbering the unlock. The running app confirmed the
+> game stayed locked after Replace. The fix below threads the unlock intent through the
+> reload. Because the reload path is shared, this remains a single shared change.
+
+The fix has three parts, all in `GobanState`:
+
+1. A transient intent flag, set by `commitBranch` and consumed by `loadGame`:
+
+```swift
+/// Set by commitBranch so the board reload it triggers (via branch
+/// deactivation) lands unlocked. Consumed (reset) by loadGame.
+public var unlockEditingOnReload = false
+```
+
+2. `commitBranch` sets `isEditing = true` (the immediate, no-reload-case intent) **and**
+   the flag, before `deactivateBranch()`:
 
 ```swift
 public func commitBranch(gameRecord: GameRecord) {
@@ -40,10 +62,25 @@ public func commitBranch(gameRecord: GameRecord) {
     gameRecord.sgf = branchSgf
     gameRecord.currentIndex = branchIndex
     gameRecord.lastModificationDate = Date.now
-    isEditing = true   // replacing the original game is an explicit edit
+    isEditing = true             // immediate unlock (replacing == explicit edit)
+    unlockEditingOnReload = true // survive the reload deactivateBranch triggers
     deactivateBranch()
 }
 ```
+
+3. A pure decision helper used by `loadGame`, which reads-and-clears the flag:
+
+```swift
+static func editingAfterLoad(sgf: String, unlockRequested: Bool) -> Bool {
+    sgf == GameRecord.defaultSgf || unlockRequested
+}
+```
+
+In `loadGame`, the existing `if newGameRecord.sgf == defaultSgf { isEditing = true } else
+{ isEditing = false }` becomes a read-and-clear of the flag plus a call to the helper.
+`deactivateBranch` is intentionally **not** changed — it must not clear the flag, since
+`commitBranch` sets the flag and then calls `deactivateBranch`. The Discard / Cancel path
+(`deactivateBranch` with no commit) never sets the flag, so it stays locked.
 
 ### Why this is correct and scoped to "only this case"
 
@@ -67,16 +104,24 @@ Once `commitBranch` deactivates the branch, `isBranchActive` becomes `false`, so
 
 ## Components affected
 
-- `KataGoUICore/Sources/KataGoUICore/Model/GobanState.swift` — `commitBranch` (one line).
+- `KataGoUICore/Sources/KataGoUICore/Model/GobanState.swift` — new `unlockEditingOnReload`
+  flag; `commitBranch` (sets `isEditing` + flag); new `editingAfterLoad` helper; `loadGame`
+  (reads/clears the flag, uses the helper).
 
 ## Testing
 
 ### Unit (shared, `GobanStateBranchTests`)
 
-1. `commitBranchUnlocksEditing` — start locked (`isEditing == false`) with an active
-   branch; after `commitBranch`, `isEditing == true`.
-2. `deactivateBranchKeepsLocked` (guard for "only this case") — with an active branch and
-   `isEditing == false`, `deactivateBranch()` leaves `isEditing == false`.
+1. `commitBranchUnlocksEditing` — active branch + `isEditing == false`; after
+   `commitBranch`, `isEditing == true` (immediate, no-reload case).
+2. `commitBranchRequestsUnlockOnReload` — after `commitBranch`,
+   `unlockEditingOnReload == true` (wiring into the reload).
+3. `deactivateBranchKeepsLockState` (guard for "only this case") — `deactivateBranch()`
+   leaves `isEditing == false` …
+4. `deactivateBranchDoesNotRequestUnlock` — … and leaves `unlockEditingOnReload == false`,
+   so the reload it triggers stays locked.
+5. `editingAfterLoadDecidesUnlock` — truth table for the load-time decision: default sgf →
+   unlocked; non-default + not requested → locked; non-default + requested → unlocked.
 
 ### Build
 
