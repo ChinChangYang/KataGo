@@ -173,6 +173,7 @@
 		8624C72F575292C90E65517B /* map.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F057622F097CBED2408A76E /* map.cc */; };
 		8676241C94ECB469611EDDC0 /* sem_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5A4D92CF0E9CE8E3EF817C6 /* sem_waiter.cc */; };
 		86D88AC209C2C7FFDC55F752 /* kernel_timeout.cc in Sources */ = {isa = PBXBuildFile; fileRef = 00551F81D3B391B1AC8F7DE3 /* kernel_timeout.cc */; };
+		87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */; };
 		8963445BE5624392DCC7434A /* generated_message_util.cc in Sources */ = {isa = PBXBuildFile; fileRef = DD381267CDE6755BCF9CB1BA /* generated_message_util.cc */; };
 		8A6D501465C1CAA682321FC1 /* cord_rep_consume.cc in Sources */ = {isa = PBXBuildFile; fileRef = 20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */; };
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
@@ -738,6 +739,7 @@
 		42760A66F532E2E8D114E32A /* time_zone_libc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_libc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_libc.cc"; sourceTree = SOURCE_ROOT; };
 		42798C28CF4A273F0A2ECE56 /* cordz_info.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_info.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_info.cc"; sourceTree = SOURCE_ROOT; };
 		433D009D933AB313A1441C93 /* status_payload_printer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_payload_printer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status_payload_printer.cc"; sourceTree = SOURCE_ROOT; };
+		440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedModelContainerTests.swift; sourceTree = "<group>"; };
 		441832CA01954D9736462744 /* arena.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arena.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arena.cc"; sourceTree = SOURCE_ROOT; };
 		443359A03212D5FAD2383192 /* raw_hash_set.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_hash_set.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/raw_hash_set.cc"; sourceTree = SOURCE_ROOT; };
 		484C978DC55B1151B3DAD0F2 /* cord_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_internal.cc"; sourceTree = SOURCE_ROOT; };
@@ -2109,6 +2111,7 @@
 				23FE417A3D400E1C82F55C71 /* OwnershipBudgetTests.swift */,
 				CF36A72AB240CF1EBD48C4E7 /* GobanStateOwnershipPersistenceTests.swift */,
 				A51F0F70DC402DCC7315E723 /* AnalysisPowerSavingTests.swift */,
+				440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3014,6 +3017,7 @@
 				9DF81DD8618B19CDA0081AF3 /* OwnershipBudgetTests.swift in Sources */,
 				E832DBD5F2668D11E378C700 /* GobanStateOwnershipPersistenceTests.swift in Sources */,
 				478BEF81C6C032740ABF6277 /* AnalysisPowerSavingTests.swift in Sources */,
+				87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
