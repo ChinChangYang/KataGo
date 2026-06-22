@@ -161,6 +161,13 @@ final class MainWindowController: NSWindowController {
     /// its premature `showboard` desyncs `showBoardCount`, gating analysis off.
     let boardReadiness = BoardReadiness()
 
+    /// F14: serializes widget deep-link selections against engine readiness. A
+    /// cold launch from the Saved Game widget can deliver the `katago-anytime://`
+    /// URL before the engine subprocess finishes its GTP handshake; the gate
+    /// stashes the requested game until `boardReadiness.isEngineReady` flips true
+    /// (see `applyPendingDeepLink`), so `loadsgf` is never sent to a dead engine.
+    private var deepLinkGate = DeepLinkSelectionGate()
+
     init(modelContainer: ModelContainer, engineLaunchStatus: EngineLaunchStatus) {
         self.modelContainer = modelContainer
         self.engineLaunchStatus = engineLaunchStatus
@@ -482,11 +489,28 @@ final class MainWindowController: NSWindowController {
     /// and select it — mirrors the iOS `GameSplitView.selectGame(byID:)` helper.
     @MainActor
     func selectGame(byID id: UUID) {
+        // F14: on a cold launch the deep link can arrive before the engine
+        // subprocess has finished its GTP handshake. The gate stashes the request
+        // until the engine is ready (drained by `applyPendingDeepLink`), so
+        // `loadGame`'s `loadsgf` is never sent to a not-yet-ready engine and lost.
+        guard let target = deepLinkGate.request(gameID: id,
+                                                isEngineReady: boardReadiness.isEngineReady)
+        else { return }
         // F5: fall back to the most-recent game when the deep-linked game was
         // deleted (a widget can lag the store), instead of silently doing nothing.
-        guard let match = GameRecord.resolveDeepLinkTarget(id: id, container: modelContainer)
+        guard let match = GameRecord.resolveDeepLinkTarget(id: target, container: modelContainer)
         else { return }
         selectGame(match)
+    }
+
+    /// F14 drain: applies a deep link that arrived before the engine was ready.
+    /// Called right after `boardReadiness.isEngineReady` flips true (initial
+    /// launch AND every relaunch), on the main actor — so once the engine can
+    /// serve GTP there is no window where a stashed deep link is left unapplied.
+    @MainActor
+    private func applyPendingDeepLink() {
+        guard let id = deepLinkGate.drainOnEngineReady() else { return }
+        selectGame(byID: id)   // engine now ready → resolves + selects
     }
 
     // MARK: - Engine launch + session loop
@@ -718,6 +742,10 @@ final class MainWindowController: NSWindowController {
         // is active to consume the response, so `showBoardCount` stays balanced
         // and the `nextColorForPlayCommand` change drives the first analyze.
         boardReadiness.isEngineReady = true
+
+        // F14: the engine can now serve GTP — apply any widget deep link that
+        // arrived during the (async) handshake before driving the run loop.
+        applyPendingDeepLink()
 
         await session.run(
             gameRecords: gameRecords,

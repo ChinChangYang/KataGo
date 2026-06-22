@@ -58,3 +58,54 @@ struct GameDeepLinkResolveTests {
         #expect(GameRecord.resolveDeepLinkTarget(id: UUID(), container: c) == nil)
     }
 }
+
+/// F14: a deep link arriving before the engine is ready (macOS cold launch from
+/// the widget, where the engine subprocess handshakes asynchronously) must be
+/// deferred — not applied straight through to GTP — then drained once ready.
+struct DeepLinkSelectionGateTests {
+    @Test func request_whileEngineReady_appliesImmediatelyAndStashesNothing() {
+        var gate = DeepLinkSelectionGate()
+        let id = UUID()
+        #expect(gate.request(gameID: id, isEngineReady: true) == id)
+        #expect(gate.pendingGameID == nil)
+    }
+
+    @Test func request_whileEngineNotReady_defersAndStashes() {
+        var gate = DeepLinkSelectionGate()
+        let id = UUID()
+        #expect(gate.request(gameID: id, isEngineReady: false) == nil)
+        #expect(gate.pendingGameID == id)
+    }
+
+    @Test func drainOnEngineReady_returnsStashedThenClears() {
+        var gate = DeepLinkSelectionGate()
+        let id = UUID()
+        _ = gate.request(gameID: id, isEngineReady: false)
+        #expect(gate.drainOnEngineReady() == id)
+        #expect(gate.pendingGameID == nil)
+        #expect(gate.drainOnEngineReady() == nil)   // idempotent: no replay
+    }
+
+    @Test func drainOnEngineReady_returnsNilWhenNothingPending() {
+        var gate = DeepLinkSelectionGate()
+        #expect(gate.drainOnEngineReady() == nil)
+    }
+
+    @Test func request_lastWriteWins_whenMultipleDeferred() {
+        var gate = DeepLinkSelectionGate()
+        let first = UUID(), second = UUID()
+        _ = gate.request(gameID: first, isEngineReady: false)
+        _ = gate.request(gameID: second, isEngineReady: false)
+        #expect(gate.pendingGameID == second)
+        #expect(gate.drainOnEngineReady() == second)
+    }
+
+    @Test func request_whileReady_dropsStalePending() {
+        var gate = DeepLinkSelectionGate()
+        let stale = UUID(), fresh = UUID()
+        _ = gate.request(gameID: stale, isEngineReady: false)  // deferred
+        #expect(gate.request(gameID: fresh, isEngineReady: true) == fresh)
+        #expect(gate.pendingGameID == nil)                     // stale dropped
+        #expect(gate.drainOnEngineReady() == nil)              // no replay of stale
+    }
+}
