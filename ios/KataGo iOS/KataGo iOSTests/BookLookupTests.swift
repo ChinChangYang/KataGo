@@ -460,8 +460,14 @@ struct BookLookupTests {
 
         book.loadIfNeeded()
 
-        // Poll for the asynchronous load to complete (decompress + parse).
-        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        // Poll for the asynchronous load (read 240 MB → decompress to 533 MB →
+        // write the cache). The cap is deliberately generous: Xcode Cloud runs
+        // this across ~9 simulator destinations on one shared, often-contended
+        // host, where a 10 s cap tripped on the slowest run (iPad Pro M4, ~2×
+        // wall-clock) while 8/9 destinations passed with the same build. The
+        // loop exits the instant isLoaded flips, so the higher cap costs nothing
+        // in the common case (~1–2 s).
+        let deadline = ContinuousClock.now.advanced(by: .seconds(60))
         while !book.isLoaded, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
