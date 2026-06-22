@@ -38,7 +38,7 @@ struct GetLatestGameInfo: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(for: GameRecord.self)
+        let container = SharedModelContainer.shared
         let task = Task {
             await MainActor.run {
                 let gameRecords = try? GameRecord.fetchGameRecords(container: container, fetchLimit: 1)

@@ -81,7 +81,7 @@ struct KataGo_iOSApp: App {
     }
 
     var body: some Scene {
-        scene.modelContainer(for: GameRecord.self)
+        scene.modelContainer(SharedModelContainer.shared)
     }
 
     private func removeAllGameRecords() {

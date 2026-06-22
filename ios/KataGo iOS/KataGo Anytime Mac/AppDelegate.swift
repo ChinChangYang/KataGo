@@ -30,7 +30,7 @@ enum AppMain {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
-    let modelContainer = try! ModelContainer(for: GameRecord.self)
+    let modelContainer = SharedModelContainer.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerCoreMLBridge()  // from the copied CoreMLComputeHandleLoader.swift
