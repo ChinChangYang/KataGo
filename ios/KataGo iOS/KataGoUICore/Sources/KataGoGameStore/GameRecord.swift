@@ -215,6 +215,19 @@ public final class GameRecord {
         return try context.fetch(descriptor)
     }
 
+    /// Resolve the game a `katago-anytime://open-game` deep link should open: the
+    /// game with `id` if it still exists, else the most-recently-modified game,
+    /// else nil. Mirrors `SavedGameSnapshot.resolveSnapshot`'s display fallback so
+    /// a tap on a widget that is still showing a since-deleted game (the widget
+    /// can lag the store) opens the most-recent game instead of doing nothing.
+    @MainActor
+    public class func resolveDeepLinkTarget(id: UUID, container: ModelContainer) -> GameRecord? {
+        // `fetchGameRecords` is sorted by `lastModificationDate` descending, so
+        // `first` is the most-recently-modified game.
+        let all = (try? fetchGameRecords(container: container)) ?? []
+        return all.first(where: { $0.uuid == id }) ?? all.first
+    }
+
     public var image: Image? {
 #if os(macOS)
         if let thumbnail,

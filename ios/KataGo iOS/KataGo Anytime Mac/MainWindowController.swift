@@ -482,8 +482,10 @@ final class MainWindowController: NSWindowController {
     /// and select it — mirrors the iOS `GameSplitView.selectGame(byID:)` helper.
     @MainActor
     func selectGame(byID id: UUID) {
-        guard let match = try? GameRecord.fetchGameRecords(container: modelContainer)
-            .first(where: { $0.uuid == id }) else { return }
+        // F5: fall back to the most-recent game when the deep-linked game was
+        // deleted (a widget can lag the store), instead of silently doing nothing.
+        guard let match = GameRecord.resolveDeepLinkTarget(id: id, container: modelContainer)
+        else { return }
         selectGame(match)
     }
 

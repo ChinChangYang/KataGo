@@ -26,4 +26,14 @@ struct SavedGameProviderTests {
         #expect(snap.gameID == nil)
         #expect(snap.name == "No game selected")
     }
+
+    /// F7: the timeline must NOT use `policy: .never` (which never self-refreshes
+    /// on cross-device CloudKit edits). The reload date must be a bounded point
+    /// in the future so the widget periodically re-resolves its snapshot.
+    @Test func widgetReloadPolicy_schedulesBoundedFutureReload() {
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        let next = WidgetReloadPolicy.nextReloadDate(after: base)
+        #expect(next > base)                                    // not .never / not in the past
+        #expect(next <= base.addingTimeInterval(24 * 60 * 60))  // refreshes at least daily
+    }
 }
