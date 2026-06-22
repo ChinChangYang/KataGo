@@ -157,39 +157,8 @@ public class Stones: Equatable {
     }
 }
 
-public enum PlayerColor {
-    case black
-    case white
-    case unknown
-
-    public var symbol: String? {
-        if self == .black {
-            return "b"
-        } else if self == .white {
-            return "w"
-        } else {
-            return nil
-        }
-    }
-
-    public var name: String {
-        if self == .black {
-            "Black"
-        } else if self == .white {
-            "White"
-        } else {
-            "Unknown"
-        }
-    }
-
-    public var other: PlayerColor {
-        switch self {
-        case .black: .white
-        case .white: .black
-        case .unknown: .unknown
-        }
-    }
-}
+// PlayerColor is defined in KataGoGameStore (GameRules.swift) and
+// re-exported here via KataGoUICore's @_exported import KataGoGameStore.
 
 @Observable
 public class Turn {

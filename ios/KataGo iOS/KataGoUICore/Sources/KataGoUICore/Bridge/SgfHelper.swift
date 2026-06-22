@@ -41,28 +41,6 @@ public struct Move {
     }
 }
 
-public enum KoRule: Int {
-    case simple = 0
-    case positional = 1
-    case situational = 2
-}
-
-public enum ScoringRule: Int {
-    case area = 0
-    case territory = 1
-}
-
-public enum TaxRule: Int {
-    case none = 0
-    case seki = 1
-    case all = 2
-}
-
-public enum WhiteHandicapBonusRule: Int {
-    case zero = 0
-    case n = 1
-    case n_minus_one = 2
-}
 
 public struct Rules {
     public let koRule: KoRule

@@ -8,13 +8,10 @@
 import SwiftUI
 import FoundationModels
 
-public enum CommentTone: Int {
-    case technical = 0
-    case educational = 1
-    case encouraging = 2
-    case enthusiastic = 3
-    case poetic = 4
+// CommentTone enum is defined in KataGoGameStore (GameRules.swift) and
+// re-exported here via KataGoUICore's @_exported import KataGoGameStore.
 
+extension CommentTone {
     public var prompt: String {
         switch self {
         case .educational:
