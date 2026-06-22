@@ -63,6 +63,11 @@ let package = Package(
         // katago-engine helper can link it without the UI core (SwiftUI,
         // SwiftData, FoundationModels, …). Foundation/OSLog/CryptoKit only.
         .library(name: "CoreMLCacheKit", type: .static, targets: ["CoreMLCacheKit"]),
+        // Bridge-free SwiftData models + shared container + widget-facing
+        // helpers. The widget extension links ONLY this product, so it must
+        // never depend on CKataGoBridge / MLX. SwiftData + SwiftUI + AppIntents
+        // only.
+        .library(name: "KataGoGameStore", type: .static, targets: ["KataGoGameStore"]),
     ],
     targets: [
         // C++ bridge between Swift and the KataGo engine. Folded in from the
@@ -94,9 +99,13 @@ let package = Package(
         .target(
             name: "CoreMLCacheKit"
         ),
+        // Pure-Swift, bridge-free SwiftData layer. No Cxx interop.
+        .target(
+            name: "KataGoGameStore"
+        ),
         .target(
             name: "KataGoUICore",
-            dependencies: ["CKataGoBridge", "CoreMLCacheKit"],
+            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore"],
             resources: [
                 .process("Resources")
             ],
