@@ -67,4 +67,18 @@ struct GameEntityQueryTests {
     @Test func isAppExtension_isFalseInAppProcess() {
         #expect(GameEntityQuery.isAppExtension == false)
     }
+
+    // MARK: - ProcessKind (shared app-vs-extension detector)
+
+    @Test func processKind_appexBundlePath_isExtension() {
+        #expect(ProcessKind.isAppExtension(bundlePath: "/var/x/KataGoAnytimeWidget.appex") == true)
+    }
+
+    @Test func processKind_appBundlePath_isNotExtension() {
+        #expect(ProcessKind.isAppExtension(bundlePath: "/Applications/KataGo Anytime.app") == false)
+    }
+
+    @Test func processKind_emptyBundlePath_isNotExtension() {
+        #expect(ProcessKind.isAppExtension(bundlePath: "") == false)
+    }
 }

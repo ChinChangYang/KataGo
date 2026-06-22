@@ -64,8 +64,9 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     /// CloudKit-synced App-Group store, so it must treat the store as READ-ONLY —
     /// only the main app repairs duplicate UUIDs and persists the fix. (An app
     /// extension is packaged as a `.appex` bundle; the host app is not.)
+    /// Delegates to the shared `ProcessKind` detector.
     public static var isAppExtension: Bool {
-        Bundle.main.bundlePath.hasSuffix(".appex")
+        ProcessKind.isAppExtension
     }
 
     public func entities(for identifiers: [GameEntity.ID]) async throws -> [GameEntity] {
