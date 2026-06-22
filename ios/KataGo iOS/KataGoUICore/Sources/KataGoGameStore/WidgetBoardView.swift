@@ -1,16 +1,38 @@
 import SwiftUI
 
-/// GTP columns skip the letter 'I'. Returns 0-based grid coordinates where the
-/// origin (0,0) is the TOP-LEFT, matching SwiftUI's drawing space. GTP row 1 is
-/// the BOTTOM, so y is flipped against `height`.
+/// GTP columns skip the letter 'I'. Columns 0–24 are single letters A–Z (skip I);
+/// columns 25–49 are "A"+letter AA–AZ (skip AI) — boards up to 37×37 are
+/// supported, so two-letter columns DO occur. This mirrors `Coordinate.xMap` in
+/// KataGoUICore, replicated here because this widget module (KataGoGameStore)
+/// sits below KataGoUICore and can't import `Coordinate`; keep the two in sync.
+/// Returns 0-based grid coordinates with the origin (0,0) at the TOP-LEFT
+/// (matching SwiftUI). GTP row 1 is the BOTTOM, so y is flipped against `height`.
 public func parseVertex(_ vertex: String, height: Int) -> (x: Int, y: Int)? {
     let v = vertex.uppercased()
-    guard let first = v.first, first.isLetter, first != "I" else { return nil }
-    let columns = Array("ABCDEFGHJKLMNOPQRSTUVWXYZ")
-    guard let col = columns.firstIndex(of: first) else { return nil }
-    let rowString = v.dropFirst()
+    let letters = v.prefix { $0.isLetter }
+    guard let col = gtpColumnIndex(String(letters)) else { return nil }
+    let rowString = v.dropFirst(letters.count)
     guard let row = Int(rowString), row >= 1, row <= height else { return nil }
     return (x: col, y: height - row)
+}
+
+/// GTP column letters in order, skipping 'I' (25 letters → indices 0…24).
+private let gtpColumnLetters = Array("ABCDEFGHJKLMNOPQRSTUVWXYZ")
+
+/// Maps a GTP column label (1–2 letters) to its 0-based index, or nil if invalid.
+/// Single letters cover 0…24; "A"+letter covers 25…49 (skipping 'AI'), matching
+/// `Coordinate.xMap`.
+private func gtpColumnIndex(_ label: String) -> Int? {
+    let chars = Array(label)
+    switch chars.count {
+    case 1:
+        return gtpColumnLetters.firstIndex(of: chars[0])
+    case 2 where chars[0] == "A":
+        guard let second = gtpColumnLetters.firstIndex(of: chars[1]) else { return nil }
+        return 25 + second
+    default:
+        return nil
+    }
 }
 
 /// Minimal, dependency-free Go board: wooden background, grid lines, filled

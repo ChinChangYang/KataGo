@@ -166,4 +166,62 @@ struct ConfigEngineSyncTests {
         #expect(texts.contains("> kata-set-param humanSLProfile rank_5k"))
         #expect(texts.contains("> kata-set-param humanSLChosenMoveProp 1.0"))
     }
+
+    /// Re-opening the AI config view assigns the persisted per-move time to the
+    /// view's `@State`, which fires `.onChange` with the SAME value. Routing that
+    /// no-op change through `setBlackMaxTime` must NOT re-send GTP or re-arm
+    /// analysis. Regression test for spurious engine traffic merely on view appear.
+    @Test func setBlackMaxTimeWithUnchangedValueSendsNothing() {
+        let config = Config()
+        config.blackMaxTime = 2.0
+        let gobanState = GobanState()
+        let player = Turn()
+        let messageList = MessageList()
+
+        ConfigEngineSync.setBlackMaxTime(2.0, config: config, gobanState: gobanState,
+                                         player: player, messageList: messageList)
+
+        #expect(messageList.messages.isEmpty)
+        #expect(config.blackMaxTime == 2.0)
+    }
+
+    /// The guard must only suppress genuine no-ops: a real change (e.g. the
+    /// AI/Human toggle flipping 0.5 → 0) still reconfigures the engine.
+    @Test func setBlackMaxTimeWithChangedValueStillReconfigures() {
+        let config = Config()
+        config.blackMaxTime = 2.0
+        let gobanState = GobanState()
+        let player = Turn()
+        let messageList = MessageList()
+
+        ConfigEngineSync.setBlackMaxTime(0, config: config, gobanState: gobanState,
+                                         player: player, messageList: messageList)
+
+        #expect(config.blackMaxTime == 0)
+        #expect(!messageList.messages.isEmpty)
+    }
+
+    /// Toggling a side to Human while a continuous analysis is streaming and the
+    /// overlay is hidden (the power-saving case) must STOP the in-flight analysis.
+    /// The stop is driven by forcing `waitingForAnalysis` true so the next streamed
+    /// line crosses the true→false edge the analysis loop watches; the toggle path
+    /// (via `rearmAnalysis`) must trigger it, not just no-op `maybeRequestAnalysis`.
+    @Test func togglingToHumanWhileHiddenStopsRunningAnalysis() {
+        let config = Config()
+        config.blackMaxTime = Config.toggleAIThinkingTime   // 0.5 (AI)
+        config.whiteMaxTime = Config.toggleAIThinkingTime   // 0.5 (AI)
+        let gobanState = GobanState()
+        gobanState.eyeStatus = .closed         // analysis overlay hidden
+        gobanState.analysisStatus = .run
+        gobanState.waitingForAnalysis = false  // mid-stream
+        let player = Turn()
+        player.nextColorForPlayCommand = .black
+        let messageList = MessageList()
+
+        // Tap Black's label → Human (0.5 → 0): White stays AI, Black (human) to move, hidden.
+        ConfigEngineSync.setBlackMaxTime(0, config: config, gobanState: gobanState,
+                                         player: player, messageList: messageList)
+
+        #expect(gobanState.waitingForAnalysis == true)
+    }
 }

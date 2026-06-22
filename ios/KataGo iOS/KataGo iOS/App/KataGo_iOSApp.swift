@@ -85,9 +85,9 @@ struct KataGo_iOSApp: App {
     }
 
     private func removeAllGameRecords() {
+        // Operate on the live App-Group store, not an orphaned default-location one.
         try! autoreleasepool {
-            let container = try ModelContainer(for: GameRecord.self)
-            let context = container.mainContext
+            let context = SharedModelContainer.shared.mainContext
             try context.delete(model: GameRecord.self)
             try context.delete(model: Config.self)
         }

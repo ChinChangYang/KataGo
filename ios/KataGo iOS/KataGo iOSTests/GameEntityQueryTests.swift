@@ -20,4 +20,51 @@ struct GameEntityQueryTests {
         #expect(entity.firstComment == "Black takes 4-4")
         #expect(entity.boardWidth == 19)
     }
+
+    /// Seeds a store with two records sharing one UUID.
+    @MainActor
+    private func seedDuplicateUUIDStore() throws -> (ModelContainer, UUID) {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appending(path: "dup.store")
+        let container = try ModelContainer(for: SharedModelContainer.schema,
+                                           configurations: ModelConfiguration(url: url))
+        let shared = UUID()
+        let a = GameRecord.createGameRecord(name: "A"); a.uuid = shared
+        let b = GameRecord.createGameRecord(name: "B"); b.uuid = shared
+        container.mainContext.insert(a)
+        container.mainContext.insert(b)
+        try container.mainContext.save()
+        return (container, shared)
+    }
+
+    /// The widget / AppIntents extension is a second sandboxed process and must
+    /// treat the CloudKit-synced store as READ-ONLY: fetching for the picker must
+    /// not reassign UUIDs or save. Regression test for the extension writing the
+    /// store (CloudKit corruption risk).
+    @Test @MainActor func fetchRecords_readOnly_doesNotMutateOrPersist() throws {
+        let (container, shared) = try seedDuplicateUUIDStore()
+
+        let returned = try GameEntityQuery.fetchRecords(container: container, repair: false)
+
+        #expect(returned.filter { $0.uuid == shared }.count == 2)   // duplicates untouched in memory
+        let fresh = try GameRecord.fetchGameRecords(container: container)
+        #expect(fresh.filter { $0.uuid == shared }.count == 2)      // nothing persisted
+    }
+
+    /// The main app (repair: true) still repairs duplicate UUIDs and persists.
+    @Test @MainActor func fetchRecords_repair_assignsUniqueUUIDsAndPersists() throws {
+        let (container, _) = try seedDuplicateUUIDStore()
+
+        _ = try GameEntityQuery.fetchRecords(container: container, repair: true)
+
+        let fresh = try GameRecord.fetchGameRecords(container: container)
+        #expect(Set(fresh.compactMap { $0.uuid }).count == 2)       // repaired + persisted
+    }
+
+    /// The repair gate must be OFF inside app extensions and ON in the app. The
+    /// test host is an app (not an `.appex`), so detection reports false here.
+    @Test func isAppExtension_isFalseInAppProcess() {
+        #expect(GameEntityQuery.isAppExtension == false)
+    }
 }

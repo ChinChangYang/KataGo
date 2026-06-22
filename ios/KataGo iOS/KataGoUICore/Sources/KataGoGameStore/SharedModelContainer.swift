@@ -42,6 +42,12 @@ public enum SharedModelContainer {
         }
         let coordinator = NSPersistentStoreCoordinator(managedObjectModel: mom)
         do {
+            // The destination (e.g. <group>/Library/Application Support/) may not
+            // exist yet — the App-Group container is created lazily — so create the
+            // intermediate directories before copying, or replacePersistentStore
+            // fails with "parent directory path reported as missing".
+            try fm.createDirectory(at: newURL.deletingLastPathComponent(),
+                                   withIntermediateDirectories: true)
             try coordinator.replacePersistentStore(
                 at: newURL,
                 destinationOptions: nil,
@@ -61,10 +67,13 @@ public enum SharedModelContainer {
         URL.applicationSupportDirectory.appending(path: "default.store")
     }
 
-    /// Where SwiftData places the store given `groupContainer: .identifier`.
-    static func appGroupStoreURL() -> URL? {
+    /// Where SwiftData places the store given `groupContainer: .identifier`:
+    /// `<group>/Library/Application Support/default.store` (NOT the group root).
+    /// The migration destination must match this exactly, or migrated data lands
+    /// where the live container never reads it.
+    public static func appGroupStoreURL() -> URL? {
         FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
-            .appending(path: "default.store")
+            .appending(path: "Library/Application Support/default.store")
     }
 }

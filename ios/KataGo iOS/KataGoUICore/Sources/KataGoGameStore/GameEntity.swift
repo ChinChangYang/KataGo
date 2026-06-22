@@ -27,7 +27,10 @@ public struct GameEntity: AppEntity {
     public var lastWhiteStones: [String]
 
     public var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)", subtitle: "\(firstComment)")
+        // Restore the thumbnail icon the pre-move iOS entity provided; resolves
+        // from the host app's asset catalog when the app surfaces the entity.
+        DisplayRepresentation(title: "\(name)", subtitle: "\(firstComment)",
+                              image: DisplayRepresentation.Image(named: "LoadingIcon"))
     }
 
     public init(gameRecord: GameRecord) {
@@ -56,6 +59,15 @@ public struct GameEntity: AppEntity {
 public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     public init() {}
 
+    /// True when running inside an app extension (e.g. the widget or its
+    /// configuration intent). Such a process is a SECOND sandbox over the same
+    /// CloudKit-synced App-Group store, so it must treat the store as READ-ONLY —
+    /// only the main app repairs duplicate UUIDs and persists the fix. (An app
+    /// extension is packaged as a `.appex` bundle; the host app is not.)
+    public static var isAppExtension: Bool {
+        Bundle.main.bundlePath.hasSuffix(".appex")
+    }
+
     public func entities(for identifiers: [GameEntity.ID]) async throws -> [GameEntity] {
         try await MainActor.run { try records().filter { identifiers.contains($0.uuid ?? UUID()) }.map(GameEntity.init) }
     }
@@ -70,8 +82,23 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
 
     @MainActor
     private func records(limit: Int? = nil) throws -> [GameRecord] {
-        var gameRecords = try GameRecord.fetchGameRecords(container: SharedModelContainer.shared, fetchLimit: limit)
-        try repairDuplicateUUIDs(in: &gameRecords, container: SharedModelContainer.shared)
+        // Repair (which mutates + saves) only in the main app; never from an
+        // extension, where the store is read-only.
+        try GameEntityQuery.fetchRecords(container: SharedModelContainer.shared,
+                                         limit: limit,
+                                         repair: !GameEntityQuery.isAppExtension)
+    }
+
+    /// Fetches game records and, when `repair` is true, reassigns duplicate/nil
+    /// UUIDs and persists the fix. `repair` MUST be false in app extensions (the
+    /// store is read-only there); the main app passes true so the picker /
+    /// Shortcuts list always has unique entity IDs.
+    @MainActor
+    public static func fetchRecords(container: ModelContainer, limit: Int? = nil, repair: Bool) throws -> [GameRecord] {
+        var gameRecords = try GameRecord.fetchGameRecords(container: container, fetchLimit: limit)
+        if repair {
+            try repairDuplicateUUIDs(in: &gameRecords, container: container)
+        }
         return gameRecords
     }
 
@@ -80,7 +107,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     ///   - gameRecords: The array of `GameRecord` instances to be checked and repaired.
     ///   - container: The `ModelContainer` used to persist changes.
     @MainActor
-    private func repairDuplicateUUIDs(in gameRecords: inout [GameRecord], container: ModelContainer) throws {
+    private static func repairDuplicateUUIDs(in gameRecords: inout [GameRecord], container: ModelContainer) throws {
         // Count occurrences of each UUID
         let uuidCount = Dictionary(gameRecords.compactMap { $0.uuid }.map { ($0, 1) }, uniquingKeysWith: +)
 
@@ -115,7 +142,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     /// Generates a unique UUID not present in the existing UUIDs.
     /// - Parameter existingUUIDs: A set of existing UUIDs.
     /// - Returns: A new unique `UUID`.
-    private func generateUniqueUUID(existingUUIDs: Set<UUID>) -> UUID {
+    private static func generateUniqueUUID(existingUUIDs: Set<UUID>) -> UUID {
         var newUUID: UUID
         repeat {
             newUUID = UUID()

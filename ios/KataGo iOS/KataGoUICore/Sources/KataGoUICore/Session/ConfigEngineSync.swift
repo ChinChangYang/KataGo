@@ -211,6 +211,11 @@ public enum ConfigEngineSync {
                                        gobanState: GobanState,
                                        player: Turn,
                                        messageList: MessageList) {
+        // Ignore no-op writes. Opening the AI config view assigns the persisted
+        // time to the field's `@State`, firing `.onChange` with the unchanged
+        // value; without this guard that would re-send the human-SL bundle and
+        // re-arm analysis on every appear. Real edits/toggles always differ.
+        guard config.blackMaxTime != seconds else { return }
         config.blackMaxTime = seconds
         resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
@@ -224,6 +229,8 @@ public enum ConfigEngineSync {
                                        gobanState: GobanState,
                                        player: Turn,
                                        messageList: MessageList) {
+        // Ignore no-op writes (see setBlackMaxTime).
+        guard config.whiteMaxTime != seconds else { return }
         config.whiteMaxTime = seconds
         resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
@@ -314,6 +321,17 @@ public enum ConfigEngineSync {
             config: config,
             nextColorForPlayCommand: player.nextColorForPlayCommand,
             messageList: messageList
+        )
+        // If this change instead moved us INTO the power-saving hidden state
+        // (e.g. a side toggled to Human on the human's turn with the overlay
+        // hidden), `maybeRequestAnalysis` is a no-op and would leave an in-flight
+        // continuous `kata-analyze` streaming. Stop it, mirroring the eye-toggle
+        // path in GameSplitView. The two are mutually exclusive: a request is
+        // sent only when analysis is NOT hidden, and the stop fires only when it
+        // is — so at most one acts (and both no-op on macOS).
+        gobanState.maybeStopAnalysisForPowerSaving(
+            config: config,
+            nextColorForPlayCommand: player.nextColorForPlayCommand
         )
     }
 }
