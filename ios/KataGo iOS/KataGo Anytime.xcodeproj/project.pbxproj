@@ -249,6 +249,7 @@
 		B626693C0B450357CC169C96 /* arena.cc in Sources */ = {isa = PBXBuildFile; fileRef = 441832CA01954D9736462744 /* arena.cc */; };
 		B8142EDF0FB945E3AFC3B9B3 /* hashtable.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7532F75F2E7D28AE11E46FB7 /* hashtable.cc */; };
 		BB566FAF6A2CC73012B21674 /* substitute.cc in Sources */ = {isa = PBXBuildFile; fileRef = 744518C7A1BEE2A0C3B3133A /* substitute.cc */; };
+		BD9B6B885BF6BA69621E7105 /* SavedGameProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */; };
 		BDD321DAA44964C4887A5E06 /* repeated_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC5101F03317F990C4EC6BD2 /* repeated_field.cc */; };
 		BF60411C8AF4BB983A288118 /* CoreMLCacheKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */; };
 		BF74CD58671D6C823D184CBE /* spinlock.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE3B9C2481C85939173A3A70 /* spinlock.cc */; };
@@ -815,6 +816,7 @@
 		5794706AF4B265E17CEF12A4 /* ArrayFeatureExtractor.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ArrayFeatureExtractor.pb.cc; path = ../../cpp/external/katagocoreml/generated/ArrayFeatureExtractor.pb.cc; sourceTree = SOURCE_ROOT; };
 		58D05F34FDBFCFC1406CF9AA /* waiter_base.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = waiter_base.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/waiter_base.cc"; sourceTree = SOURCE_ROOT; };
 		59BDE2664FA33EFE5A79F545 /* wire_format_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = wire_format_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/wire_format_lite.cc"; sourceTree = SOURCE_ROOT; };
+		5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameProviderTests.swift; sourceTree = "<group>"; };
 		5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_material.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/seed_material.cc"; sourceTree = SOURCE_ROOT; };
 		5E1405189D7D3837B2A46C2C /* log_sink.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_sink.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_sink.cc"; sourceTree = SOURCE_ROOT; };
 		5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
@@ -2201,6 +2203,7 @@
 				A51F0F70DC402DCC7315E723 /* AnalysisPowerSavingTests.swift */,
 				440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */,
 				B4436137B816E4C5938931D3 /* GameEntityQueryTests.swift */,
+				5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3152,6 +3155,7 @@
 				87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */,
 				480BF88693042BD20831538A /* GameEntityQueryTests.swift in Sources */,
 				35A445B8C52CCF86489A0974 /* WidgetBoardViewTests.swift in Sources */,
+				BD9B6B885BF6BA69621E7105 /* SavedGameProviderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
