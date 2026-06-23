@@ -59,53 +59,64 @@ struct GameDeepLinkResolveTests {
     }
 }
 
-/// F14: a deep link arriving before the engine is ready (macOS cold launch from
-/// the widget, where the engine subprocess handshakes asynchronously) must be
-/// deferred — not applied straight through to GTP — then drained once ready.
-struct DeepLinkSelectionGateTests {
-    @Test func request_whileEngineReady_appliesImmediatelyAndStashesNothing() {
-        var gate = DeepLinkSelectionGate()
+/// F14/F14b: a game selection arriving before the engine is ready (macOS cold
+/// launch — a widget deep link OR an .sgf file-open, where the engine subprocess
+/// handshakes asynchronously) must be deferred, not applied straight through to
+/// GTP, then drained once ready. The shared `selectGame(_:)` chokepoint uses
+/// this gate so both entry points are covered by one mechanism.
+struct ReadinessGateTests {
+    @Test func request_whenReady_appliesImmediatelyAndStashesNothing() {
+        var gate = ReadinessGate<UUID>()
         let id = UUID()
-        #expect(gate.request(gameID: id, isEngineReady: true) == id)
-        #expect(gate.pendingGameID == nil)
+        #expect(gate.request(id, isReady: true) == id)
+        #expect(gate.pending == nil)
     }
 
-    @Test func request_whileEngineNotReady_defersAndStashes() {
-        var gate = DeepLinkSelectionGate()
+    @Test func request_whenNotReady_defersAndStashes() {
+        var gate = ReadinessGate<UUID>()
         let id = UUID()
-        #expect(gate.request(gameID: id, isEngineReady: false) == nil)
-        #expect(gate.pendingGameID == id)
+        #expect(gate.request(id, isReady: false) == nil)
+        #expect(gate.pending == id)
     }
 
-    @Test func drainOnEngineReady_returnsStashedThenClears() {
-        var gate = DeepLinkSelectionGate()
+    @Test func drainWhenReady_returnsStashedThenClears() {
+        var gate = ReadinessGate<UUID>()
         let id = UUID()
-        _ = gate.request(gameID: id, isEngineReady: false)
-        #expect(gate.drainOnEngineReady() == id)
-        #expect(gate.pendingGameID == nil)
-        #expect(gate.drainOnEngineReady() == nil)   // idempotent: no replay
+        _ = gate.request(id, isReady: false)
+        #expect(gate.drainWhenReady() == id)
+        #expect(gate.pending == nil)
+        #expect(gate.drainWhenReady() == nil)   // idempotent: no replay
     }
 
-    @Test func drainOnEngineReady_returnsNilWhenNothingPending() {
-        var gate = DeepLinkSelectionGate()
-        #expect(gate.drainOnEngineReady() == nil)
+    @Test func drainWhenReady_returnsNilWhenNothingPending() {
+        var gate = ReadinessGate<UUID>()
+        #expect(gate.drainWhenReady() == nil)
     }
 
     @Test func request_lastWriteWins_whenMultipleDeferred() {
-        var gate = DeepLinkSelectionGate()
+        var gate = ReadinessGate<UUID>()
         let first = UUID(), second = UUID()
-        _ = gate.request(gameID: first, isEngineReady: false)
-        _ = gate.request(gameID: second, isEngineReady: false)
-        #expect(gate.pendingGameID == second)
-        #expect(gate.drainOnEngineReady() == second)
+        _ = gate.request(first, isReady: false)
+        _ = gate.request(second, isReady: false)
+        #expect(gate.pending == second)
+        #expect(gate.drainWhenReady() == second)
     }
 
-    @Test func request_whileReady_dropsStalePending() {
-        var gate = DeepLinkSelectionGate()
+    @Test func request_whenReady_dropsStalePending() {
+        var gate = ReadinessGate<UUID>()
         let stale = UUID(), fresh = UUID()
-        _ = gate.request(gameID: stale, isEngineReady: false)  // deferred
-        #expect(gate.request(gameID: fresh, isEngineReady: true) == fresh)
-        #expect(gate.pendingGameID == nil)                     // stale dropped
-        #expect(gate.drainOnEngineReady() == nil)              // no replay of stale
+        _ = gate.request(stale, isReady: false)        // deferred
+        #expect(gate.request(fresh, isReady: true) == fresh)
+        #expect(gate.pending == nil)                   // stale dropped
+        #expect(gate.drainWhenReady() == nil)          // no replay of stale
+    }
+
+    /// Genericity: the gate carries any payload (the macOS app uses it with a
+    /// GameRecord-pair selection payload at the `selectGame(_:)` chokepoint).
+    @Test func gate_isGenericOverPayload() {
+        var gate = ReadinessGate<Int>()
+        #expect(gate.request(7, isReady: false) == nil)
+        #expect(gate.pending == 7)
+        #expect(gate.drainWhenReady() == 7)
     }
 }

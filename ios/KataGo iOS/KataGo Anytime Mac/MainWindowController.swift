@@ -161,12 +161,24 @@ final class MainWindowController: NSWindowController {
     /// its premature `showboard` desyncs `showBoardCount`, gating analysis off.
     let boardReadiness = BoardReadiness()
 
-    /// F14: serializes widget deep-link selections against engine readiness. A
-    /// cold launch from the Saved Game widget can deliver the `katago-anytime://`
-    /// URL before the engine subprocess finishes its GTP handshake; the gate
-    /// stashes the requested game until `boardReadiness.isEngineReady` flips true
-    /// (see `applyPendingDeepLink`), so `loadsgf` is never sent to a dead engine.
-    private var deepLinkGate = DeepLinkSelectionGate()
+    /// F14/F14b: serializes game selections against engine readiness at the
+    /// shared `selectGame(_:)` chokepoint. A cold launch can deliver a selection
+    /// before the engine subprocess finishes its GTP handshake — via a widget
+    /// `katago-anytime://` deep link (F14) OR an `.sgf` file-open from Finder
+    /// (F14b) — and `loadGame`'s `loadsgf`/rules/`kata-analyze` would be dropped.
+    /// The gate stashes the pending load until `boardReadiness.isEngineReady`
+    /// flips true (drained by `applyPendingSelection`); when ready it is a
+    /// transparent pass-through.
+    private var selectionGate = ReadinessGate<PendingSelection>()
+
+    /// A game selection awaiting the engine-ready signal. Holds only the target:
+    /// the deferred drain does not need the prior game (the board mounts fresh and
+    /// re-syncs via `showboard`, so `loadGame`'s cosmetic resize-preload is moot),
+    /// and not retaining it avoids reading a record that may have been deleted in
+    /// the pre-ready window.
+    private struct PendingSelection {
+        let game: GameRecord?
+    }
 
     init(modelContainer: ModelContainer, engineLaunchStatus: EngineLaunchStatus) {
         self.modelContainer = modelContainer
@@ -473,7 +485,26 @@ final class MainWindowController: NSWindowController {
         let previous = navigationContext.selectedGameRecord
         guard game !== previous else { return }
 
+        // Update the selection synchronously so the sidebar, the board pane, and
+        // `ensureSelectedGameRecord` all track it immediately.
         navigationContext.selectedGameRecord = game
+
+        // F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
+        // finished its handshake. On a cold launch a selection can arrive
+        // mid-handshake (widget deep link or .sgf file-open); defer the load
+        // until `isEngineReady` (drained by `applyPendingSelection`). When ready,
+        // the gate is a transparent pass-through and the load runs synchronously
+        // with the real `previous` (the resize-preload it enables is wanted here).
+        guard selectionGate.request(PendingSelection(game: game),
+                                    isReady: boardReadiness.isEngineReady) != nil
+        else { return }
+        load(game: game, previous: previous)
+    }
+
+    /// Runs the actual `loadGame` for a selection. Split out so both the
+    /// ready-path (`selectGame(_:)`) and the deferred-path drain
+    /// (`applyPendingSelection`) share one call site.
+    private func load(game: GameRecord?, previous: GameRecord?) {
         session.gobanState.loadGame(
             gameRecord: game,
             previous: previous,
@@ -489,28 +520,30 @@ final class MainWindowController: NSWindowController {
     /// and select it — mirrors the iOS `GameSplitView.selectGame(byID:)` helper.
     @MainActor
     func selectGame(byID id: UUID) {
-        // F14: on a cold launch the deep link can arrive before the engine
-        // subprocess has finished its GTP handshake. The gate stashes the request
-        // until the engine is ready (drained by `applyPendingDeepLink`), so
-        // `loadGame`'s `loadsgf` is never sent to a not-yet-ready engine and lost.
-        guard let target = deepLinkGate.request(gameID: id,
-                                                isEngineReady: boardReadiness.isEngineReady)
-        else { return }
         // F5: fall back to the most-recent game when the deep-linked game was
         // deleted (a widget can lag the store), instead of silently doing nothing.
-        guard let match = GameRecord.resolveDeepLinkTarget(id: target, container: modelContainer)
+        // Engine-readiness deferral (F14) is handled by `selectGame(_:)` at the
+        // shared chokepoint.
+        guard let match = GameRecord.resolveDeepLinkTarget(id: id, container: modelContainer)
         else { return }
         selectGame(match)
     }
 
-    /// F14 drain: applies a deep link that arrived before the engine was ready.
-    /// Called right after `boardReadiness.isEngineReady` flips true (initial
-    /// launch AND every relaunch), on the main actor — so once the engine can
-    /// serve GTP there is no window where a stashed deep link is left unapplied.
+    /// F14/F14b drain: applies a game selection that arrived before the engine
+    /// was ready. Called right after `boardReadiness.isEngineReady` flips true
+    /// (initial launch AND every relaunch), on the main actor — so once the
+    /// engine can serve GTP there is no window where a stashed selection is left
+    /// unloaded.
     @MainActor
-    private func applyPendingDeepLink() {
-        guard let id = deepLinkGate.drainOnEngineReady() else { return }
-        selectGame(byID: id)   // engine now ready → resolves + selects
+    private func applyPendingSelection() {
+        guard let pending = selectionGate.drainWhenReady() else { return }
+        // The target may have been deleted during the pre-ready window (e.g. a
+        // delete-replacement on a cold launch); a deleted SwiftData object would
+        // fault when loadGame reads it. Skip it — `navigationContext` already
+        // moved on. `previous: nil`: the board mounts fresh and re-syncs via
+        // showboard, so the resize-preload is unnecessary on the drain path.
+        if pending.game?.isDeleted == true { return }
+        load(game: pending.game, previous: nil)
     }
 
     // MARK: - Engine launch + session loop
@@ -743,9 +776,9 @@ final class MainWindowController: NSWindowController {
         // and the `nextColorForPlayCommand` change drives the first analyze.
         boardReadiness.isEngineReady = true
 
-        // F14: the engine can now serve GTP — apply any widget deep link that
+        // F14/F14b: the engine can now serve GTP — apply any game selection that
         // arrived during the (async) handshake before driving the run loop.
-        applyPendingDeepLink()
+        applyPendingSelection()
 
         await session.run(
             gameRecords: gameRecords,
