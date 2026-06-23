@@ -278,13 +278,16 @@ struct GameSplitView: View {
 
             let currentIndex = gameRecord.currentIndex
 
-            gameRecord.blackStones?[currentIndex] = BoardPoint.toString(
+            // `refillString` (not `toString`) so an empty side stays present-but-empty
+            // ("") rather than dropping the key (`dict[i] = nil` removes it) — matching
+            // the SGF-import path and keeping GameEntity.lastIndex on the displayed move.
+            gameRecord.blackStones?[currentIndex] = BoardPoint.refillString(
                 stones.blackPoints,
                 width: Int(board.width),
                 height: Int(board.height)
             )
 
-            gameRecord.whiteStones?[currentIndex] = BoardPoint.toString(
+            gameRecord.whiteStones?[currentIndex] = BoardPoint.refillString(
                 stones.whitePoints,
                 width: Int(board.width),
                 height: Int(board.height)

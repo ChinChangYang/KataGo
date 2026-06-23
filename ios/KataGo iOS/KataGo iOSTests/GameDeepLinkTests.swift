@@ -120,3 +120,42 @@ struct ReadinessGateTests {
         #expect(gate.drainWhenReady() == 7)
     }
 }
+
+/// Tier-3 H/J: when a deferred deep-link selection is drained (macOS engine
+/// becomes ready, or the initial board load after the handshake), the target may
+/// have been deleted during the pre-ready window. The drain must fall back to the
+/// most-recent game (mirroring `resolveDeepLinkTarget`) instead of loading
+/// nothing. The decision is a pure function so it is unit-testable apart from the
+/// macOS-only wiring.
+struct GameDrainTargetTests {
+    @MainActor private func rec(_ name: String) -> GameRecord {
+        let r = GameRecord(config: Config()); r.name = name; r.uuid = UUID(); return r
+    }
+
+    @Test @MainActor func resolveDrainTarget_stashedAlive_returnsStashed() {
+        let stashed = rec("Stashed"), other = rec("Other")
+        let result = GameRecord.resolveDrainTarget(stashed: stashed, stashedIsDeleted: false,
+                                                   fetched: [other, stashed])
+        #expect(result === stashed)
+    }
+
+    @Test @MainActor func resolveDrainTarget_stashedDeleted_fallsBackToMostRecent() {
+        let stashed = rec("Stashed"), newest = rec("Newest"), older = rec("Older")
+        // `fetched` is newest-first, as `fetchGameRecords` returns.
+        let result = GameRecord.resolveDrainTarget(stashed: stashed, stashedIsDeleted: true,
+                                                   fetched: [newest, older])
+        #expect(result === newest)
+    }
+
+    @Test @MainActor func resolveDrainTarget_stashedDeletedEmptyStore_returnsNil() {
+        let stashed = rec("Stashed")
+        #expect(GameRecord.resolveDrainTarget(stashed: stashed, stashedIsDeleted: true,
+                                              fetched: []) == nil)
+    }
+
+    @Test @MainActor func resolveDrainTarget_stashedNil_returnsMostRecent() {
+        let newest = rec("Newest")
+        #expect(GameRecord.resolveDrainTarget(stashed: nil, stashedIsDeleted: false,
+                                             fetched: [newest]) === newest)
+    }
+}

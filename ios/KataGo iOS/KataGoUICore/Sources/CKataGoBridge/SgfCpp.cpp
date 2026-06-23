@@ -167,6 +167,13 @@ string SgfCpp::getCommentAt(const int index) const {
 }
 
 RulesCpp SgfCpp::getRules() const {
+    // Mirror getFinalPosition's NULL guard: a malformed/empty SGF leaves
+    // sgf == nullptr, and ((Sgf*)nullptr)->getRulesOrFail() is undefined behavior
+    // the try/catch below cannot catch (a null-`this` deref is not a thrown C++
+    // exception). Return the same default the catch block already produces.
+    if (sgf == NULL) {
+        return RulesCpp(0, 0, 0, false, false, 0, false, 7.0);
+    }
     try {
         Rules rules = ((Sgf*)sgf)->getRulesOrFail();
         return RulesCpp(rules.koRule,

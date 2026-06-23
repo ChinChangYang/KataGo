@@ -232,6 +232,18 @@ public final class GameRecord {
         return try container.mainContext.fetch(descriptor).first
     }
 
+    /// Drain-time resolution for a deferred deep-link selection (macOS cold-launch
+    /// F14 gate). When the stashed target was deleted during the pre-ready window,
+    /// fall back to the most-recently-modified game (mirroring
+    /// `resolveDeepLinkTarget`) instead of loading nothing. `fetched` must be sorted
+    /// newest-first (as `fetchGameRecords` returns), so `.first` is the most recent.
+    public class func resolveDrainTarget(stashed: GameRecord?,
+                                         stashedIsDeleted: Bool,
+                                         fetched: [GameRecord]) -> GameRecord? {
+        if let stashed, !stashedIsDeleted { return stashed }
+        return fetched.first   // most-recent fallback (newest-first list)
+    }
+
     /// Resolve the game a `katago-anytime://open-game` deep link should open: the
     /// game with `id` if it still exists, else the most-recently-modified game,
     /// else nil. Mirrors `SavedGameSnapshot.resolveSnapshot`'s display fallback so

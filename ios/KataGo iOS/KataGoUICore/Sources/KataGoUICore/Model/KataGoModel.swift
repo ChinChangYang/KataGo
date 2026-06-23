@@ -109,6 +109,15 @@ extension BoardPoint {
 
         return text
     }
+
+    /// Like `toString`, but never nil: an empty side yields "" instead of nil.
+    /// A per-index refill writes into a `[Int: String]` dict, where `dict[i] = nil`
+    /// REMOVES the key — diverging from the SGF-import path (which writes "" via
+    /// `joined`) and breaking the widget's `lastIndex` / `getCapturedStones` logic,
+    /// which distinguish "no entry" from "empty entry". See `GameEntity.init`.
+    public static func refillString(_ points: [BoardPoint], width: Int, height: Int) -> String {
+        toString(points, width: width, height: height) ?? ""
+    }
 }
 
 extension BoardPoint {

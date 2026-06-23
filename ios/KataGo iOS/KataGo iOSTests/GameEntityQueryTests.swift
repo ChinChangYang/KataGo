@@ -109,4 +109,23 @@ struct GameEntityQueryTests {
     @Test func processKind_emptyBundlePath_isNotExtension() {
         #expect(ProcessKind.isAppExtension(bundlePath: "") == false)
     }
+
+    // MARK: - BoardPoint.refillString (Tier-3 F: refill key parity with SGF import)
+
+    /// A per-index refill writes into a `[Int: String]` dict; `dict[i] = nil` REMOVES
+    /// the key, diverging from the SGF-import path (which writes "" via `joined`) and
+    /// breaking `GameEntity.lastIndex`. `refillString` must yield "" for an empty side
+    /// so the key stays present-but-empty (matching import byte-for-byte).
+    @Test func refillString_emptySide_isEmptyStringNotNil() {
+        #expect(BoardPoint.refillString([], width: 19, height: 19) == "")
+    }
+
+    /// For a non-empty side `refillString` is identical to `toString` — only the
+    /// empty case is corrected, so live rendering is unchanged.
+    @Test func refillString_nonEmptySide_matchesToString() {
+        let points = [BoardPoint(x: 3, y: 3), BoardPoint(x: 15, y: 15)]
+        let expected = BoardPoint.toString(points, width: 19, height: 19)
+        #expect(expected != nil)
+        #expect(BoardPoint.refillString(points, width: 19, height: 19) == expected)
+    }
 }

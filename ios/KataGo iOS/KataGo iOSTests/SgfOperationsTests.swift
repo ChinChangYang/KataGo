@@ -58,4 +58,19 @@ struct SgfOperationsTests {
         #expect(final.black.isEmpty)
         #expect(final.white.isEmpty)
     }
+
+    // MARK: - rules NULL-safety (Tier-3 G: getRules must guard nullptr like getFinalPosition)
+
+    /// An invalid/empty SGF leaves the C++ `Sgf` pointer null. `finalStones`
+    /// already degrades gracefully (see `finalStones_invalidSgf_returnsEmpty`);
+    /// `rules` must too — without the guard, `getRules` dereferences a null `this`
+    /// (UB the try/catch can't catch) and crashes the process. The guard returns
+    /// the same default the catch block already produces (komi 7.0).
+    @Test func rules_emptySgf_returnsDefaultWithoutCrashing() {
+        #expect(SgfHelper(sgf: "").rules.komi == 7.0)
+    }
+
+    @Test func rules_garbageSgf_returnsDefaultWithoutCrashing() {
+        #expect(SgfHelper(sgf: "not a real sgf").rules.komi == 7.0)
+    }
 }

@@ -538,12 +538,18 @@ final class MainWindowController: NSWindowController {
     private func applyPendingSelection() {
         guard let pending = selectionGate.drainWhenReady() else { return }
         // The target may have been deleted during the pre-ready window (e.g. a
-        // delete-replacement on a cold launch); a deleted SwiftData object would
-        // fault when loadGame reads it. Skip it — `navigationContext` already
-        // moved on. `previous: nil`: the board mounts fresh and re-syncs via
+        // delete-replacement on a cold launch, or a CloudKit remote delete). Rather
+        // than load nothing, re-resolve to the most-recent game — the F5 fallback
+        // that `resolveDeepLinkTarget` applies at deep-link time but that was not
+        // re-applied here. `previous: nil`: the board mounts fresh and re-syncs via
         // showboard, so the resize-preload is unnecessary on the drain path.
-        if pending.game?.isDeleted == true { return }
-        load(game: pending.game, previous: nil)
+        let fetched = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
+        let target = GameRecord.resolveDrainTarget(
+            stashed: pending.game,
+            stashedIsDeleted: pending.game?.isDeleted == true,
+            fetched: fetched)
+        navigationContext.selectedGameRecord = target
+        load(game: target, previous: nil)
     }
 
     // MARK: - Engine launch + session loop
@@ -1447,13 +1453,16 @@ final class MainWindowController: NSWindowController {
 
         let currentIndex = gameRecord.currentIndex
 
-        gameRecord.blackStones?[currentIndex] = BoardPoint.toString(
+        // `refillString` (not `toString`) so an empty side stays present-but-empty
+        // ("") rather than dropping the key (`dict[i] = nil` removes it) — matching
+        // the SGF-import path and keeping GameEntity.lastIndex on the displayed move.
+        gameRecord.blackStones?[currentIndex] = BoardPoint.refillString(
             session.stones.blackPoints,
             width: Int(session.board.width),
             height: Int(session.board.height)
         )
 
-        gameRecord.whiteStones?[currentIndex] = BoardPoint.toString(
+        gameRecord.whiteStones?[currentIndex] = BoardPoint.refillString(
             session.stones.whitePoints,
             width: Int(session.board.width),
             height: Int(session.board.height)
