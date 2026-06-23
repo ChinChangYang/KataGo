@@ -27,10 +27,13 @@ public struct GameEntity: AppEntity {
     public var lastWhiteStones: [String]
 
     public var displayRepresentation: DisplayRepresentation {
-        // Restore the thumbnail icon the pre-move iOS entity provided; resolves
-        // from the host app's asset catalog when the app surfaces the entity.
+        // Use an SF Symbol, not `Image(named:)`: a named asset resolves against
+        // the loading process's main bundle, so in the widget configuration
+        // picker (a `.appex` with no asset catalog) the previous "LoadingIcon"
+        // rendered BLANK. `systemName:` resolves in any process — app, widget
+        // appex, and Shortcuts alike — and a board grid reads as a Go game.
         DisplayRepresentation(title: "\(name)", subtitle: "\(firstComment)",
-                              image: DisplayRepresentation.Image(named: "LoadingIcon"))
+                              image: DisplayRepresentation.Image(systemName: "square.grid.3x3"))
     }
 
     public init(gameRecord: GameRecord) {

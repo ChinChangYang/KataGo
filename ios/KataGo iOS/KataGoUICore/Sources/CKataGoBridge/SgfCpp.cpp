@@ -204,10 +204,14 @@ FinalPositionCpp SgfCpp::getFinalPosition() const {
     if (sgf == NULL) {
         return FinalPositionCpp("", "");
     }
-    // A board larger than the engine was compiled for would assert (abort, not a
-    // catchable throw) when constructing the Board below. An imported SGF can
-    // declare any size, so reject oversized boards up front and degrade to an
-    // empty position rather than crashing.
+    // Defense-in-depth: a board larger than the engine was compiled for would
+    // assert (abort, not a catchable throw) when constructing the Board below.
+    // In practice this guard is unreachable — Sgf::getXYSize() (called in the
+    // constructor) already throws IOError, caught -> sgf == NULL, for any size
+    // <= 1 or > Board::MAX_LEN, so once sgf != NULL here _xSize/_ySize are
+    // guaranteed in [2, MAX_LEN]. Kept as a cheap check against a future
+    // construction path that bypasses that, degrading to an empty position
+    // rather than crashing.
     if (_xSize < 1 || _ySize < 1 || _xSize > Board::MAX_LEN || _ySize > Board::MAX_LEN) {
         return FinalPositionCpp("", "");
     }

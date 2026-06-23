@@ -13,7 +13,14 @@ struct SavedGameProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: SelectGameIntent, in context: Context) async -> SavedGameEntry {
-        await entry(for: configuration)
+        // In the widget gallery (context.isPreview) WidgetKit only needs a
+        // representative sample, so return the store-free placeholder instead of
+        // opening the App-Group SwiftData store from this memory-constrained
+        // extension just to render a preview.
+        if context.isPreview {
+            return SavedGameEntry(date: .now, snapshot: .placeholder)
+        }
+        return await entry(for: configuration)
     }
 
     func timeline(for configuration: SelectGameIntent, in context: Context) async -> Timeline<SavedGameEntry> {
