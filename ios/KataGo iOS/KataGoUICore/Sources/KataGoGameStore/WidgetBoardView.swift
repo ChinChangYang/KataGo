@@ -7,10 +7,13 @@ import SwiftUI
 /// sits below KataGoUICore and can't import `Coordinate`; keep the two in sync.
 /// Returns 0-based grid coordinates with the origin (0,0) at the TOP-LEFT
 /// (matching SwiftUI). GTP row 1 is the BOTTOM, so y is flipped against `height`.
-public func parseVertex(_ vertex: String, height: Int) -> (x: Int, y: Int)? {
+/// The column is bounded to `0..<width` and the row to `1...height` (parity with
+/// `Coordinate.init?(x:y:width:height:)`); an off-board vertex returns nil so the
+/// widget never draws a stone outside the grid.
+public func parseVertex(_ vertex: String, width: Int, height: Int) -> (x: Int, y: Int)? {
     let v = vertex.uppercased()
     let letters = v.prefix { $0.isLetter }
-    guard let col = gtpColumnIndex(String(letters)) else { return nil }
+    guard let col = gtpColumnIndex(String(letters)), col < width else { return nil }
     let rowString = v.dropFirst(letters.count)
     guard let row = Int(rowString), row >= 1, row <= height else { return nil }
     return (x: col, y: height - row)
@@ -44,10 +47,12 @@ public struct WidgetBoardView: View {
     let white: [(Int, Int)]
 
     public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String]) {
-        self.width = max(width, 1)
-        self.height = max(height, 1)
-        self.black = blackVertices.compactMap { parseVertex($0, height: height) }
-        self.white = whiteVertices.compactMap { parseVertex($0, height: height) }
+        let w = max(width, 1)
+        let h = max(height, 1)
+        self.width = w
+        self.height = h
+        self.black = blackVertices.compactMap { parseVertex($0, width: w, height: h) }
+        self.white = whiteVertices.compactMap { parseVertex($0, width: w, height: h) }
     }
 
     public var body: some View {
