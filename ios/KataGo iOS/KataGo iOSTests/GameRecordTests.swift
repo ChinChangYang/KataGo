@@ -52,6 +52,33 @@ struct GameRecordTests {
         #expect(found == nil)
     }
 
+    // F2: an imported game must carry its final board position so the Saved Game
+    // widget can render it before the game is ever opened (no engine, no thumbnail).
+    @Test func importGameRecord_populatesFinalStonesAtMoveSize() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        let result = GameRecord.importGameRecord(sgf: sgf, name: "Imported", in: context)
+        let record = try #require(result?.gameRecord)
+        #expect(result?.isNew == true)
+        #expect(record.currentIndex == 2)
+        // Stored at the final move index, so GameEntity's lastIndex resolves here.
+        #expect(record.blackStones?[2] == "D16")
+        #expect(record.whiteStones?[2] == "Q4")
+    }
+
+    @Test func importGameRecord_finalStonesFeedGameEntity() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        // 9x9 capture: Black A9 is captured; only G3 (black) and B9/A8 (white) remain.
+        let sgf = "(;FF[4]GM[1]SZ[9];B[aa];W[ba];B[gg];W[ab])"
+        let result = GameRecord.importGameRecord(sgf: sgf, name: "Imported", in: context)
+        let record = try #require(result?.gameRecord)
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.lastBlackStones == ["G3"])
+        #expect(entity.lastWhiteStones.sorted() == ["A8", "B9"])
+    }
+
     @Test func undoGameRecord() async throws {
         let gameRecord = GameRecord.createGameRecord(currentIndex: 1)
         #expect(gameRecord.sgf == GameRecord.defaultSgf)

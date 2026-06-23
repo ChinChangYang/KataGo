@@ -18,4 +18,11 @@ public final class SgfOperations {
     public var xSize: Int { helper.xSize }
     public var ySize: Int { helper.ySize }
     public var rules: Rules { helper.rules }
+
+    /// The on-board stones at the SGF's final main-line position (setup stones
+    /// included, captures resolved) as GTP vertices. Empty for an invalid SGF.
+    public func finalStones() -> (black: [String], white: [String]) {
+        let p = helper.finalPosition()
+        return (p.blackStones, p.whiteStones)
+    }
 }

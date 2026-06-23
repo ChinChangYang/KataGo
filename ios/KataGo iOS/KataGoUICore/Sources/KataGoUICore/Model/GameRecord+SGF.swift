@@ -253,10 +253,21 @@ extension GameRecord {
             .compactMap { index in sgfHelper.getComment(at: index).flatMap { !$0.isEmpty ? (index, $0) : nil } }
             .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
+        // Record the final board position (setup stones + captures, via the C++
+        // engine rules) at the last move index so the Saved Game widget can draw
+        // an imported game before it is ever opened — opening it later just
+        // refills these per-index dicts from the live engine. Both keys are set
+        // (even when empty) so GameEntity's lastIndex resolves to moveSize.
+        let finalStones = sgfHelper.finalStones()
+        let blackStones: [Int: String] = [moveSize: finalStones.black.joined(separator: " ")]
+        let whiteStones: [Int: String] = [moveSize: finalStones.white.joined(separator: " ")]
+
         let newRecord = GameRecord.createGameRecord(sgf: sgf,
                                                     currentIndex: moveSize,
                                                     name: name,
-                                                    comments: comments)
+                                                    comments: comments,
+                                                    blackStones: blackStones,
+                                                    whiteStones: whiteStones)
         return (gameRecord: newRecord, isNew: true)
     }
 

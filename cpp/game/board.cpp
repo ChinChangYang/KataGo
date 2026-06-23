@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <vector>
 
 #include "../core/rand.h"
@@ -150,8 +151,13 @@ void Board::init(int xS, int yS)
 
 void Board::initHash()
 {
-  if(IS_ZOBRIST_INITALIZED)
-    return;
+  // Thread-safe one-time init. Both the engine thread and the SGF-replay bridge
+  // (used at game import, possibly with no engine running yet) can reach this on
+  // a cold launch; call_once serializes them and gives readers a happens-before
+  // for the Zobrist tables. The values are deterministic (fixed seed) regardless
+  // of interleaving. Body left at its original indentation to minimize the diff.
+  static std::once_flag initHashFlag;
+  std::call_once(initHashFlag, []() {
   Rand rand("Board::initHash()");
 
   auto nextHash = [&rand]() {
@@ -213,6 +219,7 @@ void Board::initHash()
   }
 
   IS_ZOBRIST_INITALIZED = true;
+  });
 }
 
 Hash128 Board::getSitHashWithSimpleKo(Player pla) const {

@@ -74,6 +74,16 @@ private:
     float _komi;
 };
 
+class FinalPositionCpp {
+public:
+    FinalPositionCpp(const string& black, const string& white);
+    string getBlackStones() const SWIFT_COMPUTED_PROPERTY;
+    string getWhiteStones() const SWIFT_COMPUTED_PROPERTY;
+private:
+    string _black;
+    string _white;
+};
+
 class SgfCpp {
 public:
     SgfCpp(const string& str);
@@ -86,6 +96,7 @@ public:
     MoveCpp getMoveAt(const int index) const;
     string getCommentAt(const int index) const;
     RulesCpp getRules() const;
+    FinalPositionCpp getFinalPosition() const;
 private:
     void* sgf;
     int _xSize;

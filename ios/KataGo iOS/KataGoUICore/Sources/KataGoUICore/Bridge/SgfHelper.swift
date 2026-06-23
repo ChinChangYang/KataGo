@@ -71,11 +71,38 @@ public struct Rules {
     }
 }
 
+/// The stones standing on the board at the final position of an SGF's main line
+/// (handicap/setup stones included, captures resolved), as GTP vertex strings
+/// such as "Q16". Used to give an imported-but-never-opened game a renderable
+/// position for the Saved Game widget without running the engine.
+public struct FinalPosition {
+    public let blackStones: [String]
+    public let whiteStones: [String]
+
+    public init(blackStones: [String], whiteStones: [String]) {
+        self.blackStones = blackStones
+        self.whiteStones = whiteStones
+    }
+}
+
 public class SgfHelper {
     let sgfCpp: SgfCpp
 
     public init(sgf: String) {
         sgfCpp = SgfCpp(std.string(sgf))
+    }
+
+    /// Replays the SGF main line in C++ (battle-tested board rules) and returns
+    /// the final on-board stones as GTP vertices. Empty for an invalid SGF.
+    public func finalPosition() -> FinalPosition {
+        let pos = sgfCpp.getFinalPosition()
+        return FinalPosition(blackStones: SgfHelper.vertices(from: String(pos.blackStones)),
+                             whiteStones: SgfHelper.vertices(from: String(pos.whiteStones)))
+    }
+
+    /// Splits a space-joined vertex string ("Q16 D4") into ["Q16", "D4"].
+    private static func vertices(from joined: String) -> [String] {
+        joined.split(separator: " ").map(String.init)
     }
 
     public func getMove(at index: Int) -> Move? {

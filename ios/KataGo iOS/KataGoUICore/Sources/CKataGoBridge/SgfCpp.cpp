@@ -181,3 +181,67 @@ RulesCpp SgfCpp::getRules() const {
         return RulesCpp(0, 0, 0, false, false, 0, false, 7.0);
     }
 }
+
+FinalPositionCpp::FinalPositionCpp(const string& black, const string& white)
+    : _black(black), _white(white) {}
+
+string FinalPositionCpp::getBlackStones() const {
+    return _black;
+}
+
+string FinalPositionCpp::getWhiteStones() const {
+    return _white;
+}
+
+FinalPositionCpp SgfCpp::getFinalPosition() const {
+    if (sgf == NULL) {
+        return FinalPositionCpp("", "");
+    }
+    // A board larger than the engine was compiled for would assert (abort, not a
+    // catchable throw) when constructing the Board below. An imported SGF can
+    // declare any size, so reject oversized boards up front and degrade to an
+    // empty position rather than crashing.
+    if (_xSize < 1 || _ySize < 1 || _xSize > Board::MAX_LEN || _ySize > Board::MAX_LEN) {
+        return FinalPositionCpp("", "");
+    }
+    try {
+        // The board's Zobrist tables must be initialized before any Board/
+        // BoardHistory is built. The engine does this at GTP startup, but this
+        // bridge can be called without a running engine (e.g. at import), so do
+        // it here — idempotent, a no-op once initialized.
+        Board::initHash();
+
+        // Replay the main line with KataGo's own board rules: setup/handicap
+        // stones (AB/AW) plus every move, captures resolved. Tolerant so a
+        // malformed user-imported SGF throws (caught below) instead of asserting.
+        // Note: SGFs with AB/AW placements AFTER the root node are unsupported by
+        // CompactSgf and throw here -> caught -> empty position (graceful: same as
+        // a game that was never opened; rare for app-exported SGFs).
+        CompactSgf compact(*((const Sgf*)sgf));
+        Rules rules = compact.getRulesOrFailAllowUnspecified(Rules::getTrompTaylorish());
+        Board board;
+        Player nextPla;
+        BoardHistory hist;
+        compact.setupBoardAndHistTolerant(rules, board, nextPla, hist,
+                                          (int64_t)compact.moves.size(), true);
+
+        string black;
+        string white;
+        for (int y = 0; y < board.y_size; y++) {
+            for (int x = 0; x < board.x_size; x++) {
+                Loc loc = Location::getLoc(x, y, board.x_size);
+                Color c = board.colors[loc];
+                if (c == C_BLACK) {
+                    if (!black.empty()) black += " ";
+                    black += Location::toString(loc, board.x_size, board.y_size);
+                } else if (c == C_WHITE) {
+                    if (!white.empty()) white += " ";
+                    white += Location::toString(loc, board.x_size, board.y_size);
+                }
+            }
+        }
+        return FinalPositionCpp(black, white);
+    } catch (...) {
+        return FinalPositionCpp("", "");
+    }
+}
