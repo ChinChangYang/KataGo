@@ -61,6 +61,33 @@ struct SharedModelContainerTests {
         #expect(Array(url.pathComponents.suffix(3)) == ["Library", "Application Support", "default.store"])
     }
 
+    @Test func removeStoreFile_deletesStoreAndSqliteSidecars() throws {
+        // A failed/partial replacePersistentStore can leave a destination file (or
+        // a -wal/-shm/-journal sidecar). removeStoreFile must clear the whole
+        // SQLite family so postMigration sees destinationExists == false → keeps
+        // the old store and retries next launch (never marks ready on a stub store).
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = dir.appending(path: "default.store")
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            #expect(fm.createFile(atPath: store.path + suffix, contents: Data("x".utf8)))
+        }
+
+        let removed = SharedModelContainer.removeStoreFile(at: store)
+
+        #expect(removed == 4)
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            #expect(fm.fileExists(atPath: store.path + suffix) == false)
+        }
+    }
+
+    @Test func removeStoreFile_absentFile_removesNothing() {
+        let store = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "\(UUID().uuidString)/default.store")
+        #expect(SharedModelContainer.removeStoreFile(at: store) == 0)
+    }
+
     @Test @MainActor func migrateStore_noopWhenDestinationExists() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -153,6 +180,19 @@ struct SharedModelContainerTests {
         #expect(SharedModelContainer.isAppGroupStoreReady(d) == true)
         SharedModelContainer.setAppGroupStoreReady(d)   // idempotent
         #expect(SharedModelContainer.isAppGroupStoreReady(d) == true)
+    }
+
+    /// The macOS "Re-sync from iCloud" reset wipes the App-Group store; it must
+    /// also clear the store-ready flag so an extension that wakes during the wipe
+    /// renders the in-memory placeholder instead of recreating an empty App-Group
+    /// store (reopening the F11 race). The app re-sets the flag once it has rebuilt
+    /// the real store.
+    @Test func storeReadyFlag_clearResetsToFalse() {
+        let d = freshDefaults()
+        SharedModelContainer.setAppGroupStoreReady(d)
+        #expect(SharedModelContainer.isAppGroupStoreReady(d) == true)
+        SharedModelContainer.clearAppGroupStoreReady(d)
+        #expect(SharedModelContainer.isAppGroupStoreReady(d) == false)
     }
 
     @Test func syncDegradedFlag_defaultsFalse_roundTrips() {

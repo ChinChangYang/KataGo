@@ -35,8 +35,20 @@ public struct GameEntity: AppEntity {
 
     public init(gameRecord: GameRecord) {
         let sortedComments = gameRecord.comments?.keys.sorted().compactMap { gameRecord.comments?[$0] } ?? []
-        let lastIndex = (gameRecord.blackStones?.keys.max()).map { max($0, gameRecord.whiteStones?.keys.max() ?? 0) }
-            ?? gameRecord.whiteStones?.keys.max() ?? 0
+        // Render the position the game is actually sitting on (currentIndex), not
+        // the highest move ever visited. The engine writes blackStones/whiteStones
+        // for every index navigated to and plain back-navigation never trims them,
+        // so keys.max() can point PAST the displayed move. Fall back to the highest
+        // stored index only when currentIndex has no recorded entry (e.g. a record
+        // written by a path that didn't fill that index).
+        let currentIndex = gameRecord.currentIndex
+        let lastIndex: Int
+        if gameRecord.blackStones?[currentIndex] != nil || gameRecord.whiteStones?[currentIndex] != nil {
+            lastIndex = currentIndex
+        } else {
+            lastIndex = max(gameRecord.blackStones?.keys.max() ?? 0,
+                            gameRecord.whiteStones?.keys.max() ?? 0)
+        }
         self.id = gameRecord.uuid ?? UUID()
         self.firstComment = gameRecord.comments?[0] ?? sortedComments.first ?? ""
         self.thumbnail = gameRecord.thumbnail

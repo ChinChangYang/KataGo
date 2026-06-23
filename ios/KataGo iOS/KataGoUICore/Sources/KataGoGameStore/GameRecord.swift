@@ -215,6 +215,23 @@ public final class GameRecord {
         return try context.fetch(descriptor)
     }
 
+    /// Fetches the single game with `uuid`, or nil. A bounded predicate fetch so a
+    /// memory-constrained process (the widget extension) never materializes the
+    /// whole library just to resolve one configured game.
+    @MainActor
+    public class func fetchGameRecord(uuid: UUID, container: ModelContainer) throws -> GameRecord? {
+        let target: UUID? = uuid
+        // Sort newest-first so that, should the (read-only, not-yet-repaired) store
+        // hold duplicate UUIDs, this returns the same most-recently-modified match
+        // the previous whole-library `first(where:)` did.
+        var descriptor = FetchDescriptor<GameRecord>(
+            predicate: #Predicate { $0.uuid == target },
+            sortBy: [.init(\.lastModificationDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try container.mainContext.fetch(descriptor).first
+    }
+
     /// Resolve the game a `katago-anytime://open-game` deep link should open: the
     /// game with `id` if it still exists, else the most-recently-modified game,
     /// else nil. Mirrors `SavedGameSnapshot.resolveSnapshot`'s display fallback so

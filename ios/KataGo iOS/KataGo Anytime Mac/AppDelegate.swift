@@ -451,6 +451,13 @@ enum CloudKitStoreReset {
         UserDefaults.standard.removeObject(forKey: flagKey)
         UserDefaults.standard.synchronize()
 
+        // Clear the App-Group store-ready flag BEFORE wiping the store files: while
+        // the store is gone and the app is re-importing from CloudKit, a widget
+        // extension that wakes must take the in-memory placeholder, not recreate an
+        // empty App-Group store (which would reopen the F11 race). The app re-sets
+        // the flag once `SharedModelContainer.shared` has rebuilt the real store.
+        SharedModelContainer.clearAppGroupStoreReady()
+
         // Wait until this is the ONLY running instance before touching the store, so
         // the delete never overlaps a previous instance that still has it open — this
         // restores the verified-good "quit first, then delete" ordering. Bounded so a

@@ -233,6 +233,16 @@ public enum SharedModelContainer {
         (defaults ?? appGroupDefaults())?.set(true, forKey: storeReadyKey)
     }
 
+    /// Clears the store-ready flag. The macOS "Re-sync from iCloud" reset calls
+    /// this BEFORE wiping the store files so an extension that wakes during the
+    /// wipe renders the in-memory placeholder (`.openInMemoryPlaceholder`) instead
+    /// of recreating an empty App-Group store and reopening the F11 race. The app
+    /// restores the flag via `setAppGroupStoreReady()` once it has rebuilt the
+    /// real store.
+    public static func clearAppGroupStoreReady(_ defaults: UserDefaults? = nil) {
+        (defaults ?? appGroupDefaults())?.set(false, forKey: storeReadyKey)
+    }
+
     public static func isCloudKitSyncDegraded(_ defaults: UserDefaults? = nil) -> Bool {
         (defaults ?? appGroupDefaults())?.bool(forKey: syncDegradedKey) ?? false
     }
@@ -286,8 +296,35 @@ public enum SharedModelContainer {
             return true
         } catch {
             NSLog("SharedModelContainer.migrateStore failed: \(error)")
+            // A partial/failed replacePersistentStore may have left a destination
+            // file (or a -wal/-shm sidecar). Remove it so postMigration sees
+            // destinationExists == false → keep the old store in place and retry
+            // next launch (never mark ready on an empty/partial store, F11).
+            removeStoreFile(at: newURL)
             return false
         }
+    }
+
+    /// Removes a store file and its SQLite sidecars (`-wal`, `-shm`, `-journal`).
+    /// Returns the number of artifacts removed. Used to clean up a partial
+    /// destination left by a failed `replacePersistentStore` so a stray artifact
+    /// can't trip `postMigration`'s `destinationExists` check — which would mark
+    /// the store ready, open an empty/partial App-Group store, orphan the
+    /// pre-App-Group library, and poison the retry.
+    @discardableResult
+    public static func removeStoreFile(at url: URL, using fm: FileManager = .default) -> Int {
+        var removed = 0
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            let target = URL(fileURLWithPath: url.path + suffix)
+            guard fm.fileExists(atPath: target.path) else { continue }
+            do {
+                try fm.removeItem(at: target)
+                removed += 1
+            } catch {
+                NSLog("SharedModelContainer.removeStoreFile failed for \(target.path): \(error)")
+            }
+        }
+        return removed
     }
 
     /// Where SwiftData's default (pre-App-Group) store lived.

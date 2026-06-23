@@ -36,9 +36,11 @@ public struct SavedGameSnapshot: Sendable {
     /// placeholder.
     @MainActor
     public static func resolveSnapshot(for entity: GameEntity?, container: ModelContainer) -> SavedGameSnapshot {
+        // Bounded single-record fetch: the widget extension is memory-constrained,
+        // so resolve the configured game with a predicate fetch instead of
+        // materializing the whole library and filtering in Swift.
         if let entity,
-           let match = (try? GameRecord.fetchGameRecords(container: container))?
-               .first(where: { $0.uuid == entity.id }) {
+           let match = (try? GameRecord.fetchGameRecord(uuid: entity.id, container: container)) ?? nil {
             return SavedGameSnapshot(gameEntity: GameEntity(gameRecord: match))
         }
         if let recent = (try? GameRecord.fetchGameRecords(container: container, fetchLimit: 1))?.first {

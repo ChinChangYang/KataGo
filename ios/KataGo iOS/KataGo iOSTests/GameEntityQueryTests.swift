@@ -21,6 +21,34 @@ struct GameEntityQueryTests {
         #expect(entity.boardWidth == 19)
     }
 
+    /// After opening a game, stepping to the end, then navigating BACK, the engine
+    /// leaves blackStones/whiteStones keys up to the highest move ever visited
+    /// (plain back-navigation never trims them) while `currentIndex` points at the
+    /// displayed, earlier move. The widget must render the DISPLAYED position, not
+    /// the stale later one — so lastIndex follows currentIndex, not keys.max().
+    @Test @MainActor func gameEntity_rendersCurrentIndexPositionNotHighestVisited() {
+        let record = GameRecord(config: Config())
+        record.width = 19
+        record.height = 19
+        record.currentIndex = 1
+        record.blackStones = [0: "", 1: "Q16", 2: "Q16 D4"]   // stepped to move 2, then back to 1
+        record.whiteStones = [0: "", 1: "", 2: ""]
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.lastBlackStones == ["Q16"])             // move 1 (displayed), not move 2
+    }
+
+    /// When `currentIndex` has no entry in the stone dicts (e.g. a record written
+    /// by a path that didn't fill that index), lastIndex falls back to the highest
+    /// stored index so the widget still renders something.
+    @Test @MainActor func gameEntity_fallsBackToMaxKeyWhenCurrentIndexHasNoStones() {
+        let record = GameRecord(config: Config())
+        record.currentIndex = 7                                 // no key 7 in the dicts
+        record.blackStones = [2: "Q16"]
+        record.whiteStones = [:]
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.lastBlackStones == ["Q16"])
+    }
+
     /// Seeds a store with two records sharing one UUID.
     @MainActor
     private func seedDuplicateUUIDStore() throws -> (ModelContainer, UUID) {
