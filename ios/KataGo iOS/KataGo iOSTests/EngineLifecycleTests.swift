@@ -32,31 +32,19 @@ struct EngineLifecycleTests {
 
     // MARK: - RecoveryDecision
 
-    @Test func pendingLoadTriggersBanner() {
+    @Test func pendingLoadForcesPicker() {
+        // A surviving sentinel (an incomplete prior load) forces the picker
+        // even when a last-good model exists — it must NOT auto-restore. This
+        // input has a non-empty selectedModelTitle and isDebug == false, so
+        // the ONLY branch that yields `.showPicker` is the sentinel branch;
+        // remove that branch and this returns `.autoRestore`. (A debug variant
+        // would not discriminate: debug yields `.showPicker` on its own.)
         let action = RecoveryDecision.decide(
             pendingLoadModelTitle: "Official KataGo Network",
             selectedModelTitle: "Built-in KataGo Network",
             isDebug: false
         )
-        #expect(action == .showPickerWithBanner)
-    }
-
-    @Test func pendingLoadTriggersBannerEvenInDebug() {
-        let action = RecoveryDecision.decide(
-            pendingLoadModelTitle: "FD3 Network",
-            selectedModelTitle: "",
-            isDebug: true
-        )
-        #expect(action == .showPickerWithBanner)
-    }
-
-    @Test func pendingLoadBeatsSelectedTitle() {
-        let action = RecoveryDecision.decide(
-            pendingLoadModelTitle: "FD3 Network",
-            selectedModelTitle: "Built-in KataGo Network",
-            isDebug: false
-        )
-        #expect(action == .showPickerWithBanner)
+        #expect(action == .showPicker)
     }
 
     @Test func noPendingAutoRestoresInRelease() {

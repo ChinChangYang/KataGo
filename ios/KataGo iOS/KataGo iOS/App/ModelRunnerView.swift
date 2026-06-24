@@ -33,8 +33,7 @@ struct ModelRunnerView: View {
                 )
             } else {
                 ModelPickerView(
-                    selectedModel: $selectedModel,
-                    crashedModelTitle: $pendingLoadModelTitle
+                    selectedModel: $selectedModel
                 )
             }
         }
@@ -55,17 +54,18 @@ struct ModelRunnerView: View {
                 selectedModelTitle: selectedModelTitle,
                 isDebug: isDebug
             ) {
-            case .showPickerWithBanner:
-                recoveryLogger.error(
-                    "Recovered from apparent crash loading model: \(pendingLoadModelTitle, privacy: .public)"
-                )
-                // Leave pendingLoadModelTitle set: the picker reads it to
-                // render the banner, and user action (Dismiss, or selecting
-                // a new model) is what clears it.
             case .autoRestore(let title):
                 selectedModel = NeuralNetworkModel.allCases.first { $0.title == title }
             case .showPicker:
-                break
+                // An incomplete prior load (orphaned sentinel) lands here too:
+                // we force the picker rather than auto-restoring, so the user
+                // re-chooses after a possible OOM. No banner is shown; the
+                // stale sentinel is overwritten when the user next picks a model.
+                if !pendingLoadModelTitle.isEmpty {
+                    recoveryLogger.error(
+                        "Previous launch did not finish loading model: \(pendingLoadModelTitle, privacy: .public). Showing model picker."
+                    )
+                }
             }
         }
         .onChange(of: selectedModel) { _, newValue in
@@ -86,9 +86,9 @@ struct ModelRunnerView: View {
             // Arm the crash sentinel BEFORE starting the engine thread. If the
             // engine OOM-crashes before `ContentView` sees its first GTP
             // response, this value survives the process death and the next
-            // launch will show the picker with a recovery banner instead of
-            // restarting the same crash. `reset()` first so the observer
-            // re-fires even if the user picked the same model twice in a row.
+            // launch will show the picker (no banner) instead of restarting
+            // the same crash. `reset()` first so the observer re-fires even
+            // if the user picked the same model twice in a row.
             engineLifecycle.reset()
             pendingLoadModelTitle = newValue.title
             UserDefaults.standard.synchronize()

@@ -28,10 +28,6 @@ public class EngineLifecycle {
 
 /// What `ModelRunnerView` should do at launch based on persisted state.
 public enum RecoveryAction: Equatable {
-    /// Previous launch died before the engine ever responded. `ModelRunnerView`
-    /// leaves `selectedModel` nil so the picker renders; the picker reads
-    /// `pendingLoadModelTitle` directly for the banner text.
-    case showPickerWithBanner
     case autoRestore(title: String)
     case showPicker
 }
@@ -45,7 +41,10 @@ public enum RecoveryDecision {
         isDebug: Bool
     ) -> RecoveryAction {
         if !pendingLoadModelTitle.isEmpty {
-            return .showPickerWithBanner
+            // An incomplete prior load: the sentinel survived process death.
+            // Force the picker rather than auto-restoring, so the user
+            // re-chooses a model after a possible OOM. No banner is shown.
+            return .showPicker
         }
         if isDebug {
             return .showPicker
