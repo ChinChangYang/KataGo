@@ -55,6 +55,29 @@ public struct WidgetBoardView: View {
         self.white = whiteVertices.compactMap { parseVertex($0, width: w, height: h) }
     }
 
+    /// 0-based grid coordinates of the star points (hoshi) for a standard square
+    /// board, so the vector board reads as a real goban. Only the conventional
+    /// 9/13/19 layouts are defined; any other size (or a non-square board) returns
+    /// none rather than guessing wrong positions.
+    ///
+    /// `nonisolated` because it is pure (literals only): `WidgetBoardView` is a
+    /// SwiftUI `View` and thus `@MainActor`, which would otherwise pin this helper
+    /// to the main actor and trap when called off-main (e.g. from a test).
+    nonisolated public static func hoshiPoints(width: Int, height: Int) -> [(Int, Int)] {
+        guard width == height else { return [] }
+        switch width {
+        case 19:
+            let c = [3, 9, 15]
+            return c.flatMap { x in c.map { (x, $0) } }   // 3×3 grid (incl. tengen)
+        case 13:
+            return [(3, 3), (3, 9), (9, 3), (9, 9), (6, 6)]
+        case 9:
+            return [(2, 2), (2, 6), (6, 2), (6, 6), (4, 4)]
+        default:
+            return []
+        }
+    }
+
     public var body: some View {
         GeometryReader { geo in
             let cell = min(geo.size.width / CGFloat(width), geo.size.height / CGFloat(height))
@@ -78,6 +101,12 @@ public struct WidgetBoardView: View {
                     }
                 }
                 .stroke(Color.black.opacity(0.55), lineWidth: 0.5)
+                let hoshi = WidgetBoardView.hoshiPoints(width: width, height: height)
+                ForEach(Array(hoshi.enumerated()), id: \.offset) { _, p in
+                    Circle().fill(Color.black.opacity(0.55))
+                        .frame(width: max(cell * 0.16, 2), height: max(cell * 0.16, 2))
+                        .position(CGPoint(x: originX + CGFloat(p.0) * cell, y: originY + CGFloat(p.1) * cell))
+                }
                 ForEach(Array(white.enumerated()), id: \.offset) { _, s in
                     Circle().fill(.white)
                         .frame(width: cell * 0.92, height: cell * 0.92)

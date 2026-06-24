@@ -96,6 +96,64 @@ struct GameEntityQueryTests {
         #expect(GameEntityQuery.isAppExtension == false)
     }
 
+    // MARK: - Proactive identity repair (Issue 2: nil/duplicate-uuid round-trip)
+
+    @MainActor
+    private func inMemoryContainer() throws -> ModelContainer {
+        try ModelContainer(for: SharedModelContainer.schema,
+                           configurations: ModelConfiguration(schema: SharedModelContainer.schema, isStoredInMemoryOnly: true))
+    }
+
+    /// The widget's AppIntents round-trip resolves a configured game by its stored
+    /// uuid; a record that arrived from CloudKit with a NIL uuid is unresolvable
+    /// (`GameEntity.id` becomes a fresh random UUID each time it is built). The
+    /// normal app game list uses a plain @Query and never repairs, so this proactive
+    /// main-app pass must assign a stable, non-nil uuid and persist it — after which
+    /// the formerly-nil game round-trips through `resolveEntities`.
+    @Test @MainActor func repairStoredIdentities_fixesNilUUID_andRoundTrips() throws {
+        let c = try inMemoryContainer()
+        let nilGame = GameRecord(config: Config()); nilGame.name = "NilGame"; nilGame.uuid = nil
+        let normal = GameRecord(config: Config()); normal.name = "Normal"
+        c.mainContext.insert(nilGame); c.mainContext.insert(normal); try c.mainContext.save()
+
+        let reassigned = try GameEntityQuery.repairStoredIdentities(container: c)
+        #expect(reassigned >= 1)
+
+        let fresh = try GameRecord.fetchGameRecords(container: c)
+        #expect(fresh.allSatisfy { $0.uuid != nil })                       // nil repaired + persisted
+
+        let target = try #require(fresh.first { $0.name == "NilGame" })
+        let resolved = try GameEntityQuery.resolveEntities(for: [try #require(target.uuid)], container: c)
+        #expect(resolved.count == 1)
+        #expect(resolved.first?.name == "NilGame")
+    }
+
+    /// Duplicate uuids get distinct ones so the picker can tell them apart.
+    @Test @MainActor func repairStoredIdentities_fixesDuplicateUUIDs() throws {
+        let c = try inMemoryContainer()
+        let shared = UUID()
+        let g1 = GameRecord(config: Config()); g1.name = "A"; g1.uuid = shared
+        let g2 = GameRecord(config: Config()); g2.name = "B"; g2.uuid = shared
+        c.mainContext.insert(g1); c.mainContext.insert(g2); try c.mainContext.save()
+
+        let reassigned = try GameEntityQuery.repairStoredIdentities(container: c)
+        #expect(reassigned == 1)                                           // one of the pair reassigned
+
+        let fresh = try GameRecord.fetchGameRecords(container: c)
+        #expect(Set(fresh.compactMap { $0.uuid }).count == 2)             // now unique
+    }
+
+    /// Idempotent: a store with unique, non-nil uuids needs no changes — so the
+    /// startup pass doesn't churn CloudKit on every launch.
+    @Test @MainActor func repairStoredIdentities_cleanStore_isNoOp() throws {
+        let c = try inMemoryContainer()
+        let a = GameRecord(config: Config()); a.name = "A"
+        let b = GameRecord(config: Config()); b.name = "B"
+        c.mainContext.insert(a); c.mainContext.insert(b); try c.mainContext.save()
+
+        #expect(try GameEntityQuery.repairStoredIdentities(container: c) == 0)
+    }
+
     // MARK: - ProcessKind (shared app-vs-extension detector)
 
     @Test func processKind_appexBundlePath_isExtension() {

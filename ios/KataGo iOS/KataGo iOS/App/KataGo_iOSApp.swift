@@ -50,6 +50,19 @@ struct KataGo_iOSApp: App {
             .task {
                 await cacheReadiness.start()
             }
+            .task {
+                // Proactive identity hygiene (Issue 2): assign stable, unique,
+                // non-nil uuids to CloudKit-synced records so the widget's
+                // AppIntents round-trip can resolve a configured game by id. The
+                // in-app game list uses a plain @Query and never repairs, so
+                // without this nil/duplicate uuids stay unselectable in the widget.
+                // Main-app only + idempotent (a clean store saves nothing).
+                do {
+                    try GameEntityQuery.repairStoredIdentities(container: SharedModelContainer.shared)
+                } catch {
+                    NSLog("repairStoredIdentities failed: \(error)")
+                }
+            }
     }
 
     // The macOS build of this (old, cross-platform SwiftUI) app target was

@@ -232,6 +232,26 @@ public final class GameRecord {
         return try container.mainContext.fetch(descriptor).first
     }
 
+    /// Bounded, newest-first name search for the widget configuration picker, so a
+    /// memory-constrained extension never materializes the whole library to filter
+    /// by name in Swift. `localizedStandardContains` gives a case/diacritic-
+    /// insensitive match. The `query.isEmpty ||` short-circuit makes an empty query
+    /// return the newest `limit` games (mirroring `GameListView`'s @Query predicate):
+    /// `localizedStandardContains("")` is `false` in both the in-memory and the
+    /// SQLite-backed store, so without the guard an empty search would return NONE.
+    /// A non-positive `limit` returns [] (a `fetchLimit` of 0 means "no limit" in
+    /// Core Data, which would silently defeat the bound in the extension).
+    @MainActor
+    public class func fetchGameRecords(nameContains query: String, limit: Int, container: ModelContainer) throws -> [GameRecord] {
+        guard limit > 0 else { return [] }
+        var descriptor = FetchDescriptor<GameRecord>(
+            predicate: #Predicate { query.isEmpty || $0.name.localizedStandardContains(query) },
+            sortBy: [.init(\.lastModificationDate, order: .reverse)]
+        )
+        descriptor.fetchLimit = limit
+        return try container.mainContext.fetch(descriptor)
+    }
+
     /// Drain-time resolution for a deferred deep-link selection (macOS cold-launch
     /// F14 gate). When the stashed target was deleted during the pre-ready window,
     /// fall back to the most-recently-modified game (mirroring

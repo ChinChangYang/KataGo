@@ -20,7 +20,6 @@ public struct GameEntity: AppEntity {
     @Property(title: "Comments") public var comments: [String]
 
     public var firstComment: String
-    public var thumbnail: Data?
     public var boardWidth: Int
     public var boardHeight: Int
     public var lastBlackStones: [String]
@@ -54,7 +53,6 @@ public struct GameEntity: AppEntity {
         }
         self.id = gameRecord.uuid ?? UUID()
         self.firstComment = gameRecord.comments?[0] ?? sortedComments.first ?? ""
-        self.thumbnail = gameRecord.thumbnail
         self.boardWidth = gameRecord.width ?? 19
         self.boardHeight = gameRecord.height ?? 19
         self.lastBlackStones = GameEntity.stoneList(gameRecord.blackStones, at: lastIndex)
@@ -85,7 +83,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     }
 
     public func entities(for identifiers: [GameEntity.ID]) async throws -> [GameEntity] {
-        try await MainActor.run { try records().filter { identifiers.contains($0.uuid ?? UUID()) }.map(GameEntity.init) }
+        try await MainActor.run { try GameEntityQuery.resolveEntities(for: identifiers, container: SharedModelContainer.shared) }
     }
 
     public func suggestedEntities() async throws -> [GameEntity] {
@@ -93,7 +91,53 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     }
 
     public func entities(matching string: String) async throws -> [GameEntity] {
-        try await MainActor.run { try records().filter { $0.name.localizedCaseInsensitiveContains(string) }.map(GameEntity.init) }
+        try await MainActor.run { try GameEntityQuery.matchingEntities(for: string, container: SharedModelContainer.shared) }
+    }
+
+    /// Resolves the configured-game identifiers WITHOUT materializing the whole
+    /// library — one bounded predicate fetch per id (mirrors `fetchGameRecord`).
+    /// This is the AppIntents round-trip path for a widget's selected game and runs
+    /// in the memory-constrained extension, so it must never do a full-library scan
+    /// (the old `entities(for:)` fetched all ~records and filtered in Swift, which
+    /// risked jetsam → empty result → the widget falling back to most-recent).
+    /// A duplicate uuid (a CloudKit sync artifact) collapses to the single
+    /// most-recently-modified match (fetchLimit 1) rather than an ambiguous pair,
+    /// so the configured selection still loads instead of being dropped.
+    @MainActor
+    public static func resolveEntities(for ids: [UUID], container: ModelContainer) throws -> [GameEntity] {
+        // Order-preserving de-dup: a repeated identifier must not yield two
+        // GameEntity values for one id (the same ambiguity this change removes for
+        // duplicate-uuid records).
+        var seen = Set<UUID>()
+        return try ids.filter { seen.insert($0).inserted }
+            .compactMap { try GameRecord.fetchGameRecord(uuid: $0, container: container) }
+            .map(GameEntity.init)
+    }
+
+    /// Bounded name search for the configuration picker; never materializes the
+    /// whole library in the extension. `localizedStandardContains` preserves the
+    /// case/diacritic-insensitive match the previous in-Swift filter used, and an
+    /// empty query returns the newest `limit` games (see `fetchGameRecords(nameContains:)`).
+    @MainActor
+    public static func matchingEntities(for query: String, container: ModelContainer, limit: Int = 50) throws -> [GameEntity] {
+        try GameRecord.fetchGameRecords(nameContains: query, limit: limit, container: container).map(GameEntity.init)
+    }
+
+    /// Proactive identity hygiene for the MAIN app: assign stable, unique, non-nil
+    /// UUIDs to records that arrived from CloudKit with nil or duplicate uuids, and
+    /// persist, so the widget's AppIntents round-trip (`resolveEntities`) can resolve
+    /// a configured game by id. No-op in an app extension (the store is read-only
+    /// there) and idempotent (a clean store reassigns 0 and does not save, so it
+    /// doesn't churn CloudKit on every launch). The normal in-app game list uses a
+    /// plain @Query and never repairs, so without this pass nil/duplicate uuids
+    /// would persist and stay unselectable in the widget. Returns the number of
+    /// records whose uuid was (re)assigned.
+    @MainActor
+    @discardableResult
+    public static func repairStoredIdentities(container: ModelContainer) throws -> Int {
+        guard !isAppExtension else { return 0 }
+        var records = try GameRecord.fetchGameRecords(container: container)
+        return try repairDuplicateUUIDs(in: &records, container: container)
     }
 
     @MainActor
@@ -122,8 +166,11 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     /// - Parameters:
     ///   - gameRecords: The array of `GameRecord` instances to be checked and repaired.
     ///   - container: The `ModelContainer` used to persist changes.
+    /// - Returns: the number of records whose uuid was (re)assigned. Persists only
+    ///   when at least one record changed, so a clean store doesn't churn CloudKit.
     @MainActor
-    private static func repairDuplicateUUIDs(in gameRecords: inout [GameRecord], container: ModelContainer) throws {
+    @discardableResult
+    private static func repairDuplicateUUIDs(in gameRecords: inout [GameRecord], container: ModelContainer) throws -> Int {
         // Count occurrences of each UUID
         let uuidCount = Dictionary(gameRecords.compactMap { $0.uuid }.map { ($0, 1) }, uniquingKeysWith: +)
 
@@ -131,6 +178,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
         let duplicateUUIDs = uuidCount.filter { $0.value > 1 }.map { $0.key }
         var seenUUIDs = Set<UUID>()
         var existingUUIDs = Set(uuidCount.keys)
+        var reassigned = 0
 
         // Iterate and assign new UUIDs where necessary
         gameRecords.forEach { record in
@@ -140,6 +188,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
                         let newUUID = generateUniqueUUID(existingUUIDs: existingUUIDs)
                         record.uuid = newUUID
                         existingUUIDs.insert(newUUID)
+                        reassigned += 1
                     } else {
                         seenUUIDs.insert(uuid)
                     }
@@ -148,11 +197,15 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
                 let newUUID = generateUniqueUUID(existingUUIDs: existingUUIDs)
                 record.uuid = newUUID
                 existingUUIDs.insert(newUUID)
+                reassigned += 1
             }
         }
 
-        // Save the updated game records with repaired UUIDs
-        try container.mainContext.save()
+        // Save the updated game records with repaired UUIDs (only when changed).
+        if reassigned > 0 {
+            try container.mainContext.save()
+        }
+        return reassigned
     }
 
     /// Generates a unique UUID not present in the existing UUIDs.

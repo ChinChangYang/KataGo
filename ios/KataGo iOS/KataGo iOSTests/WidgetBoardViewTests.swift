@@ -42,4 +42,30 @@ struct WidgetBoardViewTests {
         let renderer = ImageRenderer(content: view.frame(width: 120, height: 120))
         #expect(renderer.uiImage != nil)
     }
+
+    /// The crisp vector board (now the only widget renderer) draws star points so
+    /// it reads as a real goban, matching the standard hoshi layout per board size.
+    /// Counts/booleans are computed into locals first: passing a non-empty
+    /// `[(Int, Int)]` directly into `#expect` crashes the swift-testing macro's
+    /// expression reflection (an empty tuple-array is fine, a single tuple is fine).
+    @Test func hoshiPoints_standardSquareSizes() {
+        let count19 = WidgetBoardView.hoshiPoints(width: 19, height: 19).count
+        let count13 = WidgetBoardView.hoshiPoints(width: 13, height: 13).count
+        let count9 = WidgetBoardView.hoshiPoints(width: 9, height: 9).count
+        #expect(count19 == 9)   // 3×3 grid {3,9,15}
+        #expect(count13 == 5)   // 4 corners + center
+        #expect(count9 == 5)
+
+        let has9Tengen = WidgetBoardView.hoshiPoints(width: 9, height: 9).contains { $0.0 == 4 && $0.1 == 4 }
+        let has19Tengen = WidgetBoardView.hoshiPoints(width: 19, height: 19).contains { $0.0 == 9 && $0.1 == 9 }
+        #expect(has9Tengen)
+        #expect(has19Tengen)
+    }
+
+    /// Non-standard / non-square boards get no star points rather than wrong ones.
+    @Test func hoshiPoints_nonStandardSizes_areEmpty() {
+        #expect(WidgetBoardView.hoshiPoints(width: 7, height: 7).isEmpty)
+        #expect(WidgetBoardView.hoshiPoints(width: 19, height: 13).isEmpty)
+        #expect(WidgetBoardView.hoshiPoints(width: 37, height: 37).isEmpty)
+    }
 }

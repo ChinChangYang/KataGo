@@ -70,6 +70,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // normally handles this; this is the guarded fallback for the case where
         // the search field still grabbed focus when the window became key.
         wc.focusBoardOnLaunch()
+
+        // Proactive identity hygiene (Issue 2): assign stable, unique, non-nil
+        // uuids to CloudKit-synced records so the widget's AppIntents round-trip
+        // can resolve a configured game by id. The in-app game list uses a plain
+        // @Query and never repairs, so without this nil/duplicate uuids stay
+        // unselectable in the widget. Main-app only + idempotent; deferred so it
+        // never blocks launch.
+        Task { @MainActor in
+            do {
+                try GameEntityQuery.repairStoredIdentities(container: modelContainer)
+            } catch {
+                NSLog("repairStoredIdentities failed: \(error)")
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
