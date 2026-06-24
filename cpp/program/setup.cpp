@@ -711,7 +711,19 @@ vector<SearchParams> Setup::loadParams(
 
     if(cfg.contains("nodeTableShardsPowerOfTwo"+idxStr)) params.nodeTableShardsPowerOfTwo = cfg.getInt("nodeTableShardsPowerOfTwo"+idxStr, 8, 24);
     else if(cfg.contains("nodeTableShardsPowerOfTwo"))   params.nodeTableShardsPowerOfTwo = cfg.getInt("nodeTableShardsPowerOfTwo",        8, 24);
-    else                                                 params.nodeTableShardsPowerOfTwo = 16;
+    else {
+      //Default the node table shard count based on the number of search threads instead of always using a large
+      //fixed value. Every Search allocates a node table whose memory footprint is proportional to the shard count
+      //(a pool of mutexes plus one std::map per shard - roughly 8MB of empty tables per Search at the old default of
+      //16). That fixed cost dominates the memory peak of match/selfplay, where each of potentially thousands of game
+      //threads holds its own Search (and, in match, possibly one per side). The shard count only needs to be large
+      //enough to keep lock contention low across the search threads, so scale it with numThreads (~128 shards per
+      //thread) while clamping to [8,16] to preserve the historical 65536-shard behavior for heavily-threaded searches.
+      int shardsPow = 8;
+      while(shardsPow < 16 && ((int64_t)1 << shardsPow) < (int64_t)params.numThreads * 128)
+        shardsPow += 1;
+      params.nodeTableShardsPowerOfTwo = shardsPow;
+    }
     if(cfg.contains("numVirtualLossesPerThread"+idxStr)) params.numVirtualLossesPerThread = cfg.getDouble("numVirtualLossesPerThread"+idxStr, 0.01, 1000.0);
     else if(cfg.contains("numVirtualLossesPerThread"))   params.numVirtualLossesPerThread = cfg.getDouble("numVirtualLossesPerThread",        0.01, 1000.0);
     else                                                 params.numVirtualLossesPerThread = 1.0;
