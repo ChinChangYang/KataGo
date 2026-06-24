@@ -290,9 +290,9 @@ final class MainWindowController: NSWindowController {
         // Run the launch-time crash-recovery decision ONCE, BEFORE arming the
         // sentinel / launching the engine — it must read the PREVIOUS run's
         // sentinel (`pendingLoadModelTitle`), which `startEngineAndSession()`
-        // will overwrite (arm) for THIS run. For the non-banner outcomes this
-        // launches the engine immediately; for the banner outcome it defers the
-        // launch until the user dismisses the NSAlert sheet (see `decideRecovery`).
+        // will overwrite (arm) for THIS run. Every outcome launches the engine
+        // immediately (last-good model, or the built-in net after an incomplete
+        // prior load); see `decideRecovery`.
         decideRecovery()
 
         // Arm the LizzieYzy board shortcuts (Space / `,` / `P`). A local monitor —
@@ -592,8 +592,8 @@ final class MainWindowController: NSWindowController {
         // Arm the crash sentinel BEFORE starting the engine thread, exactly as
         // the iOS `ModelRunnerView` does (lines 92-94). If the engine
         // OOM-crashes before the first GTP response, this value survives the
-        // process death and the NEXT launch's `decideRecovery()` shows the
-        // recovery alert instead of restarting the same crash. `reset()` first so
+        // process death and the NEXT launch's `decideRecovery()` falls back to
+        // the built-in net instead of restarting the same crash. `reset()` first so
         // the `lastLoadedModelTitle` observer re-fires even when the same model
         // is (re)launched; `synchronize()` flushes the sentinel to disk
         // immediately so an imminent crash can't lose it.
@@ -972,14 +972,14 @@ final class MainWindowController: NSWindowController {
     // `selectedModelTitle` reflecting the PREVIOUS run, and must run BEFORE
     // `startEngineAndSession()` arms `pendingLoadModelTitle` for THIS run. So
     // `init` calls `decideRecovery()` (not `startEngineAndSession()` directly):
-    //   • `.autoRestore` / `.showPicker` -> launch immediately.
-    //   • `.showPickerWithBanner` (a prior load crashed) -> DEFER launch until
-    //     the user dismisses the NSAlert sheet; both alert buttons fall back to
-    //     the built-in net for safety (never retry the crashing model on Mac).
+    //   • `.autoRestore` -> launch the last-good model immediately.
+    //   • `.showPicker` (fresh install / DEBUG, OR an incomplete prior load) ->
+    //     launch the safe built-in net; never auto-relaunch a model that may
+    //     have OOM'd. No alert is shown.
 
-    /// Runs the launch-time recovery decision exactly once and either launches
-    /// the engine immediately or defers to the recovery alert. Guarded by
-    /// `hasDecidedRecovery` so scene/relaunch transitions can't re-run it.
+    /// Runs the launch-time recovery decision exactly once and launches the
+    /// engine. Guarded by `hasDecidedRecovery` so scene/relaunch transitions
+    /// can't re-run it.
     private func decideRecovery() {
         guard !hasDecidedRecovery else { return }
         hasDecidedRecovery = true
@@ -1007,69 +1007,21 @@ final class MainWindowController: NSWindowController {
             startEngineAndSession()
 
         case .showPicker:
-            // Fresh install / DEBUG: macOS has no launch picker, so default to
-            // the built-in net.
+            // Fresh install / DEBUG, OR an incomplete prior load (the sentinel
+            // survived process death). macOS has no launch picker, so fall back
+            // to the safe built-in net — never auto-relaunch the model that may
+            // have OOM'd. No alert is shown. Launching the built-in net re-arms
+            // and then clears the sentinel via the normal lifecycle.
+            if !pending.isEmpty {
+                recoveryLogger.error(
+                    "Previous launch did not finish loading model: \(pending, privacy: .public). Falling back to the built-in network."
+                )
+            }
             if let builtIn = NeuralNetworkModel.builtInModel {
                 modelSelection.setActiveModel(builtIn)
             }
             startEngineAndSession()
-
-        case .showPickerWithBanner:
-            // A prior load apparently crashed before the engine ever responded.
-            // Do NOT launch yet — present the recovery alert once the window is
-            // on screen; its completion launches the built-in net.
-            recoveryLogger.error(
-                "Recovered from apparent crash loading model: \(pending, privacy: .public)"
-            )
-            presentRecoveryAlert(pending: pending)
         }
-    }
-
-    /// Presents the crash-recovery NSAlert as a SHEET on the window, then (in the
-    /// completion) clears the sentinel and launches the BUILT-IN net regardless of
-    /// which button was chosen — on Mac we never retry the crashing model. Mirrors
-    /// the spec's locked decision. The window is on screen by the time `init`
-    /// returns and `showWindow` runs, but we defer to the next run-loop turn so
-    /// the sheet attaches to a presented window; if there's still no window we
-    /// fall back to a windowless built-in launch.
-    private func presentRecoveryAlert(pending: String) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            guard let window = self.window else {
-                // No window to host the sheet — clear the sentinel and launch the
-                // built-in net so the app isn't left engine-less.
-                self.recoverWithBuiltIn()
-                return
-            }
-
-            let alert = NSAlert()
-            alert.messageText = "Loading “\(pending)” may not have finished last time."
-            alert.informativeText =
-                "The app restarted before that network finished loading, which can "
-                + "happen if it ran out of memory. To be safe, the built-in network "
-                + "will be used instead. You can switch networks again from the "
-                + "Models window."
-            // First-added button is the default (rightmost / return-key).
-            alert.addButton(withTitle: "Use Built-in Network")
-            alert.addButton(withTitle: "Choose Later")
-
-            alert.beginSheetModal(for: window) { [weak self] _ in
-                // BOTH responses fall back to the built-in net — never retry the
-                // model that apparently crashed.
-                self?.recoverWithBuiltIn()
-            }
-        }
-    }
-
-    /// Clears the crash sentinel, makes the built-in net the active model, and
-    /// launches it. Used by both recovery-alert buttons and the no-window path.
-    private func recoverWithBuiltIn() {
-        recoveryLogger.notice("Crash recovery: falling back to the built-in network.")
-        modelSelection.pendingLoadModelTitle = ""
-        if let builtIn = NeuralNetworkModel.builtInModel {
-            modelSelection.setActiveModel(builtIn)
-        }
-        startEngineAndSession()
     }
 
     // MARK: - First-response sentinel clear (P5-T4)
