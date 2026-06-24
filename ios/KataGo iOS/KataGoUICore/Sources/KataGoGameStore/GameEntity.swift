@@ -98,7 +98,7 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     /// library — one bounded predicate fetch per id (mirrors `fetchGameRecord`).
     /// This is the AppIntents round-trip path for a widget's selected game and runs
     /// in the memory-constrained extension, so it must never do a full-library scan
-    /// (the old `entities(for:)` fetched all ~records and filtered in Swift, which
+    /// (the old `entities(for:)` fetched all records and filtered in Swift, which
     /// risked jetsam → empty result → the widget falling back to most-recent).
     /// A duplicate uuid (a CloudKit sync artifact) collapses to the single
     /// most-recently-modified match (fetchLimit 1) rather than an ambiguous pair,
@@ -115,8 +115,9 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     }
 
     /// Bounded name search for the configuration picker; never materializes the
-    /// whole library in the extension. `localizedStandardContains` preserves the
-    /// case/diacritic-insensitive match the previous in-Swift filter used, and an
+    /// whole library in the extension. `localizedStandardContains` is case- AND
+    /// diacritic-insensitive; the previous in-Swift filter (`localizedCaseInsensitiveContains`)
+    /// was case-insensitive only, so this deliberately broadens the picker match. An
     /// empty query returns the newest `limit` games (see `fetchGameRecords(nameContains:)`).
     @MainActor
     public static func matchingEntities(for query: String, container: ModelContainer, limit: Int = 50) throws -> [GameEntity] {

@@ -98,18 +98,23 @@ struct SavedGameProviderTests {
     /// Multi-id resolution must preserve INPUT-id order (the AppIntents
     /// `entities(for:)` contract) and collapse a repeated id to a single entity.
     /// Every other resolveEntities test passes a single id, so the order-preserving
-    /// `seen`-dedup branch goes unexercised; input `[b, a, b]` (out of store order,
-    /// with a repeat) must resolve to `["B", "A"]` — b before a, repeat dropped.
+    /// `seen`-dedup branch goes unexercised. To prove the output follows INPUT order
+    /// (not the store's sort), `a` is made the NEWEST record so the store's
+    /// newest-first order is `[A, B]`; input `[b, a, b]` must then resolve to
+    /// `["B", "A"]` — the REVERSE of store order, with the repeated `b` dropped. An
+    /// implementation that returned store order would yield `["A", "B"]` and fail.
     @Test @MainActor func resolveEntities_multipleIDs_preservesOrderAndDeDupes() throws {
         let c = try container()
-        let a = GameRecord(config: Config()); a.name = "A"
-        let b = GameRecord(config: Config()); b.name = "B"
+        // Store newest-first order is [A, B] (a newer than b) so it DISAGREES with
+        // the asserted input order — otherwise the test can't tell the two apart.
+        let a = GameRecord(config: Config()); a.name = "A"; a.lastModificationDate = Date(timeIntervalSince1970: 2)
+        let b = GameRecord(config: Config()); b.name = "B"; b.lastModificationDate = Date(timeIntervalSince1970: 1)
         c.mainContext.insert(a); c.mainContext.insert(b); try c.mainContext.save()
 
         let aID = try #require(a.uuid)
         let bID = try #require(b.uuid)
         let resolved = try GameEntityQuery.resolveEntities(for: [bID, aID, bID], container: c)
-        #expect(resolved.map(\.name) == ["B", "A"])   // input order preserved, repeat collapsed
+        #expect(resolved.map(\.name) == ["B", "A"])   // input order (reverse of store order), repeat collapsed
         #expect(resolved.count == 2)                   // no second entity for the repeated id
     }
 
