@@ -95,6 +95,24 @@ struct SavedGameProviderTests {
         #expect(try GameEntityQuery.resolveEntities(for: [UUID()], container: c).isEmpty)
     }
 
+    /// Multi-id resolution must preserve INPUT-id order (the AppIntents
+    /// `entities(for:)` contract) and collapse a repeated id to a single entity.
+    /// Every other resolveEntities test passes a single id, so the order-preserving
+    /// `seen`-dedup branch goes unexercised; input `[b, a, b]` (out of store order,
+    /// with a repeat) must resolve to `["B", "A"]` — b before a, repeat dropped.
+    @Test @MainActor func resolveEntities_multipleIDs_preservesOrderAndDeDupes() throws {
+        let c = try container()
+        let a = GameRecord(config: Config()); a.name = "A"
+        let b = GameRecord(config: Config()); b.name = "B"
+        c.mainContext.insert(a); c.mainContext.insert(b); try c.mainContext.save()
+
+        let aID = try #require(a.uuid)
+        let bID = try #require(b.uuid)
+        let resolved = try GameEntityQuery.resolveEntities(for: [bID, aID, bID], container: c)
+        #expect(resolved.map(\.name) == ["B", "A"])   // input order preserved, repeat collapsed
+        #expect(resolved.count == 2)                   // no second entity for the repeated id
+    }
+
     /// The picker's name search must also be bounded (no whole-library scan) and
     /// stay case-insensitive (parity with the previous `localizedCaseInsensitiveContains`).
     @Test @MainActor func matchingEntities_caseInsensitiveAndBounded() throws {
