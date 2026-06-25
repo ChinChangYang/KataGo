@@ -97,6 +97,7 @@ struct GameListView: View {
     @State var searchText = ""
     @Binding var isGameListViewAppeared: Bool
     @Environment(ThumbnailModel.self) var thumbnailModel
+    @Environment(TopUIState.self) private var topUIState
 
     var body: some View {
         List(selection: $selectedGameRecord) {
@@ -108,6 +109,20 @@ struct GameListView: View {
             NameEditorView(gameRecord: selectedGameRecord)
         }
         .searchable(text: $searchText)
+        .toolbar {
+            if topUIState.isSelecting {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Spacer()
+                    Button(role: .destructive) {
+                        topUIState.confirmingBulkDeletion = true
+                    } label: {
+                        Label("Delete (\(topUIState.selectionCount))", systemImage: "trash")
+                    }
+                    .tint(.red)
+                    .disabled(topUIState.selectionCount == 0)
+                }
+            }
+        }
         .onAppear {
             isGameListViewAppeared = true
             thumbnailModel.isGameListViewAppeared = true
@@ -119,6 +134,8 @@ struct GameListView: View {
         .onDisappear {
             isGameListViewAppeared = false
             thumbnailModel.isGameListViewAppeared = false
+            // Don't let select mode (and its bottom bar) linger if the list goes away.
+            topUIState.exitSelection()
         }
         .onChange(of: selectedGameRecord?.name) {
             if let name = selectedGameRecord?.name {
