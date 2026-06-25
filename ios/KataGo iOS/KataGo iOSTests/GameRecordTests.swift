@@ -198,4 +198,54 @@ struct GameRecordTests {
         #expect(record.sgf == mainlineSgf)
         #expect(record.currentIndex == 1)
     }
+
+    // MARK: - TopUIState multi-select state
+
+    @Test func topUIState_toggle_addsAbsentID() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let record = GameRecord.createGameRecord(name: "A")
+        context.insert(record)
+        try context.save()
+
+        let state = TopUIState()
+        state.toggle(record.persistentModelID)
+
+        #expect(state.selectedGameIDs.contains(record.persistentModelID))
+        #expect(state.selectionCount == 1)
+    }
+
+    @Test func topUIState_toggle_removesPresentID() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let record = GameRecord.createGameRecord(name: "A")
+        context.insert(record)
+        try context.save()
+
+        let state = TopUIState()
+        state.selectedGameIDs = [record.persistentModelID]
+        state.toggle(record.persistentModelID)
+
+        #expect(state.selectedGameIDs.isEmpty)
+        #expect(state.selectionCount == 0)
+    }
+
+    @Test func topUIState_exitSelection_clearsFlagAndSet() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let a = GameRecord.createGameRecord(name: "A")
+        let b = GameRecord.createGameRecord(name: "B")
+        context.insert(a)
+        context.insert(b)
+        try context.save()
+
+        let state = TopUIState()
+        state.isSelecting = true
+        state.selectedGameIDs = [a.persistentModelID, b.persistentModelID]
+        state.exitSelection()
+
+        #expect(state.isSelecting == false)
+        #expect(state.selectedGameIDs.isEmpty)
+        #expect(state.selectionCount == 0)
+    }
 }

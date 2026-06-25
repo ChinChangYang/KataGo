@@ -703,6 +703,35 @@ public class TopUIState {
     public var importing = false
     public var confirmingDeletion = false
 
+    /// True while the game list is in multi-select mode (circles shown per row).
+    public var isSelecting = false
+
+    /// Persistent IDs of the games currently checked in multi-select mode.
+    /// Keyed by stable persistent ID so the set survives `@Query` refreshes.
+    public var selectedGameIDs: Set<PersistentIdentifier> = []
+
+    /// Drives the bulk-deletion confirmation dialog (distinct from the
+    /// single-game `confirmingDeletion`).
+    public var confirmingBulkDeletion = false
+
+    /// Number of games currently checked.
+    public var selectionCount: Int { selectedGameIDs.count }
+
+    /// Toggle one game's membership in the selection.
+    public func toggle(_ id: PersistentIdentifier) {
+        if selectedGameIDs.contains(id) {
+            selectedGameIDs.remove(id)
+        } else {
+            selectedGameIDs.insert(id)
+        }
+    }
+
+    /// Leave multi-select mode and clear all checks.
+    public func exitSelection() {
+        isSelecting = false
+        selectedGameIDs.removeAll()
+    }
+
     /// The currently-loaded model's friendly name (e.g. "Official KataGo
     /// Network"). Surfaced in the Configurations sheet now that the launch
     /// screen no longer lingers for a few seconds to show it. nil until the
