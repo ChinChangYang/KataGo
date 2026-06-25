@@ -60,6 +60,27 @@ struct GameSplitView: View {
                     topUIState.confirmingDeletion = false
                 }
             }
+            .confirmationDialog(
+                "Are you sure you want to delete \(topUIState.selectionCount) game\(topUIState.selectionCount == 1 ? "" : "s")? THIS ACTION IS IRREVERSIBLE!",
+                isPresented: $topUIState.confirmingBulkDeletion,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    let ids = topUIState.selectedGameIDs
+                    // Clear the open game first if it's among those being deleted.
+                    if let open = navigationContext.selectedGameRecord,
+                       ids.contains(open.persistentModelID) {
+                        navigationContext.selectedGameRecord = nil
+                    }
+                    _ = modelContext.bulkDelete(gameIDs: ids)
+                    topUIState.exitSelection()
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+
+                Button("Cancel", role: .cancel) {
+                    topUIState.confirmingBulkDeletion = false
+                }
+            }
             .fileImporter(
                 isPresented: $topUIState.importing,
                 allowedContentTypes: [sgfType, .text],
