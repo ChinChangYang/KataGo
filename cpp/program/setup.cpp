@@ -448,14 +448,19 @@ vector<SearchParams> Setup::loadParams(
     else if(cfg.contains("minPlayoutsPerThread"))   params.minPlayoutsPerThread = cfg.getDouble("minPlayoutsPerThread",        0.0, 1.0e20);
     else                                            params.minPlayoutsPerThread = (setupFor == SETUP_FOR_ANALYSIS || setupFor == SETUP_FOR_GTP) ? 8.0 : 0.0;
 
-    if(cfg.contains("winLossUtilityFactor"+idxStr)) params.winLossUtilityFactor = cfg.getDouble("winLossUtilityFactor"+idxStr, 0.0, 1.0);
-    else if(cfg.contains("winLossUtilityFactor"))   params.winLossUtilityFactor = cfg.getDouble("winLossUtilityFactor",        0.0, 1.0);
+    // Lower bound is -1.0 rather than 0.0 to allow inverting the utility ("misere"/送頭 search), where
+    // both players search for the move that most loses. Combined with temperature this can calibrate a bot
+    // to play at a degree of blundering matching very weak (e.g. sub-20k) opponents. Use negative score
+    // factors as the primary driver; the value net is a win-seeking evaluator and is unreliable for deep
+    // losing lines, so keep search shallow and lean on the (more local) score signal.
+    if(cfg.contains("winLossUtilityFactor"+idxStr)) params.winLossUtilityFactor = cfg.getDouble("winLossUtilityFactor"+idxStr, -1.0, 1.0);
+    else if(cfg.contains("winLossUtilityFactor"))   params.winLossUtilityFactor = cfg.getDouble("winLossUtilityFactor",        -1.0, 1.0);
     else                                            params.winLossUtilityFactor = 1.0;
-    if(cfg.contains("staticScoreUtilityFactor"+idxStr)) params.staticScoreUtilityFactor = cfg.getDouble("staticScoreUtilityFactor"+idxStr, 0.0, 1.0);
-    else if(cfg.contains("staticScoreUtilityFactor"))   params.staticScoreUtilityFactor = cfg.getDouble("staticScoreUtilityFactor",        0.0, 1.0);
+    if(cfg.contains("staticScoreUtilityFactor"+idxStr)) params.staticScoreUtilityFactor = cfg.getDouble("staticScoreUtilityFactor"+idxStr, -1.0, 1.0);
+    else if(cfg.contains("staticScoreUtilityFactor"))   params.staticScoreUtilityFactor = cfg.getDouble("staticScoreUtilityFactor",        -1.0, 1.0);
     else                                                params.staticScoreUtilityFactor = 0.1;
-    if(cfg.contains("dynamicScoreUtilityFactor"+idxStr)) params.dynamicScoreUtilityFactor = cfg.getDouble("dynamicScoreUtilityFactor"+idxStr, 0.0, 1.0);
-    else if(cfg.contains("dynamicScoreUtilityFactor"))   params.dynamicScoreUtilityFactor = cfg.getDouble("dynamicScoreUtilityFactor",        0.0, 1.0);
+    if(cfg.contains("dynamicScoreUtilityFactor"+idxStr)) params.dynamicScoreUtilityFactor = cfg.getDouble("dynamicScoreUtilityFactor"+idxStr, -1.0, 1.0);
+    else if(cfg.contains("dynamicScoreUtilityFactor"))   params.dynamicScoreUtilityFactor = cfg.getDouble("dynamicScoreUtilityFactor",        -1.0, 1.0);
     else                                                 params.dynamicScoreUtilityFactor = 0.3;
     if(cfg.contains("noResultUtilityForWhite"+idxStr)) params.noResultUtilityForWhite = cfg.getDouble("noResultUtilityForWhite"+idxStr, -1.0, 1.0);
     else if(cfg.contains("noResultUtilityForWhite"))   params.noResultUtilityForWhite = cfg.getDouble("noResultUtilityForWhite",        -1.0, 1.0);
