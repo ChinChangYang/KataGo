@@ -66,9 +66,16 @@ In `GameLinksView.body`, branch per row:
 
 The `.onDelete` swipe handler is applied only when **not** selecting (avoid two simultaneous delete paths). `GameLinksView` gains `@Environment(TopUIState.self)`.
 
-### 4. `GameListToolbar` (bottom toolbar)
+### 4. `GameListView` (bottom toolbar)
 
-`GameListToolbar` gains `@Environment(TopUIState.self)`. Add a `.bottomBar` `ToolbarItemGroup` shown only when `topUIState.isSelecting`:
+> Implementation note: the `.bottomBar` group lives in `GameListView`'s own
+> `.toolbar { if topUIState.isSelecting { ToolbarItemGroup(placement: .bottomBar) … } }`,
+> not in `GameListToolbar`. `GameListView` is a `View` with `@Environment`
+> access (so it reads `TopUIState` directly and gates the group), whereas
+> `GameListToolbar` is a `ToolbarContent` struct; keeping the bar next to the
+> list it controls is cleaner. `GameListToolbar` is left untouched.
+
+Add a `.bottomBar` `ToolbarItemGroup` shown only when `topUIState.isSelecting`:
 
 ```
 ToolbarItemGroup(placement: .bottomBar) {
