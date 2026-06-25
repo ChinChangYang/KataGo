@@ -13,7 +13,7 @@ import Testing
 @Suite struct KataGoEngineArgumentsTests {
 
     /// The macOS "best throughput" mux: 1 MLX/GPU + 2 CoreML/ANE server threads
-    /// (matches MainWindowController.engineDeviceAssignments).
+    /// (matches EngineDeviceAssignments.platformMux on macOS).
     @Test func emitsOneGPUTwoANEMux() {
         let args = KataGoEngineArguments.gtp(
             modelPath: "/m.bin.gz",

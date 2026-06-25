@@ -17,14 +17,6 @@ public enum BackendChoice: String, CaseIterable, Identifiable {
         case .coremlNE: return 100
         }
     }
-
-    public static var platformDefault: BackendChoice {
-        #if os(macOS)
-        return .mlxGPU
-        #else
-        return .coremlNE
-        #endif
-    }
 }
 
 public enum BoardSizeChoice: Int, CaseIterable, Identifiable {
@@ -47,51 +39,14 @@ public struct BackendSettings {
         self.model = model
     }
 
-    private var backendKey: String { "backend_\(model.fileName)" }
-    private var boardSizeKey: String { "coremlBoardSize_\(model.fileName)" }
     private var mlxBoardSizeKey: String { "mlxBoardSize_\(model.fileName)" }
     private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
     private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
-    public var backend: BackendChoice {
-        get {
-            #if targetEnvironment(simulator)
-            // The iOS/visionOS simulator's Metal translation layer (MTLSimDriver)
-            // crashes inside MLX's GPU inference path (copy_gpu_inplace). MLX-GPU
-            // only works on real devices, so force the CoreML/NE path on the
-            // simulator regardless of any stored MLX/GPU preference. Real devices
-            // honor the stored preference below.
-            return .coremlNE
-            #else
-            if let raw = UserDefaults.standard.string(forKey: backendKey),
-               let choice = BackendChoice(rawValue: raw) {
-                return choice
-            }
-            return BackendChoice.platformDefault
-            #endif
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: backendKey)
-        }
-    }
-
-    public var coremlBoardSize: BoardSizeChoice {
-        get {
-            let raw = UserDefaults.standard.integer(forKey: boardSizeKey)
-            if raw != 0, let size = BoardSizeChoice(rawValue: raw) {
-                return size
-            }
-            return .nineteen
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: boardSizeKey)
-        }
-    }
-
-    /// MLX/GPU max board size. Caps the largest board the GPU backend can play and
-    /// the geometry the Winograd autotuner + NN buffers optimize for. Persisted per
+    /// Max board size for the fixed GPU+ANE mux. Caps the largest board the
+    /// engine can play and the geometry the Winograd autotuner + NN buffers
+    /// (both the GPU and the ANE server threads) optimize for. Persisted per
     /// model; the tuner cache is keyed by board size, so per-size tunes coexist.
-    /// Only meaningful for `.mlxGPU`.
     public var mlxBoardSize: BoardSizeChoice {
         get {
             let raw = UserDefaults.standard.integer(forKey: mlxBoardSizeKey)
@@ -105,42 +60,32 @@ public struct BackendSettings {
         }
     }
 
-    /// MLX/GPU Winograd autotuning mode. `false` = the fast coarse-grid tune
-    /// (default), `true` = the wide-grid "full" tune (more thorough, much slower
-    /// on device). Persisted per model; each mode is cached in its own file, so
-    /// switching takes effect on the next load. Only meaningful for `.mlxGPU`.
+    /// Winograd autotuning mode for the mux's MLX/GPU server thread. `false` =
+    /// the fast coarse-grid tune (default), `true` = the wide-grid "full" tune
+    /// (more thorough, much slower on device). Persisted per model; each mode is
+    /// cached in its own file, so switching takes effect on the next load.
     public var tunerFull: Bool {
         get { UserDefaults.standard.bool(forKey: tunerFullKey) }
         set { UserDefaults.standard.set(newValue, forKey: tunerFullKey) }
     }
 
-    /// One-shot "re-tune on next load" flag. When `true`, the next MLX/GPU load
-    /// of this model forces a fresh autotune that overwrites the cached tuning;
+    /// One-shot "re-tune on next load" flag. When `true`, the next load of this
+    /// model forces a fresh autotune that overwrites the cached tuning;
     /// `ModelRunnerView` clears it back to `false` after consuming it so the
-    /// re-tune happens exactly once. Only meaningful for `.mlxGPU`.
+    /// re-tune happens exactly once. The mux always runs an MLX/GPU server
+    /// thread, so the re-tune is always consumed.
     public var reTune: Bool {
         get { UserDefaults.standard.bool(forKey: reTuneKey) }
         set { UserDefaults.standard.set(newValue, forKey: reTuneKey) }
     }
 
-    public var effectiveMaxBoardLength: Int {
-        switch backend {
-        case .coremlNE: return min(coremlBoardSize.rawValue, model.nnLen)
-        case .mlxGPU: return min(mlxBoardSize.rawValue, model.nnLen)
-        }
-    }
+    /// NN-buffer board length for the fixed GPU+ANE mux. The mux always includes
+    /// an MLX/GPU path, so the engine-wide NN buffer geometry and the Winograd
+    /// tuner key off the single max board size. Both the GPU and ANE server
+    /// threads convert/allocate to this same single geometry, clamped to the
+    /// model's neural-net length.
+    public var effectiveMaxBoardLength: Int { min(mlxBoardSize.rawValue, model.nnLen) }
 
-    /// NN-buffer board length for the macOS GPU+ANE mux engine. The mux always
-    /// includes an MLX/GPU path, so the engine-wide NN buffer geometry and the
-    /// Winograd tuner key off the MLX/GPU board size, independent of the
-    /// (macOS-removed) per-model backend picker. Both the GPU and ANE server
-    /// threads convert/allocate to this same single geometry.
-    public var muxMaxBoardLength: Int { min(mlxBoardSize.rawValue, model.nnLen) }
-
-    public var requireExactNNLen: Bool {
-        switch backend {
-        case .coremlNE: return false
-        case .mlxGPU: return false
-        }
-    }
+    /// The mux's two backend paths both run with a non-exact NN length.
+    public var requireExactNNLen: Bool { false }
 }

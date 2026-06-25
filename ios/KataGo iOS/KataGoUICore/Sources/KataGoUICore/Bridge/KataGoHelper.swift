@@ -14,44 +14,32 @@ public class KataGoHelper {
     public static let mlxNumSearchThreads = 16
     public static let mlxNnMaxBatchSize = 8
 #else
-    public static let mlxNumSearchThreads = 2
-    public static let mlxNnMaxBatchSize = 1
+    // iOS/visionOS feed a fixed GPU+ANE mux: more search threads + a batch >1
+    // so the parallel NN server threads (and the GPU's batched eval) stay busy.
+    // Starting points — tune on device (power vs throughput).
+    public static let mlxNumSearchThreads = 6
+    public static let mlxNnMaxBatchSize = 3
 #endif
 
-#if os(macOS)
-    // macOS default: 0 = GPU (MLX)
+    /// Launch the in-process engine on the fixed GPU+ANE inference mux. Each
+    /// element of `deviceAssignments` is one NN-server-thread device code
+    /// (0 = MLX/GPU, 100 = CoreML/ANE); the default is the platform mux.
     public class func runGtp(modelPath: String? = nil,
-                             mlxDeviceToUse: Int = 0,
+                             deviceAssignments: [Int] = EngineDeviceAssignments.platformMux,
                              maxBoardSizeForNNBuffer: Int = 37,
                              requireExactNNLen: Bool = false,
                              tunerFull: Bool = false,
                              reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
-                   mlxDeviceToUse: mlxDeviceToUse,
+                   deviceAssignments: deviceAssignments,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                    requireExactNNLen: requireExactNNLen,
                    tunerFull: tunerFull,
                    reTune: reTune)
     }
-#else
-    // iOS/visionOS default: 100 = ANE (Neural Engine) via CoreML
-    public class func runGtp(modelPath: String? = nil,
-                             mlxDeviceToUse: Int = 100,
-                             maxBoardSizeForNNBuffer: Int = 37,
-                             requireExactNNLen: Bool = false,
-                             tunerFull: Bool = false,
-                             reTune: Bool = false) {
-        runGtpImpl(modelPath: modelPath,
-                   mlxDeviceToUse: mlxDeviceToUse,
-                   maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                   requireExactNNLen: requireExactNNLen,
-                   tunerFull: tunerFull,
-                   reTune: reTune)
-    }
-#endif
 
     private class func runGtpImpl(modelPath: String?,
-                                  mlxDeviceToUse: Int,
+                                  deviceAssignments: [Int],
                                   maxBoardSizeForNNBuffer: Int,
                                   requireExactNNLen: Bool,
                                   tunerFull: Bool,
@@ -83,17 +71,25 @@ public class KataGoHelper {
         // registration runs before any view (and thus any runGtp call), so the
         // KataGoSwift seam is wired before the engine starts.
 
-        KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
-                     std.string(humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"),
-                     std.string(configPath ?? "Contents/Resources/default_gtp.cfg"),
-                     Int32(mlxDeviceToUse),
-                     Int32(mlxNumSearchThreads),
-                     Int32(mlxNnMaxBatchSize),
-                     Int32(maxBoardSizeForNNBuffer),
-                     requireExactNNLen,
-                     std.string(homeDataDir()),
-                     tunerFull,
-                     reTune)
+        // Marshal the device-assignment array across the C++ boundary as a
+        // (pointer, count) pair. `KataGoRunGtp` consumes it synchronously while
+        // building its argv (before it blocks in MainCmds::gtp), so the borrowed
+        // buffer stays valid for the duration of the call.
+        let devices = deviceAssignments.map { Int32($0) }
+        devices.withUnsafeBufferPointer { buf in
+            KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
+                         std.string(humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"),
+                         std.string(configPath ?? "Contents/Resources/default_gtp.cfg"),
+                         buf.baseAddress,
+                         Int32(buf.count),
+                         Int32(mlxNumSearchThreads),
+                         Int32(mlxNnMaxBatchSize),
+                         Int32(maxBoardSizeForNNBuffer),
+                         requireExactNNLen,
+                         std.string(homeDataDir()),
+                         tunerFull,
+                         reTune)
+        }
     }
 
     /// Writable home-data directory for KataGo's on-device caches (notably the

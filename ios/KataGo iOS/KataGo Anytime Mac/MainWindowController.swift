@@ -603,8 +603,8 @@ final class MainWindowController: NSWindowController {
 
         let engineStarted = startKataGoThread(
             modelPath: modelPath,
-            deviceAssignments: Self.engineDeviceAssignments,
-            maxBoardSizeForNNBuffer: settings.muxMaxBoardLength,
+            deviceAssignments: EngineDeviceAssignments.platformMux,
+            maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
             requireExactNNLen: settings.requireExactNNLen,
             tunerFull: settings.tunerFull,
             reTune: settings.reTune
@@ -633,20 +633,6 @@ final class MainWindowController: NSWindowController {
             await initializeSession(model: model, selected: selected, context: context)
         }
     }
-
-    /// The macOS "best throughput" engine mux: 1 MLX/GPU + 2 CoreML/ANE NN
-    /// server threads. The 2 ANE threads run unserialized and overlap the GPU
-    /// work (all GPU work serializes on `mlxGpuEvalMutex` — one Apple GPU — so a
-    /// 2nd GPU thread only adds contention; the throughput win is GPU∥ANE
-    /// concurrency). Measured fastest on-device (~1.25× the old single-GPU
-    /// default). `0` = MLX/GPU, `100` = CoreML/ANE, matching
-    /// `BackendChoice.mlxDeviceToUse`. This replaces the per-model backend picker
-    /// on macOS; iOS/visionOS stay single-backend.
-    static let engineDeviceAssignments: [Int] = [
-        BackendChoice.mlxGPU.mlxDeviceToUse,    // GPU
-        BackendChoice.coremlNE.mlxDeviceToUse,  // ANE
-        BackendChoice.coremlNE.mlxDeviceToUse,  // ANE
-    ]
 
     /// Spawns the `katago-engine` child process and wires the session's GTP I/O
     /// to it (the macOS replacement for the in-process `KataGoHelper.runGtp`

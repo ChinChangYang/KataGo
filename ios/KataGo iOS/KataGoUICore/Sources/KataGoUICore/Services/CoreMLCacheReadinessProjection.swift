@@ -48,11 +48,10 @@ typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInput
 /// on disk (pre-download for non-built-in models).
 ///
 /// NOTE: `useFP16` and `maxBatchSize` must match what the C++ launch
-/// path computes. `useFP16 = true` and `maxBatchSize = 1` are the
-/// values the cooperative-pool launch uses on iOS Apple Silicon
-/// today. If those defaults change, this resolver must change with
-/// them, otherwise the projection drifts from the launch's actual
-/// cache key.
+/// path computes. `useFP16 = true` is the iOS Apple Silicon default;
+/// `maxBatchSize` references `KataGoHelper.mlxNnMaxBatchSize` — the same
+/// constant the engine launch passes as `nnMaxBatchSize` — so the
+/// projection cannot drift from the launch's actual cache key.
 func makeProjectionResolver() -> ProjectionResolver {
     return { fileName in
         // Human SL aux is bundled and shares the built-in's backend
@@ -74,7 +73,7 @@ func makeProjectionResolver() -> ProjectionResolver {
                 nnYLen: nnLen,
                 requireExactNNLen: settings.requireExactNNLen,
                 useFP16: true,
-                maxBatchSize: 1)
+                maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
         }
 
         guard let model = NeuralNetworkModel.allCases.first(where: { $0.fileName == fileName })
@@ -106,7 +105,7 @@ func makeProjectionResolver() -> ProjectionResolver {
             nnYLen: nnLen,
             requireExactNNLen: settings.requireExactNNLen,
             useFP16: true,           // iOS Apple Silicon default
-            maxBatchSize: 1)         // iOS default
+            maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
     }
 }
 

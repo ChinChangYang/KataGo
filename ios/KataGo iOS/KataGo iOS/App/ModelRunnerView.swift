@@ -99,16 +99,16 @@ struct ModelRunnerView: View {
             let reTune = settings.reTune
             startKataGoThread(
                 modelPath: modelPath,
-                mlxDeviceToUse: settings.backend.mlxDeviceToUse,
+                deviceAssignments: EngineDeviceAssignments.platformMux,
                 maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
                 requireExactNNLen: settings.requireExactNNLen,
                 tunerFull: tunerFull,
                 reTune: reTune
             )
-            // One-shot: consume a pending re-tune so it fires exactly once. Only
-            // when MLX/GPU actually uses it — the CoreML/NE path ignores reTune,
-            // so a request made there is left intact for a later MLX/GPU load.
-            if reTune && settings.backend == .mlxGPU {
+            // One-shot: consume a pending re-tune so it fires exactly once. The
+            // mux always runs an MLX/GPU server thread (which reads the Winograd
+            // tuner flags), so the re-tune is always consumed here.
+            if reTune {
                 settings.reTune = false
             }
         }
@@ -120,14 +120,14 @@ struct ModelRunnerView: View {
     }
 
     private func startKataGoThread(modelPath: String,
-                                   mlxDeviceToUse: Int,
+                                   deviceAssignments: [Int],
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
                                    reTune: Bool) {
         let katagoThread = Thread {
             KataGoHelper.runGtp(modelPath: modelPath,
-                                mlxDeviceToUse: mlxDeviceToUse,
+                                deviceAssignments: deviceAssignments,
                                 maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                                 requireExactNNLen: requireExactNNLen,
                                 tunerFull: tunerFull,

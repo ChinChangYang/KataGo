@@ -293,9 +293,9 @@ final class ModelRowView: NSTableCellView {
 /// explicit relaunch path.)
 ///
 /// macOS has no backend picker: the engine always runs the fixed 1 GPU + 2 ANE
-/// mux (`MainWindowController.engineDeviceAssignments`). The pane therefore shows
-/// only the MLX/GPU-side controls (max board size + Winograd autotuning), which
-/// govern the engine-wide NN buffer geometry and the GPU server thread.
+/// mux (`EngineDeviceAssignments.platformMux`). The pane therefore shows only the
+/// MLX/GPU-side controls (max board size + Winograd autotuning), which govern the
+/// engine-wide NN buffer geometry and the GPU server thread.
 @MainActor
 final class ModelBackendPaneView: NSView {
 

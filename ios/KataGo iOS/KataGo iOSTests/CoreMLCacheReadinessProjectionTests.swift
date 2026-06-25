@@ -31,7 +31,7 @@ struct CoreMLCacheReadinessProjectionTests {
         #expect(inputs.nnYLen > 0)
         #expect(inputs.nnXLen == inputs.nnYLen)
         #expect(inputs.useFP16 == true)
-        #expect(inputs.maxBatchSize == 1)
+        #expect(inputs.maxBatchSize == KataGoHelper.mlxNnMaxBatchSize)
 
         // Aux projection must mirror the built-in's settings: same nnLen
         // and same requireExactNNLen so the cache key matches what the
@@ -72,7 +72,7 @@ struct CoreMLCacheReadinessProjectionTests {
             nnXLen: nnLen, nnYLen: nnLen,
             requireExactNNLen: settings.requireExactNNLen,
             useFP16: true,          // C++ iOS Apple Silicon default
-            maxBatchSize: 1)        // C++ iOS Apple Silicon default
+            maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
 
         let projected = try await makeProjectionDigestFor()(builtIn.fileName)
         #expect(projected == launchKey.digest)
@@ -103,7 +103,7 @@ struct CoreMLCacheReadinessProjectionTests {
             nnXLen: nnLen, nnYLen: nnLen,
             requireExactNNLen: settings.requireExactNNLen,
             useFP16: true,
-            maxBatchSize: 1,
+            maxBatchSize: KataGoHelper.mlxNnMaxBatchSize,
             downloadedHasher: BinFileHasher.shared.identityForDownloadedFile)
 
         let projected = try await makeProjectionDigestFor()("b18c384nbt-humanv0.bin.gz")

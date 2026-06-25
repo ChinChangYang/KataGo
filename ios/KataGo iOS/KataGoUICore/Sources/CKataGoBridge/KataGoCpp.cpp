@@ -72,7 +72,8 @@ ostream outToKataGo(&tsbToKataGo);
 void KataGoRunGtp(string modelPath,
                   string humanModelPath,
                   string configPath,
-                  int mlxDeviceToUse,
+                  const int* mlxDeviceToUse,
+                  int numDevices,
                   int numSearchThreads,
                   int nnMaxBatchSize,
                   int maxBoardSizeForNNBuffer,
@@ -96,7 +97,17 @@ void KataGoRunGtp(string modelPath,
     subArgs.push_back(humanModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
-    subArgs.push_back(string("-override-config mlxDeviceToUseThread0=") + to_string(mlxDeviceToUse));
+    // Fixed GPU+ANE inference mux: one device code per NN server thread
+    // (0 = MLX/GPU, 100 = CoreML/ANE). setup.cpp reads numNNServerThreadsPerModel
+    // then mlxDeviceToUseThread<i> per thread. This MUST match the override order
+    // KataGoEngineArguments.gtp builds (the macOS IPC contract test is the
+    // executable spec): numNNServerThreadsPerModel, then per-thread devices, then
+    // mlxUseFP16. The pointer is consumed synchronously here, before MainCmds::gtp.
+    subArgs.push_back(string("-override-config numNNServerThreadsPerModel=") + to_string(numDevices));
+    for (int i = 0; i < numDevices; i++) {
+        subArgs.push_back(string("-override-config mlxDeviceToUseThread") + to_string(i) +
+                          "=" + to_string(mlxDeviceToUse[i]));
+    }
     subArgs.push_back(string("-override-config mlxUseFP16=true"));
     subArgs.push_back(string("-override-config numSearchThreads=") + to_string(numSearchThreads));
     subArgs.push_back(string("-override-config nnMaxBatchSize=") + to_string(nnMaxBatchSize));

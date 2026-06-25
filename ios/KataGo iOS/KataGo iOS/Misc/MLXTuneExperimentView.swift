@@ -43,9 +43,11 @@ struct MLXTuneExperimentView: View {
         status = "tuning \(model.title) on MLX/GPU (Re-tune)…\nwatch stderr for [MLX-TUNE]/[MLX-STUDY]"
 
         let thread = Thread {
-            // Force the GPU backend (device 0) + a fresh tune, bypassing the UI/UserDefaults.
+            // Force a single GPU server thread (device 0) + a fresh tune,
+            // bypassing the UI/UserDefaults and the platform mux, so the
+            // Winograd autotuner runs and prints measurements.
             KataGoHelper.runGtp(modelPath: modelPath,
-                                mlxDeviceToUse: 0,
+                                deviceAssignments: [0],
                                 maxBoardSizeForNNBuffer: model.nnLen,
                                 requireExactNNLen: false,
                                 tunerFull: false,

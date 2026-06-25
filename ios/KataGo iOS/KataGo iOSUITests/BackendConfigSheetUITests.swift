@@ -2,17 +2,16 @@
 //  BackendConfigSheetUITests.swift
 //  KataGo iOSUITests
 //
-//  UI test for the MLX/GPU "Max Board Size" picker (mirrors the CoreML/NE
-//  "Compiled Board Size" picker).
+//  UI test for the "Max Board Size" picker in the per-model Backend Settings
+//  sheet.
 //
-//  NOTE: On the iOS Simulator the app force-pins the backend to CoreML/NE —
-//  MLX's GPU path crashes the simulator's Metal layer (see BackendChoice.swift)
-//  — so the MLX section is only reachable by tapping the Backend segmented
-//  control over to "MLX/GPU" inside the config sheet. That is pure UI and never
-//  launches the engine, so it is safe on the simulator. This verifies the
-//  picker renders its options, defaults to 19x19, is changeable, and persists
-//  across a sheet reopen. (Whether MLX actually tunes at the chosen size can
-//  only be confirmed on a real device.)
+//  The app always runs a fixed GPU+ANE inference mux, so the sheet no longer
+//  has a backend (MLX/GPU vs CoreML/NE) toggle — the Max Board Size picker is
+//  shown immediately on opening the sheet. This is pure UI and never launches
+//  the engine, so it is safe on the simulator. This verifies the picker renders
+//  its options, defaults to 19x19, is changeable, and persists across a sheet
+//  reopen. (Whether the engine actually tunes at the chosen size can only be
+//  confirmed on a real device.)
 //
 
 import XCTest
@@ -27,7 +26,7 @@ final class BackendConfigSheetUITests: XCTestCase {
     }
 
     @MainActor
-    func testMLXMaxBoardSizePickerDefaultsChangesAndPersists() throws {
+    func testMaxBoardSizePickerDefaultsChangesAndPersists() throws {
         let app = XCUIApplication()
         app.launch()
 
@@ -40,17 +39,17 @@ final class BackendConfigSheetUITests: XCTestCase {
         row.tap()
 
         openBackendSheet(in: app)
-        selectMLXBackend(in: app)
 
-        // All four "Max Board Size" segments must be present for MLX/GPU.
+        // All four "Max Board Size" segments must be present immediately (no
+        // backend toggle to tap first).
         for size in boardSizes {
             XCTAssertTrue(segment(in: app, size).waitForExistence(timeout: 10),
-                          "Max Board Size option '\(size)' not found for MLX/GPU")
+                          "Max Board Size option '\(size)' not found")
         }
 
         // Default selection is 19x19.
         XCTAssertTrue(segment(in: app, "19x19").isSelected,
-                      "MLX/GPU max board size should default to 19x19, "
+                      "Max board size should default to 19x19, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
 
         // Change to 13x13 and confirm the selection moves there.
@@ -58,13 +57,12 @@ final class BackendConfigSheetUITests: XCTestCase {
         XCTAssertTrue(segment(in: app, "13x13").isSelected,
                       "Tapping 13x13 did not select it")
 
-        // Dismiss and reopen; the MLX choice must persist (per-model UserDefaults).
+        // Dismiss and reopen; the choice must persist (per-model UserDefaults).
         app.buttons["Done"].tap()
         openBackendSheet(in: app)
-        selectMLXBackend(in: app)
         let thirteen = segment(in: app, "13x13")
         XCTAssertTrue(thirteen.waitForExistence(timeout: 10) && thirteen.isSelected,
-                      "MLX/GPU max board size did not persist as 13x13 across reopen, "
+                      "Max board size did not persist as 13x13 across reopen, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
 
         // Restore the 19x19 default so the test is idempotent: the choice is
@@ -86,15 +84,6 @@ final class BackendConfigSheetUITests: XCTestCase {
         let gear = app.buttons["Backend Settings"]
         XCTAssertTrue(gear.waitForExistence(timeout: 10), "Backend Settings gear button not found")
         gear.tap()
-    }
-
-    /// Tap the "MLX/GPU" segment of the Backend picker to reveal the MLX-only
-    /// "Max Board Size" section. (UI only — no engine launch.)
-    @MainActor
-    private func selectMLXBackend(in app: XCUIApplication) {
-        let mlx = app.buttons["MLX/GPU"]
-        XCTAssertTrue(mlx.waitForExistence(timeout: 10), "MLX/GPU backend segment not found")
-        mlx.tap()
     }
 
     @MainActor
