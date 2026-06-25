@@ -116,7 +116,12 @@ struct GameListView: View {
                     Button(role: .destructive) {
                         topUIState.confirmingBulkDeletion = true
                     } label: {
-                        Label("Delete (\(topUIState.selectionCount))", systemImage: "trash")
+                        // Plain text (no `Label`/systemImage): a lone icon button
+                        // in an iOS 26 `.bottomBar` is rendered icon-only as a
+                        // circular glass control, which hides the "(N)" count the
+                        // user asked for. A text title renders as a labeled
+                        // control so the selected-count stays visible.
+                        Text("Delete (\(topUIState.selectionCount))")
                     }
                     .tint(.red)
                     .disabled(topUIState.selectionCount == 0)
