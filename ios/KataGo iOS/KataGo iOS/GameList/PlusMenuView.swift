@@ -81,6 +81,19 @@ struct PlusMenuView: View {
                 } label: {
                     Label(thumbnailModel.title, systemImage: "photo")
                 }
+
+                Button {
+                    withAnimation {
+                        if topUIState.isSelecting {
+                            topUIState.exitSelection()
+                        } else {
+                            topUIState.isSelecting = true
+                        }
+                    }
+                } label: {
+                    Label(topUIState.isSelecting ? "Done" : "Select",
+                          systemImage: topUIState.isSelecting ? "checkmark.circle.fill" : "checkmark.circle")
+                }
             }
 
             if gameRecord != nil {
