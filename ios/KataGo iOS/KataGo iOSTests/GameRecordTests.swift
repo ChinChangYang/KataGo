@@ -248,4 +248,76 @@ struct GameRecordTests {
         #expect(state.selectedGameIDs.isEmpty)
         #expect(state.selectionCount == 0)
     }
+
+    // MARK: - ModelContext.bulkDelete
+
+    @Test func bulkDelete_subset_removesOnlySelected() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let a = GameRecord.createGameRecord(name: "A")
+        let b = GameRecord.createGameRecord(name: "B")
+        let c = GameRecord.createGameRecord(name: "C")
+        context.insert(a); context.insert(b); context.insert(c)
+        try context.save()
+
+        let deleted = context.bulkDelete(gameIDs: [a.persistentModelID, c.persistentModelID])
+        try context.save()
+
+        #expect(Set(deleted) == Set([a.persistentModelID, c.persistentModelID]))
+        let remaining = try context.fetch(FetchDescriptor<GameRecord>())
+        #expect(remaining.count == 1)
+        #expect(remaining.first?.name == "B")
+    }
+
+    @Test func bulkDelete_all_emptiesStore() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let a = GameRecord.createGameRecord(name: "A")
+        let b = GameRecord.createGameRecord(name: "B")
+        context.insert(a); context.insert(b)
+        try context.save()
+
+        let deleted = context.bulkDelete(gameIDs: [a.persistentModelID, b.persistentModelID])
+        try context.save()
+
+        #expect(deleted.count == 2)
+        let remaining = try context.fetch(FetchDescriptor<GameRecord>())
+        #expect(remaining.isEmpty)
+    }
+
+    @Test func bulkDelete_emptySet_isNoOp() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let a = GameRecord.createGameRecord(name: "A")
+        context.insert(a)
+        try context.save()
+
+        let deleted = context.bulkDelete(gameIDs: [])
+        try context.save()
+
+        #expect(deleted.isEmpty)
+        let remaining = try context.fetch(FetchDescriptor<GameRecord>())
+        #expect(remaining.count == 1)
+    }
+
+    @Test func bulkDelete_staleID_isIgnored() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let a = GameRecord.createGameRecord(name: "A")
+        let b = GameRecord.createGameRecord(name: "B")
+        context.insert(a); context.insert(b)
+        try context.save()
+
+        // Make A's ID stale by deleting A directly first.
+        let staleID = a.persistentModelID
+        context.delete(a)
+        try context.save()
+
+        let deleted = context.bulkDelete(gameIDs: [staleID, b.persistentModelID])
+        try context.save()
+
+        #expect(deleted == [b.persistentModelID])
+        let remaining = try context.fetch(FetchDescriptor<GameRecord>())
+        #expect(remaining.isEmpty)
+    }
 }

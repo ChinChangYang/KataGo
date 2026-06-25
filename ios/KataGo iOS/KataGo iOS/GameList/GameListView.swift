@@ -113,6 +113,23 @@ extension ModelContext {
             }
         }
     }
+
+    /// Delete every `GameRecord` whose persistent ID is in `gameIDs`, returning
+    /// the IDs actually deleted. Fetch-and-filter (rather than `model(for:)`) so
+    /// stale/unknown IDs are simply skipped. Synchronous: it runs inside the
+    /// bulk-delete confirmation action (already on the main actor) — unlike the
+    /// swipe path, there's no in-flight list-removal animation to race with, so
+    /// the deferred `safelyDelete` hop isn't needed.
+    func bulkDelete(gameIDs: Set<PersistentIdentifier>) -> [PersistentIdentifier] {
+        guard !gameIDs.isEmpty else { return [] }
+        let all = (try? fetch(FetchDescriptor<GameRecord>())) ?? []
+        var deleted: [PersistentIdentifier] = []
+        for record in all where gameIDs.contains(record.persistentModelID) {
+            delete(record)
+            deleted.append(record.persistentModelID)
+        }
+        return deleted
+    }
 }
 
 #Preview {
