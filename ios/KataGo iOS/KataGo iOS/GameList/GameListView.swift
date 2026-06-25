@@ -15,6 +15,7 @@ struct GameLinksView: View {
     @Binding var searchText: String
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
+    @Environment(TopUIState.self) private var topUIState
 
     private var isSearchActive: Bool { !searchText.isEmpty }
 
@@ -38,25 +39,55 @@ struct GameLinksView: View {
 
     var body: some View {
         ForEach(gameRecords) { gameRecord in
-            NavigationLink(value: gameRecord) {
-                GameLinkView(gameRecord: gameRecord)
-            }
-        }
-        .onDelete { indexSet in
-            for index in indexSet {
-                let record = gameRecords[index]
-                if selectedGameRecord?.persistentModelID == record.persistentModelID {
-                    selectedGameRecord = nil
+            if topUIState.isSelecting {
+                selectableRow(for: gameRecord)
+            } else {
+                NavigationLink(value: gameRecord) {
+                    GameLinkView(gameRecord: gameRecord)
                 }
-                modelContext.safelyDelete(gameRecord: record)
             }
-            WidgetCenter.shared.reloadAllTimelines()
         }
+        .onDelete(perform: deleteAction)
 
         if isSearchActive {
             Button("Clear Search") { searchText = "" }
                 .tint(.primary)
         }
+    }
+
+    @ViewBuilder
+    private func selectableRow(for gameRecord: GameRecord) -> some View {
+        let isSelected = topUIState.selectedGameIDs.contains(gameRecord.persistentModelID)
+        HStack {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .imageScale(.large)
+            GameLinkView(gameRecord: gameRecord)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation {
+                topUIState.toggle(gameRecord.persistentModelID)
+            }
+        }
+    }
+
+    private var deleteAction: ((IndexSet) -> Void)? {
+        if topUIState.isSelecting {
+            return nil
+        }
+        return deleteRecords
+    }
+
+    private func deleteRecords(at indexSet: IndexSet) {
+        for index in indexSet {
+            let record = gameRecords[index]
+            if selectedGameRecord?.persistentModelID == record.persistentModelID {
+                selectedGameRecord = nil
+            }
+            modelContext.safelyDelete(gameRecord: record)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
