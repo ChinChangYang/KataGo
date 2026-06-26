@@ -1145,8 +1145,12 @@ final class MainWindowController: NSWindowController {
                 if gobanState.analysisStatus == .pause {
                     session.messageList.appendAndSend(command: "stop")
                 } else {
-                    session.messageList.appendAndSend(
-                        command: GtpCommandBuilder.analyzeCommand(interval: gameRecord.concreteConfig.analysisInterval, maxMoves: gameRecord.concreteConfig.maxAnalysisMoves))
+                    // Reset the visit cap to unbounded before re-arming continuous
+                    // analysis, so a prior human-profile gen-move's maxVisits=400
+                    // does not leak in and cap analysis.
+                    session.messageList.appendAndSend(commands: [
+                        "kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)",
+                        GtpCommandBuilder.analyzeCommand(interval: gameRecord.concreteConfig.analysisInterval, maxMoves: gameRecord.concreteConfig.maxAnalysisMoves)])
                 }
 
                 // Auto-play stepping (port of `GameSplitView` lines 495-525,
