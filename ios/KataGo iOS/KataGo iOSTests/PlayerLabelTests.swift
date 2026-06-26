@@ -10,7 +10,7 @@ import Testing
 /// `Config.playerLabel(for:)` decides the name shown beside a color's
 /// captured-stone count: a side with a positive per-move thinking time is the
 /// engine (so we show its profile — "AI" by default, or a human-SL profile
-/// like "rank_9d"); a side with zero thinking time is a person ("Human").
+/// like "9d"); a side with zero thinking time is a person ("Human").
 struct PlayerLabelTests {
 
     @Test func blackWithZeroThinkingTimeIsHuman() {
@@ -36,30 +36,30 @@ struct PlayerLabelTests {
 
     @Test func blackWithPositiveThinkingTimeShowsItsHumanProfileName() {
         // humanSLProfile is the black profile accessor.
-        let config = Config(humanSLProfile: "rank_9d", optionalBlackMaxTime: 0.5)
-        #expect(config.playerLabel(for: .black) == "rank_9d")
+        let config = Config(humanSLProfile: "9d", optionalBlackMaxTime: 0.5)
+        #expect(config.playerLabel(for: .black) == "9d")
     }
 
     @Test func whiteWithPositiveThinkingTimeShowsItsHumanProfileName() {
-        let config = Config(optionalHumanProfileForWhite: "preaz_5k",
+        let config = Config(optionalHumanProfileForWhite: "5k",
                             optionalWhiteMaxTime: 0.5)
-        #expect(config.playerLabel(for: .white) == "preaz_5k")
+        #expect(config.playerLabel(for: .white) == "5k")
     }
 
     @Test func exactlyZeroThinkingTimeIsHumanNotAI() {
         // 0 is the human sentinel; only strictly-positive time means AI.
-        let config = Config(humanSLProfile: "rank_9d",
+        let config = Config(humanSLProfile: "9d",
                             optionalBlackMaxTime: 0.0)
         #expect(config.playerLabel(for: .black) == "Human")
     }
 
     @Test func eachColorIsIndependent() {
         // Black AI (1s) + White human (0s): labels must not bleed across colors.
-        let config = Config(humanSLProfile: "rank_3d",
-                            optionalHumanProfileForWhite: "rank_7d",
+        let config = Config(humanSLProfile: "3d",
+                            optionalHumanProfileForWhite: "7d",
                             optionalBlackMaxTime: 1.0,
                             optionalWhiteMaxTime: 0.0)
-        #expect(config.playerLabel(for: .black) == "rank_3d")
+        #expect(config.playerLabel(for: .black) == "3d")
         #expect(config.playerLabel(for: .white) == "Human")
     }
 

@@ -7,43 +7,72 @@
 
 import Foundation
 
+/// Maps a clean human-SL **menu key** (`"AI"`, a KGS rank like `"9d"`/`"5k"`, or a
+/// pro era like `"Pro 2023"`) to the engine `humanSLProfile` value, the tuned
+/// `humanSLChosenMovePiklLambda`, and the `kata-set-param` command list.
+///
+/// Ranks adopt lightvector/KataGo PR #1209's calibrated KGS-rank ladder
+/// (`humanSLProfile = preaz_<rank>` + a per-rank tuned λ). Pros derive from the 9d
+/// config with λ 0.06. `AI` is the strongest-net, no-human-bias profile and is
+/// preserved byte-for-byte from the previous implementation.
 public struct HumanSLModel {
-    public static var allProfiles: [String] {
-        let dans = (1...9).reversed().map() { dan in
-            return "\(dan)d"
-        }
 
-        let kyus = (1...20).map() { kyu in
-            return "\(kyu)k"
-        }
+    // MARK: - Profile keys (the key is also the stored value and the display label)
 
-        let dansKyus = dans + kyus
+    /// 9d…1d, then 1k…20k.
+    private static let rankKeys: [String] =
+        (1...9).reversed().map { "\($0)d" } + (1...20).map { "\($0)k" }
 
-        let ranks = dansKyus.map() { rank in
-            return "rank_\(rank)"
-        }
+    /// "Pro 1800" … "Pro 2023".
+    private static let proKeys: [String] = (1800...2023).map { "Pro \($0)" }
 
-        let preAlphaZeros = dansKyus.map() { rank in
-            return "preaz_\(rank)"
-        }
+    /// All selectable keys, in menu order: AI, ranks (9d→20k), pros (oldest→newest).
+    public static let allProfiles: [String] = ["AI"] + rankKeys + proKeys
 
-        let proYears = (1800...2023).map() { year in
-            return "proyear_\(year)"
-        }
+    // MARK: - PR #1209 tuned λ ladder (keyed by the unified rank key)
 
-        return ["AI"] + ranks + preAlphaZeros + proYears
+    private static let rankLambda: [String: Float] = [
+        "9d": 0.045,   "8d": 0.0868,  "7d": 0.1267,  "6d": 0.1983,  "5d": 0.28064,
+        "4d": 0.373,   "3d": 0.45556, "2d": 0.5133,  "1d": 0.5093,
+        "1k": 0.48988, "2k": 0.46755, "3k": 0.49173, "4k": 0.4713,  "5k": 0.5072,
+        "6k": 0.48925, "7k": 0.5337,  "8k": 0.5064,  "9k": 0.5388,  "10k": 0.59036,
+        "11k": 0.56458, "12k": 0.54297, "13k": 0.58977, "14k": 0.61625, "15k": 0.61839,
+        "16k": 0.6705, "17k": 0.7413, "18k": 0.7821, "19k": 0.8982, "20k": 1.2227,
+    ]
+
+    /// Pro profiles derive from the 9d config but use this λ (empirically used by
+    /// the old formula's proyear branch).
+    private static let proLambda: Float = 0.06
+
+    // MARK: - Legacy normalization (input-validation, not schema migration)
+
+    /// Map a possibly-legacy stored engine string to a current menu key:
+    /// `rank_<r>` and `preaz_<r>` both collapse to `<r>`, `proyear_<y>` → `Pro <y>`.
+    /// Anything already in key form (or unknown) is returned unchanged.
+    private static func normalizeLegacy(_ raw: String) -> String {
+        if raw.hasPrefix("rank_")    { return String(raw.dropFirst(5)) }
+        if raw.hasPrefix("preaz_")   { return String(raw.dropFirst(6)) }
+        if raw.hasPrefix("proyear_") { return "Pro " + String(raw.dropFirst(8)) }
+        return raw
     }
+
+    /// The canonical menu key for a possibly-legacy stored value, falling back to
+    /// `"AI"` if unrecognized. Used by the profile pickers so legacy/garbage values
+    /// still resolve to a valid selection.
+    public static func canonicalProfile(_ raw: String) -> String {
+        HumanSLModel(profile: raw)?.profile ?? "AI"
+    }
+
+    // MARK: - Instance
 
     var internal_profile: String
 
     public var profile: String {
-        get {
-            return internal_profile
-        }
-
-        set(newValue) {
-            if HumanSLModel.allProfiles.contains(newValue) {
-                self.internal_profile = newValue
+        get { internal_profile }
+        set {
+            let key = HumanSLModel.normalizeLegacy(newValue)
+            if HumanSLModel.allProfiles.contains(key) {
+                internal_profile = key
             }
         }
     }
@@ -53,119 +82,47 @@ public struct HumanSLModel {
     }
 
     public init?(profile: String) {
-        if HumanSLModel.allProfiles.contains(profile) {
-            self.internal_profile = profile
-        } else {
-            return nil
-        }
+        let key = HumanSLModel.normalizeLegacy(profile)
+        guard HumanSLModel.allProfiles.contains(key) else { return nil }
+        internal_profile = key
     }
 
-    var level: Int {
-        if (profile == "AI") || profile.hasPrefix("proyear") {
-            return 9
-        } else if let match = profile.wholeMatch(of: /\w+_(\d+)d/),
-                  let levelInt = Int(match.1) {
-            return levelInt - 1
-        } else if let match = profile.wholeMatch(of: /\w+_(\d+)k/),
-                  let levelInt = Int(match.1) {
-            return -levelInt
-        } else {
-            return -30
-        }
-    }
+    private var isAI: Bool { profile == "AI" }
+    private var isPro: Bool { profile.hasPrefix("Pro ") }
 
-    /// Choose the "profile" of players that the human SL model will imitate.
+    // MARK: - Engine parameters
+
+    /// Value sent via `kata-set-param humanSLProfile`.
     public var humanSLProfile: String {
-        if profile == "AI" {
-            return "rank_9d"
-        } else {
-            return profile
-        }
+        if isAI { return "rank_9d" }
+        if isPro { return "proyear_" + String(profile.dropFirst(4)) }   // "Pro 2023" → proyear_2023
+        return "preaz_" + profile                                       // "9d" → preaz_9d
     }
 
-    /// The probability that we should play a HUMAN-like move, rather than playing KataGo's move.
-    var humanSLChosenMoveProp: Float {
-        if profile == "AI" {
-            return 0.0
-        } else {
-            return 1.0
-        }
-    }
+    /// Probability of playing a human-like move rather than KataGo's move.
+    var humanSLChosenMoveProp: Float { isAI ? 0.0 : 1.0 }
 
-    /// Use the human SL policy for exploration during search, only at the root of the search
-    /// For example, humanSLRootExploreProbWeightless = 0.5 would tell KataGo at the root of the search to spend
-    /// 50% of its visits to judge different possible human moves, but NOT to use those visits for determining the
-    /// value of the position (avoiding biasing the utility if some human SL moves are very bad).
-    var humanSLRootExploreProbWeightless: Float {
-        if profile == "AI" {
-            return 0.0
-        } else {
-            return 0.5
-        }
-    }
+    /// Use the human SL policy for root exploration during search.
+    var humanSLRootExploreProbWeightless: Float { isAI ? 0.0 : 0.8 }
 
-    /// Temperature for the early game, randomize between chosen moves with this temperature
-    var chosenMoveTemperatureEarly: Float {
-        return min(0.85, 0.70 - ((Float(level) - 8.0) * 0.03))
-    }
+    /// AI keeps today's level-9 temperatures (these still affect AI's own move
+    /// selection); human profiles use #1209's constants.
+    var chosenMoveTemperatureEarly: Float { isAI ? 0.67 : 0.70 }
+    var chosenMoveTemperature: Float { isAI ? 0.16 : 0.25 }
+    var chosenMoveTemperatureHalflife: Int { isAI ? 26 : 30 }
+    var chosenMoveTemperatureOnlyBelowProb: Float { 1.0 }
 
-    /// At the end of search after the early game, randomize between chosen moves with this temperature
-    var chosenMoveTemperature: Float {
-        return min(0.70, 0.25 - ((Float(level) - 8.0) * 0.09))
-    }
-
-    /// Decay temperature for the early game by 0.5 every this many moves, scaled with board size.
-    var chosenMoveTemperatureHalflife: Int {
-        return 30 - ((level - 8) * 4)
-    }
-
-    /// Temperature only starts to dampen moves below this
-    var chosenMoveTemperatureOnlyBelowProb: Float {
-        return min(1.0, max(0.01, pow(10.0, (Float(level) - 8.0) * 0.2)))
-    }
-
-    /// By default humanSLChosenMovePiklLambda is a large number which effectively disables it.
-    /// Setting it to a smaller number will "suppress" human-like moves that KataGo disapproves of.
-    /// In particular, if set to, for example, 0.4 when KataGo judges a human SL move to lose 0.4 utility,
-    /// it will substantially suppress the chance of playing that move (in particular, by a factor of exp(1)).
-    /// Less-bad moves will also be suppressed, but not by as much, e.g. a move losing 0.2 would get lowered
-    /// by a factor of exp(0.5).
-    /// As configured lower down, utilities by default range from -1.0 (loss) to +1.0 (win), plus up to +/- 0.3 for score.
-    /// WARNING: ONLY moves that KataGo actually searches will get suppressed! If a move is so bad that KataGo
-    /// rejects it without searching it, it will NOT get suppressed.
-    /// Therefore, to use humanSLChosenMovePiklLambda, it is STRONGLY recommended that you also use something
-    /// like humanSLRootExploreProbWeightless to ensure most human moves including bad moves get searched,
-    /// and ALSO use at least hundreds and ideally thousands of maxVisits, to ensure enough visits.
+    /// Suppress human-like moves KataGo disapproves of. AI: 0.06 (no effect since
+    /// prop 0); ranks: #1209 tuned ladder; pros: 0.06.
     var humanSLChosenMovePiklLambda: Float {
-        return 0.06 + (Float(level) - 9.0) * (Float(level) - 9.0) * 0.03
+        if isAI { return 0.06 }
+        if isPro { return HumanSLModel.proLambda }
+        return HumanSLModel.rankLambda[profile] ?? HumanSLModel.proLambda
     }
 
-    /// Scales the utility of winning/losing
-    var winLossUtilityFactor: Float {
-        if profile == "AI" {
-            return 1.0
-        } else {
-            return 0.0
-        }
-    }
-
-    /// Scales the utility for trying to maximize score
-    var staticScoreUtilityFactor: Float {
-        if profile == "AI" {
-            return 0.1
-        } else {
-            return 0.5
-        }
-    }
-
-    /// Scales the utility for trying to maximize score based on dynamic score evaluation
-    var dynamicScoreUtilityFactor: Float {
-        if profile == "AI" {
-            return 0.3
-        } else {
-            return 0.5
-        }
-    }
+    var winLossUtilityFactor: Float { 1.0 }
+    var staticScoreUtilityFactor: Float { isAI ? 0.1 : 0.5 }
+    var dynamicScoreUtilityFactor: Float { isAI ? 0.3 : 0.5 }
 
     public var commands: [String] {
         ["kata-set-param humanSLProfile \(humanSLProfile)",

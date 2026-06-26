@@ -129,7 +129,7 @@ struct ConfigEngineSyncTests {
         let messageList = MessageList()
 
         // White is an AI running a human-style profile, and it's White's turn.
-        config.humanProfileForWhite = "rank_5k"
+        config.humanProfileForWhite = "5k"
         config.whiteMaxTime = Config.toggleAIThinkingTime
         player.nextColorForPlayCommand = .white
 
@@ -154,7 +154,7 @@ struct ConfigEngineSyncTests {
         let messageList = MessageList()
 
         // White is currently Human but has a human-style profile configured; White to move.
-        config.humanProfileForWhite = "rank_5k"
+        config.humanProfileForWhite = "5k"
         config.whiteMaxTime = 0
         player.nextColorForPlayCommand = .white
 
@@ -163,7 +163,7 @@ struct ConfigEngineSyncTests {
                                          gobanState: gobanState, player: player, messageList: messageList)
 
         let texts = messageList.messages.map(\.text)
-        #expect(texts.contains("> kata-set-param humanSLProfile rank_5k"))
+        #expect(texts.contains("> kata-set-param humanSLProfile preaz_5k"))
         #expect(texts.contains("> kata-set-param humanSLChosenMoveProp 1.0"))
     }
 
@@ -223,5 +223,131 @@ struct ConfigEngineSyncTests {
                                          player: player, messageList: messageList)
 
         #expect(gobanState.waitingForAnalysis == true)
+    }
+}
+
+// MARK: - HumanSLModel: keys, key→engine mapping, #1209 λ ladder, legacy normalization
+
+struct HumanSLModelTests {
+
+    private func lambdaValue(in commands: [String]) -> Float? {
+        let prefix = "kata-set-param humanSLChosenMovePiklLambda "
+        guard let line = commands.first(where: { $0.hasPrefix(prefix) }) else { return nil }
+        return Float(line.dropFirst(prefix.count))
+    }
+
+    @Test func allProfilesAreCleanUnifiedKeys() {
+        let all = HumanSLModel.allProfiles
+        #expect(all.first == "AI")
+        #expect(all.contains("9d"))
+        #expect(all.contains("20k"))
+        #expect(all.contains("Pro 1800"))
+        #expect(all.contains("Pro 2023"))
+        // The old duplicated/raw engine strings are gone from the menu.
+        #expect(!all.contains("rank_9d"))
+        #expect(!all.contains("preaz_9d"))
+        #expect(!all.contains("proyear_2023"))
+        // 1 (AI) + 29 ranks (9d…1d, 1k…20k) + 224 pros (1800…2023) = 254.
+        #expect(all.count == 254)
+    }
+
+    @Test func defaultProfileIsAI() {
+        #expect(HumanSLModel().profile == "AI")
+    }
+
+    @Test func rankKeyMapsToPreazEngineProfile() {
+        #expect(HumanSLModel(profile: "9d")?.commands.contains("kata-set-param humanSLProfile preaz_9d") == true)
+        #expect(HumanSLModel(profile: "5k")?.commands.contains("kata-set-param humanSLProfile preaz_5k") == true)
+        #expect(HumanSLModel(profile: "20k")?.commands.contains("kata-set-param humanSLProfile preaz_20k") == true)
+    }
+
+    @Test func proKeyMapsToProyearEngineProfile() {
+        #expect(HumanSLModel(profile: "Pro 2023")?.commands.contains("kata-set-param humanSLProfile proyear_2023") == true)
+        #expect(HumanSLModel(profile: "Pro 1800")?.commands.contains("kata-set-param humanSLProfile proyear_1800") == true)
+    }
+
+    @Test func aiMapsToRank9dEngineProfile() {
+        #expect(HumanSLModel(profile: "AI")?.commands.contains("kata-set-param humanSLProfile rank_9d") == true)
+    }
+
+    @Test func humanProfilesUse1209Constants() {
+        let cmds = HumanSLModel(profile: "5k")!.commands
+        #expect(cmds.contains("kata-set-param humanSLChosenMoveProp 1.0"))
+        #expect(cmds.contains("kata-set-param humanSLRootExploreProbWeightless 0.8"))
+        #expect(cmds.contains("kata-set-param chosenMoveTemperatureEarly 0.7"))
+        #expect(cmds.contains("kata-set-param chosenMoveTemperature 0.25"))
+        #expect(cmds.contains("kata-set-param chosenMoveTemperatureHalflife 30"))
+        #expect(cmds.contains("kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0"))
+        #expect(cmds.contains("kata-set-param winLossUtilityFactor 1.0"))
+        #expect(cmds.contains("kata-set-param staticScoreUtilityFactor 0.5"))
+        #expect(cmds.contains("kata-set-param dynamicScoreUtilityFactor 0.5"))
+    }
+
+    @Test func aiProfileEmittedCommandsArePreserved() {
+        // AI keeps the same param VALUES as today's level-9 emission (the new
+        // literals just format cleaner than the old float arithmetic, e.g.
+        // 0.66999996 → 0.67). This pins the canonical AI command list.
+        #expect(HumanSLModel(profile: "AI")!.commands == [
+            "kata-set-param humanSLProfile rank_9d",
+            "kata-set-param humanSLChosenMoveProp 0.0",
+            "kata-set-param humanSLRootExploreProbWeightless 0.0",
+            "kata-set-param chosenMoveTemperatureEarly 0.67",
+            "kata-set-param chosenMoveTemperature 0.16",
+            "kata-set-param chosenMoveTemperatureHalflife 26",
+            "kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0",
+            "kata-set-param humanSLChosenMovePiklLambda 0.06",
+            "kata-set-param winLossUtilityFactor 1.0",
+            "kata-set-param staticScoreUtilityFactor 0.1",
+            "kata-set-param dynamicScoreUtilityFactor 0.3",
+        ])
+    }
+
+    @Test func proProfileDerivesFrom9dWithLambda006() {
+        let pro = HumanSLModel(profile: "Pro 1950")!.commands
+        let nineDan = HumanSLModel(profile: "9d")!.commands
+        // Same constant set as 9d except the profile line and λ.
+        #expect(pro.contains("kata-set-param humanSLProfile proyear_1950"))
+        #expect(lambdaValue(in: pro)! == 0.06)
+        #expect(pro.contains("kata-set-param humanSLRootExploreProbWeightless 0.8"))
+        #expect(pro.contains("kata-set-param winLossUtilityFactor 1.0"))
+        #expect(pro.contains("kata-set-param chosenMoveTemperature 0.25"))
+        // 9d differs only by profile (preaz_9d) and λ (0.045).
+        #expect(nineDan.contains("kata-set-param humanSLProfile preaz_9d"))
+        #expect(lambdaValue(in: nineDan)! != 0.06)
+    }
+
+    @Test func rankLambdaLadderMatches1209() {
+        let expected: [String: Float] = [
+            "9d": 0.045, "8d": 0.0868, "7d": 0.1267, "6d": 0.1983, "5d": 0.28064,
+            "4d": 0.373, "3d": 0.45556, "2d": 0.5133, "1d": 0.5093,
+            "1k": 0.48988, "2k": 0.46755, "3k": 0.49173, "4k": 0.4713, "5k": 0.5072,
+            "6k": 0.48925, "7k": 0.5337, "8k": 0.5064, "9k": 0.5388, "10k": 0.59036,
+            "11k": 0.56458, "12k": 0.54297, "13k": 0.58977, "14k": 0.61625, "15k": 0.61839,
+            "16k": 0.6705, "17k": 0.7413, "18k": 0.7821, "19k": 0.8982, "20k": 1.2227,
+        ]
+        for (key, lam) in expected {
+            let cmds = HumanSLModel(profile: key)!.commands
+            let value = lambdaValue(in: cmds)
+            #expect(value != nil)
+            #expect(abs((value ?? 0) - lam) < 1e-4)
+        }
+    }
+
+    @Test func legacyEngineStringsNormalizeToUnifiedKeys() {
+        #expect(HumanSLModel(profile: "rank_9d")?.profile == "9d")
+        #expect(HumanSLModel(profile: "preaz_9d")?.profile == "9d")   // both collapse
+        #expect(HumanSLModel(profile: "preaz_5k")?.profile == "5k")
+        #expect(HumanSLModel(profile: "proyear_2000")?.profile == "Pro 2000")
+        #expect(HumanSLModel(profile: "AI")?.profile == "AI")
+        // A normalized legacy rank still drives the preaz engine profile.
+        #expect(HumanSLModel(profile: "rank_5k")?.commands.contains("kata-set-param humanSLProfile preaz_5k") == true)
+    }
+
+    @Test func unrecognizedProfileIsRejectedAndCanonicalizesToAI() {
+        #expect(HumanSLModel(profile: "garbage_profile") == nil)
+        #expect(HumanSLModel.canonicalProfile("garbage_profile") == "AI")
+        #expect(HumanSLModel.canonicalProfile("rank_3d") == "3d")
+        #expect(HumanSLModel.canonicalProfile("Pro 1999") == "Pro 1999")
+        #expect(HumanSLModel.canonicalProfile("7k") == "7k")
     }
 }

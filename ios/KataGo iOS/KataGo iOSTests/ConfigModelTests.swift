@@ -137,8 +137,8 @@ struct ConfigModelTests {
 
     @Test func testEffectiveHumanProfileFollowsHumanAIState() async throws {
         let config = Config()
-        config.humanProfileForBlack = "rank_5k"
-        config.humanProfileForWhite = "proyear_2000"
+        config.humanProfileForBlack = "5k"
+        config.humanProfileForWhite = "Pro 2000"
 
         // Both sides Human (thinking time 0): analysis must use the strongest net,
         // so the effective profile is "AI" regardless of the configured profile.
@@ -150,14 +150,14 @@ struct ConfigModelTests {
         // A side enabled for AI (thinking time > 0) keeps its human-style profile.
         config.blackMaxTime = Config.toggleAIThinkingTime
         config.whiteMaxTime = 1.0
-        #expect(config.effectiveHumanProfileForBlack == "rank_5k")
-        #expect(config.effectiveHumanProfileForWhite == "proyear_2000")
+        #expect(config.effectiveHumanProfileForBlack == "5k")
+        #expect(config.effectiveHumanProfileForWhite == "Pro 2000")
     }
 
     @Test func testIsEqualBlackWhiteEffectiveHumanSettings() async throws {
         let config = Config()
-        config.humanProfileForBlack = "rank_5k"
-        config.humanProfileForWhite = "proyear_2000"
+        config.humanProfileForBlack = "5k"
+        config.humanProfileForWhite = "Pro 2000"
 
         // Both Human → both effective "AI" → equal, despite different raw profiles.
         config.blackMaxTime = 0
@@ -170,7 +170,7 @@ struct ConfigModelTests {
 
         // Both AI with the same profile → equal again.
         config.blackMaxTime = Config.toggleAIThinkingTime
-        config.humanProfileForBlack = "proyear_2000"
+        config.humanProfileForBlack = "Pro 2000"
         #expect(config.isEqualBlackWhiteEffectiveHumanSettings == true)
     }
 
