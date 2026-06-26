@@ -135,6 +135,14 @@ final class ConfigEditorViewController: NSViewController {
 
     // MARK: - Form construction
 
+    private func rebuildForm() {
+        for subview in formStack.arrangedSubviews {
+            formStack.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
+        }
+        buildForm()
+    }
+
     private func buildForm() {
         addGameSection()
         addSeparator()
@@ -375,23 +383,41 @@ final class ConfigEditorViewController: NSViewController {
                     let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setBlackHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
+                    // Defer the rebuild so the popup's own action completes before
+                    // its row is torn down.
+                    DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.numericRow(
-                title: "Time per move",
-                value: Double(config.blackMaxTime),
-                minValue: 0,
-                maxValue: 60,
-                step: 0.5,
-                format: { Self.secondsText(Float($0)) },
-                onChange: { [weak self] newValue in
-                    guard let self else { return }
-                    ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
-                                                     gobanState: self.gobanState,
-                                                     player: self.player,
-                                                     messageList: self.messageList)
-                }))
+        if HumanSLModel.canonicalProfile(config.humanProfileForBlack) == "AI" {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.numericRow(
+                    title: "Time per move",
+                    value: Double(config.blackMaxTime),
+                    minValue: 0,
+                    maxValue: 60,
+                    step: 0.5,
+                    format: { Self.secondsText(Float($0)) },
+                    onChange: { [weak self] newValue in
+                        guard let self else { return }
+                        ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        } else {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.checkboxRow(
+                    title: "Engine plays this side",
+                    isOn: config.blackMaxTime > 0,
+                    onChange: { [weak self] isOn in
+                        guard let self else { return }
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        ConfigEngineSync.setBlackMaxTime(newTime, config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        }
 
         // White
         formStack.addArrangedSubview(ConfigFormBuilder.sectionHeader("White AI"))
@@ -406,23 +432,41 @@ final class ConfigEditorViewController: NSViewController {
                     let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
+                    // Defer the rebuild so the popup's own action completes before
+                    // its row is torn down.
+                    DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.numericRow(
-                title: "Time per move",
-                value: Double(config.whiteMaxTime),
-                minValue: 0,
-                maxValue: 60,
-                step: 0.5,
-                format: { Self.secondsText(Float($0)) },
-                onChange: { [weak self] newValue in
-                    guard let self else { return }
-                    ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
-                                                     gobanState: self.gobanState,
-                                                     player: self.player,
-                                                     messageList: self.messageList)
-                }))
+        if HumanSLModel.canonicalProfile(config.humanProfileForWhite) == "AI" {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.numericRow(
+                    title: "Time per move",
+                    value: Double(config.whiteMaxTime),
+                    minValue: 0,
+                    maxValue: 60,
+                    step: 0.5,
+                    format: { Self.secondsText(Float($0)) },
+                    onChange: { [weak self] newValue in
+                        guard let self else { return }
+                        ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        } else {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.checkboxRow(
+                    title: "Engine plays this side",
+                    isOn: config.whiteMaxTime > 0,
+                    onChange: { [weak self] isOn in
+                        guard let self else { return }
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        ConfigEngineSync.setWhiteMaxTime(newTime, config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        }
     }
 
     // MARK: Comment (all prop-only — no GTP)

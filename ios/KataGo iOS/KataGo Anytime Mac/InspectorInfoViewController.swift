@@ -289,23 +289,39 @@ final class InspectorInfoViewController: NSViewController {
                     let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setBlackHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
+                    DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.numericRow(
-                title: "Black time/move",
-                value: Double(config.blackMaxTime),
-                minValue: 0,
-                maxValue: 60,
-                step: 0.5,
-                format: { Self.secondsText(Float($0)) },
-                onChange: { [weak self] newValue in
-                    guard let self else { return }
-                    ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
-                                                     gobanState: self.gobanState,
-                                                     player: self.player,
-                                                     messageList: self.messageList)
-                }))
+        if HumanSLModel.canonicalProfile(config.humanProfileForBlack) == "AI" {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.numericRow(
+                    title: "Black time/move",
+                    value: Double(config.blackMaxTime),
+                    minValue: 0,
+                    maxValue: 60,
+                    step: 0.5,
+                    format: { Self.secondsText(Float($0)) },
+                    onChange: { [weak self] newValue in
+                        guard let self else { return }
+                        ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        } else {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.checkboxRow(
+                    title: "Black engine plays",
+                    isOn: config.blackMaxTime > 0,
+                    onChange: { [weak self] isOn in
+                        guard let self else { return }
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        ConfigEngineSync.setBlackMaxTime(newTime, config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        }
 
         // White
         formStack.addArrangedSubview(
@@ -318,23 +334,39 @@ final class InspectorInfoViewController: NSViewController {
                     let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
+                    DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.numericRow(
-                title: "White time/move",
-                value: Double(config.whiteMaxTime),
-                minValue: 0,
-                maxValue: 60,
-                step: 0.5,
-                format: { Self.secondsText(Float($0)) },
-                onChange: { [weak self] newValue in
-                    guard let self else { return }
-                    ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
-                                                     gobanState: self.gobanState,
-                                                     player: self.player,
-                                                     messageList: self.messageList)
-                }))
+        if HumanSLModel.canonicalProfile(config.humanProfileForWhite) == "AI" {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.numericRow(
+                    title: "White time/move",
+                    value: Double(config.whiteMaxTime),
+                    minValue: 0,
+                    maxValue: 60,
+                    step: 0.5,
+                    format: { Self.secondsText(Float($0)) },
+                    onChange: { [weak self] newValue in
+                        guard let self else { return }
+                        ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        } else {
+            formStack.addArrangedSubview(
+                ConfigFormBuilder.checkboxRow(
+                    title: "White engine plays",
+                    isOn: config.whiteMaxTime > 0,
+                    onChange: { [weak self] isOn in
+                        guard let self else { return }
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        ConfigEngineSync.setWhiteMaxTime(newTime, config: config,
+                                                         gobanState: self.gobanState,
+                                                         player: self.player,
+                                                         messageList: self.messageList)
+                    }))
+        }
     }
 
     // MARK: Analysis (editable: max moves / interval / for-whom)
