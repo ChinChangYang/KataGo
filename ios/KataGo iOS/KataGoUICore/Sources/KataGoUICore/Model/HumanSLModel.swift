@@ -44,6 +44,10 @@ public struct HumanSLModel {
     /// the old formula's proyear branch).
     private static let proLambda: Float = 0.06
 
+    /// The pro-key display prefix. The trailing space is load-bearing — it
+    /// distinguishes "Pro 1800" from rank/other keys.
+    private static let proKeyPrefix = "Pro "
+
     // MARK: - Legacy normalization (input-validation, not schema migration)
 
     /// Map a possibly-legacy stored engine string to a current menu key:
@@ -65,7 +69,7 @@ public struct HumanSLModel {
 
     // MARK: - Instance
 
-    var internal_profile: String
+    private var internal_profile: String
 
     public var profile: String {
         get { internal_profile }
@@ -88,14 +92,14 @@ public struct HumanSLModel {
     }
 
     private var isAI: Bool { profile == "AI" }
-    private var isPro: Bool { profile.hasPrefix("Pro ") }
+    private var isPro: Bool { profile.hasPrefix(HumanSLModel.proKeyPrefix) }
 
     // MARK: - Engine parameters
 
     /// Value sent via `kata-set-param humanSLProfile`.
     public var humanSLProfile: String {
         if isAI { return "rank_9d" }
-        if isPro { return "proyear_" + String(profile.dropFirst(4)) }   // "Pro 2023" → proyear_2023
+        if isPro { return "proyear_" + String(profile.dropFirst(HumanSLModel.proKeyPrefix.count)) }   // "Pro 2023" → proyear_2023
         return "preaz_" + profile                                       // "9d" → preaz_9d
     }
 
@@ -110,6 +114,8 @@ public struct HumanSLModel {
     var chosenMoveTemperatureEarly: Float { isAI ? 0.67 : 0.70 }
     var chosenMoveTemperature: Float { isAI ? 0.16 : 0.25 }
     var chosenMoveTemperatureHalflife: Int { isAI ? 26 : 30 }
+    /// Always 1.0 (both AI and human): #1209's human configs use 1.0, and the old
+    /// level-9 AI formula also clamped to 1.0 — so no AI/human branch is needed.
     var chosenMoveTemperatureOnlyBelowProb: Float { 1.0 }
 
     /// Suppress human-like moves KataGo disapproves of. AI: 0.06 (no effect since
