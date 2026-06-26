@@ -55,6 +55,15 @@ public:
         done = true;
         cv.notify_all();
     }
+
+    // Drop any buffered, not-yet-read bytes. Used to discard stale output left
+    // in this process-global buffer by a prior engine run before a fresh
+    // handshake. `done` is intentionally NOT reset: setDone() is never called on
+    // the in-process bridge (it never reaches EOF), so it stays false here.
+    void clear() {
+        std::lock_guard<std::mutex> lock(m);
+        buffer.clear();
+    }
 };
 
 // Thread-safe stream buffer from KataGo
@@ -147,4 +156,11 @@ void KataGoSendCommand(string command) {
 
 void KataGoSendMessage(string message) {
     cout << message;
+}
+
+void KataGoClearMessages() {
+    // Drop stale, not-yet-read output (the read side that KataGoGetMessageLine
+    // drains) left over from a prior engine run. Only the read-side buffer is
+    // cleared; the write side (tsbToKataGo) is drained by the engine itself.
+    tsbFromKataGo.clear();
 }

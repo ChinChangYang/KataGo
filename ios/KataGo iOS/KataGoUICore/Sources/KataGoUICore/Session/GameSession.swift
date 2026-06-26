@@ -82,6 +82,18 @@ public final class GameSession {
         engineLifecycle: EngineLifecycle,
         config: Config?
     ) async -> String? {
+        // Discard any stale output the transport buffered from a PRIOR engine
+        // run before this fresh handshake. The in-process bridge's output buffer
+        // is process-global and survives a relaunch (Quit → re-select a model),
+        // so it holds leftover `kata-analyze` "info" lines, the `=` reply to
+        // `quit`, and the "\n" nudge from QuitButton. Without this, the blocking
+        // `getMessageLine()` below returns one of those stale lines IMMEDIATELY
+        // instead of waiting for the relaunched engine's real `version` reply —
+        // mounting the board before the model finishes loading (the empty-board
+        // flash on second entry), and letting a stale `= ` line wrongly fire
+        // `markFirstResponse` (clearing the OOM crash-loop sentinel). No-op for
+        // the subprocess transport, which gets a fresh stream per process.
+        engine.clearPendingOutput()
         messageList.messages.append(Message(text: "Initializing..."))
         messageList.appendAndSend(command: "version")
 

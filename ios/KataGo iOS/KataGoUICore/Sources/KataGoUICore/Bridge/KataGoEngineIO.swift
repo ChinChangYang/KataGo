@@ -26,6 +26,19 @@ public protocol KataGoEngineIO: AnyObject, Sendable {
     /// subsequent empty `getMessageLine()` means the engine exited, not a blank
     /// GTP line. Always false for the in-process bridge (it never sees EOF).
     var hasReachedEOF: Bool { get }
+    /// Drop any buffered, not-yet-read output lines. The in-process bridge's
+    /// output buffer is PROCESS-GLOBAL and survives across engine runs, so a
+    /// relaunch (Quit → re-select a model) leaves stale lines (leftover
+    /// `kata-analyze` output, the `=` reply to `quit`, the `"\n"` nudge) that a
+    /// fresh `version` handshake would otherwise read immediately instead of
+    /// blocking for the new engine. Call before a handshake to discard them.
+    /// Default no-op for transports that get a fresh stream per engine run
+    /// (the macOS subprocess, test doubles).
+    func clearPendingOutput()
+}
+
+public extension KataGoEngineIO {
+    func clearPendingOutput() {}
 }
 
 /// In-process transport backed by the global `KataGoHelper` C++ bridge. Inherently
@@ -38,4 +51,5 @@ public final class InProcessKataGoEngine: KataGoEngineIO, @unchecked Sendable {
     public func getMessageLine() -> String { KataGoHelper.getMessageLine() }
     public func sendMessage(_ message: String) { KataGoHelper.sendMessage(message) }
     public var hasReachedEOF: Bool { false }
+    public func clearPendingOutput() { KataGoHelper.clearOutputBuffer() }
 }

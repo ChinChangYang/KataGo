@@ -203,6 +203,7 @@
 		9684E8C2E0AB0218DAE402E9 /* KataGo Engine Helper in Embed Engine Helper */ = {isa = PBXBuildFile; fileRef = F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */; settings = {ATTRIBUTES = (); }; };
 		972FD859E6420EBE1D647796 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		995DCC993AF4FE53572CEFE2 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */; };
+		9A4B4DAC7C372D65EB6AC699 /* GameSessionInitializeClearTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */; };
 		9A99DAF7FAF58A89DBC0FBF1 /* cord.cc in Sources */ = {isa = PBXBuildFile; fileRef = 69B53B35A548BA23172D03D3 /* cord.cc */; };
 		9AF72428AFC387AA832A900E /* MoveNumbersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */; };
 		9B3966B6BFF6B307B7979FCE /* borrowed_fixup_buffer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1E8B4040941854E66E2DF899 /* borrowed_fixup_buffer.cc */; };
@@ -900,6 +901,7 @@
 		992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorTabs.swift; sourceTree = "<group>"; };
 		99EE57DD2D3AF79D12D376F7 /* KataGoAnytimeMac.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = KataGoAnytimeMac.entitlements; sourceTree = "<group>"; };
 		9A84A6291B2BFE5CE2182097 /* check_op.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = check_op.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/check_op.cc"; sourceTree = SOURCE_ROOT; };
+		9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionInitializeClearTests.swift; sourceTree = "<group>"; };
 		9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
 		A384C5A1A349F4B5F0FC3169 /* casts.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = casts.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/casts.cc"; sourceTree = SOURCE_ROOT; };
 		A40F0E362EE55A4B96F3D167 /* randen_round_keys.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_round_keys.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_round_keys.cc"; sourceTree = SOURCE_ROOT; };
@@ -2213,6 +2215,7 @@
 				7023D041CA26D8703A89B7E8 /* GameDeepLinkTests.swift */,
 				ECE8873EE64AA6C4E8F48D04 /* BackendSettingsTests.swift */,
 				86FC14538AEA6905E168800A /* EngineDeviceAssignmentsTests.swift */,
+				9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3168,6 +3171,7 @@
 				7BC7F57D5EEC16F72B408AE0 /* GameDeepLinkTests.swift in Sources */,
 				E0BFCBB0B5D1CEC537BEDF6D /* BackendSettingsTests.swift in Sources */,
 				45288F968EF108F61E3D6990 /* EngineDeviceAssignmentsTests.swift in Sources */,
+				9A4B4DAC7C372D65EB6AC699 /* GameSessionInitializeClearTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -28,5 +28,6 @@ void KataGoRunGtp(string modelPath,
 string KataGoGetMessageLine();
 void KataGoSendCommand(string command);
 void KataGoSendMessage(string message);
+void KataGoClearMessages();
 
 #endif /* KataGoCpp_hpp */

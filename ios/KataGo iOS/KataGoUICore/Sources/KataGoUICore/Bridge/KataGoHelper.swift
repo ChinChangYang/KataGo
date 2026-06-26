@@ -139,4 +139,12 @@ public class KataGoHelper {
     public class func sendMessage(_ message: String) {
         KataGoSendMessage(std.string(message))
     }
+
+    /// Discard stale, not-yet-read output the process-global bridge buffer
+    /// retained from a prior engine run (see `KataGoClearMessages`). Called
+    /// before a fresh `version` handshake on relaunch so the blocking read waits
+    /// for the new engine instead of returning a leftover line.
+    public class func clearOutputBuffer() {
+        KataGoClearMessages()
+    }
 }
