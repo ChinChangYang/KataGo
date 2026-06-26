@@ -81,9 +81,10 @@ struct GtpCommandBuilderTests {
                 "kata-set-rule suicide false",
                 "kata-set-rule hasButton false",
                 "kata-set-rule whiteHandicapBonus 0"])
-        // config a: blackMaxTime=0 → clamped to 0.5
-        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: a.blackMaxTime, interval: a.analysisInterval, maxMoves: a.maxAnalysisMoves)
-                == ["kata-set-param maxTime 0.5",
+        // config a: blackMaxTime=0, profile "AI" → unbounded visits, maxTime floored to 0.5
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: a.effectiveHumanProfileForBlack, maxTime: a.blackMaxTime, interval: a.analysisInterval, maxMoves: a.maxAnalysisMoves)
+                == ["kata-set-param maxVisits 1000000000",
+                    "kata-set-param maxTime 0.5",
                     "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
         // config a: profiles equal ("AI") and ratios equal (0) → symmetric → non-empty commands
         #expect(GtpCommandBuilder.symmetricHumanAnalysisCommands(
@@ -91,10 +92,11 @@ struct GtpCommandBuilderTests {
             humanRatioForBlack: a.humanRatioForBlack, humanRatioForWhite: a.humanRatioForWhite)
             == HumanSLModel(profile: a.humanSLProfile)?.commands ?? [])
 
-        // config b: blackMaxTime=3 → max(3, 0.5) = 3.0
+        // config b: blackMaxTime=3, profile "AI" → unbounded visits, maxTime 3.0
         let b = makeConfigs()[1]
-        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: b.blackMaxTime, interval: b.analysisInterval, maxMoves: b.maxAnalysisMoves)
-                == ["kata-set-param maxTime 3.0",
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: b.effectiveHumanProfileForBlack, maxTime: b.blackMaxTime, interval: b.analysisInterval, maxMoves: b.maxAnalysisMoves)
+                == ["kata-set-param maxVisits 1000000000",
+                    "kata-set-param maxTime 3.0",
                     "kata-search_analyze_cancellable interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true"])
 
         // config c: profiles equal but ratios differ → asymmetric → []
@@ -103,6 +105,36 @@ struct GtpCommandBuilderTests {
             humanSLProfile: c.humanSLProfile, humanProfileForWhite: c.humanProfileForWhite,
             humanRatioForBlack: c.humanRatioForBlack, humanRatioForWhite: c.humanRatioForWhite)
             == [])
+    }
+
+    @Test func searchBudgetForAIProfileIsTimeBoundedUnboundedVisits() {
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "AI", maxTime: 2.0)
+                == ["kata-set-param maxVisits 1000000000",
+                    "kata-set-param maxTime 2.0"])
+        // maxTime is floored at 0.5 for the AI profile.
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "AI", maxTime: 0.0)
+                == ["kata-set-param maxVisits 1000000000",
+                    "kata-set-param maxTime 0.5"])
+    }
+
+    @Test func searchBudgetForHumanProfileIsFixed400VisitsIgnoringTime() {
+        let expected = ["kata-set-param maxVisits 400",
+                        "kata-set-param maxTime 60.0"]
+        // The time magnitude is irrelevant for a human profile.
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 0.5) == expected)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 30.0) == expected)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1800", maxTime: 0.5) == expected)
+    }
+
+    @Test func genMoveAnalyzeCommandsPrependsBudget() {
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: "AI", maxTime: 0.5, interval: 50, maxMoves: 50)
+                == ["kata-set-param maxVisits 1000000000",
+                    "kata-set-param maxTime 0.5",
+                    "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+        #expect(GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: "5k", maxTime: 3.0, interval: 25, maxMoves: 30)
+                == ["kata-set-param maxVisits 400",
+                    "kata-set-param maxTime 60.0",
+                    "kata-search_analyze_cancellable interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true"])
     }
 }
 

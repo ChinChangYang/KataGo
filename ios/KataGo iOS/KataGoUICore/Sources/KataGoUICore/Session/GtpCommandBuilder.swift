@@ -8,6 +8,31 @@
 import Foundation
 
 public enum GtpCommandBuilder {
+    // MARK: - Search budget
+
+    /// Effectively-unbounded visit cap (the engine never reaches it within a move).
+    public static let unboundedMaxVisits = 1_000_000_000
+    /// Fixed visit budget for human-SL profile play — PR #1209's calibration point,
+    /// at which the rank λ ladder is ~1 KGS stone apart.
+    public static let humanSLPlayMaxVisits = 400
+    /// Backstop wall-clock for a human-SL move so a slow device/large net cannot
+    /// hang; on normal devices the 400 visits bind first.
+    public static let humanSLPlaySafetyMaxTime: Float = 60
+
+    /// The `(maxVisits, maxTime)` search-budget commands for a side's move.
+    /// The `AI` profile is time-bounded with unbounded visits (today's behavior);
+    /// a human rank/pro profile is fixed at `humanSLPlayMaxVisits` visits (the
+    /// "Time per move" magnitude is ignored), with a safety time cap.
+    public static func searchBudgetCommands(effectiveProfile: String, maxTime: Float) -> [String] {
+        if effectiveProfile == "AI" {
+            return ["kata-set-param maxVisits \(unboundedMaxVisits)",
+                    "kata-set-param maxTime \(max(maxTime, 0.5))"]
+        } else {
+            return ["kata-set-param maxVisits \(humanSLPlayMaxVisits)",
+                    "kata-set-param maxTime \(humanSLPlaySafetyMaxTime)"]
+        }
+    }
+
     public static func analyzeCommand(interval: Int, maxMoves: Int) -> String {
         return "kata-analyze interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"
     }
@@ -16,10 +41,9 @@ public enum GtpCommandBuilder {
         return analyzeCommand(interval: 10, maxMoves: maxMoves)
     }
 
-    public static func genMoveAnalyzeCommands(maxTime: Float, interval: Int, maxMoves: Int) -> [String] {
-        return [
-            "kata-set-param maxTime \(max(maxTime, 0.5))",
-            "kata-search_analyze_cancellable interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"]
+    public static func genMoveAnalyzeCommands(effectiveProfile: String, maxTime: Float, interval: Int, maxMoves: Int) -> [String] {
+        return searchBudgetCommands(effectiveProfile: effectiveProfile, maxTime: maxTime)
+            + ["kata-search_analyze_cancellable interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"]
     }
 
     public static func boardSizeCommand(width: Int, height: Int) -> String {

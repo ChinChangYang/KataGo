@@ -81,9 +81,9 @@ public class GobanState {
 
         if (analysisStatus == .run) && (!isAutoPlaying) && (passCount < 2) {
             if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
-                return GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: config.blackMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
+                return GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: config.effectiveHumanProfileForBlack, maxTime: config.blackMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
             } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
-                return GtpCommandBuilder.genMoveAnalyzeCommands(maxTime: config.whiteMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
+                return GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: config.effectiveHumanProfileForWhite, maxTime: config.whiteMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
             }
         }
 
