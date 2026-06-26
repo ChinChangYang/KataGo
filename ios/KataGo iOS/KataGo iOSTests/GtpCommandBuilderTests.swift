@@ -383,3 +383,41 @@ struct HumanSLModelTests {
         #expect(HumanSLModel.canonicalProfile("7k") == "7k")
     }
 }
+
+// MARK: - GobanState search-budget routing (gen-move vs continuous analysis)
+
+@MainActor
+struct AnalysisBudgetRoutingTests {
+
+    private func runningState() -> GobanState {
+        let s = GobanState()
+        s.analysisStatus = .run
+        return s
+    }
+
+    @Test func aiSideGenMoveIsTimeBoundedUnboundedVisits() {
+        let config = Config()                 // default profile "AI"
+        config.blackMaxTime = 2.0             // engine plays Black
+        let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
+        #expect(cmds == ["kata-set-param maxVisits 1000000000",
+                         "kata-set-param maxTime 2.0",
+                         "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+    }
+
+    @Test func humanSideGenMoveIsFixed400VisitsIgnoringTime() {
+        let config = Config()
+        config.humanProfileForBlack = "9d"
+        config.blackMaxTime = 0.5            // engine plays Black as 9d; magnitude ignored
+        let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
+        #expect(cmds == ["kata-set-param maxVisits 400",
+                         "kata-set-param maxTime 60.0",
+                         "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+    }
+
+    @Test func continuousAnalysisResetsVisitsToUnbounded() {
+        let config = Config()                 // blackMaxTime 0 → human plays → analysis branch
+        let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
+        #expect(cmds == ["kata-set-param maxVisits 1000000000",
+                         "kata-analyze interval 10 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+    }
+}

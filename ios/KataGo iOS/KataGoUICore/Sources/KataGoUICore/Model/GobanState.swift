@@ -77,7 +77,7 @@ public class GobanState {
         }
     }
 
-    private func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
+    func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
 
         if (analysisStatus == .run) && (!isAutoPlaying) && (passCount < 2) {
             if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
@@ -87,7 +87,10 @@ public class GobanState {
             }
         }
 
-        return [GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
+        // Continuous analysis: reset the visit cap to unbounded so a prior human
+        // gen-move's maxVisits=400 never leaks into (and caps) analysis.
+        return ["kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)",
+                GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
     }
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
