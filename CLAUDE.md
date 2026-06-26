@@ -95,7 +95,7 @@ Because both conform to `KataGoEngineIO`, `GameSession` drives them identically:
 The compiled MLX backend multiplexes two inference paths — **CoreML/NE** (Apple's Neural Engine) and **MLX/GPU**. On **iOS/visionOS** these are user-selectable per model in the Backend settings sheet. On **macOS** the per-model picker is removed: the engine always runs a fixed **1 GPU + 2 ANE** NN-server-thread mux (`MainWindowController.engineDeviceAssignments = [0, 100, 100]`).
 - **CoreML/NE** (Neural Engine): default on iOS and visionOS; best power efficiency (~70 visits/s on iPhone 12).
 - **MLX/GPU**: default on macOS.
-- Search threads are set per platform: **2** on iOS/visionOS (power efficiency), **16** on macOS.
+- Search threads: on **iOS/visionOS** they are user-configurable per model in the Backend settings sheet — a Stepper over `1...BackendChoice.maxSearchThreads` (**32**), defaulting to `KataGoHelper.mlxNumSearchThreads` (**8**) and persisted per model. On **macOS** they are fixed at **16** (`mlxNumSearchThreads`, no picker).
 - On the iOS/visionOS Simulator the backend is always pinned to CoreML/NE (MLX GPU inference crashes in the simulator's Metal layer).
 
 ## C++ Source Structure

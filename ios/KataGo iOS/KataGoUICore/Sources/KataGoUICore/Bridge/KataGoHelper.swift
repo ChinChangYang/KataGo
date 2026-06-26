@@ -17,7 +17,7 @@ public class KataGoHelper {
     // iOS/visionOS feed a fixed GPU+ANE mux: more search threads + a batch >1
     // so the parallel NN server threads (and the GPU's batched eval) stay busy.
     // Starting points — tune on device (power vs throughput).
-    public static let mlxNumSearchThreads = 6
+    public static let mlxNumSearchThreads = 8
     public static let mlxNnMaxBatchSize = 3
 #endif
 

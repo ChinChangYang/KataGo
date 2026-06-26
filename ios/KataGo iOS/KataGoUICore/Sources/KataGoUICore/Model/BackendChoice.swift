@@ -18,10 +18,10 @@ public enum BackendChoice: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 
     /// Upper bound for the per-model search-thread control (and the clamp
-    /// applied to persisted values). 12 ≈ 2× the 6-core baseline of current
-    /// iPhones and comfortably covers iPad core counts without obviously
-    /// thrashing a phone.
-    public static let maxSearchThreads = 12
+    /// applied to persisted values). 32 gives headroom well above current
+    /// iPhone/iPad core counts for users who want to push throughput; the
+    /// per-model default stays conservative (`KataGoHelper.mlxNumSearchThreads`).
+    public static let maxSearchThreads = 32
 
     /// Single NN-server-thread device code: `0` = MLX/GPU, `100` = CoreML/ANE.
     /// `.mux` spans both devices, so its value here is a degenerate nominal
