@@ -6,6 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fork of KataGo (a strong open-source Go AI engine) with native apps for iOS, macOS, and visionOS that wrap the C++ engine. iOS and visionOS are SwiftUI apps; macOS is a native AppKit app that embeds SwiftUI panes via `NSHostingController`. The app compiles an MLX-based C++ backend that runs inference on Apple's Neural Engine (via CoreML) and GPU (via MLX), providing power-efficient Go analysis across Apple platforms.
 
+## Source Code Layout
+
+Quick map of where the **KataGo Anytime** source lives (the **Architecture** and **C++ Source Structure** sections below have the details):
+
+- **`cpp/`** — the KataGo C++ engine (upstream tree plus the app's MLX backend).
+- **`ios/KataGo iOS/`** — everything Apple: the Xcode project, all app targets, and the shared Swift package. This is the working directory for every build/test command in this file.
+
+Inside `ios/KataGo iOS/`, the product is split across:
+
+- **`KataGo Anytime.xcodeproj`** — the one Xcode project for all platforms (schemes `KataGo Anytime` for iOS/visionOS and `KataGo Anytime Mac` for macOS).
+- **`KataGo iOS/`** — iOS/visionOS app target source (entry point + SwiftUI views). Because this folder sits inside `ios/KataGo iOS/`, the full path is `ios/KataGo iOS/KataGo iOS/`.
+- **`KataGo Anytime Mac/`** — macOS (AppKit) app target source.
+- **`KataGoUICore/`** — shared SwiftPM package (models, services, rendering, the C++ bridge, the `GameSession`/`KataGoEngineIO` seam); most cross-platform logic lives here.
+- **`KataGoEngineIPC/`** + **`KataGoEngineHelper/`** — the macOS subprocess-engine package and the `katago-engine` helper executable.
+
+**Naming traps:** the product is "KataGo Anytime", but the iOS/visionOS source folder is named `KataGo iOS` (only the macOS folder is `KataGo Anytime Mac`), and the project directory `ios/KataGo iOS/` is nested one level above the identically named `KataGo iOS/` target folder. A `KataGo Anytime/` folder that appears locally is untracked cruft (a stray `.DS_Store` + an empty `View/`), not source — ignore it.
+
 ## Build Commands
 
 ### Building for All Platforms
