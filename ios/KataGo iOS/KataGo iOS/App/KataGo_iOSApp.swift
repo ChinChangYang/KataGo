@@ -13,6 +13,7 @@ import KataGoUICore
 struct KataGo_iOSApp: App {
     @State private var cacheReadiness: CoreMLCacheReadiness = CoreMLCacheReadiness()
     @State private var engineLaunchStatus: EngineLaunchStatus
+    @State private var deepLinkRouter = DeepLinkRouter()
 
     init() {
         // Create the EngineLaunchStatus object first so we can capture a
@@ -47,6 +48,19 @@ struct KataGo_iOSApp: App {
         ModelRunnerView()
             .environment(cacheReadiness)
             .environment(engineLaunchStatus)
+            .environment(deepLinkRouter)
+            .onOpenURL { url in
+                // Capture an `open-game` deep link at the always-mounted root so
+                // it survives a cold launch — the model picker / loading screen
+                // have no handler for it, and `GameSplitView`'s own `.onOpenURL`
+                // is not mounted yet. `ContentView.initializationTask` (cold) and
+                // `GameSplitView`'s `.onChange` (warm) apply the pending id. SGF
+                // file-import URLs are ignored here and fall through to the
+                // existing ModelPickerView / GameSplitView import handlers.
+                if let id = GameDeepLink.gameID(from: url) {
+                    deepLinkRouter.pendingGameID = id
+                }
+            }
             .task {
                 await cacheReadiness.start()
             }

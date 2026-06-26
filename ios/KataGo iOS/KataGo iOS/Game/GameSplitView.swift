@@ -38,6 +38,7 @@ struct GameSplitView: View {
 
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.modelContext) private var modelContext
+    @Environment(DeepLinkRouter.self) private var deepLinkRouter
 
     var body: some View {
         @Bindable var topUIState = topUIState
@@ -120,11 +121,20 @@ struct GameSplitView: View {
                           newWaitingForAnalysis: newWaitingForAnalysis)
         }
         .onOpenURL { url in
-            if let id = GameDeepLink.gameID(from: url) {
-                selectGame(byID: id)
-            } else {
+            // `open-game` deep links are captured at the root (`DeepLinkRouter`)
+            // so they survive a cold launch; they are applied via the
+            // `pendingGameID` `.onChange` below. Here we only handle SGF
+            // file-import URLs.
+            if GameDeepLink.gameID(from: url) == nil {
                 importAndSelect(from: url)
             }
+        }
+        .onChange(of: deepLinkRouter.pendingGameID) { _, id in
+            // Warm app: a deep link arrived after the board was already shown
+            // (`initializationTask` won't re-run), so apply it here.
+            guard let id else { return }
+            selectGame(byID: id)
+            deepLinkRouter.pendingGameID = nil
         }
         .onChange(of: scenePhase) { _, newScenePhase in
             processChange(newScenePhase: newScenePhase)

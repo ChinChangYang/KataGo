@@ -277,6 +277,21 @@ public final class GameRecord {
         return all.first(where: { $0.uuid == id }) ?? all.first
     }
 
+    /// Cold-launch initial selection. When a widget deep link is captured at launch
+    /// (`pendingGameID`), open that game (exact match, else the most-recent fallback
+    /// via `resolveDeepLinkTarget`); otherwise open the most-recently-modified game.
+    /// `ContentView.initializationTask` uses this so a widget tap that *cold*-launches
+    /// the app opens the configured game instead of the default most-recent.
+    @MainActor
+    public class func resolveInitialSelection(pendingGameID: UUID?, container: ModelContainer) -> GameRecord? {
+        if let id = pendingGameID {
+            return resolveDeepLinkTarget(id: id, container: container)
+        }
+        // `fetchGameRecords` is sorted by `lastModificationDate` descending, so
+        // `first` is the most-recently-modified game (the default selection).
+        return (try? fetchGameRecords(container: container))?.first
+    }
+
     public var image: Image? {
 #if os(macOS)
         if let thumbnail,

@@ -57,6 +57,36 @@ struct GameDeepLinkResolveTests {
         let c = try container()
         #expect(GameRecord.resolveDeepLinkTarget(id: UUID(), container: c) == nil)
     }
+
+    // Cold-launch widget deep-link bug: a deep link captured at launch
+    // (`pendingGameID`) must open THAT game even when it is not the
+    // most-recently-modified one — instead of the default most-recent selection
+    // that `initializationTask` would otherwise apply. With no pending id, the
+    // most-recent default is preserved (and an unknown/deleted id falls back to
+    // most-recent, mirroring `resolveDeepLinkTarget`).
+
+    @Test @MainActor func resolveInitialSelection_pendingOlder_opensOlderNotMostRecent() throws {
+        let c = try container()
+        let (older, _) = try seedTwo(c)
+        #expect(GameRecord.resolveInitialSelection(pendingGameID: older.uuid, container: c)?.uuid == older.uuid)
+    }
+
+    @Test @MainActor func resolveInitialSelection_noPending_opensMostRecent() throws {
+        let c = try container()
+        let (_, newer) = try seedTwo(c)
+        #expect(GameRecord.resolveInitialSelection(pendingGameID: nil, container: c)?.uuid == newer.uuid)
+    }
+
+    @Test @MainActor func resolveInitialSelection_pendingMissing_fallsBackToMostRecent() throws {
+        let c = try container()
+        let (_, newer) = try seedTwo(c)
+        #expect(GameRecord.resolveInitialSelection(pendingGameID: UUID(), container: c)?.uuid == newer.uuid)
+    }
+
+    @Test @MainActor func resolveInitialSelection_noPendingEmptyStore_returnsNil() throws {
+        let c = try container()
+        #expect(GameRecord.resolveInitialSelection(pendingGameID: nil, container: c) == nil)
+    }
 }
 
 /// F14/F14b: a game selection arriving before the engine is ready (macOS cold

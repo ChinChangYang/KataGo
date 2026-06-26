@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var session = GameSession()
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
+    @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var navigationContext = NavigationContext()
     @State private var isInitialized = false
     @State var isGameListViewAppeared = false
@@ -79,10 +80,22 @@ struct ContentView: View {
     }
 
     private func initializationTask() async {
+        // A widget `open-game` deep link captured at the root (`DeepLinkRouter`)
+        // before this view existed wins over the default most-recent selection,
+        // so a cold-launch widget tap opens the configured game. With no pending
+        // deep link this resolves to the most-recently-modified game (unchanged).
+        // Resolve it once and use it for the engine config, the selection, the
+        // book-compat check, and the SGF load so they all agree on one game.
+        let initialGame = GameRecord.resolveInitialSelection(
+            pendingGameID: deepLinkRouter.pendingGameID,
+            container: modelContext.container
+        )
+        deepLinkRouter.pendingGameID = nil
+
         version = await session.initialize(
             selectedModelTitle: selectedModel?.title ?? "",
             engineLifecycle: engineLifecycle,
-            config: gameRecords.first?.concreteConfig
+            config: initialGame?.concreteConfig
         )
 
         // Surface the model name + engine version in the Configurations sheet.
@@ -92,9 +105,9 @@ struct ContentView: View {
         topUIState.modelName = selectedModel?.title
         topUIState.engineVersion = version
 
-        navigationContext.selectedGameRecord = gameRecords.first
+        navigationContext.selectedGameRecord = initialGame
         navigationContext.selectedGameRecord?.updateToLatestVersion()
-        if gameRecords.first?.concreteConfig.isBookCompatible == true {
+        if initialGame?.concreteConfig.isBookCompatible == true {
             session.bookLookup.loadIfNeeded()
         }
 
