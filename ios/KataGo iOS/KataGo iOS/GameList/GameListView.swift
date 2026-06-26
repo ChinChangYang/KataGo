@@ -109,23 +109,32 @@ struct GameListView: View {
             NameEditorView(gameRecord: selectedGameRecord)
         }
         .searchable(text: $searchText)
-        .toolbar {
+        .safeAreaInset(edge: .bottom) {
             if topUIState.isSelecting {
-                ToolbarItemGroup(placement: .bottomBar) {
+                HStack {
                     Spacer()
                     Button(role: .destructive) {
                         topUIState.confirmingBulkDeletion = true
                     } label: {
-                        // Plain text (no `Label`/systemImage): a lone icon button
-                        // in an iOS 26 `.bottomBar` is rendered icon-only as a
-                        // circular glass control, which hides the "(N)" count the
-                        // user asked for. A text title renders as a labeled
-                        // control so the selected-count stays visible.
-                        Text("Delete (\(topUIState.selectionCount))")
+                        // Trash icon + selected-count. Hosting the button in a
+                        // bottom safe-area inset (not a `.bottomBar`) lets the
+                        // Liquid Glass button style render a full labeled capsule
+                        // instead of the icon-only "..." collapse a toolbar
+                        // forces — so the "(N)" count stays visible.
+                        Label("(\(topUIState.selectionCount))", systemImage: "trash")
                     }
+                    .accessibilityLabel("Delete \(topUIState.selectionCount) selected game\(topUIState.selectionCount == 1 ? "" : "s")")
+#if !os(visionOS)
+                    // `.glass` is unavailable on visionOS (its controls already
+                    // render on a glass material), so apply the Liquid Glass
+                    // button style on iOS only.
+                    .buttonStyle(.glass)
+#endif
                     .tint(.red)
                     .disabled(topUIState.selectionCount == 0)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
         }
         .onAppear {
