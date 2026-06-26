@@ -369,7 +369,7 @@ final class ConfigEditorViewController: NSViewController {
             ConfigFormBuilder.popupRow(
                 title: "Human profile",
                 options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: config.humanProfileForBlack) ?? 0,
+                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForBlack)) ?? 0,
                 onChange: { [weak self] index in
                     guard let self else { return }
                     let profile = HumanSLModel.allProfiles[index]
@@ -400,7 +400,7 @@ final class ConfigEditorViewController: NSViewController {
             ConfigFormBuilder.popupRow(
                 title: "Human profile",
                 options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: config.humanProfileForWhite) ?? 0,
+                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForWhite)) ?? 0,
                 onChange: { [weak self] index in
                     guard let self else { return }
                     let profile = HumanSLModel.allProfiles[index]

@@ -17,7 +17,7 @@ public struct StoneView: View {
     var isDrawingCapturedStones: Bool = true
     var speedText: String? = nil
     /// Name shown beside each color's captured-stone count: the engine profile
-    /// (e.g. "AI" / "rank_9d") when that side plays with thinking time, or
+    /// (e.g. "AI" / "9d") when that side plays with thinking time, or
     /// "Human" otherwise. `nil` hides the label (e.g. the game-list thumbnail).
     var blackPlayerName: String? = nil
     var whitePlayerName: String? = nil
@@ -316,7 +316,7 @@ public struct StoneView: View {
 }
 
 // Exercises the captured-stone labels with a SHORT name on one side and a LONG
-// profile ("proyear_1810") on the other: the "x12"/"x7" counts must stay the
+// profile ("Pro 1810") on the other: the "x12"/"x7" counts must stay the
 // same (static) size while only the long name scales down to fit.
 #Preview("Captured labels — long profile") {
     let stones = Stones()
@@ -333,7 +333,7 @@ public struct StoneView: View {
                       isClassicStoneStyle: false,
                       verticalFlip: false,
                       blackPlayerName: "Human",
-                      whitePlayerName: "proyear_1810")
+                      whitePlayerName: "Pro 1810")
         }
         .environment(stones)
         .environment(GobanState())

@@ -436,8 +436,9 @@ struct AIConfigView: View {
 
             HumanStylePicker(title: "Human profile", humanSLProfile: $humanProfileForBlack)
                 .onAppear {
-                    humanProfileForBlack = config.humanSLProfile
-                    blackHumanSLModel.profile = config.humanProfileForBlack
+                    let canonical = HumanSLModel.canonicalProfile(config.humanProfileForBlack)
+                    humanProfileForBlack = canonical
+                    blackHumanSLModel.profile = canonical
                 }
                 .onChange(of: humanProfileForBlack) { _, newValue in
                     blackHumanSLModel.profile = newValue
@@ -470,8 +471,9 @@ struct AIConfigView: View {
 
             HumanStylePicker(title: "Human profile", humanSLProfile: $humanProfileForWhite)
                 .onAppear {
-                    humanProfileForWhite = config.humanProfileForWhite
-                    whiteHumanSLModel.profile = config.humanProfileForWhite
+                    let canonical = HumanSLModel.canonicalProfile(config.humanProfileForWhite)
+                    humanProfileForWhite = canonical
+                    whiteHumanSLModel.profile = canonical
                 }
                 .onChange(of: humanProfileForWhite) { _, newValue in
                     whiteHumanSLModel.profile = newValue

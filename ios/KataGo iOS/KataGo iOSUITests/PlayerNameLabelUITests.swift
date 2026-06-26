@@ -5,7 +5,7 @@
 //  Verifies the per-color player-name label shown beside each captured-stone
 //  count on the board:
 //    * a side with a positive "Time per move" (AI) shows its profile name
-//      (e.g. "AI" or a human-SL profile like "proyear_1817"),
+//      (e.g. "AI" or a human-SL profile like "Pro 1817"),
 //    * a side with zero "Time per move" shows "Human".
 //
 //  The labels are SwiftUI Buttons (tappable AI/Human capsules) carrying the
