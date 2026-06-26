@@ -561,7 +561,12 @@ struct GameSplitView: View {
                     || gobanState.isAnalysisHiddenForPowerSaving(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
                     messageList.appendAndSend(command: "stop")
                 } else {
-                    messageList.appendAndSend(command: GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
+                    // Reset the visit cap to unbounded before re-arming continuous
+                    // analysis, so a prior human-profile gen-move's maxVisits=400
+                    // does not leak in and cap analysis.
+                    messageList.appendAndSend(commands: [
+                        "kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)",
+                        GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)])
                 }
 
                 if gobanState.isAutoPlaying && !analysis.info.isEmpty && stones.isReady {
