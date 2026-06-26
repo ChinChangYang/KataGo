@@ -95,20 +95,22 @@ struct ModelRunnerView: View {
 
             var settings = BackendSettings(model: newValue)
             launchedMaxBoardLength = settings.effectiveMaxBoardLength
+            let backend = settings.backend
             let tunerFull = settings.tunerFull
             let reTune = settings.reTune
             startKataGoThread(
                 modelPath: modelPath,
-                deviceAssignments: EngineDeviceAssignments.platformMux,
+                deviceAssignments: settings.deviceAssignments,
+                numSearchThreads: settings.numSearchThreads,
                 maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
                 requireExactNNLen: settings.requireExactNNLen,
                 tunerFull: tunerFull,
                 reTune: reTune
             )
-            // One-shot: consume a pending re-tune so it fires exactly once. The
-            // mux always runs an MLX/GPU server thread (which reads the Winograd
-            // tuner flags), so the re-tune is always consumed here.
-            if reTune {
+            // One-shot: consume a pending re-tune so it fires exactly once. Only
+            // a backend that runs an MLX/GPU server thread (.mlxGPU or .mux) reads
+            // the Winograd tuner flags, so the re-tune is consumed only then.
+            if reTune && (backend == .mlxGPU || backend == .mux) {
                 settings.reTune = false
             }
         }
@@ -121,6 +123,7 @@ struct ModelRunnerView: View {
 
     private func startKataGoThread(modelPath: String,
                                    deviceAssignments: [Int],
+                                   numSearchThreads: Int,
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
@@ -128,6 +131,7 @@ struct ModelRunnerView: View {
         let katagoThread = Thread {
             KataGoHelper.runGtp(modelPath: modelPath,
                                 deviceAssignments: deviceAssignments,
+                                numSearchThreads: numSearchThreads,
                                 maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                                 requireExactNNLen: requireExactNNLen,
                                 tunerFull: tunerFull,

@@ -21,17 +21,21 @@ public class KataGoHelper {
     public static let mlxNnMaxBatchSize = 3
 #endif
 
-    /// Launch the in-process engine on the fixed GPU+ANE inference mux. Each
-    /// element of `deviceAssignments` is one NN-server-thread device code
+    /// Launch the in-process engine on the given inference backend. Each element
+    /// of `deviceAssignments` is one NN-server-thread device code
     /// (0 = MLX/GPU, 100 = CoreML/ANE); the default is the platform mux.
+    /// `numSearchThreads` is the MCTS search-thread count (defaults to the
+    /// platform starting point).
     public class func runGtp(modelPath: String? = nil,
                              deviceAssignments: [Int] = EngineDeviceAssignments.platformMux,
+                             numSearchThreads: Int = mlxNumSearchThreads,
                              maxBoardSizeForNNBuffer: Int = 37,
                              requireExactNNLen: Bool = false,
                              tunerFull: Bool = false,
                              reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
                    deviceAssignments: deviceAssignments,
+                   numSearchThreads: numSearchThreads,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                    requireExactNNLen: requireExactNNLen,
                    tunerFull: tunerFull,
@@ -40,6 +44,7 @@ public class KataGoHelper {
 
     private class func runGtpImpl(modelPath: String?,
                                   deviceAssignments: [Int],
+                                  numSearchThreads: Int,
                                   maxBoardSizeForNNBuffer: Int,
                                   requireExactNNLen: Bool,
                                   tunerFull: Bool,
@@ -82,7 +87,7 @@ public class KataGoHelper {
                          std.string(configPath ?? "Contents/Resources/default_gtp.cfg"),
                          buf.baseAddress,
                          Int32(buf.count),
-                         Int32(mlxNumSearchThreads),
+                         Int32(numSearchThreads),
                          Int32(mlxNnMaxBatchSize),
                          Int32(maxBoardSizeForNNBuffer),
                          requireExactNNLen,
