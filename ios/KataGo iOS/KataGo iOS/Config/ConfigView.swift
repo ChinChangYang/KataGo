@@ -439,29 +439,36 @@ struct AIConfigView: View {
                     let canonical = HumanSLModel.canonicalProfile(config.humanProfileForBlack)
                     humanProfileForBlack = canonical
                     blackHumanSLModel.profile = canonical
+                    blackMaxTime = config.blackMaxTime   // seed for both stepper and toggle
                 }
                 .onChange(of: humanProfileForBlack) { _, newValue in
                     blackHumanSLModel.profile = newValue
                     ConfigEngineSync.setBlackHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
 
-            ConfigFloatItem(title: "Time per move",
-                            value: $blackMaxTime,
-                            step: 0.5,
-                            minValue: 0,
-                            maxValue: 60,
-                            format: .number,
-                            postFix: "s",
-                            stepperAccessibilityID: "blackTimePerMove")
-            .onAppear {
-                blackMaxTime = config.blackMaxTime
-            }
-            .onChange(of: blackMaxTime) { _, newValue in
-                // Route through ConfigEngineSync (like macOS / the board's name-label
-                // toggle) so flipping Black to/from Human here also reconfigures the
-                // engine's human-SL state for analysis, not just the stored value.
-                ConfigEngineSync.setBlackMaxTime(newValue, config: config, gobanState: gobanState,
-                                                 player: player, messageList: messageList)
+            if humanProfileForBlack == "AI" {
+                ConfigFloatItem(title: "Time per move",
+                                value: $blackMaxTime,
+                                step: 0.5,
+                                minValue: 0,
+                                maxValue: 60,
+                                format: .number,
+                                postFix: "s",
+                                stepperAccessibilityID: "blackTimePerMove")
+                .onChange(of: blackMaxTime) { _, newValue in
+                    ConfigEngineSync.setBlackMaxTime(newValue, config: config, gobanState: gobanState,
+                                                     player: player, messageList: messageList)
+                }
+            } else {
+                Toggle("Engine plays this side", isOn: Binding(
+                    get: { blackMaxTime > 0 },
+                    set: { isOn in
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        blackMaxTime = newTime
+                        ConfigEngineSync.setBlackMaxTime(newTime, config: config, gobanState: gobanState,
+                                                         player: player, messageList: messageList)
+                    }))
+                .accessibilityIdentifier("blackEnginePlays")
             }
 
             Text("White AI".uppercased())
@@ -474,29 +481,36 @@ struct AIConfigView: View {
                     let canonical = HumanSLModel.canonicalProfile(config.humanProfileForWhite)
                     humanProfileForWhite = canonical
                     whiteHumanSLModel.profile = canonical
+                    whiteMaxTime = config.whiteMaxTime
                 }
                 .onChange(of: humanProfileForWhite) { _, newValue in
                     whiteHumanSLModel.profile = newValue
                     ConfigEngineSync.setWhiteHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
 
-            ConfigFloatItem(title: "Time per move",
-                            value: $whiteMaxTime,
-                            step: 0.5,
-                            minValue: 0,
-                            maxValue: 60,
-                            format: .number,
-                            postFix: "s",
-                            stepperAccessibilityID: "whiteTimePerMove")
-            .onAppear {
-                whiteMaxTime = config.whiteMaxTime
-            }
-            .onChange(of: whiteMaxTime) { _, newValue in
-                // Route through ConfigEngineSync (like macOS / the board's name-label
-                // toggle) so flipping White to/from Human here also reconfigures the
-                // engine's human-SL state for analysis, not just the stored value.
-                ConfigEngineSync.setWhiteMaxTime(newValue, config: config, gobanState: gobanState,
-                                                 player: player, messageList: messageList)
+            if humanProfileForWhite == "AI" {
+                ConfigFloatItem(title: "Time per move",
+                                value: $whiteMaxTime,
+                                step: 0.5,
+                                minValue: 0,
+                                maxValue: 60,
+                                format: .number,
+                                postFix: "s",
+                                stepperAccessibilityID: "whiteTimePerMove")
+                .onChange(of: whiteMaxTime) { _, newValue in
+                    ConfigEngineSync.setWhiteMaxTime(newValue, config: config, gobanState: gobanState,
+                                                     player: player, messageList: messageList)
+                }
+            } else {
+                Toggle("Engine plays this side", isOn: Binding(
+                    get: { whiteMaxTime > 0 },
+                    set: { isOn in
+                        let newTime: Float = isOn ? Config.toggleAIThinkingTime : 0
+                        whiteMaxTime = newTime
+                        ConfigEngineSync.setWhiteMaxTime(newTime, config: config, gobanState: gobanState,
+                                                         player: player, messageList: messageList)
+                    }))
+                .accessibilityIdentifier("whiteEnginePlays")
             }
         }
     }
