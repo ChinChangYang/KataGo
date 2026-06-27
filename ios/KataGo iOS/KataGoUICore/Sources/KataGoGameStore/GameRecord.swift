@@ -15,6 +15,16 @@ import SwiftData
 
 @Model
 public final class GameRecord {
+    // Non-unique local SQLite indexes (NOT mirrored to CloudKit, so they don't
+    // touch the synced record schema): collapse the widget picker / list fetches
+    // from a full-table scan to an index walk. `lastModificationDate` backs every
+    // newest-first sort (the picker `suggestedEntities`, name search, deep-link
+    // resolution); `uuid` backs the per-render `fetchGameRecord(uuid:)` equality
+    // lookup. Both grew O(N) with library size before, stalling the throttled
+    // widget extension. (`#Unique` is intentionally NOT used — CloudKit forbids it,
+    // which is also why the duplicate-UUID repair machinery exists.)
+    #Index<GameRecord>([\.lastModificationDate], [\.uuid])
+
     public static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
     public static let defaultName = "New Game"
 

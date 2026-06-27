@@ -188,6 +188,7 @@
 		8A6D501465C1CAA682321FC1 /* cord_rep_consume.cc in Sources */ = {isa = PBXBuildFile; fileRef = 20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */; };
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
 		8BC1ECD0881AAE40EBD51E9F /* entropy_pool.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F0BA6B9BFF12E6C4D710DFA /* entropy_pool.cc */; };
+		8E2FAFF53D1751FC110D9612 /* GamePickerPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE513B9F0282786C59038F8 /* GamePickerPerformanceTests.swift */; };
 		8E94A81C67B68E1C90B0BC6A /* graphcycles.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B723FFDCF4553074736CA50 /* graphcycles.cc */; };
 		8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */; };
 		8FC7D9710283CCB707456D36 /* FeatureTypes.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */; };
@@ -788,6 +789,7 @@
 		3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		3D02CA99DECEC565A8514335 /* pow10_helper.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = pow10_helper.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/pow10_helper.cc"; sourceTree = SOURCE_ROOT; };
 		3D6E61F4E7C124FA574B8D6A /* symbolize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = symbolize.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/symbolize.cc"; sourceTree = SOURCE_ROOT; };
+		3EE513B9F0282786C59038F8 /* GamePickerPerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GamePickerPerformanceTests.swift; sourceTree = "<group>"; };
 		3EECD0D85DD624C818E374D5 /* seed_gen_exception.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_gen_exception.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/seed_gen_exception.cc"; sourceTree = SOURCE_ROOT; };
 		40A265B1DCFCFBEE2F70C0A7 /* cordz_handle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_handle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_handle.cc"; sourceTree = SOURCE_ROOT; };
 		41A69C74A59A561EBAC47B36 /* nanobenchmark.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nanobenchmark.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/nanobenchmark.cc"; sourceTree = SOURCE_ROOT; };
@@ -2216,6 +2218,7 @@
 				ECE8873EE64AA6C4E8F48D04 /* BackendSettingsTests.swift */,
 				86FC14538AEA6905E168800A /* EngineDeviceAssignmentsTests.swift */,
 				9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */,
+				3EE513B9F0282786C59038F8 /* GamePickerPerformanceTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3172,6 +3175,7 @@
 				E0BFCBB0B5D1CEC537BEDF6D /* BackendSettingsTests.swift in Sources */,
 				45288F968EF108F61E3D6990 /* EngineDeviceAssignmentsTests.swift in Sources */,
 				9A4B4DAC7C372D65EB6AC699 /* GameSessionInitializeClearTests.swift in Sources */,
+				8E2FAFF53D1751FC110D9612 /* GamePickerPerformanceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
