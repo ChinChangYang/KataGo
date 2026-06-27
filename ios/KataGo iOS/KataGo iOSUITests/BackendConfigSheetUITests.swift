@@ -74,9 +74,9 @@ final class BackendConfigSheetUITests: XCTestCase {
         // NOTE: this does not assert an absolute "default" selection — the choice
         // is persisted per-model in UserDefaults (which survives in the simulator
         // data container), so a stale value from a prior run would poison such an
-        // assertion. The default of `.mux` is covered by the BackendSettings unit
-        // tests. Here we verify each choice is selectable and persists, and we
-        // leave the model on the GPU+ANE default for idempotency.
+        // assertion. The default of `.coremlNE` is covered by the BackendSettings
+        // unit tests. Here we verify each choice is selectable and persists, and
+        // we leave the model on the CoreML/NE default for idempotency.
         let app = XCUIApplication()
         app.launch()
 
@@ -92,18 +92,7 @@ final class BackendConfigSheetUITests: XCTestCase {
                           "Backend option '\(name)' not found")
         }
 
-        // Select CoreML/NE; it must persist across a reopen (per-model UserDefaults).
-        segment(in: app, "CoreML/NE").tap()
-        XCTAssertTrue(segment(in: app, "CoreML/NE").isSelected,
-                      "Tapping CoreML/NE did not select it")
-        app.buttons["Done"].tap()
-        openBackendSheet(in: app)
-        let coreml = segment(in: app, "CoreML/NE")
-        XCTAssertTrue(coreml.waitForExistence(timeout: 10) && coreml.isSelected,
-                      "Backend did not persist as CoreML/NE across reopen, "
-                      + "selected was: \(selectedBackend(in: app) ?? "none")")
-
-        // Restore GPU+ANE (the intended default); it must persist too.
+        // Select GPU+ANE; it must persist across a reopen (per-model UserDefaults).
         segment(in: app, "GPU+ANE").tap()
         XCTAssertTrue(segment(in: app, "GPU+ANE").isSelected,
                       "Tapping GPU+ANE did not select it")
@@ -112,6 +101,17 @@ final class BackendConfigSheetUITests: XCTestCase {
         let mux = segment(in: app, "GPU+ANE")
         XCTAssertTrue(mux.waitForExistence(timeout: 10) && mux.isSelected,
                       "Backend did not persist as GPU+ANE across reopen, "
+                      + "selected was: \(selectedBackend(in: app) ?? "none")")
+
+        // Restore CoreML/NE (the intended default); it must persist too.
+        segment(in: app, "CoreML/NE").tap()
+        XCTAssertTrue(segment(in: app, "CoreML/NE").isSelected,
+                      "Tapping CoreML/NE did not select it")
+        app.buttons["Done"].tap()
+        openBackendSheet(in: app)
+        let coreml = segment(in: app, "CoreML/NE")
+        XCTAssertTrue(coreml.waitForExistence(timeout: 10) && coreml.isSelected,
+                      "Backend did not persist as CoreML/NE across reopen, "
                       + "selected was: \(selectedBackend(in: app) ?? "none")")
     }
 

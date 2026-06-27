@@ -46,10 +46,11 @@ struct BackendSettingsTests {
         #expect(settings.requireExactNNLen == false)
     }
 
-    /// A fresh model defaults to the GPU+ANE mux (today's shipping behaviour).
-    @Test func backendDefaultsToMux() {
+    /// A fresh model defaults to single CoreML/ANE (verified best on an iPad
+    /// A17 Pro run); the user can opt into MLX/GPU or the GPU+ANE mux.
+    @Test func backendDefaultsToCoreMLNE() {
         let settings = BackendSettings(model: uniqueModel())
-        #expect(settings.backend == .mux)
+        #expect(settings.backend == .coremlNE)
     }
 
     /// The chosen backend persists per model.
@@ -66,6 +67,13 @@ struct BackendSettingsTests {
     @Test func numSearchThreadsDefaultsToPlatformValue() {
         let settings = BackendSettings(model: uniqueModel())
         #expect(settings.numSearchThreads == KataGoHelper.mlxNumSearchThreads)
+    }
+
+    /// On iOS/visionOS (where the test suite runs) the platform starting point
+    /// is 2 search threads — the value verified best on an iPad A17 Pro run.
+    @Test func numSearchThreadsDefaultsToTwoOnIOS() {
+        let settings = BackendSettings(model: uniqueModel())
+        #expect(settings.numSearchThreads == 2)
     }
 
     /// The chosen search-thread count persists per model.

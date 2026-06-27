@@ -14,10 +14,11 @@ public class KataGoHelper {
     public static let mlxNumSearchThreads = 16
     public static let mlxNnMaxBatchSize = 8
 #else
-    // iOS/visionOS feed a fixed GPU+ANE mux: more search threads + a batch >1
-    // so the parallel NN server threads (and the GPU's batched eval) stay busy.
-    // Starting points — tune on device (power vs throughput).
-    public static let mlxNumSearchThreads = 8
+    // iOS/visionOS default to a single CoreML/ANE backend (best power/throughput
+    // on an iPad A17 Pro run); 2 search threads keep the ANE fed without
+    // oversubscribing. Both are starting points — the user can raise threads or
+    // switch to MLX/GPU or the GPU+ANE mux per model. Tune on device.
+    public static let mlxNumSearchThreads = 2
     public static let mlxNnMaxBatchSize = 3
 #endif
 

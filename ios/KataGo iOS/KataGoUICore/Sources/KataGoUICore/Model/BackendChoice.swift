@@ -91,16 +91,17 @@ public struct BackendSettings {
     private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
     private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
-    /// The user-selected inference backend for this model. Defaults to the
-    /// GPU+ANE mux (the app's shipping behaviour); the user can opt into a
-    /// single backend. Persisted per model.
+    /// The user-selected inference backend for this model. Defaults to single
+    /// CoreML/ANE — the best power/throughput point measured on an iPad A17 Pro
+    /// run; the user can opt into MLX/GPU or the GPU+ANE mux. Persisted per
+    /// model.
     public var backend: BackendChoice {
         get {
             if let raw = UserDefaults.standard.string(forKey: backendKey),
                let choice = BackendChoice(rawValue: raw) {
                 return choice
             }
-            return .mux
+            return .coremlNE
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: backendKey)
