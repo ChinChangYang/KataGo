@@ -45,9 +45,13 @@ public struct CommentView: View {
                                 await wandAndSparklesAction()
                             }
                         } label: {
-                            Image(systemName: "wand.and.sparkles")
-                                .padding()
+                            Label("Generate Comment", systemImage: "text.bubble")
+                                .labelStyle(.iconOnly)
                         }
+#if !os(visionOS)
+                        .buttonStyle(.glass)   // visionOS doesn't support .glass (see InfoView.createButton)
+#endif
+                        .padding()
                     }
                 }
             } else {
