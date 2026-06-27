@@ -73,26 +73,15 @@ struct PlusMenuView: View {
 #if !os(visionOS)
                 Divider()
 #endif
+                // Enter multi-select mode. Exit ("Done") is now a top-level
+                // toolbar button (see GameListToolbar), shown only while
+                // selecting — so this menu item only ever enters the mode.
                 Button {
                     withAnimation {
-                        thumbnailModel.isLarge.toggle()
-                        thumbnailModel.save()
+                        topUIState.isSelecting = true
                     }
                 } label: {
-                    Label(thumbnailModel.title, systemImage: "photo")
-                }
-
-                Button {
-                    withAnimation {
-                        if topUIState.isSelecting {
-                            topUIState.exitSelection()
-                        } else {
-                            topUIState.isSelecting = true
-                        }
-                    }
-                } label: {
-                    Label(topUIState.isSelecting ? "Done" : "Select",
-                          systemImage: topUIState.isSelecting ? "checkmark.circle.fill" : "checkmark.circle")
+                    Label("Select", systemImage: "checkmark.circle")
                 }
             }
 

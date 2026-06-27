@@ -732,6 +732,14 @@ public class TopUIState {
         selectedGameIDs.removeAll()
     }
 
+    /// Drives the app's quit lifecycle (was a `@State` binding threaded down to
+    /// the toolbar's `QuitButton`). Now that quitting is triggered by tapping
+    /// the Model/Version row in the Configurations sheet — which only sees
+    /// `TopUIState` through the environment, not the binding — the status lives
+    /// here. `ContentView` observes it to stop the session loop. iOS/visionOS
+    /// only; inert on macOS (which never mutates it).
+    public var quitStatus: QuitStatus = .none
+
     /// The currently-loaded model's friendly name (e.g. "Official KataGo
     /// Network"). Surfaced in the Configurations sheet now that the launch
     /// screen no longer lingers for a few seconds to show it. nil until the

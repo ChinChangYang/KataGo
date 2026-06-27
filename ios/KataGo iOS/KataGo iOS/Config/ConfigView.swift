@@ -684,7 +684,9 @@ struct GlobalSettingsView: View {
     @State private var showCharts = Config.defaultShowCharts
     @State private var showOwnership = Config.defaultShowOwnership
     @State private var showWinrateBar = Config.defaultShowWinrateBar
+    @State private var largeThumbnails = false
     @Environment(GobanState.self) private var gobanState
+    @Environment(ThumbnailModel.self) private var thumbnailModel
 
     var body: some View {
         List {
@@ -815,6 +817,23 @@ struct GlobalSettingsView: View {
                         gobanState.showVisitsPerSecond = showVisitsPerSecond
                     }
             }
+
+            Section("Game List") {
+                // Thumbnail size lives on ThumbnailModel (UserDefaults
+                // "isLargeThumbnail"); this just relocates the control here
+                // from the game-list "More" menu. Mirrors the onAppear/onChange
+                // pattern used by the toggles above.
+                ConfigBoolItem(title: "Large thumbnails", value: $largeThumbnails)
+                    .onAppear {
+                        largeThumbnails = thumbnailModel.isLarge
+                    }
+                    .onChange(of: largeThumbnails) {
+                        withAnimation {
+                            thumbnailModel.isLarge = largeThumbnails
+                        }
+                        thumbnailModel.save()
+                    }
+            }
         }
         .navigationTitle("Global Settings")
     }
@@ -834,6 +853,8 @@ struct ConfigView: View {
     var gameRecord: GameRecord
     var maxBoardLength: Int
     @Environment(TopUIState.self) private var topUIState
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmingQuit = false
 
     var body: some View {
         List {
@@ -848,11 +869,14 @@ struct ConfigView: View {
             // Model name + engine version, surfaced here now that the launch
             // screen no longer pauses to show them. Both are populated during
             // engine initialization (ContentView) and ride TopUIState in via
-            // the environment.
+            // the environment. Tapping either row quits the engine and returns
+            // to the model picker (the old standalone toolbar Quit button).
             if topUIState.modelName != nil || topUIState.engineVersionDisplay != nil {
                 Section("Engine") {
                     if let modelName = topUIState.modelName {
                         LabeledContent("Model", value: modelName)
+                            .contentShape(Rectangle())
+                            .onTapGesture { confirmingQuit = true }
                     }
 
                     if let version = topUIState.engineVersionDisplay {
@@ -861,8 +885,10 @@ struct ConfigView: View {
                             Text(version)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { confirmingQuit = true }
                     }
                 }
             }
@@ -873,5 +899,31 @@ struct ConfigView: View {
             }
         }
         .navigationTitle("Configurations")
+        .confirmationDialog(
+            "Are you sure you want to quit? This will close KataGo model and go back to the model selection screen.",
+            isPresented: $confirmingQuit,
+            titleVisibility: .visible
+        ) {
+            Button("Quit", role: .destructive) { quitEngine() }
+            Button("Cancel", role: .cancel) { }
+        }
+    }
+
+    /// Tear down the engine and return to the model picker. Same sequence the
+    /// old toolbar `QuitButton` ran, now driving `topUIState.quitStatus`
+    /// (observed by `ContentView` to stop the session loop). Dismiss the
+    /// Configurations sheet so it doesn't linger over the picker.
+    private func quitEngine() {
+        topUIState.quitStatus = .quitting
+        KataGoHelper.sendCommand("quit")
+        Task {
+            // Wait until all messages are consumed.
+            try? await Task.sleep(for: .seconds(1))
+            // False the condition of the consumer's loop.
+            topUIState.quitStatus = .quitted
+            // An additional message to terminate the consumer.
+            KataGoHelper.sendMessage("\n")
+        }
+        dismiss()
     }
 }

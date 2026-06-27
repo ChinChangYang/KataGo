@@ -15,7 +15,6 @@ struct GameSplitView: View {
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     @Binding var aiMove: String?
-    @Binding var quitStatus: QuitStatus
     let maxBoardLength: Int
 
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -103,8 +102,7 @@ struct GameSplitView: View {
             .toolbar {
                 GameListToolbar(
                     gameRecord: navigationContext.selectedGameRecord,
-                    maxBoardLength: maxBoardLength,
-                    quitStatus: $quitStatus
+                    maxBoardLength: maxBoardLength
                 )
             }
         } detail: {

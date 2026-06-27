@@ -78,7 +78,7 @@ struct GameSessionInitializeClearTests {
     @Test func initializeClearsStaleOutputBeforeVersionRead() async {
         // Stale lines a prior run left behind: a kata-analyze `info` line, the
         // bare `= ` reply to `quit` (the sentinel-poisoning line), and the `\n`
-        // nudge injected by QuitButton (an empty line).
+        // nudge injected by the quit teardown (an empty line).
         let engine = FakeQueueEngine(
             stale: ["info move Q16 visits 10 winrate 0.5", "= ", ""],
             live: ["= 1.16.3"]

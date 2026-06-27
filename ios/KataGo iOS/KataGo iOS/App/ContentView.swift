@@ -25,7 +25,6 @@ struct ContentView: View {
     @State var version: String?
     @State var thumbnailModel = ThumbnailModel()
     @State var audioModel = AudioModel()
-    @State var quitStatus: QuitStatus = .none
     @State private var topUIState = TopUIState()
     @State var aiMove: String? = nil
 
@@ -34,7 +33,6 @@ struct ContentView: View {
             GameSplitView(
                 selectedModel: $selectedModel,
                 aiMove: $aiMove,
-                quitStatus: $quitStatus,
                 maxBoardLength: maxBoardLength
             )
             .environment(session.stones)
@@ -50,13 +48,14 @@ struct ContentView: View {
             .environment(audioModel)
             .environment(topUIState)
             .environment(session.bookLookup)
-            .onChange(of: quitStatus) { _, newValue in
+            .onChange(of: topUIState.quitStatus) { _, newValue in
                 // Mirror the app's quit lifecycle onto the session loop. The
                 // original `messaging()` gated per-line processing on
                 // `quitStatus == .none` (so the `.quitting` window stops
                 // processing) and the loop ran `while quitStatus != .quitted`.
                 // `!stopRequested` collapses both, so flip it as soon as the
-                // status leaves `.none`.
+                // status leaves `.none`. The status now rides `TopUIState` so
+                // the Configurations sheet (Model/Version tap) can trigger it.
                 if newValue != .none {
                     session.stopRequested = true
                 }
