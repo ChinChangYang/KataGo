@@ -117,13 +117,19 @@ struct GtpCommandBuilderTests {
                     "kata-set-param maxTime 0.5"])
     }
 
-    @Test func searchBudgetForHumanProfileIsFixed400VisitsIgnoringTime() {
-        let expected = ["kata-set-param maxVisits 400",
-                        "kata-set-param maxTime 60.0"]
-        // The time magnitude is irrelevant for a human profile.
-        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 0.5) == expected)
-        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 30.0) == expected)
-        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1800", maxTime: 0.5) == expected)
+    @Test func searchBudgetIsPerRankVisitsIgnoringTime() {
+        // 9d and pros keep the strong 400-visit budget; the time magnitude is ignored.
+        let strong = ["kata-set-param maxVisits 400",
+                      "kata-set-param maxTime 60.0"]
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 0.5) == strong)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 30.0) == strong)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1800", maxTime: 0.5) == strong)
+        // Weaker ranks (8d…20k) play fast at 40 visits, also ignoring the time.
+        let weak = ["kata-set-param maxVisits 40",
+                    "kata-set-param maxTime 60.0"]
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "8d", maxTime: 0.5) == weak)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "5k", maxTime: 30.0) == weak)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "20k", maxTime: 0.5) == weak)
     }
 
     @Test func genMoveAnalyzeCommandsPrependsBudget() {
@@ -132,7 +138,7 @@ struct GtpCommandBuilderTests {
                     "kata-set-param maxTime 0.5",
                     "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
         #expect(GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: "5k", maxTime: 3.0, interval: 25, maxMoves: 30)
-                == ["kata-set-param maxVisits 400",
+                == ["kata-set-param maxVisits 40",
                     "kata-set-param maxTime 60.0",
                     "kata-search_analyze_cancellable interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true"])
     }
@@ -258,12 +264,15 @@ struct ConfigEngineSyncTests {
     }
 }
 
-// MARK: - HumanSLModel: keys, key→engine mapping, #1209 λ ladder, legacy normalization
+// MARK: - HumanSLModel: keys, key→engine mapping, legacy level-formula params, normalization
 
 struct HumanSLModelTests {
 
-    private func lambdaValue(in commands: [String]) -> Float? {
-        let prefix = "kata-set-param humanSLChosenMovePiklLambda "
+    /// Parse the Float value emitted for a `kata-set-param <name>` line. The trailing
+    /// space in the prefix keeps `chosenMoveTemperature` from matching
+    /// `chosenMoveTemperatureEarly`/`…Halflife`/`…OnlyBelowProb`.
+    private func paramValue(in commands: [String], _ name: String) -> Float? {
+        let prefix = "kata-set-param \(name) "
         guard let line = commands.first(where: { $0.hasPrefix(prefix) }) else { return nil }
         return Float(line.dropFirst(prefix.count))
     }
@@ -302,66 +311,67 @@ struct HumanSLModelTests {
         #expect(HumanSLModel(profile: "AI")?.commands.contains("kata-set-param humanSLProfile rank_9d") == true)
     }
 
-    @Test func humanProfilesUse1209Constants() {
+    @Test func humanProfilesUseLegacyLevelFormulas() {
+        // 5k → level -5 in the restored level-based formulas.
         let cmds = HumanSLModel(profile: "5k")!.commands
-        #expect(cmds.contains("kata-set-param humanSLChosenMoveProp 1.0"))
-        #expect(cmds.contains("kata-set-param humanSLRootExploreProbWeightless 0.8"))
-        #expect(cmds.contains("kata-set-param chosenMoveTemperatureEarly 0.7"))
-        #expect(cmds.contains("kata-set-param chosenMoveTemperature 0.25"))
-        #expect(cmds.contains("kata-set-param chosenMoveTemperatureHalflife 30"))
-        #expect(cmds.contains("kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0"))
-        #expect(cmds.contains("kata-set-param winLossUtilityFactor 1.0"))
-        #expect(cmds.contains("kata-set-param staticScoreUtilityFactor 0.5"))
-        #expect(cmds.contains("kata-set-param dynamicScoreUtilityFactor 0.5"))
+        #expect(paramValue(in: cmds, "humanSLChosenMoveProp") == 1.0)
+        #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.5)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureEarly") == 0.85)        // min-clamped
+        #expect(paramValue(in: cmds, "chosenMoveTemperature") == 0.7)              // min-clamped
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureHalflife") == 82)       // 30 - (-5-8)*4
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureOnlyBelowProb") == 0.01) // max-clamped
+        #expect(paramValue(in: cmds, "winLossUtilityFactor") == 0.0)              // human imitation
+        #expect(paramValue(in: cmds, "staticScoreUtilityFactor") == 0.5)
+        #expect(paramValue(in: cmds, "dynamicScoreUtilityFactor") == 0.5)
+        // λ at level -5: 0.06 + (-5 - 9)^2 * 0.03 = 5.94.
+        #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 5.94) < 1e-3)
     }
 
     @Test func aiProfileEmittedCommandsArePreserved() {
-        // AI keeps the same param VALUES as today's level-9 emission (the new
-        // literals just format cleaner than the old float arithmetic, e.g.
-        // 0.66999996 → 0.67). This pins the canonical AI command list.
-        #expect(HumanSLModel(profile: "AI")!.commands == [
-            "kata-set-param humanSLProfile rank_9d",
-            "kata-set-param humanSLChosenMoveProp 0.0",
-            "kata-set-param humanSLRootExploreProbWeightless 0.0",
-            "kata-set-param chosenMoveTemperatureEarly 0.67",
-            "kata-set-param chosenMoveTemperature 0.16",
-            "kata-set-param chosenMoveTemperatureHalflife 26",
-            "kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0",
-            "kata-set-param humanSLChosenMovePiklLambda 0.06",
-            "kata-set-param winLossUtilityFactor 1.0",
-            "kata-set-param staticScoreUtilityFactor 0.1",
-            "kata-set-param dynamicScoreUtilityFactor 0.3",
-        ])
+        // AI keeps the level-9 legacy values (unchanged by the param revert). Asserted
+        // by value (tolerance) so cosmetic Float formatting can't make this brittle.
+        let cmds = HumanSLModel(profile: "AI")!.commands
+        #expect(cmds.count == 11)
+        #expect(cmds.first == "kata-set-param humanSLProfile rank_9d")
+        #expect(paramValue(in: cmds, "humanSLChosenMoveProp") == 0.0)
+        #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.0)
+        #expect(abs(paramValue(in: cmds, "chosenMoveTemperatureEarly")! - 0.67) < 1e-4)
+        #expect(abs(paramValue(in: cmds, "chosenMoveTemperature")! - 0.16) < 1e-4)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureHalflife") == 26)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureOnlyBelowProb") == 1.0)
+        #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 0.06) < 1e-4)
+        #expect(paramValue(in: cmds, "winLossUtilityFactor") == 1.0)
+        #expect(abs(paramValue(in: cmds, "staticScoreUtilityFactor")! - 0.1) < 1e-4)
+        #expect(abs(paramValue(in: cmds, "dynamicScoreUtilityFactor")! - 0.3) < 1e-4)
     }
 
-    @Test func proProfileDerivesFrom9dWithLambda006() {
+    @Test func proProfilesUseLevel9LegacyConstants() {
+        // A pro profile maps to level 9 (like AI): λ 0.06 and the level-9 temperatures,
+        // but it is a HUMAN profile (root-explore 0.5, winLoss 0.0 — not AI's 0.0/1.0).
         let pro = HumanSLModel(profile: "Pro 1950")!.commands
-        let nineDan = HumanSLModel(profile: "9d")!.commands
-        // Same constant set as 9d except the profile line and λ.
         #expect(pro.contains("kata-set-param humanSLProfile proyear_1950"))
-        #expect(lambdaValue(in: pro)! == 0.06)
-        #expect(pro.contains("kata-set-param humanSLRootExploreProbWeightless 0.8"))
-        #expect(pro.contains("kata-set-param winLossUtilityFactor 1.0"))
-        #expect(pro.contains("kata-set-param chosenMoveTemperature 0.25"))
-        // 9d differs only by profile (preaz_9d) and λ (0.045).
+        #expect(abs(paramValue(in: pro, "humanSLChosenMovePiklLambda")! - 0.06) < 1e-4)
+        #expect(paramValue(in: pro, "humanSLRootExploreProbWeightless") == 0.5)
+        #expect(paramValue(in: pro, "winLossUtilityFactor") == 0.0)
+        #expect(abs(paramValue(in: pro, "chosenMoveTemperature")! - 0.16) < 1e-4)   // level 9
+        // 9d is a different (level-8) rank: preaz_9d engine profile, λ 0.09 (≠ 0.06).
+        let nineDan = HumanSLModel(profile: "9d")!.commands
         #expect(nineDan.contains("kata-set-param humanSLProfile preaz_9d"))
-        #expect(lambdaValue(in: nineDan)! != 0.06)
+        #expect(abs(paramValue(in: nineDan, "humanSLChosenMovePiklLambda")! - 0.09) < 1e-4)
     }
 
-    @Test func rankLambdaLadderMatches1209() {
+    @Test func humanSLChosenMovePiklLambdaMatchesLegacyFormula() {
+        // Legacy λ = 0.06 + (level - 9)^2 * 0.03, with level derived from the rank key
+        // (AI/pros → 9; "Nd" → N-1; "Nk" → -N).
         let expected: [String: Float] = [
-            "9d": 0.045, "8d": 0.0868, "7d": 0.1267, "6d": 0.1983, "5d": 0.28064,
-            "4d": 0.373, "3d": 0.45556, "2d": 0.5133, "1d": 0.5093,
-            "1k": 0.48988, "2k": 0.46755, "3k": 0.49173, "4k": 0.4713, "5k": 0.5072,
-            "6k": 0.48925, "7k": 0.5337, "8k": 0.5064, "9k": 0.5388, "10k": 0.59036,
-            "11k": 0.56458, "12k": 0.54297, "13k": 0.58977, "14k": 0.61625, "15k": 0.61839,
-            "16k": 0.6705, "17k": 0.7413, "18k": 0.7821, "19k": 0.8982, "20k": 1.2227,
+            "9d": 0.09, "8d": 0.18, "1d": 2.49, "5k": 5.94, "20k": 25.29,
+            "Pro 1950": 0.06, "AI": 0.06,
         ]
         for (key, lam) in expected {
             let cmds = HumanSLModel(profile: key)!.commands
-            let value = lambdaValue(in: cmds)
+            let value = paramValue(in: cmds, "humanSLChosenMovePiklLambda")
             #expect(value != nil)
-            #expect(abs((value ?? 0) - lam) < 1e-4)
+            #expect(abs((value ?? 0) - lam) < 1e-3)
         }
     }
 
@@ -404,12 +414,22 @@ struct AnalysisBudgetRoutingTests {
                          "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
     }
 
-    @Test func humanSideGenMoveIsFixed400VisitsIgnoringTime() {
+    @Test func humanStrongRankSideGenMoveIsFixed400VisitsIgnoringTime() {
         let config = Config()
         config.humanProfileForBlack = "9d"
         config.blackMaxTime = 0.5            // engine plays Black as 9d; magnitude ignored
         let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
         #expect(cmds == ["kata-set-param maxVisits 400",
+                         "kata-set-param maxTime 60.0",
+                         "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
+    }
+
+    @Test func humanWeakRankSideGenMoveIsFast40Visits() {
+        let config = Config()
+        config.humanProfileForBlack = "5k"
+        config.blackMaxTime = 0.5            // engine plays Black as 5k; magnitude ignored
+        let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
+        #expect(cmds == ["kata-set-param maxVisits 40",
                          "kata-set-param maxTime 60.0",
                          "kata-search_analyze_cancellable interval 50 maxmoves 50 ownership true ownershipStdev true rootInfo true"])
     }
