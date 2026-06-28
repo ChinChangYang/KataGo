@@ -320,12 +320,15 @@ struct RuleConfigView: View {
             if isBoardSizeChanged || isRuleChanged {
                 messageList.appendAndSend(command: "printsgf")
 
-                if config.isBookCompatible && gobanState.eyeStatus == .opened {
-                    bookLookup.loadIfNeeded()
+                let bookAvailable = config.isBookEligible
+                    && bookLookup.isAvailable(forBoardSize: config.boardWidth)
+
+                if bookAvailable && gobanState.eyeStatus == .opened {
+                    bookLookup.loadIfNeeded(boardSize: config.boardWidth)
                     gobanState.eyeStatus = .book
                 }
 
-                if !config.isBookCompatible && gobanState.eyeStatus == .book {
+                if !bookAvailable && gobanState.eyeStatus == .book {
                     gobanState.eyeStatus = .opened
                 }
             }

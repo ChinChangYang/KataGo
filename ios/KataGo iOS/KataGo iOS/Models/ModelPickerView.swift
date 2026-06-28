@@ -219,6 +219,15 @@ struct ModelPickerView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        OpeningBookPickerView()
+                    } label: {
+                        Label("Opening Books", systemImage: "books.vertical")
+                    }
+                    .accessibilityIdentifier("ModelPickerView.openingBooksLink")
+                }
+
+                Section {
                     CoreMLCacheFooterView()
                 }
             }

@@ -738,8 +738,8 @@ final class MainWindowController: NSWindowController {
         )
 
         selected.updateToLatestVersion()
-        if selected.concreteConfig.isBookCompatible {
-            session.bookLookup.loadIfNeeded()
+        if selected.concreteConfig.isBookEligible {
+            session.bookLookup.loadIfNeeded(boardSize: selected.concreteConfig.boardWidth)
         }
 
         session.gobanState.maybeLoadSgf(
@@ -922,6 +922,43 @@ final class MainWindowController: NSWindowController {
         }
         modelsWindowController?.showWindow(sender)
         modelsWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
+    /// Retained for the same reason as `modelsWindowController`.
+    private var openingBooksWindowController: OpeningBooksWindowController?
+
+    /// Opens (or brings forward) the native Opening Books window. Reached through
+    /// the responder chain from the Window-menu "Manage Opening Books…" item. A
+    /// download/delete inside the window re-evaluates the active game's book load +
+    /// eye state via `refreshBookStateForSelectedGame()`.
+    @objc func showOpeningBooksWindow(_ sender: Any?) {
+        if openingBooksWindowController == nil {
+            openingBooksWindowController = OpeningBooksWindowController(
+                onBooksChanged: { [weak self] in
+                    self?.refreshBookStateForSelectedGame()
+                }
+            )
+        }
+        openingBooksWindowController?.showWindow(sender)
+        openingBooksWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
+    /// Reconciles the active game's opening-book state after a book is downloaded
+    /// or deleted: load the matching-size book if it is now available; otherwise
+    /// unload it and leave book view.
+    private func refreshBookStateForSelectedGame() {
+        guard let cfg = navigationContext.selectedGameRecord?.concreteConfig else { return }
+        let size = cfg.boardWidth
+        if cfg.isBookEligible && session.bookLookup.isAvailable(forBoardSize: size) {
+            session.bookLookup.loadIfNeeded(boardSize: size)
+        } else {
+            if session.bookLookup.isReady(forBoardSize: size) {
+                session.bookLookup.unload()
+            }
+            if session.gobanState.eyeStatus == .book {
+                session.gobanState.eyeStatus = .opened
+            }
+        }
     }
 
     // MARK: - Settings window (P5-T11)
@@ -1446,8 +1483,8 @@ final class MainWindowController: NSWindowController {
         }
 
         guard let gameRecord = navigationContext.selectedGameRecord,
-              gameRecord.concreteConfig.isBookCompatible,
-              bookLookup.isLoaded else {
+              gameRecord.concreteConfig.isBookEligible,
+              bookLookup.isReady(forBoardSize: gameRecord.concreteConfig.boardWidth) else {
             return
         }
 
@@ -2195,12 +2232,15 @@ final class MainWindowController: NSWindowController {
     /// (no `concreteConfig`), so `.opened` falls straight to `.closed`.
     @objc func toggleEyeStatus(_ sender: Any?) {
         let gobanState = session.gobanState
-        let isBookCompatible =
-            navigationContext.selectedGameRecord?.concreteConfig.isBookCompatible ?? false
+        let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
+        let bookSize = bookConfig?.boardWidth ?? 0
+        let bookAvailable = (bookConfig?.isBookEligible ?? false)
+            && session.bookLookup.isAvailable(forBoardSize: bookSize)
 
         switch gobanState.eyeStatus {
         case .opened:
-            if isBookCompatible && session.bookLookup.isLoaded {
+            if bookAvailable {
+                session.bookLookup.loadIfNeeded(boardSize: bookSize)
                 gobanState.eyeStatus = .book
             } else {
                 gobanState.eyeStatus = .closed
@@ -2654,6 +2694,9 @@ extension MainWindowController: NSMenuItemValidation {
             return menuItem.isEnabled && boardReadiness.isEngineReady
         // "Manage Models…" is always available.
         case #selector(showModelsWindow(_:)):
+            return true
+        // "Manage Opening Books…" is always available.
+        case #selector(showOpeningBooksWindow(_:)):
             return true
 
         // File ▸ "Re-sync from iCloud…": always available — it presents its own

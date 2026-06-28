@@ -37,6 +37,19 @@ struct BookLookupTests {
         return [root, child]
     }
 
+    /// Size-agnostic book: root (black to play) has one move at canonical
+    /// pos 0 (top-left) leading to a leaf child. Valid for any board size N>=1
+    /// since canonical pos 0 exists on every board.
+    fileprivate static func singleMoveBook() -> [TestPosition] {
+        let root: TestPosition = (
+            nextPlayer: 1,
+            moves: [(positions: [0], winLoss: 0.6, sharpScore: 2.5, adjustedVisits: 100, policyPrior: 0.8)],
+            children: [(canonicalPos: 0, childId: 1, sym: 0)]
+        )
+        let child: TestPosition = (nextPlayer: 2, moves: [], children: [])
+        return [root, child]
+    }
+
     /// Root with two children at pos 0 and pos 1.
     fileprivate static func branchingBook() -> [TestPosition] {
         let root: TestPosition = (
@@ -446,42 +459,119 @@ struct BookLookupTests {
         #expect(book.currentMovesCount == nil)
     }
 
-    // MARK: - Real bundle load (Bundle.module)
+    // MARK: - Multi-size board support (6x6, 7x7, 8x8, 9x9)
 
-    /// Exercises the REAL load path: `loadIfNeeded()` reads the bundled
-    /// `book9x9jp-20260226.kbook.gz` via `Bundle.module`, decompresses it,
-    /// and parses the binary header. Proves `Bundle.module` resolves the
-    /// package resource at runtime (the same mechanism `AudioModel` uses
-    /// for its bundled mp3s). The fire-and-forget `loadIfNeeded()` spawns
-    /// a detached parse Task, so poll `isLoaded` with a bounded timeout.
-    @Test func loadsRealBundledBook() async throws {
-        let book = BookLookup()
-        #expect(book.isLoaded == false)
-
-        book.loadIfNeeded()
-
-        // Poll for the asynchronous load (read 240 MB → decompress to 533 MB →
-        // write the cache). The cap is deliberately generous: Xcode Cloud runs
-        // this across ~9 simulator destinations on one shared, often-contended
-        // host, where a 10 s cap tripped on the slowest run (iPad Pro M4, ~2×
-        // wall-clock) while 8/9 destinations passed with the same build. The
-        // loop exits the instant isLoaded flips, so the higher cap costs nothing
-        // in the common case (~1–2 s).
-        let deadline = ContinuousClock.now.advanced(by: .seconds(60))
-        while !book.isLoaded, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(50))
-        }
-
-        #expect(book.isLoaded == true,
-                "Bundle.module should resolve and load book9x9jp-20260226.kbook.gz")
-        // A real 9x9 opening book has positions, so the root must be in-book
-        // and expose analysis for the empty board.
-        #expect(book.isInBook == true)
-        #expect(book.currentNextPlayer == 1)  // black to play at the root
-        let rootAnalysis = book.getBookAnalysis(boardWidth: 9, boardHeight: 9)
-        #expect(rootAnalysis.isEmpty == false,
-                "Root position of the loaded book should expose at least one move")
+    /// The loaded book reports the board size from its binary header.
+    @Test(arguments: [6, 7, 8, 9])
+    func boardSizeFromHeader(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        #expect(book.boardSize == n)
     }
+
+    @Test(arguments: [6, 7, 8, 9])
+    func applySymmetryIdentityMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        for pos in 0..<(n * n) {
+            #expect(book.applySymmetry(pos, sym: 0) == pos)
+        }
+    }
+
+    @Test(arguments: [6, 7, 8, 9])
+    func passSentinelInvariantMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        let pass = n * n
+        for sym in 0..<8 {
+            #expect(book.applySymmetry(pass, sym: sym) == pass)
+            #expect(book.applyInverseSymmetry(pass, sym: sym) == pass)
+        }
+    }
+
+    @Test(arguments: [6, 7, 8, 9])
+    func symmetryRoundTripMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        for sym in 0..<8 {
+            for pos in 0..<(n * n) {
+                let transformed = book.applySymmetry(pos, sym: sym)
+                let recovered = book.applyInverseSymmetry(transformed, sym: sym)
+                #expect(recovered == pos, "round-trip failed n=\(n) pos=\(pos) sym=\(sym)")
+            }
+        }
+    }
+
+    @Test(arguments: [6, 7, 8, 9])
+    func coordinateCornersMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        // book (0,0) top-left -> app (0, n-1) bottom-left
+        #expect(book.bookToAppPoint(bookX: 0, bookY: 0, boardHeight: n) == BoardPoint(x: 0, y: n - 1))
+        // book (n-1,n-1) bottom-right -> app (n-1, 0) top-right
+        #expect(book.bookToAppPoint(bookX: n - 1, bookY: n - 1, boardHeight: n) == BoardPoint(x: n - 1, y: 0))
+        // app (0, n-1) -> book pos 0
+        #expect(book.appPointToBookPos(BoardPoint(x: 0, y: n - 1), boardWidth: n, boardHeight: n) == 0)
+        // app (n-1, 0) -> book pos n*n-1
+        #expect(book.appPointToBookPos(BoardPoint(x: n - 1, y: 0), boardWidth: n, boardHeight: n) == n * n - 1)
+    }
+
+    /// The pass-coordinate trap: BoardPoint.pass is NOT a linear index, so
+    /// appPointToBookPos must map it to the N*N sentinel via the isPass guard.
+    @Test(arguments: [6, 7, 8, 9])
+    func passMapsToSentinelMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        let pass = BoardPoint.pass(width: n, height: n)
+        #expect(book.appPointToBookPos(pass, boardWidth: n, boardHeight: n) == n * n)
+    }
+
+    @Test(arguments: [6, 7, 8, 9])
+    func coordinateRoundTripMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        for bookPos in 0..<(n * n) {
+            let bookX = bookPos % n
+            let bookY = bookPos / n
+            let appPoint = book.bookToAppPoint(bookX: bookX, bookY: bookY, boardHeight: n)
+            let recovered = book.appPointToBookPos(appPoint, boardWidth: n, boardHeight: n)
+            #expect(recovered == bookPos, "round-trip failed n=\(n) bookPos=\(bookPos)")
+        }
+    }
+
+    @Test(arguments: [6, 7, 8])
+    func getBookAnalysisMultiSize(n: Int) {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+        let analysis = book.getBookAnalysis(boardWidth: n, boardHeight: n)
+        // Root move at canonical pos 0 -> app (0, n-1).
+        let appPoint = book.bookToAppPoint(bookX: 0, bookY: 0, boardHeight: n)
+        #expect(analysis[appPoint] != nil)
+        // A book of size n rejects analysis requests for a different size.
+        #expect(book.getBookAnalysis(boardWidth: 9, boardHeight: 9).isEmpty || n == 9)
+    }
+
+    // MARK: - unload / isReady (no filesystem)
+
+    @Test func unloadResetsState() {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: 7)
+        #expect(book.isLoaded)
+        #expect(book.boardSize == 7)
+        #expect(book.isInBook)
+
+        book.unload()
+        #expect(book.isLoaded == false)
+        #expect(book.isInBook == false)
+        #expect(book.boardSize == 0)
+        #expect(book.currentPositionId == 0)
+        #expect(book.accumulatedSymmetry == 0)
+    }
+
+    @Test func isReadyMatchesLoadedSize() {
+        let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: 7)
+        #expect(book.isReady(forBoardSize: 7))
+        #expect(book.isReady(forBoardSize: 8) == false)
+
+        let empty = BookLookup()
+        #expect(empty.isReady(forBoardSize: 7) == false)
+    }
+
+    // Note: the opening book is no longer bundled (download-on-demand). The real
+    // decompress → mmap → header-parse load path is covered by
+    // `OpeningBookTests.loadIfNeededLoadsDownloadedBook`, which installs a gzipped
+    // synthetic book in a temp books directory and loads it through the same path.
 
     // MARK: - Binary format validation
 

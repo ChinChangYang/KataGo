@@ -11,10 +11,22 @@ Supports two output formats:
 The --av-threshold flag filters moves by adjusted visits.
 
 Usage:
+    # 9x9 (newer 'av' schema):
     python scripts/build_book_db.py \
+        --board-size 9 \
         --book-dir ~/Code/KataGoBooks/book9x9jp-20260226 \
-        --output "ios/KataGo iOS/KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz" \\
+        --output book9x9jp-20260226.kbook.gz \
         --av-threshold 10000
+
+    # 6x6/7x7/8x8 (older 'v' schema; archives nest under html/, auto-detected):
+    python scripts/build_book_db.py \
+        --board-size 6 \
+        --book-dir ~/Downloads/book6x6jp-20230525 \
+        --output book6x6jp-20230525.kbook.gz
+
+The books come from https://katagobooks.org/downloads/<name>.tar.gz. Older
+small-board books embed 'v' (visits) instead of 'av' (adjusted visits); the
+builder falls back to 'v' and the --v-threshold automatically.
 """
 
 import argparse
@@ -25,8 +37,6 @@ import re
 import struct
 import sys
 from collections import deque
-
-BOARD_SIZE = 9
 
 # Binary format constants
 MAGIC = 0x4B424F4B  # "KBOK"
@@ -114,8 +124,37 @@ def resolve_link_path(current_filepath, link_path):
     return os.path.normpath(os.path.join(current_dir, link_path))
 
 
-def build_book(book_dir, av_threshold):
+def resolve_book_dir(book_dir):
+    """Return the directory that directly contains `root/root.html`.
+
+    The 9x9 (2026) archives root at `<book-dir>/root/root.html`, while the older
+    small-board archives (6x6/7x7/8x8) nest everything under an `html/` dir, i.e.
+    `<book-dir>/html/root/root.html`. Descend into `html/` when needed so callers
+    can just point `--book-dir` at the extracted archive root.
+    """
+    if os.path.exists(os.path.join(book_dir, "root", "root.html")):
+        return book_dir
+    nested = os.path.join(book_dir, "html")
+    if os.path.exists(os.path.join(nested, "root", "root.html")):
+        return nested
+    return book_dir
+
+
+def move_metric(move, av_threshold, v_threshold):
+    """Return (metric, threshold) for a move, handling both book schemas.
+
+    Newer books embed `av` (adjusted visits, ~1e4 magnitude); older small-board
+    books embed only `v` (visits, ~1e9–1e12). Fall back to `v` when `av` is
+    absent and compare against the matching threshold.
+    """
+    if "av" in move:
+        return move.get("av", 0), av_threshold
+    return move.get("v", 0), v_threshold
+
+
+def build_book(book_dir, board_size, av_threshold, v_threshold):
     """BFS through book HTML files, building the position database."""
+    book_dir = resolve_book_dir(book_dir)
     root_path = os.path.join(book_dir, "root", "root.html")
     if not os.path.exists(root_path):
         print(f"Error: root file not found at {root_path}", file=sys.stderr)
@@ -144,24 +183,24 @@ def build_book(book_dir, av_threshold):
         move_list = []
 
         for move in data["moves"]:
-            av = move.get("av", 0)
-            if av < av_threshold:
+            metric, threshold = move_metric(move, av_threshold, v_threshold)
+            if metric < threshold:
                 continue
 
             pos_list = []
             if "xy" in move:
                 for x, y in move["xy"]:
-                    pos = y * BOARD_SIZE + x
+                    pos = y * board_size + x
                     pos_list.append(pos)
                     threshold_positions.add(pos)
             elif move.get("pass"):
-                pos = BOARD_SIZE * BOARD_SIZE  # 81
+                pos = board_size * board_size  # pass sentinel = N*N
                 pos_list.append(pos)
                 threshold_positions.add(pos)
 
             wl = round(move.get("wl", 0), 4)
             ss = round(move.get("ssM", 0), 2)
-            av_val = int(move.get("av", 0))
+            av_val = int(metric)
             p = round(move.get("p", 0), 4)
 
             move_list.append([pos_list, wl, ss, av_val, p])
@@ -198,10 +237,10 @@ def build_book(book_dir, av_threshold):
     return positions
 
 
-def write_json(positions, output_path):
+def write_json(positions, output_path, board_size, komi):
     """Write positions as gzipped JSON (legacy format)."""
     book = {
-        "m": {"s": BOARD_SIZE, "k": 6},
+        "m": {"s": board_size, "k": komi},
         "p": positions,
     }
 
@@ -216,7 +255,7 @@ def write_json(positions, output_path):
     print(f"Compressed: {compressed_size / 1024 / 1024:.1f} MB", file=sys.stderr)
 
 
-def write_binary(positions, output_path):
+def write_binary(positions, output_path, board_size):
     """Write positions as gzipped binary (.kbook) format.
 
     Binary layout (all little-endian, 4-byte aligned):
@@ -291,7 +330,7 @@ def write_binary(positions, output_path):
         0,
         MAGIC,
         VERSION,
-        BOARD_SIZE,
+        board_size,
         position_count,
         total_moves,
         total_children,
@@ -391,10 +430,25 @@ def main():
         "--output", required=True, help="Output path for gzipped book file"
     )
     parser.add_argument(
+        "--board-size", type=int, required=True,
+        help="Board size N (6...9). Written to the header and used for all coord math.",
+    )
+    parser.add_argument(
         "--av-threshold",
         type=int,
         default=10000,
-        help="Minimum adjusted visits to include a move (default: 10000)",
+        help="Minimum adjusted visits ('av' books) to include a move (default: 10000)",
+    )
+    parser.add_argument(
+        "--v-threshold",
+        type=int,
+        default=0,
+        help="Minimum visits ('v' books, older small-board) to include a move "
+             "(default: 0 = include all; small-board books are small)",
+    )
+    parser.add_argument(
+        "--komi", type=float, default=6.0,
+        help="Komi for the JSON metadata only (default: 6.0). Unused by the binary format.",
     )
     parser.add_argument(
         "--format",
@@ -404,12 +458,17 @@ def main():
     )
     args = parser.parse_args()
 
+    if not (6 <= args.board_size <= 9):
+        print(f"Error: --board-size must be 6...9, got {args.board_size}", file=sys.stderr)
+        sys.exit(1)
+
     print(
-        f"Building book from {args.book_dir} (av >= {args.av_threshold})",
+        f"Building {args.board_size}x{args.board_size} book from {args.book_dir} "
+        f"(av >= {args.av_threshold}, v >= {args.v_threshold})",
         file=sys.stderr,
     )
 
-    positions = build_book(args.book_dir, args.av_threshold)
+    positions = build_book(args.book_dir, args.board_size, args.av_threshold, args.v_threshold)
 
     # Replace None entries (unreachable positions)
     for i in range(len(positions)):
@@ -419,9 +478,9 @@ def main():
     print(f"Total positions: {len(positions)}", file=sys.stderr)
 
     if args.format == "json":
-        write_json(positions, args.output)
+        write_json(positions, args.output, args.board_size, args.komi)
     else:
-        write_binary(positions, args.output)
+        write_binary(positions, args.output, args.board_size)
 
     print("Done!", file=sys.stderr)
 

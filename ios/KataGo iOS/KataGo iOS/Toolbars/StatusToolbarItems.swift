@@ -244,7 +244,10 @@ struct StatusToolbarItems: View {
         withAnimation {
             switch gobanState.eyeStatus {
             case .opened:
-                if config.isBookCompatible && bookLookup.isLoaded {
+                if config.isBookEligible && bookLookup.isAvailable(forBoardSize: config.boardWidth) {
+                    // Ensure the (downloaded) book is loading; the overlay shows
+                    // once it's in-book. Already-loaded books are a no-op.
+                    bookLookup.loadIfNeeded(boardSize: config.boardWidth)
                     gobanState.eyeStatus = .book
                 } else {
                     gobanState.eyeStatus = .closed

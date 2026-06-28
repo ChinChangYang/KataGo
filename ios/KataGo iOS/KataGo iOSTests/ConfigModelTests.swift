@@ -83,6 +83,28 @@ struct ConfigModelTests {
         #expect(customConfig.optionalShowComments == true)
     }
 
+    // 1b. Opening-book eligibility (pure config: square board, size 6...9)
+    @Test func isBookEligibleForSquareSmallBoards() {
+        for n in 6...9 {
+            #expect(Config(boardWidth: n, boardHeight: n).isBookEligible,
+                    "square \(n)x\(n) should be book-eligible")
+        }
+    }
+
+    @Test func isBookEligibleFalseForLargeAndNonSquareBoards() {
+        #expect(Config(boardWidth: 19, boardHeight: 19).isBookEligible == false)
+        #expect(Config(boardWidth: 13, boardHeight: 13).isBookEligible == false)
+        #expect(Config(boardWidth: 5, boardHeight: 5).isBookEligible == false)
+        #expect(Config(boardWidth: 6, boardHeight: 9).isBookEligible == false)
+        #expect(Config(boardWidth: 9, boardHeight: 13).isBookEligible == false)
+    }
+
+    @Test func isBookEligibleIndependentOfRuleAndKomi() {
+        // Eligibility depends only on board dimensions, not rules/komi.
+        let c = Config(boardWidth: 7, boardHeight: 7, rule: 1, komi: 9.0)
+        #expect(c.isBookEligible)
+    }
+
     // 2. Getter and Setter Tests
     @Test func testOptionalProperties() async throws {
         let config = Config()

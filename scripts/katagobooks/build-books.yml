@@ -1,0 +1,61 @@
+# Builds the compact .kbook.gz opening books for KataGo Anytime from the
+# katagobooks.org HTML archives and publishes them as assets on a GitHub Release.
+#
+# WHERE THIS LIVES: copy this file into the SEPARATE `KataGoBooks` repo at
+# `.github/workflows/build-books.yml`, alongside a copy of `build_book_db.py`
+# (from ChinChangYang/KataGo: scripts/build_book_db.py). See scripts/katagobooks/README.md.
+#
+# Trigger it manually (Actions ▸ Build Opening Books ▸ Run workflow). Each matrix
+# job downloads one HTML book, converts it to .kbook.gz, and uploads it to the
+# `books-v1` release. The app's OpeningBook.allCases URLs point at these assets.
+name: Build Opening Books
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/update the release + upload assets
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { size: 6, name: book6x6jp-20230525 }
+          - { size: 7, name: book7jpb40s9435-20210806 }
+          - { size: 8, name: book8jpb40s9854-20211114 }
+          - { size: 9, name: book9x9jp-20260226 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download HTML book archive
+        run: |
+          curl -L --retry 5 --retry-delay 3 \
+            -o book.tar.gz \
+            "https://katagobooks.org/downloads/${{ matrix.name }}.tar.gz"
+
+      - name: Extract
+        run: |
+          mkdir -p extracted
+          tar -xzf book.tar.gz -C extracted
+
+      - name: Build .kbook.gz
+        run: |
+          python3 build_book_db.py \
+            --board-size ${{ matrix.size }} \
+            --book-dir extracted \
+            --output "${{ matrix.name }}.kbook.gz"
+          ls -la "${{ matrix.name }}.kbook.gz"
+
+      - name: Publish to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: books-v1
+          name: Opening Books v1
+          files: ${{ matrix.name }}.kbook.gz

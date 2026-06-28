@@ -93,7 +93,11 @@ gtp.cfg
 katago_contribute/
 tmpsgf/
 watchgame.txt
-models/
+# Root-only: the KataGo convention dir for user-downloaded nets. MUST stay
+# anchored (leading slash) — an unanchored `models/` also matches, case-
+# insensitively on macOS, the iOS `KataGo iOS/Models/` Swift group and
+# `cpp/tests/models/`, silently hiding new source files from `git add`.
+/models/
 python/startposesupload.txt
 for_release/
 

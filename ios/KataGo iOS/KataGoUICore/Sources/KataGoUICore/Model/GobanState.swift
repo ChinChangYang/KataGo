@@ -819,9 +819,14 @@ public class GobanState {
         }
 
         if let newGameRecord {
-            if newGameRecord.concreteConfig.isBookCompatible {
-                bookLookup.loadIfNeeded()
-            } else if eyeStatus == .book {
+            let bookConfig = newGameRecord.concreteConfig
+            if bookConfig.isBookEligible {
+                bookLookup.loadIfNeeded(boardSize: bookConfig.boardWidth)
+            }
+            // Drop book view unless this board has a downloaded book (it may
+            // still be loading; the overlay gates on the book being in-book).
+            if eyeStatus == .book,
+               !(bookConfig.isBookEligible && bookLookup.isAvailable(forBoardSize: bookConfig.boardWidth)) {
                 eyeStatus = .opened
             }
             newGameRecord.updateToLatestVersion()

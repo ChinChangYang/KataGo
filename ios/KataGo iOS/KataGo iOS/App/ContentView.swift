@@ -106,8 +106,8 @@ struct ContentView: View {
 
         navigationContext.selectedGameRecord = initialGame
         navigationContext.selectedGameRecord?.updateToLatestVersion()
-        if initialGame?.concreteConfig.isBookCompatible == true {
-            session.bookLookup.loadIfNeeded()
+        if let cfg = initialGame?.concreteConfig, cfg.isBookEligible {
+            session.bookLookup.loadIfNeeded(boardSize: cfg.boardWidth)
         }
 
         session.gobanState.maybeLoadSgf(

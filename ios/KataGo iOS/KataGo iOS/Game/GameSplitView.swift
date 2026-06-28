@@ -626,8 +626,8 @@ struct GameSplitView: View {
         }
 
         guard let gameRecord = navigationContext.selectedGameRecord,
-              gameRecord.concreteConfig.isBookCompatible,
-              bookLookup.isLoaded else {
+              gameRecord.concreteConfig.isBookEligible,
+              bookLookup.isReady(forBoardSize: gameRecord.concreteConfig.boardWidth) else {
             return
         }
 

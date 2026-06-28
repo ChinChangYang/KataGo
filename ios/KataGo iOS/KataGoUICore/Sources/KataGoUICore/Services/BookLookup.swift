@@ -51,21 +51,60 @@ public class BookLookup {
     private var childrenTableOffset: Int = 0
     private var movePositionsTableOffset: Int = 0
 
-    private let boardSize = 9
+    /// Board size (6...9) read from the loaded book's binary header. Zero until
+    /// a book is loaded. All coordinate/symmetry math derives from this, so the
+    /// same code path serves every supported board size.
+    private(set) var boardSize = 0
 
     public init() {}
 
-    public func loadIfNeeded() {
-        guard !isLoaded, !isLoading else { return }
+    /// Load the downloaded opening book for `newSize` (6...9), if any. Loading the
+    /// already-loaded size is a no-op; switching sizes unloads the current book
+    /// first. If no book is downloaded for `newSize`, the lookup is left unloaded
+    /// (callers gate the `.book` eye mode on `isReady(forBoardSize:)`).
+    public func loadIfNeeded(boardSize newSize: Int) {
+        if isLoaded && boardSize == newSize { return }
+        if isLoading { return }
+        if isLoaded && boardSize != newSize { unload() }
+        guard let book = OpeningBook.book(forBoardSize: newSize), book.isDownloaded else { return }
         isLoading = true
-        Task { await loadBook() }
+        let sourceURL = book.downloadedURL
+        Task { await load(from: sourceURL) }
+    }
+
+    /// Clear all loaded state (used on board-size change and after a book is
+    /// deleted from the management UI).
+    public func unload() {
+        bookData = nil
+        isLoaded = false
+        isInBook = false
+        currentPositionId = 0
+        accumulatedSymmetry = 0
+        justAdvanced = false
+        boardSize = 0
+        positionCount = 0
+        moveCount = 0
+        childCount = 0
+        movePositionCount = 0
+    }
+
+    /// Whether a book for `size` is downloaded (so the `.book` eye mode can be
+    /// offered). Independent of whether it is currently loaded.
+    public func isAvailable(forBoardSize size: Int) -> Bool {
+        OpeningBook.book(forBoardSize: size)?.isDownloaded ?? false
+    }
+
+    /// Whether a book is loaded AND matches `size` (so the book overlay can
+    /// render right now).
+    public func isReady(forBoardSize size: Int) -> Bool {
+        isLoaded && boardSize == size
     }
 
     /// Test-only initializer that serializes hand-crafted positions into
     /// in-memory binary Data, then loads from that.
-    init(positions: [(nextPlayer: Int, moves: [(positions: [Int], winLoss: Double, sharpScore: Double, adjustedVisits: Int64, policyPrior: Double)], children: [(canonicalPos: Int, childId: Int, sym: Int)])]) {
+    init(positions: [(nextPlayer: Int, moves: [(positions: [Int], winLoss: Double, sharpScore: Double, adjustedVisits: Int64, policyPrior: Double)], children: [(canonicalPos: Int, childId: Int, sym: Int)])], boardSize: Int = 9) {
         guard !positions.isEmpty else { return }
-        let data = Self.serializeToBinary(positions: positions)
+        let data = Self.serializeToBinary(positions: positions, boardSize: boardSize)
         if loadFromData(data) {
             self.isLoaded = true
             self.isInBook = self.positionCount > 0
@@ -75,7 +114,7 @@ public class BookLookup {
     // MARK: - Binary serialization (for tests)
 
     /// Serialize hand-crafted positions into binary format Data.
-    nonisolated static func serializeToBinary(positions: [(nextPlayer: Int, moves: [(positions: [Int], winLoss: Double, sharpScore: Double, adjustedVisits: Int64, policyPrior: Double)], children: [(canonicalPos: Int, childId: Int, sym: Int)])]) -> Data {
+    nonisolated static func serializeToBinary(positions: [(nextPlayer: Int, moves: [(positions: [Int], winLoss: Double, sharpScore: Double, adjustedVisits: Int64, policyPrior: Double)], children: [(canonicalPos: Int, childId: Int, sym: Int)])], boardSize: Int = 9) -> Data {
         // Count totals
         var totalMoves = 0
         var totalChildren = 0
@@ -98,7 +137,7 @@ public class BookLookup {
         // Header
         appendUInt32(&data, kbookMagic)
         appendUInt32(&data, kbookVersion)
-        appendUInt32(&data, 9)  // boardSize
+        appendUInt32(&data, UInt32(boardSize))  // boardSize
         appendUInt32(&data, posCount)
         appendUInt32(&data, UInt32(totalMoves))
         appendUInt32(&data, UInt32(totalChildren))
@@ -182,14 +221,12 @@ public class BookLookup {
 
     // MARK: - Loading
 
-    private func loadBook() async {
-        guard let bundleURL = Bundle.module.url(forResource: "book9x9jp-20260226.kbook", withExtension: "gz") else {
-            printError("Bundle URL not found for book9x9jp-20260226.kbook.gz")
-            return
-        }
-
+    /// Parse the book at `sourceURL` (a `.kbook.gz`) off the main actor, then
+    /// install it. Shared by the bundle path and the downloaded-file path.
+    private func load(from sourceURL: URL) async {
+        defer { isLoading = false }
         let parseTask = Task.detached(priority: .userInitiated) {
-            Self.loadBinaryBook(bundleURL: bundleURL)
+            Self.loadBinaryBook(sourceURL: sourceURL)
         }
         guard let data = await parseTask.value else {
             return
@@ -203,15 +240,15 @@ public class BookLookup {
         }
     }
 
-    /// Decompress .kbook.gz to caches dir on first launch, then mmap.
-    private nonisolated static func loadBinaryBook(bundleURL: URL) -> Data? {
-        let filename = bundleURL.deletingPathExtension().lastPathComponent
+    /// Decompress .kbook.gz to caches dir on first use, then mmap.
+    private nonisolated static func loadBinaryBook(sourceURL: URL) -> Data? {
+        let filename = sourceURL.deletingPathExtension().lastPathComponent
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let cachedURL = cacheDir.appendingPathComponent(filename)
 
         // Try to use cached decompressed file via mmap (skip fileExists to avoid TOCTOU)
         let fm = FileManager.default
-        let bundleMod = (try? fm.attributesOfItem(atPath: bundleURL.path)[.modificationDate] as? Date) ?? .distantPast
+        let bundleMod = (try? fm.attributesOfItem(atPath: sourceURL.path)[.modificationDate] as? Date) ?? .distantPast
         let cacheMod = (try? fm.attributesOfItem(atPath: cachedURL.path)[.modificationDate] as? Date) ?? .distantPast
         if cacheMod >= bundleMod, let data = try? Data(contentsOf: cachedURL, options: .mappedIfSafe) {
             #if !DEBUG
@@ -225,9 +262,9 @@ public class BookLookup {
             try? FileManager.default.removeItem(at: cachedURL)
         }
 
-        // Decompress from bundle
-        guard let compressedData = try? Data(contentsOf: bundleURL) else {
-            printError("Failed to read compressed data from bundle")
+        // Decompress from the source archive
+        guard let compressedData = try? Data(contentsOf: sourceURL) else {
+            printError("Failed to read compressed data from \(sourceURL.lastPathComponent)")
             return nil
         }
         guard let decompressedData = decompressGzip(compressedData) else {
@@ -260,10 +297,11 @@ public class BookLookup {
         }
 
         let boardSizeVal = data.readUInt32(at: 8)
-        guard boardSizeVal == UInt32(boardSize) else {
-            printError("Bad board size: \(boardSizeVal), expected \(self.boardSize)")
+        guard (6...9).contains(boardSizeVal) else {
+            printError("Unsupported board size: \(boardSizeVal), expected 6...9")
             return false
         }
+        self.boardSize = Int(boardSizeVal)
 
         self.positionCount = data.readUInt32(at: 12)
         self.moveCount = data.readUInt32(at: 16)

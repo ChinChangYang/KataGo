@@ -169,8 +169,13 @@ public final class Config {
 }
 
 extension Config {
-    public var isBookCompatible: Bool {
-        boardWidth == 9 && boardHeight == 9
+    /// Whether an opening book *could* apply to this board (pure-config
+    /// eligibility): a square board whose size has a published book (6...9).
+    /// Whether such a book is actually downloaded/loaded is a runtime concern
+    /// checked separately via `BookLookup.isAvailable(forBoardSize:)` /
+    /// `isReady(forBoardSize:)`.
+    public var isBookEligible: Bool {
+        boardWidth == boardHeight && (6...9).contains(boardWidth)
     }
 }
 

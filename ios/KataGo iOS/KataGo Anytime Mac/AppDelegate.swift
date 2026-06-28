@@ -435,6 +435,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Manage Models…",
                      action: #selector(MainWindowController.showModelsWindow(_:)),
                      keyEquivalent: "")
+        // Opens the native Opening Books window. `target = nil` routes through the
+        // responder chain to `MainWindowController.showOpeningBooksWindow(_:)`.
+        menu.addItem(withTitle: "Manage Opening Books…",
+                     action: #selector(MainWindowController.showOpeningBooksWindow(_:)),
+                     keyEquivalent: "")
         return menu
     }
 
