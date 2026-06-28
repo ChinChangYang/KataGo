@@ -20,10 +20,8 @@ public struct OpeningBook: Identifiable, Equatable, Sendable {
     /// HTML book via scripts/build_book_db.py and published to a GitHub release).
     public let url: String
     public let fileName: String
-    /// Compressed download size in bytes, shown in the picker. Placeholder for
-    /// 6/7/8 until the assets are published (see scripts/build_book_db.py + the
-    /// KataGoBooks release workflow); the 9x9 size is known from the previously
-    /// bundled file.
+    /// Compressed download size in bytes (the published books-v1 asset size),
+    /// shown in the picker.
     public let fileSize: Int
     /// Komi the book was generated for (Japanese-like rules), informational.
     public let komi: Float
@@ -48,10 +46,10 @@ public struct OpeningBook: Identifiable, Equatable, Sendable {
         allCases.first { $0.boardSize == size }
     }
 
-    // Placeholder release base — back-filled once the KataGoBooks release is
-    // published (see Workstream E). Each `url` ends with the matching fileName.
+    // Assets published by the KataGoBooks repo's build-books workflow to the
+    // `books-v1` release. Each `url` ends with the matching fileName.
     private static let releaseBase =
-        "https://github.com/ChinChangYang/KataGoBooks/releases/download/v1/"
+        "https://github.com/ChinChangYang/KataGoBooks/releases/download/books-v1/"
 
     public static let allCases: [OpeningBook] = [
         .init(
@@ -65,7 +63,7 @@ their evaluations can be shown directly on the board.
 """,
             url: releaseBase + "book6x6jp-20230525.kbook.gz",
             fileName: "book6x6jp-20230525.kbook.gz",
-            fileSize: 13_507_477,  // measured from scripts/build_book_db.py output
+            fileSize: 13_507_481,
             komi: 3
         ),
         .init(
@@ -79,7 +77,7 @@ their evaluations can be shown directly on the board.
 """,
             url: releaseBase + "book7jpb40s9435-20210806.kbook.gz",
             fileName: "book7jpb40s9435-20210806.kbook.gz",
-            fileSize: 43_000_000,
+            fileSize: 38_982_778,
             komi: 8
         ),
         .init(
@@ -93,7 +91,7 @@ book's candidate moves and their evaluations can be shown directly on the board.
 """,
             url: releaseBase + "book8jpb40s9854-20211114.kbook.gz",
             fileName: "book8jpb40s9854-20211114.kbook.gz",
-            fileSize: 190_000_000,
+            fileSize: 191_447_438,
             komi: 9
         ),
         .init(

@@ -5,19 +5,34 @@
 # `.github/workflows/build-books.yml`, alongside a copy of `build_book_db.py`
 # (from ChinChangYang/KataGo: scripts/build_book_db.py). See scripts/katagobooks/README.md.
 #
-# Trigger it manually (Actions ▸ Build Opening Books ▸ Run workflow). Each matrix
-# job downloads one HTML book, converts it to .kbook.gz, and uploads it to the
-# `books-v1` release. The app's OpeningBook.allCases URLs point at these assets.
+# Trigger it manually (Actions ▸ Build Opening Books ▸ Run workflow). A
+# `create-release` job first ensures the `books-v1` release exists (so the
+# parallel matrix jobs don't race on creating it); each matrix job then builds
+# one board size and uploads its asset. The app's OpeningBook.allCases URLs
+# point at these assets.
 name: Build Opening Books
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed to create/update the release + upload assets
+  contents: write   # create/update the release + upload assets
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure books-v1 release exists
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: books-v1
+          name: Opening Books v1
+          body: >-
+            Compact .kbook.gz opening books for KataGo Anytime
+            (6x6–9x9, Japanese-like rules), built from https://katagobooks.org/.
+
   build:
+    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,6 +49,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The 8x8/9x9 archives expand to millions of files (~8–10 GB). Reclaim the
+      # space the hosted runner spends on preinstalled toolchains so extraction
+      # has room on the workspace volume.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/.ghcup || true
+          df -h /
+
       - name: Download HTML book archive
         run: |
           curl -L --retry 5 --retry-delay 3 \
@@ -44,6 +68,7 @@ jobs:
         run: |
           mkdir -p extracted
           tar -xzf book.tar.gz -C extracted
+          rm -f book.tar.gz
 
       - name: Build .kbook.gz
         run: |
@@ -57,5 +82,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: books-v1
-          name: Opening Books v1
           files: ${{ matrix.name }}.kbook.gz
