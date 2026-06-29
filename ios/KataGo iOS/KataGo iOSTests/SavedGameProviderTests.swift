@@ -104,17 +104,23 @@ struct SavedGameProviderTests {
         #expect(snap.configuredGameID == bravo.uuid)
     }
 
-    // MARK: - id-based resolution + sticky-id fallback (the real fix)
+    // MARK: - id-based resolution (configured game id → snapshot)
     //
-    // The root cause: WidgetKit re-materializes `configuration.game` intermittently
-    // and it comes back nil under appex memory pressure, so the widget fell back to
-    // most-recent. The provider now caches the id whenever it DOES resolve
-    // (`WidgetConfiguredGameStore`) and passes it to `resolveSnapshot(configuredID:)`
-    // on a nil pass, so the widget stays pinned to the configured game.
+    // `resolveSnapshot(configuredID:)` is the widget's resolution authority: given the
+    // configured game's id it renders that game (even when it isn't the most-recent);
+    // given nil (an unconfigured widget) it falls back to the most-recently-modified
+    // game. The widget gets the id from `SelectGameIntent.gameID` — a PLAIN String the
+    // intent stores directly — NOT from a `GameEntity?` parameter, which AppIntents
+    // re-materializes via `entities(for:)` and resolves to nil when linkd rejects the
+    // widget bundle (deterministic in the Simulator; intermittent on device under
+    // memory pressure). A plain String survives every pass, so the widget stays pinned
+    // to the exact configured game. ("Widget shows the old game" was the AppEntity
+    // parameter resolving nil; an earlier App-Group sticky cache only made it worse.)
 
-    /// THE headline regression: given the configured id of an OLDER game and a newer
-    /// game in the store, resolve to the CONFIGURED game — never the most-recent.
-    /// (This is what the provider passes from the sticky cache on a nil pass.)
+    /// Given the configured id of an OLDER game and a newer game in the store, resolve
+    /// to the CONFIGURED game — never the most-recent. The headline behavior: the
+    /// widget honors a configured game even when it isn't the most-recently-modified
+    /// one (`SavedGameProvider` passes `SelectGameIntent.gameID` here).
     @Test @MainActor func resolveSnapshot_configuredID_returnsConfiguredNotMostRecent() throws {
         let c = try container()
         let configured = GameRecord(config: Config()); configured.name = "Configured"
@@ -129,7 +135,8 @@ struct SavedGameProviderTests {
         #expect(snap.configuredGameID == configured.uuid)
     }
 
-    /// No configured id (never resolved, empty cache) → most-recent, no tap override.
+    /// No configured id (an unconfigured widget — `SelectGameIntent.gameID` is nil) →
+    /// most-recent, no tap override.
     @Test @MainActor func resolveSnapshot_configuredID_nil_fallsBackToMostRecent() throws {
         let c = try container()
         let older = GameRecord(config: Config()); older.name = "Older"; older.lastModificationDate = Date(timeIntervalSince1970: 1)
@@ -155,16 +162,27 @@ struct SavedGameProviderTests {
         #expect(snap.configuredGameID == missingID)    // tap still targets the configured id
     }
 
-    /// The App-Group sticky cache round-trips a configured id and clears.
-    @Test func widgetConfiguredGameStore_savesLoadsAndClears() {
-        let defaults = UserDefaults(suiteName: "test.widgetcache.\(UUID().uuidString)")!
-        let store = WidgetConfiguredGameStore(defaults: defaults)
-        #expect(store.load() == nil)            // empty to start
-        let id = UUID()
-        store.save(id)
-        #expect(store.load() == id)             // round-trips
-        store.clear()
-        #expect(store.load() == nil)            // cleared
+    /// Goal step 8 (the regression that drove the String-`gameID` fix): a widget
+    /// configured to the BASELINE game keeps showing it even after a NEWER game is
+    /// created — the configured game is honored over most-recent. Because the widget
+    /// reads `SelectGameIntent.gameID` (a plain String), the configured id survives
+    /// every timeline pass and resolves here regardless of recency, so the widget no
+    /// longer flips to the most-recently-created game.
+    @Test @MainActor func configuredBaselineShownAfterNewerGameCreated() throws {
+        let c = try container()
+        let baseline = GameRecord(config: Config()); baseline.name = "Baseline"
+        baseline.lastModificationDate = Date(timeIntervalSince1970: 1)   // configured, older
+        c.mainContext.insert(baseline); try c.mainContext.save()
+
+        // A newer game is created AFTER the widget was configured to baseline.
+        let newer = GameRecord(config: Config()); newer.name = "New Game"
+        newer.lastModificationDate = Date(timeIntervalSince1970: 2)      // most-recent
+        c.mainContext.insert(newer); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: baseline.uuid, container: c)
+        #expect(snap.name == "Baseline")            // configured game, NOT most-recent "New Game"
+        #expect(snap.gameID == baseline.uuid)
+        #expect(snap.configuredGameID == baseline.uuid)
     }
 
     // MARK: - Issue 2: bounded AppIntents resolution (entities(for:) round-trip)

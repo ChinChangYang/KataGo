@@ -41,9 +41,9 @@ public struct SavedGameSnapshot: Sendable {
     }
 
     /// Resolve the snapshot for an AppIntents-configured entity. Delegates to the
-    /// id-based resolver so the widget provider can pass a CACHED id when the live
-    /// `configuration.game` intermittently resolves to nil (see
-    /// `WidgetConfiguredGameStore`).
+    /// id-based resolver, which renders the configured game when present and falls
+    /// back to the most-recently-modified game when `configuration.game` could not be
+    /// re-materialized (a nil entity).
     @MainActor
     public static func resolveSnapshot(for entity: GameEntity?, container: ModelContainer) -> SavedGameSnapshot {
         resolveSnapshot(configuredID: entity?.id, container: container)
