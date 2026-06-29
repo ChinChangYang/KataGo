@@ -52,7 +52,12 @@ struct SavedGameWidgetView: View {
                 }
             }
         }
-        .widgetURL(snap.gameID.map(GameDeepLink.url(for:)))
+        // Route the tap to the user's EXPLICIT configured game, falling back to the
+        // displayed game's id only when the widget is unconfigured. `snap.gameID` is
+        // the resolved DISPLAY id, which can fall back to most-recent when the
+        // configured game momentarily can't be resolved; using it for the tap would
+        // open a game the user didn't pick. See `SavedGameSnapshot.configuredGameID`.
+        .widgetURL((snap.configuredGameID ?? snap.gameID).map(GameDeepLink.url(for:)))
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }

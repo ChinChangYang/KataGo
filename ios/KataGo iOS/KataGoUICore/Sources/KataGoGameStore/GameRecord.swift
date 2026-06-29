@@ -239,6 +239,19 @@ public final class GameRecord {
             sortBy: [.init(\.lastModificationDate, order: .reverse)]
         )
         descriptor.fetchLimit = 1
+        // Memory-pressure mitigation for the widget extension: this fetch only ever
+        // feeds `GameEntity.init` / `SavedGameSnapshot`, which read a small set of
+        // display fields. Restrict the materialized properties to those so the
+        // resolution never pulls a game's heavy per-move analysis dictionaries
+        // (ownership, win rates, best moves, dead stones, …) into the constrained
+        // appex — a smaller footprint makes the AppIntents `entities(for:)` round-trip
+        // less likely to be jettisoned (which is what makes a configured widget fall
+        // back to most-recent). SwiftData faults any unlisted property in on demand,
+        // so this is purely a footprint bound, never a correctness change.
+        descriptor.propertiesToFetch = [
+            \.uuid, \.name, \.comments, \.width, \.height,
+            \.blackStones, \.whiteStones, \.currentIndex, \.lastModificationDate
+        ]
         return try container.mainContext.fetch(descriptor).first
     }
 

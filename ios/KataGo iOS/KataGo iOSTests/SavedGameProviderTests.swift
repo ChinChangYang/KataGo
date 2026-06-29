@@ -54,6 +54,119 @@ struct SavedGameProviderTests {
         #expect(try GameRecord.fetchGameRecord(uuid: UUID(), container: c) == nil)
     }
 
+    // MARK: - configuredGameID: the tap target must follow the user's explicit
+    // configured choice, not the resolved display snapshot (which can fall back to
+    // most-recent). `SavedGameWidgetView` builds the deep-link URL from
+    // `configuredGameID ?? gameID`, so the configured id must survive a display
+    // fallback. Without this, a widget whose configured game momentarily can't be
+    // resolved opens the most-recent game instead of the one the user picked.
+
+    /// When the configured game can't be resolved (e.g. the widget process's store
+    /// lags and the bounded fetch misses), the DISPLAY falls back to most-recent —
+    /// but the snapshot must still carry the CONFIGURED id so the tap targets the
+    /// user's choice, not the fallback.
+    @Test @MainActor func resolveSnapshot_carriesConfiguredGameID_evenWhenDisplayFallsBack() throws {
+        let c = try container()
+        let newer = GameRecord(config: Config()); newer.name = "Newer"
+        newer.lastModificationDate = Date(timeIntervalSince1970: 2)
+        c.mainContext.insert(newer); try c.mainContext.save()
+
+        // A configured entity whose game is NOT in this store (never inserted), so
+        // the display resolution falls back to `newer`.
+        let ghost = GameRecord(config: Config()); ghost.name = "Ghost"; ghost.uuid = UUID()
+        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: ghost), container: c)
+
+        #expect(snap.name == "Newer")                       // display fell back
+        #expect(snap.gameID == newer.uuid)                  // displayed game's id
+        #expect(snap.configuredGameID == ghost.uuid)        // but the TAP target is the configured id
+    }
+
+    /// An unconfigured widget legitimately shows most-recent; with no configured
+    /// game there is no configured id, so the tap falls back to the displayed id.
+    @Test @MainActor func resolveSnapshot_unconfigured_configuredGameIDIsNil() throws {
+        let c = try container()
+        let only = GameRecord(config: Config()); only.name = "Only"
+        c.mainContext.insert(only); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c)
+        #expect(snap.configuredGameID == nil)
+    }
+
+    /// Healthy path: configured game present → display id and configured id agree.
+    @Test @MainActor func resolveSnapshot_configuredPresent_configuredGameIDEqualsGameID() throws {
+        let c = try container()
+        let alpha = GameRecord(config: Config()); alpha.name = "Alpha"
+        let bravo = GameRecord(config: Config()); bravo.name = "Bravo"
+        c.mainContext.insert(alpha); c.mainContext.insert(bravo); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: bravo), container: c)
+        #expect(snap.gameID == bravo.uuid)
+        #expect(snap.configuredGameID == bravo.uuid)
+    }
+
+    // MARK: - id-based resolution + sticky-id fallback (the real fix)
+    //
+    // The root cause: WidgetKit re-materializes `configuration.game` intermittently
+    // and it comes back nil under appex memory pressure, so the widget fell back to
+    // most-recent. The provider now caches the id whenever it DOES resolve
+    // (`WidgetConfiguredGameStore`) and passes it to `resolveSnapshot(configuredID:)`
+    // on a nil pass, so the widget stays pinned to the configured game.
+
+    /// THE headline regression: given the configured id of an OLDER game and a newer
+    /// game in the store, resolve to the CONFIGURED game — never the most-recent.
+    /// (This is what the provider passes from the sticky cache on a nil pass.)
+    @Test @MainActor func resolveSnapshot_configuredID_returnsConfiguredNotMostRecent() throws {
+        let c = try container()
+        let configured = GameRecord(config: Config()); configured.name = "Configured"
+        configured.lastModificationDate = Date(timeIntervalSince1970: 1)   // older
+        let newer = GameRecord(config: Config()); newer.name = "Newer"
+        newer.lastModificationDate = Date(timeIntervalSince1970: 2)        // most-recent
+        c.mainContext.insert(configured); c.mainContext.insert(newer); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: configured.uuid, container: c)
+        #expect(snap.name == "Configured")                 // NOT "Newer"
+        #expect(snap.gameID == configured.uuid)
+        #expect(snap.configuredGameID == configured.uuid)
+    }
+
+    /// No configured id (never resolved, empty cache) → most-recent, no tap override.
+    @Test @MainActor func resolveSnapshot_configuredID_nil_fallsBackToMostRecent() throws {
+        let c = try container()
+        let older = GameRecord(config: Config()); older.name = "Older"; older.lastModificationDate = Date(timeIntervalSince1970: 1)
+        let newer = GameRecord(config: Config()); newer.name = "Newer"; newer.lastModificationDate = Date(timeIntervalSince1970: 2)
+        c.mainContext.insert(older); c.mainContext.insert(newer); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: nil, container: c)
+        #expect(snap.name == "Newer")
+        #expect(snap.configuredGameID == nil)
+    }
+
+    /// Configured game was deleted → display falls back to most-recent, but the tap
+    /// still targets the configured id (the app's `resolveDeepLinkTarget` then handles
+    /// the deleted case), instead of silently switching the tap to most-recent.
+    @Test @MainActor func resolveSnapshot_configuredID_deleted_keepsConfiguredIDForTap() throws {
+        let c = try container()
+        let newer = GameRecord(config: Config()); newer.name = "Newer"; newer.lastModificationDate = Date(timeIntervalSince1970: 2)
+        c.mainContext.insert(newer); try c.mainContext.save()
+
+        let missingID = UUID()
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: missingID, container: c)
+        #expect(snap.name == "Newer")                  // display falls back
+        #expect(snap.configuredGameID == missingID)    // tap still targets the configured id
+    }
+
+    /// The App-Group sticky cache round-trips a configured id and clears.
+    @Test func widgetConfiguredGameStore_savesLoadsAndClears() {
+        let defaults = UserDefaults(suiteName: "test.widgetcache.\(UUID().uuidString)")!
+        let store = WidgetConfiguredGameStore(defaults: defaults)
+        #expect(store.load() == nil)            // empty to start
+        let id = UUID()
+        store.save(id)
+        #expect(store.load() == id)             // round-trips
+        store.clear()
+        #expect(store.load() == nil)            // cleared
+    }
+
     // MARK: - Issue 2: bounded AppIntents resolution (entities(for:) round-trip)
 
     /// The AppIntents round-trip for a configured widget game must resolve the

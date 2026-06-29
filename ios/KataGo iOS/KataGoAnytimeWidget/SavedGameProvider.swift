@@ -34,7 +34,17 @@ struct SavedGameProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: SelectGameIntent) async -> SavedGameEntry {
         let snapshot = await MainActor.run {
-            SavedGameSnapshot.resolveSnapshot(for: configuration.game, container: SharedModelContainer.shared)
+            // `configuration.game` is re-materialized by WidgetKit/AppIntents on each
+            // timeline pass and resolves INTERMITTENTLY to nil in the memory-constrained
+            // widget process. Persist the id whenever it DOES resolve, and reuse the
+            // last-known configured id when it doesn't, so a configured widget stays
+            // pinned to its game instead of falling back to (and deep-linking) the
+            // most-recently-modified game. See `WidgetConfiguredGameStore`.
+            let store = WidgetConfiguredGameStore()
+            if let liveID = configuration.game?.id { store.save(liveID) }
+            let configuredID = configuration.game?.id ?? store.load()
+            return SavedGameSnapshot.resolveSnapshot(configuredID: configuredID,
+                                                     container: SharedModelContainer.shared)
         }
         return SavedGameEntry(date: .now, snapshot: snapshot)
     }
