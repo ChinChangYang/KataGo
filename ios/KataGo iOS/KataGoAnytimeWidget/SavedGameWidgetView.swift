@@ -41,6 +41,24 @@ struct SavedGameWidgetView: View {
                     board.frame(maxHeight: .infinity)
                     Text(snap.firstComment).font(.callout).lineLimit(6)
                 }
+            case .systemExtraLarge:
+                // The extra-large family is wide (~2:1), so spend the room on WIDTH:
+                // a big square board on the leading side (height-bounded, then sized to
+                // a square by the 1:1 aspect) and a roomy info column trailing.
+                HStack(spacing: 16) {
+                    board.frame(maxHeight: .infinity)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(snap.name).font(.title2).bold().lineLimit(2)
+                        if snap.moveCount > 0 {
+                            Text("Move \(snap.moveCount)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(snap.firstComment).font(.body)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             default: // .systemMedium
                 HStack(spacing: 10) {
                     board

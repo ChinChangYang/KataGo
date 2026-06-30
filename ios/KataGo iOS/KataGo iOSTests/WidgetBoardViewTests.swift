@@ -36,10 +36,15 @@ struct WidgetBoardViewTests {
         #expect(parseVertex("AA1", width: 19, height: 19) == nil)
     }
 
-    @MainActor @Test func widgetBoardView_rendersToImage() {
+    /// The crisp vector board renders to an image at every family's square size —
+    /// from the small family (~120pt) up to the systemExtraLarge square (~360pt). It
+    /// has no intrinsic size (greedy GeometryReader), so it must fill whatever square
+    /// frame it's given rather than collapsing or faulting.
+    @MainActor @Test(arguments: [CGFloat(120), CGFloat(360)])
+    func widgetBoardView_rendersToImage(side: CGFloat) {
         let view = WidgetBoardView(width: 19, height: 19,
-                                   blackVertices: ["Q16", "D4"], whiteVertices: ["Q4"])
-        let renderer = ImageRenderer(content: view.frame(width: 120, height: 120))
+                                   blackVertices: ["Q16", "D4", "C16"], whiteVertices: ["Q4", "D16"])
+        let renderer = ImageRenderer(content: view.frame(width: side, height: side))
         #expect(renderer.uiImage != nil)
     }
 

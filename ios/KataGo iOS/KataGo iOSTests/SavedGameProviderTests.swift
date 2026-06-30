@@ -41,6 +41,19 @@ struct SavedGameProviderTests {
         #expect(snap.name == "Bravo")
     }
 
+    /// The systemExtraLarge widget shows a "Move N" line. `N` is the game's
+    /// `currentIndex` (the displayed position), surfaced onto the snapshot via the
+    /// bounded fetch — `currentIndex` is already in `fetchGameRecord`'s
+    /// `propertiesToFetch`, so the move count costs no extra per-move-dictionary fault.
+    @Test @MainActor func snapshot_carriesMoveCountFromCurrentIndex() throws {
+        let c = try container()
+        let g = GameRecord(config: Config()); g.name = "Mid-game"; g.currentIndex = 142
+        c.mainContext.insert(g); try c.mainContext.save()
+
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: g.uuid, container: c)
+        #expect(snap.moveCount == 142)
+    }
+
     /// The bounded single-record fetch the widget uses to resolve its configured
     /// game: returns the matching record, or nil when no game has that UUID.
     @Test @MainActor func fetchGameRecord_returnsMatchingRecordOrNil() throws {

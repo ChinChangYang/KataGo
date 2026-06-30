@@ -24,6 +24,10 @@ public struct GameEntity: AppEntity {
     public var boardHeight: Int
     public var lastBlackStones: [String]
     public var lastWhiteStones: [String]
+    /// The displayed position's move index (`GameRecord.currentIndex`). Already in
+    /// `fetchGameRecord`'s `propertiesToFetch` and read below for `lastIndex`, so
+    /// surfacing it adds no fault. Shown as "Move N" on the systemExtraLarge widget.
+    public var moveCount: Int
 
     public var displayRepresentation: DisplayRepresentation {
         // Use an SF Symbol, not `Image(named:)`: a named asset resolves against
@@ -57,6 +61,7 @@ public struct GameEntity: AppEntity {
         self.boardHeight = gameRecord.height ?? 19
         self.lastBlackStones = GameEntity.stoneList(gameRecord.blackStones, at: lastIndex)
         self.lastWhiteStones = GameEntity.stoneList(gameRecord.whiteStones, at: lastIndex)
+        self.moveCount = currentIndex
         self.name = gameRecord.name
         self.comments = sortedComments
     }

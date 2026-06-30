@@ -16,11 +16,17 @@ public struct SavedGameSnapshot: Sendable {
     public var boardHeight: Int
     public var lastBlackStones: [String]
     public var lastWhiteStones: [String]
+    /// The displayed position's move index (`GameRecord.currentIndex`); the
+    /// systemExtraLarge layout shows it as a "Move N" line. Free under the widget's
+    /// memory budget — `currentIndex` is already in the bounded fetch's
+    /// `propertiesToFetch`, so this faults no per-move analysis dictionary.
+    public var moveCount: Int
 
     public init(gameEntity e: GameEntity, configuredGameID: UUID? = nil) {
         gameID = e.id; name = e.name; firstComment = e.firstComment
         boardWidth = e.boardWidth; boardHeight = e.boardHeight
         lastBlackStones = e.lastBlackStones; lastWhiteStones = e.lastWhiteStones
+        moveCount = e.moveCount
         self.configuredGameID = configuredGameID
     }
 
@@ -33,10 +39,11 @@ public struct SavedGameSnapshot: Sendable {
 
     public init(gameID: UUID?, name: String, firstComment: String,
                 boardWidth: Int, boardHeight: Int, lastBlackStones: [String], lastWhiteStones: [String],
-                configuredGameID: UUID? = nil) {
+                moveCount: Int = 0, configuredGameID: UUID? = nil) {
         self.gameID = gameID; self.name = name; self.firstComment = firstComment
         self.boardWidth = boardWidth; self.boardHeight = boardHeight
         self.lastBlackStones = lastBlackStones; self.lastWhiteStones = lastWhiteStones
+        self.moveCount = moveCount
         self.configuredGameID = configuredGameID
     }
 
