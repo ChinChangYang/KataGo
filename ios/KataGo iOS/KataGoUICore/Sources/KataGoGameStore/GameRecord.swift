@@ -275,6 +275,25 @@ public final class GameRecord {
         return try container.mainContext.fetch(descriptor)
     }
 
+    /// Newest-first, footprint-bounded fetch for the widget configuration picker. The
+    /// picker renders only each game's NAME and FIRST COMMENT, so restrict the
+    /// materialized properties to uuid/name/comments (plus the sort key). This keeps
+    /// the memory-constrained widget extension from faulting in every game's heavy
+    /// per-move board/analysis dictionaries (blackStones/whiteStones/ownership/…) just
+    /// to list names — that footprint blew the hard 30 MB widget memory limit and got
+    /// the appex jettisoned (JETSAM_REASON_MEMORY_PERPROCESSLIMIT), leaving the picker
+    /// empty. `propertiesToFetch` is a footprint hint only; SwiftData faults any
+    /// unlisted property in on demand, so this is never a correctness change. A
+    /// non-positive `limit` returns [] (a `fetchLimit` of 0 means "no limit" in Core
+    /// Data, which would silently defeat the bound in the extension).
+    @MainActor
+    public class func fetchGameRecordsForPicker(container: ModelContainer, fetchLimit: Int) throws -> [GameRecord] {
+        guard fetchLimit > 0 else { return [] }
+        var descriptor = createFetchDescriptor(fetchLimit: fetchLimit)
+        descriptor.propertiesToFetch = [\.uuid, \.name, \.comments, \.lastModificationDate]
+        return try container.mainContext.fetch(descriptor)
+    }
+
     /// Drain-time resolution for a deferred deep-link selection (macOS cold-launch
     /// F14 gate). When the stashed target was deleted during the pre-ready window,
     /// fall back to the most-recently-modified game (mirroring

@@ -52,7 +52,7 @@ public struct GameEntity: AppEntity {
                             gameRecord.whiteStones?.keys.max() ?? 0)
         }
         self.id = gameRecord.uuid ?? UUID()
-        self.firstComment = gameRecord.comments?[0] ?? sortedComments.first ?? ""
+        self.firstComment = GameEntity.firstComment(from: gameRecord.comments)
         self.boardWidth = gameRecord.width ?? 19
         self.boardHeight = gameRecord.height ?? 19
         self.lastBlackStones = GameEntity.stoneList(gameRecord.blackStones, at: lastIndex)
@@ -66,6 +66,31 @@ public struct GameEntity: AppEntity {
     public static func stoneList(_ dict: [Int: String]?, at index: Int) -> [String] {
         guard let raw = dict?[index], !raw.isEmpty else { return [] }
         return raw.split(separator: " ").map(String.init)
+    }
+
+    /// The comment shown for a game: the move-0 comment, or — for an imported SGF whose
+    /// first comment is on a later move — the earliest comment present, else "". ONE
+    /// definition shared by `GameEntity.init` (what the widget renders) and
+    /// `GameEntityQuery.pickerOptions` (the config-picker subtitle) so the two can never
+    /// diverge. `comments` is already faulted by both callers, so the key sort is free.
+    public static func firstComment(from comments: [Int: String]?) -> String {
+        comments?[0] ?? comments?.keys.sorted().first.flatMap { comments?[$0] } ?? ""
+    }
+}
+
+/// One configuration-picker row for the Saved Game widget: the value stored on the
+/// intent (the game's uuid string, which the widget reads back) plus the title and
+/// subtitle shown. Built WITHOUT a full `GameEntity` so the memory-constrained widget
+/// extension never faults in a game's heavy per-move board dictionaries just to list
+/// names (see `GameRecord.fetchGameRecordsForPicker`).
+public struct GamePickerOption: Equatable, Sendable {
+    public let id: String        // game uuid string — what the widget restores
+    public let title: String     // game name
+    public let subtitle: String  // first comment
+    public init(id: String, title: String, subtitle: String) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
     }
 }
 
@@ -122,6 +147,26 @@ public struct GameEntityQuery: EntityQuery, EntityStringQuery {
     @MainActor
     public static func matchingEntities(for query: String, container: ModelContainer, limit: Int = 50) throws -> [GameEntity] {
         try GameRecord.fetchGameRecords(nameContains: query, limit: limit, container: container).map(GameEntity.init)
+    }
+
+    /// Footprint-bounded options for the widget configuration picker: the newest
+    /// `limit` games, each mapped to (uuid string, name, first comment) via the
+    /// property-bounded `fetchGameRecordsForPicker` — never building a `GameEntity`
+    /// (which would fault in the heavy board dictionaries and blow the 30 MB widget
+    /// memory limit, getting the appex jettisoned and the picker left empty). Records
+    /// with a nil uuid are skipped: the read-only extension can't mint a stable id for
+    /// them (the main app's `repairStoredIdentities` does), and an option whose value
+    /// can't round-trip back to a game is worse than a hidden one. Runs on the main
+    /// actor (SwiftData mainContext).
+    @MainActor
+    public static func pickerOptions(container: ModelContainer, limit: Int) throws -> [GamePickerOption] {
+        try GameRecord.fetchGameRecordsForPicker(container: container, fetchLimit: limit)
+            .compactMap { record -> GamePickerOption? in
+                guard let uuid = record.uuid else { return nil }
+                return GamePickerOption(id: uuid.uuidString,
+                                        title: record.name,
+                                        subtitle: GameEntity.firstComment(from: record.comments))
+            }
     }
 
     /// Proactive identity hygiene for the MAIN app: assign stable, unique, non-nil

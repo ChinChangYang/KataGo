@@ -1,5 +1,6 @@
 import WidgetKit
 import AppIntents
+import Foundation
 import KataGoGameStore
 
 struct SelectGameIntent: WidgetConfigurationIntent {
@@ -22,24 +23,31 @@ struct SelectGameIntent: WidgetConfigurationIntent {
 
 /// Supplies the widget configuration picker with one option per saved game: the
 /// value is the game's UUID string (what the widget reads), the title is the game's
-/// name. Runs the same bounded, read-only store fetch the AppEntity query used — and,
-/// crucially, only POPULATES the picker; the selected String value is restored to the
-/// timeline provider directly, never via an entity round-trip.
+/// name. Delegates to `GameEntityQuery.pickerOptions`, a property-bounded fetch that
+/// reads only name + first comment and never builds a `GameEntity` — the previous
+/// version faulted in every game's heavy per-move board dictionaries for 50 records,
+/// blowing the hard 30 MB widget memory limit so jetsam killed the appex
+/// (JETSAM_REASON_MEMORY_PERPROCESSLIMIT) and the picker showed "Loading…" then closed
+/// empty. The selected String is restored to the timeline provider directly, never via
+/// an entity round-trip.
 struct GameOptionsProvider: DynamicOptionsProvider {
     func results() async throws -> ItemCollection<String> {
-        let items = try await MainActor.run { () -> [IntentItem<String>] in
-            try GameEntityQuery.fetchRecords(container: SharedModelContainer.shared,
-                                             limit: 50, repair: false)
-                .compactMap { record -> IntentItem<String>? in
-                    guard let uuid = record.uuid else { return nil }
-                    let entity = GameEntity(gameRecord: record)
-                    return IntentItem<String>(
-                        uuid.uuidString,
-                        title: "\(entity.name)",
-                        subtitle: "\(entity.firstComment)"
-                    )
-                }
+        do {
+            let options = try await MainActor.run {
+                try GameEntityQuery.pickerOptions(container: SharedModelContainer.shared, limit: 50)
+            }
+            let items = options.map {
+                IntentItem<String>($0.id, title: "\($0.title)", subtitle: "\($0.subtitle)")
+            }
+            return ItemCollection(sections: [IntentItemSection(items: items)])
+        } catch {
+            // Property-bounding keeps the appex well under its memory limit, but still
+            // degrade a transient SwiftData/CloudKit fault to an EMPTY picker rather
+            // than letting it propagate and silently close the picker. The timeline
+            // path swallows the same class of error with `try?`; this options
+            // evaluation runs separately and must tolerate it on its own.
+            NSLog("GameOptionsProvider.results failed: \(error)")
+            return ItemCollection(sections: [IntentItemSection<String>(items: [])])
         }
-        return ItemCollection(sections: [IntentItemSection(items: items)])
     }
 }

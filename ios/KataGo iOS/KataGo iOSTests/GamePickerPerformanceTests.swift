@@ -4,12 +4,12 @@
 //
 //  Scaling investigation + regression guard for the widget game-list picker.
 //
-//  The widget configuration picker (AppIntents `GameEntityQuery.suggestedEntities`
-//  / `entities(matching:)`) fetches via a `FetchDescriptor` sorted by
-//  `lastModificationDate`. If that column is UNINDEXED, SQLite must scan + sort the
-//  whole `GameRecord` table to return the newest 20 — O(N) in the total number of
-//  games, on every picker open, inside the throttled widget `.appex`. With many
-//  heavy games this is the reported "tap the menu → long wait" bug.
+//  The widget configuration picker (AppIntents `GameEntityQuery.pickerOptions`,
+//  formerly `suggestedEntities` / `entities(matching:)`) fetches via a
+//  `FetchDescriptor` sorted by `lastModificationDate`. If that column is UNINDEXED,
+//  SQLite must scan + sort the whole `GameRecord` table to return the newest N — O(N)
+//  in the total number of games, on every picker open, inside the throttled widget
+//  `.appex`. With many heavy games this is the reported "tap the menu → long wait" bug.
 //
 //  These tests:
 //   1. `pickerFetchScalingBenchmark` (OPT-IN: set KATAGO_RUN_PERF=1) seeds thousands
@@ -196,5 +196,120 @@ struct GamePickerPerformanceTests {
         #expect(top.last?.name == "Game 80")
         let dates = top.compactMap(\.lastModificationDate)
         #expect(dates == dates.sorted(by: >))                                 // strictly descending
+    }
+
+    // MARK: - Footprint-bounded picker options (jetsam regression: 30 MB widget limit)
+
+    //  The Saved Game widget's config picker (`GameOptionsProvider.results`) used to
+    //  fetch 50 records with NO `propertiesToFetch` bound and build 50 full
+    //  `GameEntity` objects, faulting in each game's heavy `blackStones`/`whiteStones`
+    //  per-move board dictionaries. On a real device that exceeded the widget
+    //  extension's hard 30 MB memory limit, so jetsam killed `KataGoAnytimeWidget`
+    //  (JETSAM_REASON_MEMORY_PERPROCESSLIMIT) before the options returned — the picker
+    //  showed "Loading…" then closed empty. (No appex memory cap exists in the
+    //  Simulator or this test host, so these tests guard the two things the fix makes
+    //  true — a property-bounded fetch and a `GameEntity`-free map — not the kill
+    //  itself, which only the on-device run can prove.) The fix: a property-bounded
+    //  `fetchGameRecordsForPicker` + `GameEntityQuery.pickerOptions`, which read only
+    //  name + first comment and never touch the board dictionaries.
+
+    @MainActor private func inMemoryStore() throws -> ModelContainer {
+        try ModelContainer(for: SharedModelContainer.schema,
+                           configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                                              isStoredInMemoryOnly: true))
+    }
+
+    /// Inserts `n` lightweight records with distinct, ascending modification dates
+    /// (so `Game n-1` is newest) and a first comment.
+    @MainActor private func seedLight(_ container: ModelContainer, count n: Int) throws {
+        let ctx = container.mainContext
+        for i in 0..<n {
+            let r = GameRecord(config: Config())
+            r.name = "Game \(i)"
+            r.lastModificationDate = Date(timeIntervalSince1970: Double(i))   // i == n-1 is newest
+            r.comments = [0: "comment \(i)"]
+            ctx.insert(r)
+        }
+        try ctx.save()
+    }
+
+    @Test @MainActor func fetchGameRecordsForPicker_isBoundedAndNewestFirst() throws {
+        let c = try inMemoryStore()
+        try seedLight(c, count: 60)
+        let rows = try GameRecord.fetchGameRecordsForPicker(container: c, fetchLimit: 50)
+        #expect(rows.count == 50)
+        #expect(rows.first?.name == "Game 59")                                // newest first
+        #expect(rows.last?.name == "Game 10")                                 // 50th newest
+        let dates = rows.compactMap(\.lastModificationDate)
+        #expect(dates == dates.sorted(by: >))                                 // strictly descending
+    }
+
+    @Test @MainActor func fetchGameRecordsForPicker_nonPositiveLimit_isEmpty() throws {
+        let c = try inMemoryStore()
+        try seedLight(c, count: 5)
+        // fetchLimit 0 means "no limit" in Core Data; the helper must refuse it so the
+        // bound can't be silently defeated in the extension.
+        #expect(try GameRecord.fetchGameRecordsForPicker(container: c, fetchLimit: 0).isEmpty)
+    }
+
+    @Test @MainActor func pickerOptions_mapsNameAndFirstComment() throws {
+        let c = try inMemoryStore()
+        let r = GameRecord(config: Config())
+        r.name = "Opening Study"
+        r.comments = [0: "Black takes 4-4", 1: "White approaches"]
+        let id = try #require(r.uuid)
+        c.mainContext.insert(r); try c.mainContext.save()
+
+        let options = try GameEntityQuery.pickerOptions(container: c, limit: 50)
+        let opt = try #require(options.first { $0.id == id.uuidString })
+        #expect(opt.title == "Opening Study")
+        #expect(opt.subtitle == "Black takes 4-4")                            // comments[0], not [1]
+    }
+
+    @Test @MainActor func pickerOptions_dropsRecordsWithNilUUID() throws {
+        let c = try inMemoryStore()
+        let normal = GameRecord(config: Config()); normal.name = "Normal"
+        let nilGame = GameRecord(config: Config()); nilGame.name = "NilGame"; nilGame.uuid = nil
+        c.mainContext.insert(normal); c.mainContext.insert(nilGame); try c.mainContext.save()
+
+        let options = try GameEntityQuery.pickerOptions(container: c, limit: 50)
+        #expect(options.contains { $0.title == "Normal" })
+        #expect(!options.contains { $0.title == "NilGame" })                  // nil uuid → unselectable → hidden
+    }
+
+    @Test @MainActor func pickerOptions_nilComments_yieldsEmptySubtitle() throws {
+        let c = try inMemoryStore()
+        let r = GameRecord(config: Config()); r.name = "No Comments"; r.comments = nil
+        let id = try #require(r.uuid)
+        c.mainContext.insert(r); try c.mainContext.save()
+
+        let options = try GameEntityQuery.pickerOptions(container: c, limit: 50)
+        let opt = try #require(options.first { $0.id == id.uuidString })
+        #expect(opt.subtitle == "")
+    }
+
+    /// An imported SGF whose FIRST comment isn't on move 0 (e.g. `comments = [3: …]`)
+    /// must still show that comment in the picker — matching what the rendered widget
+    /// displays (`GameEntity.firstComment`, which falls back to the earliest comment
+    /// when key 0 is absent). A bare `comments?[0]` would leave the row blank and
+    /// disagree with the widget the user is choosing.
+    @Test @MainActor func pickerOptions_firstCommentNotAtZero_matchesRenderedWidget() throws {
+        let c = try inMemoryStore()
+        let r = GameRecord(config: Config())
+        r.name = "Imported"
+        r.comments = [3: "Comment on move 3"]                 // no key 0
+        let id = try #require(r.uuid)
+        c.mainContext.insert(r); try c.mainContext.save()
+
+        let options = try GameEntityQuery.pickerOptions(container: c, limit: 50)
+        let opt = try #require(options.first { $0.id == id.uuidString })
+        #expect(opt.subtitle == "Comment on move 3")
+        #expect(opt.subtitle == GameEntity(gameRecord: r).firstComment)   // parity with rendered widget
+    }
+
+    @Test @MainActor func pickerOptions_respectsLimit() throws {
+        let c = try inMemoryStore()
+        try seedLight(c, count: 60)
+        #expect(try GameEntityQuery.pickerOptions(container: c, limit: 50).count == 50)
     }
 }
