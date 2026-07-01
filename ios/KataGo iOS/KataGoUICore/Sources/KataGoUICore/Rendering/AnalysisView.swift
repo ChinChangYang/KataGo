@@ -45,8 +45,8 @@ public struct AnalysisView: View {
     var ownerships: some View {
         return ForEach(analysis.ownershipUnits) { unit in
             Rectangle()
-#if !os(macOS)
-                .hoverEffect()
+#if os(iOS) || os(visionOS)
+                .hoverEffect()   // pointer/hover only — unavailable on macOS/tvOS
 #endif
                 .foregroundStyle(Color(hue: 0, saturation: 0, brightness: Double(unit.whiteness)).opacity(Double(unit.opacity)))
                 .frame(width: dimensions.squareLength * CGFloat(unit.scale), height: dimensions.squareLength * CGFloat(unit.scale))
@@ -90,8 +90,8 @@ public struct AnalysisView: View {
                             }
                         }
                     }
-#if !os(macOS)
-                    .hoverEffect()
+#if os(iOS) || os(visionOS)
+                    .hoverEffect()   // pointer/hover only — unavailable on macOS/tvOS
 #endif
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,

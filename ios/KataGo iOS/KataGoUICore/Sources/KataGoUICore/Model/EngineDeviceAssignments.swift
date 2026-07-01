@@ -28,6 +28,14 @@ public enum EngineDeviceAssignments {
         return [BackendChoice.mlxGPU.mlxDeviceToUse,
                 BackendChoice.coremlNE.mlxDeviceToUse,
                 BackendChoice.coremlNE.mlxDeviceToUse]            // [0, 100, 100]
+        #elseif os(tvOS)
+        // Apple TV 4K: CoreML/ANE ONLY — a single NN-server thread on device 100.
+        // No MLX/GPU thread: it would add dual-resident weights, GPU power draw,
+        // and MLX allocator growth under tvOS's tight per-process memory limit.
+        // One ANE thread (not two) because a second doesn't speed a single CoreML
+        // model — the ANE serializes — and it would double the per-thread input
+        // buffers.
+        return [BackendChoice.coremlNE.mlxDeviceToUse]            // [100]
         #else
         // Real iOS/visionOS: 1 MLX/GPU + 1 CoreML/ANE. Runs both engines in
         // parallel; lighter than macOS's 1+2 to limit phone memory/power.

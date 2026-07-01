@@ -176,3 +176,33 @@ Board sizes: 2x2 to 37x37.
         )
     ]
 }
+
+public extension NeuralNetworkModel {
+    /// Largest on-disk size (bytes) admitted on tvOS's constrained per-process
+    /// memory budget. Passes the ~98 MB b18 nets (built-in + `kata9x9`), the
+    /// small lionffen nets, and the 87 MB `rect15`; blocks `fd3` (~271 MB), `m2`
+    /// (~271 MB), `igoh120` (~174 MB), and the official 40-block net (~864 MB),
+    /// which would jetsam an Apple TV.
+    static let tvOSMaxEligibleFileSize = 100_000_000
+
+    /// Platform-agnostic eligibility predicate, factored out so it is unit-
+    /// testable on the iOS-sim test host without depending on the `#if os(tvOS)`
+    /// compile guard. With `restrictToSmallModels == false` every model is
+    /// eligible; with `true`, only the built-in net and models at or under
+    /// `tvOSMaxEligibleFileSize` are.
+    static func isEligible(builtIn: Bool, fileSize: Int, restrictToSmallModels: Bool) -> Bool {
+        guard restrictToSmallModels else { return true }
+        return builtIn || fileSize <= tvOSMaxEligibleFileSize
+    }
+
+    /// Whether this model may run on the current platform. tvOS restricts to the
+    /// built-in b18 net plus small networks (memory); every other platform allows
+    /// all models. Purely additive — non-tvOS behavior is unchanged.
+    var isEligibleOnThisPlatform: Bool {
+        #if os(tvOS)
+        return Self.isEligible(builtIn: builtIn, fileSize: fileSize, restrictToSmallModels: true)
+        #else
+        return Self.isEligible(builtIn: builtIn, fileSize: fileSize, restrictToSmallModels: false)
+        #endif
+    }
+}

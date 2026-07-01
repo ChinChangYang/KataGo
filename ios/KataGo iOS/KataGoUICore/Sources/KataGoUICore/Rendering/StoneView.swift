@@ -145,7 +145,7 @@ public struct StoneView: View {
         }
         .controlSize(.mini)
 
-#if os(visionOS)
+#if os(visionOS) || os(tvOS)
         return button.buttonStyle(.bordered)
 #else
         return button.buttonStyle(.glass)
@@ -251,9 +251,13 @@ public struct StoneView: View {
                 }
             }
         }
+#if !os(tvOS)
+        // No haptics on tvOS (the Siri Remote has none); .impact is also not a
+        // valid SensoryFeedback case there.
         .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
             !wasReady && isReady && gobanState.hapticFeedback
         }
+#endif
     }
 
     private func drawFastBlackStones(dimensions: Dimensions) -> some View {

@@ -19,6 +19,14 @@ public enum SharedModelContainer {
     /// strand the app's pre-App-Group library). On open failure the app degrades
     /// to a local-only store (keeps all data, sync paused) instead of crashing.
     public static let shared: ModelContainer = {
+        #if os(tvOS)
+        // Apple TV: no App Group (no widget/second process to share with), no
+        // migration ladder (no pre-App-Group store to bring forward), and it must
+        // NEVER fatalError. CloudKit is the only inbound path for games, and the
+        // local store is purgeable — so a local-only degradation on CloudKit
+        // failure is acceptable (next launch retries CloudKit).
+        return openTVOSStore()
+        #else
         let isApp = !ProcessKind.isAppExtension
         let fm = FileManager.default
 
@@ -53,6 +61,7 @@ public enum SharedModelContainer {
             if isApp { setAppGroupStoreReady() }
             return openRealOrFallback(isApp: isApp)
         }
+        #endif
     }()
 
     // MARK: - ModelConfiguration builders
@@ -81,6 +90,42 @@ public enum SharedModelContainer {
                            isStoredInMemoryOnly: true,
                            cloudKitDatabase: .none)
     }
+
+    #if os(tvOS)
+    /// tvOS store: a PLAIN SwiftData store (no `groupContainer` — Apple TV has no
+    /// widget/second process, so the App Group is pure liability, and its
+    /// `containerURL` can be nil on tvOS which would silently disable CloudKit)
+    /// mirrored to the private CloudKit database — the sole way games reach the TV.
+    static func tvOSCloudKitConfig() -> ModelConfiguration {
+        ModelConfiguration(schema: schema,
+                           cloudKitDatabase: .private(cloudKitContainerID))
+    }
+
+    /// tvOS degraded config: the same plain local store with CloudKit disabled.
+    /// The store is purgeable anyway, so this is an acceptable fallback that a
+    /// later launch retries against CloudKit.
+    static func tvOSLocalOnlyConfig() -> ModelConfiguration {
+        ModelConfiguration(schema: schema,
+                           cloudKitDatabase: .none)
+    }
+
+    /// tvOS open path — NEVER crashes: CloudKit → local-only → in-memory. Unlike
+    /// the iOS app's `retryThenLocalOnlyThenCrash`, a memory-pressured Apple TV
+    /// must degrade to a retryable "storage unavailable" state, never `fatalError`.
+    private static func openTVOSStore() -> ModelContainer {
+        do {
+            return try ModelContainer(for: schema, configurations: tvOSCloudKitConfig())
+        } catch {
+            NSLog("SharedModelContainer(tvOS): CloudKit store open failed, degrading local-only: \(error)")
+            do {
+                return try ModelContainer(for: schema, configurations: tvOSLocalOnlyConfig())
+            } catch {
+                NSLog("SharedModelContainer(tvOS): local store open failed, using in-memory: \(error)")
+                return makeInMemoryContainer()
+            }
+        }
+    }
+    #endif
 
     /// The pre-App-Group store at its original default location, mirrored to the
     /// same private CloudKit database it always used. Opened only when migration

@@ -2181,15 +2181,23 @@ void NeuralNet::freeInputBuffers(InputBuffers* inputBuffers) {
 
 void NeuralNet::globalInitialize() {
   // MLX initializes automatically.
-#if TARGET_OS_IOS || TARGET_OS_VISION
-  // iOS/visionOS run under a hard per-app memory budget (the OS jetsams apps
+#if TARGET_OS_IOS || TARGET_OS_VISION || TARGET_OS_TV
+  // iOS/visionOS/tvOS run under a hard per-app memory budget (the OS jetsams apps
   // that exceed it; there is no swap). Cap MLX's buffer-reuse cache so idle
   // steady-state RSS stays bounded — set_cache_limit only reclaims unused
   // cached buffers on the next allocation and never throws, so it cannot break
   // inference (unlike set_memory_limit, whose default 1.5x-working-set guideline
   // we keep). Conservative default; tune per device. The CoreML/ANE path barely
   // touches this allocator, so the cap mainly bounds the MLX/GPU path.
+#if TARGET_OS_TV
+  // Apple TV is tighter still: the app runs CoreML/ANE-only (no resident MLX/GPU
+  // inference graph), and its per-process jetsam limit is well below device RAM.
+  // 128 MB sits above a single bin.gz→CoreML conversion's transient scratch yet
+  // reclaims idle cache the ANE path never reuses.
+  mx::set_cache_limit((size_t)128 * 1024 * 1024);
+#else
   mx::set_cache_limit((size_t)256 * 1024 * 1024);
+#endif
 #endif
 }
 

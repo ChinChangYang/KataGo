@@ -50,6 +50,12 @@ public enum BackendChoice: String, CaseIterable, Identifiable {
             return [BackendChoice.coremlNE.mlxDeviceToUse,
                     BackendChoice.coremlNE.mlxDeviceToUse]                 // [100, 100]
         }
+        #elseif os(tvOS)
+        // Apple TV device: force a single CoreML/ANE server thread regardless of
+        // any persisted choice. The tvOS app ships no backend picker and must
+        // never take the MLX/GPU path (memory + no GPU inference on the ANE-only
+        // engine). Mirrors `EngineDeviceAssignments.platformMux`'s tvOS arm.
+        return [BackendChoice.coremlNE.mlxDeviceToUse]                     // [100]
         #else
         switch self {
         case .mlxGPU:

@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
-import FoundationModels
+#if canImport(FoundationModels)
+import FoundationModels   // Apple's on-device LLM — unavailable on tvOS
+#endif
 
 // CommentTone enum is defined in KataGoGameStore (GameRules.swift) and
 // re-exported here via KataGoUICore's @_exported import KataGoGameStore.
@@ -40,6 +42,7 @@ public class Commentator {
     @MainActor
     public func generateImprovedComment() async -> String {
         let original = generateNaturalComment()
+#if canImport(FoundationModels)
         let commentTone: CommentTone = gameRecord.config?.tone ?? .technical
 
         let prompt =
@@ -88,6 +91,11 @@ Original Go commentary of the current move to be improved:
         }
 
         return comment
+#else
+        // FoundationModels (Apple's on-device LLM) is unavailable on tvOS — the
+        // review app shows the deterministic natural-language comment unrefined.
+        return original
+#endif
     }
 
     public func generateAnalysisText(currentIndex: Int) -> String {
@@ -561,8 +569,10 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
     }
 }
 
+#if canImport(FoundationModels)
 @Generable
 struct CommentText {
     @Guide(description: "The improved Go commentary in single paragraph.")
     let description: String
 }
+#endif

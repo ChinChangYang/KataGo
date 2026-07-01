@@ -173,8 +173,10 @@ public struct LinePlotView: View {
             // touch gesture (tap/drag), so a selection change *is* the user
             // asking to navigate. On macOS the same binding is driven by mouse
             // *hover*, which must only update the on-chart annotation — never
-            // move the board. There the commit happens on click (below).
-            #if !os(macOS)
+            // move the board. There the commit happens on click (below). On tvOS
+            // the chart is read-only and tracks the current move (no pointer);
+            // a selection change must NOT auto-jump the board.
+            #if !os(macOS) && !os(tvOS)
             navigateBoard(to: newSelectedMove)
             #endif
         }

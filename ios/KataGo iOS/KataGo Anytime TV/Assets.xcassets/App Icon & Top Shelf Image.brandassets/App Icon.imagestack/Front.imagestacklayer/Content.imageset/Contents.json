@@ -1,0 +1,18 @@
+{
+  "images": [
+    {
+      "idiom": "tv",
+      "scale": "1x",
+      "filename": "App_Icon.imagestack_Fron_1x.png"
+    },
+    {
+      "idiom": "tv",
+      "scale": "2x",
+      "filename": "App_Icon.imagestack_Fron_2x.png"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

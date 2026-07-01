@@ -137,7 +137,9 @@ public struct MovesListView: View {
                             .id(row.displayNumber)
                             .listRowInsets(EdgeInsets(top: 2, leading: Self.rowInset,
                                                       bottom: 2, trailing: Self.rowInset))
-                            .listRowSeparator(.hidden)
+#if !os(tvOS)
+                            .listRowSeparator(.hidden)   // unavailable on tvOS (no list row separators)
+#endif
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 jump(to: row.displayNumber)

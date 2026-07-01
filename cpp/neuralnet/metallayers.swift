@@ -1,6 +1,11 @@
 // MPSGraph layer implementations shared between Metal and CoreML backends
 // Extracted from metalbackend.swift to enable hybrid CoreML + MPSGraph execution
 
+// This whole file is MPSGraph (GPU) — MetalPerformanceShadersGraph has no tvOS
+// SDK. The tvOS app runs CoreML/ANE only and references nothing here (verified:
+// the CoreMLComputeHandle path uses no metallayers symbol), so it is excluded
+// entirely on tvOS.
+#if !os(tvOS)
 import Foundation
 import MetalPerformanceShaders
 import MetalPerformanceShadersGraph
@@ -2916,3 +2921,4 @@ public func testGlobalPoolingResidualBlock(
         maskPointer: maskPointer,
         outputPointer: outputPointer)
 }
+#endif  // !os(tvOS) — end MPSGraph layer implementations

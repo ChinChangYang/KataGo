@@ -1,7 +1,13 @@
 import Foundation
 import CoreML
+#if !os(tvOS)
+// MetalPerformanceShadersGraph (the GPU backend) has no tvOS SDK. The tvOS app
+// runs CoreML/ANE only, so the entire MPSGraph path is excluded there. The
+// CoreML types below (MetalComputeContext, CoreMLComputeHandle, the bridge seam,
+// createCoreMLComputeHandle) are MPSGraph-free and remain available on tvOS.
 import MetalPerformanceShaders
 import MetalPerformanceShadersGraph
+#endif
 
 /// A class that handles output to standard error.
 class StandardError: TextOutputStream {
@@ -523,6 +529,7 @@ public func invokeCoreMLBridge(
         context, maxBatchSize)
 }
 
+#if !os(tvOS)  // GPU/MPSGraph path — no MetalPerformanceShadersGraph SDK on tvOS
 // MARK: - MPSGraph-based Model for GPU Inference
 
 /// GPU-based model using MPSGraph for inference
@@ -807,3 +814,4 @@ public func createMPSGraphOnlyHandle(
     printError("Metal backend \(serverThreadIdx): Initialized MPSGraph GPU-only mode")
     return mpsGraphHandle
 }
+#endif  // !os(tvOS) — end GPU/MPSGraph path

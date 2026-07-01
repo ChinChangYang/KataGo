@@ -52,8 +52,8 @@ struct BookAnalysisView: View {
                             moveText(info: info, nextPlayer: bookLookup.currentNextPlayer ?? 1)
                         }
                     }
-#if !os(macOS)
-                    .hoverEffect()
+#if os(iOS) || os(visionOS)
+                    .hoverEffect()   // pointer/hover only — unavailable on macOS/tvOS
 #endif
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                     .position(

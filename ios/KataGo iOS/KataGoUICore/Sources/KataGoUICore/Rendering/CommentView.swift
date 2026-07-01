@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
-import FoundationModels
+#if canImport(FoundationModels)
+import FoundationModels   // Apple's on-device LLM — unavailable on tvOS
+#endif
 
 public struct CommentView: View {
     var gameRecord: GameRecord
@@ -33,9 +35,11 @@ public struct CommentView: View {
                 )
                 .disabled(isGenerating)
                 .contentTransition(.opacity)
+#if !os(tvOS)
                 .sensoryFeedback(.impact, trigger: isGenerating) { wasGenerating, isGenerating in
                     wasGenerating && !isGenerating && gobanState.hapticFeedback
                 }
+#endif
 
                 if (comment.isEmpty) && (isGenerating == false) {
                     VStack {
@@ -48,8 +52,8 @@ public struct CommentView: View {
                             Label("Generate Comment", systemImage: "text.bubble")
                                 .labelStyle(.iconOnly)
                         }
-#if !os(visionOS)
-                        .buttonStyle(.glass)   // visionOS doesn't support .glass (see InfoView.createButton)
+#if !os(visionOS) && !os(tvOS)
+                        .buttonStyle(.glass)   // visionOS/tvOS don't support .glass (see InfoView.createButton)
 #endif
                         .padding()
                     }
