@@ -1,0 +1,55 @@
+//
+//  KataGoTVApp.swift
+//  KataGo Anytime TV
+//
+//  tvOS "Review & spectate" app: browse iCloud-synced games and watch live AI
+//  analysis on the big screen. The in-process engine runs conservatively
+//  (CoreML/NE only, built-in b18 net, human-SL net skipped) — validated to fit
+//  the Apple TV 4K (A12) per-process memory limit (~2.1 GB) in Phase 0.
+//
+
+import SwiftUI
+import os
+import KataGoUICore
+
+@main
+struct KataGoTVApp: App {
+    init() {
+        // Wire the cache-aware CoreML bridge into the KataGoSwift seam before any
+        // engine launch (mirrors the iOS app), and force the engine stack to link.
+        registerCoreMLBridge()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            TVRootView()
+        }
+        .modelContainer(SharedModelContainer.shared)
+    }
+}
+
+/// On-device memory readout for the Phase-0 / Phase-1 re-measure. `Available`
+/// (`os_proc_available_memory()`) is the real per-process jetsam budget — not
+/// device RAM. Surfaced as a small overlay so an operator can watch the plateau
+/// with the real UI attached.
+enum MemoryProbe {
+    struct Reading { var availableMB: Double; var footprintMB: Double }
+
+    static func reading() -> Reading {
+        Reading(availableMB: Double(os_proc_available_memory()) / 1_048_576.0,
+                footprintMB: footprintMB())
+    }
+
+    private static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return -1 }
+        return Double(info.phys_footprint) / 1_048_576.0
+    }
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Apple TV entitlements. CloudKit is the sole inbound path for saved games
+	  (no Files app / SGF import on tvOS). Deliberately OMITTED vs the iOS app:
+	  - App Group: no widget / second process on tvOS, and containerURL can be
+	    nil on tvOS which would silently disable CloudKit (see SharedModelContainer
+	    tvOS branch, which uses a plain non-groupContainer store).
+	  - increased-memory-limit / extended-virtual-addressing: not available on tvOS.
+	  aps-environment IS required: tvOS apps that declare icloud-services must also
+	  carry the push entitlement (CloudKit uses push for change notifications), or
+	  App Store validation rejects with code 90575. Xcode maps this to "production"
+	  for App Store / TestFlight distribution builds.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.chinchangyang.KataGo-iOS.tw</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+</dict>
+</plist>
