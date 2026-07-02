@@ -6,9 +6,10 @@
 //  dark above the zero baseline, White-leading regions fill light below, so
 //  who's ahead reads from across the room. Data is the per-move score-lead
 //  history recorded while reviewing on iPhone/iPad/Mac (GameRecord.scoreLeads,
-//  synced via CloudKit) — the TV only reads it, never writes. A red rule marks
-//  the current move and tracks D-pad stepping. Read-only: no selection or
-//  scrubbing (a focusable chart would fight section navigation).
+//  synced via CloudKit) — the TV only reads it, never writes. A wood-amber rule
+//  marks the current move (legended by the adjacent "Move N" readout) and
+//  tracks D-pad stepping. Read-only: no selection or scrubbing (a focusable
+//  chart would fight section navigation).
 //
 
 import SwiftUI
@@ -48,13 +49,41 @@ struct TVScoreChart: View {
     }
 
     var body: some View {
-        let points = self.points
-        // Hidden with the analysis overlay (same rule as the iOS chart), and
-        // for games with no usable history (never analyzed per-move on
-        // iPhone/iPad/Mac) — the panel card just keeps its text.
-        if gobanState.eyeStatus != .closed, points.count >= 2 {
-            chart(points: points)
-                .frame(height: 200)
+        // Hidden entirely with the analysis overlay (same rule as the iOS
+        // chart). With the overlay up but no usable history (the game was
+        // never stepped through with analysis on iPhone/iPad/Mac — the common
+        // state for freshly synced games), an explanatory placeholder takes
+        // the chart's place instead of leaving a hole in the panel.
+        if gobanState.eyeStatus != .closed {
+            let points = self.points
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Score Lead")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if points.count >= 2 {
+                        Spacer(minLength: 12)
+                        // The legend for the current-move rule below: same
+                        // accent, directly adjacent — no color-matching at a
+                        // distance, no alarm-red.
+                        Text("Move \(gameRecord.currentIndex)")
+                            .font(.callout.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.tvWoodAccent)
+                    }
+                }
+                if points.count >= 2 {
+                    chart(points: points)
+                        .frame(height: 160)
+                } else {
+                    Text("No score history yet. Step through this game with analysis on iPhone, iPad, or Mac and the chart will sync here.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        // Wrap instead of truncating to one line (same tvOS
+                        // trap as the panel title).
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
@@ -97,7 +126,7 @@ struct TVScoreChart: View {
                 .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
             RuleMark(x: .value("Current", Double(gameRecord.currentIndex)))
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.tvWoodAccent)
                 .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
         }
         .chartXScale(domain: 0...max(1, maxX))
@@ -107,7 +136,7 @@ struct TVScoreChart: View {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
                 AxisGridLine()
                 AxisValueLabel()
-                    .font(.body.monospacedDigit())
+                    .font(.title3.monospacedDigit())
             }
         }
     }
@@ -138,8 +167,10 @@ struct TVScoreChart: View {
         .environment(gobanState)
 }
 
-// No usable history (and likewise when the overlay is closed): renders nothing.
-#Preview("Chart — hidden (no data)") {
+// No usable history with the overlay up: the explanatory placeholder takes the
+// chart's place (with the overlay closed the whole view renders nothing —
+// covered by the review-screen "overlay off" previews).
+#Preview("Chart — no history placeholder") {
     let gobanState = GobanState()
     return TVScoreChart(gameRecord: TVPreviewData.untitledFallbackGame())
         .padding(28)

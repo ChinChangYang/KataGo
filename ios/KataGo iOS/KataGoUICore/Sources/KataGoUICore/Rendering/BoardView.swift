@@ -36,6 +36,11 @@ public struct BoardView: View {
     /// ~1.5 squares of height for a larger grid. The tvOS review board is
     /// display-only (no move to pass), so it opts out. Defaults true.
     var showsPass: Bool = true
+    /// When false, the on-board winrate bar is hidden. The tvOS review screen
+    /// shows the win rate as large panel text instead — at 10-foot distance the
+    /// bar reads as a stray white rounded rect left of column A. Defaults true
+    /// so the live iOS/visionOS/macOS board is unchanged.
+    var showsWinrateBar: Bool = true
     @FocusState<Bool>.Binding var commentIsFocused: Bool
     @State private var confirmingOverwrite: Bool = false
     @State private var gestureLocation: CGPoint?
@@ -44,11 +49,13 @@ public struct BoardView: View {
                 interactive: Bool = true,
                 showsCapturedStones: Bool = true,
                 showsPass: Bool = true,
+                showsWinrateBar: Bool = true,
                 commentIsFocused: FocusState<Bool>.Binding) {
         self.gameRecord = gameRecord
         self.interactive = interactive
         self.showsCapturedStones = showsCapturedStones
         self.showsPass = showsPass
+        self.showsWinrateBar = showsWinrateBar
         self._commentIsFocused = commentIsFocused
     }
 
@@ -110,7 +117,7 @@ public struct BoardView: View {
                                       y: dimensions.gobanStartY + (dimensions.gobanHeight / 2))
                     }
 
-                    if shouldShowWinrateBar {
+                    if showsWinrateBar && shouldShowWinrateBar {
                         WinrateBarView(dimensions: dimensions)
                             .transition(.opacity)
                     }
