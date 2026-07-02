@@ -92,6 +92,21 @@ public enum SharedModelContainer {
     }
 
     #if os(tvOS)
+    /// Which rung of the tvOS open ladder produced `shared`. Written exactly once,
+    /// inside the `shared` static-let initializer (swift_once — happens-before
+    /// every reader); `nonisolated(unsafe)` mirrors the LibraryStore write-once
+    /// observer-token pattern.
+    nonisolated(unsafe) private static var _tvStoreMode: LibraryStoreMode = .cloudKit
+
+    /// The rung of the open ladder that won, for the library's empty-state UI
+    /// ("iCloud is unavailable" when sync cannot happen this launch). The getter
+    /// touches `shared` first so no caller can observe the default before the
+    /// ladder has run.
+    public static var tvStoreMode: LibraryStoreMode {
+        _ = shared
+        return _tvStoreMode
+    }
+
     /// tvOS store: a PLAIN SwiftData store (no `groupContainer` — Apple TV has no
     /// widget/second process, so the App Group is pure liability, and its
     /// `containerURL` can be nil on tvOS which would silently disable CloudKit)
@@ -114,13 +129,18 @@ public enum SharedModelContainer {
     /// must degrade to a retryable "storage unavailable" state, never `fatalError`.
     private static func openTVOSStore() -> ModelContainer {
         do {
-            return try ModelContainer(for: schema, configurations: tvOSCloudKitConfig())
+            let container = try ModelContainer(for: schema, configurations: tvOSCloudKitConfig())
+            _tvStoreMode = .cloudKit
+            return container
         } catch {
             NSLog("SharedModelContainer(tvOS): CloudKit store open failed, degrading local-only: \(error)")
             do {
-                return try ModelContainer(for: schema, configurations: tvOSLocalOnlyConfig())
+                let container = try ModelContainer(for: schema, configurations: tvOSLocalOnlyConfig())
+                _tvStoreMode = .localOnly
+                return container
             } catch {
                 NSLog("SharedModelContainer(tvOS): local store open failed, using in-memory: \(error)")
+                _tvStoreMode = .inMemory
                 return makeInMemoryContainer()
             }
         }

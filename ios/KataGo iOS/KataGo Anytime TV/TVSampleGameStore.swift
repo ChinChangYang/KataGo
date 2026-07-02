@@ -1,0 +1,35 @@
+//
+//  TVSampleGameStore.swift
+//  KataGo Anytime TV
+//
+//  Owns the bundled sample game (SampleGames.makeEarReddeningRecord) in a
+//  dedicated IN-MEMORY SwiftData container. The sample must NEVER enter
+//  SharedModelContainer.shared: opening a game mutates its record
+//  (updateToLatestVersion, currentIndex rewind, rule/komi writes into
+//  concreteConfig — GobanState.loadGame), and in the CloudKit-mirrored store
+//  those writes would sync the sample into the user's library on every
+//  device. Here they land in the in-memory context and evaporate on quit.
+//
+
+import SwiftData
+import KataGoUICore
+
+@MainActor
+enum TVSampleGameStore {
+    /// `SharedModelContainer.inMemoryConfig()` sets `cloudKitDatabase: .none`
+    /// EXPLICITLY — a bare in-memory ModelConfiguration defaults to
+    /// `.automatic`, which can itself attempt CloudKit.
+    private static let container: ModelContainer? =
+        try? ModelContainer(for: SharedModelContainer.schema,
+                            configurations: SharedModelContainer.inMemoryConfig())
+
+    /// The sample record, built lazily on first use (the first empty-state
+    /// render). Optional by design: on any failure the sample card is simply
+    /// absent — never a crash, never a fallback into the real store.
+    static let sampleGame: GameRecord? = {
+        guard let container else { return nil }
+        let record = SampleGames.makeEarReddeningRecord()
+        container.mainContext.insert(record)
+        return record
+    }()
+}

@@ -18,6 +18,7 @@ struct TVRootView: View {
     @State private var engineLifecycle = EngineLifecycle()
     @State private var audioModel = AudioModel()
     @State private var navigationContext = NavigationContext()
+    @State private var syncMonitor = CloudKitSyncMonitor()
     @State private var aiMove: String? = nil
     @State private var isReady = false
     @State private var engineStarted = false
@@ -62,6 +63,7 @@ struct TVRootView: View {
                 .environment(session.bookLookup)
                 .environment(audioModel)
                 .environment(navigationContext)
+                .environment(syncMonitor)
                 // Analysis stop lifecycle. tvOS has no per-game host controller
                 // (iOS uses GameSplitView, macOS MainWindowController), so the
                 // "stop" that halts the continuously-streaming kata-analyze lives
@@ -98,6 +100,14 @@ struct TVRootView: View {
             }
         }
         .onAppear(perform: startEngineIfNeeded)
+        .task {
+            // Start the sync monitor at launch, in parallel with the engine
+            // handshake — the grace window and account check tick behind
+            // "Loading engine…", so by the time the library appears the
+            // empty-state verdict already has a head start.
+            guard !isRunningInPreview else { return }
+            syncMonitor.start()
+        }
         .task {
             guard !isReady, !isRunningInPreview else { return }
             // Blocks on the engine's `version` reply (i.e. until the b18 net has

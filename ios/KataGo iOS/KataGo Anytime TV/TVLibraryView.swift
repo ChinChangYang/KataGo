@@ -6,6 +6,12 @@
 //  Each card is a crisp vector board thumbnail (WidgetBoardView) — no engine.
 //  Selecting a card pushes the read-only review screen.
 //
+//  An empty query is NOT one state: CloudKitSyncMonitor + LibrarySyncPolicy
+//  split it into syncing / signed-out / iCloud-unavailable / truly-empty, and
+//  every variant offers the bundled sample game so a brand-new user has
+//  something to watch immediately. While the initial import burst is landing,
+//  the populated grid shows a live "Syncing — N games so far…" pill.
+//
 
 import SwiftUI
 import SwiftData
@@ -13,6 +19,7 @@ import KataGoUICore
 
 struct TVLibraryView: View {
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
+    @Environment(CloudKitSyncMonitor.self) private var syncMonitor
 
     private let columns = [GridItem(.adaptive(minimum: 320), spacing: 48)]
 
@@ -34,26 +41,134 @@ struct TVLibraryView: View {
                     .padding(.vertical, 60)
                     .focusSection()
                 }
+                .overlay(alignment: .bottom) {
+                    // Live progress while the initial import burst lands; the
+                    // count ticks up via the @Query and the pill auto-hides
+                    // ~10 s after the burst quiets. Plain material capsule —
+                    // deliberately NOT focusable, so it can't trap D-pad
+                    // navigation below the grid.
+                    if syncMonitor.isSyncBannerVisible {
+                        syncPill
+                    }
+                }
             }
         }
         .navigationTitle("KataGo Anytime")
     }
 
+    // MARK: - Empty states
+
     private var emptyState: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "square.grid.3x3")
-                .font(.system(size: 80))
-                .foregroundStyle(.secondary)
-            Text("No games yet")
+        let state = syncMonitor.emptyLibraryState()
+        return VStack(spacing: 16) {
+            if state == .syncing {
+                ProgressView()
+                    .controlSize(.large)
+            } else {
+                // 56 pt (not the 80 pt of the old lone-icon screen): the
+                // status block now shares the height budget with the sample
+                // card, and 80 pt pushes the stack into the navigation title.
+                Image(systemName: iconName(for: state))
+                    .font(.system(size: 56))
+                    .foregroundStyle(.secondary)
+            }
+            Text(title(for: state))
                 .font(.title2.bold())
-            Text("Games you create on iPhone, iPad, or Mac appear here automatically once they sync from iCloud.")
+            Text(message(for: state))
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 800)
+                // Wrap instead of truncating to one line (the tvOS Text trap).
+                .fixedSize(horizontal: false, vertical: true)
+            sampleSection
+                .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(120)
+        .padding(40)
+    }
+
+    private func iconName(for state: EmptyLibraryState) -> String {
+        switch state {
+        case .syncing: "icloud.and.arrow.down"
+        case .signedOut: "icloud.slash"
+        case .unavailable: "exclamationmark.icloud"
+        case .empty: "square.grid.3x3"
+        }
+    }
+
+    private func title(for state: EmptyLibraryState) -> String {
+        switch state {
+        case .syncing: "Checking iCloud for your games…"
+        case .signedOut: "Sign in to iCloud"
+        case .unavailable: "iCloud is unavailable"
+        case .empty: "No games yet"
+        }
+    }
+
+    private func message(for state: EmptyLibraryState) -> String {
+        switch state {
+        case .syncing:
+            "Games you review on iPhone, iPad, or Mac sync here automatically. This can take a minute on first launch."
+        case .signedOut:
+            // Textual guidance — tvOS has no usable Settings deep link.
+            "This Apple TV isn't signed into iCloud. Sign in under Settings → Users and Accounts → iCloud, and your games will appear here automatically."
+        case .unavailable:
+            "The library couldn't connect to iCloud this launch. Your games are safe — quit and reopen the app to try again."
+        case .empty:
+            "Games you create on iPhone, iPad, or Mac appear here automatically once they sync from iCloud."
+        }
+    }
+
+    /// The bundled sample game — the empty state's sole focusable, so the
+    /// focus engine finally has somewhere to land. The HStack is the
+    /// deliberate slot where the future AI-self-play demo card will sit
+    /// beside it (separate spec).
+    @ViewBuilder
+    private var sampleSection: some View {
+        if let sample = TVSampleGameStore.sampleGame {
+            VStack(spacing: 14) {
+                Text("Watch a classic game")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 40) {
+                    NavigationLink(value: sample) {
+                        // Size the LABEL, not the button (an outer frame never
+                        // reaches the board inside), and pin the ideal height:
+                        // the surrounding VStack proposes a squeezed height,
+                        // which would otherwise shrink the aspect-fit board to
+                        // a thumbnail instead of the 360 pt the width allows.
+                        TVGameCard(game: sample)
+                            .frame(width: 400)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .overlay(alignment: .topTrailing) { sampleBadge }
+                    }
+                    .buttonStyle(.card)
+                }
+            }
+        }
+    }
+
+    private var sampleBadge: some View {
+        Text("Sample")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.black)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.tvWoodAccent, in: Capsule())
+            .padding(10)
+    }
+
+    private var syncPill: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text("Syncing — ^[\(gameRecords.count) game](inflect: true) so far…")
+                .font(.callout.weight(.semibold))
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(.thinMaterial, in: Capsule())
+        .padding(.bottom, 24)
     }
 }
 
@@ -133,12 +248,48 @@ struct TVGameCard: View {
         TVPreviewData.untitledFallbackGame(),
         TVPreviewData.smallBoardGame(),
     ]))
+    .environment(CloudKitSyncMonitor.fixture())
 }
 
-// Empty-library path ("No games yet" guidance).
-#Preview("Library — empty") {
-    TVLibraryView()
+// Populated grid during the initial import burst: the sync pill counts along.
+#Preview("Library — populated, sync burst") {
+    NavigationStack {
+        TVLibraryView()
+            .navigationDestination(for: GameRecord.self) { game in
+                Text(game.name)
+            }
+    }
+    .modelContainer(TVPreviewData.container(games: [
+        TVPreviewData.openingGame(),
+        TVPreviewData.untitledFallbackGame(),
+        TVPreviewData.smallBoardGame(),
+    ]))
+    .environment(CloudKitSyncMonitor.fixture(recentRemoteActivity: true))
+}
+
+// The four empty states. Each also shows the bundled sample-game card.
+#Preview("Library — syncing") {
+    NavigationStack { TVLibraryView() }
         .modelContainer(TVPreviewData.container(games: []))
+        .environment(CloudKitSyncMonitor.fixture(importInFlight: true))
+}
+
+#Preview("Library — signed out") {
+    NavigationStack { TVLibraryView() }
+        .modelContainer(TVPreviewData.container(games: []))
+        .environment(CloudKitSyncMonitor.fixture(accountState: .unavailable))
+}
+
+#Preview("Library — iCloud unavailable") {
+    NavigationStack { TVLibraryView() }
+        .modelContainer(TVPreviewData.container(games: []))
+        .environment(CloudKitSyncMonitor.fixture(storeMode: .localOnly))
+}
+
+#Preview("Library — truly empty") {
+    NavigationStack { TVLibraryView() }
+        .modelContainer(TVPreviewData.container(games: []))
+        .environment(CloudKitSyncMonitor.fixture(graceExpired: true))
 }
 
 // Card branches side by side: primary displayIndex + name + date (left) vs
