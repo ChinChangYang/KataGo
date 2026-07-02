@@ -36,7 +36,7 @@ struct TVLibraryView: View {
                 }
             }
         }
-        .navigationTitle("KataGo")
+        .navigationTitle("KataGo Anytime")
     }
 
     private var emptyState: some View {
@@ -77,24 +77,34 @@ struct TVGameCard: View {
     }
 
     var body: some View {
-        // Board thumbnail runs edge-to-edge; the name/date sit in an inset block
-        // so they don't crowd the card boundary.
+        // The board sits inset within the card so the .card style's rounded
+        // clip never cuts its corners — a Go board must read as a complete
+        // rectangle, framed by the card surface. Name/date keep their own
+        // inset block below.
         VStack(alignment: .leading, spacing: 0) {
             WidgetBoardView(width: game.width ?? 19,
                             height: game.height ?? 19,
                             blackVertices: vertices.black,
                             whiteVertices: vertices.white)
                 .aspectRatio(1, contentMode: .fit)
+                .padding([.top, .horizontal], 20)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(game.name.isEmpty ? "Untitled" : game.name)
                     .font(.headline)
                     .lineLimit(1)
-                if let date = game.lastModificationDate {
-                    Text(date, format: .dateTime.year().month().day())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                Group {
+                    if let date = game.lastModificationDate {
+                        Text(date, format: .dateTime.year().month().day())
+                    } else {
+                        // Reserve the line: an undated card must keep the same
+                        // height as its neighbors, or the vertically-centered
+                        // grid row leaves it floating misaligned.
+                        Text(verbatim: " ")
+                    }
                 }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 18)
             .padding(.top, 14)
