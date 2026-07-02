@@ -1,276 +1,260 @@
 # Human-SL KGS-Rank Ladder
 
 A set of GTP configs that make KataGo (with the Human-SL net) play at a chosen amateur
-rank, from **9d (top)** down to **20k**, where **each consecutive rank is exactly 1 KGS rank
-(1 handicap stone) apart**. The ladder is anchored at 9d; every weaker rank is tuned to be
-exactly 1 rank below the rank above it.
+rank, from **9d (top)** down to **25k**, where **each consecutive rank is exactly 1 KGS rank
+apart**. The ladder is anchored at the top; every weaker rank is tuned to be exactly 1 rank
+below the rank above it.
 
-> **Note on history:** an earlier version of this ladder targeted a fixed **−100 ELO** per rung.
-> That was **arbitrary** — the Human-SL profiles *are* KGS ranks (see below), so the correct
-> spacing is **1 rank = 1 stone**, which for these bots is worth ~150–200 ELO, not 100. The
-> configs and method here use the rank/handicap calibration. See *Why rank-spacing, not ELO*.
+> **What "1 KGS rank" means here (important correction).** An earlier version of this doc
+> equated the 1-rank gap with **"1 handicap stone (~7 points)."** That is wrong. The gap is
+> operationalized as a **komi-0.5 reverse-komi even game** (the *stronger* side, White, gets
+> ~0 komi instead of the territory-even 6.5), which is worth only **≈ ½ a Go-stone (~4–6
+> points)** — the KGS half-stone-per-rank convention — **not** a full placed handicap stone
+> (~13 points). A true full-stone gap (komi **−6.5**) was tried and **abandoned**: it
+> over-handicaps the dan rungs (they saturate and can't be balanced by λ alone). So the
+> deployed ladder uses **komi 0.5 = 1 KGS rank ≈ ½ stone**. (A yet-earlier version targeted a
+> fixed **−100 ELO** per rung; also superseded — the profiles *are* KGS ranks, so rank spacing
+> is the right target, not an ELO number.)
 
 ## Why rank-spacing, not ELO
 
 The Human-SL net is **conditioned on KGS rank**. In `cpp/neuralnet/sgfmetadata.cpp`,
-`makeBasicRankProfile` sets `source = SOURCE_KGS` with the comment *"KGS rating system is pretty
-reasonable, so let's use KGS as the source,"* and the rank→index map is:
+`makeBasicRankProfile` sets `source = SOURCE_KGS` (*"KGS rating system is pretty reasonable, so
+let's use KGS as the source"*), and the rank→index map is:
 
 ```
 9d→1  8d→2  7d→3  6d→4  5d→5  4d→6  3d→7  2d→8  1d→9
-1k→10 2k→11 … 5k→14 … 10k→19 … 20k→29
+1k→10 2k→11 … 5k→14 … 10k→19 … 20k→29 … 25k→34   (34 = the net's weakest representable rank)
 ```
 
 So `preaz_9d` and `preaz_8d` are **exactly 1 KGS rank apart** by construction (`preaz_` = the
-pre-AlphaZero era, game date 2016-09). The right thing to calibrate is the **1-rank (1-stone)
-gap**, not an ELO number.
+pre-AlphaZero era, game date 2016-09). The right thing to calibrate is the **1-rank gap**. The
+ladder stops at **25k** because inverse-rank 34 is the net's rank-input floor — 26k+ would
+encode identically to 25k.
 
-**The KGS 1-rank rule (= 1 stone):** a 1-rank difference is *not* a placed stone — it is an even
-game where the **stronger player (White) gets no komi compensation** (~0.5 instead of the
-territory even-komi 6.5). The
-weaker player keeps the first-move advantage (~7 points ≈ the value of the first handicap stone).
-So two configs are exactly 1 rank apart when:
+**The 1-rank calibration target.** A 1-rank difference is operationalized as an even game where
+the **stronger player (White) gets no komi compensation** (komi 0.5 instead of the
+territory-even 6.5); the weaker player keeps the first-move advantage. Two configs are exactly 1
+rank apart when:
 
 > **weaker rank as Black** vs **stronger rank as White**, **komi 0.5** → **even game (50%)**.
 
-This is the calibration target for every rung below 9d. It is also **far more numerically stable**
-than the old even-game ELO target: a 50% winrate is bounded and well-conditioned, whereas an
-even-game ELO target can sit on a steep, unpinnable cliff (the abandoned 7d even-game attempt
-burned ~640 games and never converged).
+This is the calibration target for every rung below the anchor. A 50% winrate is bounded and
+well-conditioned, which (with the curve-fit calibrator below) makes each rung pin cleanly.
 
-## The 9d anchor (special case)
+## Anchors (special cases)
 
-9d is the **top** of the ladder and has no "rank above" it, so it is anchored differently: the
-**`preaz_9d`** (pre-AZ 9d) candidate is calibrated to **even (0 ELO) parity** against the modern
-**`rank_9d`** reference — a *different* Human-SL profile — both at 400 visits, in a normal even
-game (komi 6.5, territory). The `rank_9d` reference is built from the repo's `gtp_human9d_search_example.cfg`
-template by changing `humanSLProfile = rank_9d` (that example ships `preaz_9d`, a different
-profile). Result: `gtp_human9d.cfg` = `preaz_9d @ 400v, λ0.045`.
+- **9d (legacy).** Anchored differently and left from the original run: `preaz_9d` calibrated to
+  even parity vs the modern `rank_9d` reference at **400 visits**, giving `gtp_human9d.cfg` =
+  `preaz_9d @ 400v, λ0.045`. It is **not** part of the re-tuned fast chain and is a separate,
+  stronger reference; the 8d↔9d link is currently **unmeasured** (a documented seam).
+- **8d (hand-set anchor of the re-tuned chain).** `preaz_8d @ maxVisits 40, λ 0.06,
+  winLossUtilityFactor 0`. Hand-set (not calibrated) to be a deliberately weak, fast top rung;
+  every rung 7d→25k calibrates down the chain from it.
 
 ## File naming
 
-One config per rank: **`gtp_human<rank>.cfg`** — e.g. `gtp_human9d.cfg`, `gtp_human8d.cfg`, …,
-`gtp_human20k.cfg`. The upstream examples `gtp_human5k_example.cfg` and
-`gtp_human9d_search_example.cfg` are left untouched (the latter is used only to seed the
-`rank_9d` reference for the 9d anchor).
+One config per rank: **`gtp_human<rank>.cfg`** — `gtp_human9d.cfg` … `gtp_human25k.cfg`. The
+upstream examples `gtp_human5k_example.cfg` and `gtp_human9d_search_example.cfg` are left
+untouched.
 
 ## Method
 
 Configs are produced by the **`katago tunehuman`** subcommand, which plays in-process
 candidate-vs-baseline games and tunes `humanSLChosenMovePiklLambda` (the strength dial) to hit a
-target winrate.
+50% winrate against the prior rung.
 
-### Ruleset — matches the deployed configs
+### Nets used (calibration is net-specific)
 
-The tuning games are played under the **same ruleset as the deployed config** being calibrated
-against: `tunehuman` reads the baseline config's `rules =` line and scores the in-process games with
-it (falling back to Japanese). All `gtp_human<rank>.cfg` declare `rules = japanese`, so calibration
-runs under **Japanese / territory** scoring — exactly how the bots are scored in real play, and the
-ruleset the Human-SL net's KGS-rank conditioning was learned from. (Earlier results were measured
-under Chinese / area scoring and are being re-measured under Japanese.) Because the even-game komi
-differs by ruleset, the 9d anchor uses the territory-fair **komi 6.5** (not 7.5); the 1-rank handicap
-stays **komi 0.5** under either ruleset.
+- **Main net (`-model`)**: **`kata1-b28c512nbt-s8326494464-d4628051565.bin.gz`** (b28c512, the
+  strong modern net). The re-tune switched to this from the tiny b24c64 net: at low λ the strong
+  main net **overrides** the human profile (search dominates), which both compresses the whole λ
+  scale downward and lets the dan rungs separate cleanly. **A different main net invalidates the
+  calibration.**
+- **Human-SL net (`-human-model`)**: `b18c384nbt-humanv0.bin.gz`.
+- **Profile**: each config sets `humanSLProfile = preaz_<rank>`.
+
+### Fast, score-sensitive settings
+
+- **`maxVisits = 40`** (not 400): ~10× faster; fine because the human-SL policy dominates
+  move-selection at these λ. The **same 40 visits are set in the deployed configs** — tuning and
+  deployment settings must match for the calibration to hold.
+- **`winLossUtilityFactor = 0.0`** (in both tuning and deployed configs): makes the search value
+  pure score-margin, so the komi handicap maps smoothly/monotonically to winrate and the crossing
+  pins without the noisy "cliff" the old winLoss=1 method suffered. (Accepted trade-off:
+  score-maximizing endgame play may grind points after the game is decided; resignation is
+  unaffected — it uses raw win-probability, not utility.)
 
 ### The lever — `humanSLChosenMovePiklLambda`
-
-Strength is controlled almost entirely by **λ = `humanSLChosenMovePiklLambda`** at a fixed
-`maxVisits`:
 
 - **high λ** → closer to raw human policy → **weaker** / more human;
 - **low λ** → trusts KataGo's search more → **stronger**.
 
-`maxVisits` is a *weak* lever near the top of the ladder (the strong anchor saturates it), so all
-the upper-dan rungs run at the anchor's **400 visits** and differ only in λ. (`tunehuman` also has
-a 3-segment "strength dial" over `x∈[0,3]` — temperature at x<1, λ over [1,2], visits over [2,3] —
-but for this ladder we pin visits and sweep λ directly via a fixed-λ grind.)
+`maxVisits` is a weak lever, so all rungs run at the fixed 40 visits and differ only in λ.
 
-### Handicap calibration (rungs below 9d)
+### Handicap calibration (rungs below the 8d anchor)
 
-For each rung, tune λ so the **weaker rank (Black) vs the prior rung (White), komi 0.5** is **50%**:
+For each rung, tune λ so the **weaker rank (Black) vs the prior rung (White), komi 0.5** is 50%:
 
 ```
 -target-elo 0        # 0 ELO offset == 50% winrate target
--komi 0.5            # KGS 1-rank handicap: White (stronger) gets no compensation
+-komi 0.5            # 1 KGS rank: White (stronger) gets ~0 komi compensation
 -cand-color black    # weaker candidate always plays Black (the handicap is color-bound)
+-handicap 0          # NO placed stones — the reverse komi is the whole handicap
 ```
 
-`-komi` and `-cand-color` were added to `tunehuman` for this; the harness pins `komiStdev=0` and
-`komiAllowIntegerProb=0` so komi is applied **exactly**. With these flags, color is **not**
-alternated (the handicap asymmetry is the point), so the measured winrate is the candidate's
-winrate as Black-with-the-handicap.
+`-komi`/`-cand-color`/`-handicap` were added to `tunehuman`; the harness pins `komiStdev=0` and
+`komiAllowIntegerProb=0` so komi is applied **exactly** (0.5, never rounded). Colors are **not**
+alternated (the handicap asymmetry is the point). Games are scored under **Japanese / territory**
+rules (each config declares `rules = japanese`), matching real play and the ruleset the net's
+KGS-rank conditioning was learned from. With komi 0.5 a genuine jigo is impossible, so a
+turn-limit game (winner undetermined) is **discarded**, not scored as a 0.5 draw — this avoids a
+subtle bias toward the 50% lock target (matters only for the deep-kyu rungs, whose long
+board-filling games can hit the move cap).
 
-The 9d **anchor** instead uses even games (`-komi 6.5`, alternating colors) targeting 50% parity
-vs `rank_9d`.
+### The calibrator — `tune_fit.py` (curve fit, replaces manual grinding)
 
-### Pinning a value (avoid small-sample noise)
+The ladder is driven by **`tune_fit.py`**, a pure-Python **Bayesian grid-posterior logistic
+fit** of winrate vs `ln(λ)`. It pools **all** `(λ, wins, games)` samples for a rank toward one
+monotone-decreasing crossing, estimates the 50% crossing λ\* with a posterior-predictive
+winrate CI, and decides one of:
 
-For these saturating bots the λ→winrate curve is **steep**, so small samples mislead badly: 20-game
-reads can swing ±20% and even flip the apparent λ-ordering. Grind each λ to **~80–200 games** before
-trusting it. Pin the crossing with a **direct fixed-λ grind** (set `maxVisits` = the rung's visits
-on both dial ends and accumulate games), reading the raw winrate — this avoids a logistic fit that
-is biased by the winrate ceiling.
+- **GRIND** — play one ~18-min `tunehuman` chunk at the recommended λ (active-learning: explore
+  wide to pin the slope, or grind the crossing);
+- **LOCK** — a conjunctive gate: predictive **95% winrate CI ⊂ [40%, 60%]** *and* lack-of-fit
+  residual ≤ 3.5 *and* interpolation/bracketing/local-shape guards *and* slope confidently
+  negative *and* ≥3 distinct λ / ≥60 games. On LOCK it writes `gtp_human<rank>.cfg` (forcing
+  `maxVisits=40`, `winLossUtilityFactor=0.0`, the tuned λ), builds the next ANE baseline, and
+  advances;
+- **STOP** — best-effort if the 50% target is unreachable (λ saturates); ships the weakest tried
+  λ and flags the rung.
 
-### Resumable checkpointing
-
-Each round's `(x, wins, games)` is appended to a `-resume-file` (default `<output-config>.samples`)
-with a config-signature header. Re-running the same command reloads the samples and continues, so a
-run interrupted by the environment's process-runtime cap resumes from its last completed round.
-Partial/corrupt final lines from a hard kill are skipped; a signature mismatch fails loud. The
-helper scripts `tune_lambda.sh` (λ sweep) and `tune_maxvisits.sh` (fixed-λ / visit sweep) wrap this
-with a per-chunk `timeout` + a winrate/CI readout, and accept `KOMI=` / `CAND_COLOR=` env vars.
-
-### Nets used
-
-- **Main net (`-model`)**: `lionffen_b24c64_3x3_v3_12300.bin.gz` (b24c64).
-- **Human-SL net (`-human-model`)**: `b18c384nbt-humanv0.bin.gz`.
-- **Profile**: each config sets `humanSLProfile = preaz_<rank>` (pre-AlphaZero KGS-rank profiles).
+This cut per-rung cost from ~500–1000 games (old manual method) to ~130–290, and hardened the
+LOCK against model-misspecification false-locks. State persists in `ladder_state.txt` +
+per-λ `jpn<rank>_ane_L*.samples` checkpoints, so a run interrupted by the environment's
+process-kill cap resumes from its last completed round. `ladder_step.sh` runs one chunk per
+invocation; `ladder_loop.sh` batches several; `tune_maxvisits.sh` wraps the fixed-λ `tunehuman`
+call with a per-chunk `timeout`.
 
 ## Reproduction
 
-**9d anchor → even-game parity vs the modern `rank_9d` reference:**
+**8d anchor (hand-set, not calibrated):** `preaz_8d @ 40v, λ0.06, winLossUtilityFactor 0`.
+
+**Each weaker rank → 1 KGS rank below the prior rung, via the komi-0.5 handicap.** Example, 7d
+(`preaz_7d` as Black vs the tuned `gtp_human8d.cfg` as White), fixed-λ grind to 50%:
 
 ```bash
-# build the rank_9d (modern 9d) reference from the preaz_9d example template
-sed 's/^humanSLProfile = preaz_9d/humanSLProfile = rank_9d/' \
-    configs/gtp_human9d_search_example.cfg > baseline_rank9d_400.cfg
-
-# preaz_9d @ 400v, fixed-λ grind to 50% parity (even game)
 katago tunehuman \
-  -model lionffen_b24c64_3x3_v3_12300.bin.gz \
+  -model kata1-b28c512nbt-s8326494464-d4628051565.bin.gz \
   -human-model b18c384nbt-humanv0.bin.gz \
-  -baseline-config baseline_rank9d_400.cfg \
-  -profile preaz_9d -target-elo 0 -elo-tol 8 \
-  -search-visits 400 -max-visits-cap 400 -pikl-floor 0.045 -x-lo 2.0 -x-hi 3.0 \
-  -komi 6.5 -cand-color auto \
-  -games-per-round 10 -num-game-threads 10 \
-  -resume-file gtp_human9d.samples -output-config gtp_human9d.cfg
+  -baseline-config gtp_human8d.cfg \
+  -profile preaz_7d -target-elo 0 -elo-tol 8 \
+  -search-visits 40 -max-visits-cap 40 -pikl-floor 0.084 -x-lo 2.0 -x-hi 3.0 \
+  -komi 0.5 -cand-color black -handicap 0 \
+  -games-per-round 4 -num-game-threads 4 \
+  -resume-file gtp_human7d.samples -output-config gtp_human7d.cfg
 ```
 
-**Each weaker rank → 1 KGS rank below the prior rung, via the komi-0.5 handicap.** Example, 8d
-(candidate `preaz_8d` as Black vs the tuned `gtp_human9d.cfg` as White), tuning λ to 50%:
+In practice this is driven automatically — `python3 tune_fit.py '~/.katago_tune/jpn7d_ane_L*.samples'`
+recommends the λ, and `ladder_step.sh` runs the chunk and locks when the CI gate passes. The next
+rung (6d) chains off `gtp_human7d.cfg` the same way, down to 25k.
+
+Deployed run command (per config header):
 
 ```bash
-# fixed-λ grind at the chosen λ (here 0.0865), handicap match, target 50%
-katago tunehuman \
-  -model lionffen_b24c64_3x3_v3_12300.bin.gz \
-  -human-model b18c384nbt-humanv0.bin.gz \
-  -baseline-config gtp_human9d.cfg \
-  -profile preaz_8d -target-elo 0 -elo-tol 8 \
-  -search-visits 400 -max-visits-cap 400 -pikl-floor 0.0865 -x-lo 2.0 -x-hi 3.0 \
-  -komi 0.5 -cand-color black \
-  -games-per-round 5 -num-game-threads 5 \
-  -resume-file gtp_human8d.samples -output-config gtp_human8d.cfg
+./katago gtp -config gtp_human<rank>.cfg \
+  -model kata1-b28c512nbt-s8326494464-d4628051565.bin.gz \
+  -human-model b18c384nbt-humanv0.bin.gz
 ```
-
-To find the right λ first, sweep a bracket (e.g. `pikl-floor 0.02 pikl-max 0.10`, `-x-lo 1 -x-hi 2`)
-to locate the ~50% crossing, then fixed-λ-grind that value to ~80+ games. Re-run any command to
-resume from its checkpoint. The next rung (7d) chains off `gtp_human8d.cfg` the same way.
 
 ## Results
 
-Winrates are direct candidate-vs-baseline results with a **95%** Wilson-score CI. The 9d anchor
-target is even-game 50% parity; every rung below is the komi-0.5 handicap 50% (= exactly 1 rank).
+Winrates are direct candidate-vs-baseline results (weaker rank as Black, komi 0.5, Japanese,
+b28c512 main net, 40v, winLossUtilityFactor 0) with a **95%** posterior-predictive CI. Every
+rung below is tuned to 50% with its 95% CI ⊂ [40, 60].
 
-> **Tuning (Japanese rules, automated) — COMPLETE.** All **28 rungs** below the 9d anchor
-> (8d…1d, 1k…20k) are tuned and locked; with the anchor that is the full **9d→20k** ladder (29 configs).
-> Rungs are tuned by a sequential root-finder (`tune_decide.py` + `ladder_step.sh`): for each rank it
-> pools all (λ, winrate, games) data, weighted-isotonic-fits the 50% crossing, grinds at that λ until
-> the **95% CI ⊂ [40%, 60%]**, writes `gtp_human<rank>.cfg`, builds the next baseline, and chains to the
-> next rung — resuming per-round to survive the environment's process-kill cap. Every rung landed at
-> **46–52%** with its 95% CI inside [40, 60]. Backend: MLX (Apple-Silicon GPU+ANE); tuned λ are
-> backend-independent. (Earlier area-scoring numbers were superseded by Japanese.)
+> **Status: COMPLETE.** The re-tuned fast chain is locked from the **8d anchor through 25k** (33
+> rungs incl. the anchor), every rung tuned to 50% with its 95% CI ⊂ [40, 60]. The 9d row is the
+> legacy 400v reference (separate from this chain).
+
+| Config | Profile | Baseline (White) | Measured (Black, komi 0.5) | maxVisits | piklLambda |
+|--------|---------|------------------|----------------------------|----------:|-----------:|
+| `gtp_human9d.cfg` | preaz_9d | rank_9d @ 400v (legacy) | 49.0% [39, 59], 100 g (even-game parity) | 400 | **0.045** |
+| `gtp_human8d.cfg` | preaz_8d | — (hand-set anchor) | anchor, not calibrated | 40 | **0.06** |
+| `gtp_human7d.cfg` | preaz_7d | gtp_human8d.cfg | 49.2% [40.4, 58.0], 444 g ✅ | 40 | **0.084** |
+| `gtp_human6d.cfg` | preaz_6d | gtp_human7d.cfg | 50.0% [46.1, 54.1], 1036 g ✅ | 40 | **0.1269** |
+| `gtp_human5d.cfg` | preaz_5d | gtp_human6d.cfg | 50.0% [42.1, 57.8], 272 g ✅ | 40 | **0.2055** |
+| `gtp_human4d.cfg` | preaz_4d | gtp_human5d.cfg | 50.0% [43.9, 56.1], 288 g ✅ | 40 | **0.2277** |
+| `gtp_human3d.cfg` | preaz_3d | gtp_human4d.cfg | 50.0% [43.3, 56.7], 212 g ✅ | 40 | **0.1957** |
+| `gtp_human2d.cfg` | preaz_2d | gtp_human3d.cfg | 49.9% [41.7, 58.3], 272 g ✅ | 40 | **0.2530** |
+| `gtp_human1d.cfg` | preaz_1d | gtp_human2d.cfg | 50.0% [42.0, 58.0], 164 g ✅ | 40 | **0.1779** |
+| `gtp_human1k.cfg` | preaz_1k | gtp_human1d.cfg | 50.0% [41.5, 58.5], 140 g ✅ | 40 | **0.1537** |
+| `gtp_human2k.cfg` | preaz_2k | gtp_human1k.cfg | 50.0% [41.2, 58.6], 168 g ✅ | 40 | **0.1518** |
+| `gtp_human3k.cfg` | preaz_3k | gtp_human2k.cfg | 50.0% [42.0, 58.0], 164 g ✅ | 40 | **0.1285** |
+| `gtp_human4k.cfg` | preaz_4k | gtp_human3k.cfg | 50.0% [41.2, 58.8], 136 g ✅ | 40 | **0.1219** |
+| `gtp_human5k.cfg` | preaz_5k | gtp_human4k.cfg | 50.0% [42.1, 57.9], 184 g ✅ | 40 | **0.1093** |
+| `gtp_human6k.cfg` | preaz_6k | gtp_human5k.cfg | 50.0% [41.0, 58.9], 180 g ✅ | 40 | **0.1162** |
+| `gtp_human7k.cfg` | preaz_7k | gtp_human6k.cfg | 50.0% [41.6, 58.4], 188 g ✅ | 40 | **0.1039** |
+| `gtp_human8k.cfg` | preaz_8k | gtp_human7k.cfg | 50.0% [43.0, 57.1], 204 g ✅ | 40 | **0.1053** |
+| `gtp_human9k.cfg` | preaz_9k | gtp_human8k.cfg | 50.0% [41.9, 58.1], 184 g ✅ | 40 | **0.1178** |
+| `gtp_human10k.cfg` | preaz_10k | gtp_human9k.cfg | 50.0% [41.2, 58.7], 128 g ✅ | 40 | **0.1059** |
+| `gtp_human11k.cfg` | preaz_11k | gtp_human10k.cfg | 50.0% [42.1, 58.0], 172 g ✅ | 40 | **0.1219** |
+| `gtp_human12k.cfg` | preaz_12k | gtp_human11k.cfg | 50.0% [41.6, 58.4], 148 g ✅ | 40 | **0.1439** |
+| `gtp_human13k.cfg` | preaz_13k | gtp_human12k.cfg | 50.0% [41.1, 59.0], 144 g ✅ | 40 | **0.1327** |
+| `gtp_human14k.cfg` | preaz_14k | gtp_human13k.cfg | 50.0% [41.5, 58.5], 152 g ✅ | 40 | **0.1418** |
+| `gtp_human15k.cfg` | preaz_15k | gtp_human14k.cfg | 50.0% [41.5, 58.5], 144 g ✅ | 40 | **0.1872** |
+| `gtp_human16k.cfg` | preaz_16k | gtp_human15k.cfg | 50.0% [42.0, 58.0], 184 g ✅ | 40 | **0.1871** |
+| `gtp_human17k.cfg` | preaz_17k | gtp_human16k.cfg | 50.0% [41.8, 58.2], 200 g ✅ | 40 | **0.1845** |
+| `gtp_human18k.cfg` | preaz_18k | gtp_human17k.cfg | 50.0% [41.4, 58.7], 147 g ✅ | 40 | **0.2228** |
+| `gtp_human19k.cfg` | preaz_19k | gtp_human18k.cfg | 50.0% [41.2, 58.9], 140 g ✅ | 40 | **0.2479** |
+| `gtp_human20k.cfg` | preaz_20k | gtp_human19k.cfg | 50.0% [42.7, 57.3], 260 g ✅ | 40 | **0.2967** |
+| `gtp_human21k.cfg` | preaz_21k | gtp_human20k.cfg | 50.0% [42.6, 57.5], 424 g ✅ (noisy — concentrated) | 40 | **0.3495** |
+| `gtp_human22k.cfg` | preaz_22k | gtp_human21k.cfg | 50.0% [41.5, 58.6], 144 g ✅ | 40 | **0.3378** |
+| `gtp_human23k.cfg` | preaz_23k | gtp_human22k.cfg | 50.9% [42.8, 58.9], 164 g ✅ | 40 | **0.3666** |
+| `gtp_human24k.cfg` | preaz_24k | gtp_human23k.cfg | 50.0% [42.5, 57.5], 188 g ✅ | 40 | **0.3692** |
+| `gtp_human25k.cfg` | preaz_25k | gtp_human24k.cfg | 50.0% [41.7, 58.3], 143 g ✅ | 40 | **0.3334** |
 
 ### Findings
 
-- **λ progression** (strength dial vs rank): rises smoothly through the dan rungs (9d **0.045** →
-  1d **0.509**), is noisy-but-roughly-flat through the mid-kyu (1k–6k ≈ **0.47–0.51**), then **climbs
-  steeply** through the deep kyu: 7k 0.534, 10k 0.590, 14k 0.616, 17k 0.741, 18k 0.782, 19k 0.898,
-  **20k 1.223**. λ is *not* globally monotone (each rung is calibrated independently to its own
-  baseline), but the deep-kyu trend is a clear, accelerating rise.
-- **Deep-kyu rungs (7k+) are "flat-strong plateau → steep cliff."** Their winrate sits well above 50%
-  across a wide λ band, then drops through 50% over a narrow λ window. These rungs cost the most games
-  (≈ 500–1000 each) and needed the root-finder's noise handling (concentrate-near-50% vs grind-the-
-  crossing, drop misleading snaps, a total-games safety cap, and occasional manual concentration of the
-  best-sampled point).
-- **20k needs near-pure-human play (λ ≈ 1.22).** The human-SL net's `preaz_19k` and `preaz_20k`
-  profiles are **less than 1 KGS rank apart** (rank conditioning compresses at the weakest end), so the
-  komi-0.5 handicap nearly outweighs the tiny profile gap; only at λ>1 (almost no search) does
-  preaz_20k+handicap come down to even vs the tuned 19k. It still pins cleanly at λ1.2227 = 50.0%.
-- **No rung hit stop-condition #2.** Every rank reached a 95% CI ⊂ [40, 60]; none was left as a
-  best-effort. The reproduction below shows the per-rung command; the table lists every locked value.
-
-| Config | Profile | Baseline (White) | Spacing target | Measured | maxVisits | piklLambda |
-|--------|---------|------------------|----------------|----------|----------:|-----------:|
-| `gtp_human9d.cfg` | preaz_9d | rank_9d @ 400v λ0.08 | even-game parity (50%) | 49.0% = −7 ELO [39%, 59%], 100 g (Japanese) ✅ | 400 | **0.045** |
-| `gtp_human8d.cfg` | preaz_8d | gtp_human9d.cfg | 1 KGS rank (komi-0.5 = 50%) | 47.0% [40.5%, 53.6%], 219 g ✅ | 400 | **0.0868** |
-| `gtp_human7d.cfg` | preaz_7d | gtp_human8d.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.6% [40.6%, 56.7%], 144 g ✅ | 400 | **0.1267** |
-| `gtp_human6d.cfg` | preaz_6d | gtp_human7d.cfg | 1 KGS rank (komi-0.5 = 50%) | 52.0% [44.1%, 59.8%], 152 g ✅ | 400 | **0.1983** |
-| `gtp_human5d.cfg` | preaz_5d | gtp_human6d.cfg | 1 KGS rank (komi-0.5 = 50%) | 51.2% [43.6%, 58.8%], 164 g ✅ | 400 | **0.28064** |
-| `gtp_human4d.cfg` | preaz_4d | gtp_human5d.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [43.9%, 56.1%], 256 g ✅ | 400 | **0.373** |
-| `gtp_human3d.cfg` | preaz_3d | gtp_human4d.cfg | 1 KGS rank (komi-0.5 = 50%) | 51.5% [43.1%, 59.7%], 136 g ✅ | 400 | **0.45556** |
-| `gtp_human2d.cfg` | preaz_2d | gtp_human3d.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [41.9%, 58.1%], 144 g ✅ | 400 | **0.51330** |
-| `gtp_human1d.cfg` | preaz_1d | gtp_human2d.cfg | 1 KGS rank (komi-0.5 = 50%) | 49.1% [42.5%, 55.7%], 216 g ✅ | 400 | **0.50930** |
-| `gtp_human1k.cfg` | preaz_1k | gtp_human1d.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.7% [42.5%, 58.9%], 140 g ✅ | 400 | **0.48988** |
-| `gtp_human2k.cfg` | preaz_2k | gtp_human1k.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.2% [40.8%, 55.7%], 168 g ✅ | 400 | **0.46755** |
-| `gtp_human3k.cfg` | preaz_3k | gtp_human2k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [41.5%, 58.5%], 128 g ✅ | 400 | **0.49173** |
-| `gtp_human4k.cfg` | preaz_4k | gtp_human3k.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.1% [40.5%, 55.8%], 160 g ✅ | 400 | **0.47130** |
-| `gtp_human5k.cfg` | preaz_5k | gtp_human4k.cfg | 1 KGS rank (komi-0.5 = 50%) | 51.2% [43.6%, 58.9%], 160 g ✅ | 400 | **0.50720** |
-| `gtp_human6k.cfg` | preaz_6k | gtp_human5k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.8% [42.0%, 59.6%], 120 g ✅ | 400 | **0.48925** |
-| `gtp_human7k.cfg` | preaz_7k | gtp_human6k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.9% [41.8%, 60.0%], 112 g ✅ | 400 | **0.53370** |
-| `gtp_human8k.cfg` | preaz_8k | gtp_human7k.cfg | 1 KGS rank (komi-0.5 = 50%) | 49.1% [40.2%, 58.1%], 116 g ✅ | 400 | **0.50640** |
-| `gtp_human9k.cfg` | preaz_9k | gtp_human8k.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.0% [41.3%, 54.9%], 204 g ✅ | 400 | **0.53880** |
-| `gtp_human10k.cfg` | preaz_10k | gtp_human9k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [42.0%, 58.0%], 148 g ✅ | 400 | **0.59036** |
-| `gtp_human11k.cfg` | preaz_11k | gtp_human10k.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.1% [40.5%, 55.8%], 160 g ✅ | 400 | **0.56458** |
-| `gtp_human12k.cfg` | preaz_12k | gtp_human11k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.8% [42.2%, 59.3%], 128 g ✅ | 400 | **0.54297** |
-| `gtp_human13k.cfg` | preaz_13k | gtp_human12k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.8% [42.1%, 59.4%], 124 g ✅ | 400 | **0.58977** |
-| `gtp_human14k.cfg` | preaz_14k | gtp_human13k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [41.3%, 58.7%], 124 g ✅ | 400 | **0.61625** |
-| `gtp_human15k.cfg` | preaz_15k | gtp_human14k.cfg | 1 KGS rank (komi-0.5 = 50%) | 49.1% [40.2%, 58.1%], 116 g ✅ | 400 | **0.61839** |
-| `gtp_human16k.cfg` | preaz_16k | gtp_human15k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [42.1%, 57.9%], 152 g ✅ | 400 | **0.67050** |
-| `gtp_human17k.cfg` | preaz_17k | gtp_human16k.cfg | 1 KGS rank (komi-0.5 = 50%) | 48.3% [40.9%, 55.7%], 172 g ✅ | 400 | **0.74130** |
-| `gtp_human18k.cfg` | preaz_18k | gtp_human17k.cfg | 1 KGS rank (komi-0.5 = 50%) | 46.3% [40.4%, 52.2%], 268 g ✅ (steep-λ-cliff rung) | 400 | **0.78210** |
-| `gtp_human19k.cfg` | preaz_19k | gtp_human18k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [41.0%, 59.0%], 116 g ✅ | 400 | **0.89820** |
-| `gtp_human20k.cfg` | preaz_20k | gtp_human19k.cfg | 1 KGS rank (komi-0.5 = 50%) | 50.0% [40.6%, 59.4%], 104 g ✅ | 400 | **1.22270** |
-
-_(Remaining ranks 7d…20k to be appended as tuned, each 1 KGS rank below the prior via the handicap method.)_
-
-### 8d rung — what was measured (2026-06)
-
-- **8d = 1 KGS rank below 9d at λ0.0865.** `preaz_8d@400v λ0.0865` (Black) vs `gtp_human9d.cfg`
-  (White, komi 0.5) = **60/120 = 50.0%, 95% CI [41.2%, 58.8%]** (⊂ [40%,60%]) → exactly 1 rank confirmed.
-- **preaz_8d needs the SAME 400 visits as the 9d anchor** — at 200v it is far too weak (visits are
-  a weak lever near the strong anchor). The rung is reached by **raising λ** (9d's 0.045 → 0.0865,
-  i.e. more human / weaker move-selection).
-- **1 stone ≈ 150–200 ELO here, not 100.** The KGS-correct 8d (λ0.0865) is meaningfully weaker than
-  the earlier −100-ELO attempt (λ0.0575, now superseded), because the komi-0.5 handicap is a large
-  advantage for these bots.
-- **The handicap (50%-winrate) calibration is well-behaved** — bounded target, gentle slope near
-  50% — so it pins cleanly, unlike the even-game ELO target which hit an unpinnable λ-cliff at 7d.
-
-### 9d anchor — what was measured (2026-06)
-
-- **piklLambda is the dominant strength lever; visits are nearly inert at high λ.** Versus the strong
-  `rank_9d@400v` reference, raising the candidate's visits at λ0.08 barely moved the result (it loses
-  ~−190 ELO at 400v and never reaches parity within [400, 1600] visits) — at high λ the extra search
-  is spent exploring human-policy (weaker) moves. **Lowering λ is what reaches parity.**
-- **Parity sits at λ ≈ 0.045** (not 0.08): `preaz_9d@400v λ0.045` = **201/383 = 52.5% = +17 ELO,
-  95% CI [−18, +52]** vs `rank_9d@400v λ0.08` — statistically at parity, stable across the whole
-  94→383-game grind (the point estimate never left [−7, +23] ELO).
-- **The λ→ELO response is shallow near parity (~23 ELO per 0.01 λ)** because preaz_9d's winrate
-  *saturates* (ceiling ~67%, not →100%) against the strong reference — `humanSLRootExploreProb
-  = 0.8` caps how much search can sharpen play. So a logistic auto-fit is biased high near parity;
-  the anchor was pinned with a direct fixed-λ grind, and λ ∈ [0.04, 0.05] all sit within ~±25 ELO of
-  parity (finer precision than ±0.01 λ is unnecessary, and would cost ~30 h of 400v games).
+- **λ progression (b28c512 method).** With the strong main net, the whole λ scale is far lower
+  than the old b24c64 era (where 20k needed λ≈1.22): the dan rungs rise 8d **0.06** → 5d 0.206
+  then wobble ~0.18–0.25 (3d–1d); single-digit kyu sit low and flat (~**0.10–0.15**); the deep
+  kyu then climb — 15k 0.187, 18k 0.223, 19k 0.248 — and **plateau ~0.30–0.37 through 20k–25k**
+  (20k 0.297, 21k 0.350, 22k 0.338, 23k 0.367, 24k 0.369, 25k 0.333). λ is **not** globally
+  monotone (each rung is calibrated independently to its own baseline), but the deep-kyu rise is
+  real: the net's `preaz_` rank profiles **compress at the weak end**, so it takes more λ (more
+  human, less search) to bring each weaker rung down to 50% — until, near the 25k floor, adjacent
+  profiles are so close that the λ plateaus.
+- **The extension rungs (20k–21k) are noisy.** Near the net's rank floor the winrate-vs-λ curve is
+  overdispersed and near-step (a wide flat band, then a sharp drop); 20k and 21k needed ~260–424
+  games and a **fixed-λ concentration pass** (`conc_loop.sh`) to build enough games at one point to
+  pin the crossing CI into [40, 60], where the shifting active-learning grind alone kept spreading
+  games across a moving estimate.
+- **The gap is ~½ a Go-stone per rank, not a full stone.** komi 0.5 ≈ 4–6 points ≈ ½ stone ≈ 1
+  KGS rank; a full Go-stone (~13 pts, komi −6.5) over-handicaps the dan rungs and was abandoned.
+  Confirmed by self-play (identical 8d bots): Black wins ~58% at komi +0.5 vs ~71% at komi −6.5.
+- **Adjacent-only calibration.** Each rung is pinned to 50% against *its immediate neighbor* only.
+  Monotonicity/transitivity across non-adjacent ranks is **assumed, not proven** (validation
+  matches — e.g. a 2-rank pairing predicted ~30–37% — are designed but not yet run). Because each
+  rung carries ~±(4–6)% winrate noise, absolute-rank labels drift by **~±1 rank** through the
+  high kyu and **~±2 ranks** by the deepest kyu; the *relative* 1-rank spacing is what's
+  calibrated.
+- **Three regimes / seams (documented).** 9d is legacy (400v, stronger, 8d↔9d link unmeasured);
+  8d is a hand-set anchor; 7d→25k are the curve-fit chain. All at komi 0.5 / 40v / winLoss=0.
 
 ### Cost & practical notes
 
-- A rung confirmed to ~±10% winrate (≈1 rank) takes ~80–200 games at 400v (~hours at half
-  resources). The full 20k→9d ladder is a large compute project; lower (weaker) ranks may chain off
-  cheaper, lower-visit baselines once away from the strong 9d/8d anchors.
-- Run **one** GPU job at a time (~5 game-threads) — concurrent `katago` processes trigger
-  memory-pressure (jetsam) kills. Keep run artifacts in a persistent dir, not `/tmp`.
-- Always report a tuned winrate/ELO **with its 95% CI and sample count** — small (5–30 game)
-  samples are deceptive on these steep curves.
+- Per rung: ~130–290 games (deep-kyu and a couple of noisy rungs cost more), tuned automatically
+  by `tune_fit.py`. Backend: MLX (Apple-Silicon GPU + ANE); tuned λ are backend-independent.
+- Run **one** GPU job at a time (~4 game-threads) — concurrent `katago` processes trigger
+  memory-pressure (jetsam) kills.
+- **Keep several GiB of disk free.** Each tuning chunk writes a ~100–200 MB CoreML temp
+  (ANE-mux); on a full disk katago silently dies mid-game (symptom: chunks end in ~72 s with 0
+  rounds, deep-kyu throughput collapses to a few games/chunk). Check `df -h /` first if
+  games/chunk suddenly drops.
+- Always report a tuned winrate **with its 95% CI and sample count** — small samples are
+  deceptive on these curves.
 
 ---
-_Generated by the `tunehuman` workflow. Configs and this doc are local artifacts (not the
-upstream KataGo examples)._
+_Generated by the `tunehuman` + `tune_fit.py` workflow. Configs and this doc are local artifacts
+(not the upstream KataGo examples)._

@@ -14,6 +14,7 @@
 #include "../search/searchparams.h"
 #include "../program/setup.h"
 #include "../program/play.h"
+#include "../program/playutils.h"
 #include "../program/playsettings.h"
 #include "../program/humansltuner.h"
 #include "../command/commandline.h"
@@ -55,6 +56,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   double xHi = 3.0;
   double komi = 7.5;
   string candColor = "auto";
+  int handicap = 0;
 
   try {
     KataGoCommandLine cmd("Tune human-SL play parameters to hit a target ELO offset vs a baseline config.");
@@ -80,6 +82,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     TCLAP::ValueArg<double> xHiArg("","x-hi","High end of the strength coordinate search range.",false,3.0,"F");
     TCLAP::ValueArg<double> komiArg("","komi","Komi for the games. Use 0.5 for a KGS 1-rank handicap (stronger=White gets no compensation).",false,7.5,"F");
     TCLAP::ValueArg<string> candColorArg("","cand-color","Candidate's color: auto (alternate, removes color bias), black, or white. Use 'black' with -komi 0.5 for a 1-rank handicap match (weaker candidate as Black).",false,"auto","COLOR");
+    TCLAP::ValueArg<int> handicapArg("","handicap","Fixed handicap stones placed for Black (weaker), with White (stronger) to move first; 0 = none (komi-only). Use 2 with -komi 0.5 -cand-color black for a KGS 2-stone handicap match.",false,0,"N");
     cmd.add(baselineConfigArg);
     cmd.add(profileArg);
     cmd.add(targetEloArg);
@@ -100,6 +103,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     cmd.add(xHiArg);
     cmd.add(komiArg);
     cmd.add(candColorArg);
+    cmd.add(handicapArg);
     cmd.parseArgs(args);
 
     modelFile = cmd.getModelFile();
@@ -124,6 +128,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
     xHi = xHiArg.getValue();
     komi = komiArg.getValue();
     candColor = candColorArg.getValue();
+    handicap = handicapArg.getValue();
   }
   catch(TCLAP::ArgException& e) {
     cerr << "Error: " << e.error() << " for argument " << e.argId() << endl;
@@ -143,6 +148,13 @@ int MainCmds::tunehuman(const vector<string>& args) {
   if(xLo >= xHi) { cerr << "Error: -x-lo must be < -x-hi." << endl; return 1; }
   if(candColor != "auto" && candColor != "black" && candColor != "white") {
     cerr << "Error: -cand-color must be auto, black, or white." << endl; return 1;
+  }
+  if(handicap != 0 && (handicap < 2 || handicap > 9)) {
+    cerr << "Error: -handicap must be 0 (none/komi-only) or between 2 and 9." << endl; return 1;
+  }
+  if(handicap >= 2 && candColor == "auto") {
+    cerr << "Error: -handicap requires -cand-color black (or white); 'auto' alternates colors, which would"
+         << " hand the fixed Black handicap stones to the candidate only half the time." << endl; return 1;
   }
   if(eloTol <= 0.0) { cerr << "Error: -elo-tol must be > 0." << endl; return 1; }
   if(searchVisits != -1 && searchVisits < 2) { cerr << "Error: -search-visits must be >= 2 (piklLambda needs >1 visit), or -1 for auto." << endl; return 1; }
@@ -179,6 +191,7 @@ int MainCmds::tunehuman(const vector<string>& args) {
   cout << "  x-lo / x-hi     = " << xLo << " / " << xHi << endl;
   cout << "  komi            = " << komi << endl;
   cout << "  cand-color      = " << candColor << (candColor == "auto" ? " (alternate)" : (komi != 7.5 ? " (handicap match)" : "")) << endl;
+  cout << "  handicap        = " << handicap << (handicap >= 2 ? " stones (Black placed, White first)" : " (komi-only)") << endl;
 
   // ---- load baseline config, logger, params, nets ----
   ConfigParser baselineCfg(baselineConfigPath);
@@ -285,6 +298,29 @@ int MainCmds::tunehuman(const vector<string>& args) {
   PlaySettings playSettings; // default: forSelfPlay=false, allowResignation=false, no fork/cheap/reduce
   GameRunner* gameRunner = new GameRunner(gameCfg, playSettings, logger);
 
+  // ---- optional fixed-handicap starting position (KGS N-stone handicap) ----
+  // Black (the weaker side, = candidate when -cand-color black) gets N fixed handicap stones and
+  // White (stronger) moves first. Fed to runGame as a start position; the GameRunner's startPos path
+  // adds NO extra handicap and applies komi exactly (komiStdev=0). Under the inherited 'japanese'
+  // ruleset whiteHandicapBonusRule=ZERO, so komi (0.5) is the ONLY compensation — exactly as on KGS.
+  // Built once and shared (the start position is fixed and runGame copies it per game).
+  Sgf::PositionSample handicapStartPos;
+  const Sgf::PositionSample* startPosForGames = NULL;
+  if(handicap >= 2) {
+    Board hcapBoard(boardLen,boardLen);
+    PlayUtils::placeFixedHandicap(hcapBoard,handicap);
+    handicapStartPos.board = hcapBoard;
+    handicapStartPos.nextPla = P_WHITE;       // White (stronger) plays first
+    handicapStartPos.initialTurnNumber = hcapBoard.numStonesOnBoard();
+    handicapStartPos.hintLoc = Board::NULL_LOC;
+    handicapStartPos.weight = 1.0;
+    handicapStartPos.trainingWeight = 1.0;
+    startPosForGames = &handicapStartPos;
+    logger.write("Handicap match: Black gets " + Global::intToString(handicap) +
+                 " fixed stones, White moves first, komi " + Global::doubleToString(komi) +
+                 " (whiteHandicapBonusRule=" + Rules::writeWhiteHandicapBonusRule(gameRules.whiteHandicapBonusRule) + ")");
+  }
+
   // ---- dial config + target ----
   StrengthDialConfig dialConfig;
   dialConfig.piklFloor = piklFloor;
@@ -362,20 +398,24 @@ int MainCmds::tunehuman(const vector<string>& args) {
           [](const MatchPairer::BotSpec&, Search*) {};
 
         FinishedGameData* g = gameRunner->runGame(
-          seed, specB, specW, NULL, NULL, logger,
+          seed, specB, specW, NULL, startPosForGames, logger,
           shouldStop, nullptr, nullptr, noopAfterInit, nullptr);
         if(g == NULL)
           continue;
 
         bool counted = true;
         double winInc = 0.0;
-        if(g->endHist.isNoResult) {
+        // Discard no-result games AND unscored/turn-limit games (endHist.winner==C_EMPTY). With a
+        // non-integer komi (0.5) a genuine jigo is impossible, so winner==C_EMPTY only occurs when a
+        // game hit maxMovesPerGame without pass-pass termination; scoring those 0.5 would silently
+        // bias every rung's win-rate toward the 50% LOCK target. (Verified the b28c512 ladder had 0
+        // such games, but deep-kyu high-lambda bots are the case most likely to hit the cap.)
+        if(g->endHist.isNoResult || g->endHist.winner == C_EMPTY) {
           counted = false;
         } else {
           Player winner = g->endHist.winner;
           Player candPlayerColor = candIsBlack ? P_BLACK : P_WHITE;
-          if(winner == C_EMPTY) winInc = 0.5;          // draw
-          else winInc = (winner == candPlayerColor) ? 1.0 : 0.0;
+          winInc = (winner == candPlayerColor) ? 1.0 : 0.0;
         }
         delete g;
 

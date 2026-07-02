@@ -21,7 +21,7 @@ set -u
 # ---- knobs (override via env) -------------------------------------------------------------------
 ROOT=${KATAGO_ROOT:-$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" >/dev/null && pwd)}/cpp
 KATAGO=${KATAGO:-$ROOT/build_mlx/katago}
-MODEL=${MODEL:-$ROOT/models/lionffen_b24c64_3x3_v3_12300.bin.gz}
+MODEL=${MODEL:-$ROOT/models/kata1-b28c512nbt-s8326494464-d4628051565.bin.gz}
 HUMAN=${HUMAN:-$ROOT/models/b18c384nbt-humanv0.bin.gz}
 EXAMPLE=${EXAMPLE:-$ROOT/configs/gtp_human9d_search_example.cfg}   # template (ships preaz_9d)
 
@@ -38,6 +38,7 @@ GAME_THREADS=${GAME_THREADS:-10}
 TIMEOUT=${TIMEOUT:-1400}                  # seconds per invocation (< the ~30-min process cap)
 KOMI=${KOMI:-7.5}
 CAND_COLOR=${CAND_COLOR:-auto}
+HANDICAP=${HANDICAP:-0}                    # fixed Black handicap stones (0=komi-only, 2=KGS 2-stone)
 
 TAG=${TAG:-${CAND_PROFILE}_vs_${BASE_PROFILE}${BASE_VISITS}v}
 BASELINE_CFG=${BASELINE_CFG:-/tmp/baseline_${BASE_PROFILE}_${BASE_VISITS}v.cfg}
@@ -60,7 +61,7 @@ timeout "$TIMEOUT" "$KATAGO" tunehuman \
   -baseline-config "$BASELINE_CFG" \
   -profile "$CAND_PROFILE" -target-elo "$TARGET_ELO" -elo-tol "$ELO_TOL" \
   -search-visits "$V_LO" -max-visits-cap "$V_HI" -pikl-floor "$PIKL" \
-  -komi "$KOMI" -cand-color "$CAND_COLOR" \
+  -komi "$KOMI" -cand-color "$CAND_COLOR" -handicap "$HANDICAP" \
   -x-lo 2.0 -x-hi 3.0 \
   -games-per-round "$GAMES_PER_ROUND" -max-rounds 400 \
   -num-game-threads "$GAME_THREADS" \

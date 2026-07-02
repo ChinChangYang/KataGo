@@ -19,7 +19,8 @@ import sys, glob, os, re, math
 
 CI_LO, CI_HI = 0.40, 0.60   # target band for the 95% CI
 GRID = 1e-4                 # λ rounding grid (so games pool at grid points)
-MAXGAMES = 500             # per-rank budget before stop-condition #2
+MAXGAMES = 900             # games at the best single λ before stop (give borderline rungs room to
+                           # tighten a near-50% point's CI into [40,60]; ~800g pins a 56% point)
 Z = 1.96
 
 def wilson(w, n):
@@ -104,10 +105,26 @@ def main():
     bp = best[1]/best[2]
 
     # stop-condition #2: best λ ground past budget, OR total games across all λ exceeds a hard cap
-    # (a genuinely noisy/cliff rung that spreads games without any single λ pinning), OR λ blew up.
-    if best[2] > MAXGAMES or total > 1300 or best[0] > 1e8:
-        print(f"ACTION=STOP LAMBDA={best[0]:.5f} WR={100*bp:.1f} "
-              f"CI={100*blo:.1f},{100*bhi:.1f} N={best[2]} NOTE=best-{best[2]}g-total{total}g-cannot-pin")
+    # (a genuinely noisy/cliff rung), OR λ pushed past 1e8 (rung UNBALANCEABLE at this handicap — a
+    # 1-step profile can't be made 2 ranks weaker, so no finite λ reaches 50%). In the saturated case
+    # ship a CLEAN pure-human λ=50 (≈ the rank's natural beginner strength) rather than the 1e9 probe.
+    maxlam = lams[-1]   # lams is ascending
+    # Saturated/unbalanceable: we've climbed λ deep into human-policy territory (≥5) and even the
+    # closest-to-50% point is still >53% (so NO λ reaches 50% — a 1-step profile can't be made 2 ranks
+    # weaker), or λ already blew past 1e8. Ship a clean pure-human λ=50 best-effort beginner AI.
+    saturated = (best[0] > 1e8 or maxlam > 1e8 or (maxlam >= 5.0 and bp > 0.53))
+    if best[2] > MAXGAMES or total > 2500 or saturated:
+        if saturated:
+            # Ship pure-human λ=50; REPORT the stats of the highest-λ point measured (the best proxy
+            # for the shipped pure-human config), NOT the closest-to-50% point — those are different λ.
+            out_lam = 50.0
+            hp = pts[-1]; rwr = hp[1]/hp[2]; rlo, rhi = wilson(hp[1], hp[2]); rn = hp[2]
+            why = "saturated-best-effort-pure-human-lam50-CI-NOT-in-[40,60]"
+        else:
+            out_lam = best[0]; rwr = bp; rlo, rhi = blo, bhi; rn = best[2]
+            why = f"best-{best[2]}g-total{total}g-cannot-pin"
+        print(f"ACTION=STOP LAMBDA={out_lam:.5f} WR={100*rwr:.1f} "
+              f"CI={100*rlo:.1f},{100*rhi:.1f} N={rn} NOTE={why}")
         return
 
     # BRACKETED (points on both sides of 50%): grind the INTERPOLATED crossing — the most central
@@ -118,7 +135,7 @@ def main():
         # fast on its own. Do NOT concentrate an EDGE point (e.g. 54% or 46%) even under heavy sampling:
         # that just spins without ever tightening into [40,60]. With no near-50% point, fall through and
         # grind the interpolated crossing (which targets 50% and, via the snap below, still concentrates).
-        central = sorted((abs(w/g-0.5), l, g) for (l, w, g) in pts if g >= 50 and abs(w/g-0.5) <= 0.03)
+        central = sorted((abs(w/g-0.5), l, g) for (l, w, g) in pts if g >= 50 and abs(w/g-0.5) <= 0.05)
         if central:
             print(f"ACTION=GRIND LAMBDA={round(central[0][1],5):.5f} NOTE=concentrate-central-{central[0][2]}g")
             return
@@ -141,20 +158,29 @@ def main():
     # NOT bracketed: concentrate the best λ ONLY if it's VERY central (CI includes 50% AND within
     # ±3%) — a point 3-5% off is an edge point that locks slowly; better to EXPAND and find the real
     # 50% crossing (where the lock comes fast) than to grind ~340 games at a persistently-55% λ.
-    if blo <= 0.5 <= bhi and abs(bp - 0.5) <= 0.03:
+    if blo <= 0.5 <= bhi and abs(bp - 0.5) <= 0.05:   # widened ±5%: concentrate the (often ~54%) floor
         print(f"ACTION=GRIND LAMBDA={best[0]:.5f} NOTE=concentrate-{best[2]}g-CI[{100*blo:.0f},{100*bhi:.0f}]")
         return
     # ...otherwise EXPAND from the extreme λ toward 50% to find a bracket.
-    if bp < 0.5:                            # all too weak -> stronger; expand below strongest λ
+    if bp < 0.5:                            # all too weak -> stronger; LOWER λ GEOMETRICALLY (symmetric
+        # with the expand-weaker x-up step) so a rung that seeds too-weak reaches the crossing in a few
+        # rounds instead of crawling down by <=0.05 (25k hit this under the old additive step).
         ext = pts[0]; ewr = ext[1]/ext[2]
-        step = min(0.05, max(0.01, abs(ewr-0.5)*0.30 + 0.006))
-        nxt = round(max(GRID, ext[0] - step), 5)
+        nxt = round(max(GRID, ext[0] / (1.0 + 6.0*abs(ewr-0.5))), 5)
         print(f"ACTION=GRIND LAMBDA={nxt:.5f} NOTE=all-too-weak({100*bp:.0f}%)-expand-stronger")
-    else:                                   # all too strong -> weaker; expand above weakest λ
+    else:                                   # all too strong -> raise λ above the weakest-λ point
+        # Climb λ to find the 50% crossing; if the candidate is STILL winning deep in human-policy
+        # territory the rung is unbalanceable at this handicap (1-step profile vs a 2-stone gap) — jump
+        # λ past 1e8 to trigger the (best-effort) STOP quickly instead of grinding dozens of chunks.
+        # Step factor SCALES with distance above 50%: gentle near 50% (pin the nearby crossing without
+        # overshooting), bigger when far above. For a genuinely unbalanceable rung this still climbs to
+        # λ>=5 in a few rounds, where the saturation STOP above fires.
         ext = pts[-1]; ewr = ext[1]/ext[2]
-        step = min(0.05, max(0.01, abs(ewr-0.5)*0.30 + 0.006))
-        nxt = round(ext[0] + step, 5)
-        print(f"ACTION=GRIND LAMBDA={nxt:.5f} NOTE=all-too-strong({100*bp:.0f}%)-expand-weaker")
+        excess = ewr - 0.5                         # 1.3x @55%, 1.6x @60%, 2.2x @70%, 4.0x @100%
+        factor = 1.0 + 6.0*excess
+        add = min(0.05, max(0.01, excess*0.30 + 0.006))
+        nxt = round(max(ext[0] + add, ext[0] * factor), 5)
+        print(f"ACTION=GRIND LAMBDA={nxt:.5f} NOTE=all-too-strong({100*bp:.0f}%)-expand-weaker-x{factor:.1f}")
 
 if __name__ == "__main__":
     main()
