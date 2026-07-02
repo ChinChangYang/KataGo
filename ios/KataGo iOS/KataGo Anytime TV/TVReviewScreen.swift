@@ -25,6 +25,7 @@ struct TVReviewScreen: View {
     @Environment(AudioModel.self) private var audioModel
     @Environment(Winrate.self) private var rootWinrate
     @Environment(Score.self) private var rootScore
+    @Environment(NavigationContext.self) private var navigationContext
 
     @FocusState private var commentFocused: Bool
     @FocusState private var boardFocused: Bool
@@ -236,6 +237,13 @@ struct TVReviewScreen: View {
     private func loadIfNeeded() {
         guard !didLoad else { return }
         didLoad = true
+        // Review is a SPECTATOR: a synced game configured AI-vs-AI on another
+        // device must not start playing itself here — suppress the gen-move
+        // branch so such a game streams plain analysis instead. And no record
+        // may be "selected" during review (the self-play screen owns that):
+        // a stale selection would route this game's printsgf replies into it.
+        gobanState.suppressesGenMove = true
+        navigationContext.selectedGameRecord = nil
         gobanState.loadGame(gameRecord: game, previous: nil, player: player,
                             bookLookup: bookLookup, messageList: messageList,
                             board: board, stones: stones)
@@ -353,8 +361,9 @@ private struct TVToggleButton: View {
 /// (StoneView.drawFastStoneBase): base fill with a radial highlight offset
 /// toward the top-left (the classic shader's white→stone mix at −1/8,−1/8 of
 /// the diameter) and a soft lower-right shadow. Replaces a flat circle that
-/// read as a radio button rather than a Go stone.
-private struct TVStoneIndicator: View {
+/// read as a radio button rather than a Go stone. Internal (not private):
+/// the self-play screen's player rows reuse it.
+struct TVStoneIndicator: View {
     let isBlack: Bool
     private static let diameter: CGFloat = 36
 

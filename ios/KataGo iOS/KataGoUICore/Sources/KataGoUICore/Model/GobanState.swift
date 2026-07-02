@@ -25,6 +25,13 @@ public class GobanState {
     public var isAutoPlaying: Bool = false
     public var isAutoPlayed: Bool = false
     public var passCount: Int = 0
+    /// When true, a side whose config says "engine plays" (maxTime > 0) still
+    /// gets plain continuous analysis instead of a gen-move — the whole screen
+    /// is a spectator. The tvOS review screen sets it (a synced game configured
+    /// AI-vs-AI on another device must not start playing itself when merely
+    /// reviewed on TV); the tvOS self-play screen clears it. Transient view
+    /// state, never persisted; defaults false so iOS/macOS are unchanged.
+    public var suppressesGenMove = false
     public var branchSgf: String = .inActiveSgf
     public var branchIndex: Int = .inActiveCurrentIndex
     public var confirmingAIOverwrite: Bool = false
@@ -79,7 +86,7 @@ public class GobanState {
 
     func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
 
-        if (analysisStatus == .run) && (!isAutoPlaying) && (passCount < 2) {
+        if (analysisStatus == .run) && (!isAutoPlaying) && (!suppressesGenMove) && (passCount < 2) {
             if (nextColorForPlayCommand == .black) && (config.blackMaxTime > 0) {
                 return GtpCommandBuilder.genMoveAnalyzeCommands(effectiveProfile: config.effectiveHumanProfileForBlack, maxTime: config.blackMaxTime, interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
             } else if (nextColorForPlayCommand == .white) && (config.whiteMaxTime > 0) {
@@ -185,6 +192,7 @@ public class GobanState {
 
     public func shouldGenMove(config: Config, player: Turn) -> Bool {
         if (!isAutoPlaying) &&
+            (!suppressesGenMove) &&
             (analysisStatus == .run) &&
             (passCount < 2) &&
             (((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||

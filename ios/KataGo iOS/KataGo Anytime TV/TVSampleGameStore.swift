@@ -32,4 +32,24 @@ enum TVSampleGameStore {
         container.mainContext.insert(record)
         return record
     }()
+
+    /// Whether the in-memory store opened — gates the self-play entry points
+    /// (a demo that cannot have a record has nowhere to play).
+    static var isAvailable: Bool { container != nil }
+
+    /// A fresh self-play demo record. One PER GAME: the play loop mutates the
+    /// record every move (sgf, currentIndex, scoreLeads, ownership), so each
+    /// game starts clean and the finished one is discarded.
+    static func newSelfPlayGame() -> GameRecord? {
+        guard let container else { return nil }
+        let record = SelfPlayGame.makeRecord()
+        container.mainContext.insert(record)
+        return record
+    }
+
+    /// Deletes a finished (or abandoned) demo record so endless attract-mode
+    /// looping doesn't accumulate per-game analysis data in memory.
+    static func discard(_ record: GameRecord) {
+        container?.mainContext.delete(record)
+    }
 }

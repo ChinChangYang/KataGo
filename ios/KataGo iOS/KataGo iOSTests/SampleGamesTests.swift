@@ -53,6 +53,9 @@ struct SampleGamesTests {
         #expect(record.width == 19)
         #expect(record.height == 19)
         #expect(record.name == "Ear-Reddening Game")
+        // RU[Japanese]: the rule index must match the SGF, or the engine
+        // analyzes the no-komi game under the default Chinese rules.
+        #expect(Config.rules[record.concreteConfig.rule] == "japanese")
         // Final position keyed exactly at moveSize so TVGameCard.displayIndex
         // falls back from currentIndex (0, no stones) to the finished board.
         #expect(record.blackStones?.keys.sorted() == [325])

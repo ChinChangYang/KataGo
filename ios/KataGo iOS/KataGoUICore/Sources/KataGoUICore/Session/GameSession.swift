@@ -35,6 +35,15 @@ public final class GameSession {
     /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
     public var stopRequested = false
 
+    /// When the library is empty, a `printsgf` reply auto-creates and inserts a
+    /// GameRecord into the model context (`maybeCollectSgf`) — the iOS/macOS
+    /// first-launch behavior. The tvOS app opts out once at startup: its context
+    /// is the CloudKit-synced store, its library can legitimately be empty
+    /// (games arrive only via sync), and its self-play demo plays into an
+    /// in-memory record that must never leak into iCloud. A session-level flag
+    /// (not a per-call guard) so no reply race can ever re-arm the insert.
+    public var autoCreatesGameOnEmptyLibrary = true
+
     /// Transport to the engine. Defaults to the in-process C++ bridge
     /// (iOS/visionOS, and the default everywhere); the macOS app injects a
     /// per-window subprocess transport via `useEngine(_:)`.
@@ -348,7 +357,13 @@ public final class GameSession {
                 let sgfString = String(message[startOfSgf...])
                 let sgfHelper = SgfOperations(sgf: sgfString)
                 let currentIndex = sgfHelper.moveSize ?? 0
-                if gameRecords.isEmpty {
+                // Auto-create only when nothing is selected: with a selection
+                // present (e.g. the tvOS self-play demo record, which lives in
+                // a separate in-memory container so this query is still empty),
+                // the reply belongs to the selected record below — inserting a
+                // new one here would duplicate it into this context's store.
+                if autoCreatesGameOnEmptyLibrary, gameRecords.isEmpty,
+                   navigationContext.selectedGameRecord == nil {
                     // Automatically generate and select a new game when there are no games in the list
                     let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
                     modelContext.insert(newGameRecord)

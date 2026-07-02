@@ -85,6 +85,12 @@ public enum SampleGames {
                                                  scoreLeads: earReddeningScoreLeads,
                                                  blackStones: blackStones,
                                                  whiteStones: whiteStones)
+        // createGameRecord derives board size and komi from the SGF but not
+        // the rule index; without this the 1846 game would display — and be
+        // analyzed under — the default Chinese rules instead of RU[Japanese].
+        if let japanese = Config.rules.firstIndex(of: "japanese") {
+            record.concreteConfig.rule = japanese
+        }
         // 1846-09-11 — renders as the card's date line and keeps the sample
         // sorted far below any real game if it ever shares a list.
         record.lastModificationDate = Date(timeIntervalSince1970: -3891196800)

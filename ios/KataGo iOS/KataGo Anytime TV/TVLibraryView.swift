@@ -17,9 +17,21 @@ import SwiftUI
 import SwiftData
 import KataGoUICore
 
+/// Where library focus sits — one tag per focusable card, so D-pad movement
+/// is observable as a single onChange (the idle-attract activity signal).
+private enum LibraryFocus: Hashable {
+    case selfPlay
+    case sample
+    case game(PersistentIdentifier)
+}
+
 struct TVLibraryView: View {
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
     @Environment(CloudKitSyncMonitor.self) private var syncMonitor
+    // Optional: previews and hosts without attract mode simply get no idle
+    // tracking (the signal degrades to nothing, never crashes).
+    @Environment(TVAttractModeController.self) private var attractMode: TVAttractModeController?
+    @FocusState private var focus: LibraryFocus?
 
     private let columns = [GridItem(.adaptive(minimum: 320), spacing: 48)]
 
@@ -30,11 +42,21 @@ struct TVLibraryView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 48) {
+                        // Permanent lead card: the self-play demo stays
+                        // reachable after real games sync.
+                        if TVSampleGameStore.isAvailable {
+                            NavigationLink(value: SelfPlayRoute(entry: .manual)) {
+                                TVSelfPlayCard()
+                            }
+                            .buttonStyle(.card)
+                            .focused($focus, equals: .selfPlay)
+                        }
                         ForEach(gameRecords) { game in
                             NavigationLink(value: game) {
                                 TVGameCard(game: game)
                             }
                             .buttonStyle(.card)
+                            .focused($focus, equals: .game(game.persistentModelID))
                         }
                     }
                     .padding(.horizontal, 90)
@@ -54,6 +76,15 @@ struct TVLibraryView: View {
             }
         }
         .navigationTitle("KataGo Anytime")
+        // Idle-attract activity signals: D-pad movement lands as focus changes
+        // (do NOT use a library-level onMoveCommand — it would swallow grid
+        // navigation); play/pause is otherwise unused here.
+        .onChange(of: focus) { _, _ in
+            attractMode?.noteUserActivity()
+        }
+        .onPlayPauseCommand {
+            attractMode?.noteUserActivity()
+        }
     }
 
     // MARK: - Empty states
@@ -120,30 +151,42 @@ struct TVLibraryView: View {
         }
     }
 
-    /// The bundled sample game — the empty state's sole focusable, so the
-    /// focus engine finally has somewhere to land. The HStack is the
-    /// deliberate slot where the future AI-self-play demo card will sit
-    /// beside it (separate spec).
+    /// The empty state's focusable offerings: the bundled sample game and the
+    /// live self-play demo, side by side — the focus engine finally has
+    /// somewhere to land, and a brand-new user has something to watch.
     @ViewBuilder
     private var sampleSection: some View {
-        if let sample = TVSampleGameStore.sampleGame {
+        if TVSampleGameStore.sampleGame != nil || TVSampleGameStore.isAvailable {
             VStack(spacing: 14) {
-                Text("Watch a classic game")
+                Text("Watch a game")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)
                 HStack(spacing: 40) {
-                    NavigationLink(value: sample) {
-                        // Size the LABEL, not the button (an outer frame never
-                        // reaches the board inside), and pin the ideal height:
-                        // the surrounding VStack proposes a squeezed height,
-                        // which would otherwise shrink the aspect-fit board to
-                        // a thumbnail instead of the 360 pt the width allows.
-                        TVGameCard(game: sample)
-                            .frame(width: 400)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .overlay(alignment: .topTrailing) { sampleBadge }
+                    if let sample = TVSampleGameStore.sampleGame {
+                        NavigationLink(value: sample) {
+                            // Size the LABEL, not the button (an outer frame
+                            // never reaches the board inside), and pin the
+                            // ideal height: the surrounding VStack proposes a
+                            // squeezed height, which would otherwise shrink
+                            // the aspect-fit board to a thumbnail instead of
+                            // the 360 pt the width allows.
+                            TVGameCard(game: sample)
+                                .frame(width: 400)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .overlay(alignment: .topTrailing) { sampleBadge }
+                        }
+                        .buttonStyle(.card)
+                        .focused($focus, equals: .sample)
                     }
-                    .buttonStyle(.card)
+                    if TVSampleGameStore.isAvailable {
+                        NavigationLink(value: SelfPlayRoute(entry: .manual)) {
+                            TVSelfPlayCard()
+                                .frame(width: 400)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .buttonStyle(.card)
+                        .focused($focus, equals: .selfPlay)
+                    }
                 }
             }
         }

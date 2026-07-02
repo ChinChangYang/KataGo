@@ -19,10 +19,14 @@ struct TVRootView: View {
     @State private var audioModel = AudioModel()
     @State private var navigationContext = NavigationContext()
     @State private var syncMonitor = CloudKitSyncMonitor()
+    @State private var attractMode = TVAttractModeController()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var aiMove: String? = nil
     @State private var isReady = false
     @State private var engineStarted = false
-    @State private var path: [GameRecord] = []
+    // NavigationPath (not [GameRecord]) so the self-play route can coexist
+    // with game records in one stack.
+    @State private var path = NavigationPath()
 
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
@@ -49,6 +53,9 @@ struct TVRootView: View {
                         .navigationDestination(for: GameRecord.self) { game in
                             TVReviewScreen(game: game)
                         }
+                        .navigationDestination(for: SelfPlayRoute.self) { route in
+                            TVSelfPlayScreen(route: route)
+                        }
                 }
                 // Inject the session's engine-driven models so the shared
                 // BoardView / analysis views resolve them via @Environment.
@@ -64,6 +71,36 @@ struct TVRootView: View {
                 .environment(audioModel)
                 .environment(navigationContext)
                 .environment(syncMonitor)
+                .environment(attractMode)
+                // Idle-attract signals. Interaction detail (focus movement)
+                // is reported by TVLibraryView; the root owns the structural
+                // signals: navigation depth and scene phase.
+                .onChange(of: path.count) { _, newCount in
+                    // NavigationPath is not Equatable — observe its count.
+                    attractMode.pathIsEmpty = (newCount == 0)
+                    if newCount == 0 {
+                        attractMode.noteUserActivity()   // back at the library: restart the countdown
+                    } else {
+                        attractMode.disarm()             // a screen is up: no auto-start beneath it
+                    }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    attractMode.sceneIsActive = (phase == .active)
+                    if phase == .active, path.isEmpty {
+                        attractMode.noteUserActivity()
+                    } else if phase != .active {
+                        attractMode.disarm()
+                    }
+                }
+                .task {
+                    // Wire the push closure and start the first countdown once
+                    // the library exists (this branch is engine-ready-gated).
+                    attractMode.startAttract = {
+                        path.append(SelfPlayRoute(entry: .attract))
+                    }
+                    guard !isRunningInPreview else { return }
+                    attractMode.noteUserActivity()
+                }
                 // Analysis stop lifecycle. tvOS has no per-game host controller
                 // (iOS uses GameSplitView, macOS MainWindowController), so the
                 // "stop" that halts the continuously-streaming kata-analyze lives
@@ -101,6 +138,15 @@ struct TVRootView: View {
         }
         .onAppear(perform: startEngineIfNeeded)
         .task {
+            // The TV never auto-creates a game from a printsgf reply: the
+            // CloudKit library is legitimately empty until sync delivers
+            // games, and the self-play demo plays into an in-memory record
+            // that must never be duplicated into the synced store (a
+            // session-level switch so no reply race can re-arm the insert).
+            // Set before the engine handshake completes — no printsgf reply
+            // can precede it.
+            session.autoCreatesGameOnEmptyLibrary = false
+
             // Start the sync monitor at launch, in parallel with the engine
             // handshake — the grace window and account check tick behind
             // "Loading engine…", so by the time the library appears the

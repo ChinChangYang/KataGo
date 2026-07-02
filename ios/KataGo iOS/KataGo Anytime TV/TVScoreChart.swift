@@ -18,6 +18,12 @@ import KataGoUICore
 
 struct TVScoreChart: View {
     let gameRecord: GameRecord
+    /// Shown when the record has no usable history. The review default points
+    /// at the other devices that produce history; the self-play screen passes
+    /// nil to render nothing instead — its chart fills itself live within a
+    /// few moves, and the sync guidance would be wrong there.
+    var noHistoryMessage: String? =
+        "No score history yet. Step through this game with analysis on iPhone, iPad, or Mac and the chart will sync here."
 
     @Environment(GobanState.self) private var gobanState
 
@@ -54,8 +60,8 @@ struct TVScoreChart: View {
         // never stepped through with analysis on iPhone/iPad/Mac — the common
         // state for freshly synced games), an explanatory placeholder takes
         // the chart's place instead of leaving a hole in the panel.
-        if gobanState.eyeStatus != .closed {
-            let points = self.points
+        let points = self.points
+        if gobanState.eyeStatus != .closed, points.count >= 2 || noHistoryMessage != nil {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Score Lead")
@@ -75,8 +81,8 @@ struct TVScoreChart: View {
                 if points.count >= 2 {
                     chart(points: points)
                         .frame(height: 160)
-                } else {
-                    Text("No score history yet. Step through this game with analysis on iPhone, iPad, or Mac and the chart will sync here.")
+                } else if let noHistoryMessage {
+                    Text(noHistoryMessage)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         // Wrap instead of truncating to one line (same tvOS
