@@ -35,18 +35,38 @@ enum TVPreviewData {
         "(;FF[4]GM[1]SZ[19]KM[7.5]RU[koSIMPLEscoreAREAtaxNONEsui0whbN];B[pd];W[dp];B[pp];W[dd];B[qf])"
 
     /// A named, dated game whose `currentIndex` HAS stones — TVGameCard's
-    /// primary `displayIndex` branch — with cumulative per-move position dicts.
+    /// primary `displayIndex` branch — with cumulative per-move position dicts
+    /// and a short score-lead history that crosses zero (both chart tones).
     static func openingGame(name: String = "Opening study") -> GameRecord {
         GameRecord(sgf: openingSgf,
                    currentIndex: 5,
                    config: Config(),
                    name: name,
                    lastModificationDate: Date(timeIntervalSince1970: 1_780_000_000),
+                   scoreLeads: [0: 2.5, 1: 8.0, 2: -4.0, 3: -12.0, 4: 6.0, 5: 3.5],
                    blackStones: [1: "Q16", 2: "Q16", 3: "Q16 Q4",
                                  4: "Q16 Q4", 5: "Q16 Q4 R14"],
                    whiteStones: [2: "D4", 3: "D4", 4: "D4 D16", 5: "D4 D16"],
                    width: 19,
                    height: 19)
+    }
+
+    /// A long analyzed game: 61 score-lead points swinging across zero several
+    /// times (deterministic sine — no randomness), exercising the dual-tone
+    /// area fills and the mid-game current-move marker in the chart previews.
+    static func denseAnalyzedGame() -> GameRecord {
+        var leads: [Int: Float] = [:]
+        for i in 0...60 {
+            leads[i] = Float(sin(Double(i) / 7.0) * 15.0)
+        }
+        return GameRecord(sgf: openingSgf,
+                          currentIndex: 23,
+                          config: Config(),
+                          name: "Analyzed game",
+                          lastModificationDate: Date(timeIntervalSince1970: 1_780_100_000),
+                          scoreLeads: leads,
+                          width: 19,
+                          height: 19)
     }
 
     /// An untitled, never-dated game whose `currentIndex` points PAST the stone

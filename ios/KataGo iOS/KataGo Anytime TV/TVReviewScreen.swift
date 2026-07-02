@@ -57,7 +57,7 @@ struct TVReviewScreen: View {
     // MARK: - Analysis + transport panel
 
     private var panel: some View {
-        VStack(alignment: .leading, spacing: 30) {
+        VStack(alignment: .leading, spacing: 24) {
             Text(game.name.isEmpty ? "Untitled" : game.name)
                 .font(.title.bold())
                 .lineLimit(2)
@@ -80,8 +80,15 @@ struct TVReviewScreen: View {
                 Text("Score \(scoreText)")
                     .font(.title3.monospacedDigit())
                     .foregroundStyle(.secondary)
+
+                // Score-lead history synced from iPhone/iPad/Mac reviews; the
+                // red rule tracks the current move as the D-pad steps. Hidden
+                // (zero height) when the game has no history or the overlay
+                // is off.
+                TVScoreChart(gameRecord: game)
+                    .padding(.top, 8)
             }
-            .padding(28)
+            .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
 
