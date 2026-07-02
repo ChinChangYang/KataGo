@@ -41,6 +41,11 @@ public struct BoardView: View {
     /// bar reads as a stray white rounded rect left of column A. Defaults true
     /// so the live iOS/visionOS/macOS board is unchanged.
     var showsWinrateBar: Bool = true
+    /// When set, a ring marks this point on the grid — the tvOS screens pass
+    /// the Top Moves row that currently has remote focus, so the viewer sees
+    /// WHERE the focused candidate is before clicking it. Defaults nil (no
+    /// ring), so the live iOS/visionOS/macOS board is unchanged.
+    var highlightedPoint: BoardPoint? = nil
     @FocusState<Bool>.Binding var commentIsFocused: Bool
     @State private var confirmingOverwrite: Bool = false
     @State private var gestureLocation: CGPoint?
@@ -50,12 +55,14 @@ public struct BoardView: View {
                 showsCapturedStones: Bool = true,
                 showsPass: Bool = true,
                 showsWinrateBar: Bool = true,
+                highlightedPoint: BoardPoint? = nil,
                 commentIsFocused: FocusState<Bool>.Binding) {
         self.gameRecord = gameRecord
         self.interactive = interactive
         self.showsCapturedStones = showsCapturedStones
         self.showsPass = showsPass
         self.showsWinrateBar = showsWinrateBar
+        self.highlightedPoint = highlightedPoint
         self._commentIsFocused = commentIsFocused
     }
 
@@ -106,6 +113,19 @@ public struct BoardView: View {
                                    verticalFlip: gobanState.verticalFlip,
                                    style: gobanState.moveNumberStyleChoice,
                                    moveNumbers: gobanState.getMoveNumbers(gameRecord: gameRecord))
+
+                    if let highlightedPoint {
+                        // Ring over the focused candidate (drawn above the
+                        // analysis circles so it stays visible on top of one).
+                        Circle()
+                            .stroke(Color.white, lineWidth: max(3, dimensions.squareLengthDiv8))
+                            .frame(width: dimensions.stoneLength * 1.15,
+                                   height: dimensions.stoneLength * 1.15)
+                            .position(x: dimensions.boardLineStartX + CGFloat(highlightedPoint.x) * dimensions.squareLength,
+                                      y: dimensions.boardLineStartY + highlightedPoint.getPositionY(height: dimensions.height,
+                                                                                                    verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
+                            .shadow(color: .black.opacity(0.6), radius: dimensions.squareLengthDiv16)
+                    }
 
                     if gobanState.isBranchActive {
                         // Reminder that branch stones are temporary; geometry

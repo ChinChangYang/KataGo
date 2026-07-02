@@ -69,6 +69,8 @@ struct TVSelfPlayScreen: View {
     /// The user's analysis-OFF preference from the review screen, restored on
     /// exit (self-play forces analysis ON — the overlay is the show).
     @State private var analysisWasUserOff = false
+    /// The Top Moves row under remote focus, ringed on the board.
+    @State private var highlightedPoint: BoardPoint?
 
     private var isGameOver: Bool { gobanState.passCount >= 2 }
 
@@ -109,22 +111,28 @@ struct TVSelfPlayScreen: View {
                               showsCapturedStones: false,
                               showsPass: false,
                               showsWinrateBar: false,
+                              highlightedPoint: highlightedPoint,
                               commentIsFocused: $commentFocused)
-                        .aspectRatio(1, contentMode: .fit)
-                        // Same board-size pin as the review screen: the panel
-                        // (pause button, Top Moves states) must never drive
-                        // the board's geometry.
-                        .frame(maxHeight: .infinity)
+                        // Same full-screen-height pin as the review screen
+                        // (tvOS is always 1920×1080 pt; the NavigationStack's
+                        // safe-area insets survive ignoresSafeArea and would
+                        // otherwise shrink the fitted square). Also keeps the
+                        // board independent of the panel's ideal height.
+                        .frame(width: 1080, height: 1080)
 
-                    Spacer(minLength: 40)
+                    Spacer(minLength: 24)
 
                     panel(for: game)
                         .frame(width: 500)
                         .padding(.vertical, 40)
                         .focusSection()
                 }
-                .padding(.horizontal, 60)
-                .ignoresSafeArea(edges: .vertical)
+                // Full-bleed hero board (matches the review screen): all safe
+                // areas ignored, explicit paddings are the only margins, so
+                // the square reaches the full 1080 pt height.
+                .padding(.leading, 24)
+                .padding(.trailing, 40)
+                .ignoresSafeArea()
                 .overlay {
                     if isGameOver {
                         interstitial(for: game)
@@ -209,6 +217,7 @@ struct TVSelfPlayScreen: View {
                                                                 height: Int(board.height),
                                                                 limit: 4),
                             isEnabled: route.entry == .manual && !isGameOver,
+                            onFocus: { highlightedPoint = $0?.point },
                             onPick: pick)
 
             Spacer()

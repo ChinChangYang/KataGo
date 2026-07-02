@@ -20,7 +20,19 @@ struct TVBestMovesList: View {
     /// False renders non-focusable placeholder rows only (analysis off).
     let isEnabled: Bool
     var rowCount: Int = 4
+    /// Reports the candidate whose row currently has remote focus (nil when
+    /// focus leaves the rows) — the screens ring that point on the board.
+    var onFocus: (Analysis.CandidateMove?) -> Void = { _ in }
+    /// External focus handle for the FIRST row — the review screen's timeline
+    /// hops focus here on a down press (its onMoveCommand consumes the D-pad,
+    /// so the hop must be programmatic).
+    var firstRowFocus: FocusState<Bool>.Binding? = nil
     let onPick: (Analysis.CandidateMove) -> Void
+
+    /// The vertex of the focused row. Rows are identified by slot index, so
+    /// while analysis reorders the list a focused slot keeps focus, and this
+    /// value tracks whatever candidate currently occupies that slot.
+    @FocusState private var focusedVertex: String?
 
     private static let rowHeight: CGFloat = 38
 
@@ -32,15 +44,27 @@ struct TVBestMovesList: View {
 
             ForEach(0..<rowCount, id: \.self) { index in
                 if isEnabled, index < candidates.count {
-                    row(candidates[index])
+                    row(candidates[index], isFirst: index == 0)
                 } else {
                     placeholderRow
                 }
             }
         }
+        .onChange(of: focusedVertex) { _, newVertex in
+            onFocus(candidates.first { $0.vertex == newVertex })
+        }
     }
 
-    private func row(_ candidate: Analysis.CandidateMove) -> some View {
+    @ViewBuilder
+    private func row(_ candidate: Analysis.CandidateMove, isFirst: Bool) -> some View {
+        if isFirst, let firstRowFocus {
+            rowButton(candidate).focused(firstRowFocus)
+        } else {
+            rowButton(candidate)
+        }
+    }
+
+    private func rowButton(_ candidate: Analysis.CandidateMove) -> some View {
         Button {
             onPick(candidate)
         } label: {
@@ -62,6 +86,7 @@ struct TVBestMovesList: View {
             .frame(maxWidth: .infinity, minHeight: Self.rowHeight)
         }
         .buttonStyle(.bordered)
+        .focused($focusedVertex, equals: candidate.vertex)
     }
 
     /// A disabled button, so the chrome — and therefore the row height and

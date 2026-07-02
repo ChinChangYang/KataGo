@@ -149,8 +149,10 @@ struct TVScoreChart: View {
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
                 AxisGridLine()
+                // .footnote (was .title3): title3 digits taller than the axis
+                // slots read as cropped at the chart's 110 pt height.
                 AxisValueLabel()
-                    .font(.title3.monospacedDigit())
+                    .font(.footnote.monospacedDigit())
             }
         }
     }

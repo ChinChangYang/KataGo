@@ -157,7 +157,9 @@ struct TVLibraryView: View {
     @ViewBuilder
     private var sampleSection: some View {
         if TVSampleGameStore.sampleGame != nil || TVSampleGameStore.isAvailable {
-            VStack(spacing: 14) {
+            // 44 (was 14): the .card focus lift scales a focused card upward;
+            // without this clearance it slides over the header text.
+            VStack(spacing: 44) {
                 Text("Watch a game")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)

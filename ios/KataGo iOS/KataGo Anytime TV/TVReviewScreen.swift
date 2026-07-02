@@ -16,6 +16,13 @@ import KataGoUICore
 struct TVReviewScreen: View {
     let game: GameRecord
 
+    #if DEBUG
+    /// Preview-only: skip the entry load so staged fixture state (e.g. an
+    /// active branch) survives — loadGame would deactivate it. Never set in
+    /// production.
+    var previewSkipsLoad = false
+    #endif
+
     @Environment(GobanState.self) private var gobanState
     @Environment(Turn.self) private var player
     @Environment(BookLookup.self) private var bookLookup
@@ -29,54 +36,51 @@ struct TVReviewScreen: View {
     @Environment(Analysis.self) private var analysis
 
     @FocusState private var commentFocused: Bool
-    @FocusState private var boardFocused: Bool
+    /// The chart-timeline scrubber (the one element with an onMoveCommand).
+    @FocusState private var timelineFocused: Bool
+    /// Programmatic hop targets for the timeline's down press — its
+    /// onMoveCommand consumes the D-pad, so leaving it must be explicit.
+    @FocusState private var firstTopMoveFocused: Bool
+    @FocusState private var toggleFocused: Bool
     @State private var didLoad = false
     // Parsed once from the SGF at load (a C++ parse — never per body eval).
     @State private var totalMoves = 0
+    /// The Top Moves row under remote focus, ringed on the board.
+    @State private var highlightedPoint: BoardPoint?
 
     private var config: Config { game.concreteConfig }
 
     var body: some View {
-        // The board runs full-bleed vertically (only the panel keeps a vertical
-        // margin) so the goban is never shorter than the panel beside it —
-        // hero-content treatment, like video. Suppressing the captured-stone
-        // strip and pass row reclaims more grid, and the winrate bar is
-        // redundant with the panel's 34 pt readout.
+        // Full-bleed hero board: safe areas ignored on every edge, explicit
+        // paddings are the only margins, so the square reaches the screen's
+        // full 1080 pt height. The board is NOT focusable — the remote lives
+        // in the panel (the chart timeline steps moves).
         HStack(spacing: 0) {
-            // Constrained square so the drawing fills its frame and the focus
-            // ring hugs the board. It is the only focusable in its section, so
-            // the D-pad reaches `.onMoveCommand`; the ring says so on screen.
             BoardView(gameRecord: game,
                       interactive: false,
                       showsCapturedStones: false,
                       showsPass: false,
                       showsWinrateBar: false,
+                      highlightedPoint: highlightedPoint,
                       commentIsFocused: $commentFocused)
-                .aspectRatio(1, contentMode: .fit)
-                // Greedy height pins the board size to the screen, not to the
-                // panel's ideal height — the board must never resize when the
-                // panel's content (analysis toggle states) changes.
-                .frame(maxHeight: .infinity)
-                .focusable(true)
-                .focused($boardFocused)
-                .onMoveCommand(perform: step)
-                .focusSection()
-                .overlay {
-                    if boardFocused {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(.white.opacity(0.35), lineWidth: 3)
-                    }
-                }
+                // tvOS is always exactly 1920×1080 pt, so pin the square to
+                // the full screen height outright: inside the NavigationStack
+                // the safe-area insets survive ignoresSafeArea on this
+                // subtree, which silently shrank the fitted square to ~950 pt.
+                // A fixed frame also keeps the board independent of the
+                // panel's ideal height (it must never resize on toggles).
+                .frame(width: 1080, height: 1080)
 
-            Spacer(minLength: 40)
+            Spacer(minLength: 24)
 
             panel
                 .frame(width: 500)
-                .padding(.vertical, 22)
+                .padding(.vertical, 30)
                 .focusSection()
         }
-        .padding(.horizontal, 60)
-        .ignoresSafeArea(edges: .vertical)
+        .padding(.leading, 24)
+        .padding(.trailing, 40)
+        .ignoresSafeArea()
         .onAppear(perform: loadIfNeeded)
         .onDisappear {
             // Silent discard (user decision): variations explored here are
@@ -132,12 +136,23 @@ struct TVReviewScreen: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
 
-                // Score-lead history synced from iPhone/iPad/Mac reviews; an
-                // amber rule tracks the current move as the D-pad steps
-                // (branch-aware via displayIndex). Persisted data, so it stays
-                // up when analysis is off; explains itself when the game has
-                // no recorded history.
+                // The TIMELINE: the score chart doubles as the move scrubber
+                // (the amber rule is the playhead). Focus it and press
+                // left/right to step — holding auto-repeats into a scrub.
+                // Down hops focus out programmatically (the onMoveCommand
+                // consumes the D-pad); entry from below is natural focus
+                // movement. Works with analysis off (persisted values) and on
+                // the no-history placeholder alike.
                 TVScoreChart(gameRecord: game, currentIndex: displayIndex)
+                    .padding(8)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(timelineFocused ? Color.tvWoodAccent : .clear,
+                                    lineWidth: 3)
+                    }
+                    .focusable(true)
+                    .focused($timelineFocused)
+                    .onMoveCommand(perform: timelineMove)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,22 +162,28 @@ struct TVReviewScreen: View {
             // as a variation (forced branch — the synced record is never
             // written; Menu discards it). After a pick the turn flips and the
             // stream re-arms, so the list refreshes for the other color —
-            // alternate picks walk a line.
-            // Three rows: the review panel also carries the info row and two
-            // transport rows — a fourth candidate row clips the 1080 budget.
+            // alternate picks walk a line. While a variation is active the
+            // third row slot becomes the Exit Variation button (constant
+            // 3-row footprint, zero layout shift).
             TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
                                                                 height: Int(board.height),
-                                                                limit: 3),
+                                                                limit: gobanState.isBranchActive ? 2 : 3),
                             isEnabled: gobanState.eyeStatus != .closed,
-                            rowCount: 3,
+                            rowCount: gobanState.isBranchActive ? 2 : 3,
+                            onFocus: { highlightedPoint = $0?.point },
+                            firstRowFocus: $firstTopMoveFocused,
                             onPick: pick)
+
+            if gobanState.isBranchActive {
+                exitVariationRow
+            }
 
             infoRow
 
             Spacer()
 
-            navRow
             analysisToggle
+                .focused($toggleFocused)
         }
     }
 
@@ -264,15 +285,21 @@ struct TVReviewScreen: View {
         return String(format: "%@+%.1f", side, abs(s))
     }
 
-    // MARK: - Transport
+    // MARK: - Timeline + branch exit
 
-    private var navRow: some View {
-        HStack(spacing: 14) {
-            TVNavButton(systemName: "backward.end") { goToStart() }
-            TVNavButton(systemName: "backward.frame") { stepBy(-1) }
-            TVNavButton(systemName: "forward.frame") { stepBy(1) }
-            TVNavButton(systemName: "forward.end") { goToEnd() }
+    /// Leave the variation and return to the recorded mainline position:
+    /// loadGame deactivates the branch, reloads the SGF, rewinds to the
+    /// record's currentIndex, and sends showboard — one call does it all.
+    private var exitVariationRow: some View {
+        Button(action: exitVariation) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.uturn.backward")
+                Text("Exit Variation")
+            }
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 38)
         }
+        .buttonStyle(.bordered)
     }
 
     /// The one control: analysis ON = the engine runs and everything it
@@ -302,6 +329,9 @@ struct TVReviewScreen: View {
     // MARK: - Actions
 
     private func loadIfNeeded() {
+        #if DEBUG
+        guard !previewSkipsLoad else { return }
+        #endif
         guard !didLoad else { return }
         didLoad = true
         // Review is a SPECTATOR: a synced game configured AI-vs-AI on another
@@ -365,17 +395,36 @@ struct TVReviewScreen: View {
                                         messageList: messageList)
     }
 
-    private func goToStart() {
-        gobanState.backwardMoves(limit: nil, gameRecord: game, messageList: messageList,
-                                 player: player, stones: stones)
+    private func exitVariation() {
+        // A late printsgf from the variation's last pick must not find a
+        // writable selection while the branch is being torn down.
+        navigationContext.selectedGameRecord = nil
+        gobanState.loadGame(gameRecord: game, previous: nil, player: player,
+                            bookLookup: bookLookup, messageList: messageList,
+                            board: board, stones: stones)
         reanalyze()
     }
 
-    private func goToEnd() {
-        gobanState.forwardMoves(limit: nil, gameRecord: game, board: board,
-                                messageList: messageList, player: player,
-                                audioModel: audioModel, stones: stones)
-        reanalyze()
+    /// The timeline's D-pad handler. Left/right step (holding auto-repeats
+    /// into a scrub); down hops focus out programmatically — an onMoveCommand
+    /// consumes every direction, so without the hop the timeline would trap
+    /// focus the way the old focusable board did.
+    private func timelineMove(_ direction: MoveCommandDirection) {
+        switch direction {
+        case .left:
+            stepBy(-1)
+        case .right:
+            stepBy(1)
+        case .down:
+            if gobanState.eyeStatus != .closed, !analysis.info.isEmpty {
+                firstTopMoveFocused = true
+            } else {
+                // Rows are placeholders (not focusable) — land on the toggle.
+                toggleFocused = true
+            }
+        default:
+            break
+        }
     }
 
     private func stepBy(_ delta: Int) {
@@ -390,30 +439,6 @@ struct TVReviewScreen: View {
         reanalyze()
     }
 
-    private func step(_ direction: MoveCommandDirection) {
-        switch direction {
-        case .left:  stepBy(-1)
-        case .right: stepBy(1)
-        case .up:    stepBy(10)
-        case .down:  stepBy(-10)
-        default:     break
-        }
-    }
-}
-
-/// One move-navigation transport button (icon-only, fixed 56 pt height).
-private struct TVNavButton: View {
-    let systemName: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.title2)
-                .frame(maxWidth: .infinity, minHeight: 56)
-        }
-        .buttonStyle(.bordered)
-    }
 }
 
 /// A labelled toggle whose state reads at 10 feet without relying on a valid
@@ -494,9 +519,10 @@ extension Color {
 private struct TVReviewPreviewHost: View {
     let game: GameRecord
     let session: GameSession
+    var skipsLoad = false
 
     var body: some View {
-        TVReviewScreen(game: game)
+        TVReviewScreen(game: game, previewSkipsLoad: skipsLoad)
             .environment(session.stones)
             .environment(session.messageList)
             .environment(session.board)
@@ -553,6 +579,22 @@ private struct TVReviewPreviewHost: View {
     session.gobanState.analysisStatus = .clear
     session.gobanState.eyeStatus = .closed
     return TVReviewPreviewHost(game: game, session: session)
+}
+
+// Variation (branch) active: red board border, two candidate rows + the
+// Exit Variation row in the third slot (constant 3-row footprint), board
+// ringing the staged focused candidate.
+#Preview("Review — variation, exit row") {
+    let game = TVPreviewData.openingGame()
+    let session = TVPreviewData.reviewSession(game: game,
+                                              blackWinrate: 0.55,
+                                              blackScore: 1.5)
+    session.gobanState.analysisStatus = .run
+    session.gobanState.eyeStatus = .opened
+    session.gobanState.branchSgf = game.sgf
+    session.gobanState.branchIndex = 6
+    // Skip the entry load: it would deactivate the staged branch.
+    return TVReviewPreviewHost(game: game, session: session, skipsLoad: true)
 }
 
 // The common freshly-synced-game state: analysis on but no scoreLeads history
