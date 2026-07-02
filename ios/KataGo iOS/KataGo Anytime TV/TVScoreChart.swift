@@ -6,10 +6,11 @@
 //  dark above the zero baseline, White-leading regions fill light below, so
 //  who's ahead reads from across the room. Data is the per-move score-lead
 //  history recorded while reviewing on iPhone/iPad/Mac (GameRecord.scoreLeads,
-//  synced via CloudKit) — the TV only reads it, never writes. A wood-amber rule
-//  marks the current move (legended by the adjacent "Move N" readout) and
-//  tracks D-pad stepping. Read-only: no selection or scrubbing (a focusable
-//  chart would fight section navigation).
+//  synced via CloudKit) — the TV only reads it, never writes, so the chart
+//  stays up regardless of the analysis toggle (only live engine outputs hide
+//  with it). A wood-amber rule marks the current move (legended by the
+//  adjacent "Move N" readout) and tracks D-pad stepping. Read-only: no
+//  selection or scrubbing (a focusable chart would fight section navigation).
 //
 
 import SwiftUI
@@ -18,6 +19,10 @@ import KataGoUICore
 
 struct TVScoreChart: View {
     let gameRecord: GameRecord
+    /// The move the wood-amber rule marks. The review screen passes its display
+    /// index (branch-aware, so the marker tracks variation stepping); nil falls
+    /// back to the record's own mainline position.
+    var currentIndex: Int? = nil
     /// Shown when the record has no usable history. The review default points
     /// at the other devices that produce history; the self-play screen passes
     /// nil to render nothing instead — its chart fills itself live within a
@@ -25,7 +30,7 @@ struct TVScoreChart: View {
     var noHistoryMessage: String? =
         "No score history yet. Step through this game with analysis on iPhone, iPad, or Mac and the chart will sync here."
 
-    @Environment(GobanState.self) private var gobanState
+    private var markedIndex: Int { currentIndex ?? gameRecord.currentIndex }
 
     private struct LeadPoint: Identifiable {
         let move: Double
@@ -55,13 +60,14 @@ struct TVScoreChart: View {
     }
 
     var body: some View {
-        // Hidden entirely with the analysis overlay (same rule as the iOS
-        // chart). With the overlay up but no usable history (the game was
-        // never stepped through with analysis on iPhone/iPad/Mac — the common
-        // state for freshly synced games), an explanatory placeholder takes
-        // the chart's place instead of leaving a hole in the panel.
+        // Persisted history is valid whether or not the engine is running, so
+        // the chart ignores the analysis toggle (keeping the panel layout
+        // stable). With no usable history (the game was never stepped through
+        // with analysis on iPhone/iPad/Mac — the common state for freshly
+        // synced games), an explanatory placeholder takes the chart's place
+        // instead of leaving a hole in the panel.
         let points = self.points
-        if gobanState.eyeStatus != .closed, points.count >= 2 || noHistoryMessage != nil {
+        if points.count >= 2 || noHistoryMessage != nil {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Score Lead")
@@ -72,15 +78,17 @@ struct TVScoreChart: View {
                         // The legend for the current-move rule below: same
                         // accent, directly adjacent — no color-matching at a
                         // distance, no alarm-red.
-                        Text("Move \(gameRecord.currentIndex)")
+                        Text("Move \(markedIndex)")
                             .font(.callout.weight(.semibold))
                             .monospacedDigit()
                             .foregroundStyle(Color.tvWoodAccent)
                     }
                 }
                 if points.count >= 2 {
+                    // 110 (was 160): the panel also hosts the Top Moves rows
+                    // now, and the trend still reads fine at this height.
                     chart(points: points)
-                        .frame(height: 160)
+                        .frame(height: 110)
                 } else if let noHistoryMessage {
                     Text(noHistoryMessage)
                         .font(.callout)
@@ -97,7 +105,7 @@ struct TVScoreChart: View {
         let leads = points.map(\.lead)
         let minY = min(-10, leads.min() ?? 0)
         let maxY = max(10, leads.max() ?? 0)
-        let maxX = max(points.last?.move ?? 0, Double(gameRecord.currentIndex))
+        let maxX = max(points.last?.move ?? 0, Double(markedIndex))
 
         return Chart {
             // Dual-tone fills, each series clamped at zero. Graphite above the
@@ -131,7 +139,7 @@ struct TVScoreChart: View {
                 .foregroundStyle(.gray)
                 .lineStyle(.init(lineWidth: 1, dash: [4, 4]))
 
-            RuleMark(x: .value("Current", Double(gameRecord.currentIndex)))
+            RuleMark(x: .value("Current", Double(markedIndex)))
                 .foregroundStyle(Color.tvWoodAccent)
                 .lineStyle(.init(lineWidth: 2, dash: [4, 2]))
         }
@@ -155,33 +163,27 @@ struct TVScoreChart: View {
 #if DEBUG
 // Dense zero-crossing history: both tones, mid-game marker.
 #Preview("Chart — dense history") {
-    let gobanState = GobanState()
-    return TVScoreChart(gameRecord: TVPreviewData.denseAnalyzedGame())
+    TVScoreChart(gameRecord: TVPreviewData.denseAnalyzedGame())
         .padding(28)
         .frame(width: 500)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
-        .environment(gobanState)
 }
 
 // Short six-point history — the sparse-but-visible lower bound.
 #Preview("Chart — sparse history") {
-    let gobanState = GobanState()
-    return TVScoreChart(gameRecord: TVPreviewData.openingGame())
+    TVScoreChart(gameRecord: TVPreviewData.openingGame())
         .padding(28)
         .frame(width: 500)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
-        .environment(gobanState)
 }
 
-// No usable history with the overlay up: the explanatory placeholder takes the
-// chart's place (with the overlay closed the whole view renders nothing —
-// covered by the review-screen "overlay off" previews).
+// No usable history: the explanatory placeholder takes the chart's place
+// (rendered regardless of the analysis toggle — persisted data never goes
+// stale, and a constant panel layout is the point).
 #Preview("Chart — no history placeholder") {
-    let gobanState = GobanState()
-    return TVScoreChart(gameRecord: TVPreviewData.untitledFallbackGame())
+    TVScoreChart(gameRecord: TVPreviewData.untitledFallbackGame())
         .padding(28)
         .frame(width: 500)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
-        .environment(gobanState)
 }
 #endif

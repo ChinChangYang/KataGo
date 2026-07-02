@@ -147,6 +147,17 @@ struct TVRootView: View {
             // can precede it.
             session.autoCreatesGameOnEmptyLibrary = false
 
+            // tvOS draws the standard diagram orientation (GTP row 1 at the
+            // bottom), matching the WidgetBoardView card thumbnails.
+            // GlobalPreferenceSync never runs on TV, so nothing overwrites it.
+            session.gobanState.verticalFlip = false
+
+            // Stream continuous kata-analyze at the game's analysisInterval
+            // (default 0.5 s) instead of the 0.1 s fast-first-report interval:
+            // 10 Hz of info+ownership parsing visibly bogs down the A15 UI,
+            // and unlike iOS the TV root never re-arms at the config interval.
+            session.gobanState.continuousAnalysisUsesConfigInterval = true
+
             // Start the sync monitor at launch, in parallel with the engine
             // handshake — the grace window and account check tick behind
             // "Loading engine…", so by the time the library appears the
@@ -170,8 +181,8 @@ struct TVRootView: View {
         guard !engineStarted, !isRunningInPreview else { return }
         engineStarted = true
         engineLifecycle.reset()
-        // Built-in b18 net + tvOS defaults (CoreML/NE device [100], 1 search
-        // thread, human-SL net skipped). Needs a >512 KB stack (BoardHistory
+        // Built-in b18 net + tvOS defaults (CoreML/NE device [100], 2 search
+        // threads, human-SL net skipped). Needs a >512 KB stack (BoardHistory
         // copies) — match the iOS app's 1 MB.
         let engineThread = Thread { KataGoHelper.runGtp() }
         engineThread.stackSize = 4096 * 256

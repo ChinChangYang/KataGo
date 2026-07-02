@@ -105,6 +105,9 @@ enum TVPreviewData {
                               blackWinrate: Float,
                               blackScore: Float) -> GameSession {
         let session = GameSession()
+        // Match TVRootView's launch task: tvOS draws the standard diagram
+        // orientation (GTP row 1 at the bottom, like the card thumbnails).
+        session.gobanState.verticalFlip = false
         session.board.width = 19
         session.board.height = 19
         session.stones.blackPoints = [BoardPoint(x: 15, y: 15),
@@ -116,6 +119,17 @@ enum TVPreviewData {
         session.stones.whiteStonesCaptured = 5
         session.rootWinrate.black = blackWinrate
         session.rootScore.black = blackScore
+        // Live candidates on empty points, strongest first by visits, so the
+        // Top Moves list (and the board overlay circles) render populated.
+        session.analysis.nextColorForAnalysis = .black
+        session.analysis.info = [
+            BoardPoint(x: 2, y: 2): AnalysisInfo(visits: 1842, winrate: 0.54,
+                                                 scoreLead: 2.3, utilityLcb: 0.40),
+            BoardPoint(x: 16, y: 5): AnalysisInfo(visits: 907, winrate: 0.51,
+                                                  scoreLead: 0.8, utilityLcb: 0.20),
+            BoardPoint(x: 9, y: 9): AnalysisInfo(visits: 213, winrate: 0.47,
+                                                 scoreLead: -0.5, utilityLcb: -0.10),
+        ]
         // Black = Human (no thinking time), White = AI (0.5 s per move).
         game.concreteConfig.optionalBlackMaxTime = 0
         game.concreteConfig.optionalWhiteMaxTime = 0.5

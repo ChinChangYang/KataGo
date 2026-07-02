@@ -322,6 +322,55 @@ public class Analysis {
         return coordinate?.move
     }
 
+    /// One entry of the live candidate-move ranking, ready for a list UI: the
+    /// GTP vertex ("Q16" / "pass") both labels the row and is the exact string
+    /// a play/kata-check-move command takes. `winrate`/`scoreLead` stay in the
+    /// side-to-move perspective `info` uses, so a list shows the same numbers
+    /// as the on-board overlay circles.
+    public struct CandidateMove: Identifiable, Sendable {
+        public let vertex: String
+        public let point: BoardPoint
+        public let visits: Int
+        public let winrate: Float
+        public let scoreLead: Float
+        public let utilityLcb: Float
+        public var id: String { vertex }
+
+        public init(vertex: String, point: BoardPoint, visits: Int,
+                    winrate: Float, scoreLead: Float, utilityLcb: Float) {
+            self.vertex = vertex
+            self.point = point
+            self.visits = visits
+            self.winrate = winrate
+            self.scoreLead = scoreLead
+            self.utilityLcb = utilityLcb
+        }
+    }
+
+    /// The current candidates ordered strongest-first: by visits (the search's
+    /// own ranking), tie-broken by utilityLcb then vertex so equal-visit
+    /// entries from the Dictionary come out deterministically. Entries whose
+    /// point does not convert to a vertex on this board are dropped.
+    public func candidateMoves(width: Int, height: Int, limit: Int = 5) -> [CandidateMove] {
+        info.compactMap { point, moveInfo -> CandidateMove? in
+            guard let vertex = Coordinate(x: point.x, y: point.y + 1,
+                                          width: width, height: height)?.move else { return nil }
+            return CandidateMove(vertex: vertex,
+                                 point: point,
+                                 visits: moveInfo.visits,
+                                 winrate: moveInfo.winrate,
+                                 scoreLead: moveInfo.scoreLead,
+                                 utilityLcb: moveInfo.utilityLcb)
+        }
+        .sorted {
+            if $0.visits != $1.visits { return $0.visits > $1.visits }
+            if $0.utilityLcb != $1.utilityLcb { return $0.utilityLcb > $1.utilityLcb }
+            return $0.vertex < $1.vertex
+        }
+        .prefix(limit)
+        .map { $0 }
+    }
+
     public func clear() {
         info = [:]
         ownershipUnits = []

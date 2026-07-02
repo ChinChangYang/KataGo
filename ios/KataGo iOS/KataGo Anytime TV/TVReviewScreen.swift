@@ -26,6 +26,7 @@ struct TVReviewScreen: View {
     @Environment(Winrate.self) private var rootWinrate
     @Environment(Score.self) private var rootScore
     @Environment(NavigationContext.self) private var navigationContext
+    @Environment(Analysis.self) private var analysis
 
     @FocusState private var commentFocused: Bool
     @FocusState private var boardFocused: Bool
@@ -52,6 +53,10 @@ struct TVReviewScreen: View {
                       showsWinrateBar: false,
                       commentIsFocused: $commentFocused)
                 .aspectRatio(1, contentMode: .fit)
+                // Greedy height pins the board size to the screen, not to the
+                // panel's ideal height — the board must never resize when the
+                // panel's content (analysis toggle states) changes.
+                .frame(maxHeight: .infinity)
                 .focusable(true)
                 .focused($boardFocused)
                 .onMoveCommand(perform: step)
@@ -67,13 +72,21 @@ struct TVReviewScreen: View {
 
             panel
                 .frame(width: 500)
-                .padding(.vertical, 40)
+                .padding(.vertical, 22)
                 .focusSection()
         }
         .padding(.horizontal, 60)
         .ignoresSafeArea(edges: .vertical)
         .onAppear(perform: loadIfNeeded)
-        .onDisappear { gobanState.maybePauseAnalysis() }
+        .onDisappear {
+            // Silent discard (user decision): variations explored here are
+            // throwaway — the synced record was never written. Selection is
+            // cleared FIRST so a late printsgf reply finds no writer.
+            navigationContext.selectedGameRecord = nil
+            gobanState.deactivateBranch()
+            gobanState.forcesBranchOnPlay = false
+            gobanState.maybePauseAnalysis()
+        }
     }
 
     // MARK: - Analysis + transport panel
@@ -81,49 +94,68 @@ struct TVReviewScreen: View {
     private var panel: some View {
         // Spacing/padding and the title/chart sizes are a 1080 pt vertical
         // budget — the full analysis-on stack (2-line title through both
-        // toggles) clips at the original 24/24/200/.title values.
-        VStack(alignment: .leading, spacing: 20) {
+        // toggles) clips at the original 24/24/200/.title values, and the
+        // Top Moves rows squeezed the block spacing from 20 to 10.
+        VStack(alignment: .leading, spacing: 10) {
             Text(game.name.isEmpty ? "Untitled" : game.name)
                 .font(.title2.bold())
-                .lineLimit(2)
-                // Wrap to the second line instead of truncating the first.
-                .fixedSize(horizontal: false, vertical: true)
+                // One line, shrinking to fit: a second title line was
+                // affordable before the Top Moves rows, but now it overflows
+                // the 1080 budget (title clips at the top, the analysis
+                // toggle at the bottom).
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
 
             VStack(spacing: 14) {
                 playerRow(.black)
                 playerRow(.white)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                // Winrate and score are engine outputs — stale (and wrong for
-                // the position once you step) when analysis is off, so they
-                // hide with it. Only the turn fact below survives OFF.
-                if gobanState.eyeStatus != .closed {
-                    // Sized to fit "Black 100%   White 0%" in the panel without
-                    // auto-shrinking below the secondary score line.
-                    Text(winRateText)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    // Clearly subordinate to the 34 pt winrate headline above.
-                    Text("Score \(scoreText)")
-                        .font(.body.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                // Always rendered at fixed metrics so the analysis toggle
+                // never reflows the panel. Analysis ON shows the live engine
+                // outputs; OFF falls back to the per-move values recorded on
+                // iPhone/iPad/Mac (valid for the displayed mainline position),
+                // or an em-dash when none exist / a variation is shown.
+                // Sized to fit "Black 100%   White 0%" in the panel without
+                // auto-shrinking below the secondary score line.
+                Text(winRateText)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                // Clearly subordinate to the 34 pt winrate headline above.
+                Text("Score \(scoreText)")
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 Text("\(player.nextColorForPlayCommand == .black ? "Black" : "White") to play")
                     .font(.body)
                     .foregroundStyle(.secondary)
 
                 // Score-lead history synced from iPhone/iPad/Mac reviews; an
-                // amber rule tracks the current move as the D-pad steps.
-                // Hidden when the overlay is off; explains itself when the
-                // game has no recorded history.
-                TVScoreChart(gameRecord: game)
+                // amber rule tracks the current move as the D-pad steps
+                // (branch-aware via displayIndex). Persisted data, so it stays
+                // up when analysis is off; explains itself when the game has
+                // no recorded history.
+                TVScoreChart(gameRecord: game, currentIndex: displayIndex)
             }
-            .padding(20)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
+
+            // The engine's live candidates, clickable: a pick plays that move
+            // as a variation (forced branch — the synced record is never
+            // written; Menu discards it). After a pick the turn flips and the
+            // stream re-arms, so the list refreshes for the other color —
+            // alternate picks walk a line.
+            // Three rows: the review panel also carries the info row and two
+            // transport rows — a fourth candidate row clips the 1080 budget.
+            TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
+                                                                height: Int(board.height),
+                                                                limit: 3),
+                            isEnabled: gobanState.eyeStatus != .closed,
+                            rowCount: 3,
+                            onPick: pick)
 
             infoRow
 
@@ -143,7 +175,7 @@ struct TVReviewScreen: View {
         // alone "New Zealand"); the trailing Spacer keeps them left-grouped.
         // A 4th column doesn't fit at full size — don't add one.
         HStack(alignment: .top, spacing: 28) {
-            infoItem("Move", "\(game.currentIndex) / \(max(totalMoves, game.currentIndex))")
+            infoItem("Move", "\(displayIndex) / \(max(totalMoves, displayIndex))")
             infoItem("Komi", String(format: "%.1f", config.komi))
             infoItem("Rules", ruleText)
             Spacer(minLength: 0)
@@ -188,13 +220,46 @@ struct TVReviewScreen: View {
         }
     }
 
+    /// The move the panel is showing: the variation position while a branch is
+    /// active, the record's mainline position otherwise.
+    private var displayIndex: Int {
+        gobanState.getCurrentIndex(gameRecord: game) ?? game.currentIndex
+    }
+
+    /// Analysis OFF falls back to the persisted per-move values. They are
+    /// mainline-indexed, so a branch position has none — nil means em-dash.
+    private var persistedBlackWinrate: Float? {
+        guard gobanState.eyeStatus == .closed else { return nil }
+        guard !gobanState.isBranchActive else { return nil }
+        return game.winRates?[displayIndex]
+    }
+
+    private var persistedBlackScore: Float? {
+        guard gobanState.eyeStatus == .closed else { return nil }
+        guard !gobanState.isBranchActive else { return nil }
+        return game.scoreLeads?[displayIndex]
+    }
+
     private var winRateText: String {
-        let b = Int((rootWinrate.black * 100).rounded())
+        let winrate: Float
+        if gobanState.eyeStatus == .closed {
+            guard let persisted = persistedBlackWinrate else { return "Black —   White —" }
+            winrate = persisted
+        } else {
+            winrate = rootWinrate.black
+        }
+        let b = Int((winrate * 100).rounded())
         return "Black \(b)%   White \(100 - b)%"
     }
 
     private var scoreText: String {
-        let s = rootScore.black
+        let s: Float
+        if gobanState.eyeStatus == .closed {
+            guard let persisted = persistedBlackScore else { return "—" }
+            s = persisted
+        } else {
+            s = rootScore.black
+        }
         let side = s >= 0 ? "B" : "W"
         return String(format: "%@+%.1f", side, abs(s))
     }
@@ -220,8 +285,10 @@ struct TVReviewScreen: View {
                        isOn: gobanState.analysisStatus == .run) {
             if gobanState.analysisStatus == .run {
                 // .clear is observed at the TVRootView, which sends GTP "stop";
-                // closing the eye hides the board overlay, the live winrate
-                // and score, and the chart in one move.
+                // closing the eye hides the board overlay and switches the
+                // panel's winrate/score to the persisted per-move values. The
+                // chart and the panel layout stay put — persisted data never
+                // goes stale, and the board/panel must not reflow on toggle.
                 gobanState.analysisStatus = .clear
                 gobanState.eyeStatus = .closed
             } else {
@@ -239,10 +306,16 @@ struct TVReviewScreen: View {
         didLoad = true
         // Review is a SPECTATOR: a synced game configured AI-vs-AI on another
         // device must not start playing itself here — suppress the gen-move
-        // branch so such a game streams plain analysis instead. And no record
-        // may be "selected" during review (the self-play screen owns that):
-        // a stale selection would route this game's printsgf replies into it.
+        // branch so such a game streams plain analysis instead (this flag
+        // also drops a cancelled search's stray "play" reply at
+        // postProcessAIMove). No record is selected at LOAD: a printsgf
+        // reply still queued from the previous screen's last move could
+        // otherwise land after the selection swap — with no branch active,
+        // maybeCollectSgf would write it into this synced record. The first
+        // Top Moves pick selects the record instead (see pick()) — by then
+        // every pre-review reply has drained while the selection was nil.
         gobanState.suppressesGenMove = true
+        gobanState.forcesBranchOnPlay = true
         navigationContext.selectedGameRecord = nil
         gobanState.loadGame(gameRecord: game, previous: nil, player: player,
                             bookLookup: bookLookup, messageList: messageList,
@@ -267,6 +340,29 @@ struct TVReviewScreen: View {
         gobanState.requestAnalysis(config: game.concreteConfig,
                                    messageList: messageList,
                                    nextColorForPlayCommand: player.nextColorForPlayCommand)
+    }
+
+    /// Play a Top Moves candidate. The kata-check-move legality round-trip is
+    /// the same path a board tap takes on iOS: its reply plays the move via
+    /// playPendingHumanMove, which (forced branch) captures the variation
+    /// before requesting printsgf — so with the record selected here, every
+    /// printsgf reply routes into branchSgf and the synced record is never
+    /// written (isEditing == false keeps maybeUpdateAnalysisData inert too).
+    /// The turn flip then re-fires BoardView's observer, the suppressed
+    /// stream re-arms as plain kata-analyze for the new position, and the
+    /// list refills for the other color.
+    private func pick(_ candidate: Analysis.CandidateMove) {
+        guard gobanState.analysisStatus == .run,
+              stones.isReady,
+              !gobanState.waitingForAnalysis,     // candidates are for the shown position
+              gobanState.pendingMoveTurn == nil,  // one pick in flight at a time
+              let turn = player.nextColorSymbolForPlayCommand else { return }
+        // Selected lazily (not at load) so a stale printsgf reply from the
+        // previous screen can never find a writable selection here;
+        // maybeCollectCheckMove needs it set when the legality reply lands.
+        navigationContext.selectedGameRecord = game
+        gobanState.sendCheckMoveCommand(turn: turn, move: candidate.vertex,
+                                        messageList: messageList)
     }
 
     private func goToStart() {
@@ -411,6 +507,7 @@ private struct TVReviewPreviewHost: View {
             .environment(session.rootScore)
             .environment(session.bookLookup)
             .environment(AudioModel())
+            .environment(NavigationContext())
     }
 }
 
@@ -428,14 +525,31 @@ private struct TVReviewPreviewHost: View {
 }
 
 // Analysis OFF (the one-bit off state, persisted through entry normalization
-// because the status is .clear): no winrate/score/chart/caption — only the
-// to-play line, info row, transport, and the single gray OFF toggle. Untitled
-// game (falls back to "Untitled").
+// because the status is .clear): the panel keeps its full layout — winrate/
+// score fall back to the persisted per-move values (em-dash here: this
+// fixture records none at the shown index), the chart placeholder stays, and
+// the Top Moves rows render as non-focusable placeholders. Only the board
+// overlay and live numbers are gone. Untitled game (falls back to
+// "Untitled").
 #Preview("Review — analysis off, W+") {
     let game = TVPreviewData.untitledFallbackGame()
     let session = TVPreviewData.reviewSession(game: game,
                                               blackWinrate: 0.31,
                                               blackScore: -12.5)
+    session.gobanState.analysisStatus = .clear
+    session.gobanState.eyeStatus = .closed
+    return TVReviewPreviewHost(game: game, session: session)
+}
+
+// Analysis OFF on a move whose winrate/score WERE recorded on iPhone/iPad/Mac:
+// the panel shows those persisted values (not em-dashes) plus the full chart —
+// the layout is byte-identical to analysis ON.
+#Preview("Review — analysis off, persisted values") {
+    let game = TVPreviewData.openingGame()
+    game.winRates = [5: 0.58]
+    let session = TVPreviewData.reviewSession(game: game,
+                                              blackWinrate: 0.62,
+                                              blackScore: 3.5)
     session.gobanState.analysisStatus = .clear
     session.gobanState.eyeStatus = .closed
     return TVReviewPreviewHost(game: game, session: session)

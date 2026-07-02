@@ -59,6 +59,7 @@ struct TVSelfPlayScreen: View {
     @Environment(Winrate.self) private var rootWinrate
     @Environment(Score.self) private var rootScore
     @Environment(NavigationContext.self) private var navigationContext
+    @Environment(Analysis.self) private var analysis
     @Environment(\.dismiss) private var dismiss
 
     @FocusState private var commentFocused: Bool
@@ -71,13 +72,38 @@ struct TVSelfPlayScreen: View {
 
     private var isGameOver: Bool { gobanState.passCount >= 2 }
 
+    /// Pause = the shared spectator flag: with it set, the gen-move gate falls
+    /// through to plain continuous kata-analyze, so the board keeps analyzing
+    /// (and the Top Moves list stays live) while nobody plays. One source of
+    /// truth — previews stage it directly on the session.
+    private var isPaused: Bool { gobanState.suppressesGenMove }
+
     var body: some View {
+        // Attract is a screensaver: the root owns focus and ANY press exits.
+        // Manual is interactive: the root must NOT be focusable and must not
+        // handle move commands (a root-level onMoveCommand swallows child
+        // focus navigation — the TVLibraryView gotcha), so the D-pad reaches
+        // the panel's pause button and Top Moves rows.
+        if route.entry == .attract {
+            content
+                .focusable(true)
+                .onMoveCommand { _ in dismiss() }
+                .onPlayPauseCommand { dismiss() }
+                .onTapGesture { dismiss() }
+        } else {
+            content
+                .onPlayPauseCommand { togglePause() }
+        }
+    }
+
+    private var content: some View {
         Group {
             if let game {
                 HStack(spacing: 0) {
                     // Same hero-board geometry as the review screen, but the
                     // board is NOT focusable — there is nothing to step; the
-                    // screen root handles the remote.
+                    // panel (manual) or the screen root (attract) handles the
+                    // remote.
                     BoardView(gameRecord: game,
                               interactive: false,
                               showsCapturedStones: false,
@@ -85,12 +111,17 @@ struct TVSelfPlayScreen: View {
                               showsWinrateBar: false,
                               commentIsFocused: $commentFocused)
                         .aspectRatio(1, contentMode: .fit)
+                        // Same board-size pin as the review screen: the panel
+                        // (pause button, Top Moves states) must never drive
+                        // the board's geometry.
+                        .frame(maxHeight: .infinity)
 
                     Spacer(minLength: 40)
 
                     panel(for: game)
                         .frame(width: 500)
                         .padding(.vertical, 40)
+                        .focusSection()
                 }
                 .padding(.horizontal, 60)
                 .ignoresSafeArea(edges: .vertical)
@@ -105,10 +136,6 @@ struct TVSelfPlayScreen: View {
                 Color.clear
             }
         }
-        .focusable(true)
-        .onMoveCommand { _ in exitIfAttract() }
-        .onPlayPauseCommand { exitIfAttract() }
-        .onTapGesture { exitIfAttract() }
         // Attached ⇒ replaces the default Menu pop; reproduce it for BOTH
         // modes so Menu always leaves the demo.
         .onExitCommand { dismiss() }
@@ -172,7 +199,23 @@ struct TVSelfPlayScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
 
+            // Clickable candidates: a pick plays that move for the side to
+            // move (the in-memory record is in editing mode — no branch).
+            // While the game runs, the pick's legality check cancels the
+            // in-flight gen-move and the AI answers the user's move; while
+            // paused, alternate picks explore a line. In attract mode the
+            // rows are placeholders (not focusable) so any press still exits.
+            TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
+                                                                height: Int(board.height),
+                                                                limit: 4),
+                            isEnabled: route.entry == .manual && !isGameOver,
+                            onPick: pick)
+
             Spacer()
+
+            if route.entry == .manual {
+                pauseResumeButton
+            }
 
             Text(route.entry == .attract
                  ? "Press any button to exit"
@@ -182,13 +225,30 @@ struct TVSelfPlayScreen: View {
         }
     }
 
+    /// Pause/resume the live game (manual mode only — in attract, any press
+    /// exits instead). Mirrors the remote's Play/Pause key; disabled during
+    /// the interstitial, whose restart owns that phase.
+    private var pauseResumeButton: some View {
+        Button(action: togglePause) {
+            HStack(spacing: 10) {
+                Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                Text(isPaused ? "Resume" : "Pause")
+            }
+            .font(.title3)
+            .frame(maxWidth: .infinity, minHeight: 56)
+        }
+        .buttonStyle(.bordered)
+        .disabled(isGameOver)
+    }
+
     private var liveBadge: some View {
-        Text("Live")
+        Text(isPaused ? "Paused" : "Live")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.black)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.tvWoodAccent, in: Capsule())
+            .background(isPaused ? Color(white: 0.75) : Color.tvWoodAccent,
+                        in: Capsule())
     }
 
     private func playerRow(_ color: PlayerColor) -> some View {
@@ -264,8 +324,11 @@ struct TVSelfPlayScreen: View {
         }
         game = newGame
 
-        // This screen is the player, not a spectator of a synced record.
+        // This screen is the player, not a spectator of a synced record —
+        // and entry is always un-paused. Picks play directly into the
+        // in-memory record (editing mode), never via a branch.
         gobanState.suppressesGenMove = false
+        gobanState.forcesBranchOnPlay = false
         // Required or postProcessAIMove drops every engine reply; also routes
         // each move's printsgf into the in-memory record.
         navigationContext.selectedGameRecord = newGame
@@ -313,6 +376,9 @@ struct TVSelfPlayScreen: View {
         navigationContext.selectedGameRecord = next
         gobanState.passCount = 0
         gobanState.analysisStatus = .run
+        // A paused game can still end (two picked passes) — the next game
+        // always starts live.
+        gobanState.suppressesGenMove = false
 
         // loadsgf inherently cancels the continuous analysis of the finished
         // position; the rest of the setup mirrors first entry.
@@ -354,10 +420,34 @@ struct TVSelfPlayScreen: View {
         game = nil
     }
 
-    private func exitIfAttract() {
-        if route.entry == .attract {
-            dismiss()
-        }
+    /// Pause: raise the spectator flag, then re-request — the arriving
+    /// kata-analyze command cancels the in-flight gen-move server-side, and
+    /// the cancelled search's trailing "play" line is dropped by
+    /// postProcessAIMove's suppressesGenMove guard, so the pause is crisp
+    /// (no move lands after the press). Analysis keeps streaming.
+    /// Resume: clear the flag and re-request — with both maxTimes > 0 that
+    /// emits the gen-move command directly and the loop continues from the
+    /// current (possibly user-explored) position.
+    private func togglePause() {
+        guard let game, !isGameOver else { return }
+        gobanState.suppressesGenMove.toggle()
+        gobanState.requestAnalysis(config: game.concreteConfig,
+                                   messageList: messageList,
+                                   nextColorForPlayCommand: player.nextColorForPlayCommand)
+    }
+
+    /// Play a Top Moves candidate for the side to move. The kata-check-move
+    /// line cancels an in-flight gen-move (its trailing "play" reply is
+    /// dropped while the pick is pending); the legality reply then plays the
+    /// pick directly into the in-memory record. If the AI's own move landed
+    /// first, the reply is wrong_turn and the pick is silently dropped.
+    private func pick(_ candidate: Analysis.CandidateMove) {
+        guard !isGameOver,
+              stones.isReady,
+              gobanState.pendingMoveTurn == nil,
+              let turn = player.nextColorSymbolForPlayCommand else { return }
+        gobanState.sendCheckMoveCommand(turn: turn, move: candidate.vertex,
+                                        messageList: messageList)
     }
 }
 
@@ -443,6 +533,19 @@ private struct TVSelfPlayPreviewHost: View {
                                               blackScore: 1.5)
     session.gobanState.analysisStatus = .run
     session.gobanState.eyeStatus = .opened
+    return TVSelfPlayPreviewHost(game: game, session: session)
+}
+
+// Paused mid-game: the badge reads "Paused", the button offers Resume, and
+// the Top Moves rows stay live (the spectator flag keeps analysis streaming).
+#Preview("Self-play — paused") {
+    let game = TVPreviewData.denseAnalyzedGame()
+    let session = TVPreviewData.reviewSession(game: game,
+                                              blackWinrate: 0.55,
+                                              blackScore: 1.5)
+    session.gobanState.analysisStatus = .run
+    session.gobanState.eyeStatus = .opened
+    session.gobanState.suppressesGenMove = true
     return TVSelfPlayPreviewHost(game: game, session: session)
 }
 

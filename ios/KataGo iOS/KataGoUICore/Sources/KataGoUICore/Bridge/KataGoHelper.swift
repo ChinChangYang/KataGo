@@ -15,10 +15,12 @@ public class KataGoHelper {
     public static let mlxNnMaxBatchSize = 8
 #elseif os(tvOS)
     // Apple TV 4K, CoreML/ANE-only, under a tight per-process memory limit:
-    // 1 search thread + a small NN batch keep steady-state RSS predictable for
-    // continuous kata-analyze. Pick these once — mlxNnMaxBatchSize is part of the
-    // CoreML compiled-model cache key, so changing it forces a cold reconvert.
-    public static let mlxNumSearchThreads = 1
+    // 2 search threads keep the single ANE server thread fed (1 left analysis
+    // visibly starved on device) while the small NN batch keeps steady-state RSS
+    // predictable for continuous kata-analyze. mlxNnMaxBatchSize is part of the
+    // CoreML compiled-model cache key, so changing it forces a cold reconvert —
+    // batch 2 already accommodates both in-flight evals.
+    public static let mlxNumSearchThreads = 2
     public static let mlxNnMaxBatchSize = 2
 #else
     // iOS/visionOS default to a single CoreML/ANE backend (best power/throughput

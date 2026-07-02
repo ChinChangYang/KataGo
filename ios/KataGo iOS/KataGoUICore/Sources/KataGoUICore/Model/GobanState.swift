@@ -32,6 +32,18 @@ public class GobanState {
     /// reviewed on TV); the tvOS self-play screen clears it. Transient view
     /// state, never persisted; defaults false so iOS/macOS are unchanged.
     public var suppressesGenMove = false
+    /// tvOS: stream continuous kata-analyze at `config.analysisInterval`
+    /// instead of the fast 0.1 s first-report interval. iOS/macOS keep
+    /// fastAnalyzeCommand plus their own re-arm at the config interval
+    /// (GameSplitView / MainWindowController); defaults false so their
+    /// command stream is byte-identical.
+    public var continuousAnalysisUsesConfigInterval = false
+    /// tvOS review: every locked-game play starts (or extends) a branch, even
+    /// one that matches the next recorded move — the mainline shortcut would
+    /// advance the synced record's `currentIndex`, and TV picks must never
+    /// write a synced record (variations are discarded silently on exit).
+    /// Defaults false so the iOS/macOS mainline-step behavior is unchanged.
+    public var forcesBranchOnPlay = false
     public var branchSgf: String = .inActiveSgf
     public var branchIndex: Int = .inActiveCurrentIndex
     public var confirmingAIOverwrite: Bool = false
@@ -97,7 +109,9 @@ public class GobanState {
         // Continuous analysis: reset the visit cap to unbounded so a prior human
         // gen-move's maxVisits=400 never leaks into (and caps) analysis.
         return ["kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)",
-                GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
+                continuousAnalysisUsesConfigInterval
+                    ? GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
+                    : GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
     }
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
@@ -388,7 +402,8 @@ public class GobanState {
                 stones: stones
             )
         } else if !isBranchActive {
-            if matchesNextRecordedMove(turn: turn, move: move, gameRecord: gameRecord, board: board) {
+            if !forcesBranchOnPlay,
+               matchesNextRecordedMove(turn: turn, move: move, gameRecord: gameRecord, board: board) {
                 playMainlineStep(turn: turn, move: move, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
                 clearPendingMove()
                 return
@@ -441,7 +456,8 @@ public class GobanState {
                 stones: stones
             )
         } else if !isBranchActive {
-            if matchesNextRecordedMove(turn: turn, move: aiMove, gameRecord: gameRecord, board: board) {
+            if !forcesBranchOnPlay,
+               matchesNextRecordedMove(turn: turn, move: aiMove, gameRecord: gameRecord, board: board) {
                 playMainlineStep(turn: turn, move: aiMove, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
                 return
             }
