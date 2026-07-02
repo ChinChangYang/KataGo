@@ -140,6 +140,9 @@ struct TVLoadingView: View {
 
 // MARK: - Previews
 
+// #Preview bodies still compile in Release, and the TVPreviewData fixtures are
+// DEBUG-only — guard the whole section or archiving fails.
+#if DEBUG
 // The pre-handshake branch: spinner + caption while the engine loads the net.
 // The preview guard keeps the real engine from launching in the canvas.
 #Preview("Root — engine loading") {
@@ -160,3 +163,4 @@ struct TVLoadingView: View {
 #Preview("Loading view") {
     TVLoadingView(caption: "Loading engine…")
 }
+#endif

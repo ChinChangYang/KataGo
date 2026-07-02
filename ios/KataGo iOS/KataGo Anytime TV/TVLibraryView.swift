@@ -106,6 +106,9 @@ struct TVGameCard: View {
 
 // MARK: - Previews
 
+// #Preview bodies still compile in Release, and the TVPreviewData fixtures are
+// DEBUG-only — guard the whole section or archiving fails.
+#if DEBUG
 // Grid path: three cards exercising a named+dated 19×19 (primary displayIndex
 // branch), an untitled/undated fallback, and a 9×9 board.
 #Preview("Library — populated") {
@@ -138,3 +141,4 @@ struct TVGameCard: View {
     .frame(maxWidth: 900)
     .padding(80)
 }
+#endif
