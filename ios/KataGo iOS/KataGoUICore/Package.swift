@@ -45,7 +45,7 @@ let engineHeaderFlags: [String] = [
 
 let package = Package(
     name: "KataGoUICore",
-    platforms: [.iOS(.v26), .macOS(.v26), .visionOS(.v26), .tvOS(.v26)],
+    platforms: [.iOS(.v26), .macOS(.v26), .visionOS(.v26), .tvOS(.v26), .watchOS(.v26)],
     products: [
         // Static so consumers link the package's object code into THEIR final
         // binary. That defers CKataGoBridge's KataGo-engine symbol references
