@@ -60,6 +60,7 @@ struct TopToolbarView: ToolbarContent {
     .environment(NavigationContext())
     .environment(GobanState())
     .environment(Turn())
+    .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
 }
@@ -76,6 +77,7 @@ struct TopToolbarView: ToolbarContent {
     .environment(NavigationContext())
     .environment(gobanState)
     .environment(Turn())
+    .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
 }
@@ -92,6 +94,7 @@ struct TopToolbarView: ToolbarContent {
     .environment(NavigationContext())
     .environment(gobanState)
     .environment(Turn())
+    .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
 }
