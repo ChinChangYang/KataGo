@@ -99,47 +99,57 @@ struct TVLibraryView: View {
 
     private var emptyState: some View {
         let state = syncMonitor.emptyLibraryState()
-        return VStack(spacing: 16) {
-            // Reserve clearance below the "KataGo Anytime" navigation title:
-            // the stack is vertically centered, so once it grew tall enough
-            // (sample cards + Settings button) its top icon rose into the
-            // title. This minimum keeps that gap; overflow spills off the
-            // bottom, never up into the title. The trailing Spacer keeps a
-            // short (syncing) stack visually centered.
-            Spacer(minLength: 80)
+        let hasCards = TVSampleGameStore.sampleGame != nil || TVSampleGameStore.isAvailable
+        // Two columns side by side: the status + Settings on the left, the
+        // watchable game cards on the right. This keeps the whole thing SHORT
+        // vertically — the old single centered column grew tall enough that
+        // the Settings button spilled off the bottom — while filling the
+        // horizontal space the single column wasted. Everything is centered in
+        // the full height, well clear of the "KataGo Anytime" title.
+        return HStack(alignment: .center, spacing: 72) {
+            statusColumn(state: state, alignment: hasCards ? .leading : .center)
+                .frame(maxWidth: hasCards ? 640 : 900,
+                       alignment: hasCards ? .leading : .center)
+            if hasCards {
+                sampleCards
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 90)
+        .padding(.vertical, 60)
+    }
+
+    private func statusColumn(state: EmptyLibraryState,
+                              alignment: HorizontalAlignment) -> some View {
+        let textAlignment: TextAlignment = alignment == .center ? .center : .leading
+        return VStack(alignment: alignment, spacing: 22) {
             if state == .syncing {
                 ProgressView()
                     .controlSize(.large)
             } else {
                 Image(systemName: iconName(for: state))
-                    .font(.system(size: 56))
+                    .font(.system(size: 72))
                     .foregroundStyle(.secondary)
             }
             Text(title(for: state))
-                .font(.title2.bold())
+                .font(.title.bold())
+                .multilineTextAlignment(textAlignment)
+                .fixedSize(horizontal: false, vertical: true)
             Text(message(for: state))
                 .font(.headline)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 800)
-                // Wrap instead of truncating to one line (the tvOS Text trap).
+                .multilineTextAlignment(textAlignment)
                 .fixedSize(horizontal: false, vertical: true)
-            sampleSection
-                .padding(.top, 12)
-            // Settings must stay reachable with an empty library too — the
+            // Settings must stay reachable with an empty library — the
             // recovery actions (engine restart, iCloud re-download) matter
             // most exactly when the library looks wrong.
             NavigationLink(value: SettingsRoute()) {
                 Label("Settings", systemImage: "gearshape")
-                    .font(.callout)
             }
             .buttonStyle(.bordered)
             .focused($focus, equals: .settings)
-            .padding(.top, 8)
-            Spacer(minLength: 0)
+            .padding(.top, 12)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
     }
 
     private func iconName(for state: EmptyLibraryState) -> String {
@@ -163,56 +173,47 @@ struct TVLibraryView: View {
     private func message(for state: EmptyLibraryState) -> String {
         switch state {
         case .syncing:
-            "Games you review on iPhone, iPad, or Mac sync here automatically. This can take a minute on first launch."
+            "Games from your other devices sync here automatically. First launch can take a minute."
         case .signedOut:
             // Textual guidance — tvOS has no usable Settings deep link.
-            "This Apple TV isn't signed into iCloud. Sign in under Settings → Users and Accounts → iCloud, and your games will appear here automatically."
+            "Sign in under Settings → Users and Accounts → iCloud, and your games appear here."
         case .unavailable:
-            "The library couldn't connect to iCloud this launch. Your games are safe — quit and reopen the app to try again."
+            "Couldn't reach iCloud this launch. Your games are safe — quit and reopen to try again."
         case .empty:
-            "Games you create on iPhone, iPad, or Mac appear here automatically once they sync from iCloud."
+            "Games you create on your other devices appear here once they sync from iCloud."
         }
     }
 
     /// The empty state's focusable offerings: the bundled sample game and the
-    /// live self-play demo, side by side — the focus engine finally has
-    /// somewhere to land, and a brand-new user has something to watch.
+    /// live self-play demo, side by side in the right column — the focus
+    /// engine has somewhere to land, and a brand-new user has something to
+    /// watch. No header: the Sample badge and the cards' own titles say what
+    /// they are, and dropping it reclaims vertical room.
     @ViewBuilder
-    private var sampleSection: some View {
-        if TVSampleGameStore.sampleGame != nil || TVSampleGameStore.isAvailable {
-            // 44 (was 14): the .card focus lift scales a focused card upward;
-            // without this clearance it slides over the header text.
-            VStack(spacing: 44) {
-                Text("Watch a game")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 40) {
-                    if let sample = TVSampleGameStore.sampleGame {
-                        NavigationLink(value: sample) {
-                            // Size the LABEL, not the button (an outer frame
-                            // never reaches the board inside), and pin the
-                            // ideal height: the surrounding VStack proposes a
-                            // squeezed height, which would otherwise shrink
-                            // the aspect-fit board to a thumbnail instead of
-                            // the 360 pt the width allows.
-                            TVGameCard(game: sample)
-                                .frame(width: 400)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .overlay(alignment: .topTrailing) { sampleBadge }
-                        }
-                        .buttonStyle(.card)
-                        .focused($focus, equals: .sample)
-                    }
-                    if TVSampleGameStore.isAvailable {
-                        NavigationLink(value: SelfPlayRoute(entry: .manual)) {
-                            TVSelfPlayCard()
-                                .frame(width: 400)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .buttonStyle(.card)
-                        .focused($focus, equals: .selfPlay)
-                    }
+    private var sampleCards: some View {
+        HStack(spacing: 44) {
+            if let sample = TVSampleGameStore.sampleGame {
+                NavigationLink(value: sample) {
+                    // Size the LABEL, not the button (an outer frame never
+                    // reaches the board inside), and pin the ideal height: the
+                    // surrounding stack proposes a squeezed height, which would
+                    // otherwise shrink the aspect-fit board to a thumbnail.
+                    TVGameCard(game: sample)
+                        .frame(width: 440)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .overlay(alignment: .topTrailing) { sampleBadge }
                 }
+                .buttonStyle(.card)
+                .focused($focus, equals: .sample)
+            }
+            if TVSampleGameStore.isAvailable {
+                NavigationLink(value: SelfPlayRoute(entry: .manual)) {
+                    TVSelfPlayCard()
+                        .frame(width: 440)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .buttonStyle(.card)
+                .focused($focus, equals: .selfPlay)
             }
         }
     }
