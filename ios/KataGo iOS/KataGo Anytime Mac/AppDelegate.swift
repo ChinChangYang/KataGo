@@ -297,6 +297,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Deactivate Branch",
                      action: #selector(MainWindowController.deactivateBranchAction(_:)),
                      keyEquivalent: "")
+
+        menu.addItem(.separator())
+
+        // Generates the Deep Analysis Report sheet for the current position.
+        // No key equivalent (an infrequent, deliberate action). Routed through
+        // the responder chain; validateMenuItem gates it on a selected game,
+        // no AI move in flight, and no report already running.
+        menu.addItem(withTitle: "Deep Analysis Report…",
+                     action: #selector(MainWindowController.showDeepReport(_:)),
+                     keyEquivalent: "")
         return menu
     }
 

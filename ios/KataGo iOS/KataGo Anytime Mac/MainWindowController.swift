@@ -2265,6 +2265,25 @@ final class MainWindowController: NSWindowController {
         session.gobanState.isEditing.toggle()
     }
 
+    // MARK: - Deep Analysis Report
+
+    /// Game-menu "Deep Analysis Report…": presents the shared SwiftUI report
+    /// sheet. Injects exactly the environment objects DeepReportView declares
+    /// (messageList only) — the InspectorTabs wrapper pattern. Sheet size comes
+    /// from the SwiftUI root's min frame (the ConfigEditorViewController
+    /// precedent uses AppKit constraints).
+    @objc func showDeepReport(_ sender: Any?) {
+        guard let gameRecord = navigationContext.selectedGameRecord,
+              !session.gobanState.reportGenerationActive else { return }
+        let root = NavigationStack {
+            DeepReportView(gameRecord: gameRecord)
+        }
+        .environment(session.messageList)
+        .frame(minWidth: 560, minHeight: 640)
+        let hosting = NSHostingController(rootView: root)
+        contentViewController?.presentAsSheet(hosting)
+    }
+
     /// View-menu Inspector tab shortcuts (⌘1 Chart [chart + moves] · ⌘2 Comments
     /// · ⌘3 Info). The menu item's `tag` (0–2) is the tab index; route through the
     /// split VC, which expands the Inspector pane first if it's collapsed.
@@ -2639,6 +2658,17 @@ extension MainWindowController: NSMenuItemValidation {
         case #selector(toggleEditing(_:)):
             menuItem.state = gobanState.isEditing ? .on : .off
             return hasGame
+
+        // Game menu "Deep Analysis Report…": requires a selected game, a ready
+        // board, no AI move due, the game not finished (both-pass), and no
+        // report already running.
+        case #selector(showDeepReport(_:)):
+            guard let gameRecord = navigationContext.selectedGameRecord else { return false }
+            return session.stones.isReady
+                && !gobanState.reportGenerationActive
+                && gobanState.passCount < 2
+                && !gobanState.shouldGenMove(config: gameRecord.concreteConfig,
+                                              player: session.player)
 
         // View menu "Toggle Board/Book View": a 3-state cycle, so no checkmark.
         // Enabled when a game is selected.

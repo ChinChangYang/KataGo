@@ -44,8 +44,11 @@ public struct DeepReportView: View {
             await generator.generate(model: model, gameRecord: gameRecord)
         }
         .onChange(of: scenePhase) { _, newPhase in
-            // Spec: app backgrounding aborts generation. Dismissing cancels the
-            // .task, which the generator turns into abort + restore.
+            // Spec: app backgrounding aborts generation (iOS/visionOS — suspension
+            // would freeze mid-probe). Inert on macOS by design: the AppKit host
+            // never leaves .active, and macOS never suspends the process, so
+            // there is nothing to abort. Dismissing cancels the .task, which the
+            // generator turns into abort + restore.
             if newPhase == .background && model.isGenerating {
                 dismiss()
             }
