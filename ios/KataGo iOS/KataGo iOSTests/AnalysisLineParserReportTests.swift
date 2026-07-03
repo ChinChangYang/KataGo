@@ -72,4 +72,37 @@ struct AnalysisLineParserReportTests {
         #expect(abs(r.rawOwnership[0] - 0.13) < 1e-4)   // root grid, not 0.9
         #expect(r.ownershipUnits.count == 4)
     }
+
+    @Test func pvParsedAsVertexList() {
+        let parser = AnalysisLineParser(boardWidth: 19, boardHeight: 19, nextColor: .white)
+        let msg = "info move Q16 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 order 0 pv Q16 D4 pass C3 movesOwnership 0.1"
+        let info = parser.parse(message: msg).info[BoardPoint(x: 15, y: 15)]
+        #expect(info?.pv == ["Q16", "D4", "pass", "C3"])   // stops at movesOwnership
+    }
+
+    @Test func pvEmptyWhenAbsent() {
+        let parser = AnalysisLineParser(boardWidth: 19, boardHeight: 19, nextColor: .white)
+        let msg = "info move Q16 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3"
+        #expect(parser.parse(message: msg).info[BoardPoint(x: 15, y: 15)]?.pv == [])
+    }
+
+    @Test func movesOwnershipParsedPerCandidate() {
+        let parser = AnalysisLineParser(boardWidth: 2, boardHeight: 2, nextColor: .white)
+        let msg = "info move A1 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 pv A1 movesOwnership 0.9 -0.5 0.25 -1.0 "
+                + "info move B2 visits 5 winrate 0.5 scoreLead 1.0 utilityLcb 0.1 pv B2 movesOwnership 0.1 0.2 0.3 0.4"
+        let r = parser.parse(message: msg)
+        let a1 = r.info[BoardPoint(x: 0, y: 0)]
+        let b2 = r.info[BoardPoint(x: 1, y: 1)]
+        #expect(a1?.movesOwnership?.count == 4)
+        #expect(abs((a1?.movesOwnership?[1] ?? 0) - (-0.5)) < 1e-4)
+        #expect(abs((b2?.movesOwnership?[0] ?? 0) - 0.1) < 1e-4)
+    }
+
+    @Test func movesOwnershipNilWhenAbsentOrWrongCount() {
+        let parser = AnalysisLineParser(boardWidth: 2, boardHeight: 2, nextColor: .white)
+        let absent = "info move A1 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3"
+        #expect(parser.parse(message: absent).info[BoardPoint(x: 0, y: 0)]?.movesOwnership == nil)
+        let short = "info move A1 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 movesOwnership 0.9 0.9"
+        #expect(parser.parse(message: short).info[BoardPoint(x: 0, y: 0)]?.movesOwnership == nil)
+    }
 }

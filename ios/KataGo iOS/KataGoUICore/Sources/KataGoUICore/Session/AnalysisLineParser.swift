@@ -68,7 +68,12 @@ public struct AnalysisLineParser {
         if let point, let visits, let winrate, let scoreLead, let utilityLcb {
             // Winrate is 0.5 when visits = 0; skip those to keep the win-rate bar stable.
             guard visits > 0 || winrate != 0.5 else { return nil }
-            return [point: AnalysisInfo(visits: visits, winrate: winrate, scoreLead: scoreLead, utilityLcb: utilityLcb)]
+            return [point: AnalysisInfo(visits: visits,
+                                        winrate: winrate,
+                                        scoreLead: scoreLead,
+                                        utilityLcb: utilityLcb,
+                                        pv: extractPV(dataLine: dataLine),
+                                        movesOwnership: extractMovesOwnership(dataLine: dataLine))]
         }
         return nil
     }
@@ -135,6 +140,34 @@ public struct AnalysisLineParser {
         let winrate = nextColor == .black ? 1.0 - rawWinrate : rawWinrate
         let scoreLead = nextColor == .black ? -rawScoreLead : rawScoreLead
         return ParsedRootInfo(visits: visits, winrate: winrate, scoreLead: scoreLead)
+    }
+
+    // MARK: - Per-candidate extras
+
+    /// Vertices after the `pv` keyword, token-scanned until the first token
+    /// that is neither "pass" nor a vertex ("Q16", "AB12" two-letter columns).
+    /// Token scanning (not a greedy regex) so trailing keywords like
+    /// `movesOwnership` or `rootInfo` terminate the list.
+    private func extractPV(dataLine: String) -> [String] {
+        let tokens = dataLine.split(separator: " ")
+        guard let pvIndex = tokens.firstIndex(of: "pv") else { return [] }
+        var pv: [String] = []
+        for token in tokens[(pvIndex + 1)...] {
+            let isVertex = token.wholeMatch(of: /[A-Za-z]{1,2}\d{1,2}/) != nil
+            if token == "pass" || isVertex {
+                pv.append(String(token))
+            } else {
+                break
+            }
+        }
+        return pv
+    }
+
+    /// This candidate's subtree ownership grid, when `movesOwnership true` was
+    /// requested. Count-validated like the root grid; nil when absent/mismatched.
+    private func extractMovesOwnership(dataLine: String) -> [Float]? {
+        let values = floats(in: dataLine, pattern: /movesOwnership ([-\d\s.eE]+)/)
+        return values.isEmpty ? nil : values
     }
 
     // MARK: - Ownership
