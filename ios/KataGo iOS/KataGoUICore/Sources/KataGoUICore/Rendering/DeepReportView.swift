@@ -18,8 +18,23 @@ public struct DeepReportView: View {
     @State private var model = DeepReportModel()
     @State private var runID = 0
 
-    public init(gameRecord: GameRecord) {
+    /// AppKit hosts (NSHostingController + presentAsSheet) pass a closure
+    /// here because SwiftUI's DismissAction cannot reach an AppKit-presented
+    /// sheet. SwiftUI presentation contexts (iOS/visionOS .sheet) leave this
+    /// nil and \.dismiss is used instead.
+    private let onClose: (() -> Void)?
+
+    public init(gameRecord: GameRecord, onClose: (() -> Void)? = nil) {
         self.gameRecord = gameRecord
+        self.onClose = onClose
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
     }
 
     public var body: some View {
@@ -50,7 +65,7 @@ public struct DeepReportView: View {
             // there is nothing to abort. Dismissing cancels the .task, which the
             // generator turns into abort + restore.
             if newPhase == .background && model.isGenerating {
-                dismiss()
+                close()
             }
         }
     }
@@ -167,7 +182,7 @@ public struct DeepReportView: View {
     private var toolbarContent: some ToolbarContent {
         if model.isGenerating {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }   // cancels .task → abort + restore
+                Button("Cancel") { close() }   // cancels .task → abort + restore
             }
             ToolbarItem(placement: .confirmationAction) {
                 ProgressView()
@@ -181,7 +196,7 @@ public struct DeepReportView: View {
                     .disabled(model.position == nil)
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+                Button("Done") { close() }
             }
         }
     }

@@ -2363,12 +2363,28 @@ final class MainWindowController: NSWindowController {
     @objc func showDeepReport(_ sender: Any?) {
         guard let gameRecord = navigationContext.selectedGameRecord,
               !session.gobanState.reportGenerationActive else { return }
+        // SwiftUI's \.dismiss cannot reach an NSHostingController presented via
+        // presentAsSheet, so DeepReportView is handed a closure that bridges
+        // Done/Cancel back to AppKit dismissal. `dismissSheet` is filled in
+        // after `hosting` exists (it needs to reference it weakly) and closed
+        // over by the root view built just above.
+        var dismissSheet: (() -> Void) = {}
         let root = NavigationStack {
-            DeepReportView(gameRecord: gameRecord)
+            DeepReportView(gameRecord: gameRecord, onClose: { dismissSheet() })
         }
         .environment(session.messageList)
         .frame(minWidth: 560, minHeight: 640)
         let hosting = NSHostingController(rootView: root)
+        dismissSheet = { [weak hosting] in
+            guard let hosting else { return }
+            // ConfigEditorViewController.done(_:) idiom — the codebase's
+            // canonical way to close a presentAsSheet presentation.
+            if let presenting = hosting.presentingViewController {
+                presenting.dismiss(hosting)
+            } else {
+                hosting.dismiss(nil)
+            }
+        }
         contentViewController?.presentAsSheet(hosting)
     }
 
