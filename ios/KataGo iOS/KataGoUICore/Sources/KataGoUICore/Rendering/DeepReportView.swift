@@ -103,7 +103,8 @@ public struct DeepReportView: View {
         ForEach(model.candidates) { candidate in
             CandidateSectionView(candidate: candidate,
                                  model: model,
-                                 sideName: sideName)
+                                 sideName: sideName,
+                                 isBest: candidate.id == model.candidates.first?.id)
         }
     }
 
@@ -118,10 +119,12 @@ public struct DeepReportView: View {
                 ReportBoardView(width: model.boardWidth, height: model.boardHeight,
                                 blackVertices: model.blackVertices,
                                 whiteVertices: model.whiteVertices,
-                                overlay: .ownershipDelta(pass.ownershipDelta,
-                                                         perspective: model.sideToMove))
+                                overlay: .ownershipDelta(pass.ownershipDelta),
+                                isClassicStoneStyle: model.isClassicStoneStyle,
+                                showCoordinate: model.showCoordinate,
+                                verticalFlip: model.verticalFlip)
                     .frame(maxWidth: 360)
-                deltaLegend
+                DeltaLegendView()
                 if !pass.contestedPoints.isEmpty {
                     Text("Most contested: " + pass.contestedPoints.map(\.regionName)
                         .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
@@ -130,6 +133,11 @@ public struct DeepReportView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        } else if model.stage == .complete {
+            Label("Pass comparison unavailable — the engine produced no analysis for it.",
+                  systemImage: "questionmark.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -205,16 +213,6 @@ public struct DeepReportView: View {
             .background(.yellow.opacity(0.3), in: Capsule())
     }
 
-    private var deltaLegend: some View {
-        HStack(spacing: 12) {
-            Label("\(sideName) gains", systemImage: "square.fill")
-                .foregroundStyle(.blue)
-            Label("\(sideName) loses", systemImage: "square.fill")
-                .foregroundStyle(.orange)
-        }
-        .font(.caption)
-    }
-
     private func skeletonRow(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(.quaternary)
@@ -229,6 +227,10 @@ struct CandidateSectionView: View {
     let candidate: CandidateReport
     let model: DeepReportModel
     let sideName: String
+    /// The top-ranked candidate's Δ-vs-root is ~zero by construction (it IS
+    /// the root's chosen line), so it skips the toggle/Δ view entirely and
+    /// always shows its variation.
+    let isBest: Bool
     @State private var showsDelta = false
 
     var body: some View {
@@ -252,21 +254,58 @@ struct CandidateSectionView: View {
                     .font(.callout)
             }
             if !candidate.pv.isEmpty || !candidate.ownershipDelta.isEmpty {
-                Picker("View", selection: $showsDelta) {
-                    Text("Variation").tag(false)
-                    Text("Δ Ownership").tag(true)
+                if !isBest {
+                    Picker("View", selection: $showsDelta) {
+                        Text("Variation").tag(false)
+                        Text("Δ Ownership").tag(true)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 360)
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
                 ReportBoardView(width: model.boardWidth, height: model.boardHeight,
                                 blackVertices: model.blackVertices,
                                 whiteVertices: model.whiteVertices,
-                                overlay: showsDelta
-                                    ? .ownershipDelta(candidate.ownershipDelta,
-                                                      perspective: model.sideToMove)
-                                    : .pv(candidate.pv, startingWith: model.sideToMove))
+                                overlay: (!isBest && showsDelta)
+                                    ? .ownershipDelta(candidate.ownershipDelta)
+                                    : .pv(candidate.pv, startingWith: model.sideToMove),
+                                isClassicStoneStyle: model.isClassicStoneStyle,
+                                showCoordinate: model.showCoordinate,
+                                verticalFlip: model.verticalFlip)
                     .frame(maxWidth: 360)
+                if !isBest && showsDelta {
+                    DeltaLegendView()
+                }
             }
+        }
+    }
+}
+
+/// Shared legend for every Δ-ownership board: direction (not side) is what
+/// the squares encode, so the legend reads "Toward Black"/"Toward White"
+/// rather than a gain/loss framing tied to one side.
+struct DeltaLegendView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            legendItem("Toward Black", fill: .black)
+            // A white-filled square vanishes on a light background, so a thin
+            // secondary stroke is overlaid to keep it visible there too.
+            legendItem("Toward White", fill: .white, strokeSecondary: true)
+        }
+        .font(.caption)
+    }
+
+    private func legendItem(_ text: String, fill: Color, strokeSecondary: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            ZStack {
+                Image(systemName: "square.fill")
+                    .foregroundStyle(fill)
+                if strokeSecondary {
+                    Image(systemName: "square")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(text)
         }
     }
 }
@@ -306,7 +345,8 @@ private struct DeepReportViewPreviewHost: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 ForEach(model.candidates) { candidate in
-                    CandidateSectionView(candidate: candidate, model: model, sideName: "Black")
+                    CandidateSectionView(candidate: candidate, model: model, sideName: "Black",
+                                         isBest: candidate.id == model.candidates.first?.id)
                 }
             }
             .padding()

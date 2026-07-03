@@ -321,6 +321,9 @@ public final class DeepReportGenerator {
                                        width: model.boardWidth, height: model.boardHeight)
         model.whiteVertices = vertices(of: session.stones.whitePoints,
                                        width: model.boardWidth, height: model.boardHeight)
+        model.isClassicStoneStyle = session.gobanState.isClassicStoneStyle
+        model.showCoordinate = session.gobanState.showCoordinate
+        model.verticalFlip = session.gobanState.verticalFlip
 
         // A reused model must never show a previous run's results.
         model.position = nil

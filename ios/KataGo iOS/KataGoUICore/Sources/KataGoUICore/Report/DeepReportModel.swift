@@ -215,6 +215,11 @@ public final class DeepReportModel {
     public var narrativeUnavailableReason: String?
     /// Live search speed captured when the report started (nil when unknown).
     public var visitsPerSecondText: String?
+    /// Board-rendering preferences seeded from the live GobanState so the
+    /// report's mini-boards match the app's real board.
+    public var isClassicStoneStyle = false
+    public var showCoordinate = true
+    public var verticalFlip = false
 
     public var isGenerating: Bool {
         switch stage {
