@@ -80,7 +80,18 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
 
     nonisolated func session(_ session: WCSession,
                              activationDidCompleteWith activationState: WCSessionActivationState,
-                             error: (any Error)?) {}
+                             error: (any Error)?) {
+        // `receivedApplicationContext` is documented empty until activation
+        // completes, so a true cold launch misses the synchronous replay in
+        // `activate()`. Replay again here — but only if no live frame has
+        // arrived yet, so a fresh frame is never downgraded to stale. Read the
+        // (Sendable) Data here so the non-Sendable session isn't captured.
+        let data = session.receivedApplicationContext[WatchSnapshot.contextKey] as? Data
+        Task { @MainActor in
+            guard self.latest == nil, let data else { return }
+            self.ingest(data, receivedAt: nil)
+        }
+    }
 
     nonisolated func session(_ session: WCSession,
                              didReceiveApplicationContext applicationContext: [String: Any]) {

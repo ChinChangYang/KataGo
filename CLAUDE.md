@@ -26,7 +26,7 @@ Inside `ios/KataGo iOS/`, the product is split across:
 ## Build Commands
 
 ### Building for All Platforms
-The app must build for all three supported platforms. There are **two app targets/schemes**: `KataGo Anytime` (iOS + visionOS) and `KataGo Anytime Mac` (macOS, native AppKit). The `KataGo Anytime` scheme does **not** support macOS — use `KataGo Anytime Mac` for the Mac build.
+The app must build for all supported platforms. There are **four app targets/schemes**: `KataGo Anytime` (iOS + visionOS), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror). The `KataGo Anytime` scheme does **not** support macOS — use `KataGo Anytime Mac` for the Mac build.
 ```bash
 cd ios/KataGo\ iOS
 
@@ -38,6 +38,9 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -d
 
 # Build for macOS (separate scheme: KataGo Anytime Mac)
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Mac" -destination 'platform=macOS' -configuration Debug
+
+# Build for tvOS Simulator (scheme: KataGo Anytime TV)
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime TV" -destination 'platform=tvOS Simulator,name=Apple TV'
 
 # Build for watchOS Simulator (scheme: KataGo Anytime Watch; watch app links ONLY KataGoGameStore — never the engine)
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Watch" -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)'

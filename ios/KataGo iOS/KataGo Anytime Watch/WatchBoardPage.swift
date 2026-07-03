@@ -36,9 +36,7 @@ struct WatchBoardPage: View {
         }
         .overlay(alignment: .top) {
             if model.isStale, let at = model.receivedAt ?? shown.map(\.hostTimestamp) {
-                // Date interpolation with a style only exists on Text, so
-                // compose the Label from Text parts (a plain string can't do it).
-                Label { Text("Stale ") + Text(at, style: .relative) }
+                Label { Text("Stale \(at, style: .relative)") }
                     icon: { Image(systemName: "wifi.slash") }
                     .font(.caption2).padding(3)
                     .background(.red.opacity(0.85), in: Capsule())
@@ -57,8 +55,10 @@ struct WatchBoardPage: View {
         .onChange(of: crownIndex) { _, newValue in
             peek.viewIndex = Int(newValue.rounded())
         }
-        .onChange(of: peek.viewIndex) { _, newValue in
-            // Keep the crown in sync when ingest re-pins the live index.
+        .onChange(of: peek.viewIndex, initial: true) { _, newValue in
+            // Keep the crown in sync when ingest re-pins the live index — and
+            // on first appearance, so a page recreated while scrubbed back
+            // starts its crown value already synced.
             if Int(crownIndex.rounded()) != newValue { crownIndex = Double(newValue) }
         }
     }

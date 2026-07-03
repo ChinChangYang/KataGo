@@ -57,5 +57,8 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
         session.activate()   // re-activate after watch switch, per Apple docs
+        // Clear the equality gate so the newly active watch gets a frame even
+        // from an idle board (otherwise the unchanged snapshot is suppressed).
+        Task { @MainActor in self.lastSent = nil }
     }
 }

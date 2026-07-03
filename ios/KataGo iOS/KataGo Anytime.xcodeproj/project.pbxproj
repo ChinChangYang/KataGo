@@ -53,6 +53,7 @@
 		1E19A0536DFF3C8D5625683B /* mlxtests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FF424C3100BE78563B0BF391 /* mlxtests.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		1E2832C808A267BC14E13E86 /* crc_non_temporal_memcpy.cc in Sources */ = {isa = PBXBuildFile; fileRef = 805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */; };
 		1E393C631B1BC3C0F93CAEA4 /* MILBuilder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7434F79FFAACA347E36CDF34 /* MILBuilder.cpp */; };
+		1F7EB7DC24D6B85275638C3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		200E2726222793045A3D463E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */; };
 		20D73A20AA9FB7484440EC4F /* Imputer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 14C9F049828D2C767A8EA405 /* Imputer.pb.cc */; };
 		2593AFF0249DB1D081BCCD34 /* zero_copy_stream_impl_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = A44E8E22CE4E5A8FDE17A8B0 /* zero_copy_stream_impl_lite.cc */; };
@@ -3018,6 +3019,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F7EB7DC24D6B85275638C3D /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3802,7 +3804,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Watch/KataGo Anytime Watch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 293;
@@ -3866,7 +3868,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
 				CODE_SIGN_ENTITLEMENTS = "KataGo Anytime Watch/KataGo Anytime Watch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 293;

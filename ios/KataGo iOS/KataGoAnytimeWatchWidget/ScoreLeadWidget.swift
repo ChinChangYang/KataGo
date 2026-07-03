@@ -30,7 +30,22 @@ struct ScoreLeadProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScoreLeadEntry>) -> Void) {
-        completion(Timeline(entries: [read(at: .now)], policy: .never))
+        let current = read(at: .now)
+        var entries = [current]
+        // The tile is "fresh" until 600 s past the last update. With a single
+        // entry WidgetKit never re-renders, so it stays fresh forever. Add a
+        // second entry (same data) dated at the staleness boundary so the tile
+        // flips to stale styling when analysis stops. App pushes still drive
+        // fresh reloads, so keep the policy `.never`.
+        if let updatedAt = current.updatedAt {
+            let staleAt = updatedAt.addingTimeInterval(600)
+            if staleAt > .now {
+                entries.append(ScoreLeadEntry(date: staleAt,
+                                              scoreLeadBlack: current.scoreLeadBlack,
+                                              updatedAt: current.updatedAt))
+            }
+        }
+        completion(Timeline(entries: entries, policy: .never))
     }
 }
 
