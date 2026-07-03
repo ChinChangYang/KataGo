@@ -169,6 +169,13 @@ final class MainWindowController: NSWindowController {
     /// The gate stashes the pending load until `boardReadiness.isEngineReady`
     /// flips true (drained by `applyPendingSelection`); when ready it is a
     /// transparent pass-through.
+    ///
+    /// Also reused while a Deep Report is probing (`gobanState.reportGenerationActive`):
+    /// the modal report sheet doesn't block external events, so a Finder SGF-open
+    /// or widget deep link could otherwise interleave `loadsgf`/analyze commands
+    /// with in-flight probe traffic. `selectGame(_:)` folds that flag into the
+    /// same `isReady` check; `trackReportGeneration`'s `true -> false` edge drains
+    /// the gate exactly like the engine-ready path.
     private var selectionGate = ReadinessGate<PendingSelection>()
 
     /// A game selection awaiting the engine-ready signal. Holds only the target:
@@ -286,6 +293,12 @@ final class MainWindowController: NSWindowController {
         // before the launch so the first response isn't missed. Mirrors the iOS
         // `ModelRunnerView.onChange(of: engineLifecycle.lastLoadedModelTitle)`.
         installLastLoadedModelObserver()
+
+        // Drains a game selection deferred behind a running Deep Report
+        // (`gobanState.reportGenerationActive` true -> false). Installed before the
+        // engine starts for consistency with the other observers, though a report
+        // cannot start until well after launch.
+        installReportGenerationObserver()
 
         // Run the launch-time crash-recovery decision ONCE, BEFORE arming the
         // sentinel / launching the engine — it must read the PREVIOUS run's
@@ -495,8 +508,15 @@ final class MainWindowController: NSWindowController {
         // until `isEngineReady` (drained by `applyPendingSelection`). When ready,
         // the gate is a transparent pass-through and the load runs synchronously
         // with the real `previous` (the resize-preload it enables is wanted here).
+        //
+        // Also defer while a Deep Report is probing: the same external triggers
+        // can arrive mid-report (the modal sheet doesn't block them), which would
+        // interleave `loadsgf`/analyze commands with the report's probe traffic.
+        // Drained by `applyPendingSelection` on the report's `true -> false` edge
+        // (see `trackReportGeneration`), same as the engine-ready path.
         guard selectionGate.request(PendingSelection(game: game),
-                                    isReady: boardReadiness.isEngineReady) != nil
+                                    isReady: boardReadiness.isEngineReady
+                                        && !session.gobanState.reportGenerationActive) != nil
         else { return }
         load(game: game, previous: previous)
     }
@@ -533,7 +553,9 @@ final class MainWindowController: NSWindowController {
     /// was ready. Called right after `boardReadiness.isEngineReady` flips true
     /// (initial launch AND every relaunch), on the main actor — so once the
     /// engine can serve GTP there is no window where a stashed selection is left
-    /// unloaded.
+    /// unloaded. Also called by `trackReportGeneration`'s `true -> false` edge, so
+    /// a selection deferred behind a running Deep Report is applied the moment the
+    /// report finishes (or aborts).
     @MainActor
     private func applyPendingSelection() {
         guard let pending = selectionGate.drainWhenReady() else { return }
@@ -550,6 +572,59 @@ final class MainWindowController: NSWindowController {
             fetched: fetched)
         navigationContext.selectedGameRecord = target
         load(game: target, previous: nil)
+    }
+
+    // MARK: - Deep Report selection gating
+    //
+    // Extends the F14/F14b `selectionGate` (`ReadinessGate` at the shared
+    // `selectGame(_:)` chokepoint) to also cover a Deep Report in flight: the
+    // report's sheet is modal to user interaction but does NOT block external
+    // events (a Finder SGF-open or widget deep link can still call `selectGame(_:)`
+    // while probes are running), which would interleave `loadsgf`/analyze commands
+    // with the report's `kata-analyze` probe traffic. `selectGame(_:)` folds
+    // `!gobanState.reportGenerationActive` into the gate's `isReady` check; this
+    // observer drains the gate on the report's `true -> false` edge, mirroring the
+    // exact self-rescheduling `withObservationTracking` pattern the other
+    // observers use (e.g. `installLastLoadedModelObserver`/`trackLastLoadedModel`).
+    // Minimal by design: defer + drain only — never cancels the running report.
+
+    /// Last-seen value of `session.gobanState.reportGenerationActive`, so the
+    /// (property-agnostic) `withObservationTracking` callback can detect the
+    /// `true -> false` transition (report finished or aborted) that should drain
+    /// the selection gate. Seeded in `installReportGenerationObserver()` and
+    /// re-seeded on relaunch.
+    private var lastReportGenerationActive = false
+
+    /// Seeds the snapshot from the live `gobanState` and starts the
+    /// self-rescheduling observation bridge. Called once in `init`.
+    private func installReportGenerationObserver() {
+        lastReportGenerationActive = session.gobanState.reportGenerationActive
+        trackReportGeneration()
+    }
+
+    /// One observation pass: tracks `reportGenerationActive`, and on change
+    /// re-reads the committed value on the main actor, reacts, then re-arms.
+    private func trackReportGeneration() {
+        withObservationTracking {
+            _ = session.gobanState.reportGenerationActive
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleReportGenerationChange()
+                self.trackReportGeneration()
+            }
+        }
+    }
+
+    /// On `reportGenerationActive` going `true -> false`, drain any selection the
+    /// gate deferred while the report was running. Refreshes the snapshot at the
+    /// end.
+    private func handleReportGenerationChange() {
+        let newValue = session.gobanState.reportGenerationActive
+        if lastReportGenerationActive && !newValue {
+            applyPendingSelection()
+        }
+        lastReportGenerationActive = newValue
     }
 
     // MARK: - Engine launch + session loop
@@ -871,6 +946,10 @@ final class MainWindowController: NSWindowController {
         // a relaunch's fresh book-load / eye-status as a spurious edge.
         lastBookLoaded = session.bookLookup.isLoaded
         lastEyeStatus = gobanState.eyeStatus
+        // Re-seed the report-generation snapshot too, matching the other observers'
+        // reseed convention (in practice always false — a report doesn't survive
+        // an engine relaunch).
+        lastReportGenerationActive = gobanState.reportGenerationActive
     }
 
     /// Switches the active model and relaunches the engine in-process. Records
