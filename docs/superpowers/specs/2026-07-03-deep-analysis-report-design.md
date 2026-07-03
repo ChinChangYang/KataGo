@@ -168,8 +168,10 @@ the LLM receives named facts, never grids.
 - Presentation: `.sheet` + `NavigationStack` (iOS/visionOS); `NSHostingController` +
   `presentAsSheet` (macOS), env-object injection per the `InspectorTabs` wrapper pattern.
 - Mini-boards: `ReportBoardView`, static vector rendering; segmented toggle per candidate
-  between PV (numbered ghost stones) and Δ-ownership (two-color alpha squares in a
-  colorblind-safe blue/orange pair, not pure red/green).
+  between PV (numbered ghost stones) and Δ-ownership (direction-encoded black/white alpha
+  squares matching the live ownership idiom — user choice in round 2, superseding the
+  original blue/orange pair). Round 2 also rebuilt the boards on the app's real components
+  (`BoardLineView` wood/coordinates + `StoneView` styles + `MoveNumberView`).
 - Numbers: existing formatter helpers; delta arrows with sign; per-probe visit counts; "quick
   estimate" badge under ~100 visits.
 - Progressive rendering: skeleton (`redacted`) sections fill as the collector publishes;
@@ -227,3 +229,28 @@ the LLM receives named facts, never grids.
 - Persistent/structured report storage and report sharing.
 - Non-modal macOS report window with staleness indicator.
 - Tapping a report candidate to play it on the live board.
+
+## 14. Round 3 — UI polish (2026-07-03 user + external-reviewer feedback)
+
+Presentation-layer only; probes, budgets, and data flow unchanged.
+
+- **Title:** sheet titled "Deep Analysis Report" everywhere. On macOS the AppKit-presented
+  sheet's window title must be set explicitly (SwiftUI `navigationTitle` never reaches it —
+  it showed "Untitled"). Game name stays as the content heading.
+- **Candidate labels:** first candidate = "Best Move <vertex>", others = "Alternative
+  <vertex>". The best move drops its "(+0%)" delta; alternatives keep the delta (now clearly
+  vs. the best move). Narrator facts use the same labels.
+- **Stats:** one inline pattern everywhere ("37% win rate · -1.3 points · 1,054 visits");
+  the header's label-above-value grid is removed. Visit counts get thousands separators.
+- **Boards:** fill the sheet's content width (≥80% of sheet width; the old 360 pt cap is
+  removed), still square, coordinates on.
+- **Tenuki sentence:** names both sides — "If <opponent> ignores <candidate>, <side> follows
+  up with <vertex> (…)".
+- **Marked moves:** Δ-ownership boards draw the candidate's stone with the app's red
+  current-move dot; the Playing-vs-Passing board draws the best move the same way (playing
+  move only — the punishment reply stays text).
+- **Low-visit treatment:** shared orange badge "Quick estimate — only N visits"
+  (exclamation icon); a low-visit candidate's stats + board render slightly dimmed while its
+  heading and badge stay full-opacity.
+- **Toolbar:** macOS uses text buttons ("Regenerate", "Copy to Comment", "Done"/"Cancel")
+  with tooltips, per Mac sheet convention; iOS/visionOS keep the icon buttons.

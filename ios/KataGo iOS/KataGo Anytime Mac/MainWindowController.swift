@@ -2386,6 +2386,13 @@ final class MainWindowController: NSWindowController {
             }
         }
         contentViewController?.presentAsSheet(hosting)
+        // SwiftUI's navigationTitle never reaches an AppKit-presented sheet's
+        // window (its toolbar showed the NSWindow default "Untitled"), so
+        // title the window directly. Async: the sheet window may not exist
+        // until presentAsSheet's presentation work completes.
+        DispatchQueue.main.async { [weak hosting] in
+            hosting?.view.window?.title = "Deep Analysis Report"
+        }
     }
 
     /// View-menu Inspector tab shortcuts (⌘1 Chart [chart + moves] · ⌘2 Comments

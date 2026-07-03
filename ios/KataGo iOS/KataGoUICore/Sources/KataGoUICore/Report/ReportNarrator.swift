@@ -20,20 +20,24 @@ public enum ReportNarrator {
     public static func facts(from model: DeepReportModel) -> [String] {
         var facts: [String] = []
         let side = model.sideToMove == .black ? "Black" : "White"
+        let opponent = model.sideToMove == .black ? "White" : "Black"
         facts.append("Position: move \(model.moveNumber), \(side) to play.")
 
         if let position = model.position {
             facts.append("Current evaluation for \(side): \(percent(position.winrate)) win rate, \(points(position.scoreLead)) points, from \(position.visits) visits.")
         }
 
-        for candidate in model.candidates {
-            var line = "Candidate \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
+        // Same labels the report UI shows ("Best Move …" / "Alternative …")
+        // so Copy-to-Comment output and LLM input match what the user reads.
+        for (index, candidate) in model.candidates.enumerated() {
+            let label = index == 0 ? "Best move" : "Alternative"
+            var line = "\(label) \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
             if !candidate.pv.isEmpty {
                 line += " Expected continuation: \(candidate.pv.joined(separator: " "))."
             }
             facts.append(line)
             if let tenuki = candidate.tenuki {
-                facts.append("If the opponent ignores \(candidate.vertex) (plays elsewhere), \(side) follows up with \(tenuki.vertex): \(percent(tenuki.winrate)) win rate, \(points(tenuki.scoreLead)) points.")
+                facts.append("If \(opponent) ignores \(candidate.vertex) (plays elsewhere), \(side) follows up with \(tenuki.vertex): \(percent(tenuki.winrate)) win rate, \(points(tenuki.scoreLead)) points.")
             }
         }
 

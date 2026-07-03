@@ -44,6 +44,23 @@ struct ReportNarratorTests {
         #expect(joined.contains("upper left"))     // contested region
     }
 
+    /// Round 3: facts use the report UI's labels ("Best move …", ranked
+    /// alternatives) and the tenuki fact names the opponent's color.
+    @Test func factsLabelBestMoveAndNameTenukiSides() {
+        let model = makeModel()
+        model.candidates.append(
+            CandidateReport(vertex: "C3", visits: 20, winrate: 0.30, scoreLead: -8.0,
+                            winrateDelta: -0.10, scoreLeadDelta: -3.0, pv: [],
+                            ownershipDelta: [:], tenuki: nil)
+        )
+        let joined = ReportNarrator.facts(from: model).joined(separator: "\n")
+        #expect(joined.contains("Best move A1:"))
+        #expect(joined.contains("Alternative C3:"))
+        #expect(!joined.contains("Candidate "))
+        // Black to play → White is the side that might ignore A1.
+        #expect(joined.contains("If White ignores A1 (plays elsewhere), Black follows up with B2"))
+    }
+
     @Test func lowVisitSmallDeltasAreMarkedWithinNoise() {
         let model = makeModel()   // candidate delta -0.02 at 100 visits (not low)
         var facts = ReportNarrator.facts(from: model)

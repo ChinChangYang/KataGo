@@ -48,7 +48,7 @@ public struct DeepReportView: View {
             }
             .padding()
         }
-        .navigationTitle("Deep Report")
+        .navigationTitle("Deep Analysis Report")
 #if !os(macOS) && !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif
@@ -73,6 +73,7 @@ public struct DeepReportView: View {
     // MARK: - Sections
 
     private var sideName: String { model.sideToMove == .black ? "Black" : "White" }
+    private var opponentName: String { model.sideToMove == .black ? "White" : "Black" }
 
     @ViewBuilder
     private var headerSection: some View {
@@ -97,12 +98,13 @@ public struct DeepReportView: View {
     @ViewBuilder
     private var positionSection: some View {
         if let position = model.position {
-            HStack(spacing: 16) {
-                statView("Win Rate", String(format: "%.0f%%", position.winrate * 100))
-                statView("Score", String(format: "%+.1f", position.scoreLead))
-                statView("Visits", "\(position.visits)")
+            // Same inline stat pattern the candidates use — one layout for
+            // the same data everywhere (round-3 reviewer feedback).
+            HStack(spacing: 8) {
+                Text("\(String(format: "%.0f%%", position.winrate * 100)) win rate · \(String(format: "%+.1f", position.scoreLead)) points · \(position.visits.formatted()) visits")
+                    .font(.callout)
                 if position.visits < ReportConstants.lowVisitThreshold {
-                    quickEstimateBadge
+                    QuickEstimateBadge(visits: position.visits)
                 }
             }
         } else if model.isGenerating {
@@ -119,6 +121,7 @@ public struct DeepReportView: View {
             CandidateSectionView(candidate: candidate,
                                  model: model,
                                  sideName: sideName,
+                                 opponentName: opponentName,
                                  isBest: candidate.id == model.candidates.first?.id)
         }
     }
@@ -135,10 +138,14 @@ public struct DeepReportView: View {
                                 blackVertices: model.blackVertices,
                                 whiteVertices: model.whiteVertices,
                                 overlay: .ownershipDelta(pass.ownershipDelta),
+                                // "Playing" means the best move: draw it so the
+                                // Δ squares have a visible anchor (round 3).
+                                markedMove: model.candidates.first.map {
+                                    ReportMarkedMove(vertex: $0.vertex, color: model.sideToMove)
+                                },
                                 isClassicStoneStyle: model.isClassicStoneStyle,
                                 showCoordinate: model.showCoordinate,
                                 verticalFlip: model.verticalFlip)
-                    .frame(maxWidth: 360)
                 DeltaLegendView()
                 if !pass.contestedPoints.isEmpty {
                     Text("Most contested: " + pass.contestedPoints.map(\.regionName)
@@ -188,12 +195,26 @@ public struct DeepReportView: View {
                 ProgressView()
             }
         } else {
+            // macOS follows the Mac sheet convention (text buttons + tooltips,
+            // like ConfigEditor); the space-constrained iOS/visionOS nav bar
+            // keeps icons, whose titles double as accessibility labels.
             ToolbarItem(placement: .cancellationAction) {
+#if os(macOS)
+                Button("Regenerate") { runID += 1 }
+                    .help("Run the report again for this position")
+#else
                 Button("Regenerate", systemImage: "arrow.clockwise") { runID += 1 }
+#endif
             }
             ToolbarItem(placement: .primaryAction) {
+#if os(macOS)
+                Button("Copy to Comment") { copyToComment() }
+                    .disabled(model.position == nil)
+                    .help("Append the report summary to this move's comment")
+#else
                 Button("Copy to Comment", systemImage: "text.bubble") { copyToComment() }
                     .disabled(model.position == nil)
+#endif
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { close() }
@@ -213,21 +234,6 @@ public struct DeepReportView: View {
 
     // MARK: - Bits
 
-    private func statView(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.monospacedDigit().bold())
-        }
-    }
-
-    private var quickEstimateBadge: some View {
-        Text("quick estimate")
-            .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.yellow.opacity(0.3), in: Capsule())
-    }
-
     private func skeletonRow(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(.quaternary)
@@ -242,57 +248,89 @@ struct CandidateSectionView: View {
     let candidate: CandidateReport
     let model: DeepReportModel
     let sideName: String
+    let opponentName: String
     /// The top-ranked candidate's Δ-vs-root is ~zero by construction (it IS
     /// the root's chosen line), so it skips the toggle/Δ view entirely and
-    /// always shows its variation.
+    /// always shows its variation. Its heading reads "Best Move" and its
+    /// stats drop the vs-best delta (always ~+0% for itself).
     let isBest: Bool
     @State private var showsDelta = false
+
+    private var isQuickEstimate: Bool {
+        candidate.visits < ReportConstants.lowVisitThreshold
+    }
+
+    private var statsText: String {
+        var text = "\(String(format: "%.0f%%", candidate.winrate * 100)) win rate"
+        if !isBest {
+            text += " (\(String(format: "%+.0f%%", candidate.winrateDelta * 100)))"
+        }
+        text += " · \(String(format: "%+.1f", candidate.scoreLead)) points · \(candidate.visits.formatted()) visits"
+        return text
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Candidate \(candidate.vertex)")
+                Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
                     .font(.title3.bold())
-                if candidate.visits < ReportConstants.lowVisitThreshold {
-                    Text("quick estimate")
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.yellow.opacity(0.3), in: Capsule())
+                if isQuickEstimate {
+                    QuickEstimateBadge(visits: candidate.visits)
                 }
             }
-            Text("\(String(format: "%.0f%%", candidate.winrate * 100)) win rate (\(String(format: "%+.0f%%", candidate.winrateDelta * 100))) · \(String(format: "%+.1f", candidate.scoreLead)) points · \(candidate.visits) visits")
-                .font(.callout)
-            if let tenuki = candidate.tenuki {
-                Label("If ignored, \(sideName) follows up with \(tenuki.vertex) (\(String(format: "%.0f%%", tenuki.winrate * 100)) win rate, \(String(format: "%+.1f", tenuki.scoreLead)) points).",
-                      systemImage: "arrow.turn.down.right")
+            // Low-visit candidates read as less trustworthy structurally:
+            // their content dims while the heading + badge stay full-strength.
+            VStack(alignment: .leading, spacing: 8) {
+                Text(statsText)
                     .font(.callout)
-            }
-            if !candidate.pv.isEmpty || !candidate.ownershipDelta.isEmpty {
-                if !isBest {
-                    Picker("View", selection: $showsDelta) {
-                        Text("Variation").tag(false)
-                        Text("Δ Ownership").tag(true)
+                if let tenuki = candidate.tenuki {
+                    Label("If \(opponentName) ignores \(candidate.vertex), \(sideName) follows up with \(tenuki.vertex) (\(String(format: "%.0f%%", tenuki.winrate * 100)) win rate, \(String(format: "%+.1f", tenuki.scoreLead)) points).",
+                          systemImage: "arrow.turn.down.right")
+                        .font(.callout)
+                }
+                if !candidate.pv.isEmpty || !candidate.ownershipDelta.isEmpty {
+                    if !isBest {
+                        Picker("View", selection: $showsDelta) {
+                            Text("Variation").tag(false)
+                            Text("Δ Ownership").tag(true)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 360)
-                }
-                ReportBoardView(width: model.boardWidth, height: model.boardHeight,
-                                blackVertices: model.blackVertices,
-                                whiteVertices: model.whiteVertices,
-                                overlay: (!isBest && showsDelta)
-                                    ? .ownershipDelta(candidate.ownershipDelta)
-                                    : .pv(candidate.pv, startingWith: model.sideToMove),
-                                isClassicStoneStyle: model.isClassicStoneStyle,
-                                showCoordinate: model.showCoordinate,
-                                verticalFlip: model.verticalFlip)
-                    .frame(maxWidth: 360)
-                if !isBest && showsDelta {
-                    DeltaLegendView()
+                    ReportBoardView(width: model.boardWidth, height: model.boardHeight,
+                                    blackVertices: model.blackVertices,
+                                    whiteVertices: model.whiteVertices,
+                                    overlay: (!isBest && showsDelta)
+                                        ? .ownershipDelta(candidate.ownershipDelta)
+                                        : .pv(candidate.pv, startingWith: model.sideToMove),
+                                    // On the Δ view the candidate itself must stay
+                                    // visible — stone + red dot (round 3).
+                                    markedMove: (!isBest && showsDelta)
+                                        ? ReportMarkedMove(vertex: candidate.vertex, color: model.sideToMove)
+                                        : nil,
+                                    isClassicStoneStyle: model.isClassicStoneStyle,
+                                    showCoordinate: model.showCoordinate,
+                                    verticalFlip: model.verticalFlip)
+                    if !isBest && showsDelta {
+                        DeltaLegendView()
+                    }
                 }
             }
+            .opacity(isQuickEstimate ? 0.75 : 1.0)
         }
+    }
+}
+
+/// Shared low-confidence badge: prominent enough that a skimming reader
+/// can't mistake a 13-visit quick probe for a fully analyzed line.
+struct QuickEstimateBadge: View {
+    let visits: Int
+
+    var body: some View {
+        Label("Quick estimate — only \(visits.formatted()) visits",
+              systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
     }
 }
 
@@ -361,6 +399,7 @@ private struct DeepReportViewPreviewHost: View {
             VStack(alignment: .leading, spacing: 24) {
                 ForEach(model.candidates) { candidate in
                     CandidateSectionView(candidate: candidate, model: model, sideName: "Black",
+                                         opponentName: "White",
                                          isBest: candidate.id == model.candidates.first?.id)
                 }
             }

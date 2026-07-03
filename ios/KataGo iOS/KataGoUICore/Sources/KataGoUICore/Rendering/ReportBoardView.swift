@@ -21,12 +21,26 @@ public enum ReportBoardOverlay {
     case pv([String], startingWith: PlayerColor)
 }
 
+/// A hypothetical move drawn on the board as a stone plus the app's red
+/// current-move dot — shows WHICH move a Δ-ownership comparison is about
+/// (the candidate on its Δ board; the best move on the pass board).
+public struct ReportMarkedMove {
+    let vertex: String
+    let color: PlayerColor
+
+    public init(vertex: String, color: PlayerColor) {
+        self.vertex = vertex
+        self.color = color
+    }
+}
+
 public struct ReportBoardView: View {
     let width: Int
     let height: Int
     let blackVertices: [String]
     let whiteVertices: [String]
     let overlay: ReportBoardOverlay
+    let markedMove: ReportMarkedMove?
     let isClassicStoneStyle: Bool
     let showCoordinate: Bool
     let verticalFlip: Bool
@@ -37,12 +51,14 @@ public struct ReportBoardView: View {
     public init(width: Int, height: Int,
                 blackVertices: [String], whiteVertices: [String],
                 overlay: ReportBoardOverlay,
+                markedMove: ReportMarkedMove? = nil,
                 isClassicStoneStyle: Bool, showCoordinate: Bool, verticalFlip: Bool) {
         self.width = width
         self.height = height
         self.blackVertices = blackVertices
         self.whiteVertices = whiteVertices
         self.overlay = overlay
+        self.markedMove = markedMove
         self.isClassicStoneStyle = isClassicStoneStyle
         self.showCoordinate = showCoordinate
         self.verticalFlip = verticalFlip
@@ -85,7 +101,20 @@ public struct ReportBoardView: View {
             stones.blackPoints += pv.filter { $0.color == .black }.map(\.point)
             stones.whitePoints += pv.filter { $0.color == .white }.map(\.point)
         }
+        if let point = markedPoint {
+            if markedMove?.color == .black {
+                stones.blackPoints.append(point)
+            } else {
+                stones.whitePoints.append(point)
+            }
+        }
         return stones
+    }
+
+    /// Nil when there is no marked move or its vertex is "pass"/unparseable.
+    private var markedPoint: BoardPoint? {
+        guard let markedMove, markedMove.vertex != "pass" else { return nil }
+        return BoardPoint(move: markedMove.vertex, width: width, height: height)
     }
 
     @ViewBuilder
@@ -96,6 +125,14 @@ public struct ReportBoardView: View {
 
         case .ownershipDelta(let grid):
             deltaSquares(grid: grid, dimensions: dimensions)
+            // The red dot sits ON TOP of the delta squares so the marked
+            // stone stays identifiable under the grayscale overlay — the
+            // live board's current-move idiom (MoveNumberView.lastMoveMarker).
+            if let point = markedPoint {
+                MoveNumberView(dimensions: dimensions, verticalFlip: verticalFlip,
+                               style: .lastMoveMarker,
+                               moveNumbers: MoveNumbers(numbers: [:], lastPoint: point, lastNumber: nil))
+            }
 
         case .pv(let vertices, let startingWith):
             let pv = pvStones(vertices, startingWith: startingWith)
@@ -154,6 +191,7 @@ public struct ReportBoardView: View {
                     overlay: .ownershipDelta([BoardPoint(x: 2, y: 6): -0.6,
                                               BoardPoint(x: 6, y: 2): 0.4,
                                               BoardPoint(x: 4, y: 4): 0.08]),
+                    markedMove: ReportMarkedMove(vertex: "E5", color: .black),
                     isClassicStoneStyle: false, showCoordinate: true, verticalFlip: false)
     .padding()
 }
