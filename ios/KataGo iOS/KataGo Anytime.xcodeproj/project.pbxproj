@@ -20,6 +20,7 @@
 		077EBCD78E98B9FE30D07502 /* win32_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6C1E3C2F7427E56602D6A00E /* win32_waiter.cc */; };
 		099C50E010397FF0755BC913 /* globals.cc in Sources */ = {isa = PBXBuildFile; fileRef = D1F4B3BEA316F4BAC370ACA2 /* globals.cc */; };
 		09B76CBDA1A27CE4B244D374 /* AnalysisCandidateMovesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4762AACF9C73ECA5FBF891 /* AnalysisCandidateMovesTests.swift */; };
+		0AA072E98EE75C96AA2FE6E0 /* DeepReportGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290E4818571F3CFE012DE7EC /* DeepReportGeneratorTests.swift */; };
 		0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
@@ -851,6 +852,7 @@
 		284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Normalizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/Normalizer.pb.cc; sourceTree = SOURCE_ROOT; };
 		2895D7938D3FA33D9E35700F /* SVM.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SVM.pb.cc; path = ../../cpp/external/katagocoreml/generated/SVM.pb.cc; sourceTree = SOURCE_ROOT; };
 		28DA8C4110E96789AF0DFA2F /* LibraryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
+		290E4818571F3CFE012DE7EC /* DeepReportGeneratorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportGeneratorTests.swift; sourceTree = "<group>"; };
 		2A1A02066A3354353FCEF4E2 /* time_zone_info.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_info.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_info.cc"; sourceTree = SOURCE_ROOT; };
 		2A9836AD8AD57FF8ACF772A4 /* TVSettingsScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVSettingsScreen.swift; sourceTree = "<group>"; };
 		2B43A2B22F763467E4437FEE /* leak_check.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = leak_check.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/leak_check.cc"; sourceTree = SOURCE_ROOT; };
@@ -2375,6 +2377,7 @@
 				532FDD358510D4489F557606 /* DeepReportModelTests.swift */,
 				B1EE3D7281EAAF83679E3117 /* ReportCollectorTests.swift */,
 				B96A4284E69EB64814A4AB2D /* GameSessionReportModeTests.swift */,
+				290E4818571F3CFE012DE7EC /* DeepReportGeneratorTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3437,6 +3440,7 @@
 				18269C3F7D0D535B6D186380 /* DeepReportModelTests.swift in Sources */,
 				4F2AFCC7B4DC4D0C5D3D577F /* ReportCollectorTests.swift in Sources */,
 				14DF583D2EE5FE465C89DE3A /* GameSessionReportModeTests.swift in Sources */,
+				0AA072E98EE75C96AA2FE6E0 /* DeepReportGeneratorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
