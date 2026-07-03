@@ -54,7 +54,7 @@ struct ScoreLeadWidgetView: View {
 
     private var isStale: Bool {
         guard let updatedAt = entry.updatedAt else { return true }
-        return entry.date.timeIntervalSince(updatedAt) > 600
+        return entry.date.timeIntervalSince(updatedAt) >= 600 // >= : the stale-boundary timeline entry is dated exactly +600
     }
 
     var body: some View {
