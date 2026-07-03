@@ -327,6 +327,9 @@ public final class GameSession {
     }
 
     func maybeCollectAnalysis(message: String) async {
+        // Deep Report probes own the info stream: the report collector reads it
+        // via lineObserver; the live Analysis/edge machinery must not see it.
+        guard !gobanState.reportGenerationActive else { return }
         guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
             let sampleTime = ProcessInfo.processInfo.systemUptime

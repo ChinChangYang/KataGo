@@ -44,6 +44,13 @@ public class GobanState {
     /// write a synced record (variations are discarded silently on exit).
     /// Defaults false so the iOS/macOS mainline-step behavior is unchanged.
     public var forcesBranchOnPlay = false
+    /// True while a Deep Analysis Report is probing the engine. GameSession
+    /// bypasses live-analysis collection for `info` lines (probe replies are
+    /// consumed via `lineObserver` by the report's collector instead), so the
+    /// board overlay, charts, and the `waitingForAnalysis` edge machinery stay
+    /// frozen mid-report. Menu/board interaction gates on it belt-and-suspenders
+    /// (the modal report sheet is the primary lock). Transient; never persisted.
+    public var reportGenerationActive = false
     public var branchSgf: String = .inActiveSgf
     public var branchIndex: Int = .inActiveCurrentIndex
     public var confirmingAIOverwrite: Bool = false
