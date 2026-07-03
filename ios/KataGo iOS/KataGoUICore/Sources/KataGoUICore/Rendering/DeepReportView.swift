@@ -202,9 +202,11 @@ public struct DeepReportView: View {
                     .disabled(model.position == nil)
 #endif
             }
-#if !os(macOS) && !os(tvOS)
+#if os(iOS)
             // Break the trailing Liquid Glass group so Copy-to-Comment and
             // Done read as separate actions on iPhone (round-4 feedback).
+            // iOS only: ToolbarSpacer doesn't compile on visionOS/tvOS, and
+            // macOS uses separate text buttons already.
             ToolbarSpacer(.fixed, placement: .confirmationAction)
 #endif
             ToolbarItem(placement: .confirmationAction) {
