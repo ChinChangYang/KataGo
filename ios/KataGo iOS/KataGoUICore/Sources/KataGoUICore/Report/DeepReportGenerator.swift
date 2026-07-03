@@ -306,6 +306,13 @@ public final class DeepReportGenerator {
                                        width: model.boardWidth, height: model.boardHeight)
         model.whiteVertices = vertices(of: session.stones.whitePoints,
                                        width: model.boardWidth, height: model.boardHeight)
+
+        // A reused model must never show a previous run's results.
+        model.position = nil
+        model.candidates = []
+        model.passComparison = nil
+        model.narrative = ""
+        model.narrativeUnavailableReason = nil
     }
 
     private func vertices(of points: [BoardPoint], width: Int, height: Int) -> [String] {
