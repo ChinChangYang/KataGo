@@ -1,7 +1,7 @@
 # Deep Analysis Report — Design
 
 - **Date:** 2026-07-03
-- **Status:** Approved (brainstorm complete; next step: implementation plan)
+- **Status:** Implemented (see docs/superpowers/plans/2026-07-03-deep-analysis-report.md)
 - **Platforms:** iOS, visionOS, macOS. tvOS excluded (no FoundationModels; feature never presented there).
 
 ## 1. Summary
