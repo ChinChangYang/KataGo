@@ -100,13 +100,17 @@ struct TVLibraryView: View {
     private var emptyState: some View {
         let state = syncMonitor.emptyLibraryState()
         return VStack(spacing: 16) {
+            // Reserve clearance below the "KataGo Anytime" navigation title:
+            // the stack is vertically centered, so once it grew tall enough
+            // (sample cards + Settings button) its top icon rose into the
+            // title. This minimum keeps that gap; overflow spills off the
+            // bottom, never up into the title. The trailing Spacer keeps a
+            // short (syncing) stack visually centered.
+            Spacer(minLength: 80)
             if state == .syncing {
                 ProgressView()
                     .controlSize(.large)
             } else {
-                // 56 pt (not the 80 pt of the old lone-icon screen): the
-                // status block now shares the height budget with the sample
-                // card, and 80 pt pushes the stack into the navigation title.
                 Image(systemName: iconName(for: state))
                     .font(.system(size: 56))
                     .foregroundStyle(.secondary)
@@ -132,6 +136,7 @@ struct TVLibraryView: View {
             .buttonStyle(.bordered)
             .focused($focus, equals: .settings)
             .padding(.top, 8)
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
