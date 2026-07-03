@@ -88,6 +88,12 @@ public final class DeepReportGenerator {
         do {
             try await runProbes(model: model, session: session, sideToMove: sideToMove)
             restore(session: session, gameRecord: gameRecord)
+            if gameRecord.concreteConfig.useLLM {
+                model.stage = .narrating
+                await ReportNarrator.narrate(model: model,
+                                             tone: gameRecord.concreteConfig.tone,
+                                             temperature: Double(gameRecord.concreteConfig.temperature))
+            }
             model.stage = .complete
         } catch is CancellationError {
             restore(session: session, gameRecord: gameRecord)
