@@ -45,14 +45,36 @@ public struct WidgetBoardView: View {
     let height: Int
     let black: [(Int, Int)]
     let white: [(Int, Int)]
+    let candidateDots: [(x: Int, y: Int, rank: Int)]
+    let lastMovePoint: (x: Int, y: Int)?
 
-    public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String]) {
+    public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String],
+                candidateVertices: [String] = [], lastMoveVertex: String? = nil) {
         let w = max(width, 1)
         let h = max(height, 1)
         self.width = w
         self.height = h
         self.black = blackVertices.compactMap { parseVertex($0, width: w, height: h) }
         self.white = whiteVertices.compactMap { parseVertex($0, width: w, height: h) }
+        let annotations = WidgetBoardView.annotationPoints(
+            candidates: candidateVertices, lastMove: lastMoveVertex, width: w, height: h)
+        self.candidateDots = annotations.dots
+        self.lastMovePoint = annotations.last
+    }
+
+    /// Pure geometry for the watch/widget overlays: candidate vertices → grid
+    /// dots ranked by surviving order (0 strongest), last move → grid point.
+    /// "pass" and off-board vertices are dropped (parseVertex returns nil).
+    /// nonisolated for the same reason as `hoshiPoints`.
+    nonisolated public static func annotationPoints(
+        candidates: [String], lastMove: String?, width: Int, height: Int
+    ) -> (dots: [(x: Int, y: Int, rank: Int)], last: (x: Int, y: Int)?) {
+        let dots = candidates
+            .compactMap { parseVertex($0, width: width, height: height) }
+            .enumerated()
+            .map { (x: $0.element.x, y: $0.element.y, rank: $0.offset) }
+        let last = lastMove.flatMap { parseVertex($0, width: width, height: height) }
+        return (dots, last)
     }
 
     /// 0-based grid coordinates of the star points (hoshi) for a standard square
@@ -116,6 +138,17 @@ public struct WidgetBoardView: View {
                     Circle().fill(.black)
                         .frame(width: cell * 0.92, height: cell * 0.92)
                         .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
+                }
+                let rankColors: [Color] = [.green, .yellow, .orange]
+                ForEach(Array(candidateDots.enumerated()), id: \.offset) { _, d in
+                    Circle().fill(rankColors[min(d.rank, rankColors.count - 1)])
+                        .frame(width: max(cell * 0.36, 3), height: max(cell * 0.36, 3))
+                        .position(CGPoint(x: originX + CGFloat(d.x) * cell, y: originY + CGFloat(d.y) * cell))
+                }
+                if let lm = lastMovePoint {
+                    Circle().stroke(Color.red, lineWidth: max(cell * 0.08, 1))
+                        .frame(width: cell * 0.6, height: cell * 0.6)
+                        .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
                 }
             }
         }
