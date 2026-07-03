@@ -16,9 +16,12 @@ struct PlusMenuView: View {
     @Environment(GobanState.self) var gobanState
     @Environment(ThumbnailModel.self) var thumbnailModel
     @Environment(TopUIState.self) var topUIState
+    @Environment(Turn.self) var player
+    @Environment(Stones.self) var stones
     @State private var showingConfig = false
     @State private var showingDeveloper = false
     @State private var confirmingClone = false
+    @State private var showingReport = false
 
     var body: some View {
         Menu {
@@ -101,6 +104,13 @@ struct PlusMenuView: View {
                 } label: {
                     Label("Developer Mode", systemImage: "doc.plaintext")
                 }
+
+                Button {
+                    showingReport = true
+                } label: {
+                    Label("Deep Report", systemImage: "doc.text.magnifyingglass")
+                }
+                .disabled(reportDisabled)
             }
         } label: {
             Label("More", systemImage: "ellipsis.circle")
@@ -124,6 +134,13 @@ struct PlusMenuView: View {
                 #if os(macOS)
                 .frame(minWidth: 500, minHeight: 400)
                 #endif
+            }
+        }
+        .sheet(isPresented: $showingReport) {
+            if let gameRecord {
+                NavigationStack {
+                    DeepReportView(gameRecord: gameRecord)
+                }
             }
         }
         .confirmationDialog(
@@ -152,6 +169,17 @@ struct PlusMenuView: View {
             Button("Cancel", role: .cancel) { }
         }
     }
+
+    /// Deep Report gating: engine/board ready, no in-flight AI move (its
+    /// cancellable search would interleave with the probes), game not
+    /// finished, no report running.
+    private var reportDisabled: Bool {
+        guard let gameRecord else { return true }
+        return !stones.isReady
+            || gobanState.reportGenerationActive
+            || gobanState.passCount >= 2
+            || gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: player)
+    }
 }
 
 #Preview {
@@ -163,4 +191,6 @@ struct PlusMenuView: View {
     .environment(GobanState())
     .environment(ThumbnailModel())
     .environment(TopUIState())
+    .environment(Turn())
+    .environment(Stones())
 }
