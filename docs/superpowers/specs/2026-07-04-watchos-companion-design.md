@@ -87,9 +87,9 @@ Haptics via `WKInterfaceDevice.play` on live-move arrival and (v1.1) play confir
 - Zoom/pan board inspection; tap-on-board input.
 - Multi-host conflict handling (moot: the watch follows exactly its paired iPhone).
 
-## Open items for the implementation plan
+## Open items for the implementation plan (resolved)
 
-- Exact bundle IDs / target naming (`…tw.watchkitapp` family) and scheme name.
-- Complication families for v1 (accessoryInline / accessoryCircular / accessoryRectangular) and refresh strategy under WidgetKit budgets.
-- Whether the peek buffer stores full snapshots (~100 KB for 50) or board-diffs (memory is comfortable either way; prefer simple full snapshots first).
-- pbxproj wiring details per the xcodeproj-gem recipe used for tvOS.
+- **Bundle IDs / target naming / scheme:** watch app bundle id `…tw.watchkitapp`, complication extension `…tw.watchkitapp.widget`; watch app target/scheme is `KataGo Anytime Watch`.
+- **Complication families & refresh:** `accessoryInline`, `accessoryCircular`, `accessoryRectangular`, all fed from the same snapshot stream; refresh is app-pushed (`WidgetCenter.reloadTimelines`) rather than timeline-polled, gated on both a score-lead change of at least 0.5 pt *and* at least 30 s elapsed since the last reload — small jitter within a 30 s window doesn't push, and a stable score doesn't burn the WidgetKit reload budget even if 30 s pass.
+- **Peek buffer contents:** stores full snapshots, not diffs — 50 entries × ~2 KB ≈ 100 KB, comfortably within memory; simpler than diffing and avoids any diff-replay bugs.
+- **pbxproj wiring:** same xcodeproj-gem recipe used for tvOS, split into two scripts — `add_watch_app_target.rb` (watch app target, using the tvOS target as the template) and `add_watch_widget_target.rb` (the `KataGoAnytimeWatchWidget` complication extension target).

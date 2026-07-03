@@ -38,6 +38,9 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -d
 
 # Build for macOS (separate scheme: KataGo Anytime Mac)
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Mac" -destination 'platform=macOS' -configuration Debug
+
+# Build for watchOS Simulator (scheme: KataGo Anytime Watch; watch app links ONLY KataGoGameStore — never the engine)
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Watch" -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)'
 ```
 
 ### Running Tests
@@ -156,3 +159,4 @@ The app uses KataGo's GTP extensions including:
 - iOS 26+
 - macOS 26+ (native, not Catalyst)
 - visionOS 26+
+- watchOS 26+ (companion live mirror, paired iPhone only)
