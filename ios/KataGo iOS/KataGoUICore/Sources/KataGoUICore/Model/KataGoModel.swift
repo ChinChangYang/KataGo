@@ -125,7 +125,11 @@ extension BoardPoint {
         if move == "pass" {
             self = BoardPoint.pass(width: width, height: height)
         } else {
-            let pattern = /(\w+)(\d+)/
+            // Letters-only column group: `\w` also matches digits, so a greedy
+            // `(\w+)` swallows the first digit of two-digit rows ("Q16" →
+            // xLabel "Q1" → xMap miss → nil, silently dropping rows 10+).
+            // Same pattern AnalysisLineParser.moveToPoint uses.
+            let pattern = /([^\d\W]+)(\d+)/
             guard let match = move.firstMatch(of: pattern) else { return nil }
 
             let xLabel = String(match.1)

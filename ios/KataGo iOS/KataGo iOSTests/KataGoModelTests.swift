@@ -798,4 +798,16 @@ struct KataGoModelTests {
         #expect(invalidCoordinateX == nil)
         #expect(invalidCoordinateY == nil)
     }
+
+    @Test func boardPointMoveParsesTwoDigitRows() {
+        // Regression: a `(\w+)` column group swallowed the row's first digit
+        // ("Q16" → xLabel "Q1" → nil), silently dropping rows 10-19 wherever
+        // BoardPoint(move:) is used (report boards, book advance).
+        #expect(BoardPoint(move: "Q16", width: 19, height: 19) == BoardPoint(x: 15, y: 15))
+        #expect(BoardPoint(move: "B19", width: 19, height: 19) == BoardPoint(x: 1, y: 18))
+        #expect(BoardPoint(move: "A1", width: 19, height: 19) == BoardPoint(x: 0, y: 0))
+        #expect(BoardPoint(move: "pass", width: 19, height: 19) == BoardPoint.pass(width: 19, height: 19))
+        // Two-letter columns on big boards keep working.
+        #expect(BoardPoint(move: "AB12", width: 37, height: 37) != nil)
+    }
 }
