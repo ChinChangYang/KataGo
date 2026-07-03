@@ -99,7 +99,10 @@ public struct ReportBoardView: View {
 
         case .pv(let vertices, let startingWith):
             let pv = pvStones(vertices, startingWith: startingWith)
-            let numbers = Dictionary(uniqueKeysWithValues: pv.map { ($0.point, $0.number) })
+            // A PV can revisit a point (ko recapture); the latest move number
+            // wins, matching MoveNumbers.derive's overwrite semantics.
+            let numbers = Dictionary(pv.map { ($0.point, $0.number) },
+                                     uniquingKeysWith: { _, latest in latest })
             MoveNumberView(dimensions: dimensions, verticalFlip: verticalFlip, style: .allMoves,
                           moveNumbers: MoveNumbers(numbers: numbers, lastPoint: nil, lastNumber: nil))
         }
