@@ -5,5 +5,8 @@ import Foundation
 // cannot collide with KataGoUICore's public `printError` in consumers that
 // import both modules.
 func printError(_ item: Any) {
-    FileHandle.standardError.write(Data("\(item)\n".utf8))
+    // The legacy write(_:) raises an uncatchable NSException on a broken
+    // stderr (EPIPE aborts the whole engine subprocess — seen in the wild
+    // during CoreML handle loads). The throwing variant + try? never kills.
+    try? FileHandle.standardError.write(contentsOf: Data("\(item)\n".utf8))
 }

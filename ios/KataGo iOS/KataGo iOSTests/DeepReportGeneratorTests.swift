@@ -46,14 +46,22 @@ struct DeepReportGeneratorTests {
         func sleeper(_ interval: TimeInterval) async throws {
             step += 1
             switch step {
-            case 1:   // snapshot budget: set-param ack, analyze header, report line
+            case 1:   // snapshot probe: set-param ack, analyze header, report line
                 feed(["= ", "=", DeepReportGeneratorTests.snapshotLine])
-            case 2:   // pass budget: stop ack, analyze header, report line
+            case 2:   // snapshot's post-stop grace: nothing to feed
+                break
+            case 3:   // pass probe: stop ack, analyze header, report line
                 feed(["= ", "=", DeepReportGeneratorTests.passLine])
-            case 3:   // tenuki 0: stop ack, play ack, analyze header, report line
+            case 4:   // pass probe's post-stop grace: nothing to feed
+                break
+            case 5:   // tenuki 0 probe: stop ack, play ack, analyze header, report line
                 feed(["= ", "= ", "=", DeepReportGeneratorTests.tenukiLine])
-            case 4:   // tenuki 1: stop ack, undo ack, play ack, header, report line
+            case 6:   // tenuki 0's post-stop grace: nothing to feed
+                break
+            case 7:   // tenuki 1 probe: stop ack, undo ack, play ack, header, report line
                 feed(["= ", "= ", "= ", "=", DeepReportGeneratorTests.tenukiLine])
+            case 8:   // tenuki 1's post-stop grace: nothing to feed
+                break
             default: break
             }
         }
@@ -117,14 +125,14 @@ struct DeepReportGeneratorTests {
             "kata-set-param maxVisits 1000000000",
             "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true",
             "stop",
-            "kata-analyze w interval 50 maxmoves 8 ownership true rootInfo true",
+            "kata-analyze w interval 10 maxmoves 8 ownership true rootInfo true",
             "stop",
             "play b A1",
-            "kata-analyze b interval 50 maxmoves 8 ownership true rootInfo true",
+            "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
             "stop",
             "undo",
             "play b B2",
-            "kata-analyze b interval 50 maxmoves 8 ownership true rootInfo true",
+            "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
             "stop",
             "undo",
         ]
@@ -156,15 +164,17 @@ struct DeepReportGeneratorTests {
     }
 
     @Test func cancellationMidTenukiUndoesTheOutstandingPlay() async {
-        // Cancel during the FIRST tenuki sleep (sleeper call #3): the candidate
-        // play is on the engine board and must be undone by restore.
+        // Calls 1-4 (snapshot probe, snapshot grace, pass probe, pass grace)
+        // delegate to the script; call #5 — the first tenuki probe sleep,
+        // after `play b A1` was sent — throws. The candidate play is on the
+        // engine board and must be undone by restore.
         let f = Fixture()
         let script = f.script
         let generator = DeepReportGenerator(
             messageList: f.session.messageList,
             budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
             sleeper: { interval in
-                if script.step >= 2 { throw CancellationError() }   // #3 = first tenuki
+                if script.step >= 4 { throw CancellationError() }   // #5 = first tenuki probe
                 try await script.sleeper(interval)
             }
         )

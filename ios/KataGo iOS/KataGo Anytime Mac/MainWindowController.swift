@@ -1242,6 +1242,15 @@ final class MainWindowController: NSWindowController {
     /// Applies the iOS `GameSplitView` analyze re-arm / stop decision based on the
     /// transitions detected against the snapshots, then refreshes the snapshots.
     private func handleAnalysisLifecycleChange() {
+        // Deep Report probes own the engine stream; the report's restore path
+        // re-arms analysis itself. Frozen waitingForAnalysis means this can't
+        // fire mid-report today — this guard keeps that true if the freeze
+        // semantics ever change. Placed before the `lastWaitingForAnalysis`/
+        // `lastAnalysisStatus` snapshot update below (not just the reactive
+        // block): a skipped pass must skip that update too, or the transition
+        // that triggered this call would be silently marked "seen" without
+        // ever being handled, desyncing the snapshots from what actually ran.
+        guard !session.gobanState.reportGenerationActive else { return }
         let gobanState = session.gobanState
         let newWaitingForAnalysis = gobanState.waitingForAnalysis
         let newAnalysisStatus = gobanState.analysisStatus

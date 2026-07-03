@@ -19,6 +19,14 @@ public enum ReportConstants {
     public static let tenukiBudget: TimeInterval = 1.0
     public static let candidateCount = 2
     public static let probeInterval = 50      // centiseconds → 0.5 s reports
+    /// Report interval for the COLD probes (pass/tenuki): analyzing with an
+    /// explicit player clears the search tree, and a cold tree emits nothing
+    /// at a callback with no completed visits — 0.1 s intervals give up to
+    /// nine callback chances within the 1 s budget instead of one.
+    public static let coldProbeInterval = 10   // centiseconds
+    /// Wall-clock pause between sending `stop` and reading a stage's last
+    /// line, so a final in-flight report crossing the pipe still lands.
+    public static let stopGrace: TimeInterval = 0.2
     public static let probeMaxMoves = 8
     public static let winrateNoise: Float = 0.02
     public static let scoreNoise: Float = 1.0

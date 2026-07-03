@@ -128,6 +128,8 @@ public final class DeepReportGenerator {
         try await sleeper(budgets.snapshot)
         try checkEngineError()
         send("stop", stage: nil)
+        // Let a final in-flight report line cross the pipe before reading.
+        try await sleeper(ReportConstants.stopGrace)
         guard let snapshotLine = collector.latestLine(for: .snapshot) else {
             throw ReportError("The engine produced no analysis for this position.")
         }
@@ -145,11 +147,13 @@ public final class DeepReportGenerator {
 
         // Stage 2: pass probe (zero mutation) — opponent to move on the same board.
         model.stage = .passProbe
-        send("kata-analyze \(oppSymbol) interval \(ReportConstants.probeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
+        send("kata-analyze \(oppSymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
              stage: .passProbe)
         try await sleeper(budgets.pass)
         try checkEngineError()
         send("stop", stage: nil)
+        // Let a final in-flight report line cross the pipe before reading.
+        try await sleeper(ReportConstants.stopGrace)
         if let passLine = collector.latestLine(for: .passProbe) {
             let passParsed = parser.parse(message: passLine)
             model.passComparison = buildPassComparison(passParsed: passParsed,
@@ -166,14 +170,19 @@ public final class DeepReportGenerator {
             model.stage = .tenuki(index)
             send("play \(mySymbol) \(candidate.vertex)", stage: nil)
             outstandingPlays = 1
-            send("kata-analyze \(mySymbol) interval \(ReportConstants.probeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
+            send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
                  stage: .tenuki(index))
             try await sleeper(budgets.tenuki)
             try checkEngineError()
             send("stop", stage: nil)
+            // Let a final in-flight report line cross the pipe before reading;
+            // the undo (which yanks the cold tree out) must still always
+            // follow, whether or not a line landed.
+            try await sleeper(ReportConstants.stopGrace)
+            let tenukiLine = collector.latestLine(for: .tenuki(index))
             send("undo", stage: nil)
             outstandingPlays = 0
-            if let line = collector.latestLine(for: .tenuki(index)) {
+            if let line = tenukiLine {
                 let parsed = parser.parse(message: line)
                 model.candidates[index].tenuki = buildTenuki(parsed: parsed,
                                                              sideToMove: sideToMove,
