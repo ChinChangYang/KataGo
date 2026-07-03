@@ -41,7 +41,6 @@ public struct DeepReportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 headerSection
-                positionSection
                 candidatesSection
                 passSection
                 narrativeSection
@@ -96,23 +95,6 @@ public struct DeepReportView: View {
     }
 
     @ViewBuilder
-    private var positionSection: some View {
-        if let position = model.position {
-            // Same inline stat pattern the candidates use — one layout for
-            // the same data everywhere (round-3 reviewer feedback).
-            HStack(spacing: 8) {
-                Text("\(String(format: "%.0f%%", position.winrate * 100)) win rate · \(String(format: "%+.1f", position.scoreLead)) points · \(position.visits.formatted()) visits")
-                    .font(.callout)
-                if position.visits < ReportConstants.lowVisitThreshold {
-                    QuickEstimateBadge(visits: position.visits)
-                }
-            }
-        } else if model.isGenerating {
-            skeletonRow(height: 44)
-        }
-    }
-
-    @ViewBuilder
     private var candidatesSection: some View {
         if model.candidates.isEmpty && model.isGenerating {
             skeletonRow(height: 180)
@@ -130,9 +112,10 @@ public struct DeepReportView: View {
     private var passSection: some View {
         if let pass = model.passComparison {
             VStack(alignment: .leading, spacing: 8) {
+                Divider()
                 Text("Playing vs. Passing")
                     .font(.title3.bold())
-                Text("If \(sideName) passes: \(String(format: "%.0f%%", pass.winrate * 100)) win rate — playing is worth \(String(format: "%+.0f%%", pass.winrateDeltaVsBest * 100)) and \(String(format: "%+.1f", pass.scoreLeadDeltaVsBest)) points. The opponent would punish at \(pass.punishmentVertex).")
+                Text("If \(sideName) passes: \(String(format: "%.0f%%", pass.winrate * 100)) win rate — playing is worth \(String(format: "%+.0f%%", pass.winrateDeltaVsBest * 100)) and \(String(format: "%+.1f", pass.scoreLeadDeltaVsBest)) points. \(opponentName) would punish at \(pass.punishmentVertex).")
                     .font(.callout)
                 ReportBoardView(width: model.boardWidth, height: model.boardHeight,
                                 blackVertices: model.blackVertices,
@@ -156,10 +139,13 @@ public struct DeepReportView: View {
                 }
             }
         } else if model.stage == .complete {
-            Label("Pass comparison unavailable — the engine produced no analysis for it.",
-                  systemImage: "questionmark.circle")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Divider()
+                Label("Pass comparison unavailable — the engine produced no analysis for it.",
+                      systemImage: "questionmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -216,6 +202,11 @@ public struct DeepReportView: View {
                     .disabled(model.position == nil)
 #endif
             }
+#if !os(macOS) && !os(tvOS)
+            // Break the trailing Liquid Glass group so Copy-to-Comment and
+            // Done read as separate actions on iPhone (round-4 feedback).
+            ToolbarSpacer(.fixed, placement: .confirmationAction)
+#endif
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { close() }
             }
@@ -271,6 +262,7 @@ struct CandidateSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Divider()
             HStack {
                 Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
                     .font(.title3.bold())

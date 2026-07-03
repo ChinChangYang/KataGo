@@ -254,3 +254,10 @@ Presentation-layer only; probes, budgets, and data flow unchanged.
   heading and badge stay full-opacity.
 - **Toolbar:** macOS uses text buttons ("Regenerate", "Copy to Comment", "Done"/"Cancel")
   with tooltips, per Mac sheet convention; iOS/visionOS keep the icon buttons.
+
+Round 4 (2026-07-04 follow-up, presentation only): the position stats line above "Best
+Move" is removed (header keeps game name / move / visits-per-second); a `Divider()` sits
+above every "Best Move"/"Alternative" heading and above "Playing vs. Passing"; the pass
+sentence names the punishing color ("White would punish at K14", not "the opponent"), UI
+and narrator facts alike; on iOS/visionOS a `ToolbarSpacer(.fixed)` separates
+Copy-to-Comment from Done so they are not grouped into one trailing capsule.

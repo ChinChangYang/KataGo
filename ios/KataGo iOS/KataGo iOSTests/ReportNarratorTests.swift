@@ -59,6 +59,9 @@ struct ReportNarratorTests {
         #expect(!joined.contains("Candidate "))
         // Black to play → White is the side that might ignore A1.
         #expect(joined.contains("If White ignores A1 (plays elsewhere), Black follows up with B2"))
+        // Round 4: the pass fact names the punishing side's color too.
+        #expect(joined.contains("White would punish at B2"))
+        #expect(!joined.contains("the opponent would punish"))
     }
 
     @Test func lowVisitSmallDeltasAreMarkedWithinNoise() {

@@ -42,7 +42,7 @@ public enum ReportNarrator {
         }
 
         if let pass = model.passComparison {
-            facts.append("If \(side) passes instead: \(percent(pass.winrate)) win rate — playing the best candidate is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; the opponent would punish at \(pass.punishmentVertex).")
+            facts.append("If \(side) passes instead: \(percent(pass.winrate)) win rate — playing the best candidate is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex).")
             if !pass.contestedPoints.isEmpty {
                 let regions = orderedUniqueRegions(pass.contestedPoints)
                 facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
