@@ -59,6 +59,7 @@
 		28047B110419251A5427D7F1 /* marshalling.cc in Sources */ = {isa = PBXBuildFile; fileRef = D53357C0B8CA23F49DBCC01E /* marshalling.cc */; };
 		29DE460310B6023605853DD4 /* TVAttractMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAC54FBF402DA5007B56C42 /* TVAttractMode.swift */; };
 		2CEF2A571B8EF1800DD05D20 /* stdcpp_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83A4624C9CF12B918AC2EB00 /* stdcpp_waiter.cc */; };
+		2CF982C27C0624AAFBB4E8DC /* WatchSnapshotBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */; };
 		2E6F4F8DF9E98183ABF28043 /* WatchSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C25EB9221DFE24997B5A954F /* WatchSnapshotTests.swift */; };
 		2E729A68CA06A3B50CCC5BA3 /* seed_material.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */; };
 		2EF6C52FFFFCBD893D25E617 /* arena_align.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5FEAA2F338D54F48ED93BEC0 /* arena_align.cc */; };
@@ -96,6 +97,7 @@
 		43E47A3301F897D4BAF27075 /* raw_logging.cc in Sources */ = {isa = PBXBuildFile; fileRef = B5F263A20FAF107D96F1690F /* raw_logging.cc */; };
 		43EBD384D8E50BED6E5E1441 /* TVPreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB8B3F43E9E8756E6098D9E /* TVPreviewSupport.swift */; };
 		45288F968EF108F61E3D6990 /* EngineDeviceAssignmentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FC14538AEA6905E168800A /* EngineDeviceAssignmentsTests.swift */; };
+		4565143F783B8E54FD203372 /* WatchSessionRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7776E5E187A8BB25B0B7CE5 /* WatchSessionRelay.swift */; };
 		45DDFBF168ECF122EA1B2592 /* ConfigEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD7CA8173196C1009A257B6 /* ConfigEditorViewController.swift */; };
 		478BEF81C6C032740ABF6277 /* AnalysisPowerSavingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51F0F70DC402DCC7315E723 /* AnalysisPowerSavingTests.swift */; };
 		4795C7A35191157BA282AB41 /* AnalysisLineParserReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9176A9365E11D68DD9298E /* AnalysisLineParserReportTests.swift */; };
@@ -1375,6 +1377,8 @@
 		E5B49A6D9F23E639CE1F5B23 /* gaussian_distribution.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = gaussian_distribution.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/gaussian_distribution.cc"; sourceTree = SOURCE_ROOT; };
 		E5E695144B2B1485A6D87400 /* MacModelSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacModelSelection.swift; sourceTree = "<group>"; };
 		E5E86CB9461F2B8990E7855E /* initialize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = initialize.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/initialize.cc"; sourceTree = SOURCE_ROOT; };
+		E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilderTests.swift; sourceTree = "<group>"; };
+		E7776E5E187A8BB25B0B7CE5 /* WatchSessionRelay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchSessionRelay.swift; path = "KataGo iOS/Watch/WatchSessionRelay.swift"; sourceTree = "<group>"; };
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
 		EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
@@ -2284,6 +2288,7 @@
 				05ECFA5A490B99C88979CEF4 /* KataGoAnytimeWidget */,
 				47C4AC9707E7667170340667 /* WidgetBoardViewTests.swift */,
 				E7F7CA01FD1F609C8EA32880 /* KataGo Anytime TV */,
+				E7776E5E187A8BB25B0B7CE5 /* WatchSessionRelay.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -2390,6 +2395,7 @@
 				C25EB9221DFE24997B5A954F /* WatchSnapshotTests.swift */,
 				57AFFAB6093C799F02577B92 /* WidgetBoardAnnotationTests.swift */,
 				A14133701B7598070B2E71DD /* WatchPeekBufferTests.swift */,
+				E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3391,6 +3397,7 @@
 				DA1AC8AAF58F6DAD80645635 /* AcknowledgmentsView.swift in Sources */,
 				DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */,
 				750AB6E334415C575285A957 /* OpeningBookPickerView.swift in Sources */,
+				4565143F783B8E54FD203372 /* WatchSessionRelay.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3457,6 +3464,7 @@
 				2E6F4F8DF9E98183ABF28043 /* WatchSnapshotTests.swift in Sources */,
 				9E3EE67B254945F3EE49730C /* WidgetBoardAnnotationTests.swift in Sources */,
 				4AC7316AFE52C9A8AB15D8F7 /* WatchPeekBufferTests.swift in Sources */,
+				2CF982C27C0624AAFBB4E8DC /* WatchSnapshotBuilderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
