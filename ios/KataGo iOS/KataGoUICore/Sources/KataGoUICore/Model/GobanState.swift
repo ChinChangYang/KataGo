@@ -392,7 +392,11 @@ public class GobanState {
         guard let turn = pendingMoveTurn,
               let move = pendingMoveVertex else { return }
 
-        if isEditing {
+        // forcesBranchOnPlay outranks isEditing: the tvOS review screen must
+        // never take the editing path (it truncates the record and lets
+        // printsgf overwrite the synced SGF) even if a defaultSgf game
+        // slipped through loadGame unlocked.
+        if isEditing && !forcesBranchOnPlay {
             gameRecord.clearData(after: gameRecord.currentIndex)
 
             maybeUpdateAnalysisData(
@@ -446,7 +450,9 @@ public class GobanState {
     ) {
         guard let aiMove = aiMove else { return }
 
-        if isEditing {
+        // Same review guard as playPendingHumanMove: never the editing path
+        // while the spectator screen forces branches.
+        if isEditing && !forcesBranchOnPlay {
             gameRecord.clearData(after: gameRecord.currentIndex)
 
             maybeUpdateAnalysisData(

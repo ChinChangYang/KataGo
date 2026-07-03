@@ -15,6 +15,11 @@ import KataGoUICore
 @main
 struct KataGoTVApp: App {
     init() {
+        // A user-armed "Re-download Library from iCloud" wipes the local store
+        // HERE — before the lazy SharedModelContainer is first touched in
+        // `body` — so the container always opens fresh and re-imports.
+        TVStoreReset.performIfRequested()
+
         // Wire the cache-aware CoreML bridge into the KataGoSwift seam before any
         // engine launch (mirrors the iOS app), and force the engine stack to link.
         registerCoreMLBridge()

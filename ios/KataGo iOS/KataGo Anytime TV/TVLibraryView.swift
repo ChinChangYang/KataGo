@@ -22,6 +22,7 @@ import KataGoUICore
 private enum LibraryFocus: Hashable {
     case selfPlay
     case sample
+    case settings
     case game(PersistentIdentifier)
 }
 
@@ -58,6 +59,13 @@ struct TVLibraryView: View {
                             .buttonStyle(.card)
                             .focused($focus, equals: .game(game.persistentModelID))
                         }
+                        // Trailing settings card: backend/benchmark, recovery
+                        // resets, and the sound toggle.
+                        NavigationLink(value: SettingsRoute()) {
+                            TVSettingsCard()
+                        }
+                        .buttonStyle(.card)
+                        .focused($focus, equals: .settings)
                     }
                     .padding(.horizontal, 90)
                     .padding(.vertical, 60)
@@ -114,6 +122,16 @@ struct TVLibraryView: View {
                 .fixedSize(horizontal: false, vertical: true)
             sampleSection
                 .padding(.top, 12)
+            // Settings must stay reachable with an empty library too — the
+            // recovery actions (engine restart, iCloud re-download) matter
+            // most exactly when the library looks wrong.
+            NavigationLink(value: SettingsRoute()) {
+                Label("Settings", systemImage: "gearshape")
+                    .font(.callout)
+            }
+            .buttonStyle(.bordered)
+            .focused($focus, equals: .settings)
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)

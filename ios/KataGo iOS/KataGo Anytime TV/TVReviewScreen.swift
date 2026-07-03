@@ -350,6 +350,12 @@ struct TVReviewScreen: View {
         gobanState.loadGame(gameRecord: game, previous: nil, player: player,
                             bookLookup: bookLookup, messageList: messageList,
                             board: board, stones: stones)
+        // CRITICAL: review is ALWAYS locked. loadGame unlocks a game whose
+        // SGF equals GameRecord.defaultSgf (a never-played synced game), and
+        // an unlocked game routes picks through the EDITING path — which
+        // truncates the record and lets printsgf replies overwrite the synced
+        // SGF (exported to CloudKit; the build-291 data-corruption bug).
+        gobanState.isEditing = false
         totalMoves = SgfOperations(sgf: game.sgf).moveSize ?? game.currentIndex
         // Keep the one-bit invariant across screen entries: a user OFF
         // (.clear) persists until re-toggled; the .pause that leaving the
@@ -402,6 +408,9 @@ struct TVReviewScreen: View {
         gobanState.loadGame(gameRecord: game, previous: nil, player: player,
                             bookLookup: bookLookup, messageList: messageList,
                             board: board, stones: stones)
+        // Same review lock as loadIfNeeded — loadGame re-evaluates the
+        // defaultSgf unlock on every reload.
+        gobanState.isEditing = false
         reanalyze()
     }
 

@@ -43,6 +43,12 @@ public final class GameSession {
     /// in-memory record that must never leak into iCloud. A session-level flag
     /// (not a per-call guard) so no reply race can ever re-arm the insert.
     public var autoCreatesGameOnEmptyLibrary = true
+    /// Out-of-band tap on every raw engine reply line, invoked from
+    /// `messaging()` after the message is appended. The tvOS benchmark uses
+    /// it to read kata-benchmark's result line (which no prefix-matcher
+    /// recognizes) without adding a second reader on the engine bridge.
+    /// Wiring, not observable UI state; default nil = no behavior change.
+    @ObservationIgnored public var lineObserver: ((String) -> Void)?
 
     /// Transport to the engine. Defaults to the in-process C++ bridge
     /// (iOS/visionOS, and the default everywhere); the macOS app injects a
@@ -172,6 +178,13 @@ public final class GameSession {
 
             // Append the message to the list of messages
             messageList.messages.append(message)
+
+            // Tap for raw engine lines the prefix-matchers below ignore (the
+            // tvOS benchmark reads kata-benchmark's result through it). There
+            // must never be a second reader on the engine bridge, so this is
+            // the only way to observe replies out-of-band. Default nil — no
+            // behavior change anywhere else.
+            lineObserver?(line)
 
             // Handle GTP error responses by resetting all pending states
             if line.hasPrefix("? ") {
@@ -372,7 +385,12 @@ public final class GameSession {
                 } else if gobanState.isBranchActive {
                     gobanState.branchSgf = sgfString
                     gobanState.branchIndex = currentIndex
-                } else if let gameRecord = navigationContext.selectedGameRecord {
+                } else if let gameRecord = navigationContext.selectedGameRecord,
+                          !gobanState.forcesBranchOnPlay {
+                    // Under forcesBranchOnPlay (tvOS review) the record must
+                    // never be written: every legitimate printsgf there is
+                    // branch-routed above; anything reaching this arm is a
+                    // stray reply that would overwrite a synced game.
                     gameRecord.sgf = sgfString
                     gameRecord.currentIndex = currentIndex
                     gameRecord.lastModificationDate = Date.now

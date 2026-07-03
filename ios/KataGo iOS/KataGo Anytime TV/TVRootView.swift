@@ -16,6 +16,7 @@ import KataGoUICore
 struct TVRootView: View {
     @State private var session = GameSession()
     @State private var engineLifecycle = EngineLifecycle()
+    @State private var engineController = TVEngineController()
     @State private var audioModel = AudioModel()
     @State private var navigationContext = NavigationContext()
     @State private var syncMonitor = CloudKitSyncMonitor()
@@ -56,6 +57,9 @@ struct TVRootView: View {
                         .navigationDestination(for: SelfPlayRoute.self) { route in
                             TVSelfPlayScreen(route: route)
                         }
+                        .navigationDestination(for: SettingsRoute.self) { _ in
+                            TVSettingsScreen()
+                        }
                 }
                 // Inject the session's engine-driven models so the shared
                 // BoardView / analysis views resolve them via @Environment.
@@ -72,6 +76,10 @@ struct TVRootView: View {
                 .environment(navigationContext)
                 .environment(syncMonitor)
                 .environment(attractMode)
+                .environment(engineController)
+                // The session itself (not just its sub-models): the settings
+                // screen's benchmark needs its command list + line tap.
+                .environment(session)
                 // Idle-attract signals. Interaction detail (focus movement)
                 // is reported by TVLibraryView; the root owns the structural
                 // signals: navigation depth and scene phase.
@@ -125,12 +133,19 @@ struct TVRootView: View {
                 .task {
                     guard !isRunningInPreview else { return }
                     // The GTP read loop — parses board/analysis lines into the
-                    // models. Stays alive for the app's lifetime.
-                    await session.run(gameRecords: gameRecords,
-                                      modelContext: modelContext,
-                                      navigationContext: navigationContext,
-                                      audioModel: audioModel,
-                                      aiMove: $aiMove)
+                    // models. Runs for the app's lifetime; across an engine
+                    // restart (Settings backend switch / benchmark) it exits
+                    // (stopRequested) and PARKS in the controller until the
+                    // new engine's handshake — which must be the bridge's
+                    // sole reader — completes, then reads again.
+                    while !Task.isCancelled {
+                        await session.run(gameRecords: gameRecords,
+                                          modelContext: modelContext,
+                                          navigationContext: navigationContext,
+                                          audioModel: audioModel,
+                                          aiMove: $aiMove)
+                        await engineController.noteRunLoopExited()
+                    }
                 }
             } else {
                 TVLoadingView(caption: "Loading engine…")
@@ -152,6 +167,14 @@ struct TVRootView: View {
             // GlobalPreferenceSync never runs on TV, so nothing overwrites it.
             session.gobanState.verticalFlip = false
 
+            // Stone/capture sounds (the mp3s ship in the KataGoUICore package
+            // bundle) — persisted via the TV Settings toggle, default ON.
+            session.gobanState.soundEffect = TVSettingsStore.soundEffects
+
+            // Only the last move carries a number — the last-3 default's
+            // trailing ①②③ markers read as clutter at 10-foot distance.
+            session.gobanState.moveNumberStyle = MoveNumberStyle.lastMove.rawValue
+
             // Stream continuous kata-analyze at the game's analysisInterval
             // (default 0.5 s) instead of the 0.1 s fast-first-report interval:
             // 10 Hz of info+ownership parsing visibly bogs down the A15 UI,
@@ -168,11 +191,13 @@ struct TVRootView: View {
         .task {
             guard !isReady, !isRunningInPreview else { return }
             // Blocks on the engine's `version` reply (i.e. until the b18 net has
-            // finished loading via CoreML/NE), then sends the default board setup.
+            // finished loading), then sends the default board setup.
             _ = await session.initialize(
                 selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
                 engineLifecycle: engineLifecycle,
                 config: nil)
+            // Handshake done: clear the crash sentinel armed before the spawn.
+            engineController.noteInitialHandshakeComplete()
             isReady = true
         }
     }
@@ -180,13 +205,10 @@ struct TVRootView: View {
     private func startEngineIfNeeded() {
         guard !engineStarted, !isRunningInPreview else { return }
         engineStarted = true
-        engineLifecycle.reset()
-        // Built-in b18 net + tvOS defaults (CoreML/NE device [100], 2 search
-        // threads, human-SL net skipped). Needs a >512 KB stack (BoardHistory
-        // copies) — match the iOS app's 1 MB.
-        let engineThread = Thread { KataGoHelper.runGtp() }
-        engineThread.stackSize = 4096 * 256
-        engineThread.start()
+        // Backend comes from TV Settings via the crash-safe recovery ladder
+        // (a spawn that killed the process boots plain CoreML next launch).
+        engineController.configure(session: session, engineLifecycle: engineLifecycle)
+        engineController.startInitial()
     }
 }
 
