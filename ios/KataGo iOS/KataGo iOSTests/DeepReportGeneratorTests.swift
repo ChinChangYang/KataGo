@@ -137,4 +137,72 @@ struct DeepReportGeneratorTests {
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.session.lineObserver == nil)
     }
+
+    @Test func cancellationBeforeAnyPlayRestoresWithoutUndo() async {
+        let f = Fixture(sleeperOverride: { _ in throw CancellationError() })
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .cancelled)
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(f.session.lineObserver == nil)
+        #expect(!f.engine.sent.contains("undo"))          // no play happened
+        #expect(f.engine.sent.contains("stop"))           // restore stop
+        #expect(f.engine.sent.contains("showboard"))      // re-arm path ran
+    }
+
+    @Test func cancellationMidTenukiUndoesTheOutstandingPlay() async {
+        // Cancel during the FIRST tenuki sleep (sleeper call #3): the candidate
+        // play is on the engine board and must be undone by restore.
+        let f = Fixture()
+        let script = f.script
+        let generator = DeepReportGenerator(
+            messageList: f.session.messageList,
+            budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
+            sleeper: { interval in
+                if script.step >= 2 { throw CancellationError() }   // #3 = first tenuki
+                try await script.sleeper(interval)
+            }
+        )
+        await generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .cancelled)
+        let sent = f.engine.sent
+        #expect(sent.filter { $0 == "undo" }.count == 1)  // exactly the outstanding play
+        #expect(sent.contains("play b A1"))
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(sent.contains("showboard"))
+    }
+
+    @Test func engineErrorFailsAndRestores() async {
+        let f = Fixture(sleeperOverride: { _ in })        // feed nothing...
+        f.session.lineObserver?("? illegal move")          // ...but generate() hasn't run yet
+        // Drive an error DURING the snapshot sleep instead:
+        let script = f.script
+        let generator = DeepReportGenerator(
+            messageList: f.session.messageList,
+            budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
+            sleeper: { _ in script.feed(["? illegal probe"]) }
+        )
+        await generator.generate(model: f.model, gameRecord: f.record)
+
+        guard case .failed = f.model.stage else {
+            Issue.record("expected .failed, got \(f.model.stage)")
+            return
+        }
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(f.engine.sent.contains("showboard"))
+    }
+
+    @Test func silentEngineFailsWithNoData() async {
+        let f = Fixture(sleeperOverride: { _ in })        // engine never replies
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        guard case .failed(let message) = f.model.stage else {
+            Issue.record("expected .failed, got \(f.model.stage)")
+            return
+        }
+        #expect(message.contains("no analysis"))
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(f.engine.sent.contains("showboard"))
+    }
 }
