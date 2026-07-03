@@ -143,9 +143,9 @@ serialized in `DeepReportGenerator`:
    points, score deltas < 1.0 points, whenever the probe's visits < 100). Temperature from
    `Config.temperature`, tone from the game's `CommentTone`.
 
-**Abort/failure paths** (Cancel, sheet dismissed, engine `?` line, watchdog at 2× step budget,
-app backgrounding): one restore function — `stop`, `undo` × outstanding plays, `showboard`,
-exit report mode, re-arm. Safe to call from any state.
+**Abort/failure paths** (Cancel, sheet dismissed, engine `?` line, no analysis data after a
+stage's fixed budget, app backgrounding): one restore function — `stop`, `undo` × outstanding
+plays, `showboard`, exit report mode, re-arm. Safe to call from any state.
 
 ## 8. Data model and parser
 

@@ -298,7 +298,11 @@ public final class DeepReportGenerator {
                            gameRecord: GameRecord,
                            sideToMove: PlayerColor) {
         model.stage = .snapshot
-        model.moveNumber = gameRecord.currentIndex
+        // The spec promises the branch move number while a branch is active —
+        // `gameRecord.currentIndex` is frozen at the divergence point then.
+        model.moveNumber = session.gobanState.isBranchActive
+            ? session.gobanState.branchIndex
+            : gameRecord.currentIndex
         model.visitsPerSecondText = session.analysis.visitsPerSecond > 0
             ? session.analysis.visitsPerSecondText : nil
         model.sideToMove = sideToMove

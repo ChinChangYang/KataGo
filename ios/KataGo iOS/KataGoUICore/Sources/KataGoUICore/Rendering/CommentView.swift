@@ -87,6 +87,14 @@ public struct CommentView: View {
                     comment = gameRecord.comments?[newIndex] ?? ""
                 }
             }
+            .onChange(of: gameRecord.comments?[gameRecord.currentIndex]) { _, newValue in
+                // External writers (e.g. the Deep Report's Copy to Comment)
+                // update the record directly; without this re-sync the pane's
+                // stale @State would clobber their text on the next save.
+                if let newValue, newValue != comment {
+                    comment = newValue
+                }
+            }
             .onDisappear {
                 gameRecord.comments?[gameRecord.currentIndex] = comment
             }
