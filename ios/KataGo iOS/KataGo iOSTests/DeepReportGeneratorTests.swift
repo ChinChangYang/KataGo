@@ -185,10 +185,11 @@ struct DeepReportGeneratorTests {
         )
         await generator.generate(model: f.model, gameRecord: f.record)
 
-        guard case .failed = f.model.stage else {
+        guard case .failed(let message) = f.model.stage else {
             Issue.record("expected .failed, got \(f.model.stage)")
             return
         }
+        #expect(message.contains("error while probing"))
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.engine.sent.contains("showboard"))
     }
