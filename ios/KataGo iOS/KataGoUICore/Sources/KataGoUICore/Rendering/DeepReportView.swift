@@ -34,7 +34,7 @@ public struct DeepReportView: View {
             .padding()
         }
         .navigationTitle("Deep Report")
-#if !os(macOS)
+#if !os(macOS) && !os(tvOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif
         .toolbar { toolbarContent }
