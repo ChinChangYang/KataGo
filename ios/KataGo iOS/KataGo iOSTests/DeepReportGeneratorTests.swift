@@ -132,6 +132,7 @@ struct DeepReportGeneratorTests {
         // Restore: a final stop then the standard post-execution showboard.
         #expect(sent.dropFirst(expectedPrefix.count).contains("stop"))
         #expect(sent.dropFirst(expectedPrefix.count).contains("showboard"))
+        #expect(sent.dropFirst(expectedPrefix.count).contains("play b pass"))
 
         // Cleanup: flags and observer restored.
         #expect(f.session.gobanState.reportGenerationActive == false)
@@ -145,7 +146,11 @@ struct DeepReportGeneratorTests {
         #expect(f.model.stage == .cancelled)
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.session.lineObserver == nil)
-        #expect(!f.engine.sent.contains("undo"))          // no play happened
+        // No candidate play happened, so the only undo is the side-to-move
+        // re-anchor's (play pass + undo).
+        #expect(f.engine.sent.filter { $0 == "undo" }.count == 1)
+        #expect(f.engine.sent.contains("play b pass"))
+        #expect(!f.engine.sent.contains("play b A1"))
         #expect(f.engine.sent.contains("stop"))           // restore stop
         #expect(f.engine.sent.contains("showboard"))      // re-arm path ran
     }
@@ -167,7 +172,8 @@ struct DeepReportGeneratorTests {
 
         #expect(f.model.stage == .cancelled)
         let sent = f.engine.sent
-        #expect(sent.filter { $0 == "undo" }.count == 1)  // exactly the outstanding play
+        #expect(sent.filter { $0 == "undo" }.count == 2)   // candidate play + pass re-anchor
+        #expect(sent.contains("play b pass"))
         #expect(sent.contains("play b A1"))
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(sent.contains("showboard"))

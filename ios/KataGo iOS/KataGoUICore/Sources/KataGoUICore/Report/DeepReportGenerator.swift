@@ -59,6 +59,7 @@ public final class DeepReportGenerator {
     private let collector = ReportCollector()
     private var outstandingPlays = 0
     private var priorObserver: ((String) -> Void)?
+    private var reportSideSymbol = "b"
 
     public init(messageList: MessageList,
                 budgets: ReportBudgets = .standard,
@@ -76,6 +77,7 @@ public final class DeepReportGenerator {
         guard !session.gobanState.reportGenerationActive else { return }
 
         let sideToMove = session.player.nextColorFromShowBoard
+        reportSideSymbol = sideToMove == .black ? "b" : "w"
         seedModel(model, session: session, gameRecord: gameRecord, sideToMove: sideToMove)
 
         collector.reset()
@@ -332,6 +334,16 @@ public final class DeepReportGenerator {
             messageList.appendAndSend(command: "undo")
             outstandingPlays -= 1
         }
+        // The pass probe (`kata-analyze <opponent>`) persistently flips the
+        // engine's root player (AsyncBot keeps the last analyzed pla; a plain
+        // kata-analyze reuses bot->getRootPla()). A played-then-undone pass
+        // re-anchors the side to move without touching the position: undo
+        // makes the undone move's player to-move again. Idempotent on paths
+        // whose tenuki undo already restored it; essential when the pass
+        // probe was the last engine action (abort mid-pass-probe, or all
+        // candidates were "pass").
+        messageList.appendAndSend(command: "play \(reportSideSymbol) pass")
+        messageList.appendAndSend(command: "undo")
         session.gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
                                                      messageList: messageList,
                                                      player: session.player)
