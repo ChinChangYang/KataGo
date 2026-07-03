@@ -9,6 +9,21 @@ import Foundation
 public struct ParsedAnalysis {
     public let info: [BoardPoint: AnalysisInfo]
     public let ownershipUnits: [OwnershipUnit]
+    /// Undigitized root ownership means as emitted by the engine (White-positive
+    /// under the shipped `reportAnalysisWinratesAs = WHITE` cfg). NEVER flipped
+    /// by `nextColor` — consumers needing another perspective convert themselves.
+    /// Empty when the message carries no root ownership grid.
+    public let rawOwnership: [Float]
+    /// The `rootInfo` block's search totals, if present. `winrate`/`scoreLead`
+    /// follow the same perspective flip as the per-candidate fields.
+    public let rootInfo: ParsedRootInfo?
+}
+
+/// Root-level search values from a kata-analyze `rootInfo` block.
+public struct ParsedRootInfo {
+    public let visits: Int
+    public let winrate: Float
+    public let scoreLead: Float
 }
 
 /// Pure parser for `kata-analyze` lines. Behavior matches the previous
@@ -32,8 +47,13 @@ public struct AnalysisLineParser {
         let info = infoDicts.reduce(into: [BoardPoint: AnalysisInfo]()) { acc, dict in
             acc.merge(dict) { current, _ in current }   // first wins on collision
         }
+        let lastMessage = splitData.last.map(String.init) ?? ""
+        let rawOwnership = extractOwnershipMean(message: lastMessage)
         let ownershipUnits = extractOwnershipUnits(lastData: splitData.last)
-        return ParsedAnalysis(info: info, ownershipUnits: ownershipUnits)
+        return ParsedAnalysis(info: info,
+                              ownershipUnits: ownershipUnits,
+                              rawOwnership: rawOwnership,
+                              rootInfo: extractRootInfo(message: message))
     }
 
     // MARK: - Analysis info
@@ -99,6 +119,22 @@ public struct AnalysisLineParser {
 
     private func matchUtilityLcbPattern(dataLine: String) -> Float? {
         signedFloat(in: dataLine, pattern: /utilityLcb ([-\d.eE]+)/) { -$0 }
+    }
+
+    // MARK: - Root info
+
+    /// Parses the `rootInfo` block's visits/winrate/scoreLead. Field order is
+    /// fixed by the engine (gtp.cpp: visits, utility, winrate, scoreMean,
+    /// scoreStdev, scoreLead, ...). Perspective-flipped like candidate fields.
+    private func extractRootInfo(message: String) -> ParsedRootInfo? {
+        let pattern = /rootInfo visits (\d+) utility [-\d.eE]+ winrate ([-\d.eE]+) scoreMean [-\d.eE]+ scoreStdev [-\d.eE]+ scoreLead ([-\d.eE]+)/
+        guard let match = message.firstMatch(of: pattern),
+              let visits = Int(match.1),
+              let rawWinrate = Float(match.2),
+              let rawScoreLead = Float(match.3) else { return nil }
+        let winrate = nextColor == .black ? 1.0 - rawWinrate : rawWinrate
+        let scoreLead = nextColor == .black ? -rawScoreLead : rawScoreLead
+        return ParsedRootInfo(visits: visits, winrate: winrate, scoreLead: scoreLead)
     }
 
     // MARK: - Ownership
