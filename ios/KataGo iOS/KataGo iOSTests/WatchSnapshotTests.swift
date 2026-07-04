@@ -55,4 +55,28 @@ struct WatchSnapshotTests {
         #expect(!WatchSnapshot.isStale(receivedAt: t0, now: t0 + 9, threshold: 10))
         #expect(WatchSnapshot.isStale(receivedAt: t0, now: t0 + 11, threshold: 10))
     }
+
+    @Test func writePathFieldsRoundTripAndDefaultNil() throws {
+        var s = Self.makeSnapshot()
+        #expect(s.hostGameID == nil && s.hostMoveIndex == nil && s.canPlay == nil)
+        s.hostGameID = "ABC"; s.hostMoveIndex = 42; s.hostMoveCount = 50
+        s.isHumanTurn = true; s.canScrub = true; s.canPlay = false
+        let decoded = try WatchSnapshot.decode(s.encodedData())
+        #expect(decoded == s)
+    }
+
+    @Test func v0PayloadWithoutWritePathFieldsStillDecodes() throws {
+        // A v0 phone's frame persists in receivedApplicationContext across the
+        // app update — it must decode with the new fields nil.
+        var s = Self.makeSnapshot()
+        s.hostGameID = "ABC"; s.hostMoveIndex = 42; s.hostMoveCount = 50
+        s.isHumanTurn = true; s.canScrub = true; s.canPlay = true
+        var json = try JSONSerialization.jsonObject(with: s.encodedData()) as! [String: Any]
+        for key in ["hostGameID", "hostMoveIndex", "hostMoveCount",
+                    "isHumanTurn", "canScrub", "canPlay"] { json.removeValue(forKey: key) }
+        let decoded = try WatchSnapshot.decode(JSONSerialization.data(withJSONObject: json))
+        #expect(decoded.hostGameID == nil && decoded.hostMoveIndex == nil
+                && decoded.canScrub == nil && decoded.canPlay == nil)
+        #expect(decoded.blackStones == s.blackStones)
+    }
 }

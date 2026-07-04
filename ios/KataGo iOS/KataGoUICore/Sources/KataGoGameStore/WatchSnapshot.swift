@@ -42,6 +42,22 @@ public struct WatchSnapshot: Codable, Equatable, Sendable {
     public var candidates: [Candidate]   // strongest first, ≤ 10
     public var hostTimestamp: Date
 
+    // v1.1 write path — ALL optional so a v0 payload (persisted in
+    // receivedApplicationContext across app updates) still decodes; nil means
+    // "v0 phone", which the watch treats as read-only mirror mode.
+    /// GameRecord.uuid.uuidString of the game on screen; commands bind to it.
+    public var hostGameID: String?
+    /// Host's current mainline SGF index (GobanState.getCurrentIndex).
+    public var hostMoveIndex: Int?
+    /// Mainline move count (SgfOperations.moveSize) — the crown's upper bound.
+    public var hostMoveCount: Int?
+    /// Side to move is human-played (its maxTime == 0); nil when unknown.
+    public var isHumanTurn: Bool?
+    /// Host would accept a goTo command right now.
+    public var canScrub: Bool?
+    /// Host would accept a play command right now (hard-block gate result).
+    public var canPlay: Bool?
+
     public init(boardWidth: Int, boardHeight: Int,
                 blackStones: [String], whiteStones: [String],
                 toMove: String, moveNumber: Int, analysisRunning: Bool,
