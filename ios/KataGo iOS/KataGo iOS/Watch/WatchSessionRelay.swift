@@ -13,8 +13,20 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
     private var lastSent: WatchSnapshot?
     private var loopTask: Task<Void, Never>?
 
-    func start(session gameSession: GameSession) {
+    private weak var gameSession: GameSession?
+    private weak var navigationContext: NavigationContext?
+    private weak var audioModel: AudioModel?
+    /// SgfOperations parses the whole SGF — memoize moveSize per SGF string so
+    /// the 500 ms tick doesn't re-parse a long game.
+    private var moveCountMemo: (sgf: String, count: Int?)?
+
+    func start(session gameSession: GameSession,
+               navigationContext: NavigationContext,
+               audioModel: AudioModel) {
         guard WCSession.isSupported() else { return }   // iPad: no-op
+        self.gameSession = gameSession
+        self.navigationContext = navigationContext
+        self.audioModel = audioModel
         let wcSession = WCSession.default
         wcSession.delegate = self
         wcSession.activate()
@@ -29,11 +41,22 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
         }
     }
 
+    private func currentMoveCount(for gameRecord: GameRecord?) -> Int? {
+        guard let sgf = gameRecord?.sgf else { return nil }
+        if moveCountMemo?.sgf != sgf {
+            moveCountMemo = (sgf, SgfOperations(sgf: sgf).moveSize)
+        }
+        return moveCountMemo?.count
+    }
+
     private func pushIfChanged(from gameSession: GameSession) {
         let wcSession = WCSession.default
         guard wcSession.activationState == .activated,
               wcSession.isPaired, wcSession.isWatchAppInstalled else { return }
-        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: gameSession)
+        let gameRecord = navigationContext?.selectedGameRecord
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: gameSession, gameRecord: gameRecord,
+            moveCount: currentMoveCount(for: gameRecord))
         // Equality must ignore the timestamp, or every tick "changes".
         if var previous = lastSent {
             previous.hostTimestamp = snapshot.hostTimestamp

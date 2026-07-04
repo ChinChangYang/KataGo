@@ -625,6 +625,7 @@
 		EAFCACEFEE7FACDCE6220B08 /* ConfigEditingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */; };
 		EB9BD1F51060CB0BD328BF2C /* GameSessionCollectSgfReviewGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9207E3CE350BEC0550A3893A /* GameSessionCollectSgfReviewGuardTests.swift */; };
 		EC75C3E01DFB8B61ADC3ECDC /* charconv_bigint.cc in Sources */ = {isa = PBXBuildFile; fileRef = 91095E97336B749B96944BD8 /* charconv_bigint.cc */; };
+		ED9BFF3B9062F29F17B47178 /* WatchHostGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */; };
 		EDF6AF8ABBA3DEE37B81845F /* randen.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8E3859F17AD2C41596120DB5 /* randen.cc */; };
 		EF4D1DFDE5C0282657BBED4E /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9621FBEA3A627A558ECCFAAF /* WatchRootView.swift */; };
 		EF931B2C32A246FB87AE998C /* escaping.cc in Sources */ = {isa = PBXBuildFile; fileRef = CA637BDE0344DF7FDF50D7AF /* escaping.cc */; };
@@ -861,6 +862,7 @@
 		042C978BB6C7792853C12AC3 /* EngineCoreMLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EngineCoreMLBridge.swift; path = KataGoEngineHelper/EngineCoreMLBridge.swift; sourceTree = "<group>"; };
 		04354F7785F6492BE5E2498F /* BinFileHasherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BinFileHasherTests.swift; path = "KataGo iOSTests/BinFileHasherTests.swift"; sourceTree = SOURCE_ROOT; };
 		058B85843E1CD0184FA96A3C /* OpeningBookTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpeningBookTests.swift; sourceTree = "<group>"; };
+		05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchHostGateTests.swift; sourceTree = "<group>"; };
 		06B5DB05FBA3F5832D7E2109 /* die_if_null.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = die_if_null.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/die_if_null.cc"; sourceTree = SOURCE_ROOT; };
 		07EE140D5EE71D5EF16E0E27 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		081E2F8909C4E3DCDAC21F71 /* DictVectorizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = DictVectorizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/DictVectorizer.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -2514,6 +2516,7 @@
 				A14133701B7598070B2E71DD /* WatchPeekBufferTests.swift */,
 				E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */,
 				856970973109BCFBA03D9625 /* WatchCommandTests.swift */,
+				05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3664,6 +3667,7 @@
 				4AC7316AFE52C9A8AB15D8F7 /* WatchPeekBufferTests.swift in Sources */,
 				2CF982C27C0624AAFBB4E8DC /* WatchSnapshotBuilderTests.swift in Sources */,
 				9F7C8A4F92B840ADED0F0270 /* WatchCommandTests.swift in Sources */,
+				ED9BFF3B9062F29F17B47178 /* WatchHostGateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

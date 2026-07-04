@@ -56,4 +56,33 @@ struct WatchSnapshotBuilderTests {
         #expect(snapshot.candidates.isEmpty)
         #expect(snapshot.moveNumber == 2)                  // captured stones still count as played
     }
+
+    @Test func gameRecordEnrichesWritePathFields() {
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        session.gobanState.analysisStatus = .run
+        session.gobanState.isEditing = true
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])", currentIndex: 4)
+        gameRecord.concreteConfig.blackMaxTime = 0
+        gameRecord.concreteConfig.whiteMaxTime = 0
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: session, gameRecord: gameRecord, moveCount: 4, now: .now)
+
+        #expect(snapshot.hostGameID == gameRecord.uuid?.uuidString)
+        #expect(snapshot.hostMoveIndex == 4)
+        #expect(snapshot.hostMoveCount == 4)
+        #expect(snapshot.isHumanTurn == true)
+        #expect(snapshot.canScrub == true && snapshot.canPlay == true)
+    }
+
+    @Test func nilGameRecordLeavesWritePathFieldsNil() {
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session)
+        #expect(snapshot.hostGameID == nil && snapshot.hostMoveIndex == nil
+                && snapshot.canScrub == nil && snapshot.canPlay == nil)
+    }
 }

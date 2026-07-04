@@ -62,7 +62,7 @@ struct ContentView: View {
                 }
             }
             .task {
-                watchRelay.start(session: session)
+                watchRelay.start(session: session, navigationContext: navigationContext, audioModel: audioModel)
                 // Get messages from KataGo and append to the list of messages
                 await session.run(
                     gameRecords: gameRecords,

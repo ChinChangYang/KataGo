@@ -7,7 +7,10 @@ import KataGoGameStore
 /// values are Black-perspective straight from rootWinrate/rootScore.
 public enum WatchSnapshotBuilder {
     @MainActor
-    public static func makeSnapshot(session: GameSession, now: Date = .now) -> WatchSnapshot {
+    public static func makeSnapshot(session: GameSession,
+                                    gameRecord: GameRecord? = nil,
+                                    moveCount: Int? = nil,
+                                    now: Date = .now) -> WatchSnapshot {
         let width = Int(session.board.width)
         let height = Int(session.board.height)
         let running = session.gobanState.analysisStatus == .run
@@ -34,7 +37,7 @@ public enum WatchSnapshotBuilder {
         }
 
         let stones = session.stones
-        return WatchSnapshot(
+        var snapshot = WatchSnapshot(
             boardWidth: width, boardHeight: height,
             blackStones: vertices(stones.blackPoints),
             whiteStones: vertices(stones.whitePoints),
@@ -46,5 +49,16 @@ public enum WatchSnapshotBuilder {
             rootScoreLeadBlack: session.rootScore.black,
             candidates: candidates,
             hostTimestamp: now)
+
+        if let gameRecord {
+            let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
+            snapshot.hostGameID = gameRecord.uuid?.uuidString
+            snapshot.hostMoveIndex = session.gobanState.getCurrentIndex(gameRecord: gameRecord)
+            snapshot.hostMoveCount = moveCount
+            snapshot.isHumanTurn = gate.isHumanTurn
+            snapshot.canScrub = gate.canScrub
+            snapshot.canPlay = gate.canPlay
+        }
+        return snapshot
     }
 }
