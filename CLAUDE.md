@@ -26,7 +26,7 @@ Inside `ios/KataGo iOS/`, the product is split across:
 ## Build Commands
 
 ### Building for All Platforms
-The app must build for all supported platforms. There are **four app targets/schemes**: `KataGo Anytime` (iOS + visionOS), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror). The `KataGo Anytime` scheme does **not** support macOS — use `KataGo Anytime Mac` for the Mac build.
+The app must build for all supported platforms. There are **four app targets/schemes**: `KataGo Anytime` (iOS + visionOS), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme does **not** support macOS — use `KataGo Anytime Mac` for the Mac build.
 ```bash
 cd ios/KataGo\ iOS
 
@@ -162,4 +162,4 @@ The app uses KataGo's GTP extensions including:
 - iOS 26+
 - macOS 26+ (native, not Catalyst)
 - visionOS 26+
-- watchOS 26+ (companion live mirror, paired iPhone only)
+- watchOS 26+ (companion live mirror + remote play, paired iPhone only)

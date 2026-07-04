@@ -25,6 +25,8 @@ KataGo Anytime runs on iOS, macOS, visionOS, and (in progress) tvOS. The user wa
 
 ### v1.1 — Write path (separately scoped follow-up)
 
+**Status: implemented — see docs/superpowers/plans/2026-07-04-watchos-companion-v1.1.md.**
+
 - **Prerequisite:** fix the sticky-maxVisits bug first (every analysis re-arm resets maxVisits to unbounded at 3 call sites) — watch-driven navigation multiplies exposure.
 - **Shared cursor:** Crown scrubbing upgrades from local peek to driving the host board (`GobanState.go(to:)` replaying undo/play), debounced.
 - **Play a candidate:** tap-to-play from the top-3 candidate carousel, under a **hard-block gate**:
