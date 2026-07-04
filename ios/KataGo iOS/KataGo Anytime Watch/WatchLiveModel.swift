@@ -140,14 +140,21 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
 
     private func send(_ command: WatchCommand) {
         guard let data = try? command.encodedData() else { return }
+        // Both handlers MUST be @Sendable: WCSession invokes them on its own
+        // background queue, but sendMessage's ObjC signature carries no
+        // isolation annotations — so a plain closure literal formed here
+        // inherits this class's @MainActor isolation and the compiler wraps
+        // it in a dynamic main-queue assertion that traps (EXC_BREAKPOINT)
+        // the moment the reply arrives off-main. @Sendable makes the closures
+        // nonisolated; they only extract Sendable values before hopping.
         WCSession.default.sendMessage(
             [WatchCommand.messageKey: data],
-            replyHandler: { reply in
+            replyHandler: { @Sendable reply in
                 // Extract Sendable Data before hopping (house pattern).
                 let replyData = reply[WatchCommandReply.messageKey] as? Data
                 Task { @MainActor in self.handleReply(replyData, for: command.kind) }
             },
-            errorHandler: { error in
+            errorHandler: { @Sendable error in
                 let message = error.localizedDescription
                 Task { @MainActor in self.handleTransportFailure(message, for: command.kind) }
             })
