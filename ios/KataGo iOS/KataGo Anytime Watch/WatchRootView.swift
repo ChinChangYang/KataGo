@@ -15,6 +15,15 @@ struct WatchRootView: View {
                 WatchMovesPage()
             }
             .tabViewStyle(.verticalPage)
+            .overlay(alignment: .bottom) {
+                if let message = model.rejectionMessage {
+                    Label { Text(message) } icon: { Image(systemName: "xmark.circle.fill") }
+                        .font(.caption2).padding(4)
+                        .background(.red.opacity(0.9), in: Capsule())
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy, value: model.rejectionMessage)
         }
     }
 }
