@@ -46,6 +46,30 @@ struct WatchSnapshotBuilderTests {
         #expect(snapshot.hostTimestamp == now)
     }
 
+    @Test func staleAnalysisColorSuppressesCandidates() {
+        // Analysis is running and has info, but its perspective (nextColorForAnalysis)
+        // still reflects the position BEFORE the latest move relayed to
+        // nextColorForPlayCommand — the one-tick lag window from Finding 5.
+        // Candidates must be suppressed rather than paired with the new index.
+        let session = GameSession()
+        session.board.width = 19
+        session.board.height = 19
+        session.stones.blackPoints = [BoardPoint(move: "Q16", width: 19, height: 19)!]
+        session.player.nextColorForPlayCommand = .white
+        session.gobanState.analysisStatus = .run
+        session.analysis.nextColorForAnalysis = .black   // opposite of nextColorForPlayCommand
+        session.analysis.info = [
+            BoardPoint(x: 2, y: 3): AnalysisInfo(visits: 500, winrate: 0.48,
+                                                 scoreLead: -1.2, utilityLcb: 0.1,
+                                                 pv: ["C16", "D4"]),
+        ]
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session, now: .now)
+
+        #expect(snapshot.analysisRunning)
+        #expect(snapshot.candidates.isEmpty)
+    }
+
     @Test func pausedAnalysisAndPassesAreRepresented() {
         let session = GameSession()
         session.board.width = 9; session.board.height = 9

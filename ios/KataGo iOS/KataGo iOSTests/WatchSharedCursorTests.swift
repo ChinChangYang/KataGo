@@ -58,12 +58,17 @@ struct WatchSharedCursorTests {
         let buffer = WatchPeekBuffer()
         var a = WatchSnapshotTests.makeSnapshot()
         a.hostMoveIndex = 3
+        a.hostGameID = "game-A"
         var b = WatchSnapshotTests.makeSnapshot()
         b.blackStones.append("K10")
         b.hostMoveIndex = 4
+        b.hostGameID = "game-A"
         buffer.ingest(a); buffer.ingest(b)
-        #expect(buffer.entry(forHostIndex: 3)?.hostMoveIndex == 3)
-        #expect(buffer.entry(forHostIndex: 4)?.hostMoveIndex == 4)
-        #expect(buffer.entry(forHostIndex: 9) == nil)
+        #expect(buffer.entry(forHostIndex: 3, gameID: "game-A")?.hostMoveIndex == 3)
+        #expect(buffer.entry(forHostIndex: 4, gameID: "game-A")?.hostMoveIndex == 4)
+        #expect(buffer.entry(forHostIndex: 9, gameID: "game-A") == nil)
+        // The ring survives game switches — a mismatched gameID must miss
+        // even though the hostMoveIndex matches (Finding 4).
+        #expect(buffer.entry(forHostIndex: 4, gameID: "game-B") == nil)
     }
 }

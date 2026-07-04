@@ -41,8 +41,13 @@ public final class WatchPeekBuffer {
 
     /// Latest cached frame for a host mainline index — the shared-cursor
     /// render cache (instant optimistic board while the iPhone catches up).
-    public func entry(forHostIndex index: Int) -> WatchSnapshot? {
-        entries.last(where: { $0.hostMoveIndex == index })
+    /// The ring survives game switches, so a hostMoveIndex match alone is not
+    /// enough — `gameID` must also match, or a stale frame from a previous
+    /// game could render under the new game's index. A nil `gameID` always
+    /// misses (returns nil) rather than matching indiscriminately.
+    public func entry(forHostIndex index: Int, gameID: String?) -> WatchSnapshot? {
+        guard let gameID else { return nil }
+        return entries.last(where: { $0.hostMoveIndex == index && $0.hostGameID == gameID })
     }
 
     /// The last move is the single stone present in `current` but not in

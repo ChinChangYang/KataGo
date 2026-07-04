@@ -5,6 +5,9 @@ import KataGoGameStore
 /// Pure read — never mutates session state. Candidate winrate/scoreLead stay
 /// in side-to-move perspective (matching the host's candidate list UI); root
 /// values are Black-perspective straight from rootWinrate/rootScore.
+/// `gameRecord`/`moveCount`, when supplied, enrich the snapshot with the
+/// v1.1 write-path fields (hostGameID/hostMoveIndex/hostMoveCount/canScrub/
+/// canPlay); omit them for read-only (v0) callers.
 public enum WatchSnapshotBuilder {
     @MainActor
     public static func makeSnapshot(session: GameSession,
@@ -14,9 +17,17 @@ public enum WatchSnapshotBuilder {
         let width = Int(session.board.width)
         let height = Int(session.board.height)
         let running = session.gobanState.analysisStatus == .run
+        // Guard against a one-tick lag between the analysis engine's
+        // perspective and the current position right after a move: without
+        // this, stale candidates could get paired with the new
+        // hostMoveIndex, and a watch tap in that window could race the
+        // engine's legality check (worst case: a ko/superko prompt on the
+        // phone). See Finding 5.
+        let analysisMatchesTurn =
+            session.analysis.nextColorForAnalysis == session.player.nextColorForPlayCommand
 
         let candidates: [WatchSnapshot.Candidate]
-        if running {
+        if running && analysisMatchesTurn {
             candidates = session.analysis
                 .candidateMoves(width: width, height: height, limit: 10)
                 .map { c in

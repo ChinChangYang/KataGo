@@ -34,6 +34,10 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     private(set) var playPending = false
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var rejectionClearTask: Task<Void, Never>?
+    /// The hostGameID captured at the moment a goTo was proposed (scrub-time),
+    /// not at debounce-fire — so a game switch mid-debounce can't rebind the
+    /// stale crown target onto the new game.
+    @ObservationIgnored private var pendingGoToGameID: String?
 
     var isStale: Bool {
         WatchSnapshot.isStale(receivedAt: receivedAt, now: now, threshold: Self.staleAfter)
@@ -85,8 +89,14 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         self.receivedAt = receivedAt
         now = Date()
         peek.ingest(snapshot)
-        if cursor.observe(hostIndex: snapshot.hostMoveIndex, now: Date()) == .timedOut {
+        switch cursor.observe(hostIndex: snapshot.hostMoveIndex, now: Date()) {
+        case .timedOut:
+            pendingGoToGameID = nil
             showRejection("iPhone didn't respond")
+        case .confirmed:
+            pendingGoToGameID = nil
+        case .waiting, nil:
+            break
         }
         mirrorComplication(snapshot)
     }
@@ -98,6 +108,10 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         // programmatic crown resyncs the page performs).
         if target == latest?.hostMoveIndex, cursor.pendingTarget == nil { return }
         guard cursor.propose(target: target) else { return }
+        // Bind the gameID now, at propose time — not at debounce-fire — so a
+        // game switch inside the debounce window can't rebind this target
+        // onto the new game (Finding 3).
+        pendingGoToGameID = latest?.hostGameID
         debounceTask?.cancel()
         debounceTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(WatchSharedCursor.debounce))
@@ -107,8 +121,13 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     }
 
     private func sendPendingGoTo() {
-        guard let gameID = latest?.hostGameID,
-              let target = cursor.takeDue(now: Date()) else { return }
+        // Take the due target FIRST so the cursor can never wedge in
+        // `.debouncing` if the bound gameID has since gone away (Finding 2).
+        guard let target = cursor.takeDue(now: Date()) else { return }
+        guard let gameID = pendingGoToGameID else {
+            cursor.abandon()
+            return
+        }
         send(WatchCommand(kind: .goTo, gameID: gameID, targetIndex: target))
     }
 
@@ -145,7 +164,7 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
             // ingest). play: the move lands as a position-change frame.
             if kind == .play { WKInterfaceDevice.current().play(.success) }
         } else {
-            if kind == .goTo { cursor.abandon() }
+            if kind == .goTo { cursor.abandon(); pendingGoToGameID = nil }
             WKInterfaceDevice.current().play(.failure)
             showRejection(reply.reason ?? "Rejected by iPhone")
         }
@@ -153,7 +172,7 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
 
     private func handleTransportFailure(_ message: String, for kind: WatchCommand.Kind) {
         if kind == .play { playPending = false }
-        if kind == .goTo { cursor.abandon() }
+        if kind == .goTo { cursor.abandon(); pendingGoToGameID = nil }
         WKInterfaceDevice.current().play(.failure)
         showRejection(message)
     }

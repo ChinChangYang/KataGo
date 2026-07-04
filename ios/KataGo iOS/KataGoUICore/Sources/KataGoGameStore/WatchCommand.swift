@@ -36,9 +36,12 @@ public struct WatchCommand: Codable, Equatable, Sendable {
 
 /// iPhone→watch reply. `accepted` means the command entered the same engine
 /// seam the phone's own UI uses (goTo → GobanState.go(to:); play → the
-/// kata-check-move → play path a board tap takes). Engine-side legality of an
-/// analysis candidate holds by construction — kata-analyze only reports legal
-/// moves — so acceptance is the real "it will happen" signal.
+/// kata-check-move → play path a board tap takes) — not that the move has
+/// landed. The engine's own legality check still stands after acceptance: a
+/// candidate raced against a fresher position (see WatchSnapshotBuilder's
+/// analysis-freshness gate) can still be rejected there, surfacing on the
+/// iPhone (e.g. a ko/superko "Play Anyway" prompt). So the watch's success
+/// haptic means "accepted", not "played".
 public struct WatchCommandReply: Codable, Equatable, Sendable {
     public static let messageKey = "watchReply"
     public var accepted: Bool

@@ -9,7 +9,8 @@ struct WatchBoardPage: View {
         let peek = model.peek
         let cursorMode = model.sharedCursorAvailable
         let shown = cursorMode ? cursorFrame : peek.current
-        let previous = (!cursorMode && peek.viewIndex > 0) ? peek.entries[peek.viewIndex - 1] : nil
+        let previous = (!cursorMode && peek.entries.indices.contains(peek.viewIndex - 1))
+            ? peek.entries[peek.viewIndex - 1] : nil
 
         VStack(spacing: 2) {
             if let s = shown {
@@ -51,7 +52,11 @@ struct WatchBoardPage: View {
             if model.sharedCursorAvailable {
                 model.scrub(to: target)
             } else {
-                model.peek.viewIndex = target
+                // A crown event can land after sharedCursorAvailable flips
+                // false but before this mode-flip re-anchors the crown, so
+                // `target` may still be a host-space value — clamp into the
+                // ring's own bounds rather than indexing out of range.
+                model.peek.viewIndex = min(target, max(model.peek.entries.count - 1, 0))
             }
         }
         .onChange(of: peek.viewIndex, initial: true) { _, newValue in
@@ -87,7 +92,7 @@ struct WatchBoardPage: View {
         guard let latest = model.latest else { return nil }
         let target = Int(crownIndex.rounded())
         if target == latest.hostMoveIndex { return latest }
-        return model.peek.entry(forHostIndex: target) ?? latest
+        return model.peek.entry(forHostIndex: target, gameID: latest.hostGameID) ?? latest
     }
 
     @ViewBuilder private var statusPill: some View {
