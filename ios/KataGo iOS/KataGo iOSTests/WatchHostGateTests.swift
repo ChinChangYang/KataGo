@@ -86,4 +86,25 @@ struct WatchHostGateTests {
         let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
         #expect(gate.isHumanTurn == nil && !gate.canPlay)
     }
+
+    @Test func autoPlayBlocksBoth() {
+        let (session, gameRecord) = makeHost()
+        session.gobanState.isAutoPlaying = true
+        let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
+        #expect(!gate.canScrub && !gate.canPlay)
+    }
+
+    @Test func showBoardInFlightBlocksBoth() {
+        let (session, gameRecord) = makeHost()
+        session.gobanState.showBoardCount = 1
+        let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
+        #expect(!gate.canScrub && !gate.canPlay)
+    }
+
+    @Test func reportGenerationBlocksBoth() {
+        let (session, gameRecord) = makeHost()
+        session.gobanState.reportGenerationActive = true
+        let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
+        #expect(!gate.canScrub && !gate.canPlay)
+    }
 }
