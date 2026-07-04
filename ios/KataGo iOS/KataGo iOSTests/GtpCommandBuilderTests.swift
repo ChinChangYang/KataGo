@@ -142,6 +142,21 @@ struct GtpCommandBuilderTests {
                     "kata-set-param maxTime 60.0",
                     "kata-search_analyze_cancellable interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true"])
     }
+
+    @Test func continuousAnalyzeBundlesAlwaysResetMaxVisits() {
+        // The reset is structural: every continuous-analysis re-arm goes through
+        // these bundles, so a prior human-profile gen-move's sticky maxVisits=400
+        // can never silently cap analysis (the load-bearing invariant behind the
+        // rank-is-strength feature — and behind watch-driven navigation, which
+        // multiplies re-arms).
+        let cmds = GtpCommandBuilder.continuousAnalyzeCommands(interval: 25, maxMoves: 30)
+        #expect(cmds.first == "kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)")
+        #expect(cmds.last == "kata-analyze interval 25 maxmoves 30 ownership true ownershipStdev true rootInfo true")
+
+        let fast = GtpCommandBuilder.fastContinuousAnalyzeCommands(maxMoves: 50)
+        #expect(fast.first == "kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)")
+        #expect(fast.last == "kata-analyze interval 10 maxmoves 50 ownership true ownershipStdev true rootInfo true")
+    }
 }
 
 // MARK: - ConfigEngineSync focused orchestrator test

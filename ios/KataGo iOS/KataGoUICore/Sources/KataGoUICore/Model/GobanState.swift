@@ -113,12 +113,12 @@ public class GobanState {
             }
         }
 
-        // Continuous analysis: reset the visit cap to unbounded so a prior human
-        // gen-move's maxVisits=400 never leaks into (and caps) analysis.
-        return ["kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)",
-                continuousAnalysisUsesConfigInterval
-                    ? GtpCommandBuilder.analyzeCommand(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
-                    : GtpCommandBuilder.fastAnalyzeCommand(maxMoves: config.maxAnalysisMoves)]
+        // Continuous analysis: the bundle embeds the maxVisits reset so a
+        // prior human gen-move's maxVisits=400 never leaks into (and caps)
+        // analysis — structural, not a per-site convention.
+        return continuousAnalysisUsesConfigInterval
+            ? GtpCommandBuilder.continuousAnalyzeCommands(interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves)
+            : GtpCommandBuilder.fastContinuousAnalyzeCommands(maxMoves: config.maxAnalysisMoves)
     }
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {

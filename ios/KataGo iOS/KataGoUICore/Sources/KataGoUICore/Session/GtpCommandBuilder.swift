@@ -43,12 +43,32 @@ public enum GtpCommandBuilder {
         }
     }
 
-    public static func analyzeCommand(interval: Int, maxMoves: Int) -> String {
+    /// One continuous-analysis line. INTERNAL on purpose: a bare kata-analyze
+    /// re-arm silently inherits a prior human-profile gen-move's sticky
+    /// maxVisits=400 — app targets must use the bundles below, which embed the
+    /// reset structurally instead of leaving it as a per-call-site convention.
+    static func analyzeCommand(interval: Int, maxMoves: Int) -> String {
         return "kata-analyze interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"
     }
 
-    public static func fastAnalyzeCommand(maxMoves: Int) -> String {
+    static func fastAnalyzeCommand(maxMoves: Int) -> String {
         return analyzeCommand(interval: 10, maxMoves: maxMoves)
+    }
+
+    /// Continuous-analysis re-arm bundle: ALWAYS precedes kata-analyze with a
+    /// maxVisits reset. Every re-arm site (shared getRequestAnalysisCommands,
+    /// iOS GameSplitView, macOS MainWindowController, and any future
+    /// watch-driven re-arm) must use this or fastContinuousAnalyzeCommands.
+    public static func continuousAnalyzeCommands(interval: Int, maxMoves: Int) -> [String] {
+        return ["kata-set-param maxVisits \(unboundedMaxVisits)",
+                analyzeCommand(interval: interval, maxMoves: maxMoves)]
+    }
+
+    /// The fast (0.1 s first report) variant of the bundle, for the initial
+    /// arm after a position change on iOS/macOS.
+    public static func fastContinuousAnalyzeCommands(maxMoves: Int) -> [String] {
+        return ["kata-set-param maxVisits \(unboundedMaxVisits)",
+                fastAnalyzeCommand(maxMoves: maxMoves)]
     }
 
     public static func genMoveAnalyzeCommands(effectiveProfile: String, maxTime: Float, interval: Int, maxMoves: Int) -> [String] {
