@@ -43,6 +43,7 @@
 		18269C3F7D0D535B6D186380 /* DeepReportModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532FDD358510D4489F557606 /* DeepReportModelTests.swift */; };
 		1898CE597D3A65A0C6455C0A /* program_name.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3198312DEEC29C7E79A119D6 /* program_name.cc */; };
 		194CD26A8E2308FB85E7C159 /* decode_rust_punycode.cc in Sources */ = {isa = PBXBuildFile; fileRef = C2CAE39DAF390823C7066E1F /* decode_rust_punycode.cc */; };
+		19554FB4C9A88B2C0E1CBA2D /* WatchCommandHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31922AAFF1C2B5B96B49810A /* WatchCommandHandlerTests.swift */; };
 		198A9F362BBC891752915451 /* randen_round_keys.cc in Sources */ = {isa = PBXBuildFile; fileRef = A40F0E362EE55A4B96F3D167 /* randen_round_keys.cc */; };
 		19F4D6C935D215A19F84521E /* int128.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4BE7511F72FFCCBFDD1A791A /* int128.cc */; };
 		19FCE0D533DF33E0FAFEF0F0 /* Fp16.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BD22490FB6D2F00C83C1BD22 /* Fp16.cpp */; };
@@ -923,6 +924,7 @@
 		2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_fixed.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_fixed.cc"; sourceTree = SOURCE_ROOT; };
 		2F86021776EC4F7F6498285B /* hashtablez_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		309424B4F2E53DB007EACE23 /* GLMClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GLMClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/GLMClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
+		31922AAFF1C2B5B96B49810A /* WatchCommandHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchCommandHandlerTests.swift; sourceTree = "<group>"; };
 		3198312DEEC29C7E79A119D6 /* program_name.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = program_name.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/program_name.cc"; sourceTree = SOURCE_ROOT; };
 		34CB7A74633C707C6093A25B /* address_is_readable.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = address_is_readable.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/address_is_readable.cc"; sourceTree = SOURCE_ROOT; };
 		3769E551EAA2A9E3729CFA14 /* SavedGameWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SavedGameWidgetView.swift; path = KataGoAnytimeWidget/SavedGameWidgetView.swift; sourceTree = "<group>"; };
@@ -2517,6 +2519,7 @@
 				E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */,
 				856970973109BCFBA03D9625 /* WatchCommandTests.swift */,
 				05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */,
+				31922AAFF1C2B5B96B49810A /* WatchCommandHandlerTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3668,6 +3671,7 @@
 				2CF982C27C0624AAFBB4E8DC /* WatchSnapshotBuilderTests.swift in Sources */,
 				9F7C8A4F92B840ADED0F0270 /* WatchCommandTests.swift in Sources */,
 				ED9BFF3B9062F29F17B47178 /* WatchHostGateTests.swift in Sources */,
+				19554FB4C9A88B2C0E1CBA2D /* WatchCommandHandlerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

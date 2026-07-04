@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import WatchConnectivity
 import KataGoUICore
 import KataGoGameStore
@@ -84,4 +85,40 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
         // from an idle board (otherwise the unchanged snapshot is suppressed).
         Task { @MainActor in self.lastSent = nil }
     }
+
+    // MARK: Watch→phone commands (v1.1 write path)
+
+    nonisolated func session(_ session: WCSession,
+                             didReceiveMessage message: [String: Any],
+                             replyHandler: @escaping ([String: Any]) -> Void) {
+        // Extract the Sendable Data before hopping (house Swift 6 pattern);
+        // box the reply closure — WCSession documents it callable from any
+        // queue, but the SDK import may lack @Sendable.
+        let data = message[WatchCommand.messageKey] as? Data
+        let reply = UncheckedSendableBox(replyHandler)
+        Task { @MainActor in
+            let result: WatchCommandReply
+            if let gameSession = self.gameSession {
+                result = WatchCommandHandler.handle(
+                    data: data,
+                    session: gameSession,
+                    gameRecord: self.navigationContext?.selectedGameRecord,
+                    moveCount: self.currentMoveCount(for: self.navigationContext?.selectedGameRecord),
+                    audioModel: self.audioModel,
+                    hostIsActive: UIApplication.shared.applicationState != .background)
+            } else {
+                result = WatchCommandReply(accepted: false, reason: "No active game")
+            }
+            let payload = (try? result.encodedData()) ?? Data()
+            reply.value([WatchCommandReply.messageKey: payload])
+        }
+    }
+}
+
+/// WCSession's replyHandler is documented callable from any queue; box it for
+/// the MainActor hop in case the SDK import lacks @Sendable. Harmless if the
+/// signature is already @Sendable.
+private struct UncheckedSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
 }
