@@ -39,6 +39,12 @@ public final class WatchPeekBuffer {
         if wasLive { viewIndex = entries.count - 1 }
     }
 
+    /// Latest cached frame for a host mainline index — the shared-cursor
+    /// render cache (instant optimistic board while the iPhone catches up).
+    public func entry(forHostIndex index: Int) -> WatchSnapshot? {
+        entries.last(where: { $0.hostMoveIndex == index })
+    }
+
     /// The last move is the single stone present in `current` but not in
     /// `previous`. Captures/undos change counts by ≠ +1 → nil (no ring) rather
     /// than guessing wrong.
