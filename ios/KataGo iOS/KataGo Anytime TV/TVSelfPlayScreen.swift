@@ -223,7 +223,10 @@ struct TVSelfPlayScreen: View {
             Spacer()
 
             if route.entry == .manual {
-                pauseResumeButton
+                HStack(spacing: 16) {
+                    stepBackButton(for: game)
+                    pauseResumeButton
+                }
             }
 
             Text(route.entry == .attract
@@ -248,6 +251,24 @@ struct TVSelfPlayScreen: View {
         }
         .buttonStyle(.bordered)
         .disabled(isGameOver)
+    }
+
+    /// Step back one move (undo). Pauses first so the engines stop refilling
+    /// the position, then steps the shared history back one. Disabled at the
+    /// game start (nothing to undo) and during the interstitial. Labeled
+    /// "Undo" (not "Back") to avoid colliding with the remote's Menu/Back
+    /// button, which the exit hint calls "Back".
+    private func stepBackButton(for game: GameRecord) -> some View {
+        Button(action: stepBack) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.uturn.backward")
+                Text("Undo")
+            }
+            .font(.title3)
+            .frame(maxWidth: .infinity, minHeight: 56)
+        }
+        .buttonStyle(.bordered)
+        .disabled(isGameOver || game.currentIndex == 0)
     }
 
     private var liveBadge: some View {
@@ -457,6 +478,27 @@ struct TVSelfPlayScreen: View {
               let turn = player.nextColorSymbolForPlayCommand else { return }
         gobanState.sendCheckMoveCommand(turn: turn, move: candidate.vertex,
                                         messageList: messageList)
+    }
+
+    /// Undo the last move. In a live game the gen-move loop would instantly
+    /// refill the position, so pause FIRST (raise the spectator flag): then
+    /// `backwardMoves`' post-execution re-request AND the turn toggle both fall
+    /// through to plain continuous kata-analyze instead of a gen-move, and any
+    /// trailing "play" from the cancelled in-flight search is dropped by
+    /// postProcessAIMove's suppressesGenMove guard — so the undone position
+    /// holds. The game stays paused; Resume plays forward from here, discarding
+    /// the undone moves (a real rewind). Same readiness gating as `pick()` so a
+    /// press can't race an in-flight legality check or a just-arrived move.
+    private func stepBack() {
+        guard let game, !isGameOver,
+              stones.isReady,
+              gobanState.pendingMoveTurn == nil else { return }
+        gobanState.suppressesGenMove = true
+        gobanState.backwardMoves(limit: 1,
+                                 gameRecord: game,
+                                 messageList: messageList,
+                                 player: player,
+                                 stones: stones)
     }
 }
 
