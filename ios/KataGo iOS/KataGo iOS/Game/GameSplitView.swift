@@ -127,12 +127,15 @@ struct GameSplitView: View {
                 importAndSelect(from: url)
             }
         }
-        .onChange(of: deepLinkRouter.pendingGameID) { _, id in
+        .onChange(of: deepLinkRouter.pendingGameID, initial: true) { _, _ in
             // Warm app: a deep link arrived after the board was already shown
             // (`initializationTask` won't re-run), so apply it here.
-            guard let id else { return }
-            selectGame(byID: id)
-            deepLinkRouter.pendingGameID = nil
+            // `initial: true` also drains an id captured BEFORE this view
+            // mounted — a cold-launch URL delivered after `initializationTask`
+            // resolved the selection would otherwise strand here forever (the
+            // stranded value even swallows later same-game taps, since an
+            // equal write fires no change).
+            applyPendingDeepLink()
         }
         .onChange(of: scenePhase) { _, newScenePhase in
             processChange(newScenePhase: newScenePhase)
@@ -523,6 +526,15 @@ struct GameSplitView: View {
     private func importFiles(result: Result<[URL], any Error>) {
         guard case .success(let files) = result else { return }
         files.forEach { importAndSelect(from: $0) }
+    }
+
+    /// Applies a pending `open-game` deep link and clears it. Single seam for
+    /// the warm `.onChange` path and the mount-time (`initial: true`) drain.
+    @MainActor
+    private func applyPendingDeepLink() {
+        guard let id = deepLinkRouter.pendingGameID else { return }
+        selectGame(byID: id)
+        deepLinkRouter.pendingGameID = nil
     }
 
     @MainActor
