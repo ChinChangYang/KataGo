@@ -42,7 +42,16 @@ public enum ReportNarrator {
         }
 
         if let pass = model.passComparison {
-            facts.append("If \(side) passes instead: \(percent(pass.winrate)) win rate — playing the best candidate is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex).")
+            // Round 5: name the best move and condition the punishment on it,
+            // mirroring the report UI's sentence. No best candidate, or a
+            // "pass" one (not a nameable point) → keep the generic phrasing.
+            let best = model.candidates.first.flatMap { $0.vertex == "pass" ? nil : $0.vertex }
+            let playing = best.map { "playing \($0)" } ?? "playing the best candidate"
+            var fact = "If \(side) passes instead: \(percent(pass.winrate)) win rate — \(playing) is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex)"
+            if let best {
+                fact += " if \(side) doesn't play at \(best)"
+            }
+            facts.append(fact + ".")
             if !pass.contestedPoints.isEmpty {
                 let regions = orderedUniqueRegions(pass.contestedPoints)
                 facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")

@@ -115,7 +115,9 @@ public struct DeepReportView: View {
                 Divider()
                 Text("Playing vs. Passing")
                     .font(.title3.bold())
-                Text("If \(sideName) passes: \(String(format: "%.0f%%", pass.winrate * 100)) win rate — playing is worth \(String(format: "%+.0f%%", pass.winrateDeltaVsBest * 100)) and \(String(format: "%+.1f", pass.scoreLeadDeltaVsBest)) points. \(opponentName) would punish at \(pass.punishmentVertex).")
+                Text(Self.passSentence(pass: pass,
+                                       bestVertex: model.candidates.first?.vertex,
+                                       sideName: sideName, opponentName: opponentName))
                     .font(.callout)
                 ReportBoardView(width: model.boardWidth, height: model.boardHeight,
                                 blackVertices: model.blackVertices,
@@ -226,6 +228,22 @@ public struct DeepReportView: View {
     }
 
     // MARK: - Bits
+
+    /// The Playing-vs-Passing sentence (round 5): names the best move and
+    /// conditions the punishment on it. Static (not a computed property on the
+    /// view) so the bestVertex-nil fallback is unit-testable.
+    static func passSentence(pass: PassComparison, bestVertex: String?,
+                             sideName: String, opponentName: String) -> String {
+        // A "pass" best candidate is not a nameable point ("doesn't play at
+        // pass") — treat it like no best vertex.
+        let named = bestVertex.flatMap { $0 == "pass" ? nil : $0 }
+        let playing = named.map { "playing \($0)" } ?? "playing"
+        var sentence = "If \(sideName) passes: \(String(format: "%.0f%%", pass.winrate * 100)) win rate — \(playing) is worth \(String(format: "%+.0f%%", pass.winrateDeltaVsBest * 100)) and \(String(format: "%+.1f", pass.scoreLeadDeltaVsBest)) points. \(opponentName) would punish at \(pass.punishmentVertex)"
+        if let named {
+            sentence += " if \(sideName) doesn't play at \(named)"
+        }
+        return sentence + "."
+    }
 
     private func skeletonRow(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 12)

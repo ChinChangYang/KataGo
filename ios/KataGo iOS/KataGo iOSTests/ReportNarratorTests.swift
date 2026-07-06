@@ -60,8 +60,69 @@ struct ReportNarratorTests {
         // Black to play → White is the side that might ignore A1.
         #expect(joined.contains("If White ignores A1 (plays elsewhere), Black follows up with B2"))
         // Round 4: the pass fact names the punishing side's color too.
-        #expect(joined.contains("White would punish at B2"))
+        // Round 5: it names the best move ("playing A1") and conditions the
+        // punishment on it.
+        #expect(joined.contains("playing A1 is worth"))
+        #expect(joined.contains("White would punish at B2 if Black doesn't play at A1"))
         #expect(!joined.contains("the opponent would punish"))
+    }
+
+    /// Round 5: with no candidates there is no best vertex to name — the pass
+    /// fact keeps the generic phrasing and no conditional clause dangles.
+    @Test func passFactFallsBackWhenNoCandidates() {
+        let model = makeModel()
+        model.candidates = []
+        let joined = ReportNarrator.facts(from: model).joined(separator: "\n")
+        #expect(joined.contains("playing the best candidate is worth"))
+        #expect(joined.contains("White would punish at B2."))
+        #expect(!joined.contains("doesn't play at"))
+    }
+
+    /// Round 5: the UI's Playing-vs-Passing sentence names the best move and
+    /// conditions the punishment on it (full clause kept even when the
+    /// punishment vertex equals the best move — user decision).
+    @Test func passSentenceNamesBestMoveAndConditionsPunishment() {
+        let pass = PassComparison(punishmentVertex: "B2", winrate: 0.28, scoreLead: -7.0,
+                                  winrateDeltaVsBest: 0.12, scoreLeadDeltaVsBest: 2.0,
+                                  ownershipDelta: [:], contestedPoints: [])
+        let sentence = DeepReportView.passSentence(pass: pass, bestVertex: "A1",
+                                                   sideName: "Black", opponentName: "White")
+        #expect(sentence == "If Black passes: 28% win rate — playing A1 is worth +12% and +2.0 points. White would punish at B2 if Black doesn't play at A1.")
+    }
+
+    /// Round 5: a "pass" best candidate is not a nameable point — the fact
+    /// keeps the generic phrasing rather than "playing pass … doesn't play
+    /// at pass".
+    @Test func passFactTreatsPassBestCandidateAsUnnamed() {
+        let model = makeModel()
+        model.candidates = [
+            CandidateReport(vertex: "pass", visits: 100, winrate: 0.28, scoreLead: -7.0,
+                            winrateDelta: 0, scoreLeadDelta: 0, pv: [],
+                            ownershipDelta: [:], tenuki: nil),
+        ]
+        let joined = ReportNarrator.facts(from: model).joined(separator: "\n")
+        #expect(joined.contains("playing the best candidate is worth"))
+        #expect(!joined.contains("doesn't play at"))
+    }
+
+    /// Round 5: same for the UI sentence when the best candidate is "pass".
+    @Test func passSentenceTreatsPassBestVertexAsUnnamed() {
+        let pass = PassComparison(punishmentVertex: "B2", winrate: 0.28, scoreLead: -7.0,
+                                  winrateDeltaVsBest: 0.12, scoreLeadDeltaVsBest: 2.0,
+                                  ownershipDelta: [:], contestedPoints: [])
+        let sentence = DeepReportView.passSentence(pass: pass, bestVertex: "pass",
+                                                   sideName: "Black", opponentName: "White")
+        #expect(sentence == "If Black passes: 28% win rate — playing is worth +12% and +2.0 points. White would punish at B2.")
+    }
+
+    /// Round 5: without a best vertex the sentence keeps the pre-round-5 shape.
+    @Test func passSentenceFallsBackWithoutBestVertex() {
+        let pass = PassComparison(punishmentVertex: "B2", winrate: 0.28, scoreLead: -7.0,
+                                  winrateDeltaVsBest: 0.12, scoreLeadDeltaVsBest: 2.0,
+                                  ownershipDelta: [:], contestedPoints: [])
+        let sentence = DeepReportView.passSentence(pass: pass, bestVertex: nil,
+                                                   sideName: "Black", opponentName: "White")
+        #expect(sentence == "If Black passes: 28% win rate — playing is worth +12% and +2.0 points. White would punish at B2.")
     }
 
     @Test func lowVisitSmallDeltasAreMarkedWithinNoise() {

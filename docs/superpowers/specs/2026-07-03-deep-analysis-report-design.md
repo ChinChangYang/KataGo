@@ -261,3 +261,12 @@ above every "Best Move"/"Alternative" heading and above "Playing vs. Passing"; t
 sentence names the punishing color ("White would punish at K14", not "the opponent"), UI
 and narrator facts alike; on iOS/visionOS a `ToolbarSpacer(.fixed)` separates
 Copy-to-Comment from Done so they are not grouped into one trailing capsule.
+
+Round 5 (2026-07-06 follow-up, presentation only): the pass sentence names the best move
+in both places — "playing \<best\> is worth …" (was "playing is worth"), and the punishment
+gets a conditional clause: "\<opponent\> would punish at \<vertex\> if \<side\> doesn't play
+at \<best\>", UI and narrator facts alike. The full clause is kept even when the punishment
+vertex equals the best move (it reads as a shared vital point — user decision). With no
+best candidate (edge case: `buildPassComparison` tolerates a nil best) or a "pass" best
+candidate (not a nameable point — "doesn't play at pass") both sentences keep their
+pre-round-5 shape.
