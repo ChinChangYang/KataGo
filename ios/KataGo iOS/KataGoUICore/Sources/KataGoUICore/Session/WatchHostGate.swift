@@ -22,10 +22,11 @@ public enum WatchHostGate {
     /// (StatusToolbarItems.isFunctional: no gen-move in flight, not
     /// auto-playing, no showboard in flight) plus mainline-only (no active
     /// branch), no pending human move, and no report probing.
-    /// Play additionally requires the spec's hard-block gate: analysis
-    /// running, game unlocked (isEditing), at the mainline head (nothing to
-    /// overwrite — playing behind the head truncates the record), and the
-    /// human's turn.
+    /// Play additionally requires the spec's hard-block gate: analysis on
+    /// (not cleared — paused candidates stay position-fresh and playable,
+    /// matching the phone), game unlocked (isEditing), at the mainline head
+    /// (nothing to overwrite — playing behind the head truncates the record),
+    /// and the human's turn.
     @MainActor
     public static func evaluate(session: GameSession, gameRecord: GameRecord?) -> WatchHostGateState {
         guard let gameRecord else {
@@ -50,7 +51,7 @@ public enum WatchHostGate {
 
         let atMainlineHead = gobanState.getNextMove(gameRecord: gameRecord) == nil
         let canPlay = canScrub
-            && gobanState.analysisStatus == .run
+            && gobanState.analysisStatus != .clear
             && gobanState.isEditing
             && atMainlineHead
             && isHumanTurn == true

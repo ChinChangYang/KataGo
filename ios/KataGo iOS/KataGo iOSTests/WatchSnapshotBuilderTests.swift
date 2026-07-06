@@ -38,6 +38,7 @@ struct WatchSnapshotBuilderTests {
         #expect(snapshot.toMove == "W")
         #expect(snapshot.moveNumber == 1)
         #expect(snapshot.analysisRunning)
+        #expect(snapshot.analysisPaused == false)
         #expect(snapshot.rootWinrateBlack == 0.61)
         #expect(snapshot.rootScoreLeadBlack == 2.5)
         #expect(snapshot.candidates.count == 2)
@@ -77,8 +78,66 @@ struct WatchSnapshotBuilderTests {
         session.stones.blackStonesCaptured = 2
         let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session, now: .now)
         #expect(!snapshot.analysisRunning)
-        #expect(snapshot.candidates.isEmpty)
+        #expect(snapshot.analysisPaused == true)
+        #expect(snapshot.candidates.isEmpty)               // no analysis data collected yet
         #expect(snapshot.moveNumber == 2)                  // captured stones still count as played
+    }
+
+    @Test func pausedAnalysisKeepsCandidates() {
+        // Pausing retains the last (position-fresh) analysis on the phone
+        // board; the watch mirror must keep showing it too instead of
+        // reading as "Analysis off".
+        let session = GameSession()
+        session.board.width = 19
+        session.board.height = 19
+        session.player.nextColorForPlayCommand = .white
+        session.gobanState.analysisStatus = .pause
+        session.analysis.nextColorForAnalysis = .white     // matches the turn
+        session.analysis.info = [
+            BoardPoint(x: 2, y: 3): AnalysisInfo(visits: 500, winrate: 0.48,
+                                                 scoreLead: -1.2, utilityLcb: 0.1,
+                                                 pv: ["C16", "D4"]),
+        ]
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session, now: .now)
+
+        #expect(!snapshot.analysisRunning)
+        #expect(snapshot.analysisPaused == true)
+        #expect(snapshot.candidates.count == 1)
+        #expect(snapshot.candidates[0].visits == 500)
+    }
+
+    @Test func autoPlaySuppressesPausedCandidates() {
+        // Auto-play runs under `.pause` while streaming analysis for every
+        // move; the phone hides that churn (AnalysisView's !isAutoPlaying
+        // gate) and the snapshot must too.
+        let session = GameSession()
+        session.board.width = 19
+        session.board.height = 19
+        session.player.nextColorForPlayCommand = .white
+        session.gobanState.analysisStatus = .pause
+        session.gobanState.isAutoPlaying = true
+        session.analysis.nextColorForAnalysis = .white
+        session.analysis.info = [
+            BoardPoint(x: 2, y: 3): AnalysisInfo(visits: 500, winrate: 0.48,
+                                                 scoreLead: -1.2, utilityLcb: 0.1),
+        ]
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session, now: .now)
+
+        #expect(!snapshot.analysisRunning)
+        #expect(snapshot.analysisPaused == false)
+        #expect(snapshot.candidates.isEmpty)
+    }
+
+    @Test func clearedAnalysisIsNeitherRunningNorPaused() {
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.gobanState.analysisStatus = .clear
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(session: session, now: .now)
+        #expect(!snapshot.analysisRunning)
+        #expect(snapshot.analysisPaused == false)
+        #expect(snapshot.candidates.isEmpty)
     }
 
     @Test func gameRecordEnrichesWritePathFields() {

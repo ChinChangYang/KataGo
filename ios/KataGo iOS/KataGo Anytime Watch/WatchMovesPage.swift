@@ -10,10 +10,13 @@ struct WatchMovesPage: View {
         List {
             if let live, live.analysisRunning, live.isHumanTurn == false {
                 // Spec: when the side to move is AI-controlled the carousel is
-                // replaced — no Play affordance, no genmove race.
+                // replaced — no Play affordance, no genmove race. Strictly
+                // analysisRunning: a paused engine never gen-moves, so the
+                // hourglass would be a lie there.
                 Label("AI is playing", systemImage: "hourglass")
                     .foregroundStyle(.secondary)
-            } else if let live, live.analysisRunning, !live.candidates.isEmpty {
+            } else if let live, live.analysisRunning || live.analysisPaused == true,
+                      !live.candidates.isEmpty {
                 ForEach(Array(live.candidates.prefix(3).enumerated()),
                         id: \.element.vertex) { rank, candidate in
                     if model.canPlayNow {
@@ -27,6 +30,10 @@ struct WatchMovesPage: View {
                         row(rank: rank, candidate: candidate)
                     }
                 }
+            } else if let live, live.analysisPaused == true {
+                // Paused with no candidates yet (e.g. paused right after a
+                // game opened) — "off" would misstate the phone's state.
+                Text("Analysis paused").foregroundStyle(.secondary)
             } else {
                 Text("Analysis off").foregroundStyle(.secondary)
             }

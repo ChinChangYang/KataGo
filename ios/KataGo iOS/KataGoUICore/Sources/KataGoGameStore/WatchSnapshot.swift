@@ -57,6 +57,11 @@ public struct WatchSnapshot: Codable, Equatable, Sendable {
     public var canScrub: Bool?
     /// Host would accept a play command right now (hard-block gate result).
     public var canPlay: Bool?
+    /// Analysis is paused on the host (.pause): candidates are retained and
+    /// position-fresh but not streaming. nil = older phone build (treat as
+    /// false). Distinct from `analysisRunning`, which stays strictly "live
+    /// stream" so the AI-turn hourglass never shows for a paused engine.
+    public var analysisPaused: Bool?
 
     public init(boardWidth: Int, boardHeight: Int,
                 blackStones: [String], whiteStones: [String],

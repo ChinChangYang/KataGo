@@ -73,9 +73,18 @@ struct WatchHostGateTests {
         #expect(!gate.canScrub && !gate.canPlay)
     }
 
-    @Test func pausedAnalysisBlocksPlayButNotScrub() {
+    @Test func pausedAnalysisStillAllowsPlay() {
+        // Paused candidates are position-fresh (one analysis burst per
+        // position change) and playable on the phone; the watch matches.
         let (session, gameRecord) = makeHost()
         session.gobanState.analysisStatus = .pause
+        let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
+        #expect(gate.canScrub && gate.canPlay)
+    }
+
+    @Test func clearedAnalysisBlocksPlayOnly() {
+        let (session, gameRecord) = makeHost()
+        session.gobanState.analysisStatus = .clear
         let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
         #expect(gate.canScrub && !gate.canPlay)
     }

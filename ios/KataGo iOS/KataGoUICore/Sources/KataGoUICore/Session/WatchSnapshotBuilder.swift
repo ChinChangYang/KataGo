@@ -17,6 +17,12 @@ public enum WatchSnapshotBuilder {
         let width = Int(session.board.width)
         let height = Int(session.board.height)
         let running = session.gobanState.analysisStatus == .run
+        // Paused analysis keeps its last (position-fresh) data visible on the
+        // phone board, so the watch mirrors it too. Auto-play runs under
+        // `.pause` while streaming every move — the phone hides that churn
+        // (AnalysisView's !isAutoPlaying gate) and so does this.
+        let paused = session.gobanState.analysisStatus == .pause
+            && !session.gobanState.isAutoPlaying
         // Guard against a one-tick lag between the analysis engine's
         // perspective and the current position right after a move: without
         // this, stale candidates could get paired with the new
@@ -27,7 +33,7 @@ public enum WatchSnapshotBuilder {
             session.analysis.nextColorForAnalysis == session.player.nextColorForPlayCommand
 
         let candidates: [WatchSnapshot.Candidate]
-        if running && analysisMatchesTurn {
+        if (running || paused) && analysisMatchesTurn {
             candidates = session.analysis
                 .candidateMoves(width: width, height: height, limit: 10)
                 .map { c in
@@ -60,6 +66,7 @@ public enum WatchSnapshotBuilder {
             rootScoreLeadBlack: session.rootScore.black,
             candidates: candidates,
             hostTimestamp: now)
+        snapshot.analysisPaused = paused
 
         if let gameRecord {
             let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)
