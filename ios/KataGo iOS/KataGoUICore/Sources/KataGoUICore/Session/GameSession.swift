@@ -97,6 +97,26 @@ public final class GameSession {
         engineLifecycle: EngineLifecycle,
         config: Config?
     ) async -> String? {
+        let version = await handshake(
+            selectedModelTitle: selectedModelTitle,
+            engineLifecycle: engineLifecycle
+        )
+        sendInitialCommands(config: config)
+        return version
+    }
+
+    /// The version/first-response exchange alone — no config commands. The iOS
+    /// host calls this directly so it can resolve WHICH game seeds the engine
+    /// AFTER the blocking version read: that read spans the engine's model
+    /// load (seconds), which is also the window where the system delivers a
+    /// cold-launch `open-game` URL. Reading `DeepLinkRouter.pendingGameID`
+    /// before this await raced the URL delivery and lost on the Release
+    /// auto-restore path (Debug always shows the model picker, masking it).
+    @discardableResult
+    public func handshake(
+        selectedModelTitle: String,
+        engineLifecycle: EngineLifecycle
+    ) async -> String? {
         // Discard any stale output the transport buffered from a PRIOR engine
         // run before this fresh handshake. The in-process bridge's output buffer
         // is process-global and survives a relaunch (Quit → re-select a model),
@@ -131,11 +151,13 @@ public final class GameSession {
             engineLifecycle.markFirstResponse(modelTitle: selectedModelTitle)
         }
 
-        sendInitialCommands(config: config)
         return version
     }
 
-    private func sendInitialCommands(config: Config?) {
+    /// The initial GTP commands for `config` (board size, rules, komi, human
+    /// profiles). Public so the iOS host can send them separately after a
+    /// `handshake()`-then-resolve sequence; `initialize` bundles both.
+    public func sendInitialCommands(config: Config?) {
         // If a config is not available, initialize KataGo with a default config.
         let config = config ?? Config()
         messageList.appendAndSend(command: GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight))

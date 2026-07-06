@@ -81,23 +81,29 @@ struct ContentView: View {
     }
 
     private func initializationTask() async {
+        // Handshake first: the blocking `version` read spans the engine's
+        // model load (seconds), which is also the window where the system
+        // delivers a cold-launch `open-game` URL to the root `.onOpenURL`.
+        version = await session.handshake(
+            selectedModelTitle: selectedModel?.title ?? "",
+            engineLifecycle: engineLifecycle
+        )
+
         // A widget `open-game` deep link captured at the root (`DeepLinkRouter`)
-        // before this view existed wins over the default most-recent selection,
-        // so a cold-launch widget tap opens the configured game. With no pending
-        // deep link this resolves to the most-recently-modified game (unchanged).
-        // Resolve it once and use it for the engine config, the selection, the
-        // book-compat check, and the SGF load so they all agree on one game.
+        // wins over the default most-recent selection, so a cold-launch widget
+        // tap opens the configured game. Resolved AFTER the handshake await —
+        // reading `pendingGameID` before it raced the asynchronous URL delivery
+        // and lost on the Release auto-restore path (Debug always shows the
+        // model picker, which masked the race). With no pending deep link this
+        // resolves to the most-recently-modified game (unchanged). Resolve it
+        // once and use it for the engine config, the selection, the book-compat
+        // check, and the SGF load so they all agree on one game.
         let initialGame = GameRecord.resolveInitialSelection(
             pendingGameID: deepLinkRouter.pendingGameID,
             container: modelContext.container
         )
         deepLinkRouter.pendingGameID = nil
-
-        version = await session.initialize(
-            selectedModelTitle: selectedModel?.title ?? "",
-            engineLifecycle: engineLifecycle,
-            config: initialGame?.concreteConfig
-        )
+        session.sendInitialCommands(config: initialGame?.concreteConfig)
 
         // Surface the model name + engine version in the Configurations sheet.
         // The launch screen used to linger for a few seconds just to show

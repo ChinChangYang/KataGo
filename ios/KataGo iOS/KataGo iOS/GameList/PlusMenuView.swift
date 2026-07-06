@@ -22,6 +22,7 @@ struct PlusMenuView: View {
     @State private var showingDeveloper = false
     @State private var confirmingClone = false
     @State private var showingReport = false
+    @State private var showingGlobalSettings = false
 
     var body: some View {
         Menu {
@@ -88,11 +89,17 @@ struct PlusMenuView: View {
                 }
             }
 
-            if gameRecord != nil {
 #if !os(visionOS)
-                Divider()
+            Divider()
 #endif
 
+            Button {
+                showingGlobalSettings = true
+            } label: {
+                Label("Global Settings", systemImage: "gearshape.2")
+            }
+
+            if gameRecord != nil {
                 Button {
                     showingConfig = true
                 } label: {
@@ -124,6 +131,11 @@ struct PlusMenuView: View {
                 #if os(macOS)
                 .frame(minWidth: 500, minHeight: 600)
                 #endif
+            }
+        }
+        .sheet(isPresented: $showingGlobalSettings) {
+            NavigationStack {
+                GlobalSettingsView()
             }
         }
         .sheet(isPresented: $showingDeveloper) {
