@@ -13,14 +13,10 @@
 import SwiftUI
 import KataGoUICore
 
-/// Navigation token for the settings screen (mirrors SelfPlayRoute).
-struct SettingsRoute: Hashable {}
-
 struct TVSettingsScreen: View {
     @Environment(TVEngineController.self) private var engine
     @Environment(GameSession.self) private var session
     @Environment(GobanState.self) private var gobanState
-    @Environment(\.dismiss) private var dismiss
 
     @State private var benchmark = TVBenchmarkController()
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
@@ -41,14 +37,13 @@ struct TVSettingsScreen: View {
             .padding(.vertical, 40)
         }
         .navigationTitle("Settings")
-        // While a benchmark leg runs, the engine is synchronously inside
-        // kata-benchmark and nothing can cancel it — consume Menu with a hint
-        // instead of popping a screen that must stay alive to finish.
-        .onExitCommand {
-            if !benchmark.isRunning {
-                dismiss()
-            }
-        }
+        // Settings is a tab now, so there is nothing to dismiss — let tvOS route
+        // Menu to the tab bar by default. The one exception: while a benchmark
+        // leg runs, the engine is synchronously inside kata-benchmark and cannot
+        // be cancelled, so install a no-op handler to swallow the Menu press and
+        // keep the app foregrounded until the run finishes (passing nil installs
+        // no handler at all, restoring the default tab-bar behavior).
+        .onExitCommand(perform: benchmark.isRunning ? {} : nil)
         .alert("Library reset armed", isPresented: $resetArmed) {
             Button("Close App Now") { exit(0) }
         } message: {
@@ -299,24 +294,6 @@ struct TVSettingsScreen: View {
     }
 }
 
-/// The library's trailing settings card.
-struct TVSettingsCard: View {
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-            Text("Settings")
-                .font(.title3.weight(.semibold))
-            Text("Backend · recovery · sound")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 300)
-        .padding(20)
-    }
-}
-
 // MARK: - Previews
 
 // #Preview bodies still compile in Release, and the TVPreviewData fixtures are
@@ -331,11 +308,5 @@ struct TVSettingsCard: View {
     .environment(engine)
     .environment(session)
     .environment(session.gobanState)
-}
-
-#Preview("Settings card") {
-    TVSettingsCard()
-        .frame(width: 360)
-        .padding(80)
 }
 #endif

@@ -22,7 +22,6 @@ import KataGoUICore
 private enum LibraryFocus: Hashable {
     case selfPlay
     case sample
-    case settings
     case game(PersistentIdentifier)
 }
 
@@ -41,46 +40,7 @@ struct TVLibraryView: View {
             if gameRecords.isEmpty {
                 emptyState
             } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 48) {
-                        // Permanent lead card: the self-play demo stays
-                        // reachable after real games sync.
-                        if TVSampleGameStore.isAvailable {
-                            NavigationLink(value: SelfPlayRoute(entry: .manual)) {
-                                TVSelfPlayCard()
-                            }
-                            .buttonStyle(.card)
-                            .focused($focus, equals: .selfPlay)
-                        }
-                        ForEach(gameRecords) { game in
-                            NavigationLink(value: game) {
-                                TVGameCard(game: game)
-                            }
-                            .buttonStyle(.card)
-                            .focused($focus, equals: .game(game.persistentModelID))
-                        }
-                        // Trailing settings card: backend/benchmark, recovery
-                        // resets, and the sound toggle.
-                        NavigationLink(value: SettingsRoute()) {
-                            TVSettingsCard()
-                        }
-                        .buttonStyle(.card)
-                        .focused($focus, equals: .settings)
-                    }
-                    .padding(.horizontal, 90)
-                    .padding(.vertical, 60)
-                    .focusSection()
-                }
-                .overlay(alignment: .bottom) {
-                    // Live progress while the initial import burst lands; the
-                    // count ticks up via the @Query and the pill auto-hides
-                    // ~10 s after the burst quiets. Plain material capsule —
-                    // deliberately NOT focusable, so it can't trap D-pad
-                    // navigation below the grid.
-                    if syncMonitor.isSyncBannerVisible {
-                        syncPill
-                    }
-                }
+                populatedGrid
             }
         }
         .navigationTitle("KataGo Anytime")
@@ -92,6 +52,44 @@ struct TVLibraryView: View {
         }
         .onPlayPauseCommand {
             attractMode?.noteUserActivity()
+        }
+    }
+
+    // MARK: - Grid
+
+    private var populatedGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 48) {
+                // Permanent lead card: the self-play demo stays reachable
+                // after real games sync.
+                if TVSampleGameStore.isAvailable {
+                    NavigationLink(value: SelfPlayRoute(entry: .manual)) {
+                        TVSelfPlayCard()
+                    }
+                    .buttonStyle(.card)
+                    .focused($focus, equals: .selfPlay)
+                }
+                ForEach(gameRecords) { game in
+                    NavigationLink(value: game) {
+                        TVGameCard(game: game)
+                    }
+                    .buttonStyle(.card)
+                    .focused($focus, equals: .game(game.persistentModelID))
+                }
+            }
+            .padding(.horizontal, 90)
+            .padding(.vertical, 60)
+            .focusSection()
+        }
+        .overlay(alignment: .bottom) {
+            // Live progress while the initial import burst lands; the
+            // count ticks up via the @Query and the pill auto-hides
+            // ~10 s after the burst quiets. Plain material capsule —
+            // deliberately NOT focusable, so it can't trap D-pad
+            // navigation below the grid.
+            if syncMonitor.isSyncBannerVisible {
+                syncPill
+            }
         }
     }
 
@@ -140,15 +138,9 @@ struct TVLibraryView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(textAlignment)
                 .fixedSize(horizontal: false, vertical: true)
-            // Settings must stay reachable with an empty library — the
-            // recovery actions (engine restart, iCloud re-download) matter
-            // most exactly when the library looks wrong.
-            NavigationLink(value: SettingsRoute()) {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .buttonStyle(.bordered)
-            .focused($focus, equals: .settings)
-            .padding(.top, 12)
+            // Settings (backend/recovery) lives in the persistent Settings tab
+            // now, so it stays reachable here without a dedicated button — the
+            // tab bar is always one D-pad move up.
         }
     }
 
@@ -295,6 +287,83 @@ struct TVGameCard: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+// MARK: - Search
+
+/// The dedicated Search tab: a name filter over the synced library. tvOS
+/// presents a view's `.searchable` as a full-screen keyboard, so it lives in
+/// its own tab (keeping the Library grid uncluttered rather than pinning the
+/// keyboard above it). Filtering is name-only (`localizedStandardContains`),
+/// matching iOS/macOS — player names live only inside the SGF and are not
+/// searchable without a per-game parse. Selecting a result pushes the review
+/// screen inside the Search tab's own stack.
+struct TVSearchView: View {
+    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
+    @State private var searchText = ""
+
+    private let columns = [GridItem(.adaptive(minimum: 320), spacing: 48)]
+
+    private var trimmedQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    private var results: [GameRecord] {
+        guard isSearching else { return [] }
+        return gameRecords.filter { $0.name.localizedStandardContains(trimmedQuery) }
+    }
+
+    var body: some View {
+        Group {
+            if !isSearching {
+                message(title: "Search your games",
+                        subtitle: "Type a game's name to find it.")
+            } else if results.isEmpty {
+                message(title: "No games match \u{201C}\(trimmedQuery)\u{201D}",
+                        subtitle: "Try a different name.")
+            } else {
+                resultsGrid
+            }
+        }
+        .navigationTitle("Search")
+        .searchable(text: $searchText, placement: .automatic, prompt: "Search games by name")
+    }
+
+    private var resultsGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 48) {
+                ForEach(results) { game in
+                    NavigationLink(value: game) {
+                        TVGameCard(game: game)
+                    }
+                    .buttonStyle(.card)
+                }
+            }
+            .padding(.horizontal, 90)
+            .padding(.vertical, 60)
+            .focusSection()
+        }
+    }
+
+    private func message(title: String, subtitle: String) -> some View {
+        VStack(spacing: 22) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 72))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.title.bold())
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(subtitle)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 90)
+        .padding(.vertical, 60)
     }
 }
 

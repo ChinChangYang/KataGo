@@ -4,14 +4,24 @@
 //
 //  Root of the tvOS review/spectate app. Launches the in-process engine (built-in
 //  b18 net, tvOS CoreML/NE config), does the GTP version handshake once, then
-//  hosts a NavigationStack: library grid → read-only review screen. The GTP
-//  message loop (`session.run`) stays active at the root so analysis streams
-//  while a game is open.
+//  hosts a TabView with two tabs: Library (a NavigationStack — game grid →
+//  read-only review / self-play drill-downs) and Settings. The GTP message loop
+//  (`session.run`) stays active at the root so analysis streams while a game is
+//  open.
 //
 
 import SwiftUI
 import SwiftData
 import KataGoUICore
+
+/// Top-level tabs. Settings and Search are first-class destinations (tabs), not
+/// cards in the library grid. Library hosts the game grid and its review /
+/// self-play drill-downs; those stay pushed inside the Library tab's own stack.
+private enum TVTab: Hashable {
+    case library
+    case search
+    case settings
+}
 
 struct TVRootView: View {
     @State private var session = GameSession()
@@ -26,8 +36,11 @@ struct TVRootView: View {
     @State private var isReady = false
     @State private var engineStarted = false
     // NavigationPath (not [GameRecord]) so the self-play route can coexist
-    // with game records in one stack.
-    @State private var path = NavigationPath()
+    // with game records in the Library tab's stack.
+    @State private var libraryPath = NavigationPath()
+    /// Which top-level tab is showing. Always starts on Library; not persisted
+    /// across launches.
+    @State private var selectedTab: TVTab = .library
 
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
@@ -49,20 +62,50 @@ struct TVRootView: View {
     var body: some View {
         Group {
             if isReady {
-                NavigationStack(path: $path) {
-                    TVLibraryView()
-                        .navigationDestination(for: GameRecord.self) { game in
-                            TVReviewScreen(game: game)
-                        }
-                        .navigationDestination(for: SelfPlayRoute.self) { route in
-                            TVSelfPlayScreen(route: route)
-                        }
-                        .navigationDestination(for: SettingsRoute.self) { _ in
-                            TVSettingsScreen()
-                        }
+                TabView(selection: $selectedTab) {
+                    NavigationStack(path: $libraryPath) {
+                        TVLibraryView()
+                            .navigationDestination(for: GameRecord.self) { game in
+                                TVReviewScreen(game: game)
+                                    .toolbar(.hidden, for: .tabBar)
+                            }
+                            .navigationDestination(for: SelfPlayRoute.self) { route in
+                                TVSelfPlayScreen(route: route)
+                                    .toolbar(.hidden, for: .tabBar)
+                            }
+                    }
+                    .tabItem { Label("Library", systemImage: "square.grid.2x2") }
+                    .tag(TVTab.library)
+
+                    // Search is its own tab so tvOS renders its full-screen
+                    // keyboard there instead of pinning it above the Library
+                    // grid. Selecting a result pushes review inside this stack.
+                    NavigationStack {
+                        TVSearchView()
+                            .navigationDestination(for: GameRecord.self) { game in
+                                TVReviewScreen(game: game)
+                                    .toolbar(.hidden, for: .tabBar)
+                            }
+                    }
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                    .tag(TVTab.search)
+
+                    // Review and Self-Play stay drill-downs inside the Library
+                    // tab (they rely on @Environment(\.dismiss) + the attract/
+                    // manual exit contract), so only Search and Settings are
+                    // sibling tabs. `.toolbar(.hidden, for: .tabBar)` on every
+                    // pushed game screen keeps the persistent tab bar from
+                    // overlapping the hero board.
+                    NavigationStack {
+                        TVSettingsScreen()
+                    }
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(TVTab.settings)
                 }
                 // Inject the session's engine-driven models so the shared
                 // BoardView / analysis views resolve them via @Environment.
+                // Hosted on the TabView so BOTH tabs resolve them — the Library
+                // drill-downs AND the Settings screen's benchmark/engine views.
                 .environment(session.stones)
                 .environment(session.messageList)
                 .environment(session.board)
@@ -82,32 +125,30 @@ struct TVRootView: View {
                 .environment(session)
                 // Idle-attract signals. Interaction detail (focus movement)
                 // is reported by TVLibraryView; the root owns the structural
-                // signals: navigation depth and scene phase.
-                .onChange(of: path.count) { _, newCount in
+                // signals: which tab is showing, navigation depth, scene phase.
+                // Attract may only start while idling at the Library tab's root
+                // grid — never over a pushed screen or the Settings tab.
+                .onChange(of: libraryPath.count) { _, _ in
                     // NavigationPath is not Equatable — observe its count.
-                    attractMode.pathIsEmpty = (newCount == 0)
-                    if newCount == 0 {
-                        attractMode.noteUserActivity()   // back at the library: restart the countdown
-                    } else {
-                        attractMode.disarm()             // a screen is up: no auto-start beneath it
-                    }
+                    refreshAttractIdle()
+                }
+                .onChange(of: selectedTab) { _, _ in
+                    refreshAttractIdle()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     attractMode.sceneIsActive = (phase == .active)
-                    if phase == .active, path.isEmpty {
-                        attractMode.noteUserActivity()
-                    } else if phase != .active {
-                        attractMode.disarm()
-                    }
+                    refreshAttractIdle()
                 }
                 .task {
                     // Wire the push closure and start the first countdown once
                     // the library exists (this branch is engine-ready-gated).
+                    // Attract always runs on the Library tab, so select it first.
                     attractMode.startAttract = {
-                        path.append(SelfPlayRoute(entry: .attract))
+                        selectedTab = .library
+                        libraryPath.append(SelfPlayRoute(entry: .attract))
                     }
                     guard !isRunningInPreview else { return }
-                    attractMode.noteUserActivity()
+                    refreshAttractIdle()
                 }
                 // Analysis stop lifecycle. tvOS has no per-game host controller
                 // (iOS uses GameSplitView, macOS MainWindowController), so the
@@ -199,6 +240,20 @@ struct TVRootView: View {
             // Handshake done: clear the crash sentinel armed before the spawn.
             engineController.noteInitialHandshakeComplete()
             isReady = true
+        }
+    }
+
+    /// Mirror "idle at the Library tab's root grid" into the attract controller
+    /// and re-arm or cancel its trailing-edge countdown. Idle means the Library
+    /// tab is selected AND its stack is at the root (no review/self-play pushed).
+    /// The Settings tab or any pushed screen disarms attract entirely.
+    private func refreshAttractIdle() {
+        let idleAtLibrary = (selectedTab == .library) && libraryPath.isEmpty
+        attractMode.pathIsEmpty = idleAtLibrary
+        if idleAtLibrary, scenePhase == .active {
+            attractMode.noteUserActivity()   // restart the idle countdown
+        } else {
+            attractMode.disarm()             // a screen/tab is up: no auto-start beneath it
         }
     }
 
