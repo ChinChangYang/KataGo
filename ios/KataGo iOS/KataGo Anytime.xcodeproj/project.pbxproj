@@ -152,7 +152,6 @@
 		5CF354385061AA2AF9FDB640 /* thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1BD242602F707FC96E8F9DDC /* thread_identity.cc */; };
 		5CF3DC7E0B3BA86D6FA7AE86 /* MacBoardHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D702E277C8397612E300DEC9 /* MacBoardHostView.swift */; };
 		5CF9C75827A28D3C714722BB /* SubprocessKataGoEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */; };
-		5D2BE3EE690B1333D424F2A2 /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		5D5C7C009BFA46E072945CBE /* status_payload_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 433D009D933AB313A1441C93 /* status_payload_printer.cc */; };
 		5E6F4F0C38A245E7023B4EF3 /* time_zone_posix.cc in Sources */ = {isa = PBXBuildFile; fileRef = F9E318D52312E92994233C24 /* time_zone_posix.cc */; };
 		5F3CF90C655E08F4E22C0ADA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BD670F6165FDC95F54701F7A /* Assets.xcassets */; };
@@ -223,6 +222,7 @@
 		8676241C94ECB469611EDDC0 /* sem_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5A4D92CF0E9CE8E3EF817C6 /* sem_waiter.cc */; };
 		86D88AC209C2C7FFDC55F752 /* kernel_timeout.cc in Sources */ = {isa = PBXBuildFile; fileRef = 00551F81D3B391B1AC8F7DE3 /* kernel_timeout.cc */; };
 		87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */; };
+		87A64C9422AF90E0553F55DD /* lionffen_b24c64_3x3_v3_12300.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = A3E7B2322E2262997ADE9555 /* lionffen_b24c64_3x3_v3_12300.bin.gz */; };
 		8963445BE5624392DCC7434A /* generated_message_util.cc in Sources */ = {isa = PBXBuildFile; fileRef = DD381267CDE6755BCF9CB1BA /* generated_message_util.cc */; };
 		8A6D501465C1CAA682321FC1 /* cord_rep_consume.cc in Sources */ = {isa = PBXBuildFile; fileRef = 20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */; };
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
@@ -1079,6 +1079,7 @@
 		A14133701B7598070B2E71DD /* WatchPeekBufferTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchPeekBufferTests.swift; sourceTree = "<group>"; };
 		A1AE7DFC20B4D28EADF34441 /* GobanStateSuppressGenMoveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateSuppressGenMoveTests.swift; sourceTree = "<group>"; };
 		A384C5A1A349F4B5F0FC3169 /* casts.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = casts.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/casts.cc"; sourceTree = SOURCE_ROOT; };
+		A3E7B2322E2262997ADE9555 /* lionffen_b24c64_3x3_v3_12300.bin.gz */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = archive.gzip; path = lionffen_b24c64_3x3_v3_12300.bin.gz; sourceTree = "<group>"; };
 		A40F0E362EE55A4B96F3D167 /* randen_round_keys.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_round_keys.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_round_keys.cc"; sourceTree = SOURCE_ROOT; };
 		A44E8E22CE4E5A8FDE17A8B0 /* zero_copy_stream_impl_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zero_copy_stream_impl_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/zero_copy_stream_impl_lite.cc"; sourceTree = SOURCE_ROOT; };
 		A45EF436A160EEA1E0BD3205 /* output.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = output.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/output.cc"; sourceTree = SOURCE_ROOT; };
@@ -2558,6 +2559,7 @@
 				E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */,
 				E18F3F752A514B9700D335E1 /* default_gtp.cfg */,
 				E18F3F742A514B9700D335E1 /* default_model.bin.gz */,
+				A3E7B2322E2262997ADE9555 /* lionffen_b24c64_3x3_v3_12300.bin.gz */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -3039,9 +3041,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5D2BE3EE690B1333D424F2A2 /* default_model.bin.gz in Resources */,
 				923919A38F96C31748E774F2 /* default_gtp.cfg in Resources */,
 				1634D7F22CC02DC97B3EC6FB /* Assets.xcassets in Resources */,
+				87A64C9422AF90E0553F55DD /* lionffen_b24c64_3x3_v3_12300.bin.gz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

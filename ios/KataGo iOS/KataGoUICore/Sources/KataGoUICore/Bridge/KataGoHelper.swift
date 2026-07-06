@@ -60,7 +60,18 @@ public class KataGoHelper {
                                   tunerFull: Bool,
                                   reTune: Bool) {
         let mainBundle = Bundle.main
+        #if os(tvOS)
+        // Apple TV runs a small net (Lionffen b24c64, ~5 MB) instead of the
+        // b18c384 built-in. The Neural Engine faults under the benchmark's rapid
+        // concurrent inference with the large net — a failed CoreML prediction
+        // then trips a fatalError in CoreMLComputeHandle.apply — so a tiny net
+        // keeps each prediction light enough to stay stable. It also drops the
+        // ~98 MB b18 from the TV bundle (default_model.bin.gz is not shipped on
+        // tvOS). b24c64 is board-size 2..37 like b18, so no board-size gating.
+        let modelName = "lionffen_b24c64_3x3_v3_12300"
+        #else
         let modelName = "default_model"
+        #endif
         let modelExt = "bin.gz"
 
         let mainModelPath = modelPath ?? mainBundle.path(forResource: modelName,
@@ -116,7 +127,7 @@ public class KataGoHelper {
         // buffer stays valid for the duration of the call.
         let devices = deviceAssignments.map { Int32($0) }
         devices.withUnsafeBufferPointer { buf in
-            KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/default_model.bin.gz"),
+            KataGoRunGtp(std.string(mainModelPath ?? "Contents/Resources/\(modelName).\(modelExt)"),
                          std.string(humanModelArg),
                          std.string(configArg),
                          buf.baseAddress,

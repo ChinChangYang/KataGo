@@ -82,6 +82,16 @@ HUMAN_MODEL_RES="../Resources/b18c384nbt-humanv0.bin.gz"
 curl -L --retry 5 --retry-delay 3 -o "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_URL"
 cp -f "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_RES"
 
+# Download the small net the tvOS app ships instead of the ~98 MB b18: the Apple
+# TV Neural Engine can fault under the benchmark's rapid concurrent inference
+# with the large net, so the TV target bundles this ~5 MB Lionffen b24c64 net.
+LIONFFEN_B24C64_GZ="lionffen_b24c64_3x3_v3_12300.bin.gz"
+LIONFFEN_B24C64_URL="https://media.katagotraining.org/uploaded/networks/models_extra/lionffen_b24c64_3x3_v3_12300.bin.gz"
+LIONFFEN_B24C64_RES="../Resources/lionffen_b24c64_3x3_v3_12300.bin.gz"
+
+curl -L --retry 5 --retry-delay 3 -o "$LIONFFEN_B24C64_GZ" "$LIONFFEN_B24C64_URL"
+cp -f "$LIONFFEN_B24C64_GZ" "$LIONFFEN_B24C64_RES"
+
 # Opening books are NOT bundled. Each board size's compact .kbook.gz is
 # downloaded on demand in-app (see OpeningBook.swift / OpeningBookPickerView),
 # so there is no book to fetch here.
