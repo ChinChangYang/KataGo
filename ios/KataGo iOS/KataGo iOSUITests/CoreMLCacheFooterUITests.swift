@@ -39,6 +39,18 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
+        // The Core ML cache persists across local runs and may already be at its
+        // 4-entry cap ("Main: 4 of 4"), leaving no room for the count to grow —
+        // launching another model would just evict+replace. Clear it first so the
+        // increment is observable (mirrors the file-header note about starting
+        // from a clean cache). "Clear Cache" is only present when non-empty.
+        let initialClear = app.buttons["Clear Cache"]
+        if initialClear.waitForExistence(timeout: 10) {
+            initialClear.tap()
+            let confirmClear = app.buttons["Clear"]
+            if confirmClear.waitForExistence(timeout: 5) { confirmClear.tap() }
+        }
+
         // ----- Step 1: launch built-in, return, capture baseline count -----
         //
         // An engine launch may write more than one cache entry — the main
@@ -333,29 +345,33 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     /// After tapping play, the engine launches and the goban (GameSplitView)
-    /// appears. On iPhone (compact), NavigationSplitView collapses to a
-    /// navigation stack with the sidebar as the root and the goban pushed
-    /// on top. The Quit button lives in the sidebar's toolbar (GameListToolbar)
-    /// — reach it by tapping the navigation-bar leading button to pop back
-    /// to the sidebar, then tap Quit and confirm.
+    /// appears. Quitting the engine (return to the model picker) now lives in
+    /// Settings ▸ Engine: tapping the Model row raises a confirmation dialog
+    /// whose destructive "Quit" tears down the engine — commit f9c85d85 removed
+    /// the old sidebar-toolbar Quit button. Reach it via the board "More" menu
+    /// (the same path the passing display-preferences / licenses tests use).
     @MainActor
     private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
-        // First: wait for the goban detail to appear. The "Lock" toolbar
-        // button is the most reliable signal that GameSplitView is on screen.
+        // Wait for the goban detail. The "Lock" toolbar button is the most
+        // reliable signal that GameSplitView is on screen.
         let lockButton = app.buttons["Lock"]
         XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
                       "Goban (Lock button) did not appear after launching \(label) engine")
 
-        // Tap leading navigation-bar button to return to the sidebar.
-        let leadingNavButton = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(leadingNavButton.waitForExistence(timeout: 5),
-                      "Navigation-bar leading button not found")
-        leadingNavButton.tap()
+        // Board "More" → "Settings".
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")
+        more.tap()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found (\(label))")
+        settings.tap()
 
-        let toolbarQuit = app.buttons["Quit"]
-        XCTAssertTrue(toolbarQuit.waitForExistence(timeout: 10),
-                      "Quit button did not appear in sidebar after engine launch (\(label))")
-        toolbarQuit.tap()
+        // Engine ▸ Model row raises the quit confirmation.
+        let quitRow = app.descendants(matching: .any)
+            .matching(identifier: "ConfigView.quitEngineRow").firstMatch
+        XCTAssertTrue(quitRow.waitForExistence(timeout: 10),
+                      "Quit engine row not found in Settings (\(label))")
+        quitRow.tap()
 
         // Confirmation dialog renders as a sheet on iPhone. Tap the
         // destructive "Quit" inside it.
@@ -363,12 +379,12 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         if dialogQuit.waitForExistence(timeout: 5) {
             dialogQuit.tap()
         } else {
-            // Fallback for compact rendering where the dialog hosts
-            // both Quit buttons under the app root.
+            // Fallback for compact rendering where the dialog hosts the
+            // Quit button under the app root.
             let allQuit = app.buttons.matching(identifier: "Quit")
-            XCTAssertGreaterThanOrEqual(allQuit.count, 2,
-                                        "Quit confirmation button not found")
-            allQuit.element(boundBy: 1).tap()
+            XCTAssertGreaterThanOrEqual(allQuit.count, 1,
+                                        "Quit confirmation button not found (\(label))")
+            allQuit.element(boundBy: allQuit.count - 1).tap()
         }
     }
 

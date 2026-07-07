@@ -131,6 +131,24 @@ final class PlayerNameLabelUITests: XCTestCase {
         // "Forward to End" is the board-ready sentinel used by the other tests.
         XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 360),
                       "Board did not appear (engine never finished launching)")
+
+        // Start from a fresh New Game so the AI config is deterministic: the
+        // default profile is "AI" (so the "Time per move" steppers exist, not the
+        // "Engine plays this side" toggle) and both sides are Human (maxTime 0),
+        // so the board never auto-plays into an uncommitted branch that would
+        // hide the "More" menu. State persists across local runs, and a persisted
+        // AI-vs-AI game breaks this test — same recovery as
+        // KataGo_iOSUITests.testCaptureReadmeScreens.
+        let back = app.navigationBars.buttons.element(boundBy: 0)  // leading = Back ("Games")
+        if back.waitForExistence(timeout: 5) { back.tap() }
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
+        more.tap()
+        let newGame = app.buttons["New Game"].firstMatch
+        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
+        newGame.tap()
+        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
+                      "New game board did not appear (More button missing)")
     }
 
     /// More ▸ Settings ▸ Game Settings ▸ AI.
@@ -142,9 +160,20 @@ final class PlayerNameLabelUITests: XCTestCase {
 
         tapRow(app, "Settings")
         tapRow(app, "Game Settings")
-        tapRow(app, "AI")
 
-        XCTAssertTrue(app.steppers["blackTimePerMove"].waitForExistence(timeout: 10),
+        // Tap the "AI" row scoped to the Settings LIST. A board player capsule
+        // behind the sheet is itself a Button labeled "AI" once that side is set
+        // to AI (whitePlayerName), so a bare app.buttons["AI"] can match the
+        // capsule instead of the Game Settings navigation row — which is exactly
+        // why the post-AI cleanup openAIConfig was failing.
+        let aiRow = app.collectionViews.buttons["AI"].firstMatch
+        XCTAssertTrue(aiRow.waitForExistence(timeout: 10), "AI row not found in Game Settings")
+        aiRow.tap()
+
+        // The AI screen's nav bar is a scroll-independent "screen shown" signal;
+        // the blackTimePerMove stepper can be below the fold (adjustStepper
+        // scrolls to it), so it's not a reliable sentinel on its own.
+        XCTAssertTrue(app.navigationBars["AI"].waitForExistence(timeout: 15),
                       "AI configuration screen not shown")
     }
 
@@ -166,14 +195,36 @@ final class PlayerNameLabelUITests: XCTestCase {
 
     @MainActor
     private func tapRow(_ app: XCUIApplication, _ label: String) {
+        // Wait BEFORE scrolling: menu-popover items (e.g. "Settings") are in the
+        // tree as soon as the menu opens, so they resolve here and never trigger
+        // a swipe — swiping while a menu is open would dismiss it. Only genuinely
+        // below-the-fold List rows fall through to the scroll path.
         let button = app.buttons[label].firstMatch
-        if button.waitForExistence(timeout: 10) {
-            button.tap()
-            return
-        }
+        if button.waitForExistence(timeout: 10) { button.tap(); return }
+        scrollUntilExists(app, button)
+        if button.exists { button.tap(); return }
+
         let text = app.staticTexts[label].firstMatch
-        XCTAssertTrue(text.waitForExistence(timeout: 5), "Row '\(label)' not found")
+        if text.waitForExistence(timeout: 5) { text.tap(); return }
+        scrollUntilExists(app, text)
+        XCTAssertTrue(text.exists, "Row '\(label)' not found")
         text.tap()
+    }
+
+    /// Swipe up on the config sheet until `element` enters the accessibility
+    /// hierarchy. Off-screen SwiftUI `List` cells (e.g. the White "Time per
+    /// move" stepper at the bottom of the AI screen) aren't queryable until
+    /// scrolled into view — the dominant source of this suite's flakiness.
+    /// No-ops when the element is already present.
+    @MainActor
+    private func scrollUntilExists(_ app: XCUIApplication,
+                                   _ element: XCUIElement,
+                                   maxSwipes: Int = 6) {
+        var swipes = 0
+        while !element.exists && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
     }
 
     // MARK: - Stepper helper
@@ -184,6 +235,7 @@ final class PlayerNameLabelUITests: XCTestCase {
                                decrements: Int = 0,
                                increments: Int = 0) {
         let stepper = app.steppers[identifier]
+        scrollUntilExists(app, stepper)
         XCTAssertTrue(stepper.waitForExistence(timeout: 10), "Stepper '\(identifier)' not found")
 
         let decrement = stepper.buttons["Decrement"].exists

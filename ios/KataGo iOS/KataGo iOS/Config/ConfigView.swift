@@ -879,6 +879,10 @@ struct ConfigView: View {
                     LabeledContent("Model", value: modelName)
                         .contentShape(Rectangle())
                         .onTapGesture { confirmingQuit = true }
+                        // Stable handle for the quit-confirmation trigger (UI tests
+                        // reach quit via Settings ▸ Engine now that the sidebar Quit
+                        // button is gone).
+                        .accessibilityIdentifier("ConfigView.quitEngineRow")
                 }
 
                 if let version = topUIState.engineVersionDisplay {
