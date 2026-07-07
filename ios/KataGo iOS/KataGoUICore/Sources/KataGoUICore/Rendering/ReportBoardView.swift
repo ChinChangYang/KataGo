@@ -41,6 +41,12 @@ public struct ReportBoardView: View {
     let whiteVertices: [String]
     let overlay: ReportBoardOverlay
     let markedMove: ReportMarkedMove?
+    /// A GTP vertex to mark with the app's red last-move dot (drawn on top,
+    /// independent of `overlay`). The stone itself is expected to already be in
+    /// `blackVertices`/`whiteVertices`, so this only adds the marker — unlike
+    /// `markedMove`, which also places a stone. Used by the GIF export so its
+    /// frames match the live board. "pass"/unparseable vertices draw nothing.
+    let lastMoveVertex: String?
     let isClassicStoneStyle: Bool
     let showCoordinate: Bool
     let verticalFlip: Bool
@@ -52,6 +58,7 @@ public struct ReportBoardView: View {
                 blackVertices: [String], whiteVertices: [String],
                 overlay: ReportBoardOverlay,
                 markedMove: ReportMarkedMove? = nil,
+                lastMoveVertex: String? = nil,
                 isClassicStoneStyle: Bool, showCoordinate: Bool, verticalFlip: Bool) {
         self.width = width
         self.height = height
@@ -59,6 +66,7 @@ public struct ReportBoardView: View {
         self.whiteVertices = whiteVertices
         self.overlay = overlay
         self.markedMove = markedMove
+        self.lastMoveVertex = lastMoveVertex
         self.isClassicStoneStyle = isClassicStoneStyle
         self.showCoordinate = showCoordinate
         self.verticalFlip = verticalFlip
@@ -77,6 +85,13 @@ public struct ReportBoardView: View {
                 StoneView(dimensions: dims, isClassicStoneStyle: isClassicStoneStyle,
                          verticalFlip: verticalFlip, isDrawingCapturedStones: false)
                 overlayLayer(dimensions: dims)
+                // The app's red last-move dot, drawn on top regardless of the
+                // overlay. lastMoveMarker no-ops unless a stone sits at the point.
+                if let point = lastMovePoint {
+                    MoveNumberView(dimensions: dims, verticalFlip: verticalFlip,
+                                   style: .lastMoveMarker,
+                                   moveNumbers: MoveNumbers(numbers: [:], lastPoint: point, lastNumber: nil))
+                }
             }
             .environment(localBoardSize)
             .environment(localStones)
@@ -115,6 +130,12 @@ public struct ReportBoardView: View {
     private var markedPoint: BoardPoint? {
         guard let markedMove, markedMove.vertex != "pass" else { return nil }
         return BoardPoint(move: markedMove.vertex, width: width, height: height)
+    }
+
+    /// The board point for `lastMoveVertex`, or nil for "pass"/unparseable.
+    private var lastMovePoint: BoardPoint? {
+        guard let lastMoveVertex, lastMoveVertex != "pass" else { return nil }
+        return BoardPoint(move: lastMoveVertex, width: width, height: height)
     }
 
     @ViewBuilder

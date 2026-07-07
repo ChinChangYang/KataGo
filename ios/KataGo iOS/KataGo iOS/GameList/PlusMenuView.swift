@@ -19,7 +19,6 @@ struct PlusMenuView: View {
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
     @State private var showingConfig = false
-    @State private var showingDeveloper = false
     @State private var confirmingClone = false
     @State private var showingReport = false
     @State private var showingGlobalSettings = false
@@ -27,6 +26,7 @@ struct PlusMenuView: View {
 
     var body: some View {
         Menu {
+            // Create / library actions.
             Button {
                 withAnimation {
                     let newGameRecord = GameRecord.createGameRecord(maxBoardLength: maxBoardLength)
@@ -37,14 +37,6 @@ struct PlusMenuView: View {
                 Label("New Game", systemImage: "doc")
             }
 
-            if gameRecord != nil {
-                Button {
-                    confirmingClone = true
-                } label: {
-                    Label("Clone", systemImage: "doc.on.doc")
-                }
-            }
-
             Button {
                 withAnimation {
                     topUIState.importing = true
@@ -53,40 +45,10 @@ struct PlusMenuView: View {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
 
-            if let gameRecord {
-                ShareLink(
-                    item: TransferableSgf(
-                        name: gameRecord.name,
-                        content: gameRecord.sgf
-                    ),
-                    preview: SharePreview(
-                        gameRecord.name,
-                        image: gameRecord.image ?? Image(.loadingIcon)
-                    )
-                ) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
-
-                Button {
-                    showingGifExport = true
-                } label: {
-                    Label("Export GIF", systemImage: "film")
-                }
-
-                Button(role: .destructive) {
-                    topUIState.confirmingDeletion = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-
             if thumbnailModel.isGameListViewAppeared {
-#if !os(visionOS)
-                Divider()
-#endif
-                // Enter multi-select mode. Exit ("Done") is now a top-level
-                // toolbar button (see GameListToolbar), shown only while
-                // selecting — so this menu item only ever enters the mode.
+                // Enter multi-select mode. Exit ("Done") is a top-level toolbar
+                // button (see GameListToolbar), shown only while selecting — so
+                // this item only ever enters the mode.
                 Button {
                     withAnimation {
                         topUIState.isSelecting = true
@@ -96,35 +58,75 @@ struct PlusMenuView: View {
                 }
             }
 
+            // Actions on the currently selected game, grouped into one submenu
+            // so the top level stays short.
+            if let gameRecord {
+                Menu {
+                    ShareLink(
+                        item: TransferableSgf(
+                            name: gameRecord.name,
+                            content: gameRecord.sgf
+                        ),
+                        preview: SharePreview(
+                            gameRecord.name,
+                            image: gameRecord.image ?? Image(.loadingIcon)
+                        )
+                    ) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+
+                    Button {
+                        showingGifExport = true
+                    } label: {
+                        Label("Export GIF", systemImage: "film")
+                    }
+
+                    Button {
+                        confirmingClone = true
+                    } label: {
+                        Label("Clone", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        showingReport = true
+                    } label: {
+                        Label("Deep Report", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .disabled(reportDisabled)
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        topUIState.confirmingDeletion = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } label: {
+                    Label("This Game", systemImage: "square.grid.3x3")
+                }
+            }
+
 #if !os(visionOS)
             Divider()
 #endif
 
-            Button {
-                showingGlobalSettings = true
-            } label: {
-                Label("Global Settings", systemImage: "gearshape.2")
-            }
-
+            // A single settings entry. When a game is selected this opens the
+            // Configurations sheet (which already contains Global Settings +
+            // Game Settings), so no separate top-level Global Settings item is
+            // needed. With no game, Configurations is unavailable, so fall back
+            // to opening Global Settings directly.
             if gameRecord != nil {
                 Button {
                     showingConfig = true
                 } label: {
-                    Label("Configurations", systemImage: "gearshape")
+                    Label("Settings", systemImage: "gearshape")
                 }
-
+            } else {
                 Button {
-                    showingDeveloper = true
+                    showingGlobalSettings = true
                 } label: {
-                    Label("Developer Mode", systemImage: "doc.plaintext")
+                    Label("Global Settings", systemImage: "gearshape.2")
                 }
-
-                Button {
-                    showingReport = true
-                } label: {
-                    Label("Deep Report", systemImage: "doc.text.magnifyingglass")
-                }
-                .disabled(reportDisabled)
             }
         } label: {
             Label("More", systemImage: "ellipsis.circle")
@@ -143,16 +145,6 @@ struct PlusMenuView: View {
         .sheet(isPresented: $showingGlobalSettings) {
             NavigationStack {
                 GlobalSettingsView()
-            }
-        }
-        .sheet(isPresented: $showingDeveloper) {
-            if let gameRecord {
-                NavigationStack {
-                    CommandView(config: gameRecord.concreteConfig)
-                }
-                #if os(macOS)
-                .frame(minWidth: 500, minHeight: 400)
-                #endif
             }
         }
         .sheet(isPresented: $showingReport) {

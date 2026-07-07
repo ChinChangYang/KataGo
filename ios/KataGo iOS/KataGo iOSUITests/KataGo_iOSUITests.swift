@@ -30,7 +30,7 @@ final class KataGo_iOSUITests: XCTestCase {
         // Use XCTAssert and related functions to verify your tests produce the correct results.
     }
 
-    /// Captures README screenshots (board, Configurations, Developer Mode) by
+    /// Captures README screenshots (board, Settings, Developer Mode) by
     /// driving the app on the iOS Simulator. Not a behavioral assertion test —
     /// it attaches full-frame screenshots that are extracted from the result
     /// bundle and committed as README images. On the simulator the backend is
@@ -71,26 +71,21 @@ final class KataGo_iOSUITests: XCTestCase {
             more.tap()
         }
 
-        // Configurations screen.
+        // Settings screen (the menu item formerly labeled "Configurations").
         openMore()
-        let config = app.buttons["Configurations"].firstMatch
-        XCTAssertTrue(config.waitForExistence(timeout: 10), "Configurations menu item not found")
-        config.tap()
-        XCTAssertTrue(app.navigationBars["Configurations"].waitForExistence(timeout: 15)
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found")
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15)
                       || app.staticTexts["Global Settings"].waitForExistence(timeout: 5),
-                      "Configurations screen not shown")
+                      "Settings screen not shown")
         sleep(2)
         snap("ConfigView")
-        if app.buttons["Done"].firstMatch.exists {
-            app.buttons["Done"].firstMatch.tap()
-        } else {
-            app.swipeDown(velocity: .fast)
-        }
 
-        // Developer Mode (GTP console).
-        openMore()
+        // Developer Mode (GTP console) — now nested in Settings ▸ Engine rather
+        // than at the top level of the "More" menu.
         let dev = app.buttons["Developer Mode"].firstMatch
-        XCTAssertTrue(dev.waitForExistence(timeout: 10), "Developer Mode menu item not found")
+        XCTAssertTrue(dev.waitForExistence(timeout: 10), "Developer Mode row not found")
         dev.tap()
         let gtpField = app.textFields["Enter your GTP command (list_commands)"]
         XCTAssertTrue(gtpField.waitForExistence(timeout: 15), "GTP console not shown")

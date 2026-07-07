@@ -38,7 +38,12 @@ public struct GameGifExportView: View {
     @State private var size: GifSize = .medium
     @State private var showCoordinates: Bool
     @State private var loops = true
-    @State private var holdFinal = true
+    // Seconds the final position is held before looping; 0 == no extra hold.
+    @State private var finalHoldSeconds: Double = 1.5
+    // Board appearance, seeded from the user's global board settings so the GIF
+    // matches the live board.
+    @State private var isClassicStoneStyle: Bool
+    @State private var verticalFlip: Bool
 
     // Render/share state.
     @State private var isRendering = false
@@ -49,10 +54,19 @@ public struct GameGifExportView: View {
     public init(gameRecord: GameRecord, onClose: (() -> Void)? = nil) {
         self.gameRecord = gameRecord
         self.onClose = onClose
-        // Seed the coordinate toggle from the global Show Coordinate preference
-        // (no custom UserDefaults suite is used for GlobalSettings.*).
-        let stored = UserDefaults.standard.object(forKey: GlobalSettingsKeys.showCoordinate) as? Bool
-        _showCoordinates = State(initialValue: stored ?? Config.defaultShowCoordinate)
+        // Seed the board-appearance options from the global GlobalSettings.*
+        // preferences (no custom UserDefaults suite is used for them), so the
+        // GIF matches how the user sees the live board.
+        let defaults = UserDefaults.standard
+        let storedCoord = defaults.object(forKey: GlobalSettingsKeys.showCoordinate) as? Bool
+        _showCoordinates = State(initialValue: storedCoord ?? Config.defaultShowCoordinate)
+        let storedFlip = defaults.object(forKey: GlobalSettingsKeys.verticalFlip) as? Bool
+        _verticalFlip = State(initialValue: storedFlip ?? Config.defaultVerticalFlip)
+        let styleIndex = (defaults.object(forKey: GlobalSettingsKeys.stoneStyle) as? Int)
+            ?? Config.defaultStoneStyle
+        let isClassic = Config.stoneStyles.indices.contains(styleIndex)
+            && Config.stoneStyles[styleIndex] == Config.classicStoneStyle
+        _isClassicStoneStyle = State(initialValue: isClassic)
     }
 
     private enum GifSize: String, CaseIterable, Identifiable {
@@ -78,9 +92,13 @@ public struct GameGifExportView: View {
         GifExportOptions(
             pixelSize: size.pixels,
             secondsPerMove: secondsPerMove,
-            finalHoldSeconds: holdFinal ? max(secondsPerMove, 1.5) : secondsPerMove,
+            // 0 == no extra hold: the final frame just gets the per-move delay
+            // (avoids an invalid 0-delay GIF frame).
+            finalHoldSeconds: finalHoldSeconds <= 0 ? secondsPerMove : finalHoldSeconds,
             loops: loops,
-            showCoordinates: showCoordinates
+            showCoordinates: showCoordinates,
+            isClassicStoneStyle: isClassicStoneStyle,
+            verticalFlip: verticalFlip
         )
     }
 
@@ -105,8 +123,13 @@ public struct GameGifExportView: View {
             }
 
             Section("Options") {
+                VStack(alignment: .leading) {
+                    Text(finalHoldSeconds <= 0
+                         ? "Final hold: Off"
+                         : "Final hold: \(finalHoldSeconds, specifier: "%.1f")s")
+                    Slider(value: $finalHoldSeconds, in: 0...5, step: 0.5)
+                }
                 Toggle("Show coordinates", isOn: $showCoordinates)
-                Toggle("Hold final position", isOn: $holdFinal)
                 Toggle("Loop", isOn: $loops)
             }
 
@@ -154,13 +177,17 @@ public struct GameGifExportView: View {
         let frame = frames.isEmpty
             ? GifFrame(blackStones: [], whiteStones: [], lastMove: nil)
             : frames[clamped]
-        return WidgetBoardView(
+        // Same view the renderer rasterizes, so the preview matches the GIF.
+        return ReportBoardView(
             width: boardWidth,
             height: boardHeight,
             blackVertices: frame.blackStones,
             whiteVertices: frame.whiteStones,
+            overlay: .none,
             lastMoveVertex: frame.lastMove,
-            showCoordinates: showCoordinates
+            isClassicStoneStyle: isClassicStoneStyle,
+            showCoordinate: showCoordinates,
+            verticalFlip: verticalFlip
         )
         .frame(width: 320, height: 320)
     }

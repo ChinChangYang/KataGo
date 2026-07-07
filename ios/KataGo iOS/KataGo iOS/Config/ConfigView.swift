@@ -874,25 +874,33 @@ struct ConfigView: View {
             // engine initialization (ContentView) and ride TopUIState in via
             // the environment. Tapping either row quits the engine and returns
             // to the model picker (the old standalone toolbar Quit button).
-            if topUIState.modelName != nil || topUIState.engineVersionDisplay != nil {
-                Section("Engine") {
-                    if let modelName = topUIState.modelName {
-                        LabeledContent("Model", value: modelName)
-                            .contentShape(Rectangle())
-                            .onTapGesture { confirmingQuit = true }
-                    }
-
-                    if let version = topUIState.engineVersionDisplay {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Version")
-                            Text(version)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            Section("Engine") {
+                if let modelName = topUIState.modelName {
+                    LabeledContent("Model", value: modelName)
                         .contentShape(Rectangle())
                         .onTapGesture { confirmingQuit = true }
+                }
+
+                if let version = topUIState.engineVersionDisplay {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Version")
+                        Text(version)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { confirmingQuit = true }
+                }
+
+                // The raw GTP console, relocated here from the game-list "More"
+                // menu — a power/engine tool that no longer belongs at the top
+                // level of the menu.
+                NavigationLink {
+                    CommandView(config: gameRecord.concreteConfig)
+                        .navigationTitle("Developer Mode")
+                } label: {
+                    Label("Developer Mode", systemImage: "doc.plaintext")
                 }
             }
 
@@ -901,7 +909,7 @@ struct ConfigView: View {
                 AcknowledgmentsView()
             }
         }
-        .navigationTitle("Configurations")
+        .navigationTitle("Settings")
         .confirmationDialog(
             "Are you sure you want to quit? This will close KataGo model and go back to the model selection screen.",
             isPresented: $confirmingQuit,

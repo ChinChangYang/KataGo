@@ -12,7 +12,7 @@ import SwiftUI
 @testable import KataGoUICore
 
 /// End-to-end coverage of the export pipeline: SGF replay → per-move
-/// `WidgetBoardView` frames → `ImageRenderer` → `AnimatedGifEncoder` → a real
+/// `ReportBoardView` frames → `ImageRenderer` → `AnimatedGifEncoder` → a real
 /// GIF on disk. `@MainActor` because `GameGifRenderer` (and `ImageRenderer`) are.
 @MainActor
 struct GameGifRendererTests {

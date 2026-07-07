@@ -172,7 +172,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // A game must be selected for the "Configurations" menu item to appear,
+        // A game must be selected for the "Settings" menu item to appear,
         // so launch the built-in engine to reach the goban.
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
@@ -181,15 +181,15 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
                       "Goban (Lock button) did not appear after launching the built-in engine")
 
-        // Open the "More" menu → "Configurations" to present ConfigView.
+        // Open the "More" menu → "Settings" to present ConfigView.
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
         moreButton.tap()
 
-        let configurations = app.buttons["Configurations"].firstMatch
-        XCTAssertTrue(configurations.waitForExistence(timeout: 10),
-                      "Configurations menu item not found")
-        configurations.tap()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10),
+                      "Settings menu item not found")
+        settings.tap()
 
         // ----- Global Settings now hosts the relocated display preferences -----
         let globalSettings = app.buttons["Global Settings"].firstMatch
@@ -245,7 +245,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // A game must be selected for the "Configurations" menu item to appear.
+        // A game must be selected for the "Settings" menu item to appear.
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
 
@@ -253,20 +253,20 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
                       "Goban (Lock button) did not appear after launching the built-in engine")
 
-        // Open "More" → "Configurations".
+        // Open "More" → "Settings".
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
         moreButton.tap()
 
-        let configurations = app.buttons["Configurations"].firstMatch
-        XCTAssertTrue(configurations.waitForExistence(timeout: 10),
-                      "Configurations menu item not found")
-        configurations.tap()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10),
+                      "Settings menu item not found")
+        settings.tap()
 
         // The bottom row opens the Open-Source Licenses list.
         let licensesRow = app.buttons["Open-Source Licenses"].firstMatch
         XCTAssertTrue(licensesRow.waitForExistence(timeout: 10),
-                      "'Open-Source Licenses' row missing from Configurations")
+                      "'Open-Source Licenses' row missing from Settings")
         licensesRow.tap()
 
         // The list includes the MLX trigger and KataGo itself.

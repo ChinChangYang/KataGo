@@ -7,7 +7,6 @@
 
 import CoreGraphics
 import Foundation
-import KataGoGameStore
 import SwiftUI
 
 /// User-tunable knobs for a game GIF export.
@@ -22,17 +21,26 @@ public struct GifExportOptions: Equatable, Sendable {
     public var loops: Bool
     /// Whether to draw A–T / 1–N board coordinates.
     public var showCoordinates: Bool
+    /// Draw stones in the app's Classic (glossy) style vs. Fast (flat) style,
+    /// matching the live board's `stoneStyle` setting.
+    public var isClassicStoneStyle: Bool
+    /// Mirror the board vertically, matching the live board's Vertical Flip.
+    public var verticalFlip: Bool
 
     public init(pixelSize: CGFloat = 480,
                 secondsPerMove: Double = 0.6,
                 finalHoldSeconds: Double = 1.5,
                 loops: Bool = true,
-                showCoordinates: Bool = false) {
+                showCoordinates: Bool = false,
+                isClassicStoneStyle: Bool = false,
+                verticalFlip: Bool = false) {
         self.pixelSize = pixelSize
         self.secondsPerMove = secondsPerMove
         self.finalHoldSeconds = finalHoldSeconds
         self.loops = loops
         self.showCoordinates = showCoordinates
+        self.isClassicStoneStyle = isClassicStoneStyle
+        self.verticalFlip = verticalFlip
     }
 }
 
@@ -67,13 +75,19 @@ public enum GameGifRenderer {
 
         for (index, frame) in frames.enumerated() {
             let isLast = index == frames.count - 1
-            let content = WidgetBoardView(
+            // The same board the app draws (wood, stone style, star points,
+            // last-move dot), rendered engine-free from the replayed frame so
+            // the GIF matches the live board — see ReportBoardView.
+            let content = ReportBoardView(
                 width: width,
                 height: height,
                 blackVertices: frame.blackStones,
                 whiteVertices: frame.whiteStones,
+                overlay: .none,
                 lastMoveVertex: frame.lastMove,
-                showCoordinates: options.showCoordinates
+                isClassicStoneStyle: options.isClassicStoneStyle,
+                showCoordinate: options.showCoordinates,
+                verticalFlip: options.verticalFlip
             )
             .frame(width: options.pixelSize, height: options.pixelSize)
 

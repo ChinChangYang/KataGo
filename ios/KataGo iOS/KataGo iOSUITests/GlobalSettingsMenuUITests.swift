@@ -4,7 +4,7 @@
 //
 //  The dots ("More") menu must offer "Global Settings" even when no game is
 //  selected. Regression test for the gap where Global Settings was only
-//  reachable via the game-gated Configurations sheet.
+//  reachable via the game-gated Settings sheet.
 //
 
 import XCTest

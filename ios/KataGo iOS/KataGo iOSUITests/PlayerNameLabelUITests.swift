@@ -12,7 +12,7 @@
 //  accessibility identifiers "blackPlayerName" / "whitePlayerName" (see
 //  StoneView.drawCapturedStones); tapping one flips that side Human<->AI.
 //  Their accessibility `label` is the displayed string. The test drives the
-//  real config screen (More ▸ Configurations ▸ Game Settings ▸ AI) so it also
+//  real config screen (More ▸ Settings ▸ Game Settings ▸ AI) so it also
 //  proves the board reflects the configuration end-to-end.
 //
 //  On the iOS Simulator the backend is pinned to CoreML/NE, so launching the
@@ -133,14 +133,14 @@ final class PlayerNameLabelUITests: XCTestCase {
                       "Board did not appear (engine never finished launching)")
     }
 
-    /// More ▸ Configurations ▸ Game Settings ▸ AI.
+    /// More ▸ Settings ▸ Game Settings ▸ AI.
     @MainActor
     private func openAIConfig(_ app: XCUIApplication) {
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
         more.tap()
 
-        tapRow(app, "Configurations")
+        tapRow(app, "Settings")
         tapRow(app, "Game Settings")
         tapRow(app, "AI")
 
@@ -148,7 +148,7 @@ final class PlayerNameLabelUITests: XCTestCase {
                       "AI configuration screen not shown")
     }
 
-    /// Pop back to the Configurations root, then swipe the sheet away.
+    /// Pop back to the Settings root, then swipe the sheet away.
     @MainActor
     private func dismissConfig(_ app: XCUIApplication) {
         for navTitle in ["AI", "Game Settings"] {
@@ -157,7 +157,7 @@ final class PlayerNameLabelUITests: XCTestCase {
                 bar.buttons.element(boundBy: 0).tap()  // leading = Back
             }
         }
-        // At the Configurations root the short list isn't scrollable, so a swipe
+        // At the Settings root the short list isn't scrollable, so a swipe
         // down dismisses the sheet (same approach as the screenshot test).
         app.swipeDown(velocity: .fast)
         XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 15),
