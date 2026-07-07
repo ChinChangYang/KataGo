@@ -2394,6 +2394,31 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    /// File-menu "Export GIF…": presents the shared GIF export sheet for the
+    /// selected game. Same NSHostingController/presentAsSheet + onClose bridge as
+    /// showDeepReport; engine-free, so gated only on a selected game.
+    @objc func exportGameGif(_ sender: Any?) {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        var dismissSheet: (() -> Void) = {}
+        let root = NavigationStack {
+            GameGifExportView(gameRecord: gameRecord, onClose: { dismissSheet() })
+        }
+        .frame(minWidth: 420, minHeight: 640)
+        let hosting = NSHostingController(rootView: root)
+        dismissSheet = { [weak hosting] in
+            guard let hosting else { return }
+            if let presenting = hosting.presentingViewController {
+                presenting.dismiss(hosting)
+            } else {
+                hosting.dismiss(nil)
+            }
+        }
+        contentViewController?.presentAsSheet(hosting)
+        DispatchQueue.main.async { [weak hosting] in
+            hosting?.view.window?.title = "Export GIF"
+        }
+    }
+
     /// View-menu Inspector tab shortcuts (⌘1 Chart [chart + moves] · ⌘2 Comments
     /// · ⌘3 Info). The menu item's `tag` (0–2) is the tab index; route through the
     /// split VC, which expands the Inspector pane first if it's collapsed.
@@ -2752,7 +2777,8 @@ extension MainWindowController: NSMenuItemValidation {
         switch menuItem.action {
         case #selector(renameSelectedGame(_:)),
              #selector(deleteSelectedGame(_:)),
-             #selector(shareSelectedGame(_:)):
+             #selector(shareSelectedGame(_:)),
+             #selector(exportGameGif(_:)):
             return hasGame
 
         // Game menu "Deactivate Branch": only meaningful when a branch is active

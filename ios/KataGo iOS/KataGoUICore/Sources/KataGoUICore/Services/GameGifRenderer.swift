@@ -1,0 +1,104 @@
+//
+//  GameGifRenderer.swift
+//  KataGo Anytime
+//
+//  Created by Chin-Chang Yang on 2026/7/7.
+//
+
+import CoreGraphics
+import Foundation
+import KataGoGameStore
+import SwiftUI
+
+/// User-tunable knobs for a game GIF export.
+public struct GifExportOptions: Equatable, Sendable {
+    /// Pixel width/height of each square frame.
+    public var pixelSize: CGFloat
+    /// How long each move is shown, in seconds.
+    public var secondsPerMove: Double
+    /// How long the final position is held before the GIF loops, in seconds.
+    public var finalHoldSeconds: Double
+    /// Whether the GIF repeats forever (vs. plays once).
+    public var loops: Bool
+    /// Whether to draw A–T / 1–N board coordinates.
+    public var showCoordinates: Bool
+
+    public init(pixelSize: CGFloat = 480,
+                secondsPerMove: Double = 0.6,
+                finalHoldSeconds: Double = 1.5,
+                loops: Bool = true,
+                showCoordinates: Bool = false) {
+        self.pixelSize = pixelSize
+        self.secondsPerMove = secondsPerMove
+        self.finalHoldSeconds = finalHoldSeconds
+        self.loops = loops
+        self.showCoordinates = showCoordinates
+    }
+}
+
+/// Renders a game's main line to an animated GIF — one frame per move, the
+/// position built up stone by stone with the last move highlighted — entirely
+/// off-screen and engine-free (positions come from `SgfHelper.gifFrames()`).
+///
+/// `@MainActor` because SwiftUI's `ImageRenderer` must run on the main actor;
+/// the loop yields between frames so long games don't block the UI.
+@MainActor
+public enum GameGifRenderer {
+    public enum RenderError: Error {
+        case emptyGame
+        case frameRenderFailed
+    }
+
+    /// Renders `sgf` to a GIF file and returns its URL (in the temporary
+    /// directory, named after `gameName`). `progress` is reported in `0...1`.
+    public static func render(sgf: String,
+                              options: GifExportOptions,
+                              gameName: String,
+                              progress: (Double) -> Void = { _ in }) async throws -> URL {
+        let helper = SgfHelper(sgf: sgf)
+        let frames = helper.gifFrames()
+        guard frames.count > 1 else { throw RenderError.emptyGame }
+
+        let width = max(helper.xSize, 1)
+        let height = max(helper.ySize, 1)
+
+        let url = temporaryFileURL(for: gameName)
+        let encoder = try AnimatedGifEncoder(url: url, frameCount: frames.count, loops: options.loops)
+
+        for (index, frame) in frames.enumerated() {
+            let isLast = index == frames.count - 1
+            let content = WidgetBoardView(
+                width: width,
+                height: height,
+                blackVertices: frame.blackStones,
+                whiteVertices: frame.whiteStones,
+                lastMoveVertex: frame.lastMove,
+                showCoordinates: options.showCoordinates
+            )
+            .frame(width: options.pixelSize, height: options.pixelSize)
+
+            let renderer = ImageRenderer(content: content)
+            renderer.scale = 1  // frame points == GIF pixels
+            guard let cgImage = renderer.cgImage else {
+                throw RenderError.frameRenderFailed
+            }
+            encoder.append(cgImage, delay: isLast ? options.finalHoldSeconds : options.secondsPerMove)
+
+            progress(Double(index + 1) / Double(frames.count))
+            await Task.yield()
+        }
+
+        try encoder.finalize()
+        return url
+    }
+
+    /// A stable temp-directory URL named after the game (sanitized), overwritten
+    /// on re-export. `ShareLink`/share sheets read the file lazily, so it must
+    /// outlive this call — the temporary directory suffices for the session.
+    private static func temporaryFileURL(for gameName: String) -> URL {
+        let trimmed = gameName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safe = trimmed.isEmpty ? "KataGoAnytime"
+            : String(trimmed.map { $0 == "/" || $0 == ":" ? "-" : $0 })
+        return URL.temporaryDirectory.appendingPathComponent("\(safe).gif")
+    }
+}

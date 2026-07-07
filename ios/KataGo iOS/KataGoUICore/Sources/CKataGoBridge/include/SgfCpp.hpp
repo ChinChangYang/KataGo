@@ -84,6 +84,23 @@ private:
     string _white;
 };
 
+/// One board position along an SGF's main line: the stones standing after a
+/// given number of moves (captures resolved) plus the vertex of the move that
+/// produced it, all as GTP vertex strings ("Q16", or "pass"/"" when there is no
+/// highlightable last move). Used to build one animation frame per move for GIF
+/// export without running the engine.
+class GifFrameCpp {
+public:
+    GifFrameCpp(const string& black, const string& white, const string& lastMove);
+    string getBlackStones() const SWIFT_COMPUTED_PROPERTY;
+    string getWhiteStones() const SWIFT_COMPUTED_PROPERTY;
+    string getLastMove() const SWIFT_COMPUTED_PROPERTY;
+private:
+    string _black;
+    string _white;
+    string _lastMove;
+};
+
 class SgfCpp {
 public:
     SgfCpp(const string& str);
@@ -97,6 +114,11 @@ public:
     string getCommentAt(const int index) const;
     RulesCpp getRules() const;
     FinalPositionCpp getFinalPosition() const;
+    /// The board position after `moveCount` moves of the main line (0 = the
+    /// starting/handicap position, values above the move count are clamped to
+    /// the final position). Replays with KataGo's own rules, so captures are
+    /// resolved; engine-free. See GifFrameCpp.
+    GifFrameCpp getFrameAt(const int moveCount) const;
 private:
     void* sgf;
     int _xSize;
@@ -105,6 +127,9 @@ private:
     vector<string> comments;
     void traverseSgf(const void* sgf);
     void traverseSgfHelper(const void* sgf);
+    /// Shared main-line replay backing both getFinalPosition and getFrameAt.
+    /// `turnIdx < 0` (or beyond the move count) means the final position.
+    GifFrameCpp buildFrame(long long turnIdx) const;
 };
 
 #endif /* SgfCpp_hpp */
