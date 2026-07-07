@@ -570,13 +570,19 @@ public class GobanState {
 
     public func maybeLoadSgf(gameRecord: GameRecord?, messageList: MessageList) {
         if let sgf = getSgf(gameRecord: gameRecord) {
-            let file = URL.documentsDirectory.appendingPathComponent("temp.sgf")
+            // Use the temporary directory, not Documents: tvOS has no writable
+            // Documents container, so a Documents write throws and `loadsgf`
+            // would never be sent — leaving the engine on an empty board (the
+            // review board then shows no stones and exit-variation desyncs).
+            // temporaryDirectory is writable on every platform and is the same
+            // scratch location KataGoHelper uses for its tvOS config.
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("temp.sgf")
             do {
                 try sgf.write(to: file, atomically: false, encoding: .utf8)
-                let path = file.path()
+                let path = file.path(percentEncoded: false)
                 messageList.appendAndSend(command: "loadsgf \(path)")
             } catch {
-                // Do nothing
+                printError("maybeLoadSgf: failed to write temp SGF for loadsgf: \(error)")
             }
         }
     }

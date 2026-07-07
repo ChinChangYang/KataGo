@@ -74,10 +74,10 @@ struct TVSelfPlayScreen: View {
 
     private var isGameOver: Bool { gobanState.passCount >= 2 }
 
-    /// Pause = the shared spectator flag: with it set, the gen-move gate falls
-    /// through to plain continuous kata-analyze, so the board keeps analyzing
-    /// (and the Top Moves list stays live) while nobody plays. One source of
-    /// truth — previews stage it directly on the session.
+    /// Pause = the shared spectator flag (no gen-move). togglePause also stops
+    /// the analysis stream so the fanless Apple TV idles while paused; the Top
+    /// Moves list freezes at its last candidates (still pickable). One source
+    /// of truth — previews stage it directly on the session.
     private var isPaused: Bool { gobanState.suppressesGenMove }
 
     var body: some View {
@@ -450,20 +450,28 @@ struct TVSelfPlayScreen: View {
         game = nil
     }
 
-    /// Pause: raise the spectator flag, then re-request — the arriving
-    /// kata-analyze command cancels the in-flight gen-move server-side, and
-    /// the cancelled search's trailing "play" line is dropped by
-    /// postProcessAIMove's suppressesGenMove guard, so the pause is crisp
-    /// (no move lands after the press). Analysis keeps streaming.
-    /// Resume: clear the flag and re-request — with both maxTimes > 0 that
-    /// emits the gen-move command directly and the loop continues from the
-    /// current (possibly user-explored) position.
+    /// Pause: raise the spectator flag and stop the analysis stream so the
+    /// fanless Apple TV goes idle. maybePauseAnalysis() sets analysisStatus =
+    /// .pause and arms waitingForAnalysis, so the in-flight stream's next line
+    /// drives the true->false edge and TVRootView's pause observer sends GTP
+    /// "stop"; the cancelled search's trailing "play" is dropped by
+    /// postProcessAIMove's suppressesGenMove guard, so the pause is crisp. Top
+    /// Moves freezes at its last candidates (still pickable).
+    /// Resume: clear the flag, restore analysisStatus = .run (the gen-move
+    /// gate requires it), then re-request — with both maxTimes > 0 that emits
+    /// the gen-move command directly and the loop continues from the current
+    /// (possibly user-explored) position.
     private func togglePause() {
         guard let game, !isGameOver else { return }
         gobanState.suppressesGenMove.toggle()
-        gobanState.requestAnalysis(config: game.concreteConfig,
-                                   messageList: messageList,
-                                   nextColorForPlayCommand: player.nextColorForPlayCommand)
+        if gobanState.suppressesGenMove {
+            gobanState.maybePauseAnalysis()
+        } else {
+            gobanState.analysisStatus = .run
+            gobanState.requestAnalysis(config: game.concreteConfig,
+                                       messageList: messageList,
+                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
+        }
     }
 
     /// Play a Top Moves candidate for the side to move. The kata-check-move
@@ -486,9 +494,11 @@ struct TVSelfPlayScreen: View {
     /// through to plain continuous kata-analyze instead of a gen-move, and any
     /// trailing "play" from the cancelled in-flight search is dropped by
     /// postProcessAIMove's suppressesGenMove guard — so the undone position
-    /// holds. The game stays paused; Resume plays forward from here, discarding
-    /// the undone moves (a real rewind). Same readiness gating as `pick()` so a
-    /// press can't race an in-flight legality check or a just-arrived move.
+    /// holds. maybePauseAnalysis() then stops that re-requested stream so the
+    /// engine idles (one snapshot of the undone position, then quiet). The
+    /// game stays paused; Resume plays forward from here, discarding the undone
+    /// moves (a real rewind). Same readiness gating as `pick()` so a press
+    /// can't race an in-flight legality check or a just-arrived move.
     private func stepBack() {
         guard let game, !isGameOver,
               stones.isReady,
@@ -499,6 +509,7 @@ struct TVSelfPlayScreen: View {
                                  messageList: messageList,
                                  player: player,
                                  stones: stones)
+        gobanState.maybePauseAnalysis()
     }
 }
 
@@ -588,13 +599,14 @@ private struct TVSelfPlayPreviewHost: View {
 }
 
 // Paused mid-game: the badge reads "Paused", the button offers Resume, and
-// the Top Moves rows stay live (the spectator flag keeps analysis streaming).
+// the Top Moves rows stay visible (frozen at their last candidates — pausing
+// stops the analysis stream, so analysisStatus is .pause, not .run).
 #Preview("Self-play — paused") {
     let game = TVPreviewData.denseAnalyzedGame()
     let session = TVPreviewData.reviewSession(game: game,
                                               blackWinrate: 0.55,
                                               blackScore: 1.5)
-    session.gobanState.analysisStatus = .run
+    session.gobanState.analysisStatus = .pause
     session.gobanState.eyeStatus = .opened
     session.gobanState.suppressesGenMove = true
     return TVSelfPlayPreviewHost(game: game, session: session)

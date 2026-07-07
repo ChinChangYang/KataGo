@@ -7,10 +7,14 @@
 //  process, the persisted default is still the safe CoreML (the winner is
 //  persisted only at the very end, and TVSettingsStore.benchmarkInProgress
 //  makes the next launch boot CoreML with an "aborted" note). Each leg:
-//  restart the engine on that backend → send `kata-benchmark N` → parse the
-//  final visits/s from the engine's one concatenated output line (see
-//  TVBenchmarkParser). On the Simulator the MLX leg is REFUSED, never faked:
-//  the sim device clamp would silently measure CoreML twice.
+//  restart the engine on that backend → run the SAME light continuous
+//  kata-analyze the live game uses for a fixed window → read the visits/s the
+//  app already computes from that stream. This deliberately avoids the heavy,
+//  highly-concurrent `kata-benchmark` search that transiently faults the ANE
+//  on Apple TV (the "crash after benchmarking" report) — live analysis is
+//  known-stable, so measuring with it keeps the benchmark light. On the
+//  Simulator the MLX leg is REFUSED, never faked: the sim device clamp would
+//  silently measure CoreML twice.
 //
 
 import Foundation
@@ -29,13 +33,14 @@ final class TVBenchmarkController {
 
     private(set) var state: State = .idle
 
-    /// 10 fixed positions × this many visits per position. Small enough that
-    /// a CPU-fallback CoreML (~10 visits/s) still finishes in ~2 minutes;
-    /// noisy-but-sufficient for the expected multiple-times gap.
-    private static let visitsPerPosition = 100
-    private static let legTimeout: Double = 300
-
-    @ObservationIgnored private var measurement: CheckedContinuation<Double?, Never>?
+    /// Seconds of light continuous analysis per leg. The app's visits/s is a
+    /// running session average, so a few seconds is enough to stabilize; short
+    /// enough that even a CPU-fallback CoreML sim leg finishes quickly.
+    private static let measureWindow: Double = 8
+    /// Matches the tvOS live game: a report roughly every 0.5 s (interval is in
+    /// centiseconds), standard analysis breadth.
+    private static let analysisInterval = 50
+    private static let analysisMaxMoves = 30
 
     var isRunning: Bool {
         switch state {
@@ -104,39 +109,22 @@ final class TVBenchmarkController {
         state = .finished(result)
     }
 
-    /// Sends kata-benchmark and waits for the parsable final line via the
-    /// session's out-of-band line tap (the bridge keeps its single reader —
-    /// the regular read loop — so we observe, never read). The observer runs
-    /// off the main actor (GameSession.messaging is non-isolated), so it
-    /// parses synchronously and hops to resolve.
+    /// Measures NN throughput with the light, live-game analysis path instead
+    /// of the heavy `kata-benchmark` search: reset the visits/s session, start
+    /// the same continuous kata-analyze the live game streams, let it deepen
+    /// for a fixed window, then read the visits/s GameSession already computes
+    /// from that stream (`Analysis.updateVisitsPerSecond`). GameSession is
+    /// @MainActor, so `analysis.visitsPerSecond` is safe to read here. Finally
+    /// send `stop` so the engine idles before the next leg's restart. Returns
+    /// nil if no visits accumulated (engine stuck / never produced a report).
     private func measureLeg(session: GameSession) async -> Double? {
-        defer {
-            session.lineObserver = nil
-            measurement = nil
-        }
-        let timeout = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.legTimeout))
-            guard !Task.isCancelled else { return }
-            self?.finishMeasurement(with: nil)
-        }
-        defer { timeout.cancel() }
-
-        return await withCheckedContinuation { continuation in
-            measurement = continuation
-            session.lineObserver = { [weak self] line in
-                if let visitsPerSecond = TVBenchmarkParser.parseFinalVisitsPerSecond(line: line) {
-                    Task { @MainActor in self?.finishMeasurement(with: visitsPerSecond) }
-                } else if TVBenchmarkParser.isErrorReply(line) {
-                    Task { @MainActor in self?.finishMeasurement(with: nil) }
-                }
-            }
-            session.messageList.appendAndSend(command: "kata-benchmark \(Self.visitsPerPosition)")
-        }
-    }
-
-    /// Idempotent: the first of {result line, error line, timeout} wins.
-    private func finishMeasurement(with value: Double?) {
-        measurement?.resume(returning: value)
-        measurement = nil
+        session.analysis.resetVisitsPerSecondSession()
+        session.messageList.appendAndSend(
+            commands: GtpCommandBuilder.continuousAnalyzeCommands(interval: Self.analysisInterval,
+                                                                  maxMoves: Self.analysisMaxMoves))
+        try? await Task.sleep(for: .seconds(Self.measureWindow))
+        let visitsPerSecond = session.analysis.visitsPerSecond
+        session.messageList.appendAndSend(command: "stop")
+        return visitsPerSecond > 0 ? visitsPerSecond : nil
     }
 }
