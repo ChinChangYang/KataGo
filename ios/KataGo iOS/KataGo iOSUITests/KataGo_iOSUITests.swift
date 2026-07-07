@@ -62,14 +62,32 @@ final class KataGo_iOSUITests: XCTestCase {
         let forwardEnd = app.buttons["Forward to End"]
         XCTAssertTrue(forwardEnd.waitForExistence(timeout: 360),
                       "Board did not appear (engine never finished launching)")
-        sleep(3)
-        snap("GobanView")
 
         func openMore() {
             let more = app.buttons["More"].firstMatch
             XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
             more.tap()
         }
+
+        // The auto-selected game may persist an AI-vs-AI configuration (state
+        // survives across local runs). An AI side auto-plays a move, which puts
+        // the board in an uncommitted-branch state — TopToolbarView then shows a
+        // "Deactivate Branch" button INSTEAD of the "More" menu, so "More" would
+        // never be found on the board. Start from a fresh New Game (default
+        // Human-vs-Human, so it never auto-plays into a branch), created from the
+        // game-list toolbar menu, which the branch state does not affect.
+        let back = app.navigationBars.buttons.element(boundBy: 0)  // leading = Back ("Games")
+        if back.waitForExistence(timeout: 5) { back.tap() }
+        openMore()
+        let newGame = app.buttons["New Game"].firstMatch
+        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
+        newGame.tap()
+
+        // The fresh Human-vs-Human board reliably exposes "More" (no branch).
+        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
+                      "New game board did not appear (More button missing)")
+        sleep(3)
+        snap("GobanView")
 
         // Settings screen (the menu item formerly labeled "Configurations").
         openMore()
