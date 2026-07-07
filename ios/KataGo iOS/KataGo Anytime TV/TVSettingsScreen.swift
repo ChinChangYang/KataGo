@@ -2,12 +2,12 @@
 //  TVSettingsScreen.swift
 //  KataGo Anytime TV
 //
-//  Settings + recovery for the TV app: the engine backend (CoreML/NE vs
-//  MLX/GPU) with a one-tap on-device benchmark that persists the winner as
-//  the default, engine restart, a "Re-download Library from iCloud" reset
-//  (arms TVStoreReset and exits — the wipe happens next launch before the
-//  container opens), and the sound-effects toggle. A diagnostics footer
-//  shows the store mode, engine state, and the last benchmark.
+//  Settings + recovery for the TV app. Apple TV runs a single fixed
+//  CoreML/Neural Engine backend (no picker, no benchmark), so this screen is:
+//  an engine restart, a "Re-download Library from iCloud" reset (arms
+//  TVStoreReset and exits — the wipe happens next launch before the container
+//  opens), the sound-effects toggle, and a diagnostics footer showing the
+//  store mode and engine state.
 //
 
 import SwiftUI
@@ -15,19 +15,15 @@ import KataGoUICore
 
 struct TVSettingsScreen: View {
     @Environment(TVEngineController.self) private var engine
-    @Environment(GameSession.self) private var session
     @Environment(GobanState.self) private var gobanState
 
-    @State private var benchmark = TVBenchmarkController()
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
-    @State private var confirmingMLX = false
     @State private var confirmingReset = false
     @State private var resetArmed = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 36) {
-                backendSection
                 recoverySection
                 soundSection
                 diagnosticsFooter
@@ -37,114 +33,10 @@ struct TVSettingsScreen: View {
             .padding(.vertical, 40)
         }
         .navigationTitle("Settings")
-        // Settings is a tab now, so there is nothing to dismiss — let tvOS route
-        // Menu to the tab bar by default. The one exception: while a benchmark
-        // leg runs, the engine is synchronously inside kata-benchmark and cannot
-        // be cancelled, so install a no-op handler to swallow the Menu press and
-        // keep the app foregrounded until the run finishes (passing nil installs
-        // no handler at all, restoring the default tab-bar behavior).
-        .onExitCommand(perform: benchmark.isRunning ? {} : nil)
         .alert("Library reset armed", isPresented: $resetArmed) {
             Button("Close App Now") { exit(0) }
         } message: {
             Text("The app will now close. Open it again and your games will re-download from iCloud.")
-        }
-    }
-
-    // MARK: - Backend
-
-    private var backendSection: some View {
-        section("Analysis Backend") {
-            HStack(spacing: 16) {
-                backendButton(.coreML)
-                backendButton(.mlx)
-            }
-
-            Button {
-                Task { await benchmark.run(engine: engine, session: session) }
-            } label: {
-                HStack(spacing: 12) {
-                    if benchmark.isRunning {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "speedometer")
-                    }
-                    Text(benchmark.isRunning ? benchmarkStatusText : "Run Benchmark")
-                }
-                .frame(maxWidth: .infinity, minHeight: 52)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(engine.phase != .running || benchmark.isRunning)
-
-            Text(benchmarkCaption)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .confirmationDialog(
-            "Switch to MLX / GPU?",
-            isPresented: $confirmingMLX,
-            titleVisibility: .visible
-        ) {
-            Button("Switch", role: .destructive) {
-                Task { _ = await engine.restart(to: .mlx, persistOnSuccess: true) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("MLX runs analysis on the GPU. Its memory headroom on Apple TV is untested — if the app quits unexpectedly, it will reopen on the CoreML backend automatically.")
-        }
-    }
-
-    private func backendButton(_ backend: TVEngineBackend) -> some View {
-        Button {
-            guard backend != engine.currentBackend else { return }
-            if backend == .mlx {
-                confirmingMLX = true
-            } else {
-                Task { _ = await engine.restart(to: .coreML, persistOnSuccess: true) }
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: engine.currentBackend == backend
-                      ? "checkmark.circle.fill" : "circle")
-                Text(backend.displayName)
-            }
-            .font(.body)
-            .frame(maxWidth: .infinity, minHeight: 52)
-        }
-        .buttonStyle(.bordered)
-        .disabled(backend == .mlx && !TVEngineBackend.mlxIsAvailable
-                  || engine.phase != .running || benchmark.isRunning)
-    }
-
-    private var benchmarkStatusText: String {
-        switch benchmark.state {
-        case .restarting(let backend):
-            return backend == .mlx
-                ? "Preparing MLX (first-time GPU tuning)…"
-                : "Preparing \(backend.displayName)…"
-        case .measuring(let backend):
-            return "Benchmarking \(backend.displayName)… about a minute"
-        default:
-            return "Run Benchmark"
-        }
-    }
-
-    private var benchmarkCaption: String {
-        // Results/failures first — they must never be hidden by the static
-        // simulator notice.
-        switch benchmark.state {
-        case .finished(let result):
-            return summary(of: result) + " The faster backend is now the default."
-        case .failed(let reason):
-            return "Benchmark failed: \(reason)"
-        case .restarting, .measuring:
-            return "Switching backends can take a couple of minutes after heavy engine use — please wait."
-        case .idle:
-            if !TVEngineBackend.mlxIsAvailable {
-                return "MLX is unavailable in the Simulator — the benchmark measures CoreML only there. Run it on a real Apple TV to compare both backends."
-            }
-            return "Measures both backends on fixed positions and makes the faster one the default."
         }
     }
 
@@ -153,7 +45,7 @@ struct TVSettingsScreen: View {
     private var recoverySection: some View {
         section("Recovery") {
             Button {
-                Task { _ = await engine.restart(to: engine.currentBackend, persistOnSuccess: false) }
+                Task { _ = await engine.restartEngine() }
             } label: {
                 HStack(spacing: 12) {
                     if engine.phase == .starting || engine.phase == .stopping {
@@ -166,7 +58,7 @@ struct TVSettingsScreen: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.bordered)
-            .disabled(engine.phase != .running || benchmark.isRunning)
+            .disabled(engine.phase != .running)
 
             Button {
                 confirmingReset = true
@@ -178,7 +70,6 @@ struct TVSettingsScreen: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.bordered)
-            .disabled(benchmark.isRunning)
 
             Text("Deletes the local copy of your library and downloads it again from iCloud on the next launch. Use this if games look wrong on this Apple TV. It cannot undo changes that already synced to iCloud.")
                 .font(.callout)
@@ -230,13 +121,8 @@ struct TVSettingsScreen: View {
     private var diagnosticsFooter: some View {
         section("Diagnostics") {
             VStack(alignment: .leading, spacing: 8) {
-                diagnosticRow("Engine", "\(engine.currentBackend.displayName) — \(phaseText)")
+                diagnosticRow("Engine", "CoreML / Neural Engine — \(phaseText)")
                 diagnosticRow("Library store", storeModeText)
-                if let last = TVSettingsStore.lastBenchmark {
-                    diagnosticRow("Last benchmark", last.aborted
-                                  ? "Aborted (the app quit mid-run; CoreML restored)"
-                                  : summary(of: last))
-                }
             }
             .font(.callout)
         }
@@ -268,13 +154,6 @@ struct TVSettingsScreen: View {
         case .localOnly: return "Local only (iCloud unavailable)"
         case .inMemory: return "In-memory (storage unavailable)"
         }
-    }
-
-    private func summary(of result: TVBenchmarkResult) -> String {
-        func text(_ value: Double?) -> String {
-            value.map { String(format: "%.1f visits/s", $0) } ?? "—"
-        }
-        return "CoreML \(text(result.coreMLVisitsPerSecond)) · MLX \(text(result.mlxVisitsPerSecond)) → \(result.winner.displayName)"
     }
 
     // MARK: - Section chrome

@@ -433,6 +433,16 @@ public enum SharedModelContainer {
     ///
     /// Directories may or may not exist; callers tolerate absence.
     public static func storeResetDirectories() -> [URL] {
+        #if os(tvOS)
+        // Apple TV routes the SwiftData/CoreData store to `Library/Caches`
+        // (`NSPersistentContainer`'s default container directory on tvOS), NOT
+        // Application Support — verified on-device: the live `default.store*` +
+        // `.default_SUPPORT` sit in Caches, while Application Support holds only
+        // engine caches. tvOS also has no App Group. So the reset must wipe
+        // Caches, or `TVStoreReset` matches zero artifacts and the local library
+        // survives (CloudKit then makes it look like the reset did nothing).
+        return [URL.cachesDirectory]
+        #else
         var dirs: [URL] = []
         // 1. App-Group container — the live store post-migration (the F16 fix).
         if let groupParent = appGroupStoreURL()?.deletingLastPathComponent() {
@@ -441,6 +451,7 @@ public enum SharedModelContainer {
         // 2. App's own container — the pre-App-Group / migration-source copy.
         dirs.append(defaultStoreURL().deletingLastPathComponent())
         return dirs
+        #endif
     }
 
     /// Pure: the store-artifact file names within a directory listing — the whole

@@ -2,19 +2,15 @@
 //  TVEngineController.swift
 //  KataGo Anytime TV
 //
-//  Owner of the tvOS engine lifecycle: the initial launch (with the
-//  persisted, crash-safe backend) and in-process restarts onto a different
-//  backend (the Settings picker and the CoreML-vs-MLX benchmark). The GTP
-//  engine is a one-shot blocking thread; "restart" = GTP "quit" → old thread
-//  ends → park the read loop → spawn a new thread → re-run the version
-//  handshake (the sole reader while it runs) → resume the read loop. The
-//  quit sequencing mirrors the proven iOS flow (ConfigView.quitEngine →
+//  Owner of the tvOS engine lifecycle: the initial launch and the in-process
+//  "Restart Engine" recovery. Apple TV runs a single fixed backend —
+//  CoreML/Neural Engine (`EngineDeviceAssignments.platformMux` == [100] on
+//  tvOS) — so there is no backend to pick and no benchmark. The GTP engine is
+//  a one-shot blocking thread; "restart" = GTP "quit" → old thread ends →
+//  park the read loop → spawn a new thread → re-run the version handshake (the
+//  sole reader while it runs) → resume the read loop. The quit sequencing
+//  mirrors the proven iOS flow (ConfigView.quitEngine →
 //  ModelRunnerView.startKataGoThread).
-//
-//  Crash safety: TVSettingsStore.pendingEngineBackend is armed before every
-//  spawn and cleared only when the version handshake succeeds — if a backend
-//  kills the process (the MLX memory budget on tvOS is uncharacterized), the
-//  next launch boots plain CoreML.
 //
 
 import Foundation
@@ -32,7 +28,6 @@ final class TVEngineController {
     }
 
     private(set) var phase: Phase = .idle
-    private(set) var currentBackend: TVEngineBackend = .coreML
 
     @ObservationIgnored private var session: GameSession?
     @ObservationIgnored private var engineLifecycle: EngineLifecycle?
@@ -49,17 +44,13 @@ final class TVEngineController {
     /// Cold start (replaces the old bare-runGtp body of startEngineIfNeeded).
     func startInitial() {
         guard phase == .idle, let engineLifecycle else { return }
-        let backend = TVSettingsStore.resolveLaunchBackendApplyingRecovery()
-        currentBackend = backend
-        TVSettingsStore.pendingEngineBackend = backend
         engineLifecycle.reset()
-        spawnEngineThread(backend: backend)
+        spawnEngineThread()
         phase = .starting
     }
 
     /// Called by TVRootView once the cold-start version handshake succeeds.
     func noteInitialHandshakeComplete() {
-        TVSettingsStore.pendingEngineBackend = nil
         phase = .running
     }
 
@@ -74,10 +65,11 @@ final class TVEngineController {
         }
     }
 
-    /// Quit the running engine and bring it back on `newBackend`. Returns
+    /// Quit the running engine and bring it straight back on the same CoreML
+    /// backend (the Settings "Restart Engine" recovery affordance). Returns
     /// true when the new engine answered the version handshake.
     @discardableResult
-    func restart(to newBackend: TVEngineBackend, persistOnSuccess: Bool) async -> Bool {
+    func restartEngine() async -> Bool {
         guard phase == .running, let session, let engineLifecycle else { return false }
         phase = .stopping
 
@@ -105,8 +97,8 @@ final class TVEngineController {
         // the old one is still inside that epilogue overlaps two engines on
         // the process-global bridge state and dies with a C++ fatalError
         // (observed as a voluntary exit(1) on the simulator). An idle engine
-        // tears down in milliseconds, but one that has just run a search or
-        // benchmark has been observed taking ~2 minutes — allow for it.
+        // tears down in milliseconds, but one that has just run a search has
+        // been observed taking ~2 minutes — allow for it.
         let threadEnded: Void? = await withTimeout(seconds: 240) { [weak self] in
             await self?.waitForEngineThreadExit()
         }
@@ -116,15 +108,12 @@ final class TVEngineController {
         }
 
         // Spawn the replacement and redo the handshake as the sole reader.
-        TVSettingsStore.pendingEngineBackend = newBackend
         engineLifecycle.reset()
-        spawnEngineThread(backend: newBackend)
+        spawnEngineThread()
         session.stopRequested = false
         phase = .starting
 
-        // The first MLX start runs the Winograd autotuner — allow minutes.
-        let timeout: Double = newBackend == .mlx ? 600 : 120
-        let handshake: Bool? = await withTimeout(seconds: timeout) {
+        let handshake: Bool? = await withTimeout(seconds: 120) {
             _ = await session.initialize(
                 selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
                 engineLifecycle: engineLifecycle,
@@ -133,17 +122,11 @@ final class TVEngineController {
         }
 
         guard handshake == true else {
-            phase = .failed("\(newBackend.displayName) did not come up.")
-            // Sentinel stays armed: a jetsam or hang here must boot CoreML
-            // next launch. Leave the read loop parked (engine state unknown).
+            phase = .failed("The engine did not come up.")
+            // Leave the read loop parked (engine state unknown).
             return false
         }
 
-        TVSettingsStore.pendingEngineBackend = nil
-        currentBackend = newBackend
-        if persistOnSuccess {
-            TVSettingsStore.backend = newBackend
-        }
         phase = .running
 
         // Resume the parked read loop for the new engine.
@@ -152,12 +135,12 @@ final class TVEngineController {
         return true
     }
 
-    private func spawnEngineThread(backend: TVEngineBackend) {
+    private func spawnEngineThread() {
         engineThreadRunning = true
-        // Built-in b18 net, human-SL net skipped. Needs a >512 KB stack
-        // (BoardHistory copies) — match the iOS app's 1 MB.
+        // Built-in b18 net, human-SL net skipped, CoreML/ANE only. Needs a
+        // >512 KB stack (BoardHistory copies) — match the iOS app's 1 MB.
         let thread = Thread { [weak self] in
-            KataGoHelper.runGtp(deviceAssignments: backend.deviceAssignments,
+            KataGoHelper.runGtp(deviceAssignments: EngineDeviceAssignments.platformMux,
                                 numSearchThreads: KataGoHelper.mlxNumSearchThreads)
             // MainCmds::gtp returned — the engine is fully torn down.
             Task { @MainActor in self?.noteEngineThreadExited() }

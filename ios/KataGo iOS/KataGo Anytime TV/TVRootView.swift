@@ -105,7 +105,7 @@ struct TVRootView: View {
                 // Inject the session's engine-driven models so the shared
                 // BoardView / analysis views resolve them via @Environment.
                 // Hosted on the TabView so BOTH tabs resolve them — the Library
-                // drill-downs AND the Settings screen's benchmark/engine views.
+                // drill-downs AND the Settings screen's engine views.
                 .environment(session.stones)
                 .environment(session.messageList)
                 .environment(session.board)
@@ -120,8 +120,8 @@ struct TVRootView: View {
                 .environment(syncMonitor)
                 .environment(attractMode)
                 .environment(engineController)
-                // The session itself (not just its sub-models): the settings
-                // screen's benchmark needs its command list + line tap.
+                // The session itself (not just its sub-models): shared board /
+                // analysis views resolve it via @Environment.
                 .environment(session)
                 // Idle-attract signals. Interaction detail (focus movement)
                 // is reported by TVLibraryView; the root owns the structural
@@ -175,7 +175,7 @@ struct TVRootView: View {
                     guard !isRunningInPreview else { return }
                     // The GTP read loop — parses board/analysis lines into the
                     // models. Runs for the app's lifetime; across an engine
-                    // restart (Settings backend switch / benchmark) it exits
+                    // restart (the Settings "Restart Engine" recovery) it exits
                     // (stopRequested) and PARKS in the controller until the
                     // new engine's handshake — which must be the bridge's
                     // sole reader — completes, then reads again.
@@ -260,8 +260,7 @@ struct TVRootView: View {
     private func startEngineIfNeeded() {
         guard !engineStarted, !isRunningInPreview else { return }
         engineStarted = true
-        // Backend comes from TV Settings via the crash-safe recovery ladder
-        // (a spawn that killed the process boots plain CoreML next launch).
+        // Apple TV runs a single fixed CoreML/Neural Engine backend.
         engineController.configure(session: session, engineLifecycle: engineLifecycle)
         engineController.startInitial()
     }
