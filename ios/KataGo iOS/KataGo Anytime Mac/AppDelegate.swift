@@ -195,6 +195,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Share…",
                      action: #selector(MainWindowController.shareSelectedGame(_:)),
                      keyEquivalent: "")
+        // Exports the selected game as an animated GIF (engine-free replay).
+        // Gated on a selection by `validateMenuItem`; routed through the
+        // responder chain to `MainWindowController`.
+        menu.addItem(withTitle: "Export GIF…",
+                     action: #selector(MainWindowController.exportGameGif(_:)),
+                     keyEquivalent: "")
         menu.addItem(.separator())
         // Discards the local SwiftData store and re-imports the whole zone from
         // CloudKit on the next launch (`CloudKitStoreReset`). Available in DEBUG

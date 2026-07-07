@@ -80,6 +80,7 @@
 		36C67794F79C07CBC3122F44 /* InspectorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886CE8718894DE10D2123089 /* InspectorViewController.swift */; };
 		374E95A7E769402F90845CE9 /* float_conversion.cc in Sources */ = {isa = PBXBuildFile; fileRef = C46D581335E6C102593371C6 /* float_conversion.cc */; };
 		37D62DCDF8356332B0965DFF /* InspectorInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F928DADF19E916D9C547562 /* InspectorInfoViewController.swift */; };
+		37EDCDDA71E0D0C9E493E37C /* SgfHelperGifFramesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E768F019762E61EEC5996271 /* SgfHelperGifFramesTests.swift */; };
 		3836D358405B891B6E3572BB /* time_zone_lookup.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */; };
 		388867FB58FBF0496FEA6178 /* mlxwinotuner.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F05DA051B4AAF7E6E8DED2BC /* mlxwinotuner.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		38FEB8BDDB6E04B991F3ACCE /* cordz_sample_token.cc in Sources */ = {isa = PBXBuildFile; fileRef = 01CDD4D97A60DB28A1ADFBD9 /* cordz_sample_token.cc */; };
@@ -209,6 +210,7 @@
 		7F7D2D591ED27F30B0E011AC /* time_zone_info.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2A1A02066A3354353FCEF4E2 /* time_zone_info.cc */; };
 		800CB06225BE4325F7D60BE6 /* stringify_sink.cc in Sources */ = {isa = PBXBuildFile; fileRef = D21BF2739ADFEFF85E52094E /* stringify_sink.cc */; };
 		8136C4DCABCF7FB15724B736 /* blocking_counter.cc in Sources */ = {isa = PBXBuildFile; fileRef = DB916B370975783C74200B08 /* blocking_counter.cc */; };
+		81F672ADF761CA061240B4CE /* GameGifRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B30AE54DE374630205B8514 /* GameGifRendererTests.swift */; };
 		842666643E432D9B6054592E /* OpeningBooksViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF3FFE4F8D21F2CC612B268 /* OpeningBooksViewController.swift */; };
 		84AF9FF552710D9A69E2AEBA /* casts.cc in Sources */ = {isa = PBXBuildFile; fileRef = A384C5A1A349F4B5F0FC3169 /* casts.cc */; };
 		8514DA92E7C49142B62D8A66 /* initialize.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5E86CB9461F2B8990E7855E /* initialize.cc */; };
@@ -595,6 +597,7 @@
 		E18F3F772A514B9700D335E1 /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		E18F3F782A514B9700D335E1 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		E19D2E382AC97FA300C2A807 /* StatusToolbarItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* StatusToolbarItems.swift */; };
+		E19F8D625659F3067D7FC1AE /* AnimatedGifEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202BB1AB4D2F842F28751832 /* AnimatedGifEncoderTests.swift */; };
 		E1B0ED912C7DFEBC009DDC25 /* PlusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0ED902C7DFEBC009DDC25 /* PlusMenuView.swift */; };
 		E1B0ED962C7E1246009DDC25 /* FastTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED952C7E1246009DDC25 /* FastTestPlan.xctestplan */; };
 		E1B0ED982C7E128A009DDC25 /* FullTestPlan.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = E1B0ED972C7E128A009DDC25 /* FullTestPlan.xctestplan */; };
@@ -900,6 +903,7 @@
 		1F057622F097CBED2408A76E /* map.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = map.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/map.cc"; sourceTree = SOURCE_ROOT; };
 		1F0BA6B9BFF12E6C4D710DFA /* entropy_pool.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = entropy_pool.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/entropy_pool.cc"; sourceTree = SOURCE_ROOT; };
 		1F4F3CFBF189067FF37C8812 /* NearestNeighbors.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = NearestNeighbors.pb.cc; path = ../../cpp/external/katagocoreml/generated/NearestNeighbors.pb.cc; sourceTree = SOURCE_ROOT; };
+		202BB1AB4D2F842F28751832 /* AnimatedGifEncoderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnimatedGifEncoderTests.swift; sourceTree = "<group>"; };
 		2046C4C524A0E412392C39EB /* str_replace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_replace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_replace.cc"; sourceTree = SOURCE_ROOT; };
 		206D16FF81C121F070F69FC8 /* GLMRegressor.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GLMRegressor.pb.cc; path = ../../cpp/external/katagocoreml/generated/GLMRegressor.pb.cc; sourceTree = SOURCE_ROOT; };
 		20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_consume.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_consume.cc"; sourceTree = SOURCE_ROOT; };
@@ -1001,6 +1005,7 @@
 		69B53B35A548BA23172D03D3 /* cord.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/cord.cc"; sourceTree = SOURCE_ROOT; };
 		6A50B060363C7FD69195AABA /* cord_rep_btree.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree.cc"; sourceTree = SOURCE_ROOT; };
 		6A8F496C46C725561F7C5FE5 /* SgfOperationsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfOperationsTests.swift; sourceTree = "<group>"; };
+		6B30AE54DE374630205B8514 /* GameGifRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameGifRendererTests.swift; sourceTree = "<group>"; };
 		6B854DB5E08ABE9A30321B1D /* Converter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Converter.cpp; path = ../../cpp/external/katagocoreml/src/Converter.cpp; sourceTree = SOURCE_ROOT; };
 		6C1E3C2F7427E56602D6A00E /* win32_waiter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = win32_waiter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/win32_waiter.cc"; sourceTree = SOURCE_ROOT; };
 		6D9FF732AC167F5678088D30 /* futex_waiter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = futex_waiter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/futex_waiter.cc"; sourceTree = SOURCE_ROOT; };
@@ -1448,6 +1453,7 @@
 		E5E695144B2B1485A6D87400 /* MacModelSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacModelSelection.swift; sourceTree = "<group>"; };
 		E5E86CB9461F2B8990E7855E /* initialize.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = initialize.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/initialize.cc"; sourceTree = SOURCE_ROOT; };
 		E69F6836828E0535297A30A9 /* WatchSnapshotBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilderTests.swift; sourceTree = "<group>"; };
+		E768F019762E61EEC5996271 /* SgfHelperGifFramesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfHelperGifFramesTests.swift; sourceTree = "<group>"; };
 		E7776E5E187A8BB25B0B7CE5 /* WatchSessionRelay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchSessionRelay.swift; path = "KataGo iOS/Watch/WatchSessionRelay.swift"; sourceTree = "<group>"; };
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
@@ -2526,6 +2532,9 @@
 				05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */,
 				31922AAFF1C2B5B96B49810A /* WatchCommandHandlerTests.swift */,
 				C8E41C478AEBB56A72274F4B /* WatchSharedCursorTests.swift */,
+				E768F019762E61EEC5996271 /* SgfHelperGifFramesTests.swift */,
+				202BB1AB4D2F842F28751832 /* AnimatedGifEncoderTests.swift */,
+				6B30AE54DE374630205B8514 /* GameGifRendererTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3681,6 +3690,9 @@
 				ED9BFF3B9062F29F17B47178 /* WatchHostGateTests.swift in Sources */,
 				19554FB4C9A88B2C0E1CBA2D /* WatchCommandHandlerTests.swift in Sources */,
 				32E196F391F4CA4A7DBE194D /* WatchSharedCursorTests.swift in Sources */,
+				37EDCDDA71E0D0C9E493E37C /* SgfHelperGifFramesTests.swift in Sources */,
+				E19F8D625659F3067D7FC1AE /* AnimatedGifEncoderTests.swift in Sources */,
+				81F672ADF761CA061240B4CE /* GameGifRendererTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

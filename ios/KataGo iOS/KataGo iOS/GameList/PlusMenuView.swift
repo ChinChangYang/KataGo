@@ -23,6 +23,7 @@ struct PlusMenuView: View {
     @State private var confirmingClone = false
     @State private var showingReport = false
     @State private var showingGlobalSettings = false
+    @State private var showingGifExport = false
 
     var body: some View {
         Menu {
@@ -64,6 +65,12 @@ struct PlusMenuView: View {
                     )
                 ) {
                     Label("Share", systemImage: "square.and.arrow.up")
+                }
+
+                Button {
+                    showingGifExport = true
+                } label: {
+                    Label("Export GIF", systemImage: "film")
                 }
 
                 Button(role: .destructive) {
@@ -153,6 +160,16 @@ struct PlusMenuView: View {
                 NavigationStack {
                     DeepReportView(gameRecord: gameRecord)
                 }
+            }
+        }
+        .sheet(isPresented: $showingGifExport) {
+            if let gameRecord {
+                NavigationStack {
+                    GameGifExportView(gameRecord: gameRecord)
+                }
+                #if os(macOS)
+                .frame(minWidth: 420, minHeight: 640)
+                #endif
             }
         }
         .confirmationDialog(

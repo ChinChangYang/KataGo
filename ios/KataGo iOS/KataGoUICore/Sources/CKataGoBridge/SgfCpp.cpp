@@ -200,9 +200,24 @@ string FinalPositionCpp::getWhiteStones() const {
     return _white;
 }
 
-FinalPositionCpp SgfCpp::getFinalPosition() const {
+GifFrameCpp::GifFrameCpp(const string& black, const string& white, const string& lastMove)
+    : _black(black), _white(white), _lastMove(lastMove) {}
+
+string GifFrameCpp::getBlackStones() const {
+    return _black;
+}
+
+string GifFrameCpp::getWhiteStones() const {
+    return _white;
+}
+
+string GifFrameCpp::getLastMove() const {
+    return _lastMove;
+}
+
+GifFrameCpp SgfCpp::buildFrame(long long turnIdx) const {
     if (sgf == NULL) {
-        return FinalPositionCpp("", "");
+        return GifFrameCpp("", "", "");
     }
     // Defense-in-depth: a board larger than the engine was compiled for would
     // assert (abort, not a catchable throw) when constructing the Board below.
@@ -213,7 +228,7 @@ FinalPositionCpp SgfCpp::getFinalPosition() const {
     // construction path that bypasses that, degrading to an empty position
     // rather than crashing.
     if (_xSize < 1 || _ySize < 1 || _xSize > Board::MAX_LEN || _ySize > Board::MAX_LEN) {
-        return FinalPositionCpp("", "");
+        return GifFrameCpp("", "", "");
     }
     try {
         // The board's Zobrist tables must be initialized before any Board/
@@ -223,7 +238,7 @@ FinalPositionCpp SgfCpp::getFinalPosition() const {
         Board::initHash();
 
         // Replay the main line with KataGo's own board rules: setup/handicap
-        // stones (AB/AW) plus every move, captures resolved. Tolerant so a
+        // stones (AB/AW) plus `turn` moves, captures resolved. Tolerant so a
         // malformed user-imported SGF throws (caught below) instead of asserting.
         // Note: SGFs with AB/AW placements AFTER the root node are unsupported by
         // CompactSgf and throw here -> caught -> empty position (graceful: same as
@@ -233,8 +248,11 @@ FinalPositionCpp SgfCpp::getFinalPosition() const {
         Board board;
         Player nextPla;
         BoardHistory hist;
+        // A negative turnIdx (or one past the last move) means "the whole game".
+        long long total = (long long)compact.moves.size();
+        long long turn = (turnIdx < 0 || turnIdx > total) ? total : turnIdx;
         compact.setupBoardAndHistTolerant(rules, board, nextPla, hist,
-                                          (int64_t)compact.moves.size(), true);
+                                          (int64_t)turn, true);
 
         string black;
         string white;
@@ -251,8 +269,24 @@ FinalPositionCpp SgfCpp::getFinalPosition() const {
                 }
             }
         }
-        return FinalPositionCpp(black, white);
+        // The move that produced this position (empty for the starting position);
+        // a pass yields "pass", which the renderer drops (no highlight).
+        string lastMove;
+        if (turn > 0) {
+            Loc loc = compact.moves[(size_t)(turn - 1)].loc;
+            lastMove = Location::toString(loc, board.x_size, board.y_size);
+        }
+        return GifFrameCpp(black, white, lastMove);
     } catch (...) {
-        return FinalPositionCpp("", "");
+        return GifFrameCpp("", "", "");
     }
+}
+
+FinalPositionCpp SgfCpp::getFinalPosition() const {
+    GifFrameCpp frame = buildFrame(-1);
+    return FinalPositionCpp(frame.getBlackStones(), frame.getWhiteStones());
+}
+
+GifFrameCpp SgfCpp::getFrameAt(const int moveCount) const {
+    return buildFrame((long long)moveCount);
 }

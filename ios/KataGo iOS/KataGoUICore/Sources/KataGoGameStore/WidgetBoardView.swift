@@ -47,9 +47,11 @@ public struct WidgetBoardView: View {
     let white: [(Int, Int)]
     let candidateDots: [(x: Int, y: Int, rank: Int)]
     let lastMovePoint: (x: Int, y: Int)?
+    let showCoordinates: Bool
 
     public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String],
-                candidateVertices: [String] = [], lastMoveVertex: String? = nil) {
+                candidateVertices: [String] = [], lastMoveVertex: String? = nil,
+                showCoordinates: Bool = false) {
         let w = max(width, 1)
         let h = max(height, 1)
         self.width = w
@@ -60,6 +62,19 @@ public struct WidgetBoardView: View {
             candidates: candidateVertices, lastMove: lastMoveVertex, width: w, height: h)
         self.candidateDots = annotations.dots
         self.lastMovePoint = annotations.last
+        self.showCoordinates = showCoordinates
+    }
+
+    /// GTP column label for a 0-based column index, skipping 'I' and using the
+    /// "A"+letter form for columns 25…49 — the inverse of `gtpColumnIndex`, kept
+    /// in sync with it so coordinate labels match `parseVertex`.
+    nonisolated static func columnLabel(_ x: Int) -> String {
+        if x < gtpColumnLetters.count {
+            return String(gtpColumnLetters[x])
+        }
+        let second = x - gtpColumnLetters.count
+        guard second < gtpColumnLetters.count else { return "" }
+        return "A" + String(gtpColumnLetters[second])
     }
 
     /// Pure geometry for the watch/widget overlays: candidate vertices → grid
@@ -102,7 +117,14 @@ public struct WidgetBoardView: View {
 
     public var body: some View {
         GeometryReader { geo in
-            let cell = min(geo.size.width / CGFloat(width), geo.size.height / CGFloat(height))
+            // Coordinates need a band outside the outermost lines. Reserving it
+            // shrinks the grid; with showCoordinates == false the margin is 0 and
+            // the geometry is byte-identical to the widget's original layout.
+            let coordinateMargin = showCoordinates
+                ? min(geo.size.width, geo.size.height) * 0.06 : 0
+            let availableWidth = geo.size.width - 2 * coordinateMargin
+            let availableHeight = geo.size.height - 2 * coordinateMargin
+            let cell = min(availableWidth / CGFloat(width), availableHeight / CGFloat(height))
             let originX = (geo.size.width - cell * CGFloat(width - 1)) / 2
             let originY = (geo.size.height - cell * CGFloat(height - 1)) / 2
 
@@ -149,6 +171,29 @@ public struct WidgetBoardView: View {
                     Circle().stroke(Color.red, lineWidth: max(cell * 0.08, 1))
                         .frame(width: cell * 0.6, height: cell * 0.6)
                         .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
+                }
+                if showCoordinates {
+                    let fontSize = max(cell * 0.42, 5)
+                    let offset = cell * 0.62
+                    let labelColor = Color.black.opacity(0.75)
+                    // Column letters (A–T, skipping I) above and below the grid.
+                    ForEach(0..<width, id: \.self) { x in
+                        let cx = originX + CGFloat(x) * cell
+                        let label = WidgetBoardView.columnLabel(x)
+                        Text(label).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                            .position(x: cx, y: originY - offset)
+                        Text(label).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                            .position(x: cx, y: originY + CGFloat(height - 1) * cell + offset)
+                    }
+                    // Row numbers (1 at the bottom, increasing upward) on both sides.
+                    ForEach(0..<height, id: \.self) { yy in
+                        let cy = originY + CGFloat(yy) * cell
+                        let number = "\(height - yy)"
+                        Text(number).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                            .position(x: originX - offset, y: cy)
+                        Text(number).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                            .position(x: originX + CGFloat(width - 1) * cell + offset, y: cy)
+                    }
                 }
             }
         }

@@ -85,6 +85,23 @@ public struct FinalPosition {
     }
 }
 
+/// One animation frame of a game: the stones standing after some number of moves
+/// (captures resolved) plus the move that produced the position, as GTP vertex
+/// strings. `lastMove` is nil for the starting position; a pass is left as
+/// "pass", which the board renderer draws no highlight for. Used to build a GIF
+/// of the game move by move without running the engine.
+public struct GifFrame: Sendable {
+    public let blackStones: [String]
+    public let whiteStones: [String]
+    public let lastMove: String?
+
+    public init(blackStones: [String], whiteStones: [String], lastMove: String?) {
+        self.blackStones = blackStones
+        self.whiteStones = whiteStones
+        self.lastMove = lastMove
+    }
+}
+
 public class SgfHelper {
     let sgfCpp: SgfCpp
 
@@ -103,6 +120,25 @@ public class SgfHelper {
     /// Splits a space-joined vertex string ("Q16 D4") into ["Q16", "D4"].
     private static func vertices(from joined: String) -> [String] {
         joined.split(separator: " ").map(String.init)
+    }
+
+    /// One `GifFrame` per position along the main line, from the starting
+    /// position (index 0) through the final position (index `moveSize`), so the
+    /// result has `moveSize + 1` frames. Each frame replays the SGF in C++ with
+    /// captures resolved; empty for an invalid SGF.
+    ///
+    /// Cost is O(N²) in the move count (each frame re-replays from the start),
+    /// which is negligible for real games (a few hundred moves of cheap board
+    /// ops); swap in a single-pass bridge method only if profiling ever demands.
+    public func gifFrames() -> [GifFrame] {
+        guard let moveSize else { return [] }
+        return (0...moveSize).map { index in
+            let frame = sgfCpp.getFrameAt(Int32(index))
+            let lastMove = String(frame.lastMove)
+            return GifFrame(blackStones: SgfHelper.vertices(from: String(frame.blackStones)),
+                            whiteStones: SgfHelper.vertices(from: String(frame.whiteStones)),
+                            lastMove: lastMove.isEmpty ? nil : lastMove)
+        }
     }
 
     public func getMove(at index: Int) -> Move? {
