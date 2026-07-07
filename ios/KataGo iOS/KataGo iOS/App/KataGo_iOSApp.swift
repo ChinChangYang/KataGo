@@ -77,6 +77,13 @@ struct KataGo_iOSApp: App {
                     NSLog("repairStoredIdentities failed: \(error)")
                 }
             }
+            .task {
+                // DEBUG-only: seed a short game so the Export GIF UI test has a
+                // game with moves. No-op unless its launch argument is present.
+                #if DEBUG
+                UITestSeed.seedIfNeeded()
+                #endif
+            }
     }
 
     // The macOS build of this (old, cross-platform SwiftUI) app target was
