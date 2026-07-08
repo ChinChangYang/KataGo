@@ -1,0 +1,5 @@
+module CGobanRecog {
+    header "GobanRecogCpp.hpp"
+    requires cplusplus
+    export *
+}

@@ -68,6 +68,19 @@ let package = Package(
         // never depend on CKataGoBridge / MLX. SwiftData + SwiftUI + AppIntents
         // only.
         .library(name: "KataGoGameStore", type: .static, targets: ["KataGoGameStore"]),
+        // Board-photo recognition (Python GobanRecog → C++/OpenCV port). Linked
+        // ONLY by the iOS/visionOS and macOS app targets. Kept in a SEPARATE
+        // product from KataGoUICore so that OpenCV (heavy, and absent on
+        // tvOS/watchOS) never enters those platforms' link graphs.
+        .library(name: "GobanRecogKit", type: .static, targets: ["GobanRecogKit"]),
+    ],
+    dependencies: [
+        // Vendored OpenCV 5.0.0 (local SwiftPM package). Consumed ONLY by the
+        // CGobanRecog target below, which in turn is reachable ONLY through the
+        // GobanRecogKit product — never through the KataGoUICore product. This
+        // keeps OpenCV out of the tvOS/watchOS/widget link graphs (they link
+        // KataGoUICore / KataGoGameStore, not GobanRecogKit).
+        .package(path: "../ThirdParty/opencv"),
     ],
     targets: [
         // C++ bridge between Swift and the KataGo engine. Folded in from the
@@ -113,6 +126,29 @@ let package = Package(
                 // The bridge exposes C++ headers (e.g. KataGoCpp.hpp includes
                 // <string>), so importing CKataGoBridge requires Swift/C++
                 // interop on this target, matching the app target.
+                .interoperabilityMode(.Cxx)
+            ]
+        ),
+        // C++ home of the GobanRecog board-recognition port. Depends ONLY on
+        // the vendored OpenCV product — NO engine headers, NO unsafeFlags. The
+        // public seam (include/GobanRecogCpp.hpp + module.modulemap) exposes
+        // plain C++ std types only (no cv:: types) so GobanRecogKit can import
+        // it over Swift/C++ interop. Modelled on CKataGoBridge, minus the
+        // engine wiring.
+        .target(
+            name: "CGobanRecog",
+            dependencies: [
+                .product(name: "OpenCV", package: "opencv"),
+            ]
+        ),
+        // Swift face of the recognizer. Imports the C++ CGobanRecog module, so
+        // it needs Swift/C++ interop (same house pattern as KataGoUICore). Its
+        // KataGoUICore dependency lets later tasks bridge results into the app's
+        // shared models without OpenCV leaking into the KataGoUICore product.
+        .target(
+            name: "GobanRecogKit",
+            dependencies: ["CGobanRecog", "KataGoUICore"],
+            swiftSettings: [
                 .interoperabilityMode(.Cxx)
             ]
         )
