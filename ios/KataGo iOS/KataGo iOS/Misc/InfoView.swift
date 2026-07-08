@@ -17,7 +17,9 @@ struct InfoView: View {
     static let minHeight: CGFloat = 150
     static let buttonHeight: CGFloat = 25
     var gameRecord: GameRecord
-    @State private var selectedTab: InfoTabs = .chart
+    // Owned by PlayView so the selection survives full-screen round-trips
+    // (this view unmounts while the board is full screen).
+    @Binding var selectedTab: InfoTabs
     @FocusState<Bool>.Binding var commentIsFocused: Bool
 
     var body: some View {
@@ -99,9 +101,12 @@ struct InfoView: View {
             return gr
         }()
         @FocusState var commentIsFocused: Bool
+        @State var selectedTab: InfoTabs = .chart
 
         var body: some View {
-            InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+            InfoView(gameRecord: gameRecord,
+                     selectedTab: $selectedTab,
+                     commentIsFocused: $commentIsFocused)
                 .frame(height: InfoView.minHeight)
                 .padding()
                 .environment(gobanState)

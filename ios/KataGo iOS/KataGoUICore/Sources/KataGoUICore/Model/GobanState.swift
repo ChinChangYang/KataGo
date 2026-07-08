@@ -51,6 +51,13 @@ public class GobanState {
     /// frozen mid-report. Menu/board interaction gates on it belt-and-suspenders
     /// (the modal report sheet is the primary lock). Transient; never persisted.
     public var reportGenerationActive = false
+    /// iPad full-screen board mode: hides the chart/comments pane so the board
+    /// takes all the space it can. Toggled by the diagonal-arrows button in the
+    /// game toolbar (iPad only, so every other platform keeps this false and is
+    /// unchanged). Transient view state, never persisted — the user's
+    /// `showCharts`/`showComments` settings are untouched, so exiting restores
+    /// exactly the prior pane state.
+    public var isBoardFullScreen = false
     public var branchSgf: String = .inActiveSgf
     public var branchIndex: Int = .inActiveCurrentIndex
     public var confirmingAIOverwrite: Bool = false
@@ -82,6 +89,12 @@ public class GobanState {
     public var analysisStyle: Int = Config.defaultAnalysisStyle
     public var analysisInformation: Int = Config.defaultAnalysisInformation
     public var moveNumberStyle: Int = Config.defaultMoveNumberStyle
+
+    /// Whether the chart/comments pane above the board should be shown: the
+    /// user wants it (settings) AND full-screen mode isn't overriding it.
+    public var isInfoPaneVisible: Bool {
+        (showCharts || showComments) && !isBoardFullScreen
+    }
 
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil

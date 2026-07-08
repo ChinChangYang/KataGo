@@ -14,11 +14,16 @@ struct PlayView: View {
     @Environment(BoardSize.self) var board
     @Environment(GobanState.self) var gobanState
     @FocusState var commentIsFocused: Bool
+    // Lives here (not in InfoView) so the selected tab survives the pane
+    // unmounting during full-screen board mode.
+    @State private var selectedInfoTab: InfoTabs = .chart
 
     func infoBoardView(for dimensions: Dimensions) -> some View {
         return VStack {
-            if gobanState.showCharts || gobanState.showComments {
-                InfoView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+            if gobanState.isInfoPaneVisible {
+                InfoView(gameRecord: gameRecord,
+                         selectedTab: $selectedInfoTab,
+                         commentIsFocused: $commentIsFocused)
                     .frame(height: max(dimensions.emptyHeight, InfoView.minHeight))
             }
 
