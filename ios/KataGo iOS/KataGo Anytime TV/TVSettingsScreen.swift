@@ -18,8 +18,11 @@ struct TVSettingsScreen: View {
     @Environment(GobanState.self) private var gobanState
 
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
+    @AppStorage("TVSettings.showMemoryOverlay") private var showMemoryOverlay = false
     @State private var confirmingReset = false
     @State private var resetArmed = false
+    @State private var benchmark = TVCoreMLBenchmark()
+    @State private var confirmingBenchmark = false
 
     var body: some View {
         ScrollView {
@@ -120,11 +123,92 @@ struct TVSettingsScreen: View {
 
     private var diagnosticsFooter: some View {
         section("Diagnostics") {
-            VStack(alignment: .leading, spacing: 8) {
-                diagnosticRow("Engine", "CoreML / Neural Engine — \(phaseText)")
-                diagnosticRow("Library store", storeModeText)
+            VStack(alignment: .leading, spacing: 22) {
+                benchmarkControl
+                Toggle("Memory Overlay (top-right corner)", isOn: $showMemoryOverlay)
+                VStack(alignment: .leading, spacing: 8) {
+                    diagnosticRow("Engine", "CoreML / Neural Engine — \(phaseText)")
+                    diagnosticRow("Library store", storeModeText)
+                }
+                .font(.callout)
             }
-            .font(.callout)
+        }
+        .confirmationDialog(
+            "Run Core ML Benchmark?",
+            isPresented: $confirmingBenchmark,
+            titleVisibility: .visible
+        ) {
+            Button("Quit Engine & Run") { runBenchmark() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Quits the analysis engine, benchmarks the Core ML model under all four compute-unit settings (CPU / CPU+GPU / CPU+ANE / ALL, ~30s), then restarts the engine. Neural-Engine numbers are only meaningful on a real Apple TV — the Simulator has no ANE.")
+        }
+    }
+
+    // MARK: - Core ML benchmark
+
+    private var benchmarkControl: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button {
+                confirmingBenchmark = true
+            } label: {
+                HStack(spacing: 12) {
+                    if isBenchmarkRunning {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "speedometer")
+                    }
+                    Text(benchmarkButtonText)
+                }
+                .frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isBenchmarkRunning || engine.phase != .running)
+
+            benchmarkResults
+
+            Text("Benchmarks the built-in network at 19×19 under each Core ML compute-unit setting. Use it to see whether the model routes to the Neural Engine and which path is fastest.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var isBenchmarkRunning: Bool {
+        if case .running = benchmark.state { return true }
+        return false
+    }
+
+    private var benchmarkButtonText: String {
+        switch benchmark.state {
+        case .running(let done, let total): return "Benchmarking… [\(done)/\(total)]"
+        default: return "Benchmark Core ML Model"
+        }
+    }
+
+    @ViewBuilder
+    private var benchmarkResults: some View {
+        switch benchmark.state {
+        case .finished(let rows):
+            BenchmarkResultsTable(rows: rows)
+        case .failed(let message):
+            Text("Benchmark failed: \(message)")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        default:
+            EmptyView()
+        }
+    }
+
+    private func runBenchmark() {
+        Task {
+            // Quit the engine, run the benchmark with the process holding no
+            // resident net, then auto-restart — all inside the proven restart
+            // machinery (read-loop parking, thread-exit wait, handshake).
+            await engine.restartEngine(duringDowntime: {
+                await benchmark.run()
+            })
         }
     }
 
@@ -170,6 +254,62 @@ struct TVSettingsScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
         }
+    }
+}
+
+// MARK: - Benchmark results table
+
+/// Monospaced comparison table for a completed Core ML benchmark: one row per
+/// compute-unit setting, with throughput/latency and the static ANE/GPU/CPU
+/// op-routing breakdown. Cells show "—" when unavailable (routing) and a failed
+/// config shows its error spanning the numeric columns.
+private struct BenchmarkResultsTable: View {
+    let rows: [TVCoreMLBenchmark.Row]
+
+    var body: some View {
+        Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 8) {
+            GridRow {
+                Text("Compute units").gridColumnAlignment(.leading)
+                Text("inf/s")
+                Text("ms")
+                Text("ANE")
+                Text("GPU")
+                Text("CPU")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+            Divider().gridCellUnsizedAxes(.horizontal).gridCellColumns(6)
+
+            ForEach(rows) { row in
+                GridRow {
+                    Text(row.config).gridColumnAlignment(.leading)
+                    if let error = row.error {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .gridColumnAlignment(.leading)
+                            .gridCellColumns(5)
+                    } else {
+                        Text(format(row.infPerSec, "%.1f"))
+                        Text(format(row.medianMs, "%.1f"))
+                        Text(formatInt(row.aneOps))
+                        Text(formatInt(row.gpuOps))
+                        Text(formatInt(row.cpuOps))
+                    }
+                }
+            }
+        }
+        .font(.system(.callout, design: .monospaced))
+        .monospacedDigit()
+        .padding(.vertical, 4)
+    }
+
+    private func format(_ value: Double?, _ spec: String) -> String {
+        value.map { String(format: spec, $0) } ?? "—"
+    }
+
+    private func formatInt(_ value: Int?) -> String {
+        value.map(String.init) ?? "—"
     }
 }
 

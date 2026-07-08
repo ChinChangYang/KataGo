@@ -68,8 +68,14 @@ final class TVEngineController {
     /// Quit the running engine and bring it straight back on the same CoreML
     /// backend (the Settings "Restart Engine" recovery affordance). Returns
     /// true when the new engine answered the version handshake.
+    ///
+    /// `duringDowntime`, if supplied, runs AFTER the old engine has fully torn
+    /// down and BEFORE the replacement is spawned — the window in which the
+    /// process holds no resident net. The CoreML benchmark uses this to run with
+    /// maximum memory headroom and uncontended timings, then the engine comes
+    /// straight back. Keeps all the delicate read-loop parking logic in one place.
     @discardableResult
-    func restartEngine() async -> Bool {
+    func restartEngine(duringDowntime: (@MainActor () async -> Void)? = nil) async -> Bool {
         guard phase == .running, let session, let engineLifecycle else { return false }
         phase = .stopping
 
@@ -106,6 +112,11 @@ final class TVEngineController {
             phase = .failed("The engine did not shut down.")
             return false
         }
+
+        // Engine is fully down and holds no resident net: run the downtime work
+        // (e.g. the CoreML benchmark) with maximum memory headroom before the
+        // replacement is spawned. The read loop stays parked throughout.
+        await duringDowntime?()
 
         // Spawn the replacement and redo the handshake as the sole reader.
         engineLifecycle.reset()

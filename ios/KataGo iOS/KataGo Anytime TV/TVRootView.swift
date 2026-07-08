@@ -42,6 +42,10 @@ struct TVRootView: View {
     /// across launches.
     @State private var selectedTab: TVTab = .library
 
+    /// Diagnostics memory overlay (Settings ▸ Diagnostics). Hosted at the root so
+    /// it floats in the top-right corner over every screen while enabled.
+    @AppStorage("TVSettings.showMemoryOverlay") private var showMemoryOverlay = false
+
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
 
@@ -190,6 +194,14 @@ struct TVRootView: View {
                 }
             } else {
                 TVLoadingView(caption: "Loading engine…")
+            }
+        }
+        // Diagnostics memory readout — floats over both the loading and ready
+        // branches so it's visible on every screen (and can catch the CoreML
+        // model-load spike if enabled before the engine starts/restarts).
+        .overlay(alignment: .topTrailing) {
+            if showMemoryOverlay {
+                TVMemoryOverlay()
             }
         }
         .onAppear(perform: startEngineIfNeeded)
