@@ -203,6 +203,11 @@ public final class DeepReportModel {
 
     public var stage: Stage = .idle
     public var moveNumber: Int = 0
+    /// True when the report was generated for an uncommitted branch position.
+    /// Copy-to-Comment is disabled then: comments are keyed by the committed
+    /// game's currentIndex, which is frozen at the divergence point during a
+    /// branch, so the text would attach to the wrong move.
+    public var isBranchPosition = false
     public var sideToMove: PlayerColor = .black
     public var boardWidth: Int = 19
     public var boardHeight: Int = 19

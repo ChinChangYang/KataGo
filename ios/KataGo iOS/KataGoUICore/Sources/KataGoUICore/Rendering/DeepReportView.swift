@@ -195,13 +195,18 @@ public struct DeepReportView: View {
 #endif
             }
             ToolbarItem(placement: .primaryAction) {
+                // Disabled for branch positions: the comment would be keyed by
+                // the committed game's currentIndex (the divergence point), not
+                // the analyzed branch move.
 #if os(macOS)
                 Button("Copy to Comment") { copyToComment() }
-                    .disabled(model.position == nil)
-                    .help("Append the report summary to this move's comment")
+                    .disabled(model.position == nil || model.isBranchPosition)
+                    .help(model.isBranchPosition
+                          ? "Unavailable for branch positions — comments belong to the saved game's moves"
+                          : "Append the report summary to this move's comment")
 #else
                 Button("Copy to Comment", systemImage: "text.bubble") { copyToComment() }
-                    .disabled(model.position == nil)
+                    .disabled(model.position == nil || model.isBranchPosition)
 #endif
             }
 #if os(iOS)

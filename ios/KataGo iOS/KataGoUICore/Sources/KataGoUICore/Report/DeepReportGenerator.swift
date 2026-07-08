@@ -312,6 +312,7 @@ public final class DeepReportGenerator {
         model.moveNumber = session.gobanState.isBranchActive
             ? session.gobanState.branchIndex
             : gameRecord.currentIndex
+        model.isBranchPosition = session.gobanState.isBranchActive
         model.visitsPerSecondText = session.analysis.visitsPerSecond > 0
             ? session.analysis.visitsPerSecondText : nil
         model.sideToMove = sideToMove

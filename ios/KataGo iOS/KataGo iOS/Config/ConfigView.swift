@@ -182,6 +182,11 @@ struct RuleConfigView: View {
 
     var body: some View {
         List {
+            // Board size is locked while a branch is active: the boardsize
+            // command resets the engine to an empty board and the follow-up
+            // printsgf would overwrite the branch with it, while the saved SGF
+            // keeps the old size — destroying the branch and desyncing the
+            // config from the record.
             ConfigIntItem(title: "Board width", value: $boardWidth, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardWidth = config.boardWidth
@@ -192,6 +197,7 @@ struct RuleConfigView: View {
                         isBoardSizeChanged = true
                     }
                 }
+                .disabled(gobanState.isBranchActive)
 
             ConfigIntItem(title: "Board height", value: $boardHeight, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
@@ -203,6 +209,13 @@ struct RuleConfigView: View {
                         isBoardSizeChanged = true
                     }
                 }
+                .disabled(gobanState.isBranchActive)
+
+            if gobanState.isBranchActive {
+                Text("Board size can't be changed while a branch is active.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             ConfigTextPicker(
                 title: "Ko rule",
@@ -575,11 +588,23 @@ struct SgfConfigView: View {
 
     var body: some View {
         List {
+            // Read-only while a branch is active: onDisappear would write the
+            // pasted SGF into the record, but maybeLoadSgf is branch-aware and
+            // would reload the BRANCH into the engine instead of the pasted
+            // game, desyncing the board from the record until the branch is
+            // deactivated.
+            if gobanState.isBranchActive {
+                Text("Deactivate the branch to edit the SGF.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             TextField("Paste your SGF text", text: $sgf, axis: .vertical)
                 .disableAutocorrection(true)
 #if !os(macOS)
                 .textInputAutocapitalization(.never)
 #endif
+                .disabled(gobanState.isBranchActive)
                 .onAppear {
                     sgf = gameRecord.sgf
                 }

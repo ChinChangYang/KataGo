@@ -14,9 +14,9 @@ import SwiftUI
 #if !os(tvOS)
 
 /// Export sheet for turning a saved game into an animated GIF. Shows a live
-/// preview that plays the moves, a few options (speed, size, coordinates, loop),
-/// and a Share button once the GIF is generated. Shared by iOS, visionOS, and
-/// macOS; the caller supplies the surrounding `NavigationStack`.
+/// preview that plays the moves, a few options (speed, quality, coordinates,
+/// loop), and a Share button once the GIF is generated. Shared by iOS, visionOS,
+/// and macOS; the caller supplies the surrounding `NavigationStack`.
 public struct GameGifExportView: View {
     private let gameRecord: GameRecord
     /// Bridges Done back to AppKit dismissal when presented via
@@ -35,7 +35,7 @@ public struct GameGifExportView: View {
 
     // Options.
     @State private var secondsPerMove: Double = 0.6
-    @State private var size: GifSize = .medium
+    @State private var quality: GifQuality = .high
     @State private var showCoordinates: Bool
     @State private var loops = true
     // Seconds the final position is held before looping; 0 == no extra hold.
@@ -69,28 +69,28 @@ public struct GameGifExportView: View {
         _isClassicStoneStyle = State(initialValue: isClassic)
     }
 
-    private enum GifSize: String, CaseIterable, Identifiable {
-        case small, medium, large
+    /// Output raster size framed as image quality (pixel size is the GIF's
+    /// only real quality lever: frames render at exactly this square size).
+    private enum GifQuality: String, CaseIterable, Identifiable {
+        case low, high
         var id: String { rawValue }
         var pixels: CGFloat {
             switch self {
-            case .small: return 320
-            case .medium: return 480
-            case .large: return 640
+            case .low: return 320
+            case .high: return 640
             }
         }
         var label: String {
             switch self {
-            case .small: return "Small"
-            case .medium: return "Medium"
-            case .large: return "Large"
+            case .low: return "Low"
+            case .high: return "High"
             }
         }
     }
 
     private var currentOptions: GifExportOptions {
         GifExportOptions(
-            pixelSize: size.pixels,
+            pixelSize: quality.pixels,
             secondsPerMove: secondsPerMove,
             // 0 == no extra hold: the final frame just gets the per-move delay
             // (avoids an invalid 0-delay GIF frame).
@@ -130,8 +130,8 @@ public struct GameGifExportView: View {
                     Text("Speed: \(secondsPerMove, specifier: "%.1f")s per move")
                     Slider(value: $secondsPerMove, in: 0.2...1.5, step: 0.1)
                 }
-                Picker("Size", selection: $size) {
-                    ForEach(GifSize.allCases) { Text($0.label).tag($0) }
+                Picker("Image Quality", selection: $quality) {
+                    ForEach(GifQuality.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }

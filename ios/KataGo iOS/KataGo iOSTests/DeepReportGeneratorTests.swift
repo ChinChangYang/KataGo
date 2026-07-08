@@ -145,6 +145,32 @@ struct DeepReportGeneratorTests {
         // Cleanup: flags and observer restored.
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.session.lineObserver == nil)
+
+        // Off-branch: the committed move number is reported and
+        // Copy-to-Comment stays available.
+        #expect(f.model.moveNumber == f.record.currentIndex)
+        #expect(f.model.isBranchPosition == false)
+    }
+
+    @Test func branchPositionSeedsBranchFlagAndMoveNumber() async {
+        let f = Fixture()
+        // Activate a branch: the record stays frozen at the divergence point
+        // while the viewed line is branchSgf/branchIndex.
+        f.record.currentIndex = 3
+        f.session.gobanState.branchSgf = "(;GM[1]FF[4]SZ[2])"
+        f.session.gobanState.branchIndex = 7
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .complete)
+        // The header promises the BRANCH move number, not the frozen
+        // divergence-point currentIndex, and the branch flag disables
+        // Copy-to-Comment (which is keyed by the committed currentIndex).
+        #expect(f.model.moveNumber == 7)
+        #expect(f.model.isBranchPosition == true)
+        // The probes never touch branch state.
+        #expect(f.session.gobanState.branchSgf == "(;GM[1]FF[4]SZ[2])")
+        #expect(f.session.gobanState.branchIndex == 7)
+        #expect(f.record.currentIndex == 3)
     }
 
     @Test func cancellationBeforeAnyPlayRestoresWithoutUndo() async {

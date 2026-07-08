@@ -17,15 +17,23 @@ struct TopToolbarView: ToolbarContent {
     @Environment(Turn.self) var player
 
     var body: some ToolbarContent {
-        if !gobanState.isBranchActive {
-            ToolbarItemGroup {
-                PlusMenuView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
-            }
+        // The ⋯ menu stays available during a branch (its per-game actions are
+        // branch-safe: Deep Report probes the live branch position, Clone
+        // "Current Position" clones the branch line, and game-switching actions
+        // discard the branch by design). Only the trailing slot switches:
+        // Lock/Unlock off-branch, Deactivate Branch on-branch — editing must
+        // never toggle while a branch is active (a branch only forms while
+        // isEditing == false; the editing play path would clear the saved
+        // record's data while moves are branch-routed).
+        ToolbarItemGroup {
+            PlusMenuView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
+        }
 
 #if !os(visionOS)
-            ToolbarSpacer()
+        ToolbarSpacer()
 #endif // !os(visionOS)
 
+        if !gobanState.isBranchActive {
             ToolbarItem(id: "lock") {
                 Button {
                     gobanState.isEditing.toggle()
