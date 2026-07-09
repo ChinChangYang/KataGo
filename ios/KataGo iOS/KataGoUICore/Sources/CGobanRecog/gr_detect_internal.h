@@ -36,6 +36,7 @@
 #ifndef gr_detect_internal_h
 #define gr_detect_internal_h
 
+#include <cstdint>
 #include <optional>
 
 #include <opencv2/core.hpp>
@@ -43,6 +44,17 @@
 #include "gr_errors.h"  // DetectionError / LinAlgError (control flow, rule 3)
 
 namespace gobanrecog {
+
+// ports detect.py::stone_stats's dict payload (rule 6: dict -> struct wrapped in
+// std::optional; None below 12 on-board stones -> nullopt). n_in is int and B is
+// an integer count in Python; B is kept as double per port-conventions.md's
+// StoneStats spec (its uses are all comparisons and its values are exact ints).
+struct StoneStats {
+    int n_in;      // detect.py: n_in  (on-board detected stones)
+    double A;      // fraction of on-board stones sitting off-lattice
+    double B;      // off-board stones that ALIGN with the extended lattice
+    double resid;  // median match error of on-lattice stones
+};
 
 // ==== Part A: quad proposers (gr_detect_proposers.cpp, Task 7) ===============
 //

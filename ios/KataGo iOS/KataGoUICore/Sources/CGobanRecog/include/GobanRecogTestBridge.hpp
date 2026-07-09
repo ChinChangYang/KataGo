@@ -207,6 +207,29 @@ int detect_hough_from_segments(const int* segsXYXY, int nSegs, double* outQuad8,
 // JSON (NaN/Infinity tokens permitted).
 std::string proposers_stage_json(const unsigned char* bgr, int width, int height);
 
+// ---- gr_detect part B (wrappers DEFINED in gr_detect.cpp so they can reach the
+//      file-local statics; detect.py part-B port, Task 8) ----
+// _verified(st, n) on a synthetic StoneStats. has_stats=0 models None (nullopt),
+// so the gate's `st is not None` short-circuit is exercised. Returns 1/0.
+int detect_verified(int has_stats, int n_in, double A, double B, double resid, int n);
+// _eff_margin(size_res, st): scoreKeys/scoreVals (nscores each) build
+// size_res.scores; margin/board_size complete it; has_stats + n_in/A/B/resid
+// build the optional StoneStats. Returns _nocont_margin (verified) or margin.
+double detect_eff_margin(const double* scoreKeys, const double* scoreVals, int nscores,
+                         double margin, int board_size, int has_stats, int n_in, double A,
+                         double B, double resid);
+// lattice_quality(gray, H_grid, n): gray is row-major uint8 HxW, h9 the row-major
+// 3x3 H_grid. Used for a planted-vs-perturbed monotonicity check.
+double detect_lattice_quality(const unsigned char* gray, int width, int height,
+                              const double* h9, int n);
+// Micro-parity harness core (also used by the gobanrecog-dev executable). bgr is
+// row-major uint8 BGR HxWx3. Runs detect_board and returns a JSON object:
+//   {"stage":"detect","ok":true,"board_size":N,"quad_source":"...","H_grid":[9],
+//    "corners":[[x,y]*4],"size_scores":{"9":..}}  on success, or
+//   {"stage":"detect","ok":false,"error":"<DetectionError reason>"} on abstention.
+// Python-flavored JSON (NaN/Infinity tokens permitted).
+std::string detect_stage_json(const unsigned char* bgr, int width, int height);
+
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
 // double). Returns the count of nonzero cells.

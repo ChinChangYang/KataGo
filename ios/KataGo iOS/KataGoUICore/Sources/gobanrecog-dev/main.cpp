@@ -59,7 +59,9 @@ int usage() {
                  "                      <side> <scale> --W w0 w1 w2 w3 w4 w5 w6 w7 w8\n"
                  "  <gray.raw>: row-major uint8 HxW; avg/stoneness: row-major float64 side x side\n"
                  "       gobanrecog-dev proposers <bgr.raw> <width> <height>\n"
-                 "  <bgr.raw>: row-major uint8 BGR HxWx3 (runs all five quad proposers)\n");
+                 "  <bgr.raw>: row-major uint8 BGR HxWx3 (runs all five quad proposers)\n"
+                 "       gobanrecog-dev detect <bgr.raw> <width> <height>\n"
+                 "  <bgr.raw>: row-major uint8 BGR HxWx3 (runs full detect_board)\n");
     return 2;
 }
 
@@ -416,6 +418,25 @@ int runProposers(int argc, char** argv) {
     return 0;
 }
 
+int runDetect(int argc, char** argv) {
+    // detect <bgr.raw> <width> <height>
+    if (argc != 5) return usage();
+    const char* inPath = argv[2];
+    const int width = std::atoi(argv[3]);
+    const int height = std::atoi(argv[4]);
+    const std::vector<unsigned char> img = readFile(inPath);
+    if (static_cast<long long>(img.size()) != 3LL * width * height) {
+        std::fprintf(stderr, "gobanrecog-dev: %s has %zu bytes, expected %d*%d*3=%d\n",
+                     inPath, img.size(), width, height, width * height * 3);
+        return 1;
+    }
+    const std::string json =
+        gobanrecog::testbridge::detect_stage_json(img.data(), width, height);
+    std::fwrite(json.data(), 1, json.size(), stdout);
+    std::fputc('\n', stdout);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -428,5 +449,6 @@ int main(int argc, char** argv) {
     if (std::strcmp(argv[1], "stones") == 0) return runStones(argc, argv);
     if (std::strcmp(argv[1], "slat") == 0) return runSlat(argc, argv);
     if (std::strcmp(argv[1], "proposers") == 0) return runProposers(argc, argv);
+    if (std::strcmp(argv[1], "detect") == 0) return runDetect(argc, argv);
     return usage();
 }
