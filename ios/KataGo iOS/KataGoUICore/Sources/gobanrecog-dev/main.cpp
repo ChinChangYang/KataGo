@@ -57,7 +57,9 @@ int usage() {
                  "                      --seed h0 h1 h2 h3 h4 h5 h6 h7 h8 [--margin M]\n"
                  "       gobanrecog-dev slat --pre-mapped <avg.f64.raw> <stoneness.f64.raw>\n"
                  "                      <side> <scale> --W w0 w1 w2 w3 w4 w5 w6 w7 w8\n"
-                 "  <gray.raw>: row-major uint8 HxW; avg/stoneness: row-major float64 side x side\n");
+                 "  <gray.raw>: row-major uint8 HxW; avg/stoneness: row-major float64 side x side\n"
+                 "       gobanrecog-dev proposers <bgr.raw> <width> <height>\n"
+                 "  <bgr.raw>: row-major uint8 BGR HxWx3 (runs all five quad proposers)\n");
     return 2;
 }
 
@@ -395,6 +397,25 @@ int runSlat(int argc, char** argv) {
     return 0;
 }
 
+int runProposers(int argc, char** argv) {
+    // proposers <bgr.raw> <width> <height>
+    if (argc != 5) return usage();
+    const char* inPath = argv[2];
+    const int width = std::atoi(argv[3]);
+    const int height = std::atoi(argv[4]);
+    const std::vector<unsigned char> img = readFile(inPath);
+    if (static_cast<long long>(img.size()) != 3LL * width * height) {
+        std::fprintf(stderr, "gobanrecog-dev: %s has %zu bytes, expected %d*%d*3=%d\n",
+                     inPath, img.size(), width, height, width * height * 3);
+        return 1;
+    }
+    const std::string json =
+        gobanrecog::testbridge::proposers_stage_json(img.data(), width, height);
+    std::fwrite(json.data(), 1, json.size(), stdout);
+    std::fputc('\n', stdout);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -406,5 +427,6 @@ int main(int argc, char** argv) {
     if (std::strcmp(argv[1], "grid") == 0) return runGrid(argc, argv);
     if (std::strcmp(argv[1], "stones") == 0) return runStones(argc, argv);
     if (std::strcmp(argv[1], "slat") == 0) return runSlat(argc, argv);
+    if (std::strcmp(argv[1], "proposers") == 0) return runProposers(argc, argv);
     return usage();
 }

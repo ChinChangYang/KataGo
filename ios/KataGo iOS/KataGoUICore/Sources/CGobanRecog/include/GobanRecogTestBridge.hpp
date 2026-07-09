@@ -4,8 +4,8 @@
 //
 //  TEST/DIAGNOSTIC seam (mirrors the precedent set by gobanRecogOpenCVSmoke in
 //  GobanRecogCpp.hpp). Exposes the internal numpy-parity helpers, constants,
-//  and BoardState across Swift/C++ interop using PLAIN C++ std types only —
-//  never cv:: types — so the native SwiftPM test target `GobanRecogNativeTests`
+//  and BoardState across Swift/C++ interop using PLAIN C++ std types only -
+//  never cv:: types - so the native SwiftPM test target `GobanRecogNativeTests`
 //  can drive them without importing OpenCV. Each function is a thin wrapper
 //  over the real gobanrecog:: implementation in gr_parity.cpp / gr_types.cpp /
 //  gr_constants.cpp.
@@ -173,6 +173,39 @@ int slat_grow_debug(const double* peaksXY, int nPeaks, int which, int* outIdxCol
 // Fills outT9 (row-major) and returns 1 (0 if degenerate). For proving the
 // homography solve differs across the cv2-wheel / vendored-OpenCV builds.
 int slat_find_homography_lmeds(const double* srcXY, const double* dstXY, int n, double* outT9);
+
+// ---- gr_detect proposers (wrappers DEFINED in gr_detect_proposers.cpp so they
+//      can reach the file-local statics; detect.py part-A port, Task 7) ----
+// _order_quad on a 4x2 (flat pts8 = x0,y0,...,x3,y3) -> out8 ordered TL,TR,BR,BL.
+void detect_order_quad(const double* pts8, double* out8);
+// _degenerate_quad on an ordered 4x2 quad (flat 8 doubles). Returns 1/0.
+int detect_degenerate_quad(const double* quad8);
+// The _quad_hull approxPolyDP sweep on a supplied integer hull (flat xy pairs,
+// nHull points): arcLength + arange(0.01,0.12,0.01) sweep + approxPolyDP + the
+// len==4 gate + _order_quad. Returns 1 + fills outQuad8 (ordered TL,TR,BR,BL)
+// when a 4-vertex approx is found, 0 otherwise (the "hull not quad-like" path).
+// Isolates the sweep/order logic from Canny/dilate/findContours (which is a cv
+// op, not ported code).
+int detect_hull_sweep(const int* hullXY, int nHull, double* outQuad8);
+// _quad_hough's post-HoughLinesP tail on supplied integer segments (flat
+// x0,y0,x1,y1 quadruples, nSegs of them): _line_params -> horiz/vert split ->
+// _extreme_lines -> _intersect -> isfinite -> _order_quad. Returns 1 + outQuad8
+// on success; on a DetectionError returns 0 and writes the verbatim reason into
+// `reason` (reasonCap bytes). Exercises the full pure hough logic without
+// Canny/HoughLinesP (cv ops).
+int detect_hough_from_segments(const int* segsXYXY, int nSegs, double* outQuad8,
+                               char* reason, int reasonCap);
+// Micro-parity harness core (also used by the gobanrecog-dev executable). bgr is
+// row-major uint8 BGR HxWx3. Runs all five proposers (hull/hough/hull1/texture/
+// slab) on the RAW image exactly as detect_board does (cvtColor to gray first;
+// slab uses the BGR image) and returns a JSON object:
+//   {"stage":"proposers", "<name>": {"ok":true,"quad":[[x,y]*4]}  |
+//                                    {"ok":false,"error_type":"DetectionError"|
+//                                     "cv2.error"|"LinAlgError","reason":"..."}}
+// The reason is the VERBATIM DetectionError message (empty for cv2.error/
+// LinAlgError, whose library messages differ across builds). Python-flavored
+// JSON (NaN/Infinity tokens permitted).
+std::string proposers_stage_json(const unsigned char* bgr, int width, int height);
 
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
