@@ -1,7 +1,9 @@
 import AppKit
+import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import KataGoUICore
+import GobanRecogKit
 import WidgetKit
 
 /// Library CRUD actions (New / Clone / Clone Current Position / Rename / Delete).
@@ -132,43 +134,136 @@ extension MainWindowController: LibraryActionsDelegate {
 
     // MARK: - Import
 
-    /// Imports one or more SGF files and switches the board to the last one.
+    /// Imports one or more SGF files (and/or board images) and switches the board
+    /// to the last SGF one.
     ///
     /// Shared by every import entry point (open panel, drag-and-drop, Finder
-    /// deep-link) so they behave identically. For each URL we reuse the package's
-    /// `importGameRecord(from:in:)` — which de-duplicates against the store, so a
-    /// re-imported game returns `isNew == false` and is *selected without being
-    /// re-inserted*. URLs that fail to parse (nil result) are skipped, not fatal,
-    /// so one bad file can't abort a multi-file drop. We select the LAST imported
-    /// record (matching iOS, where each import overwrites the selection) and
-    /// refetch once after the batch so the sidebar reflects every new row.
+    /// deep-link / "Open With") so they behave identically. Each URL is branched
+    /// by content type BEFORE the SGF path's UTF-8 read: image bytes are binary
+    /// and would fail silently when decoded as UTF-8 by `readSgfContent`, so an
+    /// image routes to the photo-import preview sheet (recognition + confirm)
+    /// instead. For SGF/text URLs we reuse the package's `importGameRecord(from:in:)`
+    /// — which de-duplicates against the store, so a re-imported game returns
+    /// `isNew == false` and is *selected without being re-inserted*. URLs that
+    /// fail to parse (nil result) are skipped, not fatal, so one bad file can't
+    /// abort a multi-file drop. We select the LAST imported SGF record (matching
+    /// iOS, where each import overwrites the selection) and refetch once after the
+    /// batch so the sidebar reflects every new row.
+    ///
+    /// A board image opens the recognition sheet, which is modal — only one board
+    /// can be confirmed at a time — so if several images are selected we present
+    /// the first that decodes and ignore the rest. Any SGF/text files in the same
+    /// batch are still imported normally before the sheet appears.
     func importAndSelect(from urls: [URL]) {
         var lastImported: GameRecord?
+        var pendingImage: (data: Data, name: String)?
         for url in urls {
+            if let imageData = imageDataIfImage(at: url) {
+                if pendingImage == nil {
+                    pendingImage = (imageData, url.deletingPathExtension().lastPathComponent)
+                }
+                continue
+            }
             guard let result = GameRecord.importGameRecord(from: url, in: modelContext) else { continue }
             if result.isNew {
                 modelContext.insert(result.gameRecord)
             }
             lastImported = result.gameRecord
         }
-        guard let lastImported else { return }
-        selectGame(lastImported)
+        if let lastImported {
+            selectGame(lastImported)
+            libraryStore.refetch()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        if let pendingImage {
+            presentPhotoImport(imageData: pendingImage.data, name: pendingImage.name)
+        }
+    }
+
+    /// If `file` is an image, reads and returns its bytes inside a
+    /// security-scoped access (mirroring the SGF read); otherwise nil. macOS
+    /// open-panel / Finder-open URLs are Powerbox-scoped, so the read must run
+    /// inside `startAccessingSecurityScopedResource()`.
+    private func imageDataIfImage(at file: URL) -> Data? {
+        let contentType = (try? file.resourceValues(forKeys: [.contentTypeKey]).contentType)
+            ?? UTType(filenameExtension: file.pathExtension)
+        guard let contentType, contentType.conforms(to: .image) else { return nil }
+
+        let hasSecurityAccess = file.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityAccess {
+                file.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try? Data(contentsOf: file)
+    }
+
+    /// Hosts the shared `PhotoImportSheet` (GobanRecogKit) in an
+    /// `NSHostingController` and presents it as a sheet on the board pane.
+    /// Recognition runs IN-PROCESS inside the sheet (a GobanRecogKit call, not a
+    /// GTP command to the engine subprocess). On confirm the synthesized SGF flows
+    /// through the SAME `importGameRecord(sgf:name:in:)` seam the SGF path uses.
+    ///
+    /// SwiftUI's `\.dismiss` can't reach an `NSHostingController` presented via
+    /// `presentAsSheet`, so the in-body Cancel/Import buttons drive AppKit
+    /// dismissal through the `dismissSheet` closure (the `exportGameGif` /
+    /// `showDeepReport` idiom). `navigationTitle` likewise never reaches the
+    /// sheet window, so the title is set on the window directly (async — the
+    /// sheet window may not exist until `presentAsSheet` finishes).
+    private func presentPhotoImport(imageData: Data, name: String) {
+        var dismissSheet: () -> Void = {}
+        let root = PhotoImportSheet(
+            imageData: imageData,
+            suggestedName: name,
+            onImport: { [weak self] sgf, importName in
+                self?.importAndSelect(sgf: sgf, name: importName)
+                dismissSheet()
+            },
+            onCancel: { dismissSheet() }
+        )
+        .frame(minWidth: 420, minHeight: 560)
+        let hosting = NSHostingController(rootView: root)
+        dismissSheet = { [weak hosting] in
+            guard let hosting else { return }
+            if let presenting = hosting.presentingViewController {
+                presenting.dismiss(hosting)
+            } else {
+                hosting.dismiss(nil)
+            }
+        }
+        contentViewController?.presentAsSheet(hosting)
+        DispatchQueue.main.async { [weak hosting] in
+            hosting?.view.window?.title = "Import from Photo"
+        }
+    }
+
+    /// Confirm seam for the photo-import sheet: creates (or de-dups to) a game
+    /// from the recognized SGF and selects it, reusing the exact same
+    /// insert/refetch/select/widget-reload sequence as the file path.
+    private func importAndSelect(sgf: String, name: String) {
+        guard let result = GameRecord.importGameRecord(sgf: sgf, name: name, in: modelContext) else { return }
+        if result.isNew {
+            modelContext.insert(result.gameRecord)
+        }
+        selectGame(result.gameRecord)
         libraryStore.refetch()
         WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// File ▸ Import… (⌘O) and the toolbar `Import` item: present an open panel
-    /// for `.sgf`/`.text` files (multi-select) and import the chosen files. The
-    /// panel is shown as a sheet anchored to the window so it reads as belonging
-    /// to this document. App-Sandbox file access is granted through Powerbox by
-    /// the user's selection — the existing `files.user-selected.read-write`
-    /// entitlement covers the subsequent read in `readSgfContent`.
+    /// for `.sgf`/`.text` files and board images (multi-select) and import the
+    /// chosen files. The panel is shown as a sheet anchored to the window so it
+    /// reads as belonging to this document. App-Sandbox file access is granted
+    /// through Powerbox by the user's selection — the existing
+    /// `files.user-selected.read-write` entitlement covers the subsequent read in
+    /// `readSgfContent` (SGF) and `imageDataIfImage` (board photos); no new
+    /// entitlement is required.
     @objc func importSGF(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [UTType(filenameExtension: "sgf"), .text].compactMap { $0 }
+        panel.allowedContentTypes = [UTType(filenameExtension: "sgf"), .text, .image].compactMap { $0 }
 
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard response == .OK else { return }
