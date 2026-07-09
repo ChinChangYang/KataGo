@@ -96,6 +96,35 @@ int grid_rectify(const unsigned char* gray, int width, int height,
 // before main runs, so it must be the API call). Diagnostic-only.
 void quiet_opencv_logs();
 
+// ---- gr_stones internals (wrappers DEFINED in gr_stones.cpp so they can
+//      reach the file-local statics; stones.py port, Task 5) ----
+// _disk_indices: fills dy/dx (caller-allocated, (2*radius+1)^2 entries worst
+// case) with the disk offsets in numpy's row-major mgrid order; returns the
+// count of in-disk offsets.
+int stones_disk_indices(int radius, int* dy, int* dx);
+// _w_fires shared three-rule white condition. Returns 1 if it fires, 0 if not.
+int stones_w_fires(double gap, double ratio, double mc, double wood_c);
+// classify_stones on a PRE-RECTIFIED canonical frame (row-major uint8 BGR
+// side x side x 3, exactly what _rectify_lattice outputs). Returns
+// "<rows joined by '\n'>|<confidence %.17g>".
+std::string stones_classify_rect(const unsigned char* rect, int side, int boardSize);
+// Micro-parity harness core (also used by the gobanrecog-dev executable):
+// img is row-major uint8 BGR HxWx3. If h9 is non-null (row-major 3x3 H_grid)
+// the image is first rectified with _rectify_lattice and the JSON gains an
+// "M" key (the canonical warp A @ inv(H_grid)); otherwise img IS the
+// pre-rectified frame (width == height == 2*PAD + (n-1)*SP). Runs the
+// classifier and returns a JSON object: stage, board_size, rect size, [M],
+// rows, confidence, margins (n x n clamped per-node decision margins).
+// Python-flavored JSON (NaN/Infinity tokens permitted).
+std::string stones_stage_json(const unsigned char* img, int width, int height,
+                              const double* h9, int boardSize);
+// _rectify_lattice alone: fills outRect (side*side*3 bytes, caller-allocated,
+// side = 2*PAD + (n-1)*SP) and outM9 (row-major 3x3 canonical warp); returns
+// the side length.
+int stones_rectify(const unsigned char* img, int width, int height,
+                   const double* h9, int boardSize,
+                   unsigned char* outRect, double* outM9);
+
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
 // double). Returns the count of nonzero cells.

@@ -18,8 +18,19 @@
 //    first (the JSON gains an "H" key) and --dump-rect optionally writes the
 //    rectified frame's raw bytes for byte-level comparison against Python's.
 //
-//    Prints one JSON object to stdout (see grid_stage_json in
-//    GobanRecogTestBridge.hpp for the schema). Python-flavored JSON:
+//    gobanrecog-dev stones <bgr.raw> <width> <height> h0 h1 h2 h3 h4 h5 h6 h7 h8
+//                   <board_size> [--dump-rect <path>]
+//    gobanrecog-dev stones --pre-rectified <rect.raw> <side> <board_size>
+//
+//    <bgr.raw>  row-major uint8 BGR HxWx3 image; h0..h8 = row-major H_grid.
+//    classify_stones runs fully (_rectify_lattice first; the JSON gains an
+//    "M" key) and --dump-rect optionally writes the rectified BGR frame's raw
+//    bytes. With --pre-rectified, <rect.raw> IS the canonical rectified BGR
+//    frame (side = 2*PAD + (n-1)*SP) and the warp is skipped — the same-bytes
+//    micro-parity leg (compare with compare_stage.py --exact).
+//
+//    Prints one JSON object to stdout (see grid_stage_json / stones_stage_json
+//    in GobanRecogTestBridge.hpp for the schemas). Python-flavored JSON:
 //    NaN/Infinity tokens are permitted (json.loads accepts them).
 //
 
@@ -37,7 +48,11 @@ int usage() {
     std::fprintf(stderr,
                  "usage: gobanrecog-dev grid <in.raw> <width> <height> <type>\n"
                  "                      [--quad x0 y0 x1 y1 x2 y2 x3 y3] [--dump-rect <path>]\n"
-                 "  <type>: u8 (row-major grayscale uint8)\n");
+                 "  <type>: u8 (row-major grayscale uint8)\n"
+                 "       gobanrecog-dev stones <bgr.raw> <width> <height> h0 h1 h2 h3 h4 h5 h6 h7 h8\n"
+                 "                      <board_size> [--dump-rect <path>]\n"
+                 "       gobanrecog-dev stones --pre-rectified <rect.raw> <side> <board_size>\n"
+                 "  <bgr.raw>/<rect.raw>: row-major uint8 BGR HxWx3\n");
     return 2;
 }
 
@@ -118,6 +133,71 @@ int runGrid(int argc, char** argv) {
     return 0;
 }
 
+int runStones(int argc, char** argv) {
+    // Pre-rectified (same-bytes leg): stones --pre-rectified <rect.raw> <side> <n>
+    if (argc >= 3 && std::strcmp(argv[2], "--pre-rectified") == 0) {
+        if (argc != 6) return usage();
+        const char* inPath = argv[3];
+        const int side = std::atoi(argv[4]);
+        const int boardSize = std::atoi(argv[5]);
+        const std::vector<unsigned char> img = readFile(inPath);
+        if (static_cast<long long>(img.size()) != 3LL * side * side) {
+            std::fprintf(stderr, "gobanrecog-dev: %s has %zu bytes, expected %d*%d*3=%d\n",
+                         inPath, img.size(), side, side, side * side * 3);
+            return 1;
+        }
+        const std::string json = gobanrecog::testbridge::stones_stage_json(
+            img.data(), side, side, nullptr, boardSize);
+        std::fwrite(json.data(), 1, json.size(), stdout);
+        std::fputc('\n', stdout);
+        return 0;
+    }
+    // Full: stones <bgr.raw> <width> <height> h0..h8 <board_size> [--dump-rect <path>]
+    if (argc < 15) return usage();
+    const char* inPath = argv[2];
+    const int width = std::atoi(argv[3]);
+    const int height = std::atoi(argv[4]);
+    double h9[9];
+    for (int k = 0; k < 9; ++k) h9[k] = std::atof(argv[5 + k]);
+    const int boardSize = std::atoi(argv[14]);
+    const char* dumpRectPath = nullptr;
+    for (int i = 15; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--dump-rect") == 0) {
+            if (i + 1 >= argc) return usage();
+            dumpRectPath = argv[i + 1];
+            i += 1;
+        } else {
+            return usage();
+        }
+    }
+    const std::vector<unsigned char> img = readFile(inPath);
+    if (static_cast<long long>(img.size()) != 3LL * width * height) {
+        std::fprintf(stderr, "gobanrecog-dev: %s has %zu bytes, expected %d*%d*3=%d\n",
+                     inPath, img.size(), width, height, width * height * 3);
+        return 1;
+    }
+    if (dumpRectPath != nullptr) {
+        // side = 2*PAD + (n-1)*SP (stones.py canonical frame)
+        const int side = 2 * 48 + (boardSize - 1) * 32;
+        std::vector<unsigned char> rect(static_cast<size_t>(side) * side * 3);
+        double m9[9];
+        gobanrecog::testbridge::stones_rectify(img.data(), width, height, h9,
+                                               boardSize, rect.data(), m9);
+        std::FILE* f = std::fopen(dumpRectPath, "wb");
+        if (f == nullptr) {
+            std::fprintf(stderr, "gobanrecog-dev: cannot write %s\n", dumpRectPath);
+            return 1;
+        }
+        std::fwrite(rect.data(), 1, rect.size(), f);
+        std::fclose(f);
+    }
+    const std::string json = gobanrecog::testbridge::stones_stage_json(
+        img.data(), width, height, h9, boardSize);
+    std::fwrite(json.data(), 1, json.size(), stdout);
+    std::fputc('\n', stdout);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -127,5 +207,6 @@ int main(int argc, char** argv) {
     gobanrecog::testbridge::quiet_opencv_logs();
     if (argc < 2) return usage();
     if (std::strcmp(argv[1], "grid") == 0) return runGrid(argc, argv);
+    if (std::strcmp(argv[1], "stones") == 0) return runStones(argc, argv);
     return usage();
 }
