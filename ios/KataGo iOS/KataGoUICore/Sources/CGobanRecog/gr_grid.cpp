@@ -103,7 +103,8 @@ std::vector<double> _profile_peaks(const cv::Mat& prof, double min_sep) {
     }
     // idx.sort(key=lambda i: -prof[i]) — Python's sort is stable; ties keep
     // ascending index order.
-    std::stable_sort(idx.begin(), idx.end(), [p](int x, int y) { return p[x] > p[y]; });
+    std::stable_sort(idx.begin(), idx.end(),
+                     [p](int x, int y) { return nanLastDescending(p[x], p[y]); });
     std::vector<int> kept;
     for (int i : idx) {
         bool ok = true;
@@ -180,7 +181,7 @@ std::vector<Cand> _comb_candidates(const cv::Mat& prof, int n,
     }
     // grid_scores.sort(key=lambda t: -t[0]) — stable.
     std::stable_sort(grid_scores.begin(), grid_scores.end(),
-                     [](const Cand& x, const Cand& y) { return x.score > y.score; });
+                     [](const Cand& x, const Cand& y) { return nanLastDescending(x.score, y.score); });
     // keep top-k solutions that differ meaningfully in offset or spacing
     std::vector<Cand> seeds;
     for (const Cand& g : grid_scores) {
@@ -210,7 +211,7 @@ std::vector<Cand> _comb_candidates(const cv::Mat& prof, int n,
         out.push_back(best);
     }
     std::stable_sort(out.begin(), out.end(),
-                     [](const Cand& x, const Cand& y) { return x.score > y.score; });
+                     [](const Cand& x, const Cand& y) { return nanLastDescending(x.score, y.score); });
     return out;
 }
 
@@ -693,7 +694,7 @@ SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
     std::vector<std::pair<int, Best>> ranked = results;
     std::stable_sort(ranked.begin(), ranked.end(),
                      [](const std::pair<int, Best>& a, const std::pair<int, Best>& b) {
-                         return a.second.total > b.second.total;
+                         return nanLastDescending(a.second.total, b.second.total);
                      });
     const int n_best = ranked.at(0).first;
     const Best& bb = ranked.at(0).second;

@@ -634,7 +634,7 @@ std::vector<cv::Point2d> _stone_peaks(const cv::Mat& avg, double thr, int min_se
     std::vector<int> order(cands.size());
     for (size_t i = 0; i < order.size(); ++i) order[i] = static_cast<int>(i);
     std::stable_sort(order.begin(), order.end(),
-                     [&](int a, int b) { return cands[a].val > cands[b].val; });
+                     [&](int a, int b) { return nanLastDescending(cands[a].val, cands[b].val); });
     if (order.size() > 600) order.resize(600);
 
     const int half = SP / 4;  // 8
@@ -1067,7 +1067,11 @@ double _nocont_margin(const SizeResult& size_res) {
     std::vector<double> vals;
     vals.reserve(size_res.scores.size());
     for (const auto& kv : size_res.scores) vals.push_back(kv.second);
-    std::sort(vals.begin(), vals.end(), std::greater<double>());  // reverse=True
+    // Python: sorted(size_res.scores.values(), reverse=True) — a STABLE sort
+    // (rule 7). nanLastDescending keeps it a valid strict-weak ordering if a
+    // hypothesis score is NaN (numpy/Python would sort NaN last too).
+    std::stable_sort(vals.begin(), vals.end(),
+                     [](double a, double b) { return nanLastDescending(a, b); });
     return vals[0] - vals[1];
 }
 
@@ -1125,8 +1129,8 @@ std::vector<cv::Mat> _stone_lattice_candidate_quads(const cv::Mat& gray,
     // seeds from the top-2 candidates by margin + an image-wide synthetic seed.
     std::vector<size_t> ranked(candidates.size());
     for (size_t i = 0; i < ranked.size(); ++i) ranked[i] = i;
-    std::stable_sort(ranked.begin(), ranked.end(), [&](size_t a, size_t b) {
-        return candidates[a].size_res.margin > candidates[b].size_res.margin;  // key=-margin
+    std::stable_sort(ranked.begin(), ranked.end(), [&](size_t a, size_t b) {  // key=-margin
+        return nanLastDescending(candidates[a].size_res.margin, candidates[b].size_res.margin);
     });
     std::vector<std::pair<cv::Mat, int>> seeds;
     for (size_t k = 0; k < ranked.size() && k < 2; ++k)
@@ -1276,7 +1280,7 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
         if (st.has_value() && (st->A > 0.10 || st->B > 3)) rescuable.push_back(i);
     }
     std::stable_sort(rescuable.begin(), rescuable.end(), [&](size_t a, size_t b) {
-        return candidates[a].size_res.margin > candidates[b].size_res.margin;
+        return nanLastDescending(candidates[a].size_res.margin, candidates[b].size_res.margin);
     });
     for (size_t ri = 0; ri < rescuable.size() && ri < 1; ++ri) {
         const Candidate& rc = candidates[rescuable[ri]];  // size_r,H_r,corners_r,src_r,_,_

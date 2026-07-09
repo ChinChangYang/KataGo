@@ -187,7 +187,7 @@ std::vector<cv::Point2d> _peaks_ring(const cv::Mat& avg, double thr, int min_sep
     std::vector<int> order(cands.size());
     for (size_t i = 0; i < order.size(); ++i) order[i] = static_cast<int>(i);
     std::stable_sort(order.begin(), order.end(),
-                     [&](int a, int b) { return cands[a].val > cands[b].val; });
+                     [&](int a, int b) { return nanLastDescending(cands[a].val, cands[b].val); });
     if (order.size() > 600) order.resize(600);
 
     std::vector<cv::Point2d> kept;
@@ -249,7 +249,7 @@ std::vector<cv::Point2d> _peaks_dt(const cv::Mat& stoneness, double scale) {
     std::vector<int> order(cands.size());
     for (size_t i = 0; i < order.size(); ++i) order[i] = static_cast<int>(i);
     std::stable_sort(order.begin(), order.end(),
-                     [&](int a, int b) { return cands[a].val > cands[b].val; });
+                     [&](int a, int b) { return nanLastDescending(cands[a].val, cands[b].val); });
 
     std::vector<cv::Point2d> pts;
     std::vector<float> rad;
@@ -516,7 +516,12 @@ std::unordered_map<int, cv::Vec2d> _grow_global(const std::vector<cv::Point2d>& 
         // for j in np.argsort(e): stop at e > tol
         std::vector<int> ord(n);
         for (int j = 0; j < n; ++j) ord[j] = j;
-        std::stable_sort(ord.begin(), ord.end(), [&](int a, int b) { return e[a] < e[b]; });
+        // e[j] = abs(g - round(g)).max can be NaN when a degenerate homography
+        // inverse sends a point through a ~0 perspective divide (g -> inf, then
+        // inf - round(inf) = NaN) — numpy's np.argsort(e) sorts that NaN LAST,
+        // which nanLastAscending reproduces (and keeps a valid strict-weak order).
+        std::stable_sort(ord.begin(), ord.end(),
+                         [&](int a, int b) { return nanLastAscending(e[a], e[b]); });
         int added = 0;
         for (int j : ord) {
             if (e[j] > tol) break;
@@ -572,7 +577,8 @@ std::unordered_map<int, cv::Vec2d> _grow_local(const std::vector<cv::Point2d>& p
                 d[a] = std::hypot(adst[a][0] - pts[j].x, adst[a][1] - pts[j].y);
             std::vector<int> ord(k);
             for (int a = 0; a < k; ++a) ord[a] = a;
-            std::stable_sort(ord.begin(), ord.end(), [&](int a, int b) { return d[a] < d[b]; });
+            std::stable_sort(ord.begin(), ord.end(),
+                             [&](int a, int b) { return nanLastAscending(d[a], d[b]); });
             const int take = std::min(8, k);
             ord.resize(take);
             if (static_cast<int>(ord.size()) < 4 || d[ord[0]] > 2.5 * sp) continue;

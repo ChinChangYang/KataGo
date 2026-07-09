@@ -179,7 +179,7 @@ struct Scored {
 std::pair<cv::Vec2d, cv::Vec2d> _extreme_lines(std::vector<Seg> segs) {
     // segs = sorted(segs, key=lambda t: t[1])  -> stable sort by rho (rule 7)
     std::stable_sort(segs.begin(), segs.end(),
-                     [](const Seg& a, const Seg& b) { return a.rho < b.rho; });
+                     [](const Seg& a, const Seg& b) { return nanLastAscending(a.rho, b.rho); });
 
     std::vector<std::vector<Seg>> clusters;
     for (const Seg& t : segs) {

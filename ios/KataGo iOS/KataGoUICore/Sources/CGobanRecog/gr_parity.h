@@ -11,6 +11,7 @@
 #ifndef gr_parity_h
 #define gr_parity_h
 
+#include <cmath>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -18,6 +19,33 @@
 #include "gr_errors.h"
 
 namespace gobanrecog {
+
+// ---- NaN-safe strict-weak-ordering comparators -----------------------------
+//
+// A bare `a < b` / `a > b` over IEEE doubles is NOT a valid C++ strict-weak
+// ordering once a NaN is present: NaN compares false against every value, so it
+// is "incomparable" to every finite number while those finite numbers ARE
+// comparable to each other — that breaks transitivity of incomparability. Under
+// libc++ hardening (the iOS-simulator Debug config) std::sort/std::stable_sort
+// then trap in strict_weak_ordering_check.h; unhardened it is undefined
+// behaviour, so a Release build can order differently from a Debug build.
+//
+// numpy's argsort (and, empirically, np.sort) treats a NaN as the LARGEST
+// value: it lands LAST for both ascending and descending input. These wrappers
+// reproduce that exactly while keeping the order of finite values identical to
+// a bare `<` / `>`, so they are drop-in for the ported `np.argsort` / Python
+// `sorted` sites without perturbing any NaN-free result. Both are valid SWOs:
+// all NaNs form one equivalence class ordered after every finite value.
+inline bool nanLastAscending(double a, double b) {
+    if (std::isnan(a)) return false;  // a is NaN -> never precedes (sorts last)
+    if (std::isnan(b)) return true;   // finite a precedes NaN b
+    return a < b;
+}
+inline bool nanLastDescending(double a, double b) {
+    if (std::isnan(a)) return false;  // a is NaN -> never precedes (sorts last)
+    if (std::isnan(b)) return true;   // finite a precedes NaN b
+    return a > b;
+}
 
 // np.round: round-half-to-even (banker's rounding). np.round(x) for scalars.
 double np_round(double x);
