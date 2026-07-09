@@ -19,8 +19,11 @@
 #include <stdexcept>
 #include <vector>
 
-// numpy never fuses multiply-add into FMA (each op rounds separately); forbid
-// contraction so the float32 lerp below rounds exactly like numpy's.
+// numpy's element-wise ufunc arithmetic does not fuse multiply-add into FMA
+// (each op rounds separately); forbid contraction so the float32 lerp below
+// rounds exactly like numpy's. NOTE: numpy.arange's fill is the exception — its
+// C fill loop (buffer[i] = start + i*delta) IS emitted as a hardware FMA, so
+// np_arange below calls std::fma explicitly instead of relying on contraction.
 #pragma STDC FP_CONTRACT OFF
 
 namespace gobanrecog {
@@ -292,6 +295,10 @@ double np_mean(const double* a, size_t n) {
 // np.arange for float64: length = ceil((stop-start)/step); the fill computes
 // b[0]=start, b[1]=start+step, delta=b[1]-b[0], b[i]=start+i*delta (numpy's
 // @NAME@_fill), so the final value may overshoot `stop` by a rounding error.
+// numpy's fill loop compiles `start + i*delta` to a single hardware FMA (one
+// rounding), so we call std::fma to match bit-for-bit — verified against numpy
+// 2.5.1 where the naive multiply-then-add differs by 1 ULP at e.g. 0.06/0.07/
+// 0.10 in np.arange(0.01, 0.12, 0.01).
 std::vector<double> np_arange(double start, double stop, double step) {
     const double len = std::ceil((stop - start) / step);
     if (!(len > 0)) return {};
@@ -302,7 +309,7 @@ std::vector<double> np_arange(double start, double stop, double step) {
         out[1] = start + step;
         const double delta = out[1] - out[0];
         for (size_t i = 2; i < n; ++i) {
-            out[i] = start + static_cast<double>(i) * delta;
+            out[i] = std::fma(static_cast<double>(i), delta, start);
         }
     }
     return out;

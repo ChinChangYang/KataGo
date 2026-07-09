@@ -86,10 +86,13 @@ float np_mean(const float* a, size_t n);
 double np_mean(const double* a, size_t n);
 
 // np.arange(start, stop, step) for float64 scalars. numpy semantics (verified
-// empirically): length = ceil((stop - start) / step) computed in double;
-// values filled as b[0] = start, b[1] = start + step, delta = b[1] - b[0],
-// b[i] = start + i*delta — so the last value can exceed `stop` by a rounding
-// error, exactly as numpy's does. Returns an empty vector when length <= 0.
+// against numpy 2.5.1): length = ceil((stop - start) / step) computed in
+// double; values filled as b[0] = start, b[1] = start + step,
+// delta = b[1] - b[0], b[i] = std::fma(i, delta, start) — numpy's fill loop
+// emits `start + i*delta` as a single hardware FMA, so the fma form matches
+// bit-for-bit (naive multiply-then-add is 1 ULP off at some indices). The last
+// value can exceed `stop` by a rounding error, exactly as numpy's does.
+// Returns an empty vector when length <= 0.
 std::vector<double> np_arange(double start, double stop, double step);
 
 }  // namespace gobanrecog

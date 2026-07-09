@@ -254,6 +254,26 @@ struct GridParityHelperTests {
         #expect(a5.count == 96)
         #expect(a5[95] == 237.0)
     }
+
+    // numpy fills arange as std::fma(i, delta, start) (a single fused rounding),
+    // NOT the naive start + i*delta (multiply then add). The two diverge by
+    // 1 ULP at i=5/6/9 of np.arange(0.01, 0.12, 0.01); this pins the fma-correct
+    // values so a regression to the naive fill is caught.
+    //   venv (numpy 2.5.1):
+    //     >>> [float(x) for x in np.arange(0.01, 0.12, 0.01)]
+    //     [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11]
+    //   naive start+i*delta gives 0.060000000000000005 / 0.06999999999999999 /
+    //   0.09999999999999999 at i=5/6/9 (1 ULP off); fma matches numpy exactly.
+    @Test func npArangeFmaFill() {
+        let a = npArange(0.01, 0.12, 0.01)
+        #expect(a.count == 11)
+        #expect(a[5] == 0.06)   // naive: 0.060000000000000005
+        #expect(a[6] == 0.07)   // naive: 0.06999999999999999
+        #expect(a[9] == 0.1)    // naive: 0.09999999999999999
+        // whole array, bit-for-bit numpy 2.5.1
+        #expect(a == [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07,
+                      0.08, 0.09, 0.1, 0.11])
+    }
 }
 
 // MARK: - grid.py pure logic
