@@ -38,6 +38,11 @@ struct GobanRecogResult {
 /// value-semantic result: status "ok" | "failed:<reason>", boardSize + rows +
 /// confidence + quadSource on success (rows empty, boardSize 0 on failure).
 /// Defined in gr_run.cpp.
+///
+/// NOT safe for concurrent calls: seeds OpenCV's process-global RNG
+/// (cv::setRNGSeed) at entry and relies on OpenCV global state, so overlapping
+/// invocations race. Callers must serialize (the app presents one import sheet
+/// at a time); a future batch caller must run recognitions sequentially.
 GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_t bytesPerRow);
 
 #endif /* GobanRecogCpp_hpp */
