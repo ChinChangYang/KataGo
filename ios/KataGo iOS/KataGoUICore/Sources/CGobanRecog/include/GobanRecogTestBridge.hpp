@@ -125,6 +125,55 @@ int stones_rectify(const unsigned char* img, int width, int height,
                    const double* h9, int boardSize,
                    unsigned char* outRect, double* outM9);
 
+// ---- gr_stonelattice internals (wrappers DEFINED in gr_stonelattice.cpp so
+//      they can reach the file-local statics; stonelattice.py port, Task 6) ----
+// _lattice_basis on a flat [x0,y0,x1,y1,...] point set. Returns 1 and fills
+// out4 (a1x, a1y, a2x, a2y) when a basis is found, 0 (None) otherwise.
+int slat_lattice_basis(const double* ptsXY, int n, double sp, double* out4);
+// _seed_component's largest-component size for the given points + basis
+// (basis4 = a1x, a1y, a2x, a2y). Exercises the FIFO BFS.
+int slat_seed_component_size(const double* ptsXY, int n, const double* basis4, double sp);
+// _core_extent (DFS / LIFO) on a flat [col0,row0,col1,row1,...] cell set:
+// fills outExt2 (ext_cols, ext_rows) of the trimmed core and returns the
+// trimmed cell count.
+int slat_core_extent(const int* cellsXY, int n, int* outExt2);
+// Packed (col, row) lattice-cell key round-trip (documents the packing).
+long long slat_pack_cell(int col, int row);
+void slat_unpack_cell(long long key, int* outColRow);
+// Micro-parity harness core (also used by the gobanrecog-dev executable). Full
+// mode: gray is row-major uint8 HxW, seed9 the row-major 3x3 seed homography.
+// Seeds cv::setRNGSeed(1234) internally right before the RANSAC entry (mirrors
+// detect.py:929 / the Python dump), runs sl_fits, and returns a JSON object:
+// stage, n_seed, margin, H_seed, W, peaks, basis, seed_count, grown_counts,
+// fits ({Hd, ext}), quads (4x2 each). Python-flavored JSON (NaN/Infinity ok).
+std::string slat_stage_json(const unsigned char* gray, int width, int height,
+                            const double* seed9, int nSeed, int margin);
+// Pre-mapped mode (same-float64-bytes leg): avg/stoneness are row-major CV_64F
+// side x side, scale the percentile, W9 the row-major 3x3 canonical warp. Runs
+// _sl_fits_core (peak union onward) on the identical float64 map, isolating the
+// ported logic from the warpPerspective HAL. Same JSON schema (n_seed/margin
+// emitted as -1).
+std::string slat_stage_json_premapped(const double* avg, const double* stoneness, int side,
+                                      double scale, const double* W9);
+// Pre-peaks mode (bit-exact gate): feed the identical detected peak set (flat
+// [x0,y0,...]) + the 3x3 canonical warp W9, run _sl_fits_from_peaks (basis ->
+// seed -> growers -> RANSAC refit -> quads). No peak-detector cv ops, so this
+// isolates the ported numpy logic; the only remaining cv work is
+// findHomography/RANSAC (deterministic under setRNGSeed(1234)).
+std::string slat_stage_json_prepeaks(const double* peaksXY, int nPeaks, const double* W9);
+// Detector-level attribution: _peaks_ring / _peaks_dt on a pre-mapped
+// avg/stoneness (fills outXY up to cap points, returns the total count).
+int slat_peaks_ring(const double* avg, int side, double thr, int minSep, double* outXY, int cap);
+int slat_peaks_dt(const double* stoneness, int side, double scale, double* outXY, int cap);
+// Debug: run grower `which` (0=global, 1=local) on the basis+seed derived from
+// the fed peaks; fill outIdxColRow (triples) and return the grown count (-1 if
+// no basis). For attributing grow divergences to findHomography ULPs.
+int slat_grow_debug(const double* peaksXY, int nPeaks, int which, int* outIdxColRow, int cap);
+// Debug: single cv::findHomography(src, dst, LMEDS) after setRNGSeed(1234).
+// Fills outT9 (row-major) and returns 1 (0 if degenerate). For proving the
+// homography solve differs across the cv2-wheel / vendored-OpenCV builds.
+int slat_find_homography_lmeds(const double* srcXY, const double* dstXY, int n, double* outT9);
+
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
 // double). Returns the count of nonzero cells.
