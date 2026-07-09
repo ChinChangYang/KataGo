@@ -59,6 +59,15 @@ double np_percentile(const double* v, int n, double q) {
     return gobanrecog::np_percentile(std::vector<double>(v, v + n), q);
 }
 
+int np_percentile_range_throws(const double* v, int n, double q) {
+    try {
+        gobanrecog::np_percentile(std::vector<double>(v, v + n), q);
+        return 0;
+    } catch (const std::invalid_argument&) {
+        return 1;
+    }
+}
+
 double np_median(const double* v, int n) {
     return gobanrecog::np_median(std::vector<double>(v, v + n));
 }

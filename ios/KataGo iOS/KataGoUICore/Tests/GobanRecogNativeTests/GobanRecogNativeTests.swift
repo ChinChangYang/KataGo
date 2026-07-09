@@ -23,6 +23,12 @@ private func npPercentile(_ v: [Double], _ q: Double) -> Double {
     v.withUnsafeBufferPointer { gobanrecog.testbridge.np_percentile($0.baseAddress, Int32(v.count), q) }
 }
 
+private func npPercentileRangeThrows(_ v: [Double], _ q: Double) -> Int {
+    Int(v.withUnsafeBufferPointer {
+        gobanrecog.testbridge.np_percentile_range_throws($0.baseAddress, Int32(v.count), q)
+    })
+}
+
 private func npMedian(_ v: [Double]) -> Double {
     v.withUnsafeBufferPointer { gobanrecog.testbridge.np_median($0.baseAddress, Int32(v.count)) }
 }
@@ -179,6 +185,21 @@ func npPercentileLinear() {
     #expect(abs(npPercentile(a8, 99.5) - 8.895) < 1e-12)
 }
 
+@Test
+func npPercentileNaNPropagates() {
+    // venv: np.percentile([1.0, nan, 3.0], 50) -> nan
+    #expect(npPercentile([1.0, .nan, 3.0], 50).isNaN)
+}
+
+@Test
+func npPercentileOutOfRangeThrows() {
+    // venv: np.percentile([1,2,3], -1) and np.percentile([1,2,3], 101) both
+    // raise ValueError("Percentiles must be in the range [0, 100]").
+    #expect(npPercentileRangeThrows([1, 2, 3], -1) == 1)
+    #expect(npPercentileRangeThrows([1, 2, 3], 101) == 1)
+    #expect(npPercentileRangeThrows([1, 2, 3], 50) == 0)  // in-range: no throw
+}
+
 // MARK: - np_median (1-D, CV_32F, uint8, axis0)
 
 @Test
@@ -186,6 +207,14 @@ func npMedianSequences() {
     // venv: np.median([3,1,4,1.5,5]) == 3.0 ; np.median([3,1,4,1.5,5,9]) == 3.5
     #expect(npMedian([3, 1, 4, 1.5, 5]) == 3.0)          // odd
     #expect(npMedian([3, 1, 4, 1.5, 5, 9]) == 3.5)       // even (mean of middle two)
+}
+
+@Test
+func npMedianNaNPropagates() {
+    // venv: np.median([1.0, nan, 3.0]) -> nan
+    #expect(npMedian([1.0, .nan, 3.0]).isNaN)
+    // venv: np.median(np.array([1.0, nan], dtype=np.float32)) -> nan
+    #expect(npMedianF32([1.0, .nan]).isNaN)
 }
 
 @Test

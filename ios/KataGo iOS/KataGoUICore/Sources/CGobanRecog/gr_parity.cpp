@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 namespace gobanrecog {
@@ -30,6 +31,16 @@ double np_round(double x) {
 // _lerp exactly (numpy/lib/_function_base_impl _lerp): the >=0.5 branch anchors
 // on b for numerical stability, so bit-exact parity requires the same split.
 double np_percentile(std::vector<double> v, double q) {
+    // numpy raises ValueError for q outside [0, 100]; mirror that instead of
+    // handing an out-of-range virtual index downstream.
+    if (q < 0.0 || q > 100.0) {
+        throw std::invalid_argument("Percentiles must be in the range [0, 100]");
+    }
+    // A NaN violates std::sort's strict weak ordering (UB); numpy propagates
+    // NaN through percentile/median, so short-circuit the same way.
+    for (double x : v) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    }
     std::sort(v.begin(), v.end());
     const size_t n = v.size();
     if (n == 0) return std::numeric_limits<double>::quiet_NaN();
@@ -52,6 +63,11 @@ double np_percentile(std::vector<double> v, double q) {
 
 // np.median of a 1-D sequence.
 double np_median(std::vector<double> v) {
+    // NaN violates std::sort's strict weak ordering (UB); numpy's np.median
+    // propagates NaN, so short-circuit the same way.
+    for (double x : v) {
+        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    }
     std::sort(v.begin(), v.end());
     const size_t n = v.size();
     if (n == 0) return std::numeric_limits<double>::quiet_NaN();
@@ -71,6 +87,10 @@ double np_median(const cv::Mat& m) {
         std::vector<float> vals;
         vals.reserve(n);
         for (auto it = m.begin<float>(), end = m.end<float>(); it != end; ++it) {
+            // NaN violates std::sort's strict weak ordering (UB); numpy
+            // propagates NaN, so short-circuit the same way (double NaN
+            // converts from float NaN fine).
+            if (std::isnan(*it)) return std::numeric_limits<double>::quiet_NaN();
             vals.push_back(*it);
         }
         std::sort(vals.begin(), vals.end());
@@ -170,7 +190,9 @@ cv::Mat inv3x3(const cv::Mat& H) {
     cv::Mat Hd;
     H.convertTo(Hd, CV_64F);
     cv::Mat inv;
-    // DECOMP_LU returns the determinant; 0.0 => exactly singular => numpy raises.
+    // DECOMP_LU returns a nonzero value iff the (<=3x3) input is invertible —
+    // OpenCV only guarantees this fast-path return equals the determinant for
+    // n<=3, not in general; 0.0 => singular => numpy raises.
     const double det = cv::invert(Hd, inv, cv::DECOMP_LU);
     if (det == 0.0) throw LinAlgError("Singular matrix");
     return inv;

@@ -28,6 +28,9 @@ namespace testbridge {
 // ---- parity helpers ----
 double np_round(double x);
 double np_percentile(const double* v, int n, double q);
+// np_percentile's out-of-range guard: returns 1 if q outside [0,100] threw
+// std::invalid_argument (mirrors numpy's ValueError), 0 otherwise.
+int np_percentile_range_throws(const double* v, int n, double q);
 double np_median(const double* v, int n);
 double np_median_f32(const float* v, int n);   // exercises the CV_32F path
 double np_median_u8(const unsigned char* v, int n);  // exercises the uint8 path

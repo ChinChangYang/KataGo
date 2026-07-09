@@ -23,15 +23,18 @@ namespace gobanrecog {
 double np_round(double x);
 
 // np.percentile with numpy's default "linear" method. `v` is copied + sorted
-// internally.
+// internally. Throws std::invalid_argument if q is outside [0, 100] (mirrors
+// numpy's ValueError). Returns NaN if `v` contains a NaN (mirrors numpy).
 double np_percentile(std::vector<double> v, double q);
 
-// np.median of a 1-D sequence: mean of the middle two on even counts.
+// np.median of a 1-D sequence: mean of the middle two on even counts. Returns
+// NaN if `v` contains a NaN (mirrors numpy).
 double np_median(std::vector<double> v);
 
 // np.median over ALL elements of a single-channel Mat -> double. Preserves the
 // Mat's dtype during the even-count average (numpy medians a float32 array in
-// float32, an integer/float64 array in float64).
+// float32, an integer/float64 array in float64). Returns NaN if the Mat
+// contains a NaN (mirrors numpy).
 double np_median(const cv::Mat& m);
 
 // np.median(v, axis=0): per-column median of a 2-D Mat. Returns a 1 x cols
