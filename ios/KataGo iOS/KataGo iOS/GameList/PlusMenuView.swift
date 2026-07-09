@@ -37,9 +37,22 @@ struct PlusMenuView: View {
                 Label("New Game", systemImage: "doc")
             }
 
-            Button {
-                withAnimation {
-                    topUIState.importing = true
+            // Import can pull in an SGF/text file, an image file, or a photo
+            // from the library. Grouped into a submenu so the top level stays
+            // short (menu-declutter precedent above).
+            Menu {
+                Button {
+                    withAnimation {
+                        topUIState.importing = true
+                    }
+                } label: {
+                    Label("Game or Image File…", systemImage: "folder")
+                }
+
+                Button {
+                    topUIState.importingPhoto = true
+                } label: {
+                    Label("Photo Library…", systemImage: "photo.on.rectangle")
                 }
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")

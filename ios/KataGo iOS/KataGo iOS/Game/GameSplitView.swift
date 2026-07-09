@@ -7,7 +7,9 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
 import KataGoUICore
+import GobanRecogKit
 import WidgetKit
 
 struct GameSplitView: View {
@@ -20,6 +22,7 @@ struct GameSplitView: View {
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var isEditorPresented = false
     @State var isGameListViewAppeared = false
+    @State private var photoPickerItem: PhotosPickerItem?
 
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
@@ -83,12 +86,42 @@ struct GameSplitView: View {
             }
             .fileImporter(
                 isPresented: $topUIState.importing,
-                allowedContentTypes: [sgfType, .text],
+                allowedContentTypes: [sgfType, .text, .image],
                 allowsMultipleSelection: true
             ) { result in
                 importFiles(result: result)
             }
             .onDrop(of: [sgfType, .text], isTargeted: nil, perform: handleDrop)
+            .photosPicker(
+                isPresented: $topUIState.importingPhoto,
+                selection: $photoPickerItem,
+                matching: .images
+            )
+            .onChange(of: photoPickerItem) { _, newItem in
+                loadPickedPhoto(newItem)
+            }
+            .sheet(item: $topUIState.pendingPhotoImport) { pending in
+                photoImportSheet(for: pending)
+            }
+    }
+
+    /// Hosts the shared `PhotoImportSheet` for a picked board image. On import
+    /// the synthesized SGF is routed through the same seam the file/SGF import
+    /// uses, so de-dup, selection, and widget reload all come for free.
+    private func photoImportSheet(for pending: PendingPhotoImport) -> some View {
+        NavigationStack {
+            PhotoImportSheet(
+                imageData: pending.imageData,
+                suggestedName: pending.suggestedName,
+                onImport: { sgf, name in
+                    importAndSelect(sgf: sgf, name: name)
+                    topUIState.pendingPhotoImport = nil
+                },
+                onCancel: {
+                    topUIState.pendingPhotoImport = nil
+                }
+            )
+        }
     }
 
     private var splitView: some View {
@@ -547,9 +580,56 @@ struct GameSplitView: View {
     }
 
     private func importAndSelect(from file: URL) {
+        // Branch by content type BEFORE the SGF path's UTF-8 read: image bytes
+        // are binary and would fail silently when decoded as UTF-8. An image
+        // routes to the photo-import preview sheet (recognition + confirm);
+        // everything else keeps the existing SGF import.
+        if let imageData = imageDataIfImage(at: file) {
+            presentPhotoImport(imageData: imageData,
+                               name: file.deletingPathExtension().lastPathComponent)
+            return
+        }
         if let result = GameRecord.importGameRecord(from: file, in: modelContext) {
             insertAndSelect(result: result)
         }
+    }
+
+    /// If `file` is an image, reads and returns its bytes inside a
+    /// security-scoped access (mirroring `readSgfContent`); otherwise nil.
+    private func imageDataIfImage(at file: URL) -> Data? {
+        let contentType = (try? file.resourceValues(forKeys: [.contentTypeKey]).contentType)
+            ?? UTType(filenameExtension: file.pathExtension)
+        guard let contentType, contentType.conforms(to: .image) else { return nil }
+
+        let hasSecurityAccess = file.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityAccess {
+                file.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try? Data(contentsOf: file)
+    }
+
+    /// Loads the Photos-picked item's bytes and presents the photo-import sheet.
+    /// `PhotosPicker` needs no permission string; `loadTransferable(type:)`
+    /// yields the encoded image `Data`.
+    private func loadPickedPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task { @MainActor in
+            defer { photoPickerItem = nil }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+            presentPhotoImport(imageData: data, name: photoImportName())
+        }
+    }
+
+    private func presentPhotoImport(imageData: Data, name: String) {
+        topUIState.pendingPhotoImport = PendingPhotoImport(imageData: imageData,
+                                                           suggestedName: name)
+    }
+
+    /// Default name for a library photo (Photos items carry no filename).
+    private func photoImportName() -> String {
+        "Board Photo \(Date.now.formatted(date: .abbreviated, time: .shortened))"
     }
 
     private func importAndSelect(sgf: String, name: String) {

@@ -759,11 +759,38 @@ extension Coordinate {
     }
 }
 
+/// A picked board image awaiting recognition + confirmation in the photo-import
+/// preview sheet. `Identifiable` so it can drive a `.sheet(item:)`.
+public struct PendingPhotoImport: Identifiable, Equatable {
+    public let id = UUID()
+    /// Encoded image bytes (JPEG/PNG/HEIC) handed to the recognizer.
+    public let imageData: Data
+    /// Default game name (file basename, or "Board Photo <date>").
+    public let suggestedName: String
+
+    public init(imageData: Data, suggestedName: String) {
+        self.imageData = imageData
+        self.suggestedName = suggestedName
+    }
+}
+
 @Observable
 public class TopUIState {
     public init() {}
 
     public var importing = false
+
+    /// Presents the system Photos picker (PhotosUI) for importing a board
+    /// photo. Distinct from `importing`, which drives the document/file
+    /// importer.
+    public var importingPhoto = false
+
+    /// When non-nil, the photo-import preview sheet is shown for this picked
+    /// image (from the Photos picker or a picked image file). Setting it back
+    /// to nil dismisses the sheet. Carried here (rather than as view `@State`)
+    /// so the picker/file entry points and the sheet host share it.
+    public var pendingPhotoImport: PendingPhotoImport?
+
     public var confirmingDeletion = false
 
     /// True while the game list is in multi-select mode (circles shown per row).
