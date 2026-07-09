@@ -346,6 +346,7 @@
 		CC00000000000000E16F0003 /* EngineLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000E16F0004 /* EngineLifecycleTests.swift */; };
 		CC00000000000000F6000003 /* CoreMLCacheReadinessProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */; };
 		CC00000000000000F7000003 /* CoreMLCacheReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */; };
+		CC30062DE70DC16E35D03EC5 /* PhotoImportUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE489432A835CF8070310981 /* PhotoImportUITests.swift */; };
 		CC5014F793A35B4CD098469E /* exponential_biased.cc in Sources */ = {isa = PBXBuildFile; fileRef = A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */; };
 		CCAAF0C1696A29041A498185 /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = D92F4C4766099217B210A9D1 /* KataGoUICore */; };
 		CD41A831A77E8319890BA0A8 /* parser.cc in Sources */ = {isa = PBXBuildFile; fileRef = CBCC04809980AB6CD49CD9D9 /* parser.cc */; };
@@ -638,6 +639,7 @@
 		E913D199F6A62E4D128EE1ED /* CustomModel.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E4E2DDB1A29692B06506E9C4 /* CustomModel.pb.cc */; };
 		E9402E25F92F0CD631A80013 /* Fp8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC8906AF025B8EBA6668E166 /* Fp8.cpp */; };
 		E98EA6A7F1DC70565B86CE23 /* GLMClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 309424B4F2E53DB007EACE23 /* GLMClassifier.pb.cc */; };
+		EA75BDB8DE0064A38A47037F /* PhotoImportUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941209B4753038BF1E2CACA1 /* PhotoImportUITestSupport.swift */; };
 		EAFCACEFEE7FACDCE6220B08 /* ConfigEditingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */; };
 		EB9BD1F51060CB0BD328BF2C /* GameSessionCollectSgfReviewGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9207E3CE350BEC0550A3893A /* GameSessionCollectSgfReviewGuardTests.swift */; };
 		EC75C3E01DFB8B61ADC3ECDC /* charconv_bigint.cc in Sources */ = {isa = PBXBuildFile; fileRef = 91095E97336B749B96944BD8 /* charconv_bigint.cc */; };
@@ -1094,6 +1096,7 @@
 		927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CoreMLSerializer.cpp; path = ../../cpp/external/katagocoreml/src/serializer/CoreMLSerializer.cpp; sourceTree = SOURCE_ROOT; };
 		9368F08D1BF1AD9D3ABC8855 /* GameRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameRowView.swift; sourceTree = "<group>"; };
 		940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Scaler.pb.cc; path = ../../cpp/external/katagocoreml/generated/Scaler.pb.cc; sourceTree = SOURCE_ROOT; };
+		941209B4753038BF1E2CACA1 /* PhotoImportUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoImportUITestSupport.swift; sourceTree = "<group>"; };
 		959FD21C12D9EA5999A3D914 /* notification.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = notification.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/notification.cc"; sourceTree = SOURCE_ROOT; };
 		9621FBEA3A627A558ECCFAAF /* WatchRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchRootView.swift; path = "KataGo Anytime Watch/WatchRootView.swift"; sourceTree = "<group>"; };
 		992B715CBF2710DF6CA15A00 /* InspectorTabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorTabs.swift; sourceTree = "<group>"; };
@@ -1510,6 +1513,7 @@
 		FDB0EF5683E83342322E62D3 /* demangle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle.cc"; sourceTree = SOURCE_ROOT; };
 		FE23716608EA458E4BFD753E /* civil_time_detail.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = civil_time_detail.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/civil_time_detail.cc"; sourceTree = SOURCE_ROOT; };
 		FE3B9C2481C85939173A3A70 /* spinlock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = spinlock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/spinlock.cc"; sourceTree = SOURCE_ROOT; };
+		FE489432A835CF8070310981 /* PhotoImportUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoImportUITests.swift; sourceTree = "<group>"; };
 		FEA86C48D25B00CD982647C1 /* TVReviewScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVReviewScreen.swift; sourceTree = "<group>"; };
 		FF424C3100BE78563B0BF391 /* mlxtests.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxtests.cpp; sourceTree = "<group>"; };
 		FF6F1EC0120C0C10CEF45F23 /* civil_time.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = civil_time.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/civil_time.cc"; sourceTree = SOURCE_ROOT; };
@@ -1886,6 +1890,7 @@
 				E13B92832DDB3FB7009F8A1A /* ModelRunnerView.swift */,
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
 				6E8003E01D85083EA197C7FF /* UITestSeed.swift */,
+				941209B4753038BF1E2CACA1 /* PhotoImportUITestSupport.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2581,6 +2586,7 @@
 				1DDE036A8C4A5D70A31AAEB1 /* PlayerNameLabelUITests.swift */,
 				C69FE70B1A92E983AEB8490E /* GlobalSettingsMenuUITests.swift */,
 				27625417544905D6C1BE3963 /* GifExportUITests.swift */,
+				FE489432A835CF8070310981 /* PhotoImportUITests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -3660,6 +3666,7 @@
 				750AB6E334415C575285A957 /* OpeningBookPickerView.swift in Sources */,
 				4565143F783B8E54FD203372 /* WatchSessionRelay.swift in Sources */,
 				AA8317B58333CA5597235238 /* UITestSeed.swift in Sources */,
+				EA75BDB8DE0064A38A47037F /* PhotoImportUITestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3752,6 +3759,7 @@
 				CDC306346C6C01F7E21F5061 /* PlayerNameLabelUITests.swift in Sources */,
 				9C994E72AE6A7920BB37C31C /* GlobalSettingsMenuUITests.swift in Sources */,
 				0DD5AD89FA1D89932048E68B /* GifExportUITests.swift in Sources */,
+				CC30062DE70DC16E35D03EC5 /* PhotoImportUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

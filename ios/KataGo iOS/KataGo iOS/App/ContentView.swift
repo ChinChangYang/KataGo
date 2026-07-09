@@ -72,6 +72,15 @@ struct ContentView: View {
                     aiMove: $aiMove
                 )
             }
+            .task {
+                // DEBUG-only: auto-present the photo-import sheet with a bundled
+                // clear-board image so the end-to-end UI test can drive the
+                // recognition → preview → Import flow without the out-of-process
+                // PhotosPicker. No-op unless its launch argument is present.
+                #if DEBUG
+                PhotoImportUITestSupport.presentIfNeeded(into: topUIState)
+                #endif
+            }
         } else if selectedModel != nil {
             LoadingView(version: $version)
                 .task {
