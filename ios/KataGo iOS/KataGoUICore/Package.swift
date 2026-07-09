@@ -152,6 +152,14 @@ let package = Package(
                 .interoperabilityMode(.Cxx)
             ]
         ),
+        // Micro-parity harness CLI for the CGobanRecog port (Python <-> C++
+        // stage comparison, paired with the GobanRecog repo's tools/). NOT in
+        // any product, so app schemes never build it; run on macOS via
+        // `swift run gobanrecog-dev`. Depends ONLY on CGobanRecog.
+        .executableTarget(
+            name: "gobanrecog-dev",
+            dependencies: ["CGobanRecog"]
+        ),
         // Native tests for the CGobanRecog port's numpy-parity helpers, types,
         // and constants. Depends ONLY on CGobanRecog (which depends only on
         // OpenCV) so `swift test --filter GobanRecogNativeTests` builds and runs

@@ -27,6 +27,13 @@ double np_round(double x);
 // numpy's ValueError). Returns NaN if `v` contains a NaN (mirrors numpy).
 double np_percentile(std::vector<double> v, double q);
 
+// np.percentile of a float32 array: numpy 2.5.1 sorts in float32, computes the
+// virtual index / gamma in float64, then CASTS gamma to float32 and performs
+// the _lerp in PURE float32 (verified empirically, Task 4 — the float64 lerp of
+// the same inputs differs). Same q-range guard and NaN propagation as the
+// double overload. Returns the float32 result (promote at the call site).
+float np_percentile(std::vector<float> v, double q);
+
 // np.median of a 1-D sequence: mean of the middle two on even counts. Returns
 // NaN if `v` contains a NaN (mirrors numpy).
 double np_median(std::vector<double> v);
@@ -61,6 +68,29 @@ cv::Mat inv3x3(const cv::Mat& H);
 // np.linalg.solve for the 2x2 line-intersection case. Throws
 // LinAlgError("Singular matrix") on a singular A.
 cv::Vec2d solve2x2(const cv::Mat& A, const cv::Vec2d& b);
+
+// ---- Task 4 additions (grid.py port call shapes) ---------------------------
+
+// np.add.reduce's pairwise summation (numpy pairwise_sum_@TYPE@: naive < 8,
+// 8-way unrolled blocks up to 128, then recursive halving to a multiple of 8).
+// np.sum/np.mean over a 1-D array accumulate with EXACTLY this order — a naive
+// left-to-right float32 sum diverges (verified against numpy 2.5.1 for n in
+// 5..20000, whole-array pairwise, NOT seeded with the first element).
+float np_pairwise_sum(const float* a, size_t n);
+double np_pairwise_sum(const double* a, size_t n);
+
+// np.mean of a 1-D array, dtype-faithful: float32 input accumulates via the
+// float32 pairwise sum and divides by float32(n) (numpy mean keeps the input
+// dtype); float64 input stays double throughout.
+float np_mean(const float* a, size_t n);
+double np_mean(const double* a, size_t n);
+
+// np.arange(start, stop, step) for float64 scalars. numpy semantics (verified
+// empirically): length = ceil((stop - start) / step) computed in double;
+// values filled as b[0] = start, b[1] = start + step, delta = b[1] - b[0],
+// b[i] = start + i*delta — so the last value can exceed `stop` by a rounding
+// error, exactly as numpy's does. Returns an empty vector when length <= 0.
+std::vector<double> np_arange(double start, double stop, double step);
 
 }  // namespace gobanrecog
 

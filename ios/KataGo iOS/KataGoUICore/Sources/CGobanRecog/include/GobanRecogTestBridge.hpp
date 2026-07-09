@@ -46,6 +46,56 @@ int inv3x3(const double* H, double* out9);
 // solve2x2: A4 (2 x 2, row-major), b2 (2) -> out2 (2). 0 ok, 1 if LinAlgError.
 int solve2x2(const double* A4, const double* b2, double* out2);
 
+// ---- parity helpers added by Task 4 (gr_parity.cpp) ----
+// np.mean of a float32 array: numpy pairwise summation in float32, divided by
+// float32(n). Returned promoted to double (exact).
+double np_mean_f32(const float* v, int n);
+// np.mean of a float64 array (numpy pairwise summation in double).
+double np_mean_f64(const double* v, int n);
+// np.percentile of a float32 array: sorted + lerped in PURE float32 (gamma is
+// cast to float32), matching numpy 2.5.1. Returned promoted to double (exact).
+double np_percentile_f32(const float* v, int n, double q);
+// np.arange(start, stop, step) for float64. Fills out (up to cap elements) and
+// returns the length numpy would produce.
+int np_arange(double start, double stop, double step, double* out, int cap);
+
+// ---- gr_grid internals (wrappers DEFINED in gr_grid.cpp so they can reach the
+//      file-local statics; grid.py port, Task 4) ----
+// _profile_peaks: fills out (caller-allocated, profLen doubles worst case) with
+// the kept peak indices (ascending); returns the count.
+int grid_profile_peaks(const float* prof, int profLen, double minSep, double* out);
+// _penalized comb score.
+double grid_penalized(const float* prof, int profLen, const double* peaks,
+                      int peaksLen, int n, double o, double s);
+// _comb_candidates: fills outTriples with up to k (score, offset, spacing)
+// triples (row-major, k*3 doubles); returns the count.
+int grid_comb_candidates(const float* prof, int profLen, const double* peaks,
+                         int peaksLen, int n, int k, double* outTriples);
+// _weak_teeth over a rows x cols float64 `avg` map (row-major).
+int grid_weak_teeth(const double* avg, int rows, int cols, double scale,
+                    const float* profX, int lenX, const float* profY, int lenY,
+                    int n, double ox, double sx, double oy, double sy);
+// snap_lines: fills out[n] with the snapped positions.
+void grid_snap_lines(const float* prof, int profLen, const double* positions,
+                     int n, double spacing, double* out);
+// Micro-parity harness core (also used by the gobanrecog-dev executable):
+// img is row-major grayscale uint8. If quad8 is non-null (TL,TR,BR,BL x/y
+// pairs) the image is first rectified with rectify_quad and the JSON gains an
+// "H" key; otherwise img IS the rectified frame. Runs choose_size and returns
+// a JSON object: rect size, per-axis masked/full profiles, peaks, per-size comb
+// scores, chosen board_size, score, margin, xs/ys. Python-flavored JSON
+// (NaN/Infinity tokens permitted, as accepted by Python's json module).
+std::string grid_stage_json(const unsigned char* img, int width, int height,
+                            const double* quad8);
+// rectify_quad alone: fills outRect ((SPAN+2*RECT_PAD)^2 bytes, caller-
+// allocated) and outH9 (row-major 3x3); returns the side length.
+int grid_rectify(const unsigned char* gray, int width, int height,
+                 const double* quad8, unsigned char* outRect, double* outH9);
+// Silences OpenCV's logger (its lazy init banner goes to stdout, corrupting
+// the gobanrecog-dev harness JSON; the OPENCV_LOG_LEVEL env var is cached
+// before main runs, so it must be the API call). Diagnostic-only.
+void quiet_opencv_logs();
+
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
 // double). Returns the count of nonzero cells.

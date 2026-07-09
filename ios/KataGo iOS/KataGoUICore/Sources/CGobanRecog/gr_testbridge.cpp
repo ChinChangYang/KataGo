@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <opencv2/core.hpp>
+#include <opencv2/core/utils/logger.hpp>
 
 #include "gr_constants.h"
 #include "gr_errors.h"
@@ -141,6 +142,33 @@ int solve2x2(const double* A4, const double* b2, double* out2) {
     } catch (const LinAlgError&) {
         return 1;
     }
+}
+
+double np_mean_f32(const float* v, int n) {
+    return static_cast<double>(gobanrecog::np_mean(v, static_cast<size_t>(n)));
+}
+
+double np_mean_f64(const double* v, int n) {
+    return gobanrecog::np_mean(v, static_cast<size_t>(n));
+}
+
+double np_percentile_f32(const float* v, int n, double q) {
+    return static_cast<double>(
+        gobanrecog::np_percentile(std::vector<float>(v, v + n), q));
+}
+
+int np_arange(double start, double stop, double step, double* out, int cap) {
+    const std::vector<double> a = gobanrecog::np_arange(start, stop, step);
+    const int n = static_cast<int>(a.size());
+    for (int i = 0; i < n && i < cap; ++i) out[i] = a[static_cast<size_t>(i)];
+    return n;
+}
+
+// The grid_* wrappers declared alongside these are DEFINED in gr_grid.cpp so
+// they can reach that file's local statics (see the note there).
+
+void quiet_opencv_logs() {
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_SILENT);
 }
 
 int stone_kernel(double* out289) {
