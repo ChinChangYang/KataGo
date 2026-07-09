@@ -1068,8 +1068,13 @@ double _nocont_margin(const SizeResult& size_res) {
     vals.reserve(size_res.scores.size());
     for (const auto& kv : size_res.scores) vals.push_back(kv.second);
     // Python: sorted(size_res.scores.values(), reverse=True) — a STABLE sort
-    // (rule 7). nanLastDescending keeps it a valid strict-weak ordering if a
-    // hypothesis score is NaN (numpy/Python would sort NaN last too).
+    // (rule 7). These scores are NaN-free by construction (each hypothesis
+    // score divides by a +1e-9-guarded denominator), so NaN never reaches this
+    // sort. nanLastDescending is defensive only: it preserves a valid strict-
+    // weak ordering for a stray NaN. Its NaN-last placement matches numpy
+    // argsort but NOT Python's sorted(reverse=True) (timsort leaves NaN
+    // position-dependent) — a divergence that stays unreachable given the
+    // NaN-free inputs.
     std::stable_sort(vals.begin(), vals.end(),
                      [](double a, double b) { return nanLastDescending(a, b); });
     return vals[0] - vals[1];

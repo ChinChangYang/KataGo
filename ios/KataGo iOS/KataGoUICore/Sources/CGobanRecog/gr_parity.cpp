@@ -39,8 +39,10 @@ double np_round(double x) {
 // on b for numerical stability, so bit-exact parity requires the same split.
 double np_percentile(std::vector<double> v, double q) {
     // numpy raises ValueError for q outside [0, 100]; mirror that instead of
-    // handing an out-of-range virtual index downstream.
-    if (q < 0.0 || q > 100.0) {
+    // handing an out-of-range virtual index downstream. q=NaN also fails
+    // numpy's `0 <= q <= 100` check (so numpy raises), and floor(NaN)->size_t
+    // would be UB here, so reject it explicitly.
+    if (std::isnan(q) || q < 0.0 || q > 100.0) {
         throw std::invalid_argument("Percentiles must be in the range [0, 100]");
     }
     // A NaN violates std::sort's strict weak ordering (UB); numpy propagates
@@ -72,7 +74,7 @@ double np_percentile(std::vector<double> v, double q) {
 // float32 (numpy 2.5.1 casts gamma to the array dtype before _lerp; verified
 // empirically in Task 4 — the float64 lerp differs on the same inputs).
 float np_percentile(std::vector<float> v, double q) {
-    if (q < 0.0 || q > 100.0) {
+    if (std::isnan(q) || q < 0.0 || q > 100.0) {  // q=NaN: numpy raises; floor(NaN) UB
         throw std::invalid_argument("Percentiles must be in the range [0, 100]");
     }
     for (float x : v) {

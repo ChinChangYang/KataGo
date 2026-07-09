@@ -194,9 +194,11 @@ func npPercentileNaNPropagates() {
 @Test
 func npPercentileOutOfRangeThrows() {
     // venv: np.percentile([1,2,3], -1) and np.percentile([1,2,3], 101) both
-    // raise ValueError("Percentiles must be in the range [0, 100]").
+    // raise ValueError("Percentiles must be in the range [0, 100]"). q=NaN
+    // fails numpy's `0 <= q <= 100` check as well, so it raises too.
     #expect(npPercentileRangeThrows([1, 2, 3], -1) == 1)
     #expect(npPercentileRangeThrows([1, 2, 3], 101) == 1)
+    #expect(npPercentileRangeThrows([1, 2, 3], .nan) == 1)  // q=NaN rejected
     #expect(npPercentileRangeThrows([1, 2, 3], 50) == 0)  // in-range: no throw
 }
 
