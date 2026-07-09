@@ -151,6 +151,19 @@ let package = Package(
             swiftSettings: [
                 .interoperabilityMode(.Cxx)
             ]
+        ),
+        // Native tests for the CGobanRecog port's numpy-parity helpers, types,
+        // and constants. Depends ONLY on CGobanRecog (which depends only on
+        // OpenCV) so `swift test --filter GobanRecogNativeTests` builds and runs
+        // standalone on macOS without dragging in CKataGoBridge's engine-symbol
+        // link. Uses Swift/C++ interop to call the cv-free test bridge
+        // (GobanRecogTestBridge.hpp). Ground-truth values come from numpy 2.5.1.
+        .testTarget(
+            name: "GobanRecogNativeTests",
+            dependencies: ["CGobanRecog"],
+            swiftSettings: [
+                .interoperabilityMode(.Cxx)
+            ]
         )
     ]
 )
