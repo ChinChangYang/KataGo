@@ -170,6 +170,16 @@ let package = Package(
             name: "gobanrecog-dev",
             dependencies: ["CGobanRecog"]
         ),
+        // Command-line recognizer (run.py + board_to_sgf end-to-end) that the
+        // Task-10 600-image eval drives. Like gobanrecog-dev it is NOT in any
+        // product/app scheme; run on macOS via `swift run gobanrecog-cli`.
+        // Takes a RAW BGR dump (imgcodecs is not vendored) + width/height and
+        // reaches the pipeline through CGobanRecog's cv-free bridge; never
+        // touches cv:: directly. Depends ONLY on CGobanRecog.
+        .executableTarget(
+            name: "gobanrecog-cli",
+            dependencies: ["CGobanRecog"]
+        ),
         // Native tests for the CGobanRecog port's numpy-parity helpers, types,
         // and constants. Depends ONLY on CGobanRecog (which depends only on
         // OpenCV) so `swift test --filter GobanRecogNativeTests` builds and runs
@@ -179,6 +189,13 @@ let package = Package(
         .testTarget(
             name: "GobanRecogNativeTests",
             dependencies: ["CGobanRecog"],
+            // img0811.bgr.raw (602x626x3 BGR, cv2.imread(...).tofile) drives the
+            // end-to-end recognize_image smoke test (status ok, size 19); the
+            // SGF/rows path is proven by the Task-9 fixture sanity + gr_sgf unit
+            // tests. Bundled via Bundle.module.
+            resources: [
+                .copy("Resources")
+            ],
             swiftSettings: [
                 .interoperabilityMode(.Cxx)
             ]

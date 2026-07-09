@@ -32,13 +32,12 @@ struct GobanRecogResult {
     string quadSource;
 };
 
-/// Recognize the board in a BGR uint8 image (HxWx3, `bytesPerRow` stride).
-/// Real pipeline lands in Tasks 3-9; the skeleton returns a failed status.
+/// Recognize the board in a BGR uint8 image (HxWx3, `bytesPerRow` stride;
+/// pass 0 for a tightly-packed width*3 stride). Wraps the buffer as a cv::Mat
+/// (no copy), runs the full pipeline (run.py::recognize_image), and returns the
+/// value-semantic result: status "ok" | "failed:<reason>", boardSize + rows +
+/// confidence + quadSource on success (rows empty, boardSize 0 on failure).
+/// Defined in gr_run.cpp.
 GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_t bytesPerRow);
-
-/// TEMPORARY (removed in a later task): exercises cv:: end-to-end to prove
-/// core + imgproc + geometry (homography) compile, link, and run on every
-/// platform the app test suite touches. Returns a string like "5.0.0|h_ok=1".
-string gobanRecogOpenCVSmoke();
 
 #endif /* GobanRecogCpp_hpp */

@@ -230,6 +230,23 @@ double detect_lattice_quality(const unsigned char* gray, int width, int height,
 // Python-flavored JSON (NaN/Infinity tokens permitted).
 std::string detect_stage_json(const unsigned char* bgr, int width, int height);
 
+// ---- gr_run / gr_sgf (run.py + sgf.py port, Task 9) ----
+// board_to_sgf on a BoardState built from (size, rowsNL) (rows newline-joined).
+// Returns the SGF string, or "!" if BoardState construction threw. DEFINED in
+// gr_sgf.cpp.
+std::string sgf_board_to_sgf(int size, const char* rowsNL);
+// recognize_image status line for gobanrecog-cli (normal mode) + the native
+// smoke test: runs recognize_image on raw BGR HxWx3 and returns a TAB-separated
+// line "<status>\t<board_size>\t<confidence %.17g>\t<quad_source>\t<sgf>"
+// (board_size = 0 when absent; sgf = "" unless status == "ok"; an SGF never
+// contains a tab/newline). DEFINED in gr_run.cpp.
+std::string recognize_status_line(const unsigned char* bgr, int width, int height);
+// recognize_image full debug JSON for gobanrecog-cli --debug-json + Task-10
+// drill-down: {stage, status, board_size, quad_source, confidence, corners,
+// H_grid, rows, size_scores, sgf}. Python-flavored JSON (NaN/Infinity ok).
+// DEFINED in gr_run.cpp.
+std::string recognize_debug_json(const unsigned char* bgr, int width, int height);
+
 // ---- constants ----
 // Fills out[289] with the 17x17 stone kernel (float32 values promoted to
 // double). Returns the count of nonzero cells.
