@@ -130,15 +130,25 @@ let package = Package(
             ]
         ),
         // C++ home of the GobanRecog board-recognition port. Depends ONLY on
-        // the vendored OpenCV product — NO engine headers, NO unsafeFlags. The
-        // public seam (include/GobanRecogCpp.hpp + module.modulemap) exposes
-        // plain C++ std types only (no cv:: types) so GobanRecogKit can import
-        // it over Swift/C++ interop. Modelled on CKataGoBridge, minus the
-        // engine wiring.
+        // the vendored OpenCV product — NO engine headers. Include-path
+        // unsafeFlags remain BANNED here (unlike CKataGoBridge); the sole
+        // unsafeFlag is `-ffp-contract=off`, a deliberate, documented parity
+        // requirement — numpy never fuses multiply-adds into an FMA, so the
+        // float32 threshold/score arithmetic must not contract either. Applying
+        // it target-wide (rather than only via the per-file `#pragma STDC
+        // FP_CONTRACT OFF` in gr_parity.cpp/gr_grid.cpp, which are kept as
+        // belt-and-suspenders) guarantees every current and future port .cpp
+        // inherits it. The public seam (include/GobanRecogCpp.hpp +
+        // module.modulemap) exposes plain C++ std types only (no cv:: types) so
+        // GobanRecogKit can import it over Swift/C++ interop. Modelled on
+        // CKataGoBridge, minus the engine wiring.
         .target(
             name: "CGobanRecog",
             dependencies: [
                 .product(name: "OpenCV", package: "opencv"),
+            ],
+            cxxSettings: [
+                .unsafeFlags(["-ffp-contract=off"]),
             ]
         ),
         // Swift face of the recognizer. Imports the C++ CGobanRecog module, so
@@ -173,5 +183,10 @@ let package = Package(
                 .interoperabilityMode(.Cxx)
             ]
         )
-    ]
+    ],
+    // C++17 for the whole package: CGobanRecog's later port tasks adopt
+    // std::optional (conventions rules 4/5). This also raises CKataGoBridge to
+    // gnu++17 (the xcodeproj already compiles the same bridge code at
+    // gnu++17/20). Matches the vendored ThirdParty/opencv package's declaration.
+    cxxLanguageStandard: .gnucxx17
 )

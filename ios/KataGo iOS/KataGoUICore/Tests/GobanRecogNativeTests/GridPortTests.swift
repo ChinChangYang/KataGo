@@ -416,6 +416,55 @@ struct GridChooseSizeTests {
         #expect(abs(margin - 83459580.387022) <= 1e-6 * 83459580.387022)
     }
 
+    /// A degenerate lineless input: a smooth integer diagonal gradient. Its
+    /// blackhat response has no thin dark ridges, so `_profile_peaks` returns
+    /// EMPTY on BOTH axes — the case that drives choose_size's float32 score/
+    /// margin path (grid.py:97,323,340). Built with pure integer arithmetic so
+    /// the image is bit-identical to the venv's:
+    ///   side = 1100
+    ///   yy, xx = np.mgrid[0:side, 0:side].astype(np.int64)
+    ///   rect = (20 + ((xx + yy) * 200) // (2*(side-1))).astype(np.uint8)
+    private func syntheticGradientRect() -> [UInt8] {
+        let side = 1100
+        var img = [UInt8](repeating: 0, count: side * side)
+        for r in 0..<side {
+            for c in 0..<side {
+                img[r * side + c] = UInt8(20 + ((r + c) * 200) / (2 * (side - 1)))
+            }
+        }
+        return img
+    }
+
+    // choose_size on the lineless gradient: BOTH peak arrays are empty, so
+    // _penalized returns raw float32 scores and total/score/margin round in
+    // float32 (NEP 50). The current all-double aggregation diverges by ~6e-9
+    // (below the 1e-6 harness tolerance), so this pins the venv float32 values
+    // BIT-EXACTLY to guard the regression. Venv ground truth (numpy 2.5.1,
+    // grid.choose_size on the identical uint8 rect):
+    //   peaks_x == peaks_y == []
+    //   board_size == 9
+    //   score  == 0.4307493567466736   (np.float32; all-double gives 0.4307493507574...)
+    //   margin == 0.10842615365982056  (np.float32; all-double gives 0.1084261540268...)
+    //   scores == {9: 0.4307493567466736, 13: 0.322323203086853, 19: 0.2340744137763977}
+    // filter2D over the identical rect bytes is bit-exact vs the wheel (Task 4
+    // leg-2), so `==` is safe here.
+    @Test func chooseSizeEmptyPeaksUsesFloat32Path() {
+        let img = syntheticGradientRect()
+        let result = gridStageJSON(img, width: 1100, height: 1100)
+
+        #expect((result["peaks_x"] as? [Double])?.isEmpty == true)
+        #expect((result["peaks_y"] as? [Double])?.isEmpty == true)
+        #expect(result["board_size"] as? Int == 9)
+
+        #expect(result["score"] as? Double == 0.4307493567466736)
+        #expect(result["margin"] as? Double == 0.10842615365982056)
+
+        let scores = result["scores"] as? [String: Double] ?? [:]
+        #expect(scores["9"] == 0.4307493567466736)
+        #expect(scores["13"] == 0.322323203086853)
+        #expect(scores["19"] == 0.2340744137763977)
+    }
+
     // rectify_quad plumbing: an axis-aligned quad maps its TL corner to the
     // canonical (PAD, PAD) = (150, 150), and the output frame is 1100x1100.
     @Test func rectifyQuadMapsCornersToCanonicalFrame() {

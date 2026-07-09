@@ -619,6 +619,16 @@ SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
     const cv::Mat& full_y = fulls.second;
     const std::vector<double> peaks_x = _profile_peaks(prof_x, 0.6 * SPAN / 20);
     const std::vector<double> peaks_y = _profile_peaks(prof_y, 0.6 * SPAN / 20);
+    // When BOTH peak arrays are empty (a per-image condition, constant across
+    // the size loop below), _penalized returns its raw float32 score with no
+    // penalty arm on every candidate, so score_x/score_y stay float32 and the
+    // whole total/score/margin combination rounds in float32 under NEP 50
+    // (np.float32 (+|-) a python-float scalar -> float32; the python-float
+    // operand is cast to float32 BEFORE the op — verified bit-exact vs numpy
+    // 2.5.1 in the reference venv). The mixed case (exactly one axis empty)
+    // already promotes to float64 in both numpy and the double math below, so
+    // it needs no special handling.
+    const bool bothPeaksEmpty = peaks_x.empty() && peaks_y.empty();
     // best per size: (total, ox, sx, oy, sy)
     struct Best {
         double total, ox, sx, oy, sy;
@@ -655,8 +665,21 @@ SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
             for (const Cand& cy : cands_y) {
                 const double stone = stone_alignment_score(avg, scale, n, cx.o, cx.s, cy.o, cy.s);
                 const int weak = _weak_teeth(avg, scale, prof_x, prof_y, n, cx.o, cx.s, cy.o, cy.s);
-                const double total =
-                    cx.score + cy.score + STONE_WEIGHT * stone - WEAK_TOOTH_PENALTY * weak;
+                // total = score_x + score_y + STONE_WEIGHT*stone - WEAK_TOOTH_PENALTY*weak
+                double total;
+                if (bothPeaksEmpty) {
+                    // Per-step float32 rounding: float(f32x + f32y), then
+                    // float(that + float(STONE_WEIGHT*stone)), then
+                    // float(that - float(WEAK_TOOTH_PENALTY*weak)). The inner
+                    // casts mirror numpy casting the python-float product to
+                    // float32 before each float32 add/sub.
+                    float t = static_cast<float>(cx.score) + static_cast<float>(cy.score);
+                    t = t + static_cast<float>(STONE_WEIGHT * stone);
+                    t = t - static_cast<float>(WEAK_TOOTH_PENALTY * weak);
+                    total = static_cast<double>(t);
+                } else {
+                    total = cx.score + cy.score + STONE_WEIGHT * stone - WEAK_TOOTH_PENALTY * weak;
+                }
                 if (!haveBest || total > best.total) {
                     best = {total, cx.o, cx.s, cy.o, cy.s};
                     haveBest = true;
@@ -690,7 +713,16 @@ SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
     res.xs = snap_lines(prof_x, pos_x, bb.sx);
     res.ys = snap_lines(prof_y, pos_y, bb.sy);
     res.score = bb.total;
-    res.margin = bb.total - second - CONT_PENALTY * cont;
+    // margin = score - second - CONT_PENALTY*cont. Both score and second are
+    // the winning/second totals, which are float32 when bothPeaksEmpty, so the
+    // subtraction chain rounds in float32 too (same NEP 50 rule as total).
+    if (bothPeaksEmpty) {
+        float m = static_cast<float>(bb.total) - static_cast<float>(second);
+        m = m - static_cast<float>(CONT_PENALTY * cont);
+        res.margin = static_cast<double>(m);
+    } else {
+        res.margin = bb.total - second - CONT_PENALTY * cont;
+    }
     for (const std::pair<int, Best>& kv : results) {
         res.scores[kv.first] = kv.second.total;
     }
