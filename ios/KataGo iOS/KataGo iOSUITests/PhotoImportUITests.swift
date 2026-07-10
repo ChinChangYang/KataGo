@@ -73,11 +73,20 @@ final class PhotoImportUITests: XCTestCase {
         XCTAssertTrue(confidence.waitForExistence(timeout: 10),
                       "Confidence readout not shown in the preview")
 
-        // Next-to-play segmented picker: its Black / White segments are present.
+        // Next-to-play segmented picker: its caption (segmented style drops the
+        // Picker's own label, so the sheet renders it explicitly) and Black /
+        // White segments are present.
+        XCTAssertTrue(app.staticTexts["Next to play"].waitForExistence(timeout: 10),
+                      "'Next to play' caption not shown above the picker")
         XCTAssertTrue(app.buttons["Black"].firstMatch.waitForExistence(timeout: 10),
                       "'Black' segment of the next-to-play picker not found")
-        XCTAssertTrue(app.buttons["White"].firstMatch.exists,
+        let whiteSegment = app.buttons["White"].firstMatch
+        XCTAssertTrue(whiteSegment.exists,
                       "'White' segment of the next-to-play picker not found")
+
+        // Toggle to White before importing so the non-default next-to-play path
+        // (PL[W] in the synthesized SGF) stays exercised by the suite.
+        whiteSegment.tap()
 
         let previewShot = XCTAttachment(screenshot: app.screenshot())
         previewShot.name = "PhotoImportPreview"

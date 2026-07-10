@@ -112,8 +112,8 @@ public struct PhotoImportSheet: View {
 
             HStack(spacing: 16) {
                 Label("\(board.size) × \(board.size)", systemImage: "squareshape.split.3x3")
-                Label("\(board.blackCount)", systemImage: "circle.fill")
-                Label("\(board.whiteCount)", systemImage: "circle")
+                stoneCount(board.blackCount, fill: .black, colorName: "black")
+                stoneCount(board.whiteCount, fill: .white, colorName: "white")
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -122,11 +122,19 @@ public struct PhotoImportSheet: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
-            Picker("Next to play", selection: $nextToPlay) {
-                Text("Black").tag(PlayerColor.black)
-                Text("White").tag(PlayerColor.white)
+            // Segmented style drops the Picker's label, so render the caption
+            // explicitly — without it the control is two bare Black/White
+            // buttons whose purpose the user can't guess.
+            VStack(spacing: 8) {
+                Text("Next to play")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Picker("Next to play", selection: $nextToPlay) {
+                    Text("Black").tag(PlayerColor.black)
+                    Text("White").tag(PlayerColor.white)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
 
             HStack {
                 Button("Cancel", role: .cancel, action: onCancel)
@@ -138,6 +146,22 @@ public struct PhotoImportSheet: View {
                 .buttonStyle(.borderedProminent)
             }
         }
+    }
+
+    /// A stone-count item: a real stone glyph (explicit black/white fill with a
+    /// stroke so it reads correctly on any background — the SF-Symbol circles
+    /// both rendered gray under the row's `.secondary` style in dark mode)
+    /// followed by the count.
+    private func stoneCount(_ count: Int, fill: Color, colorName: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(fill)
+                .overlay(Circle().strokeBorder(.gray, lineWidth: 1))
+                .frame(width: 14, height: 14)
+            Text("\(count)")
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(count) \(colorName) stones")
     }
 
     private func failure(_ error: BoardRecognitionError) -> some View {
