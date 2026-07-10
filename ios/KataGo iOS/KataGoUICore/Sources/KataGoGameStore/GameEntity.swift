@@ -19,7 +19,12 @@ public struct GameEntity: AppEntity {
     @Property(title: "Name") public var name: String
     @Property(title: "Comments") public var comments: [String]
 
-    public var firstComment: String
+    /// The DISPLAYED position's comment (`GameRecord.comments[lastIndex]`, the same
+    /// index `lastBlackStones`/`lastWhiteStones` are rendered at), or "" when that
+    /// move has no comment — mirroring the in-app `CommentView` lookup. This is what
+    /// the rendered widget shows next to the board; the game-level summary shown by
+    /// the config picker and Shortcuts stays `firstComment(from:)`.
+    public var comment: String
     public var boardWidth: Int
     public var boardHeight: Int
     public var lastBlackStones: [String]
@@ -35,7 +40,10 @@ public struct GameEntity: AppEntity {
         // picker (a `.appex` with no asset catalog) the previous "LoadingIcon"
         // rendered BLANK. `systemName:` resolves in any process — app, widget
         // appex, and Shortcuts alike — and a board grid reads as a Go game.
-        DisplayRepresentation(title: "\(name)", subtitle: "\(firstComment)",
+        // Game-level descriptor for Shortcuts/entity search: the earliest comment
+        // (`comments` is sorted by move index), deliberately NOT the displayed
+        // position's `comment` — matching the config picker's subtitle.
+        DisplayRepresentation(title: "\(name)", subtitle: "\(comments.first ?? "")",
                               image: DisplayRepresentation.Image(systemName: "square.grid.3x3"))
     }
 
@@ -56,7 +64,7 @@ public struct GameEntity: AppEntity {
                             gameRecord.whiteStones?.keys.max() ?? 0)
         }
         self.id = gameRecord.uuid ?? UUID()
-        self.firstComment = GameEntity.firstComment(from: gameRecord.comments)
+        self.comment = gameRecord.comments?[lastIndex] ?? ""
         self.boardWidth = gameRecord.width ?? 19
         self.boardHeight = gameRecord.height ?? 19
         self.lastBlackStones = GameEntity.stoneList(gameRecord.blackStones, at: lastIndex)
@@ -73,11 +81,12 @@ public struct GameEntity: AppEntity {
         return raw.split(separator: " ").map(String.init)
     }
 
-    /// The comment shown for a game: the move-0 comment, or — for an imported SGF whose
-    /// first comment is on a later move — the earliest comment present, else "". ONE
-    /// definition shared by `GameEntity.init` (what the widget renders) and
-    /// `GameEntityQuery.pickerOptions` (the config-picker subtitle) so the two can never
-    /// diverge. `comments` is already faulted by both callers, so the key sort is free.
+    /// A game-LEVEL summary comment: the move-0 comment, or — for an imported SGF whose
+    /// first comment is on a later move — the earliest comment present, else "". Used by
+    /// `GameEntityQuery.pickerOptions` (the config-picker subtitle, whose bounded fetch
+    /// has no `currentIndex`), consistent with the in-app game-list rows that show the
+    /// root comment. Deliberately different from the rendered widget, which shows the
+    /// DISPLAYED position's comment (`GameEntity.comment`).
     public static func firstComment(from comments: [Int: String]?) -> String {
         comments?[0] ?? comments?.keys.sorted().first.flatMap { comments?[$0] } ?? ""
     }

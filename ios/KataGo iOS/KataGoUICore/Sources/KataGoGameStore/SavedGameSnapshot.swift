@@ -11,7 +11,9 @@ public struct SavedGameSnapshot: Sendable {
     /// Nil when the widget is unconfigured (tap then opens the displayed most-recent).
     public var configuredGameID: UUID?
     public var name: String
-    public var firstComment: String
+    /// The displayed position's comment (see `GameEntity.comment`); "" when that
+    /// move has no comment.
+    public var comment: String
     public var boardWidth: Int
     public var boardHeight: Int
     public var lastBlackStones: [String]
@@ -23,7 +25,7 @@ public struct SavedGameSnapshot: Sendable {
     public var moveCount: Int
 
     public init(gameEntity e: GameEntity, configuredGameID: UUID? = nil) {
-        gameID = e.id; name = e.name; firstComment = e.firstComment
+        gameID = e.id; name = e.name; comment = e.comment
         boardWidth = e.boardWidth; boardHeight = e.boardHeight
         lastBlackStones = e.lastBlackStones; lastWhiteStones = e.lastWhiteStones
         moveCount = e.moveCount
@@ -32,15 +34,15 @@ public struct SavedGameSnapshot: Sendable {
 
     public static var placeholder: SavedGameSnapshot {
         SavedGameSnapshot(gameID: nil, name: "No game selected",
-                          firstComment: "Open KataGo Anytime to choose a game.",
+                          comment: "Open KataGo Anytime to choose a game.",
                           boardWidth: 19, boardHeight: 19,
                           lastBlackStones: [], lastWhiteStones: [])
     }
 
-    public init(gameID: UUID?, name: String, firstComment: String,
+    public init(gameID: UUID?, name: String, comment: String,
                 boardWidth: Int, boardHeight: Int, lastBlackStones: [String], lastWhiteStones: [String],
                 moveCount: Int = 0, configuredGameID: UUID? = nil) {
-        self.gameID = gameID; self.name = name; self.firstComment = firstComment
+        self.gameID = gameID; self.name = name; self.comment = comment
         self.boardWidth = boardWidth; self.boardHeight = boardHeight
         self.lastBlackStones = lastBlackStones; self.lastWhiteStones = lastWhiteStones
         self.moveCount = moveCount

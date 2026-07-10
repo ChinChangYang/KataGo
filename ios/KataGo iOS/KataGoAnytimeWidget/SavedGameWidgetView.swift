@@ -39,7 +39,11 @@ struct SavedGameWidgetView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(snap.name).font(.headline).lineLimit(1)
                     board.frame(maxHeight: .infinity)
-                    Text(snap.firstComment).font(.callout).lineLimit(6)
+                    // The displayed move often has no comment; drop the Text entirely
+                    // rather than let an empty line eat the VStack spacing.
+                    if !snap.comment.isEmpty {
+                        Text(snap.comment).font(.callout).lineLimit(6)
+                    }
                 }
             case .systemExtraLarge:
                 // The extra-large family is wide (~2:1), so spend the room on WIDTH:
@@ -54,7 +58,9 @@ struct SavedGameWidgetView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(snap.firstComment).font(.body)
+                        if !snap.comment.isEmpty {
+                            Text(snap.comment).font(.body)
+                        }
                         Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,7 +70,9 @@ struct SavedGameWidgetView: View {
                     board
                     VStack(alignment: .leading, spacing: 4) {
                         Text(snap.name).font(.headline).lineLimit(1)
-                        Text(snap.firstComment).font(.caption).lineLimit(3)
+                        if !snap.comment.isEmpty {
+                            Text(snap.comment).font(.caption).lineLimit(3)
+                        }
                         Spacer(minLength: 0)
                     }
                 }

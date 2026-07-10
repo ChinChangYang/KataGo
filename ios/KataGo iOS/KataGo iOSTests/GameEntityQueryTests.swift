@@ -9,7 +9,7 @@ import Foundation
 import KataGoUICore
 
 struct GameEntityQueryTests {
-    @Test @MainActor func gameEntity_capturesNameAndFirstComment() throws {
+    @Test @MainActor func gameEntity_capturesNameAndDisplayedComment() throws {
         let record = GameRecord(config: Config())
         record.name = "Opening Study"
         record.comments = [0: "Black takes 4-4", 1: "White approaches"]
@@ -17,8 +17,45 @@ struct GameEntityQueryTests {
         record.height = 19
         let entity = GameEntity(gameRecord: record)
         #expect(entity.name == "Opening Study")
-        #expect(entity.firstComment == "Black takes 4-4")
+        #expect(entity.comment == "Black takes 4-4")   // displayed index 0 → its own comment
         #expect(entity.boardWidth == 19)
+    }
+
+    /// The widget must show the comment of the DISPLAYED position (move N), not the
+    /// move-0 comment. Regression test: a game sitting on move 5 with comments on
+    /// both moves shows move 5's comment.
+    @Test @MainActor func gameEntity_commentFollowsDisplayedMove_notMoveZero() {
+        let record = GameRecord(config: Config())
+        record.currentIndex = 5
+        record.blackStones = [0: "", 5: "Q16"]
+        record.whiteStones = [0: "", 5: ""]
+        record.comments = [0: "Game intro", 5: "The pivotal cut"]
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.comment == "The pivotal cut")
+    }
+
+    /// When the displayed move has no comment, the widget shows none — falling back
+    /// to the move-0 comment would reproduce the bug this fixes.
+    @Test @MainActor func gameEntity_uncommentedDisplayedMove_hasEmptyComment() {
+        let record = GameRecord(config: Config())
+        record.currentIndex = 5
+        record.blackStones = [0: "", 5: "Q16"]
+        record.whiteStones = [0: "", 5: ""]
+        record.comments = [0: "Game intro"]
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.comment == "")
+    }
+
+    /// In the lastIndex fallback case (currentIndex has no stone entry) the comment
+    /// follows the RENDERED board (lastIndex), staying consistent with the stones.
+    @Test @MainActor func gameEntity_commentFollowsRenderedFallbackIndex() {
+        let record = GameRecord(config: Config())
+        record.currentIndex = 7                                 // no key 7 in the stone dicts
+        record.blackStones = [2: "Q16"]
+        record.whiteStones = [:]
+        record.comments = [2: "Comment at rendered move", 7: "Comment at stale index"]
+        let entity = GameEntity(gameRecord: record)
+        #expect(entity.comment == "Comment at rendered move")
     }
 
     /// After opening a game, stepping to the end, then navigating BACK, the engine

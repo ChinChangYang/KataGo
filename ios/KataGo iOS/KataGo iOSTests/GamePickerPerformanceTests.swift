@@ -289,11 +289,11 @@ struct GamePickerPerformanceTests {
     }
 
     /// An imported SGF whose FIRST comment isn't on move 0 (e.g. `comments = [3: …]`)
-    /// must still show that comment in the picker — matching what the rendered widget
-    /// displays (`GameEntity.firstComment`, which falls back to the earliest comment
-    /// when key 0 is absent). A bare `comments?[0]` would leave the row blank and
-    /// disagree with the widget the user is choosing.
-    @Test @MainActor func pickerOptions_firstCommentNotAtZero_matchesRenderedWidget() throws {
+    /// must still show that comment in the picker: the subtitle is a game-level
+    /// summary (earliest comment, like the in-app game-list rows), deliberately
+    /// DIFFERENT from the rendered widget, which shows the DISPLAYED position's
+    /// comment (`GameEntity.comment`). A bare `comments?[0]` would leave the row blank.
+    @Test @MainActor func pickerOptions_firstCommentNotAtZero_showsEarliestComment() throws {
         let c = try inMemoryStore()
         let r = GameRecord(config: Config())
         r.name = "Imported"
@@ -304,7 +304,6 @@ struct GamePickerPerformanceTests {
         let options = try GameEntityQuery.pickerOptions(container: c, limit: 50)
         let opt = try #require(options.first { $0.id == id.uuidString })
         #expect(opt.subtitle == "Comment on move 3")
-        #expect(opt.subtitle == GameEntity(gameRecord: r).firstComment)   // parity with rendered widget
     }
 
     @Test @MainActor func pickerOptions_respectsLimit() throws {
