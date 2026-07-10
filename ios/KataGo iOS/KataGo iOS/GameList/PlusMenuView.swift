@@ -46,13 +46,13 @@ struct PlusMenuView: View {
                         topUIState.importing = true
                     }
                 } label: {
-                    Label("Game or Image File…", systemImage: "folder")
+                    Label("File", systemImage: "folder")
                 }
 
                 Button {
                     topUIState.importingPhoto = true
                 } label: {
-                    Label("Photo Library…", systemImage: "photo.on.rectangle")
+                    Label("Photo", systemImage: "photo.on.rectangle")
                 }
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
