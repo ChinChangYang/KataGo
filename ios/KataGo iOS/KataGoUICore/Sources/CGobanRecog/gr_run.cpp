@@ -30,6 +30,21 @@ namespace gobanrecog {
 
 // ports run.py::recognize_image.
 RecognitionResult recognize_image(const cv::Mat& img_bgr) {
+    // Run every cv:: op single-threaded (parallel_for_ executes the body
+    // inline on this thread). The vendored HAVE_PTHREADS_PF worker pool
+    // (core/parallel_impl.cpp) has an upstream-acknowledged completion race
+    // ("BUG! ... TODO Dbg this" in ParallelJob::execute; opencv/opencv#19463,
+    // #23609 — never fixed): under scheduler pressure a late worker can touch
+    // caller memory after parallel_for returns. Observed here as rare
+    // nondeterministic heap corruption — libc++-hardened Debug aborts inside
+    // np_percentile's std::sort ("range is not sorted after the sort") at
+    // varying pipeline stages on NaN-free data; Release would corrupt
+    // silently. Recognition is a one-shot background call, so the latency
+    // cost is acceptable and per-run determinism improves. Thread count is
+    // process-global cv state — consistent with this pipeline already being
+    // documented as not concurrency-safe (global RNG seed below).
+    cv::setNumThreads(0);
+
     // port-conventions rule 12: seed the global cv RNG EXACTLY ONCE, here at
     // recognize_image entry — the SINGLE seed for the whole pipeline.
     // detect_board does NOT seed at its own entry; its internal re-anchor
