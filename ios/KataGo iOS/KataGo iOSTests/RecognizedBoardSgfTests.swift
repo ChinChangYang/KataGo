@@ -154,3 +154,125 @@ struct RecognizedBoardSgfTests {
         #expect(!BoardRecognitionError.invalidImage.userFacingMessage.isEmpty)
     }
 }
+
+/// Pure-logic tests for the tap-to-correct editing seam
+/// (`RecognizedBoard.cyclingStone(atCol:row:)` + `stoneVertices`), which the
+/// photo-import preview uses to fix mis-recognized stones before importing.
+/// Same file as the synthesis tests to avoid app-target pbxproj churn.
+struct RecognizedBoardEditingTests {
+
+    // A tiny 3×3 position: black at (row 0, col 1), white at (row 1, col 2).
+    private func tinyBoard() -> RecognizedBoard {
+        RecognizedBoard(size: 3, rows: [".B.", "..W", "..."], confidence: 0.5, quadSource: "test")
+    }
+
+    // The recognized img_00009 position (size 9, 12 B + 12 W), shared with the
+    // synthesis tests above.
+    private func knownBoard() -> RecognizedBoard {
+        let rows = [
+            ".........",
+            "......WBB",
+            "......WB.",
+            "..W...B..",
+            "....WW...",
+            "....BWW..",
+            "..W..BW..",
+            ".WW..BB.B",
+            "W...BBB..",
+        ]
+        return RecognizedBoard(size: 9, rows: rows, confidence: 0.8, quadSource: "hull")
+    }
+
+    @Test func cyclingEmptyBecomesBlack() {
+        let edited = tinyBoard().cyclingStone(atCol: 0, row: 2)
+        #expect(edited.rows == [".B.", "..W", "B.."])
+        #expect(edited.blackCount == 2)
+        #expect(edited.whiteCount == 1)
+    }
+
+    @Test func cyclingBlackBecomesWhite() {
+        let edited = tinyBoard().cyclingStone(atCol: 1, row: 0)
+        #expect(edited.rows == [".W.", "..W", "..."])
+        #expect(edited.blackCount == 0)
+        #expect(edited.whiteCount == 2)
+    }
+
+    @Test func cyclingWhiteBecomesEmpty() {
+        let edited = tinyBoard().cyclingStone(atCol: 2, row: 1)
+        #expect(edited.rows == [".B.", "...", "..."])
+        #expect(edited.blackCount == 1)
+        #expect(edited.whiteCount == 0)
+    }
+
+    @Test func cyclingThreeTimesRestoresOriginal() {
+        // Equatable round-trip is what hides the Reset button after the user
+        // cycles a point back to its recognized state.
+        let original = tinyBoard()
+        let cycled = original
+            .cyclingStone(atCol: 1, row: 2)
+            .cyclingStone(atCol: 1, row: 2)
+            .cyclingStone(atCol: 1, row: 2)
+        #expect(cycled == original)
+    }
+
+    @Test func cyclingOutOfRangeReturnsSelf() {
+        let original = tinyBoard()
+        #expect(original.cyclingStone(atCol: -1, row: 0) == original)
+        #expect(original.cyclingStone(atCol: 3, row: 0) == original)
+        #expect(original.cyclingStone(atCol: 0, row: -1) == original)
+        #expect(original.cyclingStone(atCol: 0, row: 3) == original)
+    }
+
+    @Test func cyclingPreservesMetadata() {
+        let edited = tinyBoard().cyclingStone(atCol: 0, row: 0)
+        #expect(edited.size == 3)
+        #expect(edited.confidence == 0.5)
+        #expect(edited.quadSource == "test")
+    }
+
+    @Test func stoneVerticesMapGridToGtp() {
+        // Corners and center pin the grid → GTP mapping: row 0 = top ("9" on a
+        // 9×9), and column 8 is "J" (GTP skips "I").
+        let rows = [
+            "B........",
+            ".........",
+            ".........",
+            ".........",
+            "....W....",
+            ".........",
+            ".........",
+            ".........",
+            "........B",
+        ]
+        let board = RecognizedBoard(size: 9, rows: rows, confidence: 0.8, quadSource: "test")
+        let vertices = board.stoneVertices
+        #expect(vertices.black == ["A9", "J1"])
+        #expect(vertices.white == ["E5"])
+    }
+
+    @Test func stoneVerticesMatchEngineFinalStones() {
+        // Parity pin: the pure mapping the preview renders from must agree with
+        // the SGF → engine-final-position path the importer uses, so the preview
+        // still matches the imported game exactly.
+        let board = knownBoard()
+        let sgf = board.synthesizedSGF(nextToPlay: .black)
+        let stones = SgfOperations(sgf: sgf).finalStones()
+        #expect(Set(board.stoneVertices.black) == Set(stones.black))
+        #expect(Set(board.stoneVertices.white) == Set(stones.white))
+    }
+
+    @Test func synthesizedSgfReflectsEdits() {
+        // Empty (row 2, col 0) → "ac" appears as a new AB point.
+        let addedBlack = tinyBoard().cyclingStone(atCol: 0, row: 2)
+        let addedSgf = addedBlack.synthesizedSGF(nextToPlay: .black)
+        #expect(addedSgf.contains("AB[ba][ac]"))
+        #expect(addedSgf.contains("PL[B]"))
+
+        // Black (row 0, col 1) → white: "ba" moves from AB to AW; PL untouched.
+        let flipped = tinyBoard().cyclingStone(atCol: 1, row: 0)
+        let flippedSgf = flipped.synthesizedSGF(nextToPlay: .black)
+        #expect(!flippedSgf.contains("AB"))
+        #expect(flippedSgf.contains("AW[ba][cb]"))
+        #expect(flippedSgf.contains("PL[B]"))
+    }
+}

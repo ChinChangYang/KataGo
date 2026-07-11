@@ -221,7 +221,9 @@ extension MainWindowController: LibraryActionsDelegate {
             },
             onCancel: { dismissSheet() }
         )
-        .frame(minWidth: 420, minHeight: 560)
+        // 600, not 560: the tap-to-correct hint and Reset rows add ~40 pt and
+        // must not compress the 320 pt board.
+        .frame(minWidth: 420, minHeight: 600)
         let hosting = NSHostingController(rootView: root)
         dismissSheet = { [weak hosting] in
             guard let hosting else { return }

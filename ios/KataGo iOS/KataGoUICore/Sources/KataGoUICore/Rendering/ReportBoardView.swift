@@ -50,6 +50,11 @@ public struct ReportBoardView: View {
     let isClassicStoneStyle: Bool
     let showCoordinate: Bool
     let verticalFlip: Bool
+    /// Optional tap hook: called with the tapped intersection (never "pass").
+    /// The conversion uses this view's own `Dimensions`, so callers get the
+    /// same point→vertex mapping the board was drawn with. nil (the default)
+    /// keeps the view display-only.
+    let onTapCoordinate: ((Coordinate) -> Void)?
 
     /// Minimum |Δ| worth painting — smaller swings are visual noise.
     private static let deltaFloor: Float = 0.05
@@ -59,7 +64,8 @@ public struct ReportBoardView: View {
                 overlay: ReportBoardOverlay,
                 markedMove: ReportMarkedMove? = nil,
                 lastMoveVertex: String? = nil,
-                isClassicStoneStyle: Bool, showCoordinate: Bool, verticalFlip: Bool) {
+                isClassicStoneStyle: Bool, showCoordinate: Bool, verticalFlip: Bool,
+                onTapCoordinate: ((Coordinate) -> Void)? = nil) {
         self.width = width
         self.height = height
         self.blackVertices = blackVertices
@@ -70,6 +76,7 @@ public struct ReportBoardView: View {
         self.isClassicStoneStyle = isClassicStoneStyle
         self.showCoordinate = showCoordinate
         self.verticalFlip = verticalFlip
+        self.onTapCoordinate = onTapCoordinate
     }
 
     public var body: some View {
@@ -96,6 +103,21 @@ public struct ReportBoardView: View {
             .environment(localBoardSize)
             .environment(localStones)
             .environment(GobanState())
+#if !os(tvOS)
+            // The location-providing onTapGesture variant is unavailable on
+            // tvOS (no pointer); tvOS report boards stay display-only. The
+            // guard also keeps every existing nil-callback call site inert.
+            .onTapGesture { location in
+                guard let onTapCoordinate,
+                      let coordinate = Coordinate.from(location: location,
+                                                       dimensions: dims,
+                                                       boardWidth: width,
+                                                       boardHeight: height,
+                                                       verticalFlip: verticalFlip),
+                      coordinate.move != "pass" else { return }
+                onTapCoordinate(coordinate)
+            }
+#endif
         }
         .aspectRatio(1, contentMode: .fit)
     }

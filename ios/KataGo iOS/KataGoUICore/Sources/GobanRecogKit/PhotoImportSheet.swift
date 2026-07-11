@@ -9,13 +9,17 @@
 //    - recognizing:  a spinner while the C++ pipeline runs;
 //    - preview:      the recognized position on an engine-free board, stone
 //                    counts, confidence, and a next-to-play picker, with Import
-//                    and Cancel;
+//                    and Cancel. Tapping an intersection cycles it
+//                    empty → black → white → empty so the user can correct
+//                    mis-recognized stones (e.g. shadows) before importing;
+//                    Reset restores the recognized position.
 //    - failure:      friendly coaching copy with Try Another Image / Cancel.
 //
-//  The board is rendered engine-free by synthesizing the SGF and reading its
-//  final position with `SgfOperations` (the same path the importer uses, so the
-//  preview matches the imported game exactly), then drawing it with the shared
-//  `ReportBoardView`.
+//  The board is rendered engine-free with the shared `ReportBoardView` from the
+//  pure `RecognizedBoard.stoneVertices` mapping, which the
+//  `stoneVerticesMatchEngineFinalStones` test pins to the importer's
+//  SGF → final-position path — so the preview (edited or not) matches the
+//  imported game exactly.
 //
 
 import KataGoUICore
@@ -30,10 +34,10 @@ public struct PhotoImportSheet: View {
 
     @State private var phase: Phase = .recognizing
     @State private var nextToPlay: PlayerColor = .black
-    /// GTP vertices of the recognized stones (computed once on success), used
-    /// to render the preview. Independent of `nextToPlay`.
-    @State private var blackVertices: [String] = []
-    @State private var whiteVertices: [String] = []
+    /// The user-corrected position, nil while untouched. Kept separate from the
+    /// recognized board in `phase` so Reset can always restore the original and
+    /// the Reset button can hide itself when edits cycle back to it (Equatable).
+    @State private var editedBoard: RecognizedBoard?
 
     private enum Phase: Equatable {
         case recognizing
@@ -96,31 +100,56 @@ public struct PhotoImportSheet: View {
         .frame(minHeight: 240)
     }
 
+    @ViewBuilder
     private func preview(_ board: RecognizedBoard) -> some View {
+        let current = editedBoard ?? board
+        let hasEdits = current != board
+        let vertices = current.stoneVertices
         VStack(spacing: 16) {
             ReportBoardView(
                 width: board.size,
                 height: board.size,
-                blackVertices: blackVertices,
-                whiteVertices: whiteVertices,
+                blackVertices: vertices.black,
+                whiteVertices: vertices.white,
                 overlay: .none,
                 isClassicStoneStyle: false,
                 showCoordinate: true,
-                verticalFlip: false
+                verticalFlip: false,
+                onTapCoordinate: { coordinate in
+                    // Coordinate.y is 1-based from the bottom; rows are
+                    // top-origin, so grid row = size − y.
+                    editedBoard = current.cyclingStone(atCol: coordinate.x,
+                                                       row: board.size - coordinate.y)
+                }
             )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Board preview")
+            .accessibilityHint("Tap an intersection to cycle empty, black, white")
+            .accessibilityIdentifier("PhotoImportSheet.board")
             .frame(maxWidth: 320, maxHeight: 320)
 
             HStack(spacing: 16) {
                 Label("\(board.size) × \(board.size)", systemImage: "squareshape.split.3x3")
-                stoneCount(board.blackCount, fill: .black, colorName: "black")
-                stoneCount(board.whiteCount, fill: .white, colorName: "white")
+                stoneCount(current.blackCount, fill: .black, colorName: "black")
+                stoneCount(current.whiteCount, fill: .white, colorName: "white")
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
-            Text("Confidence \(Int((board.confidence * 100).rounded()))%")
+            Text("Tap a point to correct: empty → black → white")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Text("Confidence \(Int((board.confidence * 100).rounded()))%")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                if hasEdits {
+                    Button("Reset") { editedBoard = nil }
+                        .font(.caption)
+                        .accessibilityIdentifier("PhotoImportSheet.reset")
+                }
+            }
 
             // Segmented style drops the Picker's label, so render the caption
             // explicitly — without it the control is two bare Black/White
@@ -140,7 +169,7 @@ public struct PhotoImportSheet: View {
                 Button("Cancel", role: .cancel, action: onCancel)
                 Spacer()
                 Button("Import") {
-                    onImport(board.synthesizedSGF(nextToPlay: nextToPlay), suggestedName)
+                    onImport(current.synthesizedSGF(nextToPlay: nextToPlay), suggestedName)
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
@@ -193,12 +222,8 @@ public struct PhotoImportSheet: View {
         guard phase == .recognizing else { return }
         do {
             let board = try await BoardRecognizer.recognize(imageData: imageData)
-            // Compute the preview vertices via the same SGF → final-position path
-            // the importer uses, so the preview matches the imported game.
-            let sgf = board.synthesizedSGF(nextToPlay: board.defaultNextToPlay)
-            let stones = SgfOperations(sgf: sgf).finalStones()
-            blackVertices = stones.black
-            whiteVertices = stones.white
+            // The picker default is set once from recognition; user edits to the
+            // stones never re-derive it (the user may have already chosen).
             nextToPlay = board.defaultNextToPlay
             phase = .preview(board)
         } catch let error as BoardRecognitionError {
