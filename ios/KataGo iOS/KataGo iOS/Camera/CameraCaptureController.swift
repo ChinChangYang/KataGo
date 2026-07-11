@@ -31,6 +31,11 @@ private let cameraLogger = Logger(
 enum CameraCaptureError: Error {
     /// The photo finished processing but produced no file data representation.
     case noPhotoData
+    /// A capture is already in flight. Guards against a second `capturePhoto()`
+    /// overwriting the retained delegate slot (which would strand the first
+    /// continuation). Unreachable through the UI — the shutter is disabled while
+    /// capturing — but defends the API contract directly.
+    case captureInFlight
 }
 
 @MainActor
@@ -210,6 +215,13 @@ final class CameraCaptureController {
     /// requests the JPEG codec (never HEVC/HEIC) so the bytes flow straight into
     /// the existing photo-import funnel.
     func capturePhoto() async throws -> Data {
+        // Refuse a concurrent capture: a second call would overwrite
+        // `activeCaptureDelegate`, releasing the first delegate and stranding its
+        // continuation. The UI disables the shutter while capturing, so this is
+        // defensive depth for direct callers.
+        guard activeCaptureDelegate == nil else {
+            throw CameraCaptureError.captureInFlight
+        }
         // Free the ANE/CPU from live guidance for the duration of the capture.
         setGuidancePaused(true)
         let captureAngle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture

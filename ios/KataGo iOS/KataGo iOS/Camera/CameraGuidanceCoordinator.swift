@@ -132,6 +132,16 @@ final class GuidancePresenter {
         deviceQuad = quad
         displayedIssue = hysteresis.record(guidance.primary)
     }
+
+    /// Clears the overlay and rewinds the message hysteresis to its initial
+    /// prompt. Called when a session interruption ends so a stale "Looks good"
+    /// (or a stale quad) can't linger, and guidance re-establishes from a clean
+    /// streak once frames resume.
+    func reset() {
+        deviceQuad = nil
+        hysteresis = GuidanceHysteresis()
+        displayedIssue = hysteresis.displayed
+    }
 }
 
 // MARK: - CameraGuidanceCoordinator (AVFoundation / Vision glue)

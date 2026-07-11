@@ -85,13 +85,21 @@ struct BoardCameraView: View {
     }
 
     private var camera: some View {
-        ZStack {
+        // While the session is interrupted, guidance frames stop, so the chip and
+        // quad overlay would freeze on their last value — a stale green "Looks
+        // good" could sit under the interruption banner. Hide both for the
+        // duration of the interruption; the presenter is reset when it ends so
+        // guidance re-establishes from a clean streak.
+        let interrupted = controller.interruptionMessage != nil
+        return ZStack {
             CameraPreviewView(controller: controller)
                 .ignoresSafeArea()
 
-            guidanceOverlay
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
+            if !interrupted {
+                guidanceOverlay
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
 
             VStack(spacing: 0) {
                 if let message = controller.interruptionMessage {
@@ -111,7 +119,9 @@ struct BoardCameraView: View {
                         .accessibilityIdentifier("BoardCamera.captureError")
                 }
 
-                guidanceChip
+                if !interrupted {
+                    guidanceChip
+                }
 
                 controlBar
             }
@@ -122,6 +132,13 @@ struct BoardCameraView: View {
             setUpGuidance()
         }
         .onDisappear { controller.stop() }
+        .onChange(of: controller.interruptionMessage) { _, message in
+            // When the interruption clears, rewind guidance so a stale overlay
+            // can't reappear before fresh frames arrive.
+            if message == nil {
+                presenter.reset()
+            }
+        }
     }
 
     /// Strokes the detected board quad, converting the device-space corners to
