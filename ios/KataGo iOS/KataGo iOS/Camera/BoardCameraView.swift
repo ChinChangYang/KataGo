@@ -68,6 +68,9 @@ struct BoardCameraView: View {
             switch newPhase {
             case .background:
                 controller.stop()
+                // The system turns the torch off when the session stops; reset
+                // the icon so it doesn't keep showing bolt.fill.
+                torchOn = false
             case .active:
                 if permission == .authorized {
                     controller.start()
@@ -141,10 +144,14 @@ struct BoardCameraView: View {
             controller.stop()
         }
         .onChange(of: controller.interruptionMessage) { _, message in
-            // When the interruption clears, rewind guidance so a stale overlay
-            // can't reappear before fresh frames arrive.
             if message == nil {
+                // When the interruption clears, rewind guidance so a stale
+                // overlay can't reappear before fresh frames arrive.
                 presenter.reset()
+            } else {
+                // The system turns the torch off during an interruption; reset
+                // the icon so it doesn't keep showing bolt.fill.
+                torchOn = false
             }
         }
     }

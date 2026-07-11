@@ -22,9 +22,10 @@
 //
 //  Concurrency: the coordinator is a plain (non-`@MainActor`) NSObject whose
 //  sample-buffer delegate callback runs on a dedicated serial "guidance" queue.
-//  Its throttle state (`lastProcessedTime`, `isAnalyzing`) is touched ONLY on
-//  that queue. Results hop to the main actor through the `onGuidance` callback,
-//  carrying only `Sendable` value types (never the pixel buffer). The
+//  The serial queue itself serializes analyses (no reentrancy is possible);
+//  the 0.15 s timestamp gate (`lastProcessedTime`, touched ONLY on that queue)
+//  does the throttling. Results hop to the main actor through the `onGuidance`
+//  callback, carrying only `Sendable` value types (never the pixel buffer). The
 //  `GuidancePresenter` and the copy/geometry consumers live on the main actor.
 //
 
@@ -165,9 +166,8 @@ final class CameraGuidanceCoordinator: NSObject, AVCaptureVideoDataOutputSampleB
 
     // Guidance-queue-confined throttle state. Touched ONLY inside
     // `captureOutput(_:didOutput:from:)` on the serial guidance queue, so the
-    // plain `var`s are race-free without extra synchronization.
+    // plain `var` is race-free without extra synchronization.
     private var lastProcessedTime: CFTimeInterval = 0
-    private var isAnalyzing = false
 
     init(onGuidance: @escaping GuidanceCallback) {
         self.onGuidance = onGuidance
@@ -209,12 +209,10 @@ final class CameraGuidanceCoordinator: NSObject, AVCaptureVideoDataOutputSampleB
                        didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         let now = CACurrentMediaTime()
-        guard !isAnalyzing, now - lastProcessedTime >= minInterval else { return }
+        guard now - lastProcessedTime >= minInterval else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        isAnalyzing = true
         lastProcessedTime = now
-        defer { isAnalyzing = false }
 
         let quad = detectQuad(in: pixelBuffer)
 

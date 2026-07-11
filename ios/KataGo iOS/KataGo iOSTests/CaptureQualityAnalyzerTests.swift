@@ -220,6 +220,20 @@ struct CaptureQualityAnalyzerTests {
         #expect(rect.pixels[rect.pixels.count - 1] == 200)
     }
 
+    /// A deliberately self-intersecting ("bowtie") quad — corners out of
+    /// TL/TR/BR/BL order — puts the homography's singular line inside the unit
+    /// square; for this quad the denominator is exactly 0 at `u = 0.5`, which an
+    /// odd `side` samples exactly. Before the denominator guard this drove
+    /// `bilinear`'s `Int(floor())` to trap on an infinite coordinate (confirmed
+    /// against the unguarded implementation). The assertion here is only that
+    /// `rectify` returns — with the requested dimensions — instead of crashing.
+    @Test func rectifyNonConvexQuadDoesNotCrash() {
+        let frame = uniform(128)
+        let quad = [point(0, 0), point(1, 1), point(0, 1), point(1, 0)]
+        let rect = CaptureQualityAnalyzer.rectify(frame: frame, quad: quad, side: 17)
+        #expect(rect.width == 17 && rect.height == 17)
+    }
+
     // MARK: - 8. LumaGrid init
 
     @Test func lumaGridRejectsWrongPixelCount() {

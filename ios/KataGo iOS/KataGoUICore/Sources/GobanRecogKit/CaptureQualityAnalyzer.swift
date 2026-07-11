@@ -208,6 +208,15 @@ public enum CaptureQualityAnalyzer {
             for j in 0..<clampedSide {
                 let u = (Double(j) + 0.5) / sideD
                 let denom = h[6] * u + h[7] * v + h[8]
+                // Public API: Vision never emits a non-convex (self-intersecting)
+                // quad, but a caller-supplied one could put the homography's
+                // singular line inside the unit square, driving denom toward 0 or
+                // non-finite. Write black and skip rather than let the division
+                // propagate into `bilinear`'s `Int(floor())`, which traps.
+                guard denom.isFinite, abs(denom) > 1e-9 else {
+                    out[i * clampedSide + j] = 0
+                    continue
+                }
                 let nx = (h[0] * u + h[1] * v + h[2]) / denom
                 let ny = (h[3] * u + h[4] * v + h[5]) / denom
                 let sample = bilinear(frame, px: nx * fw, py: ny * fh)

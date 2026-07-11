@@ -36,6 +36,11 @@ enum CameraCaptureError: Error {
     /// continuation). Unreachable through the UI — the shutter is disabled while
     /// capturing — but defends the API contract directly.
     case captureInFlight
+    /// The photo output has no video connection — only possible when
+    /// `configureSessionIfNeeded` failed to attach a usable camera input.
+    /// Guards against `AVCapturePhotoOutput.capturePhoto` raising an ObjC
+    /// exception when no connection exists.
+    case sessionNotConfigured
 }
 
 @MainActor
@@ -222,6 +227,11 @@ final class CameraCaptureController {
         guard activeCaptureDelegate == nil else {
             throw CameraCaptureError.captureInFlight
         }
+        // Only nil after a configuration failure; avoids an ObjC exception from
+        // `AVCapturePhotoOutput.capturePhoto` on an output with no connection.
+        guard photoOutput.connection(with: .video) != nil else {
+            throw CameraCaptureError.sessionNotConfigured
+        }
         // Free the ANE/CPU from live guidance for the duration of the capture.
         setGuidancePaused(true)
         let captureAngle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture
@@ -292,6 +302,8 @@ final class CameraCaptureController {
             ]
             videoDataOutput.alwaysDiscardsLateVideoFrames = true
             session.addOutput(videoDataOutput)
+        } else {
+            cameraLogger.error("Camera session configuration failed: cannot add video data output")
         }
 
         configureDevice(device)

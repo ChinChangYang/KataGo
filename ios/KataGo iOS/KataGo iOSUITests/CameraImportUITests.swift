@@ -58,7 +58,7 @@ final class CameraImportUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Retake Photo"].exists,
                        "'Retake Photo' button must not appear in the preview state")
 
-        let cancel = app.buttons["Cancel"].firstMatch
+        let cancel = app.buttons["PhotoImportSheet.cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Preview 'Cancel' button not found")
         cancel.tap()
         XCTAssertTrue(waitForGone(title, timeout: 10),

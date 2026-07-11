@@ -102,6 +102,7 @@ public struct PhotoImportSheet: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             Button("Cancel", role: .cancel, action: onCancel)
+                .accessibilityIdentifier("PhotoImportSheet.cancel")
         }
         .frame(minHeight: 240)
     }
@@ -173,6 +174,7 @@ public struct PhotoImportSheet: View {
 
             HStack {
                 Button("Cancel", role: .cancel, action: onCancel)
+                    .accessibilityIdentifier("PhotoImportSheet.cancel")
                 Spacer()
                 Button("Import") {
                     onImport(current.synthesizedSGF(nextToPlay: nextToPlay), suggestedName)
@@ -211,6 +213,7 @@ public struct PhotoImportSheet: View {
             Spacer(minLength: 0)
             HStack {
                 Button("Cancel", role: .cancel, action: onCancel)
+                    .accessibilityIdentifier("PhotoImportSheet.cancel")
                 if let onRetry {
                     Spacer()
                     Button(retryButtonTitle, action: onRetry)
