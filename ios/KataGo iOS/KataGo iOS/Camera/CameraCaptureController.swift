@@ -55,6 +55,17 @@ final class CameraCaptureController {
     let session = AVCaptureSession()
 
     private let photoOutput = AVCapturePhotoOutput()
+
+    /// Live-guidance frame tap. Frames are delivered to `guidanceCoordinator` on
+    /// `guidanceQueue`; toggling this output's connection suspends/resumes
+    /// guidance without touching the always-enabled shutter.
+    private let videoDataOutput = AVCaptureVideoDataOutput()
+    private let guidanceQueue = DispatchQueue(label: "chinchangyang.KataGo-iOS.camera.guidance")
+
+    /// Retains the live-guidance coordinator: `AVCaptureVideoDataOutput` holds its
+    /// sample-buffer delegate weakly, so the controller must keep it alive.
+    private var guidanceCoordinator: CameraGuidanceCoordinator?
+
     private var videoDevice: AVCaptureDevice?
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
@@ -99,8 +110,11 @@ final class CameraCaptureController {
 
         nonisolated(unsafe) let session = self.session
         nonisolated(unsafe) let photoOutput = self.photoOutput
+        nonisolated(unsafe) let videoDataOutput = self.videoDataOutput
         sessionQueue.async { [weak self] in
-            self?.configureSessionIfNeeded(session: session, photoOutput: photoOutput)
+            self?.configureSessionIfNeeded(session: session,
+                                           photoOutput: photoOutput,
+                                           videoDataOutput: videoDataOutput)
             if !session.isRunning {
                 session.startRunning()
             }
@@ -136,6 +150,42 @@ final class CameraCaptureController {
         setUpRotationCoordinatorIfPossible()
     }
 
+    /// Converts a device-space board quad (top-left origin, normalized, TL, TR,
+    /// BR, BL — Vision's coords after the buffer y-flip) into the preview layer's
+    /// coordinate space for the on-screen overlay, letting AVFoundation account
+    /// for rotation, mirroring and `.resizeAspectFill` gravity. Returns `nil`
+    /// until the preview layer exists. Main-actor only: the layer lives here.
+    func layerPoints(for deviceQuad: [CGPoint]) -> [CGPoint]? {
+        guard let previewLayer else { return nil }
+        return deviceQuad.map { previewLayer.layerPointConverted(fromCaptureDevicePoint: $0) }
+    }
+
+    // MARK: Live guidance
+
+    /// Registers the live-guidance coordinator as the video-data-output delegate,
+    /// retaining it (AVFoundation holds delegates weakly). Idempotent-safe to
+    /// call once after `start()`.
+    func attachGuidanceCoordinator(_ coordinator: CameraGuidanceCoordinator) {
+        guidanceCoordinator = coordinator
+        nonisolated(unsafe) let output = self.videoDataOutput
+        nonisolated(unsafe) let delegate = coordinator
+        let queue = guidanceQueue
+        sessionQueue.async {
+            output.setSampleBufferDelegate(delegate, queue: queue)
+        }
+    }
+
+    /// Suspends or resumes live-guidance frame delivery by toggling the video
+    /// output's connection. Called around photo capture and session
+    /// interruptions so no analysis competes with a capture or runs while the
+    /// camera is unavailable. The shutter is never gated on this.
+    func setGuidancePaused(_ paused: Bool) {
+        nonisolated(unsafe) let output = self.videoDataOutput
+        sessionQueue.async {
+            output.connection(with: .video)?.isEnabled = !paused
+        }
+    }
+
     // MARK: Torch
 
     /// Turns the torch on/off. Failures are swallowed (logged) — torch is a
@@ -160,6 +210,8 @@ final class CameraCaptureController {
     /// requests the JPEG codec (never HEVC/HEIC) so the bytes flow straight into
     /// the existing photo-import funnel.
     func capturePhoto() async throws -> Data {
+        // Free the ANE/CPU from live guidance for the duration of the capture.
+        setGuidancePaused(true)
         let captureAngle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture
         nonisolated(unsafe) let photoOutput = self.photoOutput
 
@@ -168,6 +220,10 @@ final class CameraCaptureController {
                 continuation.resume(with: result)
                 Task { @MainActor in
                     self?.activeCaptureDelegate = nil
+                    // Resume guidance unless the session is interrupted.
+                    if self?.interruptionMessage == nil {
+                        self?.setGuidancePaused(false)
+                    }
                 }
             }
             activeCaptureDelegate = delegate
@@ -190,7 +246,8 @@ final class CameraCaptureController {
     // MARK: Session configuration (session queue)
 
     nonisolated private func configureSessionIfNeeded(session: AVCaptureSession,
-                                                      photoOutput: AVCapturePhotoOutput) {
+                                                      photoOutput: AVCapturePhotoOutput,
+                                                      videoDataOutput: AVCaptureVideoDataOutput) {
         guard !sessionConfigured else { return }
 
         session.beginConfiguration()
@@ -213,6 +270,17 @@ final class CameraCaptureController {
             return
         }
         session.addOutput(photoOutput)
+
+        // Live-guidance frame tap: 420f biplanar full-range luma, dropping late
+        // frames so guidance never backs up. Best-effort — capture works without it.
+        if session.canAddOutput(videoDataOutput) {
+            videoDataOutput.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String:
+                    Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+            ]
+            videoDataOutput.alwaysDiscardsLateVideoFrames = true
+            session.addOutput(videoDataOutput)
+        }
 
         configureDevice(device)
 
@@ -305,6 +373,7 @@ final class CameraCaptureController {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.interruptionMessage = nil
+                self?.setGuidancePaused(false)
             }
         }
 
@@ -315,6 +384,7 @@ final class CameraCaptureController {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.interruptionMessage = "The camera stopped unexpectedly. Try reopening the camera."
+                self?.setGuidancePaused(true)
             }
         }
 
@@ -329,6 +399,7 @@ final class CameraCaptureController {
         } else {
             interruptionMessage = "The camera was interrupted."
         }
+        setGuidancePaused(true)
     }
 }
 

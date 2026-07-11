@@ -5,7 +5,8 @@
 //  Full-screen manual board-photo camera (Import ▸ Camera). Frames the board,
 //  taps the shutter, and hands the captured JPEG back to the host, which routes
 //  it into the existing photo-import funnel. iOS/iPadOS only (see
-//  `CameraCaptureController`). No live guidance yet — that is a later task.
+//  `CameraCaptureController`). Overlays live board-framing guidance: a quad
+//  outline plus one prioritized message chip. Guidance never gates the shutter.
 //
 
 #if os(iOS)
@@ -26,6 +27,12 @@ struct BoardCameraView: View {
     @State private var isCapturing = false
     @State private var captureError: String?
     @State private var torchOn = false
+
+    /// Main-actor view model fed by the live-guidance coordinator. Holds the
+    /// hysteresis-smoothed message and the per-frame overlay quad.
+    @State private var presenter = GuidancePresenter()
+    /// Retained so the video-output delegate stays alive; wired once in `camera`.
+    @State private var guidanceCoordinator: CameraGuidanceCoordinator?
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -82,6 +89,10 @@ struct BoardCameraView: View {
             CameraPreviewView(controller: controller)
                 .ignoresSafeArea()
 
+            guidanceOverlay
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
             VStack(spacing: 0) {
                 if let message = controller.interruptionMessage {
                     interruptionBanner(message)
@@ -100,12 +111,73 @@ struct BoardCameraView: View {
                         .accessibilityIdentifier("BoardCamera.captureError")
                 }
 
+                guidanceChip
+
                 controlBar
             }
         }
         .background(Color.black)
-        .onAppear { controller.start() }
+        .onAppear {
+            controller.start()
+            setUpGuidance()
+        }
         .onDisappear { controller.stop() }
+    }
+
+    /// Strokes the detected board quad, converting the device-space corners to
+    /// the preview layer's coordinates on the main actor (where the layer lives)
+    /// before handing static points to the draw closure. Green when the framing
+    /// looks good, orange while there is still something to fix. Updates every
+    /// frame — no hysteresis on geometry.
+    private var guidanceOverlay: some View {
+        let points: [CGPoint]? = presenter.deviceQuad.flatMap { controller.layerPoints(for: $0) }
+        let strokeColor: Color = presenter.looksGood ? .green : .orange
+        return Canvas { context, _ in
+            guard let points, points.count == 4 else { return }
+            var path = Path()
+            path.move(to: points[0])
+            path.addLine(to: points[1])
+            path.addLine(to: points[2])
+            path.addLine(to: points[3])
+            path.closeSubpath()
+            context.stroke(path,
+                           with: .color(strokeColor),
+                           style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+        }
+    }
+
+    /// One prioritized, hysteresis-smoothed guidance message. Shown from the
+    /// first frame on (initial state = "Point the camera at the board"). Never
+    /// gates the shutter.
+    private var guidanceChip: some View {
+        let issue = presenter.displayedIssue
+        let message = GuidanceMessages.text(for: issue)
+        return HStack(spacing: 6) {
+            Image(systemName: GuidanceMessages.symbolName(for: issue))
+                .foregroundStyle(presenter.looksGood ? .green : .orange)
+            Text(message)
+                .foregroundStyle(.white)
+        }
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.bottom, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("BoardCamera.guidance")
+        .accessibilityLabel(message)
+    }
+
+    /// Creates and attaches the live-guidance coordinator exactly once. The
+    /// coordinator republishes each analysis onto the main actor via the presenter.
+    private func setUpGuidance() {
+        guard guidanceCoordinator == nil else { return }
+        let presenter = self.presenter
+        let coordinator = CameraGuidanceCoordinator { guidance, quad in
+            presenter.ingest(guidance, quad: quad)
+        }
+        guidanceCoordinator = coordinator
+        controller.attachGuidanceCoordinator(coordinator)
     }
 
     private var denied: some View {

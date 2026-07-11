@@ -3,8 +3,11 @@
 //  KataGo iOS
 //
 //  SwiftUI bridge that hosts an `AVCaptureVideoPreviewLayer` for the manual
-//  board-photo camera. iOS/iPadOS only (see `CameraCaptureController`). No
-//  guidance overlay here — live guidance is a later task.
+//  board-photo camera. iOS/iPadOS only (see `CameraCaptureController`). The
+//  hosting layer is handed to the controller via `attachPreviewLayer(_:)`; the
+//  controller reuses it for the live-guidance overlay's device-point conversion
+//  (`CameraCaptureController.layerPoints(for:)`), so this bridge needs no changes
+//  to support guidance — the overlay is drawn by `BoardCameraView`.
 //
 
 #if os(iOS)
