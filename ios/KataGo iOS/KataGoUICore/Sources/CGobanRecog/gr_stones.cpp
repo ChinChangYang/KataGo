@@ -255,6 +255,7 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
             double cen_l = 0.0;
             double cen_c = 0.0;
             double min_ratio = std::numeric_limits<double>::infinity();
+            double min_ratio_c = 0.0;  // warmth of the darkest (min-ratio) sample
             std::optional<double> best_w_margin;  // best_w_margin = None
             const std::vector<std::pair<double, double>>& offsets = nodeOffsets();
             for (size_t i = 0; i < offsets.size(); ++i) {
@@ -276,7 +277,12 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
                 }
                 const double o_ratio = ml / std::max(wood_l, 1e-6);
                 const double o_gap = wood_c - mc;
-                min_ratio = std::min(min_ratio, o_ratio);
+                // strict <: first-on-tie, like Python's min() with the
+                // paired warmth tracked alongside
+                if (o_ratio < min_ratio) {
+                    min_ratio = o_ratio;
+                    min_ratio_c = mc;
+                }
                 if (_w_fires(o_gap, o_ratio, mc, wood_c)) {
                     const double m = std::min(
                         1.0, std::max((o_gap - 0.055) / 0.05, (o_ratio - 1.10) / 0.4));
@@ -294,7 +300,16 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
             // 600-image eval on this branch; 0.55 missed a blurred white
             // (IMG_0811 `rl`, med_c/wood_c = 0.63).
             double margin;
-            if (min_ratio < 0.50) {
+            // Steep-shadow veto on the black rule (real-photo IMG_0816); see
+            // stones.py for the measured rationale: a narrow warm shadow band
+            // puts EMPTY nodes at min_ratio 0.38-0.46 with RAISED normalized
+            // warmth (mc/wood_c 1.28-1.40) — true blacks in the same darkness
+            // zone (blurry IMG_0811) sit at 0.85-1.09. Threshold 1.18 threads
+            // both; only 2 canonical true-B nodes have min_ratio >= 0.30 at
+            // all (both on the already-degraded img_00440).
+            const bool shadow_veto = min_ratio < 0.50 && min_ratio >= 0.35 &&
+                                     wood_c > 0.0 && min_ratio_c > 1.18 * wood_c;
+            if (min_ratio < 0.50 && !shadow_veto) {
                 grid[static_cast<size_t>(r)][static_cast<size_t>(c)] = BLACK;
                 margin = (0.50 - min_ratio) / 0.50;
             } else if (_w_fires(gap, ratio, med_c, wood_c)) {
@@ -303,6 +318,12 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
                 // (.value() would throw std::bad_optional_access exactly where
                 // Python's None would TypeError)
                 margin = best_w_margin.value();
+            } else if (shadow_veto) {
+                // Vetoed nodes are empty by POSITIVE evidence (warmth-raised
+                // shadow); score that evidence — the canonical-center margin
+                // below would be ~0 (the node IS dark) and one such node
+                // would abstain the whole corrected board (see stones.py).
+                margin = std::min(1.0, (min_ratio_c / wood_c - 1.18) / 0.22);
             } else {
                 const double ratio_c = cen_l / std::max(wood_l, 1e-6);
                 const double gap_c = wood_c - cen_c;
