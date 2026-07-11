@@ -193,7 +193,7 @@ struct TVRootView: View {
                     }
                 }
             } else {
-                TVLoadingView(caption: "Loading engine…")
+                TVLoadingView(caption: "Loading engine")
             }
         }
         // Diagnostics memory readout — floats over both the loading and ready
@@ -278,30 +278,16 @@ struct TVRootView: View {
     }
 }
 
-/// Simple centered loading screen for the engine handshake / CloudKit first sync.
-struct TVLoadingView: View {
-    var caption: String
-    var body: some View {
-        VStack(spacing: 28) {
-            ProgressView()
-                .controlSize(.large)
-            Text(caption)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 // MARK: - Previews
 
 // #Preview bodies still compile in Release, and the TVPreviewData fixtures are
 // DEBUG-only — guard the whole section or archiving fails.
 #if DEBUG
-// The pre-handshake branch: spinner + caption while the engine loads the net.
-// The preview guard keeps the real engine from launching in the canvas.
+// The pre-handshake branch: spinning icon + caption while the engine loads the
+// net. The preview guard keeps the real engine from launching in the canvas.
 #Preview("Root — engine loading") {
     TVRootView()
+        .environment(EngineLaunchStatus())
         .modelContainer(TVPreviewData.container(games: []))
 }
 
@@ -314,8 +300,4 @@ struct TVLoadingView: View {
         ]))
 }
 
-// The standalone loading screen used for both engine and iCloud waits.
-#Preview("Loading view") {
-    TVLoadingView(caption: "Loading engine…")
-}
 #endif

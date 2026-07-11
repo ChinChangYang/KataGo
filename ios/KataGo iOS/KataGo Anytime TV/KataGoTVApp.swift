@@ -14,7 +14,16 @@ import KataGoUICore
 
 @main
 struct KataGoTVApp: App {
+    @State private var engineLaunchStatus: EngineLaunchStatus
+
     init() {
+        // Create the EngineLaunchStatus object first so we can capture a
+        // direct reference to it in the updater closure — at init() time
+        // the @State wrapper backing store isn't yet reachable via `self`
+        // (mirrors KataGo_iOSApp).
+        let status = EngineLaunchStatus()
+        _engineLaunchStatus = State(initialValue: status)
+
         // A user-armed "Re-download Library from iCloud" wipes the local store
         // HERE — before the lazy SharedModelContainer is first touched in
         // `body` — so the container always opens fresh and re-imports.
@@ -23,11 +32,18 @@ struct KataGoTVApp: App {
         // Wire the cache-aware CoreML bridge into the KataGoSwift seam before any
         // engine launch (mirrors the iOS app), and force the engine stack to link.
         registerCoreMLBridge()
+
+        // Wire the engine-launch status updater seam so TVLoadingView can
+        // show a secondary caption during cache-miss compiles.
+        registerEngineLaunchStatusUpdater { phase in
+            await MainActor.run { status.phase = phase }
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             TVRootView()
+                .environment(engineLaunchStatus)
         }
         .modelContainer(SharedModelContainer.shared)
     }
