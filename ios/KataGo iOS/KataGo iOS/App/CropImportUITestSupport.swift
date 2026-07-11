@@ -64,12 +64,13 @@ enum CropImportUITestSupport {
     /// is exactly the central [0.25,0.75]² of the frame — surrounded by
     /// distractors: a wood-toned base, irregularly spaced dark lines that
     /// stop at a central hole (a square of side width × 0.57, spanning
-    /// [0.215,0.785] of the width — comfortably clear of both the board and
-    /// the 0.21/0.77 line fractions), and thick dark bars hugging the frame
-    /// (fake table edges). The two full-length lines that skirt the crop's
-    /// rim (fractions 0.21 and 0.77) are load-bearing: headless-verified,
-    /// they help the crop's texture-based quad detection lock onto the real
-    /// board — a fully clean flat ring misleads it into a shifted grid.
+    /// [0.215,0.785] of the width), and thick dark bars hugging the frame
+    /// (fake table edges). The line at fraction 0.21 is a full-length line
+    /// that skirts the crop's rim and is load-bearing: headless-verified, it
+    /// helps the crop's texture-based quad detection lock onto the real board
+    /// — a fully clean flat ring misleads it into a shifted grid. Fraction
+    /// 0.77 falls within the hole interval [0.215,0.785] and survives only as
+    /// short stubs on either side of the hole.
     /// Hole sizing is a measured speed/robustness trade: 0.5 abstains too
     /// slowly for the test's crop-phase wait (~9 s optimized, 100+ s under
     /// the Debug-built recognizer), 0.62 breaks the crop's recognition;
