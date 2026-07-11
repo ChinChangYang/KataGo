@@ -83,6 +83,7 @@ struct ContentView: View {
                 #if DEBUG
                 PhotoImportUITestSupport.presentIfNeeded(into: topUIState)
                 CameraCaptureUITestSupport.presentIfNeeded(into: topUIState)
+                CropImportUITestSupport.presentIfNeeded(into: topUIState)
                 #endif
             }
         } else if selectedModel != nil {
