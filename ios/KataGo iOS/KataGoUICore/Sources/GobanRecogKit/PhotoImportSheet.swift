@@ -31,6 +31,7 @@ public struct PhotoImportSheet: View {
     private let onImport: (_ sgf: String, _ name: String) -> Void
     private let onCancel: () -> Void
     private let onRetry: (() -> Void)?
+    private let retryButtonTitle: String
 
     @State private var phase: Phase = .recognizing
     @State private var nextToPlay: PlayerColor = .black
@@ -52,18 +53,23 @@ public struct PhotoImportSheet: View {
     ///   - onImport: called with the synthesized SGF (for the chosen next-to-play)
     ///     and the suggested name when the user confirms.
     ///   - onCancel: called when the user dismisses without importing.
-    ///   - onRetry: optional; when provided, the failure state offers "Try
-    ///     Another Image" so the host can re-present its picker.
+    ///   - onRetry: optional; when provided, the failure state offers a retry
+    ///     button so the host can re-present its picker (or re-open the camera).
+    ///   - retryButtonTitle: the retry button's label; defaults to "Try Another
+    ///     Image" (the file/library entry point). Camera hosts pass "Retake
+    ///     Photo". Ignored when `onRetry` is nil (no button shown).
     public init(imageData: Data,
                 suggestedName: String,
                 onImport: @escaping (_ sgf: String, _ name: String) -> Void,
                 onCancel: @escaping () -> Void,
-                onRetry: (() -> Void)? = nil) {
+                onRetry: (() -> Void)? = nil,
+                retryButtonTitle: String = "Try Another Image") {
         self.imageData = imageData
         self.suggestedName = suggestedName
         self.onImport = onImport
         self.onCancel = onCancel
         self.onRetry = onRetry
+        self.retryButtonTitle = retryButtonTitle
     }
 
     public var body: some View {
@@ -207,8 +213,9 @@ public struct PhotoImportSheet: View {
                 Button("Cancel", role: .cancel, action: onCancel)
                 if let onRetry {
                     Spacer()
-                    Button("Try Another Image", action: onRetry)
+                    Button(retryButtonTitle, action: onRetry)
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("PhotoImportSheet.retry")
                 }
             }
         }

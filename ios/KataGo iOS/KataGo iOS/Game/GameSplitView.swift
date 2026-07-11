@@ -30,6 +30,14 @@ struct GameSplitView: View {
     /// dismissing can race, so the capture is held here and consumed once the
     /// cover has actually gone away (see the `capturingBoardPhoto` observer).
     @State private var capturedBoardPhoto: Data?
+
+    /// Set by the failure-state "Retake Photo" action; consumed by the
+    /// photo-import sheet's `onDismiss`. The camera cover must not be presented
+    /// in the same transaction that dismisses the sheet (the mirror image of the
+    /// `capturedBoardPhoto` race above — the cover presentation gets dropped
+    /// while the sheet is still animating out), so the retry only flags intent
+    /// and the cover is presented once the sheet has actually gone away.
+    @State private var reopeningCameraAfterRetry = false
 #endif
 
     @Environment(Stones.self) var stones
@@ -108,7 +116,18 @@ struct GameSplitView: View {
             .onChange(of: photoPickerItem) { _, newItem in
                 loadPickedPhoto(newItem)
             }
-            .sheet(item: $topUIState.pendingPhotoImport) { pending in
+            .sheet(item: $topUIState.pendingPhotoImport, onDismiss: {
+#if os(iOS)
+                // "Retake Photo" flagged intent to reopen the camera; present
+                // the cover only now that the sheet has finished dismissing
+                // (presenting it in the same transaction gets dropped — the
+                // mirror image of the cover→sheet race handled below).
+                if reopeningCameraAfterRetry {
+                    reopeningCameraAfterRetry = false
+                    topUIState.capturingBoardPhoto = true
+                }
+#endif
+            }) { pending in
                 photoImportSheet(for: pending)
             }
 #if os(iOS)
@@ -142,7 +161,31 @@ struct GameSplitView: View {
     /// the synthesized SGF is routed through the same seam the file/SGF import
     /// uses, so de-dup, selection, and widget reload all come for free.
     private func photoImportSheet(for pending: PendingPhotoImport) -> some View {
-        NavigationStack {
+        // A failed camera capture offers "Retake Photo", reopening the camera
+        // cover. The retry only dismisses the sheet and flags intent; the cover
+        // is presented from the sheet's `onDismiss` (presenting it while the
+        // sheet is still dismissing gets dropped). File/library imports keep
+        // today's behavior: no retry button — the user re-picks from the menu.
+        let onRetry: (() -> Void)?
+        let retryButtonTitle: String
+        switch pending.source {
+        case .camera:
+#if os(iOS)
+            onRetry = {
+                reopeningCameraAfterRetry = true
+                topUIState.pendingPhotoImport = nil
+            }
+#else
+            // No camera entry point exists off-iOS, so a `.camera` pending
+            // import cannot occur; offer no retry if one ever does.
+            onRetry = nil
+#endif
+            retryButtonTitle = "Retake Photo"
+        case .fileOrLibrary:
+            onRetry = nil
+            retryButtonTitle = "Try Another Image"
+        }
+        return NavigationStack {
             PhotoImportSheet(
                 imageData: pending.imageData,
                 suggestedName: pending.suggestedName,
@@ -152,7 +195,9 @@ struct GameSplitView: View {
                 },
                 onCancel: {
                     topUIState.pendingPhotoImport = nil
-                }
+                },
+                onRetry: onRetry,
+                retryButtonTitle: retryButtonTitle
             )
         }
     }
