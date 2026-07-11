@@ -25,10 +25,12 @@ struct GameSplitView: View {
     @State private var photoPickerItem: PhotosPickerItem?
 
 #if os(iOS)
-    /// Stashes the camera-captured JPEG across the cover→sheet transition.
-    /// Presenting the photo-import sheet while the full-screen cover is still
-    /// dismissing can race, so the capture is held here and consumed once the
-    /// cover has actually gone away (see the `capturingBoardPhoto` observer).
+    /// Stashes the camera-captured JPEG across the cover→sheet transition. The
+    /// `capturingBoardPhoto` observer consumes it when the flag flips false — at
+    /// the START of the cover's dismissal animation, not its completion. SwiftUI
+    /// tolerates presenting the sheet while the cover finishes dismissing in this
+    /// direction, so no wait is needed here (only the retry direction, via the
+    /// sheet's `onDismiss` chaining below, waits for the dismissal to complete).
     @State private var capturedBoardPhoto: Data?
 
     /// Set by the failure-state "Retake Photo" action; consumed by the
@@ -135,9 +137,10 @@ struct GameSplitView: View {
                 BoardCameraView(
                     onCapture: { data in
                         // Stash and dismiss the cover; the photo-import funnel is
-                        // driven from the `capturingBoardPhoto` observer once the
-                        // cover has finished dismissing (avoids a present-while-
-                        // dismissing race with the sheet above).
+                        // driven from the `capturingBoardPhoto` observer when the
+                        // flag flips (at the start of the cover's dismissal —
+                        // SwiftUI tolerates presenting the sheet while the cover
+                        // finishes dismissing in this direction).
                         capturedBoardPhoto = data
                         topUIState.capturingBoardPhoto = false
                     },
@@ -148,7 +151,14 @@ struct GameSplitView: View {
                 .ignoresSafeArea()
             }
             .onChange(of: topUIState.capturingBoardPhoto) { _, isCapturing in
-                guard !isCapturing, let data = capturedBoardPhoto else { return }
+                guard !isCapturing else {
+                    // Camera opening: clear any stash a prior session's late
+                    // capture may have leaked, so a stale photo can't be consumed
+                    // by this session's cancel edge.
+                    capturedBoardPhoto = nil
+                    return
+                }
+                guard let data = capturedBoardPhoto else { return }
                 capturedBoardPhoto = nil
                 presentPhotoImport(imageData: data,
                                    name: photoImportName(),

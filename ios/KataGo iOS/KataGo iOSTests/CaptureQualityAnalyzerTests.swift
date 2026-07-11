@@ -95,7 +95,7 @@ struct CaptureQualityAnalyzerTests {
     /// so it is not flagged.
     @Test func shallowBlobIsNotShadow() {
         let board = centeredRect(base: 180, rw: 64, rh: 64, value: 173)
-        #expect(CaptureQualityAnalyzer.shadowFraction(rectified: board) <= 0.08)
+        #expect(CaptureQualityAnalyzer.shadowFraction(rectified: board) < 0.01)
     }
 
     // MARK: - 3. Glare

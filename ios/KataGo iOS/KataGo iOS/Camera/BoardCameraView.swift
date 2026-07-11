@@ -27,6 +27,11 @@ struct BoardCameraView: View {
     @State private var isCapturing = false
     @State private var captureError: String?
     @State private var torchOn = false
+    /// Set once the cover is being dismissed (Cancel tapped or `.onDisappear`).
+    /// A capture already in AVFoundation's pipeline can still resolve after
+    /// this; when it does, its result is dropped so a late `onCapture` can't
+    /// leak a stale stash or force-dismiss a freshly reopened cover.
+    @State private var isDismissed = false
 
     /// Main-actor view model fed by the live-guidance coordinator. Holds the
     /// hysteresis-smoothed message and the per-frame overlay quad.
@@ -131,7 +136,10 @@ struct BoardCameraView: View {
             controller.start()
             setUpGuidance()
         }
-        .onDisappear { controller.stop() }
+        .onDisappear {
+            isDismissed = true
+            controller.stop()
+        }
         .onChange(of: controller.interruptionMessage) { _, message in
             // When the interruption clears, rewind guidance so a stale overlay
             // can't reappear before fresh frames arrive.
@@ -209,7 +217,7 @@ struct BoardCameraView: View {
                 .padding(.horizontal, 32)
             Spacer(minLength: 0)
             HStack {
-                Button("Cancel", role: .cancel, action: onCancel)
+                Button("Cancel", role: .cancel, action: cancel)
                     .accessibilityIdentifier("BoardCamera.cancel")
                 Spacer()
                 Button("Open Settings", action: openSettings)
@@ -228,7 +236,7 @@ struct BoardCameraView: View {
             shutterButton
 
             HStack {
-                Button("Cancel", action: onCancel)
+                Button("Cancel", action: cancel)
                     .foregroundStyle(.white)
                     .accessibilityIdentifier("BoardCamera.cancel")
                     .accessibilityLabel("Cancel")
@@ -305,6 +313,14 @@ struct BoardCameraView: View {
         }
     }
 
+    /// Latches the dismissal before dismissing the cover, so a still-in-flight
+    /// capture that resolves after this drops its result instead of leaking a
+    /// stale stash back to the host.
+    private func cancel() {
+        isDismissed = true
+        onCancel()
+    }
+
     private func capture() {
         guard !isCapturing else { return }
         isCapturing = true
@@ -313,6 +329,9 @@ struct BoardCameraView: View {
             defer { isCapturing = false }
             do {
                 let data = try await controller.capturePhoto()
+                // The cover may have been dismissed (Cancel) while the photo was
+                // in AVFoundation's pipeline; if so, drop the late result.
+                guard !isDismissed else { return }
                 onCapture(data)
             } catch {
                 captureError = "Couldn't capture the photo. Try again."
