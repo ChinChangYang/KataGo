@@ -77,7 +77,16 @@ public func loadCoreMLHandle(
             })
         do {
             let config = MLModelConfiguration()
+            #if os(tvOS)
+            // Apple TV never routes this net to the ANE (0 ANE ops in every
+            // MLComputePlan config), and merely allowing the ANE degrades the
+            // CPU fallback plan (~3.4× slower than GPU in the on-device
+            // Diagnostics benchmark). Pin to CPU+GPU; .all is no faster and
+            // would let CoreML attempt ANE segments that have faulted before.
+            config.computeUnits = .cpuAndGPU
+            #else
             config.computeUnits = .cpuAndNeuralEngine
+            #endif
             let model = try MLModel(contentsOf: pinned.url, configuration: config)
             // Capture pinned so the handle's releaseHook releases the pin
             // when the engine tears the handle down.
