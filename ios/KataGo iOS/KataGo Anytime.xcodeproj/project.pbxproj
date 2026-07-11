@@ -40,6 +40,7 @@
 		15E7FF25B06E8121F6E53669 /* SavedGameProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0359992D4550BD5E766B73 /* SavedGameProvider.swift */; };
 		1634D7F22CC02DC97B3EC6FB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0EDC046510D5219C61D84BDC /* Assets.xcassets */; };
 		16DA2B0F2603C5AC4D072362 /* SubByteTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */; };
+		16E2F9BB0D8320C07DFD05FB /* CameraCaptureUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D69DBDC40073B85BE283389 /* CameraCaptureUITestSupport.swift */; };
 		1821247E1EAEBBC73694BAFD /* ItemSimilarityRecommender.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */; };
 		18269C3F7D0D535B6D186380 /* DeepReportModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532FDD358510D4489F557606 /* DeepReportModelTests.swift */; };
 		1898CE597D3A65A0C6455C0A /* program_name.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3198312DEEC29C7E79A119D6 /* program_name.cc */; };
@@ -246,6 +247,7 @@
 		8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */; };
 		8FC7D9710283CCB707456D36 /* FeatureTypes.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */; };
 		8FC9F361006D40F7229EECCD /* WeightSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265F6595482BA2DE073D71EF /* WeightSerializer.cpp */; };
+		90B20F501F1B190E36F3F72B /* CameraImportUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A060D8F09A10650D523EFA2B /* CameraImportUITests.swift */; };
 		91891DBEF07F1553186F53B1 /* BoardTextParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */; };
 		91F43CB41EF60FFB7DE17527 /* port.cc in Sources */ = {isa = PBXBuildFile; fileRef = 719D1943C021CFA501FF9CF3 /* port.cc */; };
 		923919A38F96C31748E774F2 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
@@ -917,6 +919,7 @@
 		1BD242602F707FC96E8F9DDC /* thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/thread_identity.cc"; sourceTree = SOURCE_ROOT; };
 		1C46DA09C718B0323CFFFDFB /* crc_memcpy_fallback.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_memcpy_fallback.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_memcpy_fallback.cc"; sourceTree = SOURCE_ROOT; };
 		1C81EB8694345D4096093043 /* PlaceholderViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaceholderViewController.swift; sourceTree = "<group>"; };
+		1D69DBDC40073B85BE283389 /* CameraCaptureUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraCaptureUITestSupport.swift; sourceTree = "<group>"; };
 		1DC8B7F558D81D054635928D /* PhotoImportRecognitionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoImportRecognitionTests.swift; sourceTree = "<group>"; };
 		1DDE036A8C4A5D70A31AAEB1 /* PlayerNameLabelUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerNameLabelUITests.swift; sourceTree = "<group>"; };
 		1E1094C011D3FB807C589B00 /* cord_rep_btree_navigator.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_navigator.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_navigator.cc"; sourceTree = SOURCE_ROOT; };
@@ -1113,6 +1116,7 @@
 		9A84A6291B2BFE5CE2182097 /* check_op.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = check_op.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/check_op.cc"; sourceTree = SOURCE_ROOT; };
 		9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionInitializeClearTests.swift; sourceTree = "<group>"; };
 		9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
+		A060D8F09A10650D523EFA2B /* CameraImportUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraImportUITests.swift; sourceTree = "<group>"; };
 		A14133701B7598070B2E71DD /* WatchPeekBufferTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchPeekBufferTests.swift; sourceTree = "<group>"; };
 		A1AE7DFC20B4D28EADF34441 /* GobanStateSuppressGenMoveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateSuppressGenMoveTests.swift; sourceTree = "<group>"; };
 		A384C5A1A349F4B5F0FC3169 /* casts.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = casts.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/casts.cc"; sourceTree = SOURCE_ROOT; };
@@ -1902,6 +1906,7 @@
 				E1240BAF2C6D640200B4874F /* LoadingView.swift */,
 				6E8003E01D85083EA197C7FF /* UITestSeed.swift */,
 				941209B4753038BF1E2CACA1 /* PhotoImportUITestSupport.swift */,
+				1D69DBDC40073B85BE283389 /* CameraCaptureUITestSupport.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2604,6 +2609,7 @@
 				C69FE70B1A92E983AEB8490E /* GlobalSettingsMenuUITests.swift */,
 				27625417544905D6C1BE3963 /* GifExportUITests.swift */,
 				FE489432A835CF8070310981 /* PhotoImportUITests.swift */,
+				A060D8F09A10650D523EFA2B /* CameraImportUITests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -3687,6 +3693,7 @@
 				2BB1E34D0EF0127C6D80AC83 /* CameraPreviewView.swift in Sources */,
 				7F49FA893A281B56BC49D48C /* BoardCameraView.swift in Sources */,
 				B8F06041CBE9EE00F9BDF9B3 /* CameraGuidanceCoordinator.swift in Sources */,
+				16E2F9BB0D8320C07DFD05FB /* CameraCaptureUITestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3782,6 +3789,7 @@
 				9C994E72AE6A7920BB37C31C /* GlobalSettingsMenuUITests.swift in Sources */,
 				0DD5AD89FA1D89932048E68B /* GifExportUITests.swift in Sources */,
 				CC30062DE70DC16E35D03EC5 /* PhotoImportUITests.swift in Sources */,
+				90B20F501F1B190E36F3F72B /* CameraImportUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

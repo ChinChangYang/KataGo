@@ -44,7 +44,17 @@ enum UITestSeed {
         let target: UUID? = gifGameUUID
         var descriptor = FetchDescriptor<GameRecord>(predicate: #Predicate { $0.uuid == target })
         descriptor.fetchLimit = 1
-        if (try? context.fetch(descriptor).first) != nil { return }  // already seeded
+        if let existing = try? context.fetch(descriptor).first {
+            // Already seeded on a persisted store: refresh the timestamp so the
+            // seed is the newest game again. The app auto-selects the most
+            // recent game at launch and `GameListView.onAppear` pre-fills the
+            // list's search filter with the SELECTED game's name — a stale seed
+            // loses the recency race to games left behind by other suites, gets
+            // filtered OUT of the list, and the test can never find it.
+            existing.lastModificationDate = Date.now
+            try? context.save()
+            return
+        }
 
         // Same construction the New Game path uses: createGameRecord builds the
         // record + its Config (board size / komi from the SGF) but does NOT insert.

@@ -37,12 +37,18 @@ enum PhotoImportUITestSupport {
     static func presentIfNeeded(into topUIState: TopUIState) {
         guard isActive else { return }
         guard topUIState.pendingPhotoImport == nil else { return }
-        guard let data = Data(base64Encoded: boardImageBase64) else { return }
+        guard let data = boardImageData else { return }
         topUIState.pendingPhotoImport = PendingPhotoImport(
             imageData: data,
             suggestedName: importedGameName
         )
     }
+
+    /// The bundled wide-margin 9x9 board image (img_00009) as decoded bytes.
+    /// Exposed `internal` so `CameraCaptureUITestSupport` can reuse the exact
+    /// same payload for its `--uitest-camera-import` seam instead of embedding a
+    /// second copy of the blob. `nil` only if the base64 fails to decode.
+    static var boardImageData: Data? { Data(base64Encoded: boardImageBase64) }
 
     /// img_00009.jpg (wide-margin synthetic 9x9 board) as base64, split into
     /// chunks joined at runtime to keep each string literal small.
