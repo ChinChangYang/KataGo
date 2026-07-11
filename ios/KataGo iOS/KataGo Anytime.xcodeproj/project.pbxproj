@@ -66,6 +66,7 @@
 		27873E208A570258C4053732 /* img_00009.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 76D12F727823A07FCF85CFDC /* img_00009.jpg */; };
 		28047B110419251A5427D7F1 /* marshalling.cc in Sources */ = {isa = PBXBuildFile; fileRef = D53357C0B8CA23F49DBCC01E /* marshalling.cc */; };
 		29DE460310B6023605853DD4 /* TVAttractMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAC54FBF402DA5007B56C42 /* TVAttractMode.swift */; };
+		2A0BA92D47354E3344B032D2 /* PhotoImportCropUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504520B5B1920A5B9DA52B7E /* PhotoImportCropUITests.swift */; };
 		2BB1E34D0EF0127C6D80AC83 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD777C486629FB078488D1B /* CameraPreviewView.swift */; };
 		2CCFD053A9EA126208A223ED /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C21644108B173C7D8CC60E /* Foundation.framework */; };
 		2CEF2A571B8EF1800DD05D20 /* stdcpp_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83A4624C9CF12B918AC2EB00 /* stdcpp_waiter.cc */; };
@@ -1000,6 +1001,7 @@
 		4DA3F6789C0DB0E0296968D1 /* TVStoreReset.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVStoreReset.swift; sourceTree = "<group>"; };
 		4F5EA80624694CAFA79E2738 /* GobanStateForcedBranchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateForcedBranchTests.swift; sourceTree = "<group>"; };
 		4FA4F0662AABA7D774C87B46 /* conditions.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = conditions.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/conditions.cc"; sourceTree = SOURCE_ROOT; };
+		504520B5B1920A5B9DA52B7E /* PhotoImportCropUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoImportCropUITests.swift; sourceTree = "<group>"; };
 		5109844DEF28BA649802F94C /* TVMemoryOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVMemoryOverlay.swift; sourceTree = "<group>"; };
 		5290ED5C9410AF244A700A43 /* str_split.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_split.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_split.cc"; sourceTree = SOURCE_ROOT; };
 		532FDD358510D4489F557606 /* DeepReportModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportModelTests.swift; sourceTree = "<group>"; };
@@ -2618,6 +2620,7 @@
 				27625417544905D6C1BE3963 /* GifExportUITests.swift */,
 				FE489432A835CF8070310981 /* PhotoImportUITests.swift */,
 				A060D8F09A10650D523EFA2B /* CameraImportUITests.swift */,
+				504520B5B1920A5B9DA52B7E /* PhotoImportCropUITests.swift */,
 			);
 			path = "KataGo iOSUITests";
 			sourceTree = "<group>";
@@ -3802,6 +3805,7 @@
 				0DD5AD89FA1D89932048E68B /* GifExportUITests.swift in Sources */,
 				CC30062DE70DC16E35D03EC5 /* PhotoImportUITests.swift in Sources */,
 				90B20F501F1B190E36F3F72B /* CameraImportUITests.swift in Sources */,
+				2A0BA92D47354E3344B032D2 /* PhotoImportCropUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
