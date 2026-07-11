@@ -114,9 +114,14 @@ public enum BoardRecognitionError: Error, Equatable, Sendable {
     /// `userFacingMessage` for display.
     case recognitionFailed(reason: String)
 
-    /// A single friendly, coaching message for the failure sheet. The pipeline's
-    /// abstention reasons (board-not-found / low-confidence / ambiguous-size) all
-    /// map to the same guidance, since the fix is the same: reshoot the board.
+    /// A single friendly, coaching message for the terminal failure sheet.
+    /// `.invalidImage` is the sheet's only real audience — undecodable data,
+    /// nothing to crop. `.recognitionFailed`'s copy here is just the fallback
+    /// used if the crop-phase's own display decode fails after ingestion
+    /// already succeeded; ordinarily a `.recognitionFailed` opens the crop
+    /// phase instead of reaching this message. The pipeline's abstention
+    /// reasons (board-not-found / low-confidence / ambiguous-size) all map to
+    /// the same guidance, since the fix is the same: reshoot the board.
     public var userFacingMessage: String {
         switch self {
         case .invalidImage:

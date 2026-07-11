@@ -5,7 +5,7 @@
 //  Shared preview-and-confirm sheet for importing a game from a board photo.
 //  Used by iOS/visionOS and macOS; the platform entry points (PhotosPicker,
 //  fileImporter, NSOpenPanel) supply the picked image `Data` and wire the
-//  completion in later tasks. Three states:
+//  completion in later tasks. Four states:
 //    - recognizing:  a spinner while the C++ pipeline runs;
 //    - preview:      the recognized position on an engine-free board, stone
 //                    counts, confidence, and a next-to-play picker, with Import
@@ -13,7 +13,12 @@
 //                    empty → black → white → empty so the user can correct
 //                    mis-recognized stones (e.g. shadows) before importing;
 //                    Reset restores the recognized position.
-//    - failure:      friendly coaching copy with Try Another Image / Cancel.
+//    - cropping:     shown after a recognition failure (or "Adjust Crop" from
+//                    preview) so the user can drag the crop rect onto just the
+//                    board and retry; Back (from preview) restores the exact
+//                    preview, including stone edits, without re-recognizing.
+//    - failure:      terminal coaching copy, reached only for undecodable
+//                    image data (nothing to crop).
 //
 //  The board is rendered engine-free with the shared `ReportBoardView` from the
 //  pure `RecognizedBoard.stoneVertices` mapping, which the
@@ -39,11 +44,32 @@ public struct PhotoImportSheet: View {
     /// recognized board in `phase` so Reset can always restore the original and
     /// the Reset button can hide itself when edits cycle back to it (Equatable).
     @State private var editedBoard: RecognizedBoard?
+    /// The last crop submitted to the recognizer (normalized, top-left
+    /// origin); nil = full frame. Prefills the crop phase and is reused by
+    /// the next Recognize.
+    @State private var cropRect: CGRect?
+    /// The rect being edited in the crop phase.
+    @State private var editingCropRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+    /// Orientation-baked screen-resolution decode shown by the crop phase;
+    /// loaded once on first need.
+    @State private var displayImage: CGImage?
+    /// Bumped by Recognize so the attempt-keyed `.task` restarts recognition.
+    @State private var recognitionAttempt = 0
 
     private enum Phase: Equatable {
         case recognizing
         case preview(RecognizedBoard)
+        case cropping(CropContext)
         case failure(BoardRecognitionError)
+    }
+
+    /// Why the crop phase is showing — drives the headline and the Back
+    /// button. `fromPreview` carries the recognition (and any stone edits) so
+    /// Back can restore the exact preview without re-running the pipeline.
+    private enum CropContext: Equatable {
+        case firstFailure
+        case retryFailure
+        case fromPreview(RecognizedBoard, edited: RecognizedBoard?)
     }
 
     /// - Parameters:
@@ -82,13 +108,15 @@ public struct PhotoImportSheet: View {
                 recognizing
             case .preview(let board):
                 preview(board)
+            case .cropping(let context):
+                cropping(context)
             case .failure(let error):
                 failure(error)
             }
         }
         .padding(24)
         .frame(maxWidth: 480)
-        .task { await recognize() }
+        .task(id: recognitionAttempt) { await recognize() }
     }
 
     // MARK: - States
@@ -151,6 +179,16 @@ public struct PhotoImportSheet: View {
                 Text("Confidence \(Int((board.confidence * 100).rounded()))%")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                Button("Adjust Crop") {
+                    if displayImage == nil {
+                        displayImage = BoardImageIngestion.displayImage(from: imageData)
+                    }
+                    guard displayImage != nil else { return }
+                    editingCropRect = cropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+                    phase = .cropping(.fromPreview(board, edited: editedBoard))
+                }
+                .font(.caption)
+                .accessibilityIdentifier("PhotoImportSheet.adjustCrop")
                 if hasEdits {
                     Button("Reset") { editedBoard = nil }
                         .font(.caption)
@@ -225,21 +263,89 @@ public struct PhotoImportSheet: View {
         .frame(minHeight: 240)
     }
 
+    @ViewBuilder
+    private func cropping(_ context: CropContext) -> some View {
+        VStack(spacing: 16) {
+            Text(cropHeadline(for: context))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+
+            if let displayImage {
+                BoardCropView(image: displayImage, cropRect: $editingCropRect)
+                    .frame(maxWidth: 400, maxHeight: 400)
+            }
+
+            HStack {
+                if case .fromPreview(let board, let edited) = context {
+                    Button("Back") {
+                        editedBoard = edited
+                        phase = .preview(board)
+                    }
+                    .accessibilityIdentifier("PhotoImportSheet.cropBack")
+                }
+                Button("Cancel", role: .cancel, action: onCancel)
+                    .accessibilityIdentifier("PhotoImportSheet.cancel")
+                if let onRetry {
+                    Button(retryButtonTitle, action: onRetry)
+                        .accessibilityIdentifier("PhotoImportSheet.retry")
+                }
+                Spacer()
+                Button("Recognize") {
+                    cropRect = editingCropRect
+                    recognitionAttempt += 1
+                    phase = .recognizing
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("PhotoImportSheet.recognize")
+            }
+        }
+    }
+
+    private func cropHeadline(for context: CropContext) -> String {
+        switch context {
+        case .firstFailure:
+            return "Couldn't find the board. Drag the corners to frame just the board, then tap Recognize."
+        case .retryFailure:
+            return "Still couldn't read the board. Tighten the crop to just the board, or retake the photo with more even lighting."
+        case .fromPreview:
+            return "Adjust the crop, then tap Recognize."
+        }
+    }
+
     // MARK: - Recognition
 
     private func recognize() async {
-        // Guard against re-running if the sheet body re-appears after a result.
+        // Only a fresh `.recognizing` transition runs the pipeline; the sheet
+        // body re-appearing after a result must not re-run it.
         guard phase == .recognizing else { return }
         do {
-            let board = try await BoardRecognizer.recognize(imageData: imageData)
-            // The picker default is set once from recognition; user edits to the
-            // stones never re-derive it (the user may have already chosen).
+            let board = try await BoardRecognizer.recognize(imageData: imageData,
+                                                            cropNormalized: cropRect)
+            // Each successful recognition replaces the position wholesale:
+            // stone edits belong to the old board, and the picker default
+            // re-derives (the user can still override it afterwards).
+            editedBoard = nil
             nextToPlay = board.defaultNextToPlay
             phase = .preview(board)
         } catch let error as BoardRecognitionError {
-            phase = .failure(error)
+            phase = phaseAfterFailure(error)
         } catch {
-            phase = .failure(.recognitionFailed(reason: "\(error)"))
+            phase = phaseAfterFailure(.recognitionFailed(reason: "\(error)"))
         }
+    }
+
+    /// A failed recognition opens the crop phase — the user can point at the
+    /// board — unless the data is undecodable (nothing to crop) or, in a
+    /// belt-and-suspenders corner, the display decode fails after ingestion
+    /// succeeded; both fall back to the terminal failure state.
+    private func phaseAfterFailure(_ error: BoardRecognitionError) -> Phase {
+        guard case .recognitionFailed = error else { return .failure(error) }
+        if displayImage == nil {
+            displayImage = BoardImageIngestion.displayImage(from: imageData)
+        }
+        guard displayImage != nil else { return .failure(error) }
+        editingCropRect = cropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+        return .cropping(cropRect == nil ? .firstFailure : .retryFailure)
     }
 }
