@@ -9,20 +9,25 @@
 //
 
 import CGobanRecog
+import CoreGraphics
 import Foundation
 
 /// Entry point for recognizing a Go board from a photo.
 public enum BoardRecognizer {
 
     /// Recognizes the board in an encoded image (`Data` from a Photos pick, a
-    /// Files URL, or an NSOpenPanel selection). Ingests to BGR, runs the
+    /// Files URL, an NSOpenPanel selection, or a camera capture). Ingests to
+    /// BGR — optionally cropped to `cropNormalized`, a [0,1]² top-left-origin
+    /// rect in the upright image space (the crop-phase UI's output) — runs the
     /// CPU-heavy C++ pipeline on a background task, and maps the result:
     ///   - status `ok`     → a `RecognizedBoard`
     ///   - anything else   → `throw BoardRecognitionError.recognitionFailed(reason:)`
     ///     carrying the raw `failed:<reason>` tail.
-    ///   - undecodable data → `throw BoardRecognitionError.invalidImage`
-    public static func recognize(imageData: Data) async throws -> RecognizedBoard {
-        guard let image = BoardImageIngestion.bgrImage(from: imageData) else {
+    ///   - undecodable data or a degenerate crop → `throw BoardRecognitionError.invalidImage`
+    public static func recognize(imageData: Data,
+                                 cropNormalized: CGRect? = nil) async throws -> RecognizedBoard {
+        guard let image = BoardImageIngestion.bgrImage(from: imageData,
+                                                       cropNormalized: cropNormalized) else {
             throw BoardRecognitionError.invalidImage
         }
         return try await recognize(image: image)

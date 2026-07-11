@@ -138,6 +138,139 @@ struct PhotoImportIngestionTests {
         }
     }
 
+    // MARK: - Crop-aware ingestion
+    //
+    // The crop rect is normalized [0,1]², TOP-LEFT origin, in the
+    // EXIF-oriented (upright) image space. All tests are byte-level — they
+    // never run the C++ recognizer (Debug hardening discipline, see header).
+
+    /// `cropNormalized: nil` must be byte-identical to the original entry
+    /// point: the crop parameter is additive and the full-frame recognition
+    /// path must not change by a single byte.
+    @Test func nilCropIsByteIdenticalToOriginalPath() throws {
+        let data = try fixtureData("img0811")
+        let original = try #require(BoardImageIngestion.bgrImage(from: data))
+        let nilCrop = try #require(BoardImageIngestion.bgrImage(from: data, cropNormalized: nil))
+        #expect(nilCrop.width == original.width)
+        #expect(nilCrop.height == original.height)
+        #expect(nilCrop.bytes == original.bytes)
+    }
+
+    /// The exact full-frame rect short-circuits onto the nil path.
+    @Test func fullFrameCropIsByteIdenticalToNilCrop() throws {
+        let data = try fixtureData("img0811")
+        let original = try #require(BoardImageIngestion.bgrImage(from: data))
+        let fullFrame = try #require(BoardImageIngestion.bgrImage(
+            from: data, cropNormalized: CGRect(x: 0, y: 0, width: 1, height: 1)))
+        #expect(fullFrame.bytes == original.bytes)
+    }
+
+    /// Center-crop of the golden photo matches the corresponding sub-rect of
+    /// the cv2.imread reference — pins the normalized→pixel mapping (origin
+    /// and scale) against external ground truth, not our own code. img0811 is
+    /// 602×626 (≤1280, decoded at native size), so rect (.25,.25,.5,.5) is
+    /// the integral of (150.5, 156.5, 301, 313).
+    @Test func centerCropMatchesReferenceSubRect() throws {
+        let data = try fixtureData("img0811")
+        let crop = CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+        let image = try #require(BoardImageIngestion.bgrImage(from: data, cropNormalized: crop))
+
+        let expected = CGRect(x: 150.5, y: 156.5, width: 301, height: 313).integral
+        #expect(image.width == Int(expected.width))
+        #expect(image.height == Int(expected.height))
+
+        let reference = [UInt8](try fixtureData("img0811", "bgr.raw"))
+        var sub = [UInt8]()
+        sub.reserveCapacity(image.bytes.count)
+        for row in Int(expected.minY)..<Int(expected.maxY) {
+            let rowStart = (row * 602 + Int(expected.minX)) * 3
+            sub.append(contentsOf: reference[rowStart..<(rowStart + Int(expected.width) * 3)])
+        }
+        #expect(meanAbsDiff(image.bytes, sub) < 1.0)
+    }
+
+    /// EXIF-oriented input: the crop rect addresses the same upright space the
+    /// full (nil-crop) ingestion produces — crop (0,0,.5,.5) of an
+    /// orientation-6 JPEG must equal the top-left quadrant of the full upright
+    /// ingestion, byte for byte (same decode, same draw path).
+    @Test func cropMatchesUprightFullIngestionOnOrientedJPEG() throws {
+        let data = try orientedJPEG()
+        let full = try #require(BoardImageIngestion.bgrImage(from: data))
+        // Orientation 6 uprights the stored 400×200 landscape to 200×400.
+        #expect(full.height > full.width)
+
+        let crop = try #require(BoardImageIngestion.bgrImage(
+            from: data, cropNormalized: CGRect(x: 0, y: 0, width: 0.5, height: 0.5)))
+        #expect(crop.width == full.width / 2)
+        #expect(crop.height == full.height / 2)
+
+        var expected = [UInt8]()
+        expected.reserveCapacity(crop.bytes.count)
+        for row in 0..<crop.height {
+            let start = (row * full.width) * 3
+            expected.append(contentsOf: full.bytes[start..<(start + crop.width * 3)])
+        }
+        #expect(crop.bytes == expected)
+    }
+
+    /// Adaptive decode: a half-frame crop of a >1280 source decodes at double
+    /// resolution first, so the crop keeps the full 1280 envelope rather than
+    /// cropping an already-downscaled frame.
+    @Test func cropOfLargeImageKeepsEnvelopeResolution() throws {
+        // img_00009 is 1280×960; 2.5× → 3200×2400 PNG.
+        let big = try upscaledPNG(fixtureData("img_00009"), scale: 2.5)
+        let crop = CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+        let image = try #require(BoardImageIngestion.bgrImage(from: big, cropNormalized: crop))
+        // needed decode = 1280/0.5 = 2560 (< 3200 source) → crop = 1280×960.
+        #expect(image.width == 1280)
+        #expect(image.height == 960)
+    }
+
+    /// The adaptive decode is capped (memory bound): a tiny crop cannot demand
+    /// an unbounded decode, and an under-envelope result passes through
+    /// un-upscaled.
+    @Test func tinyCropIsBoundedByDecodeCapAndNeverUpscaled() throws {
+        let big = try upscaledPNG(fixtureData("img_00009"), scale: 2.5) // 3200×2400
+        let crop = CGRect(x: 0.4, y: 0.4, width: 0.2, height: 0.2)
+        // needed = 1280/0.2 = 6400 → capped at 4096; the 3200px source is
+        // below the cap so it decodes at native size → crop = 640×480.
+        let image = try #require(BoardImageIngestion.bgrImage(from: big, cropNormalized: crop))
+        #expect(image.width == 640)
+        #expect(image.height == 480)
+    }
+
+    @Test func degenerateCropRectYieldsNil() throws {
+        let data = try fixtureData("img0811")
+        // Fully outside the unit square.
+        #expect(BoardImageIngestion.bgrImage(
+            from: data, cropNormalized: CGRect(x: 2, y: 2, width: 0.5, height: 0.5)) == nil)
+        // Zero-size.
+        #expect(BoardImageIngestion.bgrImage(from: data, cropNormalized: .zero) == nil)
+    }
+
+    /// The recognizer surfaces a degenerate crop as `.invalidImage` without
+    /// ever reaching the C++ pipeline (ingestion returns nil first).
+    @Test func recognizeWithDegenerateCropThrowsInvalidImage() async throws {
+        let data = try fixtureData("img0811")
+        await #expect(throws: BoardRecognitionError.invalidImage) {
+            _ = try await BoardRecognizer.recognize(imageData: data, cropNormalized: .zero)
+        }
+    }
+
+    // MARK: - Display decode (crop-phase preview image)
+
+    @Test func displayImageIsOrientationBakedCappedAndNilOnGarbage() throws {
+        let oriented = try orientedJPEG()
+        let display = try #require(BoardImageIngestion.displayImage(from: oriented))
+        #expect(display.height > display.width) // upright portrait
+
+        let big = try upscaledPNG(fixtureData("img_00009"), scale: 2.5)
+        let capped = try #require(BoardImageIngestion.displayImage(from: big))
+        #expect(max(capped.width, capped.height) == BoardImageIngestion.displayMaxPixelSize)
+
+        #expect(BoardImageIngestion.displayImage(from: Data([0x00, 0x01])) == nil)
+    }
+
     // MARK: - Helpers
 
     private func upscaledPNG(_ data: Data, scale: Double) throws -> Data {
@@ -155,6 +288,29 @@ struct PhotoImportIngestionTests {
         let out = NSMutableData()
         let dest = try #require(CGImageDestinationCreateWithData(out, UTType.png.identifier as CFString, 1, nil))
         CGImageDestinationAddImage(dest, big, nil)
+        #expect(CGImageDestinationFinalize(dest))
+        return out as Data
+    }
+
+    /// A stored-landscape JPEG (400×200: left half red, right half blue)
+    /// tagged EXIF orientation 6, so it displays upright as 200×400 portrait.
+    private func orientedJPEG() throws -> Data {
+        let w = 400, h = 200
+        let info = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        let ctx = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                                         bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: info))
+        ctx.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: w / 2, height: h))
+        ctx.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
+        ctx.fill(CGRect(x: w / 2, y: 0, width: w / 2, height: h))
+        let cg = try #require(ctx.makeImage())
+        let out = NSMutableData()
+        let dest = try #require(CGImageDestinationCreateWithData(
+            out, UTType.jpeg.identifier as CFString, 1, nil))
+        let props: [CFString: Any] = [kCGImagePropertyOrientation: 6,
+                                      kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(dest, cg, props as CFDictionary)
         #expect(CGImageDestinationFinalize(dest))
         return out as Data
     }

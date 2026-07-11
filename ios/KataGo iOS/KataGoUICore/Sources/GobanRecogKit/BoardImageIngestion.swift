@@ -53,6 +53,16 @@ public enum BoardImageIngestion {
     /// EXIF orientation).
     public static let maxPixelSize = 1280
 
+    /// Decode ceiling for crop-aware ingestion. A tight crop would otherwise
+    /// demand an unbounded decode (maxPixelSize / cropFraction); 4096 bounds
+    /// the transient BGRA buffer to ~50 MB while keeping the full 1280
+    /// envelope for crops down to ~31% of the frame.
+    public static let cropDecodeCapPixelSize = 4096
+
+    /// Long-side cap for `displayImage(from:)` — a screen-resolution preview
+    /// for the crop UI, never recognition input.
+    public static let displayMaxPixelSize = 1600
+
     /// Decodes `data` and produces a BGR buffer for `recognizeGoban`, or `nil` if
     /// the data is not a decodable image.
     ///
@@ -74,6 +84,79 @@ public enum BoardImageIngestion {
         return bgrImage(from: source, maxPixelSize: maxPixelSize)
     }
 
+    /// Crop-aware variant of `bgrImage(from:maxPixelSize:)`.
+    ///
+    /// `cropNormalized` is a rect in [0,1]² with TOP-LEFT origin in the
+    /// EXIF-oriented (upright) image space — the space the user sees, and the
+    /// space this type's orientation-baked output lives in. The crop happens
+    /// BEFORE the ≤`maxPixelSize` downscale, at an adaptively chosen decode
+    /// resolution, so a tight crop keeps more board pixels than the full-frame
+    /// path had. `nil` and the exact full-frame rect take the original path
+    /// byte-for-byte. Returns nil for undecodable data or a degenerate rect.
+    public static func bgrImage(from data: Data,
+                                cropNormalized: CGRect?,
+                                maxPixelSize: Int = BoardImageIngestion.maxPixelSize) -> BGRImage? {
+        guard let cropNormalized else {
+            return bgrImage(from: data, maxPixelSize: maxPixelSize)
+        }
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let standardized = cropNormalized.standardized
+        // Only reach for `.intersection` when actually clamping is needed: it
+        // recomputes width/height as maxX-minX, and binary floating point
+        // addition (e.g. 0.4 + 0.2 = 0.6000000000000001) can perturb an
+        // already-in-bounds width/height by an ULP or two — enough for the
+        // later `.integral` rounding to overshoot by a pixel. A rect already
+        // inside the unit square needs no clamping, so its bits pass through
+        // untouched.
+        let crop = unit.contains(standardized) ? standardized : standardized.intersection(unit)
+        guard crop.width > 0, crop.height > 0 else { return nil }
+        if crop == unit {
+            return bgrImage(from: data, maxPixelSize: maxPixelSize)
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+
+        // Decode large enough that the cropped region's long side lands at
+        // maxPixelSize, bounded by the cap. The thumbnail API never upscales
+        // past the source's native size.
+        let needed = (Double(maxPixelSize) / Double(max(crop.width, crop.height))).rounded(.up)
+        let decodeSize = min(Int(needed), cropDecodeCapPixelSize)
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: decodeSize,
+        ]
+        guard let decoded = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+
+        let pixelRect = CGRect(x: crop.origin.x * CGFloat(decoded.width),
+                               y: crop.origin.y * CGFloat(decoded.height),
+                               width: crop.width * CGFloat(decoded.width),
+                               height: crop.height * CGFloat(decoded.height))
+            .integral
+            .intersection(CGRect(x: 0, y: 0, width: decoded.width, height: decoded.height))
+        guard pixelRect.width >= 1, pixelRect.height >= 1,
+              let cropped = decoded.cropping(to: pixelRect) else { return nil }
+
+        // .integral rounding can leave the long side a few px over the
+        // envelope; scale DOWN to it, never up.
+        return bgrBuffer(from: cropped, longSideCappedTo: maxPixelSize)
+    }
+
+    /// Orientation-baked, screen-capped decode for DISPLAY in the crop UI.
+    /// Unlike the BGR path this is ordinary color-managed rendering — it feeds
+    /// the screen, never the recognizer.
+    public static func displayImage(from data: Data,
+                                    maxPixelSize: Int = BoardImageIngestion.displayMaxPixelSize) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
     private static func bgrImage(from source: CGImageSource, maxPixelSize: Int) -> BGRImage? {
         let options: [CFString: Any] = [
             // Always synthesize a thumbnail (never reuse an embedded one, which
@@ -91,11 +174,20 @@ public enum BoardImageIngestion {
     }
 
     /// Draws `cgImage` into a BGRA context in the image's own color space and
-    /// returns the compacted tightly packed BGR buffer.
-    static func bgrBuffer(from cgImage: CGImage) -> BGRImage? {
-        let width = cgImage.width
-        let height = cgImage.height
+    /// returns the compacted tightly packed BGR buffer. When `cap` is given
+    /// and the image's long side exceeds it, the draw downscales to the cap
+    /// (aspect preserved) — used by the crop path, whose integral pixel rect
+    /// can overshoot the envelope by a few pixels. Callers without a cap get
+    /// the original native-size behavior, byte for byte.
+    static func bgrBuffer(from cgImage: CGImage, longSideCappedTo cap: Int? = nil) -> BGRImage? {
+        var width = cgImage.width
+        var height = cgImage.height
         guard width > 0, height > 0 else { return nil }
+        if let cap, max(width, height) > cap {
+            let scale = Double(cap) / Double(max(width, height))
+            width = max(1, Int((Double(width) * scale).rounded()))
+            height = max(1, Int((Double(height) * scale).rounded()))
+        }
 
         // Draw into the image's OWN color space so the draw is an identity
         // transform (no ICC color management), matching cv2.imread.
