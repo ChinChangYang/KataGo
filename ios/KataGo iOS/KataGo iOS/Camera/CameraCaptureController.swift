@@ -59,7 +59,18 @@ final class CameraCaptureController {
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservations: [NSKeyValueObservation] = []
-    private var notificationTokens: [NSObjectProtocol] = []
+
+    /// Tokens for the block-based NotificationCenter observers registered in
+    /// `setUpNotificationsIfNeeded()`. Unlike selector-based observers, tokens
+    /// from `addObserver(forName:object:queue:using:)` are strongly retained
+    /// by NotificationCenter until `removeObserver` is called explicitly —
+    /// they are NOT auto-removed on deallocation. `deinit` removes them.
+    /// `nonisolated(unsafe)` because `deinit` is nonisolated and cannot read
+    /// a main-actor-isolated stored property: this array is written once
+    /// during registration on the main actor and read exactly once, in
+    /// `deinit`, after every other reference to `self` is already gone — so
+    /// there is no concurrent access to race.
+    @ObservationIgnored nonisolated(unsafe) private var notificationTokens: [NSObjectProtocol] = []
 
     /// Retains the in-flight photo delegate for the duration of a capture. A
     /// local would be released before the delegate callback fires.
@@ -97,8 +108,8 @@ final class CameraCaptureController {
     }
 
     /// Stops the running session on the private queue. Observers are left in
-    /// place (auto-removed when this controller deallocates) so a later
-    /// `start()` resumes without re-registering.
+    /// place so a later `start()` resumes without re-registering; they are
+    /// removed explicitly in `deinit`, not auto-removed on deallocation.
     func stop() {
         nonisolated(unsafe) let session = self.session
         sessionQueue.async {
@@ -106,6 +117,14 @@ final class CameraCaptureController {
                 session.stopRunning()
             }
         }
+    }
+
+    /// Removes the block-based NotificationCenter observers registered in
+    /// `setUpNotificationsIfNeeded()`. Required because those tokens are
+    /// strongly held by NotificationCenter and are not auto-removed on
+    /// deallocation (that only applies to selector-based observers).
+    deinit {
+        notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     // MARK: Preview wiring
