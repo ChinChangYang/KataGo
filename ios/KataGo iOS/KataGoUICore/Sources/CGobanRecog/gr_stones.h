@@ -34,6 +34,11 @@ namespace gobanrecog {
 struct StoneClassification {
     BoardState board;
     double confidence;  // min decision margin over all intersections, 0..1
+    // Same min-margin under the pre-guard (legacy) white rule and FULL legacy
+    // branch selection — gr_run.cpp's two-tier acceptance uses it to reproduce
+    // the historical abstain/accept decision bit-for-bit (stones.py
+    // confidence_legacy).
+    double confidence_legacy;
 };
 
 // ports stones.py::classify_stones. img_bgr: uint8 BGR HxWx3; H_grid (CV_64F

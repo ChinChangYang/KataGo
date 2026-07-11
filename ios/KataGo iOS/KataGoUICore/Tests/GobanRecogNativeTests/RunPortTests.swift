@@ -66,3 +66,60 @@ func recognizeImageOnImg0811RecognizesNineteen() throws {
     // Python confidence 0.23937779622452926, comfortably above CONF_FLOOR 0.049.
     #expect(r.confidence > 0.049)
 }
+
+// img0820/img0821: 960x1280x3 BGR, exactly cv2.imread(tests/fixtures/imgNNNN.jpg)
+// .tofile — the app-ingestion-equivalent downscale (long side 1280) of the two
+// 2026-07-11 real photos (same 9x9 varnished board on a same-tone wood floor).
+private let img082xWidth = 960
+private let img082xHeight = 1280
+
+// The Python reference SGF (tests/fixtures/img0821_expected.sgf): the four true
+// stones, phantoms suppressed by the rule-3 near-neutral-wood guard.
+private let img0821ExpectedSgf =
+    "(;GM[1]FF[4]CA[UTF-8]AP[GobanRecog:0.1]SZ[9]AB[dc][ee]AW[ce][gf])"
+
+@Test
+func recognizeImageOnImg0821RescuedExact() throws {
+    // Acceptance test for the rule-3 near-neutral-wood guard + rescue tier:
+    // three pale-grain phantom whites (ratio 1.112-1.158 on wood_c 0.05-0.08)
+    // historically dragged confidence below the floor (0.031 on the original
+    // photo's bytes; 0.024439 on this fixture's JPEG bytes) -> abstain. The
+    // guard kills them; the legacy confidence stays below CONF_FLOOR, so the
+    // board is accepted through the CONF_FLOOR_RESCUE tier (Python: conf
+    // 0.544883).
+    let url = try #require(Bundle.module.url(forResource: "img0821.bgr.raw", withExtension: nil,
+                                             subdirectory: "Resources"))
+    let data = try Data(contentsOf: url)
+    #expect(data.count == img082xWidth * img082xHeight * 3)
+    let bgr = [UInt8](data)
+
+    let r = recognizeStatusLine(bgr, width: img082xWidth, height: img082xHeight)
+    #expect(r.status == "ok")
+    #expect(r.boardSize == 9)
+    #expect(r.sgf == img0821ExpectedSgf)
+    // Rescued acceptance requires clearing CONF_FLOOR_RESCUE (0.45).
+    #expect(r.confidence > 0.45)
+}
+
+@Test
+func recognizeImageOnImg0820EmptyBoardAbstainsNotWrong() throws {
+    // Negative-result guard for the empty-board/same-tone-floor detection gap
+    // (deliberately out of scope): no quad proposer finds the board face, the
+    // misaligned lattice hallucinates phantom whites, and the two-tier
+    // acceptance abstains (C++/Python both: conf 0.0910, legacy 0.0152). A
+    // future change making this produce "ok" is only correct if the board is
+    // EXACTLY empty.
+    let url = try #require(Bundle.module.url(forResource: "img0820.bgr.raw", withExtension: nil,
+                                             subdirectory: "Resources"))
+    let data = try Data(contentsOf: url)
+    #expect(data.count == img082xWidth * img082xHeight * 3)
+    let bgr = [UInt8](data)
+
+    let r = recognizeStatusLine(bgr, width: img082xWidth, height: img082xHeight)
+    if r.status == "ok" {
+        #expect(r.boardSize == 9)
+        #expect(r.sgf == "(;GM[1]FF[4]CA[UTF-8]AP[GobanRecog:0.1]SZ[9])")
+    } else {
+        #expect(r.status == "failed:low_confidence")
+    }
+}

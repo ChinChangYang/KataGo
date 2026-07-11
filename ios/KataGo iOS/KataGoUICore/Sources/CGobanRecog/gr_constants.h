@@ -55,7 +55,17 @@ constexpr double SHIFT_BONUS_WEIGHT = 2.0;    // detect.py:453
 constexpr double SHIFT_MIN_GAIN = 0.10;       // detect.py:454 (rival must beat incumbent by this)
 constexpr double QUALITY_GAIN = 0.25;         // detect.py:512
 constexpr double VERIFIED_GATE = 0.5;         // detect.py:513
-constexpr double CONF_FLOOR = 0.049;          // run.py:33
+constexpr double CONF_FLOOR = 0.049;          // run.py CONF_FLOOR
+// Second-tier floor for GUARD-RESCUED boards (run.py CONF_FLOOR_RESCUE):
+// results the legacy white rule would abstain on (confidence_legacy <
+// CONF_FLOOR) but the guarded rule accepts must clear this much higher bar —
+// killing weak phantom whites RAISES a wrong board's min-margin (img0819:
+// 0.0146 -> 0.136), so rescued boards can't ride the plain floor. Calibrated
+// 2026-07-11 on data/cool-shadow (see run.py for the full numbers):
+// end-to-end wrong-rescue ceiling 0.363 (all 6 admitted rescues exact,
+// >= 0.455); GT-lattice pessimistic wrong ceiling 0.443. Anchors img0821 in
+// (0.545) and img0819 out (~0.14).
+constexpr double CONF_FLOOR_RESCUE = 0.45;
 
 // ---- Module-level constants built at import time (rule 8: function-local
 //      `static const` built on first use). ---------------------------------

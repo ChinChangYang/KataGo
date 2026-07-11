@@ -54,7 +54,7 @@ func diskIndicesMatchNumpyMgridOrder() {
     #expect(diskIndices(12).dy.count == 441)
 }
 
-// MARK: - _w_fires (stones.py:59-70)
+// MARK: - _w_fires (stones.py:64-105)
 
 @Test
 func wFiresThreeRuleBoundaries() {
@@ -66,10 +66,22 @@ func wFiresThreeRuleBoundaries() {
     #expect(wFires(gap: 0.056, ratio: 1.001, mc: 0.5, woodC: 0.5))
     #expect(!wFires(gap: 0.055, ratio: 1.001, mc: 0.5, woodC: 0.5))  // gap == 0.055 does not fire
     #expect(!wFires(gap: 0.056, ratio: 1.00, mc: 0.5, woodC: 0.5))   // ratio == 1.00 does not fire
-    // Rule 3: ratio > 1.10 and mc < 0.65 * wood_c (both strict)
+    // Rule 3: ratio > 1.10 and mc < 0.65 * wood_c (both strict), with the
+    // near-neutral-wood guard (wood_c > 0.10 or ratio > 1.20, both strict).
+    // woodC 0.5 > 0.10 keeps the guard inert for the original boundary pins:
     #expect(wFires(gap: 0.0, ratio: 1.101, mc: 0.32, woodC: 0.5))    // 0.32 < 0.325
     #expect(!wFires(gap: 0.0, ratio: 1.101, mc: 0.325, woodC: 0.5))  // mc == 0.65*wood_c does not fire
     #expect(!wFires(gap: 0.0, ratio: 1.10, mc: 0.32, woodC: 0.5))    // ratio == 1.10 does not fire
+    // Guard on near-neutral wood (wood_c <= 0.10): the img0821 phantom class
+    // (ratio 1.112-1.158 on wood_c 0.05-0.08) must NOT fire; stone-grade
+    // brightness (ratio > 1.20) still fires.
+    #expect(!wFires(gap: 0.03, ratio: 1.15, mc: 0.02, woodC: 0.08))  // pale-grain phantom killed
+    #expect(wFires(gap: 0.03, ratio: 1.201, mc: 0.02, woodC: 0.08))  // bright true white fires
+    #expect(!wFires(gap: 0.03, ratio: 1.20, mc: 0.02, woodC: 0.08))  // ratio == 1.20 does not fire
+    // wood_c boundary is strict: wood_c == 0.10 is still "near-neutral"…
+    #expect(!wFires(gap: 0.03, ratio: 1.15, mc: 0.02, woodC: 0.10))
+    // …while wood_c just above 0.10 restores the pre-guard rule 3.
+    #expect(wFires(gap: 0.03, ratio: 1.15, mc: 0.02, woodC: 0.101))  // 0.02 < 0.06565
 }
 
 // MARK: - classify on a synthetic pre-rectified frame

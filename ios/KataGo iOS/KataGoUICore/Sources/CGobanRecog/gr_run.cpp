@@ -22,7 +22,7 @@
 
 #include "GobanRecogCpp.hpp"        // public seam: GobanRecogResult / recognizeGoban
 #include "GobanRecogTestBridge.hpp"
-#include "gr_constants.h"           // CONF_FLOOR (run.py:33)
+#include "gr_constants.h"           // CONF_FLOOR + CONF_FLOOR_RESCUE (run.py)
 #include "gr_sgf.h"                 // board_to_sgf
 #include "gr_stones.h"              // classify_stones, StoneClassification
 
@@ -70,9 +70,19 @@ RecognitionResult recognize_image(const cv::Mat& img_bgr) {
 
     // run.py merges {**det.debug, **cls.debug}; cls has no debug (== {}), so the
     // recognition debug is det.debug alone on every path below.
-    if (cls.confidence < CONF_FLOOR) {
+    //
+    // Two-tier acceptance (run.py lockstep): boards the legacy rule already
+    // trusted keep the plain floor; boards only the rule-3 guard lifts over
+    // the floor ("rescues") must clear CONF_FLOOR_RESCUE. The middle band
+    // reuses the same reason string — eval_cpp compares status strings
+    // verbatim between the Python reference and this port.
+    const bool accepted =
+        cls.confidence >= CONF_FLOOR &&
+        (cls.confidence_legacy >= CONF_FLOOR || cls.confidence >= CONF_FLOOR_RESCUE);
+    if (!accepted) {
         result.status = "failed:low_confidence";
         result.confidence = cls.confidence;
+        result.confidence_legacy = cls.confidence_legacy;
         result.debug = det.debug;
         return result;
     }
@@ -83,6 +93,7 @@ RecognitionResult recognize_image(const cv::Mat& img_bgr) {
     result.corners = det.corners;
     result.H_grid = det.H_grid;
     result.confidence = cls.confidence;
+    result.confidence_legacy = cls.confidence_legacy;
     result.debug = det.debug;
     return result;
 }
@@ -196,6 +207,10 @@ std::string recognize_debug_json(const unsigned char* bgr, int width, int height
 
     out += ", \"confidence\": ";
     append_double(out, r.confidence);
+
+    // run.py debug["confidence_legacy"] (two-tier acceptance drill-down)
+    out += ", \"confidence_legacy\": ";
+    append_double(out, r.confidence_legacy);
 
     out += ", \"corners\": [";
     if (!r.corners.empty()) {

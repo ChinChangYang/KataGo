@@ -39,6 +39,10 @@ struct RecognitionResult {
     cv::Mat corners;                    // empty Mat == Python None
     cv::Mat H_grid;                     // empty Mat == Python None
     double confidence = 0.0;
+    // Legacy-rule confidence (run.py debug["confidence_legacy"]): the value
+    // the pre-guard classifier would have gated; carried on both the ok and
+    // failed:low_confidence paths for the two-tier acceptance + debug JSON.
+    double confidence_legacy = 0.0;
     DebugInfo debug;
 };
 

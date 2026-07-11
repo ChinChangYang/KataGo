@@ -123,7 +123,27 @@ std::pair<std::vector<int>, std::vector<int>> _disk_indices(int radius) {
 // on the assumption that the deciding sample itself fired this rule, so a
 // divergence between them can leave best_w_margin None -> TypeError. wood_c
 // is a parameter (not a closure) because it is recomputed per grid node."""
+//
+// Rule 3 carries a near-neutral-wood guard `(wood_c > 0.10 || ratio > 1.20)`
+// (both strict): on nearly achromatic wood the relative cooling test
+// `mc < 0.65*wood_c` is close to vacuous, so a pale grain stripe or sheen
+// band 10-16% brighter than local wood fires as a dim phantom white.
+// Measured 2026-07-11 (see stones.py::_w_fires for the full numbers): zero
+// canonical-600 labels flip; img0821's three phantoms (ratio 1.112-1.158 on
+// wood_c 0.05-0.08) die; IMG_0811's blurred white `rl` is protected by the
+// wood_c arm. Guard-suppressed firings are the legacy-vs-guarded delta that
+// confidence_legacy and gr_run.cpp's two-tier floor arbitrate.
 bool _w_fires(double gap, double ratio, double mc, double wood_c) {
+    return (gap > 0.10 && ratio > 0.90) ||
+           (gap > 0.055 && ratio > 1.00) ||
+           (ratio > 1.10 && mc < 0.65 * wood_c && (wood_c > 0.10 || ratio > 1.20));
+}
+
+// ports stones.py::_w_fires_legacy — the pre-guard rule, kept ONLY to compute
+// confidence_legacy so the two-tier acceptance can reproduce the historical
+// abstain/accept bit exactly. Guarded firings are a strict subset of legacy
+// firings (the guard only narrows rule 3).
+bool _w_fires_legacy(double gap, double ratio, double mc, double wood_c) {
     return (gap > 0.10 && ratio > 0.90) ||
            (gap > 0.055 && ratio > 1.00) ||
            (ratio > 1.10 && mc < 0.65 * wood_c);
@@ -209,6 +229,7 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
     std::vector<std::vector<char>> grid(static_cast<size_t>(n),
                                         std::vector<char>(static_cast<size_t>(n), EMPTY));
     double min_margin = 1.0;
+    double min_margin_legacy = 1.0;
     for (int r = 0; r < n; ++r) {
         for (int c = 0; c < n; ++c) {
             // local wood reference: median over the 3x3 block of adjacent
@@ -256,7 +277,13 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
             double cen_c = 0.0;
             double min_ratio = std::numeric_limits<double>::infinity();
             double min_ratio_c = 0.0;  // warmth of the darkest (min-ratio) sample
-            std::optional<double> best_w_margin;  // best_w_margin = None
+            // Two accumulators, NOT one: guarded-rule firings are a strict
+            // subset of legacy firings, so a node can fire legacy-W at some
+            // offset with no guarded firing (best_w_margin stays nullopt) —
+            // the legacy margin leg below must not deref it. Each rule tracks
+            // the max margin over ITS OWN firing offsets (stones.py lockstep).
+            std::optional<double> best_w_margin;         // best_w_margin = None
+            std::optional<double> best_w_margin_legacy;  // best_w_margin_legacy = None
             const std::vector<std::pair<double, double>>& offsets = nodeOffsets();
             for (size_t i = 0; i < offsets.size(); ++i) {
                 const double dx = offsets[i].first;
@@ -283,11 +310,16 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
                     min_ratio = o_ratio;
                     min_ratio_c = mc;
                 }
-                if (_w_fires(o_gap, o_ratio, mc, wood_c)) {
+                if (_w_fires_legacy(o_gap, o_ratio, mc, wood_c)) {
                     const double m = std::min(
                         1.0, std::max((o_gap - 0.055) / 0.05, (o_ratio - 1.10) / 0.4));
-                    if (!best_w_margin.has_value() || m > *best_w_margin) {
-                        best_w_margin = m;
+                    if (!best_w_margin_legacy.has_value() || m > *best_w_margin_legacy) {
+                        best_w_margin_legacy = m;
+                    }
+                    if (_w_fires(o_gap, o_ratio, mc, wood_c)) {
+                        if (!best_w_margin.has_value() || m > *best_w_margin) {
+                            best_w_margin = m;
+                        }
                     }
                 }
             }
@@ -300,6 +332,7 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
             // 600-image eval on this branch; 0.55 missed a blurred white
             // (IMG_0811 `rl`, med_c/wood_c = 0.63).
             double margin;
+            double margin_legacy;
             // Steep-shadow veto on the black rule (real-photo IMG_0816); see
             // stones.py for the measured rationale: a narrow warm shadow band
             // puts EMPTY nodes at min_ratio 0.38-0.46 with RAISED normalized
@@ -309,27 +342,40 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
             // all (both on the already-degraded img_00440).
             const bool shadow_veto = min_ratio < 0.50 && min_ratio >= 0.35 &&
                                      wood_c > 0.0 && min_ratio_c > 1.18 * wood_c;
+            // Every branch assigns BOTH margins: margin_legacy replays the
+            // pre-guard elif chain (B -> legacy-W -> veto -> empty) exactly,
+            // so confidence_legacy reproduces the historical value bit-for-bit
+            // (stones.py lockstep).
             if (min_ratio < 0.50 && !shadow_veto) {
                 grid[static_cast<size_t>(r)][static_cast<size_t>(c)] = BLACK;
                 margin = (0.50 - min_ratio) / 0.50;
+                margin_legacy = margin;
             } else if (_w_fires(gap, ratio, med_c, wood_c)) {
                 grid[static_cast<size_t>(r)][static_cast<size_t>(c)] = WHITE;
                 // cannot be None: the deciding sample itself fired a W rule
                 // (.value() would throw std::bad_optional_access exactly where
                 // Python's None would TypeError)
                 margin = best_w_margin.value();
+                // legacy is a superset: it fired here too, with its own max
+                margin_legacy = best_w_margin_legacy.value();
             } else if (shadow_veto) {
                 // Vetoed nodes are empty by POSITIVE evidence (warmth-raised
                 // shadow); score that evidence — the canonical-center margin
                 // below would be ~0 (the node IS dark) and one such node
                 // would abstain the whole corrected board (see stones.py).
                 margin = std::min(1.0, (min_ratio_c / wood_c - 1.18) / 0.22);
+                margin_legacy = _w_fires_legacy(gap, ratio, med_c, wood_c)
+                                    ? best_w_margin_legacy.value()
+                                    : margin;
             } else {
                 const double ratio_c = cen_l / std::max(wood_l, 1e-6);
                 const double gap_c = wood_c - cen_c;
                 margin = std::max(
                     0.0, std::min((ratio_c - 0.50) / 0.50,
                                   gap_c <= 0.055 ? 1.0 : (1.00 - ratio_c) / 0.10));
+                margin_legacy = _w_fires_legacy(gap, ratio, med_c, wood_c)
+                                    ? best_w_margin_legacy.value()
+                                    : margin;
             }
             // min_margin = min(min_margin, max(0.0, min(1.0, margin)))
             const double clamped = std::max(0.0, std::min(1.0, margin));
@@ -337,9 +383,11 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
                 out_margins->at<double>(r, c) = clamped;
             }
             min_margin = std::min(min_margin, clamped);
+            min_margin_legacy =
+                std::min(min_margin_legacy, std::max(0.0, std::min(1.0, margin_legacy)));
         }
     }
-    return StoneClassification{BoardState::fromGrid(grid), min_margin};
+    return StoneClassification{BoardState::fromGrid(grid), min_margin, min_margin_legacy};
 }
 
 }  // namespace
@@ -449,6 +497,8 @@ std::string stones_stage_json(const unsigned char* img, int width, int height,
     }
     out += "], \"confidence\": ";
     append_double(out, cls.confidence);
+    out += ", \"confidence_legacy\": ";
+    append_double(out, cls.confidence_legacy);
     out += ", \"margins\": [";
     for (int r = 0; r < boardSize; ++r) {
         if (r) out += ", ";
