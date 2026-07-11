@@ -20,6 +20,8 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>KataGo Anytime uses the camera to photograph your Go board so it can import the position.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

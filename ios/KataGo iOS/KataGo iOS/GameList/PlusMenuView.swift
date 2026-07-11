@@ -54,6 +54,19 @@ struct PlusMenuView: View {
                 } label: {
                     Label("Photo", systemImage: "photo.on.rectangle")
                 }
+
+#if os(iOS)
+                // Manual board-photo capture. Hidden (not disabled) where no
+                // back camera exists, e.g. Simulator. `os(iOS)` is the correct
+                // gate: the xros SDK defines os(visionOS), not os(iOS).
+                if CameraCaptureController.isCameraAvailable {
+                    Button {
+                        topUIState.capturingBoardPhoto = true
+                    } label: {
+                        Label("Camera", systemImage: "camera")
+                    }
+                }
+#endif
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
             }

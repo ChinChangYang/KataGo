@@ -24,6 +24,14 @@ struct GameSplitView: View {
     @State var isGameListViewAppeared = false
     @State private var photoPickerItem: PhotosPickerItem?
 
+#if os(iOS)
+    /// Stashes the camera-captured JPEG across the cover→sheet transition.
+    /// Presenting the photo-import sheet while the full-screen cover is still
+    /// dismissing can race, so the capture is held here and consumed once the
+    /// cover has actually gone away (see the `capturingBoardPhoto` observer).
+    @State private var capturedBoardPhoto: Data?
+#endif
+
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
     @Environment(BoardSize.self) var board
@@ -103,6 +111,31 @@ struct GameSplitView: View {
             .sheet(item: $topUIState.pendingPhotoImport) { pending in
                 photoImportSheet(for: pending)
             }
+#if os(iOS)
+            .fullScreenCover(isPresented: $topUIState.capturingBoardPhoto) {
+                BoardCameraView(
+                    onCapture: { data in
+                        // Stash and dismiss the cover; the photo-import funnel is
+                        // driven from the `capturingBoardPhoto` observer once the
+                        // cover has finished dismissing (avoids a present-while-
+                        // dismissing race with the sheet above).
+                        capturedBoardPhoto = data
+                        topUIState.capturingBoardPhoto = false
+                    },
+                    onCancel: {
+                        topUIState.capturingBoardPhoto = false
+                    }
+                )
+                .ignoresSafeArea()
+            }
+            .onChange(of: topUIState.capturingBoardPhoto) { _, isCapturing in
+                guard !isCapturing, let data = capturedBoardPhoto else { return }
+                capturedBoardPhoto = nil
+                presentPhotoImport(imageData: data,
+                                   name: photoImportName(),
+                                   source: .camera)
+            }
+#endif
     }
 
     /// Hosts the shared `PhotoImportSheet` for a picked board image. On import
@@ -622,9 +655,12 @@ struct GameSplitView: View {
         }
     }
 
-    private func presentPhotoImport(imageData: Data, name: String) {
+    private func presentPhotoImport(imageData: Data,
+                                    name: String,
+                                    source: PendingPhotoImport.Source = .fileOrLibrary) {
         topUIState.pendingPhotoImport = PendingPhotoImport(imageData: imageData,
-                                                           suggestedName: name)
+                                                           suggestedName: name,
+                                                           source: source)
     }
 
     /// Default name for a library photo (Photos items carry no filename).

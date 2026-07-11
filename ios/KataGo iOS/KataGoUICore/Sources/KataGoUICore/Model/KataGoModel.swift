@@ -762,15 +762,27 @@ extension Coordinate {
 /// A picked board image awaiting recognition + confirmation in the photo-import
 /// preview sheet. `Identifiable` so it can drive a `.sheet(item:)`.
 public struct PendingPhotoImport: Identifiable, Equatable {
+    /// Where the picked image came from. Lets the preview/retry UX adapt to the
+    /// entry point (e.g. re-open the camera vs. re-open the picker) without the
+    /// sheet host having to track it separately.
+    public enum Source: Sendable, Equatable {
+        case fileOrLibrary
+        case camera
+    }
+
     public let id = UUID()
     /// Encoded image bytes (JPEG/PNG/HEIC) handed to the recognizer.
     public let imageData: Data
     /// Default game name (file basename, or "Board Photo <date>").
     public let suggestedName: String
+    /// The entry point that produced this image. Defaults to `.fileOrLibrary`
+    /// so existing file/library call sites are unchanged.
+    public let source: Source
 
-    public init(imageData: Data, suggestedName: String) {
+    public init(imageData: Data, suggestedName: String, source: Source = .fileOrLibrary) {
         self.imageData = imageData
         self.suggestedName = suggestedName
+        self.source = source
     }
 }
 
@@ -790,6 +802,10 @@ public class TopUIState {
     /// to nil dismisses the sheet. Carried here (rather than as view `@State`)
     /// so the picker/file entry points and the sheet host share it.
     public var pendingPhotoImport: PendingPhotoImport?
+
+    /// Presents the full-screen manual board-photo camera (Import ▸ Camera).
+    /// iOS/iPadOS only; the entry point and cover are gated behind `os(iOS)`.
+    public var capturingBoardPhoto = false
 
     public var confirmingDeletion = false
 
