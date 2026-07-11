@@ -18,10 +18,13 @@ public struct BoardCropView: View {
     private let image: CGImage
     @Binding private var cropRect: CGRect // normalized, top-left origin
 
-    /// The crop rect and handle classification captured at drag start; nil
-    /// between drags. Translations always apply to `start`, never to the
-    /// live rect, so they cannot compound.
-    @State private var drag: (start: CGRect, handles: CropHandles)?
+    /// The gesture's start location plus the crop rect and handle
+    /// classification captured at drag start; nil between drags. Keyed by
+    /// startLocation so a gesture that was cancelled without `onEnded` (no
+    /// cancellation callback exists) can never leak its context into the
+    /// next drag — a new gesture re-classifies. Translations always apply
+    /// to `start`, never to the live rect, so they cannot compound.
+    @State private var drag: (startLocation: CGPoint, start: CGRect, handles: CropHandles)?
 
     public init(image: CGImage, cropRect: Binding<CGRect>) {
         self.image = image
@@ -58,10 +61,16 @@ public struct BoardCropView: View {
     private func cropGesture(editor: CropRectEditor, frame: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                let current = CropGeometry.viewRect(fromNormalized: cropRect, in: frame)
-                let active = drag ?? (start: current,
-                                      handles: editor.handles(at: value.startLocation, in: current))
-                if drag == nil { drag = active }
+                let active: (startLocation: CGPoint, start: CGRect, handles: CropHandles)
+                if let drag, drag.startLocation == value.startLocation {
+                    active = drag
+                } else {
+                    let current = CropGeometry.viewRect(fromNormalized: cropRect, in: frame)
+                    active = (startLocation: value.startLocation,
+                              start: current,
+                              handles: editor.handles(at: value.startLocation, in: current))
+                    drag = active
+                }
                 guard !active.handles.isEmpty else { return }
                 let updated = editor.apply(translation: value.translation,
                                            handles: active.handles,
