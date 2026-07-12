@@ -101,6 +101,46 @@ func recognizeImageOnImg0821RescuedExact() throws {
     #expect(r.confidence > 0.45)
 }
 
+// img0822: 1280x1228x3 BGR, exactly cv2.imread(tests/fixtures/img0822.jpg)
+// .tofile — the app-ingestion-equivalent downscale (long side 1280) of the
+// 2026-07-12 real photo: a 19x19 board with 7 stones under a strong central
+// specular reflection.
+private let img0822Width = 1280
+private let img0822Height = 1228
+
+// The Python reference SGF (tests/fixtures/img0822_expected.sgf): the seven
+// true stones, all 19 glare phantom whites suppressed by the specular-glare
+// veto (gr_stones.cpp GLARE_* block).
+private let img0822ExpectedSgf =
+    "(;GM[1]FF[4]CA[UTF-8]AP[GobanRecog:0.1]SZ[19]AB[qc][cd][fd][qq]AW[cn][dp][pp])"
+
+@Test
+func recognizeImageOnImg0822GlareRescuedExact() throws {
+    // Acceptance test for the specular-glare veto: the blown-out reflection
+    // fired 16 phantom whites under the blob plus 3 on the warm sheen halo,
+    // dragging confidence to 0.045 -> abstain, while detection stayed perfect
+    // and all 7 true stones classified at margin >= 0.95. The board-level
+    // veto (core-gated blown-wood component + warm-sheen cap + all-or-nothing
+    // weak band) erases exactly those 19 nodes; legacy confidence stays below
+    // CONF_FLOOR, so the board is accepted through the CONF_FLOOR_RESCUE tier
+    // (C++ e2e: conf 0.525839, legacy 0.036096 on this fixture's bytes — the
+    // legacy value differs from Python's 0.043013 because the two detected
+    // lattices differ by sub-pixel rounding near the steep glare gradient;
+    // the recognized BOARD and the acceptance decision are identical).
+    let url = try #require(Bundle.module.url(forResource: "img0822.bgr.raw", withExtension: nil,
+                                             subdirectory: "Resources"))
+    let data = try Data(contentsOf: url)
+    #expect(data.count == img0822Width * img0822Height * 3)
+    let bgr = [UInt8](data)
+
+    let r = recognizeStatusLine(bgr, width: img0822Width, height: img0822Height)
+    #expect(r.status == "ok")
+    #expect(r.boardSize == 19)
+    #expect(r.sgf == img0822ExpectedSgf)
+    // Rescued acceptance requires clearing CONF_FLOOR_RESCUE (0.45).
+    #expect(r.confidence > 0.45)
+}
+
 @Test
 func recognizeImageOnImg0820EmptyBoardAbstainsNotWrong() throws {
     // Negative-result guard for the empty-board/same-tone-floor detection gap

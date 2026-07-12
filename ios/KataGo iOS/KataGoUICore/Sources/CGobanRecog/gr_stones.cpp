@@ -40,7 +40,9 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -114,6 +116,141 @@ std::pair<std::vector<int>, std::vector<int>> _disk_indices(int radius) {
         }
     }
     return {yy, xx};
+}
+
+// ports stones.py GLARE_* — specular-glare veto constants (2026-07-12 study,
+// real-photo IMG_0822). See stones.py for the full measured rationale; the
+// short form: a varnished-board reflection blows a contiguous region out
+// (local wood_l 1.08-1.46x board median, warmth collapsed), so glared EMPTY
+// nodes fire the W rule as dim phantom whites. Per-node separability inside
+// glare is measurably zero, so the veto is BOARD-level and all-or-nothing:
+// it fires only when every in-zone decided-W is weak, the blown component
+// has a near-clip core, and it grades vetoed margins by that regional
+// evidence. Guarded rule only; the legacy accumulator is never touched.
+// Kept file-local like the Python module scope (line-diffability) rather
+// than hoisted to gr_constants.h.
+// The veto is a PURE RESCUE mechanism: it fires only when the board is NOT
+// accepted today — gr_run's two-tier predicate replayed on the PRE-veto
+// margins: conf >= CONF_FLOOR and (legacy >= CONF_FLOOR or conf >=
+// CONF_FLOOR_RESCUE). Boards that ship today are never touched (measured:
+// without the full predicate, the veto nudged one steep-set board that was
+// RESCUE-tier accepted at baseline). Keep both floors equal to gr_run's
+// (stones.py pins them to run.py's by test; these mirror both).
+constexpr double GLARE_LEGACY_FLOOR = 0.049;  // == CONF_FLOOR
+constexpr double GLARE_RESCUE_FLOOR = 0.45;   // == CONF_FLOOR_RESCUE
+constexpr double GLARE_ZONE = 1.05;       // zone A: wood_l vs board-median wood_l
+constexpr double GLARE_CORE = 1.30;       // component core must reach this
+constexpr double GLARE_CORE_SPAN = 0.15;  // margin grade span above GLARE_CORE
+constexpr double SHEEN_WARM = 0.70;       // zone B: med_c > 0.70 * wood_c ...
+constexpr double SHEEN_WOOD_C = 0.15;     // ... on confidently warm wood
+constexpr double SHEEN_TAIL = 0.52;       // canonical true-white warmth-ratio max
+constexpr double SHEEN_SPAN = 0.28;       // margin grade span above SHEEN_TAIL
+constexpr double GLARE_WEAK = 0.40;       // all candidates must be weaker
+
+// ports stones.py::_glare_components — 4-connected components of zone-A
+// nodes, deterministic row-major start order (sorted(posset)). Membership is
+// order-independent; only the max-over-component core is consumed.
+std::vector<std::vector<std::pair<int, int>>> _glare_components(
+    const std::vector<std::pair<int, int>>& zone_pos) {
+    std::set<std::pair<int, int>> posset(zone_pos.begin(), zone_pos.end());
+    std::set<std::pair<int, int>> seen;
+    std::vector<std::vector<std::pair<int, int>>> comps;
+    for (const std::pair<int, int>& start : posset) {  // std::set iterates sorted
+        if (seen.count(start)) continue;
+        std::vector<std::pair<int, int>> stack{start};
+        std::vector<std::pair<int, int>> comp;
+        while (!stack.empty()) {
+            const std::pair<int, int> p = stack.back();
+            stack.pop_back();
+            if (seen.count(p) || !posset.count(p)) continue;
+            seen.insert(p);
+            comp.push_back(p);
+            const int r0 = p.first;
+            const int c0 = p.second;
+            stack.push_back({r0 + 1, c0});
+            stack.push_back({r0 - 1, c0});
+            stack.push_back({r0, c0 + 1});
+            stack.push_back({r0, c0 - 1});
+        }
+        comps.push_back(std::move(comp));
+    }
+    return comps;
+}
+
+// ports stones.py::_apply_glare_veto — board-level specular-glare second
+// pass. Mutates grid and node_margin in place; touches nothing when the veto
+// does not fire, so canonical outputs stay bit-identical. margin_legacy is
+// never touched: a vetoed node decided W under the guarded rule, so its
+// legacy margin already carries best_w_margin_legacy.
+void _apply_glare_veto(std::vector<std::vector<char>>& grid, cv::Mat& node_margin,
+                       const cv::Mat& node_wood_l, const cv::Mat& node_wood_c,
+                       const cv::Mat& node_med_c, int n) {
+    // wood_med = float(np.median(node_wood_l)) — float64 median over n*n
+    std::vector<double> all_wood;
+    all_wood.reserve(static_cast<size_t>(n) * static_cast<size_t>(n));
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            all_wood.push_back(node_wood_l.at<double>(r, c));
+        }
+    }
+    const double wood_med = np_median(std::move(all_wood));
+    if (wood_med <= 0.0) return;
+    std::vector<std::pair<int, int>> zone_pos;
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            if (node_wood_l.at<double>(r, c) > GLARE_ZONE * wood_med) {
+                zone_pos.push_back({r, c});
+            }
+        }
+    }
+    std::map<std::pair<int, int>, double> core_of;
+    for (const std::vector<std::pair<int, int>>& comp : _glare_components(zone_pos)) {
+        double core = -std::numeric_limits<double>::infinity();
+        for (const std::pair<int, int>& p : comp) {
+            core = std::max(core, node_wood_l.at<double>(p.first, p.second) / wood_med);
+        }
+        if (core >= GLARE_CORE) {
+            for (const std::pair<int, int>& p : comp) {
+                core_of[p] = core;
+            }
+        }
+    }
+    std::vector<std::pair<int, int>> candidates;
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            if (grid[static_cast<size_t>(r)][static_cast<size_t>(c)] != WHITE) continue;
+            const bool in_b = node_wood_c.at<double>(r, c) > SHEEN_WOOD_C &&
+                              node_med_c.at<double>(r, c) > SHEEN_WARM * node_wood_c.at<double>(r, c);
+            if (core_of.count({r, c}) || in_b) {
+                candidates.push_back({r, c});
+            }
+        }
+    }
+    if (candidates.empty()) return;
+    for (const std::pair<int, int>& p : candidates) {
+        if (node_margin.at<double>(p.first, p.second) >= GLARE_WEAK) {
+            // all-or-nothing: one strong in-zone white and the board keeps
+            // every decision (a partial cleanup is exactly the wrong-rescue
+            // hazard measured in the study)
+            return;
+        }
+    }
+    for (const std::pair<int, int>& p : candidates) {
+        const int r = p.first;
+        const int c = p.second;
+        double m_a = 0.0;
+        const std::map<std::pair<int, int>, double>::const_iterator it = core_of.find(p);
+        if (it != core_of.end()) {
+            m_a = std::min(1.0, std::max(0.0, (it->second - GLARE_CORE) / GLARE_CORE_SPAN));
+        }
+        double m_b = 0.0;
+        if (node_wood_c.at<double>(r, c) > SHEEN_WOOD_C &&
+            node_med_c.at<double>(r, c) > SHEEN_WARM * node_wood_c.at<double>(r, c)) {
+            m_b = std::min(1.0, std::max(0.0, (node_med_c.at<double>(r, c) / node_wood_c.at<double>(r, c) - SHEEN_TAIL) / SHEEN_SPAN));
+        }
+        grid[static_cast<size_t>(r)][static_cast<size_t>(c)] = EMPTY;
+        node_margin.at<double>(r, c) = std::max(m_a, m_b);
+    }
 }
 
 // ports stones.py::_w_fires
@@ -228,8 +365,15 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
     // grid = [["."] * n for _ in range(n)]
     std::vector<std::vector<char>> grid(static_cast<size_t>(n),
                                         std::vector<char>(static_cast<size_t>(n), EMPTY));
-    double min_margin = 1.0;
     double min_margin_legacy = 1.0;
+    // Materialized per-node state for the glare second pass (margins clamped
+    // exactly as the old incremental min-reduction clamped them, so the final
+    // min() below is bit-identical when the pass fires nothing) — stones.py
+    // lockstep.
+    cv::Mat node_margin = cv::Mat::zeros(n, n, CV_64F);
+    cv::Mat node_wood_l = cv::Mat::zeros(n, n, CV_64F);
+    cv::Mat node_wood_c = cv::Mat::zeros(n, n, CV_64F);
+    cv::Mat node_med_c = cv::Mat::zeros(n, n, CV_64F);
     for (int r = 0; r < n; ++r) {
         for (int c = 0; c < n; ++c) {
             // local wood reference: median over the 3x3 block of adjacent
@@ -377,14 +521,36 @@ StoneClassification _classify_rectified(const cv::Mat& rect_u8, int n,
                                     ? best_w_margin_legacy.value()
                                     : margin;
             }
-            // min_margin = min(min_margin, max(0.0, min(1.0, margin)))
-            const double clamped = std::max(0.0, std::min(1.0, margin));
-            if (out_margins != nullptr) {
-                out_margins->at<double>(r, c) = clamped;
-            }
-            min_margin = std::min(min_margin, clamped);
+            // node_margin[r, c] = max(0.0, min(1.0, margin))
+            node_margin.at<double>(r, c) = std::max(0.0, std::min(1.0, margin));
             min_margin_legacy =
                 std::min(min_margin_legacy, std::max(0.0, std::min(1.0, margin_legacy)));
+            node_wood_l.at<double>(r, c) = wood_l;
+            node_wood_c.at<double>(r, c) = wood_c;
+            node_med_c.at<double>(r, c) = med_c;
+        }
+    }
+
+    double conf_pre = 1.0;
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            conf_pre = std::min(conf_pre, node_margin.at<double>(r, c));
+        }
+    }
+    const bool accepted_pre =
+        conf_pre >= GLARE_LEGACY_FLOOR &&
+        (min_margin_legacy >= GLARE_LEGACY_FLOOR || conf_pre >= GLARE_RESCUE_FLOOR);
+    if (!accepted_pre) {
+        _apply_glare_veto(grid, node_margin, node_wood_l, node_wood_c, node_med_c, n);
+    }
+
+    double min_margin = 1.0;
+    for (int r = 0; r < n; ++r) {
+        for (int c = 0; c < n; ++c) {
+            if (out_margins != nullptr) {
+                out_margins->at<double>(r, c) = node_margin.at<double>(r, c);
+            }
+            min_margin = std::min(min_margin, node_margin.at<double>(r, c));
         }
     }
     return StoneClassification{BoardState::fromGrid(grid), min_margin, min_margin_legacy};
