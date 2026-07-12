@@ -1,0 +1,125 @@
+KATAGO ANYTIME - BETA TESTING LICENSE AGREEMENT (TESTFLIGHT)
+Last updated: July 12, 2026
+
+Developer: Chin-Chang Yang ("Developer")
+Contact: bolster_rotary_0x@icloud.com
+
+This Beta Testing License Agreement (the "Agreement") is a legal agreement
+between you (the "Tester") and the Developer for the pre-release version of
+the KataGo Anytime application for iPhone, iPad, Mac, Apple Vision Pro,
+Apple TV, and Apple Watch (the "Beta App"), distributed through Apple's
+TestFlight service. By installing or using the Beta App, you agree to this
+Agreement. If you do not agree, do not install the Beta App and stop
+testing.
+
+1. PARTIES. This Agreement is concluded between the Tester and the
+Developer only, not with Apple Inc. ("Apple"). The Developer, not Apple, is
+solely responsible for the Beta App and its content. Your use of TestFlight
+is additionally governed by Apple's own terms, including the Apple Media
+Services Terms and Conditions and the TestFlight terms.
+
+2. BETA SOFTWARE. The Beta App is a pre-release version provided for
+testing and evaluation. It may contain errors, may not perform as intended,
+and may differ from any publicly released version. Beta builds expire
+automatically (normally 90 days after upload) and may stop working at any
+time. The Developer may modify, suspend, or discontinue the beta program at
+any time and has no obligation to release a final version.
+
+3. LICENSE. The Developer grants you a personal, non-exclusive,
+non-transferable, revocable license to install and use the Beta App, for
+beta testing and evaluation only, on Apple-branded devices that you own or
+control, as permitted by the App Store usage rules.
+
+4. OPEN-SOURCE SOFTWARE. The Beta App is built from open-source software,
+including the KataGo engine (MIT License, github.com/lightvector/KataGo)
+and other components listed in the app under Settings > Open-Source
+Licenses. Nothing in this Agreement limits any rights you have under those
+open-source licenses. This Agreement applies to the Beta App as a
+distributed binary and to your participation in the beta program.
+
+5. FEEDBACK. Feedback is voluntary. If you submit feedback, screenshots,
+or crash reports (including automatically through TestFlight, which shares
+them with the Developer via Apple), the Developer may use them to improve
+the software without restriction or obligation to you.
+
+6. PRIVACY. The Beta App runs its Go engine and AI features entirely on
+your device. The Developer operates no servers and requires no account.
+Your games can sync between your own devices through your personal iCloud
+account (Apple CloudKit private database) if iCloud is enabled; the
+Developer cannot access that data. Photos used for the board-import feature
+are processed entirely on your device and are never uploaded. Optional
+content (additional neural networks, opening books) is downloaded from
+public third-party hosts when you request it. TestFlight itself collects
+beta usage and crash data under Apple's terms.
+
+7. AI-GENERATED CONTENT. Engine analysis, win-rate estimates, and
+AI-generated commentary are produced by machine-learning models and may be
+wrong. They are provided for study and entertainment only.
+
+8. MAINTENANCE AND SUPPORT. The Developer is solely responsible for any
+maintenance and support of the Beta App, reachable at the contact address
+above. Apple has no obligation whatsoever to furnish any maintenance or
+support services for the Beta App.
+
+9. NO WARRANTY. THE BETA APP IS PROVIDED "AS IS" AND "AS AVAILABLE",
+WITHOUT WARRANTY OF ANY KIND, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE
+LAW. In the event of any failure of the Beta App to conform to any
+applicable warranty, you may notify Apple, and Apple will refund any
+purchase price paid for the Beta App (the Beta App is provided free of
+charge, so no refund is applicable). To the maximum extent permitted by
+applicable law, Apple has no other warranty obligation whatsoever with
+respect to the Beta App.
+
+10. PRODUCT CLAIMS. The Developer, not Apple, is responsible for
+addressing any claims by you or any third party relating to the Beta App or
+your possession and/or use of it, including but not limited to: (a) product
+liability claims; (b) any claim that the Beta App fails to conform to any
+applicable legal or regulatory requirement; and (c) claims arising under
+consumer protection, privacy, or similar legislation.
+
+11. INTELLECTUAL PROPERTY. In the event of any third-party claim that the
+Beta App or your possession and use of it infringes that third party's
+intellectual property rights, the Developer, not Apple, is solely
+responsible for the investigation, defense, settlement, and discharge of
+any such claim, subject to the open-source licenses referenced in Section 4.
+
+12. LEGAL COMPLIANCE. You represent and warrant that (a) you are not
+located in a country that is subject to a U.S. Government embargo or that
+has been designated by the U.S. Government as a "terrorist supporting"
+country; and (b) you are not listed on any U.S. Government list of
+prohibited or restricted parties.
+
+13. THIRD-PARTY TERMS. You must comply with any applicable third-party
+terms when using the Beta App (for example, the terms of your wireless data
+provider and of the third-party hosts from which optional content is
+downloaded).
+
+14. TERMINATION. This Agreement is effective until the beta build expires
+or until terminated. It terminates automatically if you breach it. Upon
+termination, you must stop using and delete the Beta App.
+
+15. LIMITATION OF LIABILITY. To the maximum extent permitted by applicable
+law, the Developer shall not be liable for any indirect, incidental,
+special, consequential, or exemplary damages arising out of or relating to
+the Beta App, and the Developer's aggregate liability under this Agreement
+shall not exceed the amount you paid for the Beta App (zero, as it is free)
+or, where a cap of zero is not permitted, the minimum amount permitted by
+applicable law. Nothing in this Agreement excludes liability that cannot be
+excluded under applicable law.
+
+16. APPLE AS THIRD-PARTY BENEFICIARY. Apple and Apple's subsidiaries are
+third-party beneficiaries of this Agreement. Upon your acceptance of this
+Agreement, Apple will have the right (and will be deemed to have accepted
+the right) to enforce this Agreement against you as a third-party
+beneficiary thereof.
+
+17. GOVERNING LAW. This Agreement is governed by the laws of the
+jurisdiction in which the Developer resides, without regard to
+conflict-of-laws rules. Any dispute arising from this Agreement shall be
+submitted to the competent courts of that jurisdiction. Mandatory
+consumer-protection law of your country of residence remains unaffected
+where it applies.
+
+18. MISCELLANEOUS. This Agreement is the entire agreement between you and
+the Developer regarding the Beta App. If any provision is held invalid, the
+remaining provisions remain in effect.
