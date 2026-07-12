@@ -30,6 +30,34 @@ struct SelfPlayGameTests {
         #expect(record.name == SelfPlayGame.demoName)
     }
 
+    @MainActor
+    @Test("makeRecord clamps the demo board to min(19, maxBoardLength)")
+    func recordBoardSizeClamp() {
+        // Below 19 → clamped square board + matching small-board SGF (the same
+        // clamp iOS uses for new games) so self-play stays runnable when the
+        // user lowers Max Board Size.
+        let nine = SelfPlayGame.makeRecord(maxBoardLength: 9)
+        #expect(nine.concreteConfig.boardWidth == 9)
+        #expect(nine.concreteConfig.boardHeight == 9)
+        #expect(nine.sgf == GameRecord.makeDefaultSgf(boardSize: 9))
+
+        let thirteen = SelfPlayGame.makeRecord(maxBoardLength: 13)
+        #expect(thirteen.concreteConfig.boardWidth == 13)
+        #expect(thirteen.concreteConfig.boardHeight == 13)
+
+        // 19 and 37 keep the full 19×19 demo (default SGF, not clamped).
+        for cap in [19, 37] {
+            let record = SelfPlayGame.makeRecord(maxBoardLength: cap)
+            #expect(record.concreteConfig.boardWidth == 19)
+            #expect(record.concreteConfig.boardHeight == 19)
+            #expect(record.sgf == GameRecord.defaultSgf)
+        }
+
+        // Both sides stay engine-played regardless of the clamped size.
+        #expect(nine.concreteConfig.blackMaxTime == SelfPlayGame.moveTime)
+        #expect(nine.concreteConfig.whiteMaxTime == SelfPlayGame.moveTime)
+    }
+
     @Test("RE[] parsing table")
     func resultParsing() {
         typealias R = SelfPlayGame.Result

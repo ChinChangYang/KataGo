@@ -40,9 +40,14 @@ enum TVSampleGameStore {
     /// A fresh self-play demo record. One PER GAME: the play loop mutates the
     /// record every move (sgf, currentIndex, scoreLeads, ownership), so each
     /// game starts clean and the finished one is discarded.
-    static func newSelfPlayGame() -> GameRecord? {
+    ///
+    /// `maxBoardLength` (the running engine's launched NN-buffer size) clamps
+    /// the demo board to `min(19, max)` so self-play stays runnable when the
+    /// user lowers Max Board Size below 19 — the engine would otherwise abort
+    /// on the first move of an oversized board.
+    static func newSelfPlayGame(maxBoardLength: Int? = nil) -> GameRecord? {
         guard let container else { return nil }
-        let record = SelfPlayGame.makeRecord()
+        let record = SelfPlayGame.makeRecord(maxBoardLength: maxBoardLength)
         container.mainContext.insert(record)
         return record
     }

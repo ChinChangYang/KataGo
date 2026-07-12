@@ -34,6 +34,7 @@ struct TVReviewScreen: View {
     @Environment(Score.self) private var rootScore
     @Environment(NavigationContext.self) private var navigationContext
     @Environment(Analysis.self) private var analysis
+    @Environment(TVEngineController.self) private var engine
 
     @FocusState private var commentFocused: Bool
     /// The chart-timeline scrubber (the one element with an onMoveCommand).
@@ -51,6 +52,31 @@ struct TVReviewScreen: View {
     private var config: Config { game.concreteConfig }
 
     var body: some View {
+        // Gate on the size the RUNNING engine was launched with: a board larger
+        // than its NN buffer aborts the whole app on the first analysis (see
+        // `boardFits`). The too-large branch never runs `loadIfNeeded()`, so no
+        // oversized board or analysis request ever reaches the engine.
+        if boardFits(width: config.boardWidth,
+                     height: config.boardHeight,
+                     maxBoardLength: engine.maxBoardLength) {
+            reviewContent
+        } else {
+            tooLargeView
+        }
+    }
+
+    /// The board is too large for the current Max Board Size. tvOS has no
+    /// neural-network picker, so (unlike iOS's copy) the remedy points at
+    /// Settings ▸ Board Size. Full-screen, legible at 10 feet.
+    private var tooLargeView: some View {
+        ContentUnavailableView {
+            Label("Board Too Large", systemImage: "rectangle.portrait.and.arrow.forward")
+        } description: {
+            Text("This \(config.boardWidth)×\(config.boardHeight) game is larger than the current Max Board Size (\(engine.maxBoardLength)×\(engine.maxBoardLength)). Raise Max Board Size in Settings to review it.")
+        }
+    }
+
+    private var reviewContent: some View {
         // Full-bleed hero board: safe areas ignored on every edge, explicit
         // paddings are the only margins, so the square reaches the screen's
         // full 1080 pt height. The board is NOT focusable — the remote lives
@@ -575,6 +601,9 @@ private struct TVReviewPreviewHost: View {
             .environment(session.bookLookup)
             .environment(AudioModel())
             .environment(NavigationContext())
+            // Default maxBoardLength is 37, so every preview fixture (≤19×19)
+            // takes the normal board branch, not the too-large gate.
+            .environment(TVEngineController())
     }
 }
 

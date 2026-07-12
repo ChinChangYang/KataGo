@@ -142,3 +142,21 @@ struct BackendChoiceTests {
         #endif
     }
 }
+
+/// The board-too-large gate predicate (tvOS: skip loading a game whose board
+/// exceeds the running engine's NN-buffer size — an oversized board aborts the
+/// process on the first analysis). Equal is allowed; strictly-greater in EITHER
+/// dimension is not (matches the C++ `board.x_size > nnXLen` throw).
+struct BoardFitsTests {
+    @Test func equalAndSmallerFit() {
+        #expect(boardFits(width: 19, height: 19, maxBoardLength: 19))
+        #expect(boardFits(width: 9, height: 9, maxBoardLength: 19))
+        #expect(boardFits(width: 13, height: 13, maxBoardLength: 37))
+    }
+
+    @Test func largerInEitherDimensionDoesNotFit() {
+        #expect(!boardFits(width: 25, height: 25, maxBoardLength: 19))
+        #expect(!boardFits(width: 37, height: 19, maxBoardLength: 19))   // width only
+        #expect(!boardFits(width: 19, height: 37, maxBoardLength: 19))   // height only
+    }
+}

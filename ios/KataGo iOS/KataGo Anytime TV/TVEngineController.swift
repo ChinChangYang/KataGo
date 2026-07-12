@@ -29,6 +29,16 @@ final class TVEngineController {
 
     private(set) var phase: Phase = .idle
 
+    /// The NN-buffer board length the CURRENTLY running engine was launched
+    /// with (`maxBoardSizeForNNBuffer`). Mirrors iOS's `launchedMaxBoardLength`:
+    /// the board-too-large gate and the self-play board size read this — never
+    /// the live `BackendSettings` — because a `restartEngine()` can take up to
+    /// ~240 s to tear down a searched engine, during which the old (larger or
+    /// smaller) buffer is still what the engine actually serves. Defaults to 37
+    /// (today's behavior and the true b18 capability) so nothing over-blocks
+    /// before the first spawn sets it from the persisted setting.
+    private(set) var maxBoardLength: Int = 37
+
     @ObservationIgnored private var session: GameSession?
     @ObservationIgnored private var engineLifecycle: EngineLifecycle?
     @ObservationIgnored private var runLoopExit: CheckedContinuation<Void, Never>?
@@ -148,11 +158,20 @@ final class TVEngineController {
 
     private func spawnEngineThread() {
         engineThreadRunning = true
+        // Read the user's Max Board Size on the MainActor and record what THIS
+        // engine is launched with, BEFORE the off-main thread starts (so the
+        // gate/self-play read a consistent value). `effectiveMaxBoardLength`
+        // clamps the choice to the net's nnLen (37). tvOS always loads the
+        // bundled b18 net, so the `?? .allCases[0]` fallback is defensive only.
+        let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+        maxBoardLength = BackendSettings(model: model).effectiveMaxBoardLength
+        let launchedMaxBoardLength = maxBoardLength   // captured for the off-main thread
         // Built-in b18 net, human-SL net skipped, CoreML/ANE only. Needs a
         // >512 KB stack (BoardHistory copies) — match the iOS app's 1 MB.
         let thread = Thread { [weak self] in
             KataGoHelper.runGtp(deviceAssignments: EngineDeviceAssignments.platformMux,
-                                numSearchThreads: KataGoHelper.mlxNumSearchThreads)
+                                numSearchThreads: KataGoHelper.mlxNumSearchThreads,
+                                maxBoardSizeForNNBuffer: launchedMaxBoardLength)
             // MainCmds::gtp returned — the engine is fully torn down.
             Task { @MainActor in self?.noteEngineThreadExited() }
         }

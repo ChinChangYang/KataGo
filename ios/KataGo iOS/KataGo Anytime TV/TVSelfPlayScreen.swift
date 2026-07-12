@@ -60,6 +60,7 @@ struct TVSelfPlayScreen: View {
     @Environment(Score.self) private var rootScore
     @Environment(NavigationContext.self) private var navigationContext
     @Environment(Analysis.self) private var analysis
+    @Environment(TVEngineController.self) private var engine
     @Environment(\.dismiss) private var dismiss
 
     @FocusState private var commentFocused: Bool
@@ -357,7 +358,7 @@ struct TVSelfPlayScreen: View {
             return
         }
 
-        guard let newGame = TVSampleGameStore.newSelfPlayGame() else {
+        guard let newGame = TVSampleGameStore.newSelfPlayGame(maxBoardLength: engine.maxBoardLength) else {
             dismiss()
             return
         }
@@ -407,7 +408,7 @@ struct TVSelfPlayScreen: View {
 
     private func restart() {
         guard let finished = game,
-              let next = TVSampleGameStore.newSelfPlayGame() else {
+              let next = TVSampleGameStore.newSelfPlayGame(maxBoardLength: engine.maxBoardLength) else {
             dismiss()
             return
         }
@@ -592,6 +593,7 @@ private struct TVSelfPlayPreviewHost: View {
             .environment(session.bookLookup)
             .environment(AudioModel())
             .environment(NavigationContext())
+            .environment(TVEngineController())
     }
 }
 

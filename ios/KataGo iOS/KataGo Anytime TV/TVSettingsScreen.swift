@@ -23,11 +23,25 @@ struct TVSettingsScreen: View {
     @State private var resetArmed = false
     @State private var benchmark = TVCoreMLBenchmark()
     @State private var confirmingBenchmark = false
+    /// Seeded from the persisted per-model setting in `init`; writes back +
+    /// restart the engine on change.
+    @State private var boardSize: BoardSizeChoice
+
+    /// The single fixed tvOS model (bundled b18). `?? .allCases[0]` is defensive
+    /// only — `builtInModel` is always present on tvOS.
+    private static var engineModel: NeuralNetworkModel {
+        NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+    }
+
+    init() {
+        _boardSize = State(initialValue: BackendSettings(model: Self.engineModel).mlxBoardSize)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 36) {
                 recoverySection
+                boardSizeSection
                 soundSection
                 diagnosticsFooter
             }
@@ -105,6 +119,36 @@ struct TVSettingsScreen: View {
         case .running: return "Restart Engine"
         case .stopping: return "Engine stopping…"
         case .failed(let reason): return "Engine failed: \(reason)"
+        }
+    }
+
+    // MARK: - Board size
+
+    private var boardSizeSection: some View {
+        section("Board Size") {
+            Picker("Max Board Size", selection: $boardSize) {
+                ForEach(BoardSizeChoice.allCases) { size in
+                    Text(size.label).tag(size)
+                }
+            }
+            .pickerStyle(.segmented)
+            // Mirror the Restart button: block changes while the engine is
+            // mid-cycle, since a change triggers restartEngine (which requires
+            // .running) — prevents overlapping restarts.
+            .disabled(engine.phase != .running)
+            .onChange(of: boardSize) { _, newValue in
+                var settings = BackendSettings(model: Self.engineModel)
+                settings.mlxBoardSize = newValue
+                // Respawn so the engine's NN buffer (and the controller's
+                // maxBoardLength) pick up the new size — the same proven
+                // quit → respawn → handshake path as "Restart Engine".
+                Task { _ = await engine.restartEngine() }
+            }
+
+            Text("Sets the largest board the engine can play. Bigger games show a message until you raise it. Changing this restarts the engine.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

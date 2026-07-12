@@ -84,6 +84,18 @@ public enum BoardSizeChoice: Int, CaseIterable, Identifiable {
     }
 }
 
+/// Whether a board of the given dimensions fits an engine launched with
+/// `maxBoardLength` as its NN-buffer size (`maxBoardSizeForNNBuffer`). The
+/// engine forces `nnXLen = nnYLen = maxBoardLength`, and `NNEvaluator::evaluate`
+/// THROWS on `board.x_size > nnXLen` — fatally, on a search worker thread
+/// (aborts the whole process on the first kata-analyze/genmove, not on
+/// boardsize/loadsgf). So callers must gate BEFORE any analysis request when
+/// this returns false. `<=` (equal is allowed) matches the C++ `>` throw and
+/// the iOS gate in `GobanView`.
+public func boardFits(width: Int, height: Int, maxBoardLength: Int) -> Bool {
+    width <= maxBoardLength && height <= maxBoardLength
+}
+
 public struct BackendSettings {
     private let model: NeuralNetworkModel
 

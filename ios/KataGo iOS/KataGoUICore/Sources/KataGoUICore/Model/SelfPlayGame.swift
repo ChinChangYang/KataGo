@@ -26,11 +26,17 @@ public enum SelfPlayGame {
     /// effective human profiles to "AI" — the only profile that can gen-move
     /// on tvOS, where the human-SL net is not bundled.
     ///
+    /// `maxBoardLength` (the size the running engine was launched with) caps the
+    /// demo board so self-play stays runnable when the user lowers Max Board
+    /// Size below 19: at a cap under 19, `createGameRecord` swaps the default
+    /// SGF for a `min(cap, 19)`×`min(cap, 19)` board (the same clamp iOS uses
+    /// for new games); `nil`/19/37 keep the full 19×19 demo.
+    ///
     /// The caller owns keeping the record OUT of the CloudKit store (insert
     /// into an in-memory container only): every move mutates it.
     @MainActor
-    public static func makeRecord() -> GameRecord {
-        let record = GameRecord.createGameRecord(name: demoName)
+    public static func makeRecord(maxBoardLength: Int? = nil) -> GameRecord {
+        let record = GameRecord.createGameRecord(name: demoName, maxBoardLength: maxBoardLength)
         let config = record.concreteConfig
         config.blackMaxTime = moveTime
         config.whiteMaxTime = moveTime
