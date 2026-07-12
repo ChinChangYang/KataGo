@@ -7,7 +7,7 @@ struct ThirdPartyLicensesTests {
         let all = ThirdPartyLicense.all
 
         // Exhaustive list of components compiled/linked into the iOS binary.
-        #expect(all.count == 16)
+        #expect(all.count == 17)
 
         // Every entry is fully populated with a real license body (not a stub).
         for license in all {
@@ -21,7 +21,7 @@ struct ThirdPartyLicensesTests {
 
         // The MLX trigger plus a few representative components are present.
         let names = Set(all.map(\.name))
-        for expected in ["KataGo", "MLX", "metal-cpp", "swift-numerics", "coremltools"] {
+        for expected in ["KataGo", "MLX", "metal-cpp", "swift-numerics", "coremltools", "OpenCV"] {
             #expect(names.contains(expected), "Missing component: \(expected)")
         }
     }
