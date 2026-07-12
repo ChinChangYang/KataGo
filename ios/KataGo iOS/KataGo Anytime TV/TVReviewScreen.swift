@@ -74,7 +74,15 @@ struct TVReviewScreen: View {
             Spacer(minLength: 24)
 
             panel
-                .frame(width: 500)
+                // Hard ceiling: the 1080 pt screen minus the 30 pt vertical
+                // margins. A fixed frame reports this size to the HStack no
+                // matter how tall the content wants to be, so panel growth
+                // (e.g. the tall no-history placeholder) can never inflate
+                // the HStack and push the 1080 pt board off-screen — content
+                // that outgrows the budget overflows inside this slot,
+                // top-aligned. No .clipped(): it would shear the focus
+                // lift/shadow on the rows at the edges.
+                .frame(width: 500, height: 1020, alignment: .top)
                 .padding(.vertical, 30)
                 .focusSection()
         }
@@ -228,17 +236,10 @@ struct TVReviewScreen: View {
     /// large in the panel instead of as a tiny on-board strip.
     private func playerRow(_ color: PlayerColor) -> some View {
         let isBlack = color == .black
-        let captures = isBlack ? stones.blackStonesCaptured : stones.whiteStonesCaptured
-        return HStack(spacing: 18) {
-            TVStoneIndicator(isBlack: isBlack)
-            Text(config.playerLabel(for: color))
-                .font(.title3.weight(.semibold))
-                .lineLimit(1)
-            Spacer(minLength: 12)
-            Text("captured \(captures)")
-                .font(.title3.monospacedDigit())
-                .foregroundStyle(.secondary)
-        }
+        return TVPlayerRow(isBlack: isBlack,
+                           name: config.playerLabel(for: color),
+                           captures: isBlack ? stones.blackStonesCaptured
+                                             : stones.whiteStonesCaptured)
     }
 
     /// The move the panel is showing: the variation position while a branch is
@@ -483,6 +484,37 @@ private struct TVToggleButton: View {
         } else {
             Button(action: action) { content }
                 .buttonStyle(.bordered)
+        }
+    }
+}
+
+/// One color's panel row: stone glyph, captured count, player label. The
+/// count sits beside the stone as "xN" — the iOS captured-strip idiom
+/// (StoneView.drawCapturedStones) — replacing a trailing "captured N"
+/// sentence that truncated in the 500 pt panel once the count grew. Internal
+/// (not private): the self-play screen's player rows reuse it.
+struct TVPlayerRow: View {
+    let isBlack: Bool
+    let name: String
+    let captures: Int
+
+    var body: some View {
+        HStack(spacing: 18) {
+            HStack(spacing: 8) {
+                TVStoneIndicator(isBlack: isBlack)
+                Text("x\(captures)")
+                    .contentTransition(.numericText())
+                    .font(.title3.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Text(name)
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+            // Left-align the row: the enclosing player-rows VStacks use the
+            // default center alignment, so without this the two rows would
+            // center against each other and the stones would drift apart as
+            // the counts' widths diverge.
+            Spacer(minLength: 0)
         }
     }
 }

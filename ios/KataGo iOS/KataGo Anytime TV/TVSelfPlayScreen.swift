@@ -123,7 +123,15 @@ struct TVSelfPlayScreen: View {
                     Spacer(minLength: 24)
 
                     panel(for: game)
-                        .frame(width: 500)
+                        // Hard ceiling: the 1080 pt screen minus the 40 pt
+                        // vertical margins. A fixed frame reports this size
+                        // to the HStack no matter how tall the content wants
+                        // to be, so panel growth can never inflate the HStack
+                        // and push the 1080 pt board off-screen — content
+                        // that outgrows the budget overflows inside this
+                        // slot, top-aligned. No .clipped(): it would shear
+                        // the focus lift/shadow on the rows at the edges.
+                        .frame(width: 500, height: 1000, alignment: .top)
                         .padding(.vertical, 40)
                         .focusSection()
                 }
@@ -168,7 +176,11 @@ struct TVSelfPlayScreen: View {
     // MARK: - Panel
 
     private func panel(for game: GameRecord) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
+        // Spacing/padding, the 3-row Top Moves list, and the always-reserved
+        // chart slot are a 1000 pt vertical budget (the capped panel frame) —
+        // the full manual-mode stack must fit with the chart visible or the
+        // bottom items clip inside the panel.
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
                 Text(SelfPlayGame.demoName)
                     .font(.title2.bold())
@@ -184,7 +196,7 @@ struct TVSelfPlayScreen: View {
                 playerRow(.white)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(winRateText)
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .monospacedDigit()
@@ -199,11 +211,14 @@ struct TVSelfPlayScreen: View {
 
                 // Fills live: the demo game is in editing mode, so every AI
                 // move persists a score lead into the (in-memory) record.
-                // No placeholder while the first moves land — the review
-                // screen's sync guidance would be wrong here.
-                TVScoreChart(gameRecord: game, noHistoryMessage: nil)
+                // The chart slot is reserved from move 0 (empty plot area) so
+                // the panel never reflows — and never pushes the board off
+                // screen — when the second score lead lands mid-game; the
+                // review screen's sync guidance would be wrong here.
+                TVScoreChart(gameRecord: game, noHistoryMessage: nil,
+                             reservesSpaceWhenEmpty: true)
             }
-            .padding(20)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
 
@@ -215,8 +230,9 @@ struct TVSelfPlayScreen: View {
             // rows are placeholders (not focusable) so any press still exits.
             TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
                                                                 height: Int(board.height),
-                                                                limit: 4),
+                                                                limit: 3),
                             isEnabled: route.entry == .manual && !isGameOver,
+                            rowCount: 3,
                             onFocus: { highlightedPoint = $0?.point },
                             onPick: pick)
 
@@ -283,17 +299,10 @@ struct TVSelfPlayScreen: View {
 
     private func playerRow(_ color: PlayerColor) -> some View {
         let isBlack = color == .black
-        let captures = isBlack ? stones.blackStonesCaptured : stones.whiteStonesCaptured
-        return HStack(spacing: 18) {
-            TVStoneIndicator(isBlack: isBlack)
-            Text("KataGo")
-                .font(.title3.weight(.semibold))
-                .lineLimit(1)
-            Spacer(minLength: 12)
-            Text("captured \(captures)")
-                .font(.title3.monospacedDigit())
-                .foregroundStyle(.secondary)
-        }
+        return TVPlayerRow(isBlack: isBlack,
+                           name: "KataGo",
+                           captures: isBlack ? stones.blackStonesCaptured
+                                             : stones.whiteStonesCaptured)
     }
 
     private var winRateText: String {
@@ -593,6 +602,19 @@ private struct TVSelfPlayPreviewHost: View {
     let session = TVPreviewData.reviewSession(game: game,
                                               blackWinrate: 0.55,
                                               blackScore: 1.5)
+    session.gobanState.analysisStatus = .run
+    session.gobanState.eyeStatus = .opened
+    return TVSelfPlayPreviewHost(game: game, session: session)
+}
+
+// Opening spectate, no score history yet: the chart slot is reserved (empty
+// plot area with the baseline rule), so the panel — and therefore the board —
+// holds exactly this geometry when the chart fills in mid-game.
+#Preview("Self-play — opening (chart reserved)") {
+    let game = TVPreviewData.untitledFallbackGame()
+    let session = TVPreviewData.reviewSession(game: game,
+                                              blackWinrate: 0.5,
+                                              blackScore: 0)
     session.gobanState.analysisStatus = .run
     session.gobanState.eyeStatus = .opened
     return TVSelfPlayPreviewHost(game: game, session: session)

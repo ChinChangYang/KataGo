@@ -25,10 +25,16 @@ struct TVScoreChart: View {
     var currentIndex: Int? = nil
     /// Shown when the record has no usable history. The review default points
     /// at the other devices that produce history; the self-play screen passes
-    /// nil to render nothing instead — its chart fills itself live within a
-    /// few moves, and the sync guidance would be wrong there.
+    /// nil — the sync guidance would be wrong there — and reserves the chart
+    /// slot instead (see `reservesSpaceWhenEmpty`).
     var noHistoryMessage: String? =
         "No score history yet. Step through this game with analysis on iPhone, iPad, or Mac and the chart will sync here."
+    /// Self-play passes true: the chart area (header + 110 pt plot) is
+    /// reserved from move 0, with an empty plot placeholder until two score
+    /// leads exist — the panel never reflows (and never pushes the full-height
+    /// board off-screen) when the chart fills in mid-game. Review keeps the
+    /// default false: its no-history placeholder text takes the slot instead.
+    var reservesSpaceWhenEmpty = false
 
     private var markedIndex: Int { currentIndex ?? gameRecord.currentIndex }
 
@@ -67,7 +73,7 @@ struct TVScoreChart: View {
         // synced games), an explanatory placeholder takes the chart's place
         // instead of leaving a hole in the panel.
         let points = self.points
-        if points.count >= 2 || noHistoryMessage != nil {
+        if points.count >= 2 || noHistoryMessage != nil || reservesSpaceWhenEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Score Lead")
@@ -88,6 +94,16 @@ struct TVScoreChart: View {
                     // 110 (was 160): the panel also hosts the Top Moves rows
                     // now, and the trend still reads fine at this height.
                     chart(points: points)
+                        .frame(height: 110)
+                } else if reservesSpaceWhenEmpty {
+                    // Reserved plot slot — same 110 pt as the live chart so
+                    // the panel height is identical before and after the
+                    // history arrives. A gray rule echoes the chart's zero
+                    // baseline so the slot reads as "chart pending", not a
+                    // hole.
+                    Rectangle()
+                        .fill(.gray)
+                        .frame(height: 1)
                         .frame(height: 110)
                 } else if let noHistoryMessage {
                     Text(noHistoryMessage)
