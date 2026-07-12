@@ -17,6 +17,7 @@ struct LoadingView: View {
     @State var animationCount = 0
     @Binding var version: String?
     @Environment(EngineLaunchStatus.self) private var launchStatus
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let maxAnimationCount = 5
 
@@ -51,10 +52,7 @@ struct LoadingView: View {
                 .rotationEffect(.degrees(degreesRotating))
                 .shadow(radius: 8, x: 16, y: 16)
                 .onAppear {
-                    withAnimation(.linear(duration: 1)
-                        .speed(animationSpeed)) {
-                            degreesRotating = 360
-                        }
+                    startSpin()
                 }
                 .onTapGesture {
                     tapGestureAction()
@@ -78,7 +76,19 @@ struct LoadingView: View {
         }
     }
 
+    /// Continuous rotation of the loading icon: a slow 20 s turn that repeats
+    /// until the view goes away (so the icon never freezes during a long
+    /// first-launch Core ML compile). Pinned when Reduce Motion is on.
+    private func startSpin() {
+        guard !reduceMotion else { return }
+        degreesRotating = 0
+        withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
+            degreesRotating = 360
+        }
+    }
+
     private func tapGestureAction() {
+        guard !reduceMotion else { return }
         if animationCount < LoadingView.maxAnimationCount {
             degreesRotating = 0
             withAnimation(.bouncy(duration: 1)
@@ -87,6 +97,11 @@ struct LoadingView: View {
                     animationCount = animationCount + 1
                 } completion: {
                     animationCount = animationCount - 1
+                    // Hand back to the continuous spin once the last queued
+                    // bounce finishes (otherwise the icon stops at 360°).
+                    if animationCount == 0 {
+                        startSpin()
+                    }
                 }
         }
     }

@@ -105,42 +105,92 @@ struct MacBoardHostView: View {
     }
 }
 
-/// Pre-ready board-pane placeholder: a spinner plus a caption driven by
-/// `engineLaunchStatus.phase`. Replaces the bare `ProgressView()` so a cache-miss
-/// CoreML compile (which can take a while on first launch) surfaces a reassuring
-/// message instead of an unexplained wait. The MLX/GPU path emits no phase, so
-/// `.idle` falls back to a generic "Loading…". Mirrors the iOS `LoadingView`
-/// `secondaryLine`, with an added generic fallback for macOS's MLX default.
+/// Pre-ready board-pane loading screen: the spinning circular KataGo icon, a
+/// ticking "Loading…" headline, an optional Core ML compile-status caption, and
+/// the model name being launched — matching the iOS `LoadingView` design (the
+/// tvOS `TVLoadingView` is the same port). The icon rotates continuously until
+/// the engine is ready — a first-launch Core ML compile can outlast a single
+/// turn — and is pinned when Reduce Motion is on. The MLX/GPU default path never
+/// advances the phase, so `secondaryLine` is `nil` there and the ticking
+/// headline carries the "Loading…" text.
 private struct EngineLaunchStatusView: View {
     let engineLaunchStatus: EngineLaunchStatus
     let activeModelTitle: String
 
-    /// Phase-specific caption. Unlike iOS (`secondaryLine` is `nil` for `.idle`,
-    /// because the iOS LoadingView already shows its own primary text), macOS
-    /// shows a generic "Loading…" for `.idle` so the spinner is never caption-less
-    /// on the MLX/GPU default path (which never advances the phase).
-    private var caption: String {
-        switch engineLaunchStatus.phase {
-        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
-        case .awaitingPrecompile:       "Finishing Core ML compile…"
-        case .idle:                     "Loading…"
+    @State private var degreesRotating = 0.0
+    @State private var dotCount = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geo in
+            VStack {
+                Text("Loading" + String(repeating: ".", count: dotCount))
+                    .font(.largeTitle)
+                    .bold()
+                    .contentTransition(.numericText())
+                    .padding()
+
+                if let line = secondaryLine {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+
+                if !activeModelTitle.isEmpty {
+                    Text(activeModelTitle)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                Image(.loadingIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: iconDiameter(in: geo.size),
+                           maxHeight: iconDiameter(in: geo.size))
+                    .clipShape(.circle)
+                    .rotationEffect(.degrees(degreesRotating))
+                    .shadow(radius: 8, x: 16, y: 16)
+                    .padding(.top)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(0.5))
+                withAnimation {
+                    dotCount = (dotCount + 1) % 4
+                }
+            }
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
+                degreesRotating = 360
+            }
         }
     }
 
-    var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text(caption)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            if !activeModelTitle.isEmpty {
-                Text(activeModelTitle)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-            }
+    /// Diameter for the spinning icon: up to 80% of the board pane's smaller
+    /// side, so it reads large while leaving room for the headline and captions
+    /// stacked above it. `scaledToFit` keeps the image from exceeding this box.
+    private func iconDiameter(in size: CGSize) -> CGFloat {
+        min(size.width, size.height) * 0.8
+    }
+
+    /// Core ML compile-status caption (iOS/tvOS `secondaryLine`). `nil` on the
+    /// MLX/GPU default path (`.idle`), where the ticking headline already reads
+    /// "Loading…".
+    private var secondaryLine: String? {
+        switch engineLaunchStatus.phase {
+        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
+        case .awaitingPrecompile:       "Finishing Core ML compile…"
+        case .idle:                     nil
+        @unknown default:               nil
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
