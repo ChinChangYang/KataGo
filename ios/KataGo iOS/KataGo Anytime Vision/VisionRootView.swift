@@ -44,6 +44,27 @@ struct VisionRootView: View {
         // ≈ 0.8 x 0.6 x 0.8 m. The window adopts this via .contentSize.
         .frame(width: 1088, height: 816)
         .frame(depth: 1088)
+        .ornament(attachmentAnchor: .scene(.bottomFront), contentAlignment: .center) {
+            if isReady {
+                VisionControlOrnament(
+                    session: session,
+                    shell: shell,
+                    controllerInput: controllerInput,
+                    navigationContext: navigationContext,
+                    onNewGame: { startNewGame(size: $0) },
+                    onPassConfirmed: { confirmPass() },
+                    onUndo: { undoOneMove() },
+                    onToggleEye: { toggleEye() },
+                    onDismissIllegalMove: {
+                        session.gobanState.confirmingIllegalMove = false
+                        session.gobanState.clearPendingMove()
+                    }
+                )
+            }
+        }
+        .onChange(of: controllerInput.isConnected) { _, connected in
+            if !connected { ghost.reset() }
+        }
         .onAppear {
             engineController.startInitial()
             controllerInput.onEvent = { handleControllerEvent($0) }
@@ -83,6 +104,14 @@ struct VisionRootView: View {
                 config: config,
                 nextColorForPlayCommand: session.player.nextColorForPlayCommand
             )
+        }
+        // 2D boards clear stale candidates in AnalysisView.onAppear; the 3D
+        // scene has no such lifecycle hook, so honor the request here.
+        .onChange(of: session.gobanState.requestingClearAnalysis) { _, requesting in
+            if requesting {
+                session.analysis.clear()
+                session.gobanState.requestingClearAnalysis = false
+            }
         }
     }
 
@@ -152,6 +181,67 @@ struct VisionRootView: View {
                                                 move: vertex,
                                                 messageList: session.messageList)
         ghost.reset()
+    }
+
+    private func startNewGame(size: Int) {
+        let record = GameRecord.createGameRecord(
+            sgf: GameRecord.makeDefaultSgf(boardSize: size))
+        modelContext.insert(record)
+        try? modelContext.save()
+
+        ghost.reset()
+        shell.passConfirmationPending = false
+
+        // loadGame is the central reload entry (used by macOS selectGame and
+        // tvOS review): it deactivates any branch, clears pending moves, and
+        // reloads the SGF. Send the engine config first, as the boot does.
+        session.sendInitialCommands(config: record.concreteConfig)
+        let previous = navigationContext.selectedGameRecord
+        navigationContext.selectedGameRecord = record
+        session.gobanState.loadGame(gameRecord: record,
+                                    previous: previous,
+                                    player: session.player,
+                                    bookLookup: session.bookLookup,
+                                    messageList: session.messageList,
+                                    board: session.board,
+                                    stones: session.stones)
+        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
+        session.messageList.appendAndSend(command: "printsgf")
+        session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
+                                                     messageList: session.messageList,
+                                                     player: session.player)
+        shell.phase = .ready
+    }
+
+    private func confirmPass() {
+        shell.passConfirmationPending = false
+        guard let turn = session.player.nextColorSymbolForPlayCommand,
+              session.stones.isReady,
+              session.gobanState.pendingMoveTurn == nil,
+              !isAITurn
+        else { return }
+        session.gobanState.sendCheckMoveCommand(turn: turn,
+                                                move: "pass",
+                                                messageList: session.messageList)
+        ghost.reset()
+    }
+
+    private func toggleEye() {
+        session.gobanState.eyeStatus =
+            session.gobanState.eyeStatus == .opened ? .closed : .opened
+        // Closing the eye during a human-vs-AI human turn should also stop
+        // the stream (power saving); reopening re-requests analysis.
+        guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return }
+        if session.gobanState.eyeStatus == .opened {
+            session.gobanState.maybeRequestAnalysis(
+                config: config,
+                nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                messageList: session.messageList)
+        } else {
+            session.gobanState.maybeStopAnalysisForPowerSaving(
+                config: config,
+                nextColorForPlayCommand: session.player.nextColorForPlayCommand)
+        }
     }
 
     /// Mirrors StatusToolbarItems.backwardFrameAction.
@@ -261,6 +351,14 @@ struct VisionRootView: View {
             ghost.activate(width: width, height: height)
             handleControllerEvent(.dpad(.up))
             handleControllerEvent(.dpad(.right))
+            handleControllerEvent(.play)
+
+            // Exercise the New Game board-swap path (19x19 -> 9x9) and play
+            // one move on the fresh board.
+            try? await Task.sleep(for: .seconds(6))
+            startNewGame(size: 9)
+            try? await Task.sleep(for: .seconds(5))
+            ghost.activate(width: 9, height: 9)
             handleControllerEvent(.play)
         }
     }

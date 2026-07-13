@@ -22,11 +22,15 @@ struct VisionBoardRealityView: View {
 
     var body: some View {
         GeometryReader3D { proxy in
-            RealityView { content in
+            let candidates = candidateMarkers
+            let maxVisits = max(1, session.analysis.maxVisits ?? 1)
+            let analysisVisible = session.gobanState.eyeStatus == .opened
+
+            RealityView { content, _ in
                 content.add(sceneModel.volumeRoot)
                 alignToVolumeFloor(content: content, proxy: proxy)
                 subscribeToFrameUpdates(content: content)
-            } update: { content in
+            } update: { content, attachments in
                 alignToVolumeFloor(content: content, proxy: proxy)
                 // Read EVERY observable dependency unconditionally, right
                 // here in the update closure: reads deferred into the async
@@ -39,11 +43,42 @@ struct VisionBoardRealityView: View {
                     white: session.stones.whitePoints,
                     stonesReady: session.stones.isReady,
                     ghostPoint: ghost.point,
-                    nextColor: session.player.nextColorForPlayCommand
+                    nextColor: session.player.nextColorForPlayCommand,
+                    candidates: candidates,
+                    maxVisits: maxVisits,
+                    analysisVisible: analysisVisible
                 )
                 syncScene(snapshot)
+                syncLabels(snapshot, attachments: attachments)
+            } attachments: {
+                ForEach(candidates) { marker in
+                    Attachment(id: marker.vertex) {
+                        Text("\(Int((marker.winrate * 100).rounded()))%")
+                            .font(marker.isBest ? .caption.bold() : .caption2)
+                            .monospacedDigit()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .glassBackgroundEffect()
+                    }
+                }
             }
         }
+    }
+
+    /// Top analysis candidates as marker view-models; `[0]` is the best move.
+    private var candidateMarkers: [VisionBoardSceneModel.CandidateMarker] {
+        session.analysis
+            .candidateMoves(width: Int(session.board.width),
+                            height: Int(session.board.height),
+                            limit: 8)
+            .enumerated()
+            .map { index, candidate in
+                VisionBoardSceneModel.CandidateMarker(point: candidate.point,
+                                                      vertex: candidate.vertex,
+                                                      visits: candidate.visits,
+                                                      winrate: candidate.winrate,
+                                                      isBest: index == 0)
+            }
     }
 
     /// Per-frame stick poll driving the ghost glide. RealityKit delivers
@@ -72,6 +107,9 @@ struct VisionBoardRealityView: View {
         let stonesReady: Bool
         let ghostPoint: BoardPoint?
         let nextColor: PlayerColor
+        let candidates: [VisionBoardSceneModel.CandidateMarker]
+        let maxVisits: Int
+        let analysisVisible: Bool
     }
 
     /// The board asset's feet rest on y=0, so seating it on the volume floor
@@ -110,5 +148,16 @@ struct VisionBoardRealityView: View {
     private func applyDynamicState(_ snapshot: SceneSnapshot) {
         sceneModel.applyStones(black: snapshot.black, white: snapshot.white)
         sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
+        sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible
+        sceneModel.applyCandidates(snapshot.candidates, maxVisits: snapshot.maxVisits)
+    }
+
+    private func syncLabels(_ snapshot: SceneSnapshot, attachments: RealityViewAttachments) {
+        for marker in snapshot.candidates {
+            if let entity = attachments.entity(for: marker.vertex) {
+                sceneModel.mountLabel(entity, vertex: marker.vertex, point: marker.point)
+            }
+        }
+        sceneModel.removeStaleLabels(current: Set(snapshot.candidates.map(\.vertex)))
     }
 }

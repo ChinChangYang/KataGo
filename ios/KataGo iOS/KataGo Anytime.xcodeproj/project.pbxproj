@@ -660,6 +660,7 @@
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E316F37DF64A96CFB010EC7B /* BoardAssets in Resources */ = {isa = PBXBuildFile; fileRef = 679F57E31260E5DA9F83608A /* BoardAssets */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
+		E42506649736E1E099C8508F /* VisionOrnamentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162FD90AC29C875EBEC571F8 /* VisionOrnamentViews.swift */; };
 		E5137D84D308B565E7F4CCE7 /* pow10_helper.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CA99DECEC565A8514335 /* pow10_helper.cc */; };
 		E520E06A88E0C6F0F7708443 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E670672DF494EE7F95DF019F /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
@@ -970,6 +971,7 @@
 		158BDE8AE84A160E7E0A0C85 /* cycleclock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cycleclock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/cycleclock.cc"; sourceTree = SOURCE_ROOT; };
 		15B0AA81917804081CEED556 /* KataGoTVApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KataGoTVApp.swift; sourceTree = "<group>"; };
 		15BA1592C87481A57E8CC1BE /* crc32c.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc32c.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/crc32c.cc"; sourceTree = SOURCE_ROOT; };
+		162FD90AC29C875EBEC571F8 /* VisionOrnamentViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionOrnamentViews.swift; path = "KataGo Anytime Vision/VisionOrnamentViews.swift"; sourceTree = "<group>"; };
 		173B40EDB188F4C5507FD264 /* StorageWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageWriter.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageWriter.cpp; sourceTree = SOURCE_ROOT; };
 		17FA6DBD4C7BA5955B8953B7 /* bind.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = bind.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/bind.cc"; sourceTree = SOURCE_ROOT; };
 		19F59A699C5AFFAC024AA40C /* KataGoAnytimeWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = KataGoAnytimeWidget.entitlements; path = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements; sourceTree = "<group>"; };
@@ -1876,6 +1878,7 @@
 				830657E86B4EDC657F02AFC5 /* VisionBoardRealityView.swift */,
 				DB8C70B55F90A8E5D519D0D1 /* VisionBoardSceneModel.swift */,
 				AD2248B77480F315C93CB627 /* VisionControllerInput.swift */,
+				162FD90AC29C875EBEC571F8 /* VisionOrnamentViews.swift */,
 			);
 			name = "KataGo Anytime Vision";
 			sourceTree = SOURCE_ROOT;
@@ -3987,6 +3990,7 @@
 				13A24D22567E8B611E762724 /* VisionBoardRealityView.swift in Sources */,
 				543A0B43C10964ADA23AA911 /* VisionBoardSceneModel.swift in Sources */,
 				9AAA7DE32AE6B80F3408ADA4 /* VisionControllerInput.swift in Sources */,
+				E42506649736E1E099C8508F /* VisionOrnamentViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

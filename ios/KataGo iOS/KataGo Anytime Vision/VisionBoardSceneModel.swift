@@ -278,10 +278,10 @@ final class VisionBoardSceneModel {
         let hue = analysisBaseHue(visits: visits, maxVisits: maxVisits)
         let bucket = Int((hue * 1000).rounded())
         if let cached = markerMaterials[bucket] { return cached }
-        let uiColor = UIColor(analysisBaseColor(visits: visits, maxVisits: maxVisits))
-            .withAlphaComponent(0.8)
-        var material = UnlitMaterial(color: uiColor)
+        var material = UnlitMaterial(color: UIColor(analysisBaseColor(visits: visits, maxVisits: maxVisits)))
         material.faceCulling = .none
+        // Color alpha alone is ignored unless blending is transparent.
+        material.blending = .transparent(opacity: 0.8)
         markerMaterials[bucket] = material
         return material
     }
