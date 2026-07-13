@@ -48,6 +48,13 @@ final class MainWindowController: NSWindowController {
     /// means each window has its own independent engine.
     private var engineProcess: SubprocessKataGoEngine?
 
+    /// The max board length the RUNNING engine was launched with
+    /// (`maxBoardSizeForNNBuffer`). The New Game dialog bounds its board-size
+    /// options to this — a board larger than the launched cap fatally aborts the
+    /// engine on first analysis (`boardFits`). Set at each engine launch, so it
+    /// reflects what's live now, not a settings change awaiting relaunch.
+    private(set) var launchedMaxBoardLength: Int = BoardSizeChoice.nineteen.rawValue
+
     /// The Task running `initializeSession` → `session.run()` (the steady-state
     /// GTP loop). Tracked so `stopEngineAndSession()` can AWAIT it before a
     /// relaunch injects a new engine — `GameSession` is reused across relaunch,
@@ -731,6 +738,9 @@ final class MainWindowController: NSWindowController {
             assertionFailure("katago-engine helper is not embedded in the app bundle (Contents/MacOS).")
             return false
         }
+        // Remember the cap the engine is actually launching with, so the New Game
+        // dialog can't offer a board this engine would fatally reject.
+        launchedMaxBoardLength = maxBoardSizeForNNBuffer
         // The parent resolves the bundled human-SL model + GTP config and passes
         // absolute paths to the child (the child's own Bundle.main is the app).
         let humanModelPath = Bundle.main.path(forResource: "b18c384nbt-humanv0", ofType: "bin.gz") ?? ""

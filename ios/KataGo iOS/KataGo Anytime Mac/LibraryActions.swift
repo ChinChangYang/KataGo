@@ -28,14 +28,22 @@ extension MainWindowController: LibraryActionsDelegate {
 
     // MARK: - New
 
-    /// File ▸ New Game (⌘N) and the toolbar `New` item: create a fresh default
-    /// 19×19 game, insert it, switch the board to it, and refresh the sidebar.
+    /// File ▸ New Game (⌘N) and the toolbar `New` item: present the New Game
+    /// setup sheet (Name / Board size / Komi / Rules). On Create it builds the
+    /// chosen settings into an SGF and runs the same insert → select → refetch →
+    /// reload tail as before; on Cancel nothing changes. The automatic,
+    /// non-interactive `createGameRecord()` paths (first-launch empty store,
+    /// last-game delete fallback) intentionally stay dialog-free.
     @objc func newGame(_ sender: Any?) {
-        let new = GameRecord.createGameRecord()
-        modelContext.insert(new)
-        selectGame(new)
-        libraryStore.refetch()
-        WidgetCenter.shared.reloadAllTimelines()
+        let dialog = NewGameViewController(maxBoardLength: launchedMaxBoardLength) { [weak self] sgf, name in
+            guard let self else { return }
+            let new = GameRecord.createGameRecord(sgf: sgf, name: name)
+            self.modelContext.insert(new)
+            self.selectGame(new)
+            self.libraryStore.refetch()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        contentViewController?.presentAsSheet(dialog)
     }
 
     // MARK: - Clone

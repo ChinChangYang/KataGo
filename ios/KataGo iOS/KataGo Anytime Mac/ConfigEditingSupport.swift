@@ -138,7 +138,7 @@ enum ConfigFormBuilder {
 /// Labeled numeric row: `NSTextField` ⟷ `NSStepper`, both committing the same
 /// value through `onChange`.
 @MainActor
-final class NumericRow: NSStackView {
+final class NumericRow: NSStackView, NSTextFieldDelegate {
     private let field = NSTextField()
     private let stepper = NSStepper()
     private let format: (Double) -> String
@@ -166,6 +166,10 @@ final class NumericRow: NSStackView {
         field.widthAnchor.constraint(equalToConstant: 80).isActive = true
         field.target = self
         field.action = #selector(fieldChanged)
+        // Also commit when editing ends by Tab or click-away, not only on Return.
+        // Without this the field's action fires only on Return, so a typed value
+        // the user tabs/clicks away from would be silently dropped.
+        field.delegate = self
 
         stepper.minValue = minValue
         stepper.maxValue = maxValue
@@ -212,6 +216,13 @@ final class NumericRow: NSStackView {
         // here keeping the prior value rather than a compiled default).
         let parsed = Double(field.stringValue) ?? stepper.doubleValue
         commit(parsed)
+    }
+
+    // Commit on Tab / click-away (and any programmatic end of editing, e.g.
+    // `makeFirstResponder(nil)`), so a value the user types but doesn't confirm
+    // with Return still takes effect. Idempotent with `fieldChanged`.
+    func controlTextDidEndEditing(_ obj: Notification) {
+        commit(Double(field.stringValue) ?? stepper.doubleValue)
     }
 }
 

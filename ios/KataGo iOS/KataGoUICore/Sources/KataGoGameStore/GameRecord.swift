@@ -32,6 +32,27 @@ public final class GameRecord {
         "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
     }
 
+    /// Builds a fresh-game SGF that encodes board size, komi, and rules directly
+    /// in the `SZ`/`KM`/`RU` fields. This is the single source of truth the
+    /// `createGameRecord` factory and `GobanState.loadGame` re-derive board size,
+    /// komi, and rules from — `loadGame` OVERWRITES the `Config` rule/komi fields
+    /// from the SGF on every load — so a new game's settings must be carried here,
+    /// not merely assigned on `Config`.
+    ///
+    /// `ruleString` is any spelling KataGo's SGF parser accepts: a named ruleset
+    /// (`chinese`, `japanese`, …) or the compact `koSIMPLEscoreAREA…` form. Square
+    /// boards use `SZ[n]`; rectangular boards use `SZ[w:h]`.
+    public static func makeSgf(width: Int, height: Int, komi: Float, ruleString: String) -> String {
+        let sizeField = width == height ? "\(width)" : "\(width):\(height)"
+        return "(;FF[4]GM[1]SZ[\(sizeField)]PB[]PW[]HA[0]KM[\(komiSgfField(komi))]RU[\(ruleString)])"
+    }
+
+    /// Renders komi for an SGF `KM[]` field: a bare integer when whole (matching
+    /// the default SGF's `KM[7]`), else a trimmed decimal (`6.5`).
+    static func komiSgfField(_ komi: Float) -> String {
+        komi == komi.rounded() ? String(Int(komi)) : String(format: "%g", komi)
+    }
+
     public var sgf: String = defaultSgf
     public var currentIndex: Int = 0
     // The iCloud servers don't guarantee atomic processing of relationship changes,
