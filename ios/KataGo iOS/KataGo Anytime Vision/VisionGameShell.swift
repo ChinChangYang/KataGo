@@ -22,7 +22,8 @@ final class VisionGameShell {
 
     var phase: Phase = .booting
 
-    /// Set by controller Y or the ornament Pass button; the ornament swaps to
-    /// an inline Confirm/Cancel row while pending.
-    var passConfirmationPending = false
+    /// Controller-mapping legend card visibility. Auto-shown once when a
+    /// controller first connects; toggled from the ornament afterward.
+    var showingControllerHelp = false
+    var hasAutoShownControllerHelp = false
 }

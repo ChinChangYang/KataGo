@@ -52,9 +52,10 @@ struct VisionRootView: View {
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
                     onNewGame: { startNewGame(size: $0) },
-                    onPassConfirmed: { confirmPass() },
+                    onPass: { playPass() },
                     onUndo: { undoOneMove() },
                     onToggleEye: { toggleEye() },
+                    onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
                         session.gobanState.confirmingIllegalMove = false
                         session.gobanState.clearPendingMove()
@@ -62,8 +63,22 @@ struct VisionRootView: View {
                 )
             }
         }
+        .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 1, y: 0.5, z: 1)),
+                  contentAlignment: .leading) {
+            if isReady, shell.showingControllerHelp {
+                VisionControllerLegend {
+                    shell.showingControllerHelp = false
+                }
+            }
+        }
         .onChange(of: controllerInput.isConnected) { _, connected in
-            if !connected { ghost.reset() }
+            if !connected {
+                ghost.reset()
+            } else if !shell.hasAutoShownControllerHelp {
+                // First controller of this run: teach the mapping once.
+                shell.hasAutoShownControllerHelp = true
+                shell.showingControllerHelp = true
+            }
         }
         .onAppear {
             engineController.startInitial()
@@ -94,8 +109,24 @@ struct VisionRootView: View {
             }
         }
         .onChange(of: session.gobanState.waitingForAnalysis) { oldValue, newValue in
-            if oldValue, !newValue, session.gobanState.analysisStatus == .pause {
+            // Continuous-analysis re-arm (mirrors GameSplitView.processChange):
+            // any command sent mid-stream (a play, showboard, ...) halts the
+            // kata-analyze stream and drives this true→false edge. Unless the
+            // engine is about to gen-move, either stop for good (paused /
+            // power-saving) or RE-SEND the continuous bundle — without this,
+            // analysis freezes after the first human move.
+            guard oldValue, !newValue else { return }
+            guard let config = navigationContext.selectedGameRecord?.concreteConfig,
+                  !session.gobanState.shouldGenMove(config: config, player: session.player)
+            else { return }
+            if session.gobanState.analysisStatus == .pause
+                || session.gobanState.isAnalysisHiddenForPowerSaving(
+                    config: config,
+                    nextColorForPlayCommand: session.player.nextColorForPlayCommand) {
                 session.messageList.appendAndSend(command: "stop")
+            } else if session.gobanState.analysisStatus == .run {
+                session.messageList.appendAndSend(commands: GtpCommandBuilder.continuousAnalyzeCommands(
+                    interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
             }
         }
         .onChange(of: session.player.nextColorForPlayCommand) { _, _ in
@@ -146,8 +177,9 @@ struct VisionRootView: View {
         case .undo:
             undoOneMove()
         case .pass:
-            guard !isAITurn else { return }
-            shell.passConfirmationPending = true
+            // Immediate — no confirmation bar (a controller can't drive the
+            // pinch-only ornament, and Undo is the safety net anyway).
+            playPass()
         }
     }
 
@@ -190,7 +222,6 @@ struct VisionRootView: View {
         try? modelContext.save()
 
         ghost.reset()
-        shell.passConfirmationPending = false
 
         // loadGame is the central reload entry (used by macOS selectGame and
         // tvOS review): it deactivates any branch, clears pending moves, and
@@ -213,8 +244,7 @@ struct VisionRootView: View {
         shell.phase = .ready
     }
 
-    private func confirmPass() {
-        shell.passConfirmationPending = false
+    private func playPass() {
         guard let turn = session.player.nextColorSymbolForPlayCommand,
               session.stones.isReady,
               session.gobanState.pendingMoveTurn == nil,
@@ -224,6 +254,30 @@ struct VisionRootView: View {
                                                 move: "pass",
                                                 messageList: session.messageList)
         ghost.reset()
+    }
+
+    /// Flip a side between Human and AI from its ornament chip (same seam as
+    /// the iOS captured-stone-capsule tap): writes the live Config, replaces
+    /// the human-SL bundle, and re-arms analysis so enabling the side to move
+    /// gen-moves immediately.
+    private func toggleAI(for color: PlayerColor) {
+        guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return }
+        switch color {
+        case .black:
+            ConfigEngineSync.setBlackMaxTime(config.toggledMaxTime(for: .black),
+                                             config: config,
+                                             gobanState: session.gobanState,
+                                             player: session.player,
+                                             messageList: session.messageList)
+        case .white:
+            ConfigEngineSync.setWhiteMaxTime(config.toggledMaxTime(for: .white),
+                                             config: config,
+                                             gobanState: session.gobanState,
+                                             player: session.player,
+                                             messageList: session.messageList)
+        case .unknown:
+            break
+        }
     }
 
     private func toggleEye() {
@@ -328,6 +382,13 @@ struct VisionRootView: View {
         isReady = true
         shell.phase = .ready
 
+        // onChange(of: isConnected) never fires for a controller that was
+        // already paired before launch (the common simulator case).
+        if controllerInput.isConnected, !shell.hasAutoShownControllerHelp {
+            shell.hasAutoShownControllerHelp = true
+            shell.showingControllerHelp = true
+        }
+
         #if DEBUG
         autoplaySmokeIfRequested()
         #endif
@@ -360,6 +421,11 @@ struct VisionRootView: View {
             try? await Task.sleep(for: .seconds(5))
             ghost.activate(width: 9, height: 9)
             handleControllerEvent(.play)
+
+            // Flip the side to move to AI: the toggle's re-arm must gen-move
+            // immediately (a stone appears with no play event).
+            try? await Task.sleep(for: .seconds(4))
+            toggleAI(for: session.player.nextColorForPlayCommand)
         }
     }
     #endif
