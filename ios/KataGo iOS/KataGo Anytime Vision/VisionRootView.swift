@@ -228,27 +228,7 @@ struct VisionRootView: View {
             sgf: GameRecord.makeDefaultSgf(boardSize: size))
         modelContext.insert(record)
         try? modelContext.save()
-
-        ghost.reset()
-
-        // loadGame is the central reload entry (used by macOS selectGame and
-        // tvOS review): it deactivates any branch, clears pending moves, and
-        // reloads the SGF. Send the engine config first, as the boot does.
-        session.sendInitialCommands(config: record.concreteConfig)
-        let previous = navigationContext.selectedGameRecord
-        navigationContext.selectedGameRecord = record
-        session.gobanState.loadGame(gameRecord: record,
-                                    previous: previous,
-                                    player: session.player,
-                                    bookLookup: session.bookLookup,
-                                    messageList: session.messageList,
-                                    board: session.board,
-                                    stones: session.stones)
-        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
-        session.messageList.appendAndSend(command: "printsgf")
-        session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
-                                                     messageList: session.messageList,
-                                                     player: session.player)
+        switchGame(to: record)
         shell.phase = .ready
     }
 
@@ -402,7 +382,7 @@ struct VisionRootView: View {
             return
         }
 
-        loadIntoEngine(record)
+        switchGame(to: record)
 
         // One collection round (the printsgf reply) before the run loop arms,
         // mirroring ContentView.initializationTask.
@@ -484,31 +464,37 @@ struct VisionRootView: View {
     }
     #endif
 
-    /// Sends the full load sequence for a (pre-validated) game record and
-    /// jumps to the latest position. Also the path New Game takes.
-    private func loadIntoEngine(_ record: GameRecord) {
+    /// The one switch-to-game path shared by boot, New Game, and the Games
+    /// picker (the caller owns the gate and the phase). loadGame is the
+    /// central reload entry (used by macOS selectGame and tvOS review): it
+    /// deactivates any branch, clears pending moves, resets the player to
+    /// .unknown, and reloads the SGF. Pre-setting currentIndex to the move
+    /// count makes loadGame's undo loop a no-op, so the engine lands at the
+    /// tip (v1 semantic: Vision always plays at the latest position; a play
+    /// on a locked synced game forms a branch).
+    ///
+    /// Stale-reply safety: switching mid-genmove cancels the running search,
+    /// which still prints its best-so-far "play <vertex>" — postProcessAIMove
+    /// drops it while the player is .unknown (nil symbol). The showboard
+    /// reply then resolves the side to move, and the turn-change hook arms
+    /// analysis (or the genmove bundle) for the new game.
+    private func switchGame(to record: GameRecord) {
+        ghost.reset()
         session.sendInitialCommands(config: record.concreteConfig)
+        record.currentIndex = SgfOperations(sgf: record.sgf).moveSize ?? 0
+
+        let previous = navigationContext.selectedGameRecord
         navigationContext.selectedGameRecord = record
-
-        session.gobanState.maybeLoadSgf(
-            gameRecord: record,
-            messageList: session.messageList
-        )
-        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
+        session.gobanState.loadGame(gameRecord: record,
+                                    previous: previous,
+                                    player: session.player,
+                                    bookLookup: session.bookLookup,
+                                    messageList: session.messageList,
+                                    board: session.board,
+                                    stones: session.stones)
         session.messageList.appendAndSend(command: "printsgf")
-
-        // Jump to the tip (v1 semantic: Vision always plays at the latest
-        // position; a play on a locked synced game forms a branch). Its
-        // trailing sendPostExecutionCommands kicks off analysis — and the
-        // genmove bundle when an AI side is to move.
-        session.gobanState.forwardMoves(
-            limit: nil,
-            gameRecord: record,
-            board: session.board,
-            messageList: session.messageList,
-            player: session.player,
-            audioModel: nil,
-            stones: session.stones
-        )
+        session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
+                                                     messageList: session.messageList,
+                                                     player: session.player)
     }
 }
