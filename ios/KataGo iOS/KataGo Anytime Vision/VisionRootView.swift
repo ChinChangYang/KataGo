@@ -10,6 +10,7 @@
 import SwiftUI
 import SwiftData
 import KataGoUICore
+import KataGoGameStore
 
 struct VisionRootView: View {
     @State private var session = GameSession()
@@ -186,7 +187,11 @@ struct VisionRootView: View {
                                ghost: ghost,
                                sceneModel: sceneModel,
                                controllerInput: controllerInput,
-                               shell: shell)
+                               shell: shell,
+                               hiddenAnalysisVisitRatio:
+                                navigationContext.selectedGameRecord?.concreteConfig
+                                    .hiddenAnalysisVisitRatio
+                                ?? Config.defaultHiddenAnalysisVisitRatio)
     }
 
     // MARK: - Controller events
@@ -203,7 +208,8 @@ struct VisionRootView: View {
             toggleEye()
         case .cycle(let forward):
             let candidates = session.analysis
-                .candidateMoves(width: width, height: height, limit: 10)
+                .candidateMoves(width: width, height: height,
+                                limit: VisionBoardSceneModel.candidateMoveLimit)
                 .map(\.point)
             ghost.cycle(through: candidates, forward: forward)
         case .play:

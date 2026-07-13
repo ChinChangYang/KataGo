@@ -17,6 +17,7 @@ struct VisionBoardRealityView: View {
     let sceneModel: VisionBoardSceneModel
     let controllerInput: VisionControllerInput
     let shell: VisionGameShell
+    let hiddenAnalysisVisitRatio: Float
 
     /// Thumbstick glide rate, in intersections per second at full deflection.
     private static let glideSpeed: Float = 8
@@ -24,7 +25,6 @@ struct VisionBoardRealityView: View {
     var body: some View {
         GeometryReader3D { proxy in
             let candidates = candidateMarkers
-            let maxVisits = max(1, session.analysis.maxVisits ?? 1)
             let analysisVisible = session.gobanState.eyeStatus == .opened
 
             RealityView { content, _ in
@@ -48,59 +48,54 @@ struct VisionBoardRealityView: View {
                     ghostPoint: ghost.point,
                     nextColor: session.player.nextColorForPlayCommand,
                     candidates: candidates,
-                    maxVisits: maxVisits,
                     analysisVisible: analysisVisible,
                     analysisInformation: session.gobanState.analysisInformation,
                     ownership: showOwnership ? ownershipUnits : [],
                     isBoardStanding: shell.isBoardStanding
                 )
                 syncScene(snapshot)
-                syncLabels(snapshot, attachments: attachments)
+                syncMarkers(snapshot, attachments: attachments)
             } attachments: {
                 ForEach(candidates) { marker in
                     Attachment(id: marker.vertex) {
-                        if !marker.labelLines.isEmpty {
-                            VStack(spacing: 0) {
-                                ForEach(Array(marker.labelLines.enumerated()),
-                                        id: \.offset) { _, line in
-                                    Text(line)
-                                }
-                            }
-                            .font(marker.isBest ? .caption.bold() : .caption2)
-                            .monospacedDigit()
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .glassBackgroundEffect()
-                        }
+                        VisionCandidateMarkerView(mark: marker.mark)
                     }
                 }
             }
         }
     }
 
-    /// Top analysis candidates as marker view-models; `[0]` is the best move.
-    /// 2D parity for the Analysis information setting: None hides the whole
-    /// candidate layer (markers, labels, best backing — ownership is gated
-    /// separately), the other modes pick the label lines.
+    /// Top analysis candidates as flat-marker view-models. 2D parity for the
+    /// Analysis information setting: None hides the whole candidate layer
+    /// (ownership is gated separately). The ring keys on max utilityLcb over
+    /// ALL info points, so it can vanish when that point falls outside the
+    /// top-N list — accepted divergence (the 2D board draws every info
+    /// point).
     private var candidateMarkers: [VisionBoardSceneModel.CandidateMarker] {
         guard !session.gobanState.isAnalysisInformationNone else { return [] }
         let information = session.gobanState.analysisInformation
+        let maxVisits = max(1, session.analysis.maxVisits ?? 1)
+        let maxUtilityLcb = session.analysis.info.values.map(\.utilityLcb).max()
+        let spacing = sceneModel.cellSpacing
         return session.analysis
             .candidateMoves(width: Int(session.board.width),
                             height: Int(session.board.height),
-                            limit: 8)
-            .enumerated()
-            .map { index, candidate in
+                            limit: VisionBoardSceneModel.candidateMoveLimit)
+            .map { candidate in
                 VisionBoardSceneModel.CandidateMarker(
                     point: candidate.point,
                     vertex: candidate.vertex,
-                    visits: candidate.visits,
-                    labelLines: visionAnalysisLabelLines(
+                    mark: VisionCandidateMark.make(
+                        visits: candidate.visits,
+                        maxVisits: maxVisits,
+                        utilityLcb: candidate.utilityLcb,
+                        maxUtilityLcb: maxUtilityLcb,
+                        hiddenAnalysisVisitRatio: hiddenAnalysisVisitRatio,
                         analysisInformation: information,
                         winrate: candidate.winrate,
-                        visits: candidate.visits,
-                        scoreLead: candidate.scoreLead),
-                    isBest: index == 0)
+                        scoreLead: candidate.scoreLead,
+                        cellSpacingX: spacing.x,
+                        cellSpacingZ: spacing.z))
             }
     }
 
@@ -131,7 +126,6 @@ struct VisionBoardRealityView: View {
         let ghostPoint: BoardPoint?
         let nextColor: PlayerColor
         let candidates: [VisionBoardSceneModel.CandidateMarker]
-        let maxVisits: Int
         let analysisVisible: Bool
         let analysisInformation: Int
         let ownership: [OwnershipUnit]
@@ -176,16 +170,49 @@ struct VisionBoardRealityView: View {
         sceneModel.applyStones(black: snapshot.black, white: snapshot.white)
         sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
         sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible
-        sceneModel.applyCandidates(snapshot.candidates, maxVisits: snapshot.maxVisits)
         sceneModel.applyOwnership(snapshot.ownership)
     }
 
-    private func syncLabels(_ snapshot: SceneSnapshot, attachments: RealityViewAttachments) {
+    private func syncMarkers(_ snapshot: SceneSnapshot, attachments: RealityViewAttachments) {
         for marker in snapshot.candidates {
             if let entity = attachments.entity(for: marker.vertex) {
-                sceneModel.mountLabel(entity, vertex: marker.vertex, point: marker.point)
+                sceneModel.mountMarker(entity, marker: marker)
             }
         }
-        sceneModel.removeStaleLabels(current: Set(snapshot.candidates.map(\.vertex)))
+        sceneModel.removeStaleMarkers(current: Set(snapshot.candidates.map(\.vertex)))
+    }
+}
+
+/// The whole flat 2D-parity candidate marker — AnalysisView's circle + text
+/// without glass or shadow: visits-hue fill, blue max-utilityLcb ring, black
+/// fit-to-circle monospaced text with the winrate line bold. Rendered
+/// supersampled; the scene model scales the attachment entity back down.
+private struct VisionCandidateMarkerView: View {
+    let mark: VisionCandidateMark
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hue: mark.hue, saturation: 1, brightness: 1))
+                .opacity(mark.opacity)
+            if mark.showsRing {
+                Circle()
+                    .stroke(.blue, lineWidth: mark.ringLineWidthPoints)
+            }
+            if !mark.labelLines.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(mark.labelLines.enumerated()),
+                            id: \.offset) { index, line in
+                        Text(line)
+                            .contentTransition(.numericText())
+                            .font(.system(size: 500, design: .monospaced))
+                            .minimumScaleFactor(0.01)
+                            .bold(index == mark.boldLineIndex)
+                            .foregroundStyle(.black)
+                    }
+                }
+            }
+        }
+        .frame(width: mark.framePoints, height: mark.framePoints)
     }
 }

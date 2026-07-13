@@ -152,11 +152,9 @@ final class VisionBoardSceneModel {
         placed.removeAll()
         setGhost(point: nil, color: .unknown)
         analysisRoot.children.forEach { $0.removeFromParent() }
-        // The caches must empty with the entity tree, or the next
-        // applyCandidates "updates" detached entities that never re-mount.
+        // The caches must empty with the entity tree, or the next sync
+        // "updates" detached entities that never re-mount.
         markerEntities.removeAll()
-        labelEntities.removeAll()
-        bestBackingEntity = nil
         ownershipEntities.removeAll()
     }
 
@@ -235,112 +233,58 @@ final class VisionBoardSceneModel {
 
     // MARK: - Analysis markers
 
-    /// View-model for one candidate move's 3D marker + label. `labelLines`
-    /// is precomputed (visionAnalysisLabelLines) so the attachment renders
-    /// whatever the Analysis information setting selects.
+    /// View-model for one candidate move's flat marker attachment. The
+    /// SwiftUI side renders the whole 2D-parity circle (fill, ring, text)
+    /// from `mark`; the scene model only lays the attachment flat on the
+    /// board.
     struct CandidateMarker: Equatable, Identifiable {
         let point: BoardPoint
         let vertex: String
-        let visits: Int
-        let labelLines: [String]
-        let isBest: Bool
+        let mark: VisionCandidateMark
         var id: String { vertex }
     }
 
-    private var markerEntities: [BoardPoint: ModelEntity] = [:]
-    private var bestBackingEntity: ModelEntity?
-    private var labelEntities: [String: Entity] = [:]
-    private var markerMesh: MeshResource?
-    private var bestBackingMesh: MeshResource?
-    /// Material cache keyed by the discretized hue (21 buckets) — recreating
-    /// materials every analysis tick is the plan's noted jank risk.
-    private var markerMaterials: [Int: UnlitMaterial] = [:]
+    /// Marker attachment entities keyed by vertex (the attachment id).
+    private var markerEntities: [String: Entity] = [:]
+    /// Above the ownership quads (+0.0002), below the stones and ghost —
+    /// the 2D overlay's draw order.
+    private static let markerLift: Float = 0.0008
 
-    private var markerRadius: Float {
-        Float(manifest?.stoneRef.diameter ?? 0.0224) * 0.45
+    /// One list length drives both the markers and L1/R1 cycling, so the
+    /// ghost only ever lands on marked points.
+    static let candidateMoveLimit = 10
+
+    /// Anisotropic cell spacing (22 x 23.7 mm on the bundled boards) for
+    /// sizing the flat markers; pre-load fallback matches the manifest.
+    var cellSpacing: (x: Float, z: Float) {
+        (Float(manifest?.spacing.x ?? 0.022), Float(manifest?.spacing.z ?? 0.0237))
     }
 
-    func applyCandidates(_ candidates: [CandidateMarker], maxVisits: Int) {
-        guard let geometry else { return }
-
-        let desired = Set(candidates.map(\.point))
-        for (point, entity) in markerEntities where !desired.contains(point) {
-            entity.removeFromParent()
-            markerEntities.removeValue(forKey: point)
-        }
-
-        if markerMesh == nil {
-            markerMesh = MeshResource.generateCylinder(height: 0.002, radius: markerRadius)
-        }
-
-        for candidate in candidates {
-            guard let position = geometry.position(of: candidate.point) else { continue }
-            let material = markerMaterial(visits: candidate.visits, maxVisits: maxVisits)
-            let entity: ModelEntity
-            if let existing = markerEntities[candidate.point] {
-                entity = existing
-                entity.model?.materials = [material]
-            } else {
-                entity = ModelEntity(mesh: markerMesh!, materials: [material])
-                analysisRoot.addChild(entity)
-                markerEntities[candidate.point] = entity
-            }
-            entity.position = position + SIMD3<Float>(0, 0.0015, 0)
-            entity.scale = candidate.isBest ? [1.35, 1, 1.35] : .one
-        }
-
-        updateBestBacking(candidates: candidates, geometry: geometry)
-    }
-
-    /// A white disc under the best move — the "distinct" treatment on top of
-    /// the shared quality hue.
-    private func updateBestBacking(candidates: [CandidateMarker], geometry: BoardSceneGeometry) {
-        guard let best = candidates.first(where: \.isBest),
-              let position = geometry.position(of: best.point) else {
-            bestBackingEntity?.removeFromParent()
-            bestBackingEntity = nil
-            return
-        }
-        if bestBackingEntity == nil {
-            if bestBackingMesh == nil {
-                bestBackingMesh = MeshResource.generateCylinder(height: 0.001, radius: markerRadius * 1.6)
-            }
-            let entity = ModelEntity(mesh: bestBackingMesh!,
-                                     materials: [UnlitMaterial(color: .white)])
-            analysisRoot.addChild(entity)
-            bestBackingEntity = entity
-        }
-        bestBackingEntity?.position = position + SIMD3<Float>(0, 0.0008, 0)
-    }
-
-    private func markerMaterial(visits: Int, maxVisits: Int) -> UnlitMaterial {
-        let hue = analysisBaseHue(visits: visits, maxVisits: maxVisits)
-        let bucket = Int((hue * 1000).rounded())
-        if let cached = markerMaterials[bucket] { return cached }
-        var material = UnlitMaterial(color: UIColor(analysisBaseColor(visits: visits, maxVisits: maxVisits)))
-        material.faceCulling = .none
-        // Color alpha alone is ignored unless blending is transparent.
-        material.blending = .transparent(opacity: 0.8)
-        markerMaterials[bucket] = material
-        return material
-    }
-
-    /// Mounts/positions the SwiftUI label entity for a candidate; labels
-    /// billboard toward the viewer above the marker.
-    func mountLabel(_ entity: Entity, vertex: String, point: BoardPoint) {
-        guard let geometry, let position = geometry.position(of: point) else { return }
-        entity.position = position + SIMD3<Float>(0, 0.035, 0)
-        entity.components.set(BillboardComponent())
+    /// Lays the marker attachment flat on the board: -π/2 about X maps the
+    /// attachment's normal (+Z) onto +Y and its view-up onto -Z, so tabletop
+    /// text reads upright from the front — and composed with the standing
+    /// +π/2 X rotation it cancels, facing the viewer with text-up = up.
+    /// No BillboardComponent (it would override the flat orientation).
+    func mountMarker(_ entity: Entity, marker: CandidateMarker) {
+        guard let geometry, let position = geometry.position(of: marker.point) else { return }
+        entity.position = position + SIMD3<Float>(0, Self.markerLift, 0)
+        entity.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+        entity.scale = SIMD3<Float>(repeating: marker.mark.entityScale)
         if entity.parent !== analysisRoot {
             analysisRoot.addChild(entity)
+            #if DEBUG
+            let measured = entity.visualBounds(relativeTo: analysisRoot).extents.x
+            NSLog("VisionScene marker %@ width measured=%.4f expected=%.4f",
+                  marker.vertex, measured, marker.mark.diameterMeters)
+            #endif
         }
-        labelEntities[vertex] = entity
+        markerEntities[marker.vertex] = entity
     }
 
-    func removeStaleLabels(current: Set<String>) {
-        for (vertex, entity) in labelEntities where !current.contains(vertex) {
+    func removeStaleMarkers(current: Set<String>) {
+        for (vertex, entity) in markerEntities where !current.contains(vertex) {
             entity.removeFromParent()
-            labelEntities.removeValue(forKey: vertex)
+            markerEntities.removeValue(forKey: vertex)
         }
     }
 
