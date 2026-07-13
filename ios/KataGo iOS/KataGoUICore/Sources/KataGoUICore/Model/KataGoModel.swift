@@ -496,8 +496,21 @@ public struct Dimensions {
         let coordinateEntity: CGFloat = coordinate ? 1 : 0
         let gobanWidthEntity = width + coordinateEntity
         let gobanHeightEntity = height + coordinateEntity
-        let passHeightEntity = showPass ? 1.5 : 0
-        let squareWidth = totalWidth / (gobanWidthEntity + 1)
+        // Pass-area space reservation. Non-macOS reserves VERTICAL room BELOW the
+        // board for the pass tile (`passHeightEntity`). macOS instead places the
+        // pass tile to the RIGHT of the board's bottom row, so it reserves
+        // HORIZONTAL room on the right (`passWidthEntity`) and lets the board
+        // reclaim the bottom space and grow taller. The board is then shifted left
+        // by half the reserved width so the reserved room lands on the right — see
+        // `macPassTileCenter()` and `BoardLineView.drawPassArea`.
+        #if os(macOS)
+        let passHeightEntity: CGFloat = 0
+        let passWidthEntity: CGFloat = showPass ? 3 : 0
+        #else
+        let passHeightEntity: CGFloat = showPass ? 1.5 : 0
+        let passWidthEntity: CGFloat = 0
+        #endif
+        let squareWidth = totalWidth / (gobanWidthEntity + 1 + passWidthEntity)
         let squareHeight = max(0, totalHeight - capturedStonesHeight) / (gobanHeightEntity + passHeightEntity + 1)
         squareLength = min(squareWidth, squareHeight)
         squareLengthDiv2 = squareLength / 2
@@ -508,13 +521,16 @@ public struct Dimensions {
         stoneLength = squareLength * 0.95
         gobanWidth = (gobanWidthEntity * squareLength) + gobanPadding
         gobanHeight = (gobanHeightEntity * squareLength) + gobanPadding
-        gobanStartX = (totalWidth - gobanWidth) / 2
+        // On macOS this is `passWidthEntity * squareLength` and shifts the board
+        // left so the pass tile has room on the right; elsewhere it is 0 (no-op).
+        let passWidth = passWidthEntity * squareLength
+        gobanStartX = ((totalWidth - gobanWidth) / 2) - (passWidth / 2)
         let passHeight = passHeightEntity * squareLength
         gobanStartY = max(capturedStonesHeight, (totalHeight - passHeight - gobanHeight) / 2)
         boardLineBoundWidth = (width - 1) * squareLength
         boardLineBoundHeight = (height - 1) * squareLength
         let coordinateLength = coordinateEntity * squareLength
-        boardLineStartX = (totalWidth - boardLineBoundWidth + coordinateLength) / 2
+        boardLineStartX = ((totalWidth - boardLineBoundWidth + coordinateLength) / 2) - (passWidth / 2)
         boardLineStartY = (gobanStartY == capturedStonesHeight) ? (capturedStonesHeight + coordinateLength + (squareLength + gobanPadding) / 2) : (totalHeight - passHeight - boardLineBoundHeight + coordinateLength) / 2
         capturedStonesStartY = gobanStartY - capturedStonesHeight
         drawHeight = gobanHeight + capturedStonesHeight + passHeight
@@ -523,6 +539,38 @@ public struct Dimensions {
 
     public func getCapturedStoneStartX(xOffset: CGFloat) -> CGFloat {
         gobanStartX + (gobanWidth / 2) + ((-3 + (6 * xOffset)) * max(gobanWidth / 2, capturedStonesWidth) / 4)
+    }
+
+    #if os(macOS)
+    /// Screen center of the macOS pass tile — to the RIGHT of the board's bottom
+    /// row (two columns past the rightmost line, aligned with the bottom line).
+    /// The SINGLE source of truth for both `BoardLineView.drawPassArea`'s render
+    /// and `MacBoardInteractionLayer`'s click hit-test, so the visible tile and
+    /// the clickable region can never drift. `Dimensions.init` reserves the
+    /// horizontal room this needs (`passWidthEntity`).
+    public func macPassTileCenter() -> CGPoint {
+        CGPoint(x: boardLineStartX + (width + 1) * squareLength,
+                y: boardLineStartY + (height - 1) * squareLength)
+    }
+    #endif
+
+    /// Screen center for any board point's on-board overlay (analysis circle,
+    /// book move, next-move ring, focus ring, …). On macOS the pass tile is
+    /// relocated to the right of the board (`macPassTileCenter`), so the pass
+    /// point must render there too rather than at `getPositionY`'s pinned
+    /// below-board row (which is off-canvas once the board reclaims that space).
+    /// For every non-pass point — and for all points on non-macOS platforms —
+    /// this returns the exact standard formula, so behavior is unchanged except
+    /// for the pass point on macOS.
+    public func screenCenter(for point: BoardPoint, verticalFlip: Bool) -> CGPoint {
+        #if os(macOS)
+        if point.isPass(width: Int(width), height: Int(height)) {
+            return macPassTileCenter()
+        }
+        #endif
+        return CGPoint(
+            x: boardLineStartX + CGFloat(point.x) * squareLength,
+            y: boardLineStartY + point.getPositionY(height: height, verticalFlip: verticalFlip) * squareLength)
     }
 }
 

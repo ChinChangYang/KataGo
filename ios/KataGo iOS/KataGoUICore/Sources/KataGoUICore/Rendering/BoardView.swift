@@ -121,9 +121,7 @@ public struct BoardView: View {
                             .stroke(Color.white, lineWidth: max(3, dimensions.squareLengthDiv8))
                             .frame(width: dimensions.stoneLength * 1.15,
                                    height: dimensions.stoneLength * 1.15)
-                            .position(x: dimensions.boardLineStartX + CGFloat(highlightedPoint.x) * dimensions.squareLength,
-                                      y: dimensions.boardLineStartY + highlightedPoint.getPositionY(height: dimensions.height,
-                                                                                                    verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
+                            .position(dimensions.screenCenter(for: highlightedPoint, verticalFlip: gobanState.verticalFlip))
                             .shadow(color: .black.opacity(0.6), radius: dimensions.squareLengthDiv16)
                     }
 
@@ -299,14 +297,11 @@ public struct BoardView: View {
                 // hint would float in the empty space below the grid, so skip it.
                 if showPass || !boardPoint.isPass(width: Int(board.width), height: Int(board.height)) {
                     let stoneColor: Color = (nextMove.player == .black) ? .black : Color(white: 1.0)
-                    let x = boardPoint.x
-                    let y = boardPoint.getPositionY(height: dimensions.height, verticalFlip: verticalFlip)
 
                     Circle()
                         .stroke(stoneColor, lineWidth: 2)
                         .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-                        .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                                  y: dimensions.boardLineStartY + y * dimensions.squareLength)
+                        .position(dimensions.screenCenter(for: boardPoint, verticalFlip: verticalFlip))
                 }
             }
         }

@@ -319,11 +319,32 @@ struct MacBoardInteractionLayer: View {
     // MARK: - Coordinate mapping (shared helper — identical to BoardView)
 
     private func coordinate(at location: CGPoint, dimensions: Dimensions) -> Coordinate? {
-        Coordinate.from(location: location,
-                        dimensions: dimensions,
-                        boardWidth: Int(board.width),
-                        boardHeight: Int(board.height),
-                        verticalFlip: gobanState.verticalFlip)
+        let boardWidth = Int(board.width)
+        let boardHeight = Int(board.height)
+
+        // macOS relocates the pass tile to the RIGHT of the board's bottom row
+        // (see `Dimensions.macPassTileCenter` / `BoardLineView.drawPassArea`).
+        // Route a click within the tile to a pass. The shared `Coordinate.from`
+        // still maps the now-empty region BELOW the board to a pass, so reject that
+        // phantom afterward — pass must be reachable ONLY through the visible tile.
+        let tileCenter = dimensions.macPassTileCenter()
+        let half = dimensions.squareLength / 2
+        if abs(location.x - tileCenter.x) <= half, abs(location.y - tileCenter.y) <= half {
+            return Coordinate(x: boardWidth - 1,
+                              y: BoardPoint.passY(height: boardHeight) + 1,
+                              width: boardWidth,
+                              height: boardHeight)
+        }
+
+        let coordinate = Coordinate.from(location: location,
+                                         dimensions: dimensions,
+                                         boardWidth: boardWidth,
+                                         boardHeight: boardHeight,
+                                         verticalFlip: gobanState.verticalFlip)
+        if let point = coordinate?.point, point.isPass(width: boardWidth, height: boardHeight) {
+            return nil
+        }
+        return coordinate
     }
 
 #if DEBUG

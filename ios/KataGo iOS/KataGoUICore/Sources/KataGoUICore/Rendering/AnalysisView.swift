@@ -36,8 +36,7 @@ public struct AnalysisView: View {
                     .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
                     .blur(radius: dimensions.squareLength / 32)
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
+                    .position(dimensions.screenCenter(for: point, verticalFlip: gobanState.verticalFlip))
             }
         }
     }
@@ -94,8 +93,7 @@ public struct AnalysisView: View {
                     .hoverEffect()   // pointer/hover only — unavailable on macOS/tvOS
 #endif
                     .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: gobanState.verticalFlip) * dimensions.squareLength)
+                    .position(dimensions.screenCenter(for: point, verticalFlip: gobanState.verticalFlip))
                 }
             }
         }

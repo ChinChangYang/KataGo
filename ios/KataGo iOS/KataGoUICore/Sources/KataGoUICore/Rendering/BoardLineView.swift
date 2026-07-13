@@ -83,23 +83,40 @@ public struct BoardLineView: View {
 
     private func drawPassArea(dimensions: Dimensions) -> some View {
         Group {
+            #if os(macOS)
+            // macOS relocates the pass tile to the RIGHT of the board's bottom row
+            // (see `Dimensions.macPassTileCenter`). `MacBoardInteractionLayer`
+            // hit-tests this SAME center, so the visible tile and clickable region
+            // stay in lockstep. The "Pass" label sits ONE SQUARE ABOVE the tile so
+            // it stays legible above the analysis readout that also renders on the
+            // tile itself (the right-side margin above the tile is clear — no
+            // coordinate labels there).
+            let tileCenter = dimensions.macPassTileCenter()
+            let labelCenter = CGPoint(x: tileCenter.x, y: tileCenter.y - dimensions.squareLength)
+            #else
             let passPoint = BoardPoint.pass(width: Int(board.width), height: Int(board.height))
+            let tileCenter = CGPoint(
+                x: dimensions.boardLineStartX + CGFloat(passPoint.x) * dimensions.squareLength,
+                y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
+            // Label one square to the LEFT of the below-board tile.
+            let labelCenter = CGPoint(
+                x: dimensions.boardLineStartX + CGFloat(passPoint.x - 1) * dimensions.squareLength,
+                y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
+            #endif
 
             Image("Wood", bundle: .module)
                 .resizable()
                 .frame(width: dimensions.squareLength,
                        height: dimensions.squareLength)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
-                .position(x: dimensions.boardLineStartX + CGFloat(passPoint.x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
+                .position(tileCenter)
 
             Text("Pass")
                 .font(.system(size: 500))
                 .minimumScaleFactor(0.01)
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
-                .position(x: dimensions.boardLineStartX + CGFloat(passPoint.x - 1) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
+                .position(labelCenter)
         }
     }
 
