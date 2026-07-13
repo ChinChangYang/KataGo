@@ -17,10 +17,8 @@ struct VisionControlOrnament: View {
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
     let onNewGame: (Int) -> Void
-    let onPass: () -> Void
     let onUndo: () -> Void
     let onSparkle: () -> Void
-    let onToggleEye: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
 
@@ -55,32 +53,28 @@ struct VisionControlOrnament: View {
                     Label("New Game", systemImage: "plus")
                 }
 
-                Button(action: onPass) {
-                    Label("Pass", systemImage: "arrow.right.to.line")
-                }
-
                 Button(action: onUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
                 }
 
-                // Sparkle = analysis engine on/pause/off (ported from the iOS
-                // toolbar); the eye below only controls overlay visibility.
+                // Sparkle = analysis engine state, with the three iOS styles:
+                // running = animated variable-color sparkle, paused = static
+                // sparkle, off = red slashed sparkle. Overlay VISIBILITY is on
+                // the controller's B button (no eye button here).
                 Button(action: onSparkle) {
                     Label {
-                        Text("Analysis")
+                        Text("Toggle Analysis")
                     } icon: {
                         Image(session.gobanState.analysisStatus == .clear
                               ? "custom.sparkle.slash" : "custom.sparkle")
-                            .foregroundStyle(session.gobanState.analysisStatus == .run
-                                             ? AnyShapeStyle(.primary)
-                                             : AnyShapeStyle(.secondary))
+                            .symbolEffect(.variableColor.iterative.reversing,
+                                          isActive: session.gobanState.analysisStatus == .run)
                     }
                 }
-
-                Button(action: onToggleEye) {
-                    Label(eyeOpen ? "Hide Analysis" : "Show Analysis",
-                          systemImage: eyeOpen ? "eye" : "eye.slash")
-                }
+                .foregroundStyle(session.gobanState.analysisStatus == .clear
+                                 ? AnyShapeStyle(.red)
+                                 : AnyShapeStyle(.primary))
+                .contentTransition(.symbolEffect(.replace))
 
                 Button {
                     shell.isBoardStanding.toggle()
@@ -118,10 +112,6 @@ struct VisionControlOrnament: View {
     }
 
     // MARK: - Pieces
-
-    private var eyeOpen: Bool {
-        session.gobanState.eyeStatus == .opened
-    }
 
     /// Pinch to flip the side between Human and AI (mirrors the iOS
     /// captured-stone-capsule tap).
@@ -186,7 +176,7 @@ struct VisionControllerLegend: View {
         Row(symbol: "l.joystick", name: "Left Stick", action: "Glide the ghost stone"),
         Row(symbol: "dpad", name: "D-Pad", action: "Step one intersection"),
         Row(symbol: "xmark.circle", name: "✕ / A", action: "Play at the ghost stone"),
-        Row(symbol: "circle.circle", name: "○ / B", action: "Hide the ghost stone"),
+        Row(symbol: "circle.circle", name: "○ / B", action: "Show / hide analysis"),
         Row(symbol: "l1.rectangle.roundedbottom", name: "L1 · R1", action: "Previous / next suggested move"),
         Row(symbol: "square.circle", name: "□ / X", action: "Undo"),
         Row(symbol: "triangle.circle", name: "△ / Y", action: "Pass"),

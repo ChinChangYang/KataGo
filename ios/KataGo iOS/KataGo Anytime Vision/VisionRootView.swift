@@ -52,10 +52,8 @@ struct VisionRootView: View {
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
                     onNewGame: { startNewGame(size: $0) },
-                    onPass: { playPass() },
                     onUndo: { undoOneMove() },
                     onSparkle: { sparkleAnalysisAction() },
-                    onToggleEye: { toggleEye() },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
                         session.gobanState.confirmingIllegalMove = false
@@ -175,8 +173,8 @@ struct VisionRootView: View {
         switch event {
         case .dpad(let direction):
             ghost.step(direction, width: width, height: height)
-        case .dismiss:
-            ghost.reset()
+        case .toggleAnalysisVisibility:
+            toggleEye()
         case .cycle(let forward):
             let candidates = session.analysis
                 .candidateMoves(width: width, height: height, limit: 10)
@@ -476,6 +474,12 @@ struct VisionRootView: View {
             handleControllerEvent(.dpad(.down))
             handleControllerEvent(.dpad(.down))
             handleControllerEvent(.play)
+
+            // B toggles the overlay off and back on.
+            try? await Task.sleep(for: .seconds(4))
+            handleControllerEvent(.toggleAnalysisVisibility)
+            try? await Task.sleep(for: .seconds(2))
+            handleControllerEvent(.toggleAnalysisVisibility)
         }
     }
     #endif

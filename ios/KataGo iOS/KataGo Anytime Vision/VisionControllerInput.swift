@@ -18,11 +18,11 @@ enum ControllerEvent {
     case dpad(GhostCursorModel.StepDirection)
     /// A — play at the ghost stone.
     case play
-    /// B — dismiss the ghost.
-    case dismiss
+    /// B — show/hide the analysis overlay (the eye).
+    case toggleAnalysisVisibility
     /// X — undo one move.
     case undo
-    /// Y — request a pass (confirmed on the ornament, never played directly).
+    /// Y — pass (immediate).
     case pass
     /// L1 / R1 — cycle the ghost through the analysis candidates.
     case cycle(forward: Bool)
@@ -66,7 +66,7 @@ final class VisionControllerInput {
     private func bindButtons() {
         guard let pad = currentPad else { return }
         bind(pad.buttonA, to: .play)
-        bind(pad.buttonB, to: .dismiss)
+        bind(pad.buttonB, to: .toggleAnalysisVisibility)
         bind(pad.buttonX, to: .undo)
         bind(pad.buttonY, to: .pass)
         bind(pad.leftShoulder, to: .cycle(forward: false))
