@@ -51,7 +51,10 @@ struct VisionRootView: View {
                     shell: shell,
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
+                    gameRecords: gameRecords,
+                    maxBoardLength: engineController.maxBoardLength,
                     onNewGame: { startNewGame(size: $0) },
+                    onOpenGame: { openGame($0) },
                     onUndo: { undoOneMove() },
                     onSparkle: { sparkleAnalysisAction() },
                     onToggleAI: { toggleAI(for: $0) },
@@ -223,11 +226,48 @@ struct VisionRootView: View {
         ghost.reset()
     }
 
+    /// Games-picker entry point: same board gate as boot, then the shared
+    /// switch path. A stale printsgf reply from the old game landing after
+    /// the selection swap would be written into the new record (one-reply
+    /// window, identical exposure to the iOS sidebar switch) — our own
+    /// printsgf self-heals the SGF, so this is accepted for v1.
+    private func openGame(_ record: GameRecord) {
+        guard record.persistentModelID
+                != navigationContext.selectedGameRecord?.persistentModelID
+        else { return }
+
+        // Re-derive width/height from the SGF: the picker row's stored size
+        // may be nil or stale, and only this gate is authoritative. An
+        // unsupported board must never reach the engine (fatal on first
+        // analysis past the NN buffer; no 3D asset below it).
+        record.updateToLatestVersion()
+        let config = record.concreteConfig
+        guard visionBoardIsSupported(width: config.boardWidth, height: config.boardHeight),
+              boardFits(width: config.boardWidth, height: config.boardHeight,
+                        maxBoardLength: engineController.maxBoardLength) else {
+            // The old game stays loaded but unmounted — silence its stream.
+            session.messageList.appendAndSend(command: "stop")
+            shell.phase = .unsupportedBoard(width: config.boardWidth,
+                                            height: config.boardHeight)
+            return
+        }
+
+        switchGame(to: record)
+        shell.phase = .ready
+    }
+
     private func startNewGame(size: Int) {
         let record = GameRecord.createGameRecord(
             sgf: GameRecord.makeDefaultSgf(boardSize: size))
         modelContext.insert(record)
         try? modelContext.save()
+
+        // A game the user just created is theirs to edit. editingAfterLoad
+        // only auto-unlocks the 19x19 defaultSgf, so a fresh 9x9/13x13 would
+        // land LOCKED and its plays would branch-route — never persisting
+        // (they vanished on relaunch). The one-shot unlock seam is exactly
+        // for a reload that should land unlocked; loadGame consumes it.
+        session.gobanState.unlockEditingOnReload = true
         switchGame(to: record)
         shell.phase = .ready
     }
@@ -460,6 +500,23 @@ struct VisionRootView: View {
             handleControllerEvent(.toggleAnalysisVisibility)
             try? await Task.sleep(for: .seconds(2))
             handleControllerEvent(.toggleAnalysisVisibility)
+
+            // Games-picker probe: while White is AI (possibly mid-genmove),
+            // switch back to the previous game via the exact openGame path
+            // the ornament drives, then play one move on the switched board.
+            // A stone that no VisionPlay/VisionScene log line accounts for
+            // would betray a stale cancelled-search reply leaking in.
+            try? await Task.sleep(for: .seconds(4))
+            if let other = gameRecords.first(where: {
+                $0.persistentModelID
+                    != navigationContext.selectedGameRecord?.persistentModelID
+            }) {
+                openGame(other)
+            }
+            try? await Task.sleep(for: .seconds(6))
+            ghost.activate(width: Int(session.board.width),
+                           height: Int(session.board.height))
+            handleControllerEvent(.play)
         }
     }
     #endif

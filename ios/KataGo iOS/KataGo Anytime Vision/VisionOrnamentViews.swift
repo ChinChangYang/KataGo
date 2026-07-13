@@ -3,13 +3,15 @@
 //  KataGo Anytime Vision
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
-//  New Game (9/13/19), Undo, the analysis sparkle (run/pause/off), the board
-//  orientation toggle, controller help, the connect-controller hint, and the
-//  illegal-move row. Ordinary SwiftUI — always pinch-interactive; the game
-//  controller never drives the ornament.
+//  New Game (9/13/19), the Games picker (newest iCloud-synced games), Undo,
+//  the analysis sparkle (run/pause/off), the board orientation toggle,
+//  controller help, the connect-controller hint, and the illegal-move row.
+//  Ordinary SwiftUI — always pinch-interactive; the game controller never
+//  drives the ornament.
 //
 
 import SwiftUI
+import SwiftData
 import KataGoUICore
 
 struct VisionControlOrnament: View {
@@ -17,11 +19,19 @@ struct VisionControlOrnament: View {
     let shell: VisionGameShell
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
+    let gameRecords: [GameRecord]
+    let maxBoardLength: Int
     let onNewGame: (Int) -> Void
+    let onOpenGame: (GameRecord) -> Void
     let onUndo: () -> Void
     let onSparkle: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
+
+    /// The `@Query` is newest-first, so the games that matter are always in
+    /// range; beyond ~20 rows a pinch menu stops being usable anyway (same
+    /// cap as the widget's game picker).
+    private static let maxPickerGames = 20
 
     var body: some View {
         Group {
@@ -53,6 +63,15 @@ struct VisionControlOrnament: View {
                 } label: {
                     Label("New Game", systemImage: "plus")
                 }
+
+                Menu {
+                    ForEach(gameRecords.prefix(Self.maxPickerGames)) { record in
+                        gameRow(record)
+                    }
+                } label: {
+                    Label("Games", systemImage: "square.stack.3d.up")
+                }
+                .disabled(gameRecords.isEmpty)
 
                 Button(action: onUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
@@ -113,6 +132,36 @@ struct VisionControlOrnament: View {
     }
 
     // MARK: - Pieces
+
+    /// One Games-picker row: name + "date · size", checkmark on the open
+    /// game, disabled when the stored size is known-unsupported (unknown
+    /// sizes stay enabled — openGame re-derives from the SGF and gates).
+    private func gameRow(_ record: GameRecord) -> some View {
+        let item = VisionGamePickerItem.make(
+            name: record.name,
+            lastModificationDate: record.lastModificationDate,
+            width: record.width,
+            height: record.height,
+            maxBoardLength: maxBoardLength)
+        let isCurrent = record.persistentModelID
+            == navigationContext.selectedGameRecord?.persistentModelID
+
+        return Button {
+            onOpenGame(record)
+        } label: {
+            // Bare Text/Text/Image in the label builder: menus map these to
+            // title, subtitle, and trailing icon (a Label's title builder
+            // drops the subtitle Text on visionOS).
+            Text(item.title)
+            if !item.detailText.isEmpty {
+                Text(item.detailText)
+            }
+            if isCurrent {
+                Image(systemName: "checkmark")
+            }
+        }
+        .disabled(!item.isSelectable)
+    }
 
     /// Pinch to flip the side between Human and AI (mirrors the iOS
     /// captured-stone-capsule tap).
