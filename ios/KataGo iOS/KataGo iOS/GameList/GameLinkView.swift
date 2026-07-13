@@ -37,19 +37,3 @@ struct GameLinkView: View {
         }
     }
 }
-
-extension Date {
-    func timeIntervalSinceYesterday() -> TimeInterval {
-        let yesterday = Date.now.addingTimeInterval(-24 * 60 * 60)
-        let timeInterval = timeIntervalSince(yesterday)
-        return timeInterval
-    }
-
-    func shortened() -> String {
-        if timeIntervalSinceYesterday() > 0 {
-            return formatted(date: .omitted, time: .shortened)
-        } else {
-            return formatted(date: .numeric, time: .omitted)
-        }
-    }
-}

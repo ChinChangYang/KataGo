@@ -93,4 +93,20 @@ struct GameSessionPostProcessAIMoveGuardTests {
         #expect(f.captured.value == "Q16")
         #expect(f.sent("play b Q16"))
     }
+
+    @Test("Player .unknown (mid game-switch): the play line is dropped")
+    func stalePlayReplyDroppedWhilePlayerUnknown() {
+        // The Vision game switch relies on this: loadGame resets the player
+        // to .unknown (nil symbol) until the new game's showboard reply
+        // resolves the side to move, so a cancelled search's best-so-far
+        // "play" line from the OLD game must fall through here.
+        let f = Fixture()
+        f.session.player.nextColorForPlayCommand = .unknown
+
+        f.receivePlayReply()
+
+        #expect(f.captured.value == nil)
+        #expect(f.record.currentIndex == 0)
+        #expect(!f.sent("play b Q16"))
+    }
 }
