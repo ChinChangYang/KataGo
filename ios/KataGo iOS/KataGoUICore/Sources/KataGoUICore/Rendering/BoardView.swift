@@ -151,6 +151,13 @@ public struct BoardView: View {
                     if interactive && stones.isReady && !gobanState.isAutoPlaying && (gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale),
                        let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
                        let point = coordinate.point,
+                       // Accept a pass ONLY when the visible pass tile is shown.
+                       // With Show Pass off the tile is hidden and its row is
+                       // reclaimed, but a tap in the empty band below/around the
+                       // board can still resolve to the pass point — reject that
+                       // phantom so a stray tap can't silently play a pass. Mirrors
+                       // the macOS overlay's pass-tile guard.
+                       effectiveShowPass || !point.isPass(width: Int(board.width), height: Int(board.height)),
                        let move = coordinate.move,
                        let turn = player.nextColorSymbolForPlayCommand,
                        !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),

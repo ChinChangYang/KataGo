@@ -100,83 +100,19 @@ struct MacBoardHostView: View {
     }
 }
 
-/// Pre-ready board-pane loading screen: the spinning circular KataGo icon, a
-/// ticking "Loading…" headline, and an optional Core ML compile-status caption —
-/// matching the iOS `LoadingView` design (the tvOS `TVLoadingView` is the same
-/// port). The icon rotates continuously until
-/// the engine is ready — a first-launch Core ML compile can outlast a single
-/// turn — and is pinned when Reduce Motion is on. The MLX/GPU default path never
-/// advances the phase, so `secondaryLine` is `nil` there and the ticking
-/// headline carries the "Loading…" text.
+/// Pre-ready board-pane loading screen — the spinning circular KataGo icon, a
+/// ticking "Loading…" headline, and an optional Core ML compile-status caption.
+/// A thin macOS wrapper over the shared `EngineLoadingView`: the icon scales to
+/// 80% of the board pane's smaller side (`.proportional`) and the caption uses
+/// `.caption` for a window pane.
 private struct EngineLaunchStatusView: View {
     let engineLaunchStatus: EngineLaunchStatus
 
-    @State private var degreesRotating = 0.0
-    @State private var dotCount = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
-        GeometryReader { geo in
-            VStack {
-                Text("Loading" + String(repeating: ".", count: dotCount))
-                    .font(.largeTitle)
-                    .bold()
-                    .contentTransition(.numericText())
-                    .padding()
-
-                if let line = secondaryLine {
-                    Text(line)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .accessibilityAddTraits(.updatesFrequently)
-                }
-
-                Image(.loadingIcon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: iconDiameter(in: geo.size),
-                           maxHeight: iconDiameter(in: geo.size))
-                    .clipShape(.circle)
-                    .rotationEffect(.degrees(degreesRotating))
-                    .shadow(radius: 8, x: 16, y: 16)
-                    .padding(.top)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(0.5))
-                withAnimation {
-                    dotCount = (dotCount + 1) % 4
-                }
-            }
-        }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
-                degreesRotating = 360
-            }
-        }
-    }
-
-    /// Diameter for the spinning icon: up to 80% of the board pane's smaller
-    /// side, so it reads large while leaving room for the headline and captions
-    /// stacked above it. `scaledToFit` keeps the image from exceeding this box.
-    private func iconDiameter(in size: CGSize) -> CGFloat {
-        min(size.width, size.height) * 0.8
-    }
-
-    /// Core ML compile-status caption (iOS/tvOS `secondaryLine`). `nil` on the
-    /// MLX/GPU default path (`.idle`), where the ticking headline already reads
-    /// "Loading…".
-    private var secondaryLine: String? {
-        switch engineLaunchStatus.phase {
-        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
-        case .awaitingPrecompile:       "Finishing Core ML compile…"
-        case .idle:                     nil
-        @unknown default:               nil
-        }
+        EngineLoadingView(caption: "Loading",
+                          secondaryFont: .caption,
+                          icon: Image(.loadingIcon),
+                          iconSizing: .proportional(0.8),
+                          status: engineLaunchStatus)
     }
 }

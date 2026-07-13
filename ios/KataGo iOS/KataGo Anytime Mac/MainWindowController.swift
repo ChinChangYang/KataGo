@@ -1044,7 +1044,7 @@ final class MainWindowController: NSWindowController {
     private func refreshBookStateForSelectedGame() {
         guard let cfg = navigationContext.selectedGameRecord?.concreteConfig else { return }
         let size = cfg.boardWidth
-        if cfg.isBookEligible && session.bookLookup.isAvailable(forBoardSize: size) {
+        if selectedBookAvailable {
             session.bookLookup.loadIfNeeded(boardSize: size)
         } else {
             if session.bookLookup.isReady(forBoardSize: size) {
@@ -2341,21 +2341,37 @@ final class MainWindowController: NSWindowController {
     // `withAnimation` is dropped (no SwiftUI transaction in an NSWindowController;
     // the hosted SwiftUI layer animates the change itself).
 
+    /// The concrete config of the currently-selected game (nil when none). The
+    /// source for every eye-control opening-book decision below.
+    private var selectedBookConfig: Config? {
+        navigationContext.selectedGameRecord?.concreteConfig
+    }
+
+    /// The selected game's board width (0 when none) — the size key for book lookup.
+    private var selectedBookSize: Int {
+        selectedBookConfig?.boardWidth ?? 0
+    }
+
+    /// Whether an eligible opening book is downloaded for the selected game's size.
+    /// The single source of truth behind every eye-control enable/tooltip decision
+    /// (toolbar button, View ▸ Board/Book View menu, menu validation, and the
+    /// post-download reconcile), so the rule lives in exactly one place.
+    private var selectedBookAvailable: Bool {
+        (selectedBookConfig?.isBookEligible ?? false)
+            && session.bookLookup.isAvailable(forBoardSize: selectedBookSize)
+    }
+
     /// The toolbar eye button's action: cycles board -> book -> hidden.
     /// Mirrors `eyeAction()`. With no selected game the book branch is impossible
     /// (no `concreteConfig`), so `.opened` falls straight to `.closed`. The View
     /// menu no longer uses this — it sets a mode directly via `setEyeStatus(_:)`.
     @objc func toggleEyeStatus(_ sender: Any?) {
         let gobanState = session.gobanState
-        let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
-        let bookSize = bookConfig?.boardWidth ?? 0
-        let bookAvailable = (bookConfig?.isBookEligible ?? false)
-            && session.bookLookup.isAvailable(forBoardSize: bookSize)
 
         switch gobanState.eyeStatus {
         case .opened:
-            if bookAvailable {
-                session.bookLookup.loadIfNeeded(boardSize: bookSize)
+            if selectedBookAvailable {
+                session.bookLookup.loadIfNeeded(boardSize: selectedBookSize)
                 gobanState.eyeStatus = .book
             } else {
                 gobanState.eyeStatus = .closed
@@ -2377,12 +2393,8 @@ final class MainWindowController: NSWindowController {
         let gobanState = session.gobanState
         switch sender.tag {
         case 1:
-            let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
-            let bookSize = bookConfig?.boardWidth ?? 0
-            let bookAvailable = (bookConfig?.isBookEligible ?? false)
-                && session.bookLookup.isAvailable(forBoardSize: bookSize)
-            guard bookAvailable else { return }
-            session.bookLookup.loadIfNeeded(boardSize: bookSize)
+            guard selectedBookAvailable else { return }
+            session.bookLookup.loadIfNeeded(boardSize: selectedBookSize)
             gobanState.eyeStatus = .book
         case 2:
             gobanState.eyeStatus = .closed
@@ -2517,15 +2529,11 @@ final class MainWindowController: NSWindowController {
     /// leaks into the other states.
     private func refreshEyeToolbarItem() {
         guard let item = eyeToolbarItem else { return }
-        let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
-        let bookSize = bookConfig?.boardWidth ?? 0
-        let bookAvailable = (bookConfig?.isBookEligible ?? false)
-            && session.bookLookup.isAvailable(forBoardSize: bookSize)
 
         switch session.gobanState.eyeStatus {
         case .opened:
             item.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "View")
-            item.toolTip = bookAvailable ? "Show Opening Book" : "Hide Analysis"
+            item.toolTip = selectedBookAvailable ? "Show Opening Book" : "Hide Analysis"
         case .book:
             item.image = NSImage(systemSymbolName: "book", accessibilityDescription: "View")
             item.toolTip = "Hide Analysis"
@@ -2899,11 +2907,7 @@ extension MainWindowController: NSMenuItemValidation {
                 : menuItem.tag == 2 ? .closed : .opened
             menuItem.state = (gobanState.eyeStatus == mode) ? .on : .off
             if menuItem.tag == 1 {
-                let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
-                let bookSize = bookConfig?.boardWidth ?? 0
-                let bookAvailable = (bookConfig?.isBookEligible ?? false)
-                    && session.bookLookup.isAvailable(forBoardSize: bookSize)
-                return hasGame && bookAvailable
+                return hasGame && selectedBookAvailable
             }
             return hasGame
 

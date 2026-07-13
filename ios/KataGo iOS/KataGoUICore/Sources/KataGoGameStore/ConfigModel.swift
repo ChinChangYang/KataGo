@@ -232,6 +232,23 @@ extension Config {
 }
 
 extension Config {
+    /// The SGF-canonical, locale-independent komi rendering: an integer when the
+    /// value is whole (`7`), else `%g`-trimmed (`6.5`). The single source of truth
+    /// shared by the SGF `KM[]` field (`GameRecord.komiSgfField`) and the macOS
+    /// config / inspector / new-game komi labels. Keep it locale-independent so a
+    /// display tweak can never corrupt the machine-parsed SGF field.
+    public static func komiText(_ komi: Float) -> String {
+        komi == komi.rounded() ? String(Int(komi)) : String(format: "%g", komi)
+    }
+
+    /// A compact seconds rendering: `"30s"` when whole, else `%g`-trimmed
+    /// (`"1.5s"`). Shared by the macOS config editor and inspector time fields.
+    public static func secondsText(_ seconds: Float) -> String {
+        seconds == seconds.rounded() ? "\(Int(seconds))s" : String(format: "%gs", seconds)
+    }
+}
+
+extension Config {
     public static let defaultRule = 0
     public static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
 }

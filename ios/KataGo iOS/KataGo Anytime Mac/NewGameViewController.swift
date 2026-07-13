@@ -144,9 +144,9 @@ final class NewGameViewController: NSViewController {
 
     private func buildForm() {
         addGameSection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addBoardSection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addRuleSection()
     }
 
@@ -196,7 +196,7 @@ final class NewGameViewController: NSViewController {
 
         komiRow = ConfigFormBuilder.numericRow(
             title: "Komi", value: Double(komi), minValue: -1_000, maxValue: 1_000, step: 0.5,
-            format: { Self.komiText(Float($0)) },
+            format: { Config.komiText(Float($0)) },
             onChange: { [weak self] value in self?.komi = Float(value) })
         formStack.addArrangedSubview(komiRow)
 
@@ -321,20 +321,4 @@ final class NewGameViewController: NSViewController {
         }
     }
 
-    // MARK: - Helpers
-
-    private func addSeparator() {
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        formStack.addArrangedSubview(separator)
-        separator.leadingAnchor.constraint(equalTo: formStack.leadingAnchor).isActive = true
-        separator.trailingAnchor.constraint(equalTo: formStack.trailingAnchor).isActive = true
-    }
-
-    /// Renders komi as the config editor does (integer when whole, else trimmed).
-    private static func komiText(_ komi: Float) -> String {
-        if komi == komi.rounded() { return String(Int(komi)) }
-        return String(format: "%g", komi)
-    }
 }

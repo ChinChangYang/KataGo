@@ -48,9 +48,11 @@ public final class GameRecord {
     }
 
     /// Renders komi for an SGF `KM[]` field: a bare integer when whole (matching
-    /// the default SGF's `KM[7]`), else a trimmed decimal (`6.5`).
+    /// the default SGF's `KM[7]`), else a trimmed decimal (`6.5`). Delegates to the
+    /// shared, SGF-canonical `Config.komiText` (same module) so the SGF field and
+    /// the macOS komi labels stay in lock-step.
     static func komiSgfField(_ komi: Float) -> String {
-        komi == komi.rounded() ? String(Int(komi)) : String(format: "%g", komi)
+        Config.komiText(komi)
     }
 
     public var sgf: String = defaultSgf

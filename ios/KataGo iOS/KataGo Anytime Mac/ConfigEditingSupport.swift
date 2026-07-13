@@ -126,6 +126,24 @@ enum ConfigFormBuilder {
         label.textColor = .secondaryLabelColor
         return label
     }
+
+    // MARK: Separator
+
+    /// Adds a horizontal separator spanning the width of `stack`. Unlike the row
+    /// builders (which RETURN a view for the caller to add), this both adds the
+    /// `NSBox` to the stack AND pins its leading/trailing to `stack` — the pins
+    /// reference `stack`, so the separator must already be in the view hierarchy
+    /// before the constraints activate (otherwise AppKit throws "no common
+    /// ancestor"). Shared by the Info tab, the config editor, and the New Game
+    /// sheet so the separator style stays in one place.
+    static func addSeparator(to stack: NSStackView) {
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(separator)
+        separator.leadingAnchor.constraint(equalTo: stack.leadingAnchor).isActive = true
+        separator.trailingAnchor.constraint(equalTo: stack.trailingAnchor).isActive = true
+    }
 }
 
 // MARK: - Row types
@@ -144,6 +162,13 @@ final class NumericRow: NSStackView, NSTextFieldDelegate {
     private let format: (Double) -> String
     private let onChange: (Double) -> Void
     private let step: Double
+    /// The last clamped value that fired `onChange`, so a repeated commit of the
+    /// same value is suppressed. On Return an `NSTextField` fires BOTH its cell
+    /// action (`fieldChanged`) and `controlTextDidEndEditing`, which would
+    /// otherwise call `onChange` twice and double-reconfigure the engine. This is
+    /// the RAW clamped value (before any sync-layer rounding); storing the raw
+    /// value can only cause a harmless extra fire, never suppress a real edit.
+    private var lastCommittedValue: Double?
 
     init(title: String,
          value: Double,
@@ -197,12 +222,19 @@ final class NumericRow: NSStackView, NSTextFieldDelegate {
     func reload(value: Double) {
         stepper.doubleValue = value
         field.stringValue = format(value)
+        lastCommittedValue = value
     }
 
     private func commit(_ value: Double) {
         let clamped = min(stepper.maxValue, max(stepper.minValue, value))
+        // Update the displayed controls UNCONDITIONALLY so an out-of-range typed
+        // value still snaps to the clamped display even when `onChange` is skipped.
         stepper.doubleValue = clamped
         field.stringValue = format(clamped)
+        // Suppress a no-op commit (notably the Return double-fire, where the cell
+        // action and the end-editing delegate both call commit with the same value).
+        guard clamped != lastCommittedValue else { return }
+        lastCommittedValue = clamped
         onChange(clamped)
     }
 

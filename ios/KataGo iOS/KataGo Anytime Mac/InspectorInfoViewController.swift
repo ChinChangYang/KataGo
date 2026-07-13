@@ -170,13 +170,13 @@ final class InspectorInfoViewController: NSViewController {
         let parsed = SgfGameInfo(sgf: gameRecord.sgf)
 
         addSummarySection(gameRecord: gameRecord, config: config, parsed: parsed)
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addRuleSection(config: config)
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addAISection(config: config)
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addAnalysisSection(config: config)
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addEditButton()
     }
 
@@ -196,7 +196,7 @@ final class InspectorInfoViewController: NSViewController {
                                           value: "\(config.boardWidth) × \(config.boardHeight)"))
 
         formStack.addArrangedSubview(
-            ConfigFormBuilder.readOnlyRow(title: "Komi", value: Self.komiText(config.komi)))
+            ConfigFormBuilder.readOnlyRow(title: "Komi", value: Config.komiText(config.komi)))
 
         formStack.addArrangedSubview(
             ConfigFormBuilder.readOnlyRow(
@@ -233,7 +233,7 @@ final class InspectorInfoViewController: NSViewController {
                 minValue: -1_000,
                 maxValue: 1_000,
                 step: 0.5,
-                format: { Self.komiText(Float($0)) },
+                format: { Config.komiText(Float($0)) },
                 onChange: { [weak self] newValue in
                     guard let self else { return }
                     ConfigEngineSync.setKomi(Float(newValue), config: config, messageList: self.messageList)
@@ -300,7 +300,7 @@ final class InspectorInfoViewController: NSViewController {
                     minValue: 0,
                     maxValue: 60,
                     step: 0.5,
-                    format: { Self.secondsText(Float($0)) },
+                    format: { Config.secondsText(Float($0)) },
                     onChange: { [weak self] newValue in
                         guard let self else { return }
                         ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
@@ -345,7 +345,7 @@ final class InspectorInfoViewController: NSViewController {
                     minValue: 0,
                     maxValue: 60,
                     step: 0.5,
-                    format: { Self.secondsText(Float($0)) },
+                    format: { Config.secondsText(Float($0)) },
                     onChange: { [weak self] newValue in
                         guard let self else { return }
                         ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
@@ -437,16 +437,6 @@ final class InspectorInfoViewController: NSViewController {
 
     // MARK: - Helpers
 
-    private func addSeparator() {
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        formStack.addArrangedSubview(separator)
-        // The separator should span the form width.
-        separator.leadingAnchor.constraint(equalTo: formStack.leadingAnchor).isActive = true
-        separator.trailingAnchor.constraint(equalTo: formStack.trailingAnchor).isActive = true
-    }
-
     private static func dateText(_ date: Date?) -> String {
         guard let date else { return "—" }
         let formatter = DateFormatter()
@@ -455,22 +445,6 @@ final class InspectorInfoViewController: NSViewController {
         return formatter.string(from: date)
     }
 
-    /// Renders komi as iOS does (`Float` shown without trailing noise).
-    private static func komiText(_ komi: Float) -> String {
-        // Half-point values are common (7.5); show one decimal when fractional,
-        // else an integer, mirroring the way iOS surfaces komi.
-        if komi == komi.rounded() {
-            return String(Int(komi))
-        }
-        return String(format: "%g", komi)
-    }
-
-    private static func secondsText(_ seconds: Float) -> String {
-        if seconds == seconds.rounded() {
-            return "\(Int(seconds))s"
-        }
-        return String(format: "%gs", seconds)
-    }
 }
 
 // MARK: - SgfGameInfo

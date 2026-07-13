@@ -18,61 +18,17 @@ struct TVLoadingView: View {
     /// Headline base text; the view ticks trailing dots onto it.
     var caption: String
 
-    @State private var degreesRotating = 0.0
-    @State private var dotCount = 0
     @Environment(EngineLaunchStatus.self) private var launchStatus
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack {
-            Text(caption + String(repeating: ".", count: dotCount))
-                .font(.largeTitle)
-                .bold()
-                .contentTransition(.numericText())
-                .padding()
-
-            if let line = secondaryLine {
-                Text(line)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                    .accessibilityAddTraits(.updatesFrequently)
-            }
-
-            Image(.loadingIcon)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 512, maxHeight: 512)
-                .clipShape(.circle)
-                .rotationEffect(.degrees(degreesRotating))
-                .shadow(radius: 8, x: 16, y: 16)
-                .padding(.top)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(0.5))
-                withAnimation {
-                    dotCount = (dotCount + 1) % 4
-                }
-            }
-        }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
-                degreesRotating = 360
-            }
-        }
-    }
-
-    private var secondaryLine: String? {
-        switch launchStatus.phase {
-        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
-        case .awaitingPrecompile:       "Finishing Core ML compile…"
-        case .idle:                     nil
-        @unknown default:               nil
-        }
+        // Thin tvOS wrapper over the shared EngineLoadingView: a fixed 512 pt
+        // icon and a .title3 secondary line for 10-foot legibility. The status
+        // comes from the environment (injected by KataGoTVApp / the #Previews).
+        EngineLoadingView(caption: caption,
+                          secondaryFont: .title3,
+                          icon: Image(.loadingIcon),
+                          iconSizing: .fixed(512),
+                          status: launchStatus)
     }
 }
 

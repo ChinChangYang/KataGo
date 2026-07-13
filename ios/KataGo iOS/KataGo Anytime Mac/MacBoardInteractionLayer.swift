@@ -324,16 +324,25 @@ struct MacBoardInteractionLayer: View {
 
         // macOS relocates the pass tile to the RIGHT of the board's bottom row
         // (see `Dimensions.macPassTileCenter` / `BoardLineView.drawPassArea`).
-        // Route a click within the tile to a pass. The shared `Coordinate.from`
-        // still maps the now-empty region BELOW the board to a pass, so reject that
-        // phantom afterward — pass must be reachable ONLY through the visible tile.
-        let tileCenter = dimensions.macPassTileCenter()
-        let half = dimensions.squareLength / 2
-        if abs(location.x - tileCenter.x) <= half, abs(location.y - tileCenter.y) <= half {
-            return Coordinate(x: boardWidth - 1,
-                              y: BoardPoint.passY(height: boardHeight) + 1,
-                              width: boardWidth,
-                              height: boardHeight)
+        // Route a click within the tile to a pass — but ONLY when Show Pass is on,
+        // because that is the exact condition under which the tile is drawn
+        // (`BoardLineView.drawPassArea`) and its room is reserved
+        // (`Dimensions.passWidthEntity`). With Show Pass off no tile is visible and
+        // no space is reserved, yet `macPassTileCenter()` still resolves to an
+        // on-canvas point on a wide/height-constrained pane, so an unguarded
+        // hit-test would silently play a pass on a stray right-margin click.
+        // The shared `Coordinate.from` still maps the now-empty region BELOW the
+        // board to a pass, so reject that phantom afterward — pass must be
+        // reachable ONLY through the visible tile.
+        if gobanState.showPass {
+            let tileCenter = dimensions.macPassTileCenter()
+            let half = dimensions.squareLength / 2
+            if abs(location.x - tileCenter.x) <= half, abs(location.y - tileCenter.y) <= half {
+                return Coordinate(x: boardWidth - 1,
+                                  y: BoardPoint.passY(height: boardHeight) + 1,
+                                  width: boardWidth,
+                                  height: boardHeight)
+            }
         }
 
         let coordinate = Coordinate.from(location: location,

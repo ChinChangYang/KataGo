@@ -145,13 +145,13 @@ final class ConfigEditorViewController: NSViewController {
 
     private func buildForm() {
         addGameSection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addRuleSection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addAnalysisSection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addAISection()
-        addSeparator()
+        ConfigFormBuilder.addSeparator(to: formStack)
         addCommentSection()
     }
 
@@ -190,7 +190,7 @@ final class ConfigEditorViewController: NSViewController {
                 minValue: -1_000,
                 maxValue: 1_000,
                 step: 0.5,
-                format: { Self.komiText(Float($0)) },
+                format: { Config.komiText(Float($0)) },
                 onChange: { [weak self] newValue in
                     guard let self else { return }
                     ConfigEngineSync.setKomi(Float(newValue), config: config, messageList: self.messageList)
@@ -396,7 +396,7 @@ final class ConfigEditorViewController: NSViewController {
                     minValue: 0,
                     maxValue: 60,
                     step: 0.5,
-                    format: { Self.secondsText(Float($0)) },
+                    format: { Config.secondsText(Float($0)) },
                     onChange: { [weak self] newValue in
                         guard let self else { return }
                         ConfigEngineSync.setBlackMaxTime(Float(newValue), config: config,
@@ -445,7 +445,7 @@ final class ConfigEditorViewController: NSViewController {
                     minValue: 0,
                     maxValue: 60,
                     step: 0.5,
-                    format: { Self.secondsText(Float($0)) },
+                    format: { Config.secondsText(Float($0)) },
                     onChange: { [weak self] newValue in
                         guard let self else { return }
                         ConfigEngineSync.setWhiteMaxTime(Float(newValue), config: config,
@@ -519,30 +519,6 @@ final class ConfigEditorViewController: NSViewController {
     }
 
     // MARK: - Helpers
-
-    private func addSeparator() {
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        formStack.addArrangedSubview(separator)
-        separator.leadingAnchor.constraint(equalTo: formStack.leadingAnchor).isActive = true
-        separator.trailingAnchor.constraint(equalTo: formStack.trailingAnchor).isActive = true
-    }
-
-    /// Renders komi as the Info tab does (integer when whole, else trimmed).
-    private static func komiText(_ komi: Float) -> String {
-        if komi == komi.rounded() {
-            return String(Int(komi))
-        }
-        return String(format: "%g", komi)
-    }
-
-    private static func secondsText(_ seconds: Float) -> String {
-        if seconds == seconds.rounded() {
-            return "\(Int(seconds))s"
-        }
-        return String(format: "%gs", seconds)
-    }
 
     /// Renders a 0...1 ratio compactly (trailing zeros trimmed).
     private static func ratioText(_ value: Float) -> String {
