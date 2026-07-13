@@ -52,6 +52,12 @@ final class VisionGameShell {
         }
     }
 
+    /// The first-controller auto-show path (not a toggle).
+    func presentControllerHelp() {
+        showingControllerHelp = true
+        showingSettings = false
+    }
+
     /// Board orientation: false = lying flat on the volume floor (tabletop),
     /// true = standing upright facing the viewer (wall demonstration board).
     /// Persisted across launches.

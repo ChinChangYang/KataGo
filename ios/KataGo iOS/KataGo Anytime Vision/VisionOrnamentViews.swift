@@ -4,16 +4,18 @@
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
 //  New Game (9/13/19), the Games toggle (shows/hides the left-side game-list
-//  ornament), the analysis sparkle (run/pause/off), the board orientation
-//  toggle, controller help, the connect-controller hint, and the
-//  illegal-move row. No Undo button — the controller's X covers undo.
-//  Ordinary SwiftUI — always pinch-interactive; the game controller never
-//  drives the ornament.
+//  ornament), the analysis sparkle (run/pause/off), the Settings gear
+//  (right-side card: analysis-information picker, ownership toggle, board
+//  orientation — mutually exclusive with the controller legend), controller
+//  help, the connect-controller hint, and the illegal-move row. No Undo
+//  button — the controller's X covers undo. Ordinary SwiftUI — always
+//  pinch-interactive; the game controller never drives the ornament.
 //
 
 import SwiftUI
 import SwiftData
 import KataGoUICore
+import KataGoGameStore
 
 struct VisionControlOrnament: View {
     let session: GameSession
@@ -83,16 +85,14 @@ struct VisionControlOrnament: View {
                 .contentTransition(.symbolEffect(.replace))
 
                 Button {
-                    shell.isBoardStanding.toggle()
+                    shell.toggleSettings()
                 } label: {
-                    Label(shell.isBoardStanding ? "Lay Board Flat" : "Stand Board Up",
-                          systemImage: shell.isBoardStanding
-                              ? "rectangle.portrait.rotate"
-                              : "rectangle.landscape.rotate")
+                    Label("Settings", systemImage: shell.showingSettings
+                          ? "gearshape.fill" : "gearshape")
                 }
 
                 Button {
-                    shell.showingControllerHelp.toggle()
+                    shell.toggleControllerHelp()
                 } label: {
                     Label("Controller Help", systemImage: "gamecontroller")
                 }
@@ -222,6 +222,56 @@ struct VisionControllerLegend: View {
                 .foregroundStyle(.tertiary)
                 .frame(maxWidth: 320, alignment: .leading)
         }
+        .padding(20)
+        .glassBackgroundEffect()
+    }
+}
+
+/// Right-side settings card, toggled from the control bar's gear button.
+/// It shares the anchor with the controller legend — the shell's toggle
+/// helpers keep the two mutually exclusive. Rows write the shell, which
+/// persists them (VisionSettings.* keys); the root mirrors the display
+/// settings into GobanState, which is what the 3D scene reads.
+struct VisionSettingsOrnament: View {
+    @Bindable var shell: VisionGameShell
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Settings", systemImage: "gearshape")
+                    .font(.headline)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Close settings")
+            }
+
+            // The default picker drops its title on visionOS here — keep an
+            // explicit row label and hide the picker's own.
+            HStack {
+                Label("Analysis information", systemImage: "textformat.123")
+                Spacer()
+                Picker("Analysis information", selection: $shell.analysisInformation) {
+                    ForEach(Config.analysisInformations.indices, id: \.self) { index in
+                        Text(Config.analysisInformations[index]).tag(index)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+
+            Toggle(isOn: $shell.showOwnership) {
+                Label("Show ownership", systemImage: "circle.lefthalf.filled")
+            }
+
+            Toggle(isOn: $shell.isBoardStanding) {
+                Label("Stand board up", systemImage: "rectangle.portrait.rotate")
+            }
+        }
+        .frame(width: 380)
         .padding(20)
         .glassBackgroundEffect()
     }

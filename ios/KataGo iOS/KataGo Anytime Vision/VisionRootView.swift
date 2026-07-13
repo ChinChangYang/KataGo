@@ -61,9 +61,16 @@ struct VisionRootView: View {
                 )
             }
         }
+        // Settings and the controller legend share the right anchor — one
+        // closure, settings first, and the shell's toggle helpers keep the
+        // flags mutually exclusive.
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 1, y: 0.5, z: 1)),
                   contentAlignment: .leading) {
-            if isReady, shell.showingControllerHelp {
+            if isReady, shell.showingSettings {
+                VisionSettingsOrnament(shell: shell) {
+                    shell.showingSettings = false
+                }
+            } else if isReady, shell.showingControllerHelp {
                 VisionControllerLegend {
                     shell.showingControllerHelp = false
                 }
@@ -87,7 +94,7 @@ struct VisionRootView: View {
             } else if !shell.hasAutoShownControllerHelp {
                 // First controller of this run: teach the mapping once.
                 shell.hasAutoShownControllerHelp = true
-                shell.showingControllerHelp = true
+                shell.presentControllerHelp()
             }
         }
         .onAppear {
@@ -462,7 +469,7 @@ struct VisionRootView: View {
         // already paired before launch (the common simulator case).
         if controllerInput.isConnected, !shell.hasAutoShownControllerHelp {
             shell.hasAutoShownControllerHelp = true
-            shell.showingControllerHelp = true
+            shell.presentControllerHelp()
         }
 
         #if DEBUG
