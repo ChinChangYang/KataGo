@@ -150,6 +150,7 @@
 		52054E46B8910E74DFE3159A /* GobanStateForcedBranchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5EA80624694CAFA79E2738 /* GobanStateForcedBranchTests.swift */; };
 		524566E0F05CA2B29F9A0FF0 /* seed_sequences.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6611B60F0D28CC462D4FFD4B /* seed_sequences.cc */; };
 		535E4E2D903B23E105F6D0F4 /* CoreMLModelCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757D4B93AD8FB611D5BE3C60 /* CoreMLModelCacheTests.swift */; };
+		540E262FBA777FB1CA58478F /* VisionOwnershipMarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */; };
 		543A0B43C10964ADA23AA911 /* VisionBoardSceneModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8C70B55F90A8E5D519D0D1 /* VisionBoardSceneModel.swift */; };
 		546B0DDF5B8D995B47D8D71D /* stacktrace.cc in Sources */ = {isa = PBXBuildFile; fileRef = EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */; };
 		547D4C40E7741FB52A26B233 /* examine_stack.cc in Sources */ = {isa = PBXBuildFile; fileRef = C661B0E86E990AC64120A0B1 /* examine_stack.cc */; };
@@ -1583,6 +1584,7 @@
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
 		EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionOwnershipMarkTests.swift; sourceTree = "<group>"; };
 		ECE8873EE64AA6C4E8F48D04 /* BackendSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackendSettingsTests.swift; sourceTree = "<group>"; };
 		ED8A19C5ADB919AB8323042B /* micro_string.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = micro_string.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/micro_string.cc"; sourceTree = SOURCE_ROOT; };
 		EDB70E46C2122A655174A3BB /* time_zone_if.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_if.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_if.cc"; sourceTree = SOURCE_ROOT; };
@@ -2737,6 +2739,7 @@
 				7D9B3B7247EE0BC34930C01F /* VisionGamePickerItemTests.swift */,
 				7530028A07F8E37EA6AE1044 /* DateShortenedTests.swift */,
 				B3712A5C7191AA84DBBDA0BF /* VisionAnalysisLabelTests.swift */,
+				ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3970,6 +3973,7 @@
 				2717C92260FDD88E888D09E3 /* VisionGamePickerItemTests.swift in Sources */,
 				17E24915B0190AAADDC56836 /* DateShortenedTests.swift in Sources */,
 				93220D07CE100955A981A6BF /* VisionAnalysisLabelTests.swift in Sources */,
+				540E262FBA777FB1CA58478F /* VisionOwnershipMarkTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
