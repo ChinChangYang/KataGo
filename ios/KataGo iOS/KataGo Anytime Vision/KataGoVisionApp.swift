@@ -38,8 +38,12 @@ struct KataGoVisionApp: App {
         }
         .windowStyle(.volumetric)
         // 19x19 board footprint is ~0.46 x 0.50 m; leave headroom for stones
-        // and floating analysis labels.
-        .defaultSize(width: 0.8, height: 0.6, depth: 0.8, in: .meters)
+        // and floating analysis labels. Every defaultSize variant (meters,
+        // Size3D, points) was ignored for the plist-preferred-role volumetric
+        // scene (volume stayed at the 320 pt minimum, verified empirically),
+        // so the volume is sized by its CONTENT: VisionRootView carries an
+        // explicit 3D frame and the window adopts it via .contentSize.
+        .windowResizability(.contentSize)
         .modelContainer(SharedModelContainer.shared)
     }
 }

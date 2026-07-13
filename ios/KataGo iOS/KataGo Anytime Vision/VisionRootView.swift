@@ -20,6 +20,9 @@ struct VisionRootView: View {
     @State private var audioModel = AudioModel()
     @State private var aiMove: String? = nil
     @State private var isReady = false
+    @State private var ghost = GhostCursorModel()
+    @State private var sceneModel = VisionBoardSceneModel()
+    @State private var controllerInput = VisionControllerInput()
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse)
@@ -37,8 +40,13 @@ struct VisionRootView: View {
                 unsupportedBoardView(width: width, height: height)
             }
         }
+        // Volumetric scenes are fixed-scale (~1360 pt/m): 1088 x 816 x 1088 pt
+        // ≈ 0.8 x 0.6 x 0.8 m. The window adopts this via .contentSize.
+        .frame(width: 1088, height: 816)
+        .frame(depth: 1088)
         .onAppear {
             engineController.startInitial()
+            controllerInput.onEvent = { handleControllerEvent($0) }
         }
         .task {
             await initializationTask()
@@ -80,17 +88,87 @@ struct VisionRootView: View {
 
     // MARK: - Content
 
-    /// Temporary M4 readout; replaced by the RealityKit board scene in M5.
     private var readyContent: some View {
-        VStack(spacing: 12) {
-            Text("KataGo Vision")
-                .font(.extraLargeTitle)
-            Text(navigationContext.selectedGameRecord?.name ?? "No game")
-                .font(.title2)
-            Text("Black \(session.stones.blackPoints.count) — White \(session.stones.whitePoints.count)")
-            Text("Next: \(String(describing: session.player.nextColorForPlayCommand))")
-                .foregroundStyle(.secondary)
+        VisionBoardRealityView(session: session,
+                               ghost: ghost,
+                               sceneModel: sceneModel,
+                               controllerInput: controllerInput)
+    }
+
+    // MARK: - Controller events
+
+    private func handleControllerEvent(_ event: ControllerEvent) {
+        guard isReady, shell.phase == .ready else { return }
+        let width = Int(session.board.width)
+        let height = Int(session.board.height)
+
+        switch event {
+        case .dpad(let direction):
+            ghost.step(direction, width: width, height: height)
+        case .dismiss:
+            ghost.reset()
+        case .cycle(let forward):
+            let candidates = session.analysis
+                .candidateMoves(width: width, height: height, limit: 10)
+                .map(\.point)
+            ghost.cycle(through: candidates, forward: forward)
+        case .play:
+            playAtGhost()
+        case .undo:
+            undoOneMove()
+        case .pass:
+            guard !isAITurn else { return }
+            shell.passConfirmationPending = true
         }
+    }
+
+    private var isAITurn: Bool {
+        guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return false }
+        return session.gobanState.shouldGenMove(config: config, player: session.player)
+    }
+
+    private func playAtGhost() {
+        #if DEBUG
+        NSLog("VisionPlay ghost=%@ geom=%d stonesReady=%d pending=%@ aiTurn=%d",
+              ghost.point.map { "(\($0.x),\($0.y))" } ?? "nil",
+              sceneModel.geometry?.size ?? -1,
+              session.stones.isReady ? 1 : 0,
+              session.gobanState.pendingMoveTurn ?? "nil",
+              isAITurn ? 1 : 0)
+        #endif
+        guard let point = ghost.point,
+              let vertex = sceneModel.geometry?.vertex(for: point),
+              let turn = session.player.nextColorSymbolForPlayCommand,
+              session.stones.isReady,
+              session.gobanState.pendingMoveTurn == nil,   // one pick in flight
+              !isAITurn,
+              !session.stones.blackPoints.contains(point),
+              !session.stones.whitePoints.contains(point)
+        else { return }
+        // Legality + play flow through the engine's kata-check-move reply
+        // (GameSession.maybeCollectCheckMove → playPendingHumanMove), the same
+        // path the 2D board tap and TVReviewScreen.pick use.
+        session.gobanState.sendCheckMoveCommand(turn: turn,
+                                                move: vertex,
+                                                messageList: session.messageList)
+        ghost.reset()
+    }
+
+    /// Mirrors StatusToolbarItems.backwardFrameAction.
+    private func undoOneMove() {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        session.gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: session.analysis,
+            board: session.board,
+            stones: session.stones,
+            all: false
+        )
+        guard session.stones.isReady, !isAITurn else { return }
+        session.gobanState.undoIndex(gameRecord: gameRecord)
+        session.gobanState.undo(messageList: session.messageList, stones: session.stones)
+        session.player.toggleNextColorForPlayCommand()
+        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
     }
 
     private func unsupportedBoardView(width: Int, height: Int) -> some View {
@@ -159,7 +237,34 @@ struct VisionRootView: View {
 
         isReady = true
         shell.phase = .ready
+
+        #if DEBUG
+        autoplaySmokeIfRequested()
+        #endif
     }
+
+    #if DEBUG
+    /// `simctl launch … vision-autoplay-smoke` drives the exact controller
+    /// event path (activate → step → A-play) headlessly, so the sim can
+    /// verify ghost → kata-check-move → stone rendering without a physical
+    /// game controller.
+    private func autoplaySmokeIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("vision-autoplay-smoke") else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            let width = Int(session.board.width)
+            let height = Int(session.board.height)
+            ghost.activate(width: width, height: height)
+            handleControllerEvent(.play)
+
+            try? await Task.sleep(for: .seconds(5))
+            ghost.activate(width: width, height: height)
+            handleControllerEvent(.dpad(.up))
+            handleControllerEvent(.dpad(.right))
+            handleControllerEvent(.play)
+        }
+    }
+    #endif
 
     /// Sends the full load sequence for a (pre-validated) game record and
     /// jumps to the latest position. Also the path New Game takes.
