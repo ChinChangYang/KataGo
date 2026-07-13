@@ -152,6 +152,11 @@ final class VisionBoardSceneModel {
         placed.removeAll()
         setGhost(point: nil, color: .unknown)
         analysisRoot.children.forEach { $0.removeFromParent() }
+        // The caches must empty with the entity tree, or the next
+        // applyCandidates "updates" detached entities that never re-mount.
+        markerEntities.removeAll()
+        labelEntities.removeAll()
+        bestBackingEntity = nil
     }
 
     // MARK: - Stones
