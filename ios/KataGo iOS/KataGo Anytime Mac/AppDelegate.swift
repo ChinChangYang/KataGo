@@ -352,12 +352,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Show Pass",
                      action: #selector(MainWindowController.togglePass(_:)),
                      keyEquivalent: "")
-        // Cycles the board↔book↔hidden visibility (the iOS eye button). A 3-state
-        // cycle, so no checkmark — `validateMenuItem` only owns its enable state.
-        // No key equivalent (infrequent; bare letters/symbols risk collisions).
-        menu.addItem(withTitle: "Toggle Board/Book View",
-                     action: #selector(MainWindowController.toggleEyeStatus(_:)),
-                     keyEquivalent: "")
+        // Board/Book View submenu (the iOS eye button): three radio modes with a
+        // checkmark on the active one, so the current state is self-evident. A
+        // single `setEyeStatus(_:)` selector carries the target mode in the item
+        // `tag` — the same tag-dispatch idiom as the Inspector-tab items above
+        // (`selectInspectorTab`). Checkmarks + enable state (in particular greying
+        // "Opening Book" when no book is downloaded) are set in
+        // `MainWindowController.validateMenuItem`. No key equivalents (infrequent;
+        // bare letters/symbols would risk collisions).
+        let eyeItem = NSMenuItem(title: "Board/Book View", action: nil, keyEquivalent: "")
+        let eyeSubmenu = NSMenu(title: "Board/Book View")
+        for (title, tag) in [("AI Analysis", 0), ("Opening Book", 1), ("Hidden", 2)] {
+            let mode = eyeSubmenu.addItem(
+                withTitle: title,
+                action: #selector(MainWindowController.setEyeStatus(_:)),
+                keyEquivalent: "")
+            mode.tag = tag
+            // target stays nil → routes through the responder chain to
+            // MainWindowController, where validateMenuItem sets state/enablement.
+        }
+        eyeItem.submenu = eyeSubmenu
+        menu.addItem(eyeItem)
         menu.addItem(withTitle: "Show Win-Rate Bar",
                      action: #selector(MainWindowController.toggleWinrateBar(_:)),
                      keyEquivalent: "")

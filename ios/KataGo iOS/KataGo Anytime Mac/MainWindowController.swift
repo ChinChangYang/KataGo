@@ -142,6 +142,12 @@ final class MainWindowController: NSWindowController {
     /// built in the `.analyze` case) to avoid a retain cycle.
     private weak var analyzeToolbarItem: NSToolbarItem?
 
+    /// The toolbar's Board/Book View (eye) item, retained weakly so
+    /// `refreshEyeToolbarItem()` can mutate its image/tint/toolTip to reflect
+    /// `gobanState.eyeStatus`. The `NSToolbar` owns the item; we only borrow a
+    /// reference (set when the item is built in the `.toggleEye` case).
+    private weak var eyeToolbarItem: NSToolbarItem?
+
     /// The toolbar's active-model dropdown (P5-T6), retained weakly so
     /// `refreshActiveModelToolbarItem()` can update its displayed title after a
     /// model switch (the menu rebuilds itself live via `menuNeedsUpdate(_:)`, but
@@ -1662,6 +1668,12 @@ final class MainWindowController: NSWindowController {
 
         lastBookLoaded = newBookLoaded
         lastEyeStatus = newEyeStatus
+
+        // Keep the eye toolbar item's icon/tint/toolTip in sync with EVERY
+        // eyeStatus change — toolbar click, menu pick, and the auto-correction in
+        // refreshBookStateForSelectedGame (which forces .opened) all mutate
+        // gobanState.eyeStatus, which this observer tracks, so they all land here.
+        refreshEyeToolbarItem()
     }
 
     // MARK: - Move confirmation dialogs
@@ -2329,9 +2341,10 @@ final class MainWindowController: NSWindowController {
     // `withAnimation` is dropped (no SwiftUI transaction in an NSWindowController;
     // the hosted SwiftUI layer animates the change itself).
 
-    /// View-menu "Toggle Board/Book View": cycles board -> book -> hidden.
+    /// The toolbar eye button's action: cycles board -> book -> hidden.
     /// Mirrors `eyeAction()`. With no selected game the book branch is impossible
-    /// (no `concreteConfig`), so `.opened` falls straight to `.closed`.
+    /// (no `concreteConfig`), so `.opened` falls straight to `.closed`. The View
+    /// menu no longer uses this — it sets a mode directly via `setEyeStatus(_:)`.
     @objc func toggleEyeStatus(_ sender: Any?) {
         let gobanState = session.gobanState
         let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
@@ -2350,6 +2363,30 @@ final class MainWindowController: NSWindowController {
         case .book:
             gobanState.eyeStatus = .closed
         case .closed:
+            gobanState.eyeStatus = .opened
+        }
+    }
+
+    /// View ▸ Board/Book View submenu: sets `eyeStatus` directly by the sender's
+    /// `tag` (0 = AI Analysis/`.opened`, 1 = Opening Book/`.book`, 2 = Hidden/
+    /// `.closed`) — the same tag-dispatch idiom as `selectInspectorTab`. For the
+    /// book mode it mirrors `toggleEyeStatus`'s book branch: preload the book and
+    /// refuse the mode when no eligible+downloaded book exists (defensive —
+    /// `validateMenuItem` already disables that row in that case).
+    @objc func setEyeStatus(_ sender: NSMenuItem) {
+        let gobanState = session.gobanState
+        switch sender.tag {
+        case 1:
+            let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
+            let bookSize = bookConfig?.boardWidth ?? 0
+            let bookAvailable = (bookConfig?.isBookEligible ?? false)
+                && session.bookLookup.isAvailable(forBoardSize: bookSize)
+            guard bookAvailable else { return }
+            session.bookLookup.loadIfNeeded(boardSize: bookSize)
+            gobanState.eyeStatus = .book
+        case 2:
+            gobanState.eyeStatus = .closed
+        default:
             gobanState.eyeStatus = .opened
         }
     }
@@ -2466,6 +2503,37 @@ final class MainWindowController: NSWindowController {
             item.image = base?.withSymbolConfiguration(
                 .init(hierarchicalColor: .secondaryLabelColor))
             item.toolTip = "Resume Analysis"
+        }
+    }
+
+    /// Updates the eye toolbar item's image/tint/toolTip from the live
+    /// `gobanState.eyeStatus`. The icon carries the current mode (eye/book/
+    /// eye.slash, mirroring iOS `StatusToolbarItems`); the toolTip names the NEXT
+    /// action (the Analyze item's convention), computed from the SAME book
+    /// availability as `toggleEyeStatus` so it never promises a mode the cycle
+    /// won't reach. Called after the item is built, from `handleBookStateChange()`
+    /// on every `eyeStatus` change, and defensively from `validateToolbarItem`.
+    /// A fresh `NSImage` is built each call so the red palette of `.closed` never
+    /// leaks into the other states.
+    private func refreshEyeToolbarItem() {
+        guard let item = eyeToolbarItem else { return }
+        let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
+        let bookSize = bookConfig?.boardWidth ?? 0
+        let bookAvailable = (bookConfig?.isBookEligible ?? false)
+            && session.bookLookup.isAvailable(forBoardSize: bookSize)
+
+        switch session.gobanState.eyeStatus {
+        case .opened:
+            item.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "View")
+            item.toolTip = bookAvailable ? "Show Opening Book" : "Hide Analysis"
+        case .book:
+            item.image = NSImage(systemSymbolName: "book", accessibilityDescription: "View")
+            item.toolTip = "Hide Analysis"
+        case .closed:
+            // Red tint signals "everything hidden", mirroring Analyze's clear case.
+            item.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "View")?
+                .withSymbolConfiguration(.init(paletteColors: [.systemRed]))
+            item.toolTip = "Show AI Analysis"
         }
     }
 
@@ -2820,9 +2888,23 @@ extension MainWindowController: NSMenuItemValidation {
                 && !gobanState.shouldGenMove(config: gameRecord.concreteConfig,
                                               player: session.player)
 
-        // View menu "Toggle Board/Book View": a 3-state cycle, so no checkmark.
-        // Enabled when a game is selected.
-        case #selector(toggleEyeStatus(_:)):
+        // View ▸ Board/Book View submenu: radio checkmark on the active mode.
+        // Tag 0 = AI Analysis (.opened), 1 = Opening Book (.book), 2 = Hidden
+        // (.closed). "Opening Book" additionally requires an eligible+downloaded
+        // book, so it greys out when none is available; the other two need only a
+        // selected game. With no game all three are disabled, which auto-greys the
+        // "Board/Book View" parent item (NSMenu.autoenablesItems).
+        case #selector(setEyeStatus(_:)):
+            let mode: EyeStatus = menuItem.tag == 1 ? .book
+                : menuItem.tag == 2 ? .closed : .opened
+            menuItem.state = (gobanState.eyeStatus == mode) ? .on : .off
+            if menuItem.tag == 1 {
+                let bookConfig = navigationContext.selectedGameRecord?.concreteConfig
+                let bookSize = bookConfig?.boardWidth ?? 0
+                let bookAvailable = (bookConfig?.isBookEligible ?? false)
+                    && session.bookLookup.isAvailable(forBoardSize: bookSize)
+                return hasGame && bookAvailable
+            }
             return hasGame
 
         // Game-menu board-move shortcuts: bare `,` / `P` (LizzieYzy). Disabled
@@ -2912,6 +2994,12 @@ extension MainWindowController: NSToolbarItemValidation {
             refreshAnalyzeToolbarItem()
             return navigationContext.selectedGameRecord != nil
         }
+        if item.action == #selector(toggleEyeStatus(_:)) {
+            // The eye button only makes sense with a game loaded; refresh its
+            // icon/tint/toolTip opportunistically while we're here.
+            refreshEyeToolbarItem()
+            return navigationContext.selectedGameRecord != nil
+        }
         return canPerformNavigation(item.action)
     }
 }
@@ -2923,6 +3011,7 @@ private extension NSToolbarItem.Identifier {
     static let activeModel = NSToolbarItem.Identifier("activeModel")
     static let navGroup = NSToolbarItem.Identifier("navGroup")
     static let analyze = NSToolbarItem.Identifier("analyze")
+    static let toggleEye = NSToolbarItem.Identifier("toggleEye")
     static let toggleInspector = NSToolbarItem.Identifier("toggleInspector")
 }
 
@@ -2936,6 +3025,7 @@ extension MainWindowController: NSToolbarDelegate {
             .flexibleSpace,
             .navGroup,
             .analyze,
+            .toggleEye,
             .flexibleSpace,
             .toggleInspector,
         ]
@@ -2949,6 +3039,7 @@ extension MainWindowController: NSToolbarDelegate {
             .activeModel,
             .navGroup,
             .analyze,
+            .toggleEye,
             .toggleInspector,
             .flexibleSpace,
             .space,
@@ -2984,6 +3075,16 @@ extension MainWindowController: NSToolbarDelegate {
             // `analysisStatus` on the button, and seed its initial appearance.
             analyzeToolbarItem = item
             refreshAnalyzeToolbarItem()
+            return item
+        case .toggleEye:
+            let item = makeItem(itemIdentifier,
+                                label: "View",
+                                symbol: "eye",
+                                action: #selector(toggleEyeStatus(_:)))
+            // Borrow a weak reference so `refreshEyeToolbarItem()` can reflect
+            // `eyeStatus` on the button, and seed its initial appearance.
+            eyeToolbarItem = item
+            refreshEyeToolbarItem()
             return item
         case .activeModel:
             return makeActiveModelItem(itemIdentifier)
