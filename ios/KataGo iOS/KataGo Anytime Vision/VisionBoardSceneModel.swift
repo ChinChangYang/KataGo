@@ -196,6 +196,37 @@ final class VisionBoardSceneModel {
         return Float(hash % 360) * .pi / 180
     }
 
+    // MARK: - Orientation
+
+    private var isStanding = false
+    private var hasAppliedOrientation = false
+
+    /// Lays the board flat on the volume floor (tabletop) or stands it
+    /// upright facing the viewer (wall demonstration board). Standing rotates
+    /// boardRoot +90° about X, which maps the board's +Y (up) onto +Z (toward
+    /// the viewer): row 1 lands at the bottom and the legs point away — and
+    /// the controller's +row stick direction stays visually "up".
+    func setOrientation(standing: Bool, animated: Bool) {
+        guard standing != isStanding || !hasAppliedOrientation else { return }
+        isStanding = standing
+        hasAppliedOrientation = true
+
+        var target = Transform.identity
+        if standing {
+            target.rotation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+            // Vertically centered in the 0.6 m volume (root sits on the
+            // floor); the rotated grid spans ±depth/2 about this point.
+            target.translation = [0, 0.3, 0]
+        }
+
+        if animated {
+            boardRoot.move(to: target, relativeTo: volumeRoot, duration: 0.5,
+                           timingFunction: .easeInOut)
+        } else {
+            boardRoot.transform = target
+        }
+    }
+
     // MARK: - Analysis markers
 
     /// View-model for one candidate move's 3D marker + label.

@@ -152,7 +152,8 @@ struct VisionRootView: View {
         VisionBoardRealityView(session: session,
                                ghost: ghost,
                                sceneModel: sceneModel,
-                               controllerInput: controllerInput)
+                               controllerInput: controllerInput,
+                               shell: shell)
     }
 
     // MARK: - Controller events
@@ -426,6 +427,10 @@ struct VisionRootView: View {
             // immediately (a stone appears with no play event).
             try? await Task.sleep(for: .seconds(4))
             toggleAI(for: session.player.nextColorForPlayCommand)
+
+            // Stand the board up (wall-demonstration orientation).
+            try? await Task.sleep(for: .seconds(4))
+            shell.isBoardStanding = true
         }
     }
     #endif

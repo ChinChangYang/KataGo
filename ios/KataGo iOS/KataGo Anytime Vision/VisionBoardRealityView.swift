@@ -16,6 +16,7 @@ struct VisionBoardRealityView: View {
     let ghost: GhostCursorModel
     let sceneModel: VisionBoardSceneModel
     let controllerInput: VisionControllerInput
+    let shell: VisionGameShell
 
     /// Thumbstick glide rate, in intersections per second at full deflection.
     private static let glideSpeed: Float = 8
@@ -46,7 +47,8 @@ struct VisionBoardRealityView: View {
                     nextColor: session.player.nextColorForPlayCommand,
                     candidates: candidates,
                     maxVisits: maxVisits,
-                    analysisVisible: analysisVisible
+                    analysisVisible: analysisVisible,
+                    isBoardStanding: shell.isBoardStanding
                 )
                 syncScene(snapshot)
                 syncLabels(snapshot, attachments: attachments)
@@ -110,6 +112,7 @@ struct VisionBoardRealityView: View {
         let candidates: [VisionBoardSceneModel.CandidateMarker]
         let maxVisits: Int
         let analysisVisible: Bool
+        let isBoardStanding: Bool
     }
 
     /// The board asset's feet rest on y=0, so seating it on the volume floor
@@ -146,6 +149,7 @@ struct VisionBoardRealityView: View {
     }
 
     private func applyDynamicState(_ snapshot: SceneSnapshot) {
+        sceneModel.setOrientation(standing: snapshot.isBoardStanding, animated: true)
         sceneModel.applyStones(black: snapshot.black, white: snapshot.white)
         sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
         sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible

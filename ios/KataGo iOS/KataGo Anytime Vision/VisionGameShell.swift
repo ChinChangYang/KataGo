@@ -26,4 +26,15 @@ final class VisionGameShell {
     /// controller first connects; toggled from the ornament afterward.
     var showingControllerHelp = false
     var hasAutoShownControllerHelp = false
+
+    /// Board orientation: false = lying flat on the volume floor (tabletop),
+    /// true = standing upright facing the viewer (wall demonstration board).
+    /// Persisted across launches.
+    var isBoardStanding = UserDefaults.standard.bool(forKey: boardStandingKey) {
+        didSet {
+            UserDefaults.standard.set(isBoardStanding, forKey: boardStandingKey)
+        }
+    }
 }
+
+private let boardStandingKey = "VisionSettings.boardStanding"

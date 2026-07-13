@@ -68,6 +68,15 @@ struct VisionControlOrnament: View {
                 }
 
                 Button {
+                    shell.isBoardStanding.toggle()
+                } label: {
+                    Label(shell.isBoardStanding ? "Lay Board Flat" : "Stand Board Up",
+                          systemImage: shell.isBoardStanding
+                              ? "rectangle.portrait.rotate"
+                              : "rectangle.landscape.rotate")
+                }
+
+                Button {
                     shell.showingControllerHelp.toggle()
                 } label: {
                     Label("Controller Help", systemImage: "gamecontroller")
