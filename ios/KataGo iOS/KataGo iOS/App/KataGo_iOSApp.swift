@@ -86,10 +86,10 @@ struct KataGo_iOSApp: App {
             }
     }
 
-    // The macOS build of this (old, cross-platform SwiftUI) app target was
-    // retired in Phase 6 — `KataGo Anytime` now builds for iOS/visionOS only,
-    // and the native AppKit `KataGo Anytime Mac` target is the macOS product.
-    // So this scene is no longer conditionalised on `os(macOS)`.
+    // This (old, cross-platform SwiftUI) app target now builds for iOS only:
+    // macOS is the native AppKit `KataGo Anytime Mac` target, and visionOS is
+    // the volumetric `KataGo Anytime Vision` target. So this scene is no
+    // longer conditionalised on `os(macOS)`.
     var scene: some Scene {
         WindowGroup {
             #if DEBUG

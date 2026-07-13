@@ -29,9 +29,7 @@ struct TopToolbarView: ToolbarContent {
             PlusMenuView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
         }
 
-#if !os(visionOS)
         ToolbarSpacer()
-#endif // !os(visionOS)
 
         if !gobanState.isBranchActive {
             ToolbarItem(id: "lock") {

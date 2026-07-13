@@ -32,11 +32,7 @@ struct StatusToolbarItems: View {
     }
 
     var spacing: CGFloat {
-#if os(visionOS)
-        return 20
-#else
-        return 1
-#endif
+        1
     }
 
     var foregroundStyle: HierarchicalShapeStyle {
@@ -46,43 +42,22 @@ struct StatusToolbarItems: View {
     func createButton(action: @escaping @MainActor () -> Void,
                       label: String,
                       systemImage: String) -> some View {
-        Group {
-#if os(visionOS)
-            // visionOS doesn't support glass button style
-            Button(action: action) {
-                Label(label, systemImage: systemImage)
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(foregroundStyle)
-            }
-#else
-            Button(action: action) {
-                Label(label, systemImage: systemImage)
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(foregroundStyle)
-            }
-            .buttonStyle(.glass)
-#endif
+        Button(action: action) {
+            Label(label, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(foregroundStyle)
         }
+        .buttonStyle(.glass)
     }
 
     func createButton(action: @escaping @MainActor () -> Void,
                       label: String,
                       image: some View) -> some View {
-        Group {
-#if os(visionOS)
-            // visionOS doesn't support glass button style
-            Button(action: action) {
-                Label { Text(label) } icon: { image }
-                    .labelStyle(.iconOnly)
-            }
-#else
-            Button(action: action) {
-                Label { Text(label) } icon: { image }
-                    .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.glass)
-#endif
+        Button(action: action) {
+            Label { Text(label) } icon: { image }
+                .labelStyle(.iconOnly)
         }
+        .buttonStyle(.glass)
     }
 
     var body: some View {

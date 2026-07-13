@@ -132,9 +132,7 @@ struct PlusMenuView: View {
                 }
             }
 
-#if !os(visionOS)
             Divider()
-#endif
 
             // A single settings entry. When a game is selected this opens the
             // Configurations sheet (which already contains Global Settings +

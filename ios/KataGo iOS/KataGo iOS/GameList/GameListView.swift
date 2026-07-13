@@ -124,12 +124,7 @@ struct GameListView: View {
                         Label("(\(topUIState.selectionCount))", systemImage: "trash")
                     }
                     .accessibilityLabel("Delete \(topUIState.selectionCount) selected game\(topUIState.selectionCount == 1 ? "" : "s")")
-#if !os(visionOS)
-                    // `.glass` is unavailable on visionOS (its controls already
-                    // render on a glass material), so apply the Liquid Glass
-                    // button style on iOS only.
                     .buttonStyle(.glass)
-#endif
                     .tint(.red)
                     .disabled(topUIState.selectionCount == 0)
                 }

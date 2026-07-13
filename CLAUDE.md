@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a fork of KataGo (a strong open-source Go AI engine) with native apps for iOS, macOS, and visionOS that wrap the C++ engine. iOS and visionOS are SwiftUI apps; macOS is a native AppKit app that embeds SwiftUI panes via `NSHostingController`. The app compiles an MLX-based C++ backend that runs inference on Apple's Neural Engine (via CoreML) and GPU (via MLX), providing power-efficient Go analysis across Apple platforms.
+This is a fork of KataGo (a strong open-source Go AI engine) with native apps for iOS, macOS, and visionOS that wrap the C++ engine. iOS is a SwiftUI app; macOS is a native AppKit app that embeds SwiftUI panes via `NSHostingController`; visionOS is a volumetric RealityKit app (3D goban + stones, game-controller move input). The app compiles an MLX-based C++ backend that runs inference on Apple's Neural Engine (via CoreML) and GPU (via MLX), providing power-efficient Go analysis across Apple platforms.
 
 ## Source Code Layout
 
@@ -15,26 +15,27 @@ Quick map of where the **KataGo Anytime** source lives (the **Architecture** and
 
 Inside `ios/KataGo iOS/`, the product is split across:
 
-- **`KataGo Anytime.xcodeproj`** — the one Xcode project for all platforms (schemes `KataGo Anytime` for iOS/visionOS and `KataGo Anytime Mac` for macOS).
-- **`KataGo iOS/`** — iOS/visionOS app target source (entry point + SwiftUI views). Because this folder sits inside `ios/KataGo iOS/`, the full path is `ios/KataGo iOS/KataGo iOS/`.
+- **`KataGo Anytime.xcodeproj`** — the one Xcode project for all platforms (schemes `KataGo Anytime` for iOS, `KataGo Anytime Mac` for macOS, `KataGo Anytime Vision` for visionOS).
+- **`KataGo iOS/`** — iOS app target source (entry point + SwiftUI views). Because this folder sits inside `ios/KataGo iOS/`, the full path is `ios/KataGo iOS/KataGo iOS/`.
 - **`KataGo Anytime Mac/`** — macOS (AppKit) app target source.
+- **`KataGo Anytime Vision/`** — visionOS app target source (volumetric RealityKit board, controller input, ornament) plus the committed 3D assets in `Resources/BoardAssets/` (9/13/19 boards + stones + placement manifest, bundled as a folder reference).
 - **`KataGoUICore/`** — shared SwiftPM package (models, services, rendering, the C++ bridge, the `GameSession`/`KataGoEngineIO` seam); most cross-platform logic lives here.
 - **`KataGoEngineIPC/`** + **`KataGoEngineHelper/`** — the macOS subprocess-engine package and the `katago-engine` helper executable.
 
-**Naming traps:** the product is "KataGo Anytime", but the iOS/visionOS source folder is named `KataGo iOS` (only the macOS folder is `KataGo Anytime Mac`), and the project directory `ios/KataGo iOS/` is nested one level above the identically named `KataGo iOS/` target folder. A `KataGo Anytime/` folder that appears locally is untracked cruft (a stray `.DS_Store` + an empty `View/`), not source — ignore it.
+**Naming traps:** the product is "KataGo Anytime", but the iOS source folder is named `KataGo iOS` (the macOS folder is `KataGo Anytime Mac`, the visionOS folder `KataGo Anytime Vision` with product name "KataGo Vision"), and the project directory `ios/KataGo iOS/` is nested one level above the identically named `KataGo iOS/` target folder. A `KataGo Anytime/` folder that appears locally is untracked cruft (a stray `.DS_Store` + an empty `View/`), not source — ignore it.
 
 ## Build Commands
 
 ### Building for All Platforms
-The app must build for all supported platforms. There are **four app targets/schemes**: `KataGo Anytime` (iOS + visionOS), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme does **not** support macOS — use `KataGo Anytime Mac` for the Mac build.
+The app must build for all supported platforms. There are **five app targets/schemes**: `KataGo Anytime` (iOS only), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime Vision` (visionOS, volumetric RealityKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme supports **neither macOS nor visionOS** — use `KataGo Anytime Mac` / `KataGo Anytime Vision`.
 ```bash
 cd ios/KataGo\ iOS
 
 # Build for iOS Simulator (scheme: KataGo Anytime)
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug
 
-# Build for visionOS Simulator (scheme: KataGo Anytime)
-xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug
+# Build for visionOS Simulator (separate scheme: KataGo Anytime Vision)
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Vision" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug
 
 # Build for macOS (separate scheme: KataGo Anytime Mac)
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Mac" -destination 'platform=macOS' -configuration Debug
@@ -72,8 +73,9 @@ There is **no** `.mlpackage` to download: the CoreML model is generated on the f
 
 **Apps & shared package (`ios/KataGo iOS/`)**: Native iOS/macOS/visionOS interface:
 - `KataGoUICore/` - Shared SwiftPM package for all platforms: the C++ bridge (`CKataGoBridge` target + `KataGoHelper.swift`, folded in from the former `KataGoInterface` framework) plus shared models, services, SwiftUI rendering, and the `GameSession`/`KataGoEngineIO` engine seam. Vends two products: `KataGoUICore` (UI + bridge) and `CoreMLCacheKit` (dependency-light CoreML cache reused by the subprocess engine).
-- `KataGo iOS/` - iOS/visionOS app target (SwiftUI entry point and views; scheme `KataGo Anytime`)
+- `KataGo iOS/` - iOS app target (SwiftUI entry point and views; scheme `KataGo Anytime`)
 - `KataGo Anytime Mac/` - macOS app target (native AppKit; scheme `KataGo Anytime Mac`)
+- `KataGo Anytime Vision/` - visionOS app target (volumetric RealityKit 3D goban; scheme `KataGo Anytime Vision`, product "KataGo Vision"): board input is game-controller-only (thumbstick/D-pad ghost stone, A play, B dismiss, L1/R1 candidate cycle, X undo, Y pass-with-confirm); a bottom-front ornament carries player chips, New Game (9/13/19), Pass confirm, Undo, and the analysis eye. Only square 9/13/19 games render (bundled `Resources/BoardAssets/` USDZs + placement manifest; other sizes gate to an unsupported-board state). Engine pinned CoreML/ANE-only `[100, 100]` with NN buffer cap 19. Platform-agnostic logic (BoardAssetManifest, BoardSceneGeometry, GhostCursorModel, visionBoardIsSupported) lives in `KataGoUICore/Sources/KataGoUICore/Vision/` so the iOS-simulator test target covers it.
 - `KataGoEngineIPC/` - macOS-only package that spawns and drives the `katago-engine` subprocess over stdin/stdout pipes
 - `KataGoEngineHelper/` - builds the `katago-engine` subprocess executable (linked against the C++ engine)
 
@@ -81,8 +83,10 @@ There is **no** `.mlpackage` to download: the CoreML model is generated on the f
 
 | File | Purpose |
 |------|---------|
-| `KataGo_iOSApp.swift` | iOS/visionOS app entry point, SwiftData container setup |
-| `ContentView.swift` | iOS/visionOS main view; drives `GameSession.run()`/`messaging()` |
+| `KataGo_iOSApp.swift` | iOS app entry point, SwiftData container setup |
+| `ContentView.swift` | iOS main view; drives `GameSession.run()`/`messaging()` |
+| `VisionRootView.swift` | visionOS root: engine boot, run loop, controller events, ornament |
+| `VisionBoardSceneModel.swift` | visionOS RealityKit entity graph; diffs stones/markers into the 3D scene |
 | `GameSplitView.swift` | Navigation split view, game list sidebar |
 | `MainWindowController.swift` | macOS AppKit window controller; owns the `GameSession`, engine lifecycle, and subprocess |
 | `BoardViewController.swift` | macOS AppKit view controller; hosts the SwiftUI board via `NSHostingController` |
@@ -99,7 +103,7 @@ There is **no** `.mlpackage` to download: the CoreML model is generated on the f
 | `LinePlotView.swift` | Win rate/score chart with auto-play |
 | `BoardLineView.swift` | Board grid lines rendering |
 
-**Locations:** `KataGo_iOSApp.swift`, `ContentView.swift`, `GameSplitView.swift`, and `GobanView.swift` are in the iOS app target (`KataGo iOS/`); `MainWindowController.swift` and `BoardViewController.swift` are in the macOS target (`KataGo Anytime Mac/`, alongside `SubprocessKataGoEngine.swift`). The rest live in the shared `KataGoUICore` package: Bridge (`KataGoHelper.swift`, `KataGoEngineIO.swift`), Session (`GameSession.swift`), Model (`KataGoModel.swift`, `GameRecord.swift`, `GobanState.swift`, `NeuralNetworkModel.swift`), Services (`Commentator.swift`, `AudioModel.swift`), Rendering (`LinePlotView.swift`, `BoardLineView.swift`).
+**Locations:** `KataGo_iOSApp.swift`, `ContentView.swift`, `GameSplitView.swift`, and `GobanView.swift` are in the iOS app target (`KataGo iOS/`); `MainWindowController.swift` and `BoardViewController.swift` are in the macOS target (`KataGo Anytime Mac/`, alongside `SubprocessKataGoEngine.swift`); the `Vision*.swift` files are in the visionOS target (`KataGo Anytime Vision/`). The rest live in the shared `KataGoUICore` package: Bridge (`KataGoHelper.swift`, `KataGoEngineIO.swift`), Session (`GameSession.swift`), Model (`KataGoModel.swift`, `GameRecord.swift`, `GobanState.swift`, `NeuralNetworkModel.swift`), Services (`Commentator.swift`, `AudioModel.swift`), Rendering (`LinePlotView.swift`, `BoardLineView.swift`).
 
 ### Communication Pattern
 
@@ -115,10 +119,10 @@ Because both conform to `KataGoEngineIO`, `GameSession` drives them identically:
 
 ### Neural Network Backends on Apple Silicon
 
-The compiled MLX backend multiplexes two inference paths — **CoreML/NE** (Apple's Neural Engine) and **MLX/GPU**. On **iOS/visionOS** the Backend settings sheet offers three per-model choices — `MLX/GPU`, `CoreML/NE`, and a `GPU+ANE` mux that runs both in parallel — defaulting to single **CoreML/NE** (`BackendSettings.backend`). On **macOS** the per-model picker is removed: the engine always runs a fixed **1 GPU + 2 ANE** NN-server-thread mux (`MainWindowController.engineDeviceAssignments = [0, 100, 100]`).
-- **CoreML/NE** (Neural Engine): default on iOS and visionOS (best power/throughput, verified on an iPad A17 Pro); best power efficiency (~70 visits/s on iPhone 12).
+The compiled MLX backend multiplexes two inference paths — **CoreML/NE** (Apple's Neural Engine) and **MLX/GPU**. On **iOS** the Backend settings sheet offers three per-model choices — `MLX/GPU`, `CoreML/NE`, and a `GPU+ANE` mux that runs both in parallel — defaulting to single **CoreML/NE** (`BackendSettings.backend`). On **macOS** the per-model picker is removed: the engine always runs a fixed **1 GPU + 2 ANE** NN-server-thread mux (`MainWindowController.engineDeviceAssignments = [0, 100, 100]`). On **visionOS** there is no picker either: the engine is pinned CoreML/ANE-only `[100, 100]` (the GPU belongs to the 90 Hz compositor; see `VisionEngineController`).
+- **CoreML/NE** (Neural Engine): default on iOS (best power/throughput, verified on an iPad A17 Pro); best power efficiency (~70 visits/s on iPhone 12); the only backend on visionOS.
 - **MLX/GPU**: default on macOS.
-- Search threads: on **iOS/visionOS** they are user-configurable per model in the Backend settings sheet — a Stepper over `1...BackendChoice.maxSearchThreads` (**32**), defaulting to `KataGoHelper.mlxNumSearchThreads` (**2** on iOS/visionOS, verified on an iPad A17 Pro) and persisted per model. On **macOS** they are fixed at **16** (`mlxNumSearchThreads`, no picker).
+- Search threads: on **iOS** they are user-configurable per model in the Backend settings sheet — a Stepper over `1...BackendChoice.maxSearchThreads` (**32**), defaulting to `KataGoHelper.mlxNumSearchThreads` (**2** on iOS/visionOS, verified on an iPad A17 Pro) and persisted per model. On **macOS** they are fixed at **16** (`mlxNumSearchThreads`, no picker); visionOS uses the shared default (2, no picker).
 - On the iOS/visionOS Simulator the backend is always pinned to CoreML/NE (MLX GPU inference crashes in the simulator's Metal layer).
 
 ## C++ Source Structure

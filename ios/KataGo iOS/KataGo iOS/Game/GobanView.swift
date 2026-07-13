@@ -41,10 +41,8 @@ struct GobanView: View {
                     (gameRecord.concreteConfig.boardHeight <= maxBoardLength) {
                     GobanItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
                         .toolbar {
-#if os(iOS)
                             // iPad only: iPhone's compact top-left belongs to the
-                            // back button, and visionOS has its own expand button
-                            // below (which only collapses the sidebar).
+                            // back button.
                             if UIDevice.current.userInterfaceIdiom == .pad {
                                 ToolbarItem(placement: .topBarLeading) {
                                     Button(action: toggleBoardFullScreen) {
@@ -60,23 +58,9 @@ struct GobanView: View {
                                     .id(toolbarUuid)
                                 }
                             }
-#endif
 
                             ToolbarItem(placement: .principal) {
                                 HStack {
-#if os(visionOS)
-                                    Button(action: toggleFullScreen) {
-                                        Label(
-                                            columnVisibility == .all ? "Expand" : "Collapse",
-                                            systemImage: columnVisibility == .all
-                                                ? "arrow.up.left.and.arrow.down.right"
-                                                : "arrow.down.right.and.arrow.up.left"
-                                        )
-                                        .labelStyle(.iconOnly)
-                                    }
-                                    .scaledToFit()
-#endif
-
                                     Text(gameRecord.name)
                                         .bold()
                                         .onTapGesture {
@@ -110,18 +94,9 @@ struct GobanView: View {
         }
     }
 
-    func toggleFullScreen() {
-        if columnVisibility == .detailOnly {
-            columnVisibility = .all
-        } else {
-            columnVisibility = .detailOnly
-        }
-    }
-
     /// iPad full-screen board mode: hides the chart/comments pane (PlayView
     /// gates it on `gobanState.isInfoPaneVisible`) and collapses the sidebar,
-    /// Notes-style. Distinct from the visionOS `toggleFullScreen` above, which
-    /// only toggles the sidebar.
+    /// Notes-style.
     func toggleBoardFullScreen() {
         withAnimation {
             gobanState.isBoardFullScreen.toggle()
