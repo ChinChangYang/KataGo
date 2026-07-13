@@ -7,8 +7,9 @@ import Foundation
 import KataGoUICore
 
 /// Volume-level UI state that lives outside GobanState: the boot/gating
-/// phase, controller-help visibility, and the persisted board-orientation
-/// preference.
+/// phase, card visibility (controller help, settings, game list), and the
+/// persisted Vision-local preferences (board orientation, analysis label
+/// mode, ownership overlay).
 @Observable
 @MainActor
 final class VisionGameShell {
@@ -32,6 +33,25 @@ final class VisionGameShell {
     /// bar's Games button.
     var showingGameList = false
 
+    /// Settings card visibility. Settings and the controller legend share
+    /// the right-side anchor, so opening either one closes the other — use
+    /// the toggle helpers, never the flags directly, from the bar buttons.
+    var showingSettings = false
+
+    func toggleSettings() {
+        showingSettings.toggle()
+        if showingSettings {
+            showingControllerHelp = false
+        }
+    }
+
+    func toggleControllerHelp() {
+        showingControllerHelp.toggle()
+        if showingControllerHelp {
+            showingSettings = false
+        }
+    }
+
     /// Board orientation: false = lying flat on the volume floor (tabletop),
     /// true = standing upright facing the viewer (wall demonstration board).
     /// Persisted across launches.
@@ -40,6 +60,28 @@ final class VisionGameShell {
             UserDefaults.standard.set(isBoardStanding, forKey: boardStandingKey)
         }
     }
+
+    /// "Analysis information" label mode — an index into
+    /// Config.analysisInformations. Vision deliberately defaults to
+    /// Winrate (0), not the iOS default All, preserving the shipped
+    /// minimal marker look. Persisted across launches.
+    var analysisInformation =
+        UserDefaults.standard.object(forKey: analysisInformationKey) as? Int ?? 0 {
+        didSet {
+            UserDefaults.standard.set(analysisInformation, forKey: analysisInformationKey)
+        }
+    }
+
+    /// Ownership overlay visibility, default on (iOS parity). Read via
+    /// object(forKey:) — bool(forKey:) would turn "never set" into false.
+    var showOwnership =
+        UserDefaults.standard.object(forKey: showOwnershipKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(showOwnership, forKey: showOwnershipKey)
+        }
+    }
 }
 
 private let boardStandingKey = "VisionSettings.boardStanding"
+private let analysisInformationKey = "VisionSettings.analysisInformation"
+private let showOwnershipKey = "VisionSettings.showOwnership"

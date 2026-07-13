@@ -162,6 +162,14 @@ struct VisionRootView: View {
                 session.gobanState.requestingClearAnalysis = false
             }
         }
+        // Settings-card writes land on the shell (which persists them);
+        // mirror into gobanState, which is what the scene reads.
+        .onChange(of: shell.analysisInformation) { _, newValue in
+            session.gobanState.analysisInformation = newValue
+        }
+        .onChange(of: shell.showOwnership) { _, newValue in
+            session.gobanState.showOwnership = newValue
+        }
     }
 
     // MARK: - Content
@@ -396,6 +404,11 @@ struct VisionRootView: View {
         session.gobanState.soundEffect = true
         session.gobanState.continuousAnalysisUsesConfigInterval = true
         session.gobanState.analysisStatus = .run
+        // Persisted display settings (the shell owns the VisionSettings.*
+        // keys; rendering reads gobanState — the onChange mirrors keep them
+        // in sync after the settings card writes the shell).
+        session.gobanState.analysisInformation = shell.analysisInformation
+        session.gobanState.showOwnership = shell.showOwnership
 
         // Blocks on the engine's `version` reply (i.e. until the b18 net has
         // finished loading).
