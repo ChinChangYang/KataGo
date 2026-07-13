@@ -390,6 +390,7 @@
 		CDC306346C6C01F7E21F5061 /* PlayerNameLabelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDE036A8C4A5D70A31AAEB1 /* PlayerNameLabelUITests.swift */; };
 		CDF62E549FB006EC4802412E /* log_format.cc in Sources */ = {isa = PBXBuildFile; fileRef = 141ACBD0F03E88705EF1EA20 /* log_format.cc */; };
 		CE15F023D85269D951A13CE8 /* usage_config.cc in Sources */ = {isa = PBXBuildFile; fileRef = A6ADEC4D58AA590CCB7723B6 /* usage_config.cc */; };
+		CFA11F177CF69001086CF3AD /* VisionCandidateMarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5EC8C3BC837AFF4FA7029B /* VisionCandidateMarkTests.swift */; };
 		D063D0F817AA5C0A72E2E47A /* NearestNeighbors.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F3CFBF189067FF37C8812 /* NearestNeighbors.pb.cc */; };
 		D0851B731D8070A7DC0B2555 /* KataGoParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8FF2B17B41FD5A035930E809 /* KataGoParser.cpp */; };
 		D27A56AB9754E184C155CC38 /* globals.cc in Sources */ = {isa = PBXBuildFile; fileRef = 924DAEA6A848345285DD2ACB /* globals.cc */; };
@@ -964,6 +965,7 @@
 		0D3E21A53DA500D5284C2130 /* AnalysisColorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisColorTests.swift; sourceTree = "<group>"; };
 		0D48FC1E4B0BA7ACE8D3473C /* SelfPlayAttractPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SelfPlayAttractPolicyTests.swift; sourceTree = "<group>"; };
 		0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = AudioFeaturePrint.pb.cc; path = ../../cpp/external/katagocoreml/generated/AudioFeaturePrint.pb.cc; sourceTree = SOURCE_ROOT; };
+		0E5EC8C3BC837AFF4FA7029B /* VisionCandidateMarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionCandidateMarkTests.swift; sourceTree = "<group>"; };
 		0EDC046510D5219C61D84BDC /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0F495BFB42E3A009E5094062 /* TVLibraryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVLibraryView.swift; sourceTree = "<group>"; };
 		105A2DDDA6529B5E4FC3395B /* OneHotEncoder.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = OneHotEncoder.pb.cc; path = ../../cpp/external/katagocoreml/generated/OneHotEncoder.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -2740,6 +2742,7 @@
 				7530028A07F8E37EA6AE1044 /* DateShortenedTests.swift */,
 				B3712A5C7191AA84DBBDA0BF /* VisionAnalysisLabelTests.swift */,
 				ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */,
+				0E5EC8C3BC837AFF4FA7029B /* VisionCandidateMarkTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3974,6 +3977,7 @@
 				17E24915B0190AAADDC56836 /* DateShortenedTests.swift in Sources */,
 				93220D07CE100955A981A6BF /* VisionAnalysisLabelTests.swift in Sources */,
 				540E262FBA777FB1CA58478F /* VisionOwnershipMarkTests.swift in Sources */,
+				CFA11F177CF69001086CF3AD /* VisionCandidateMarkTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
