@@ -713,8 +713,11 @@ struct GlobalSettingsView: View {
     @State private var showOwnership = Config.defaultShowOwnership
     @State private var showWinrateBar = Config.defaultShowWinrateBar
     @State private var largeThumbnails = false
+    @State private var confirmingQuit = false
     @Environment(GobanState.self) private var gobanState
     @Environment(ThumbnailModel.self) private var thumbnailModel
+    @Environment(TopUIState.self) private var topUIState
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         List {
@@ -862,8 +865,74 @@ struct GlobalSettingsView: View {
                         thumbnailModel.save()
                     }
             }
+
+            // Model name + engine version, surfaced app-wide here (relocated
+            // from the per-game Settings screen — they never depended on the
+            // selected game). Both are populated during engine initialization
+            // (ContentView) and ride TopUIState in via the environment, so they
+            // appear whenever an engine is running. Tapping either row quits the
+            // engine and returns to the model picker (the old standalone toolbar
+            // Quit button).
+            Section("Engine") {
+                if let modelName = topUIState.modelName {
+                    LabeledContent("Model", value: modelName)
+                        .contentShape(Rectangle())
+                        .onTapGesture { confirmingQuit = true }
+                        // Stable handle for the quit-confirmation trigger (UI tests
+                        // reach quit via Global Settings ▸ Engine now that the sidebar
+                        // Quit button is gone).
+                        .accessibilityIdentifier("GlobalSettingsView.quitEngineRow")
+                }
+
+                if let version = topUIState.engineVersionDisplay {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Version")
+                        Text(version)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { confirmingQuit = true }
+                }
+            }
+
+            // Secondary, rarely-visited reference content.
+            Section("About") {
+                NavigationLink("Open-Source Licenses") {
+                    AcknowledgmentsView()
+                }
+            }
         }
         .navigationTitle("Global Settings")
+        .confirmationDialog(
+            "Are you sure you want to quit? This will close KataGo model and go back to the model selection screen.",
+            isPresented: $confirmingQuit,
+            titleVisibility: .visible
+        ) {
+            Button("Quit", role: .destructive) { quitEngine() }
+            Button("Cancel", role: .cancel) { }
+        }
+    }
+
+    /// Tear down the engine and return to the model picker. Same sequence the
+    /// old toolbar `QuitButton` ran, now driving `topUIState.quitStatus`
+    /// (observed by `ContentView` to stop the session loop). `dismiss()` closes
+    /// this screen; the real return-to-picker is engine-driven (`"quit"` ends
+    /// `runGtp`, whose thread closure sets `selectedModel = nil` and unmounts the
+    /// whole tree, sheet included).
+    private func quitEngine() {
+        topUIState.quitStatus = .quitting
+        KataGoHelper.sendCommand("quit")
+        Task {
+            // Wait until all messages are consumed.
+            try? await Task.sleep(for: .seconds(1))
+            // False the condition of the consumer's loop.
+            topUIState.quitStatus = .quitted
+            // An additional message to terminate the consumer.
+            KataGoHelper.sendMessage("\n")
+        }
+        dismiss()
     }
 }
 
@@ -880,9 +949,6 @@ struct GameSettingsView: View {
 struct ConfigView: View {
     var gameRecord: GameRecord
     var maxBoardLength: Int
-    @Environment(TopUIState.self) private var topUIState
-    @Environment(\.dismiss) private var dismiss
-    @State private var confirmingQuit = false
 
     var body: some View {
         List {
@@ -894,37 +960,11 @@ struct ConfigView: View {
                 GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             }
 
-            // Model name + engine version, surfaced here now that the launch
-            // screen no longer pauses to show them. Both are populated during
-            // engine initialization (ContentView) and ride TopUIState in via
-            // the environment. Tapping either row quits the engine and returns
-            // to the model picker (the old standalone toolbar Quit button).
+            // The raw GTP console, relocated here from the game-list "More"
+            // menu — a power/engine tool that no longer belongs at the top
+            // level of the menu. (Model name, engine version, and Open-Source
+            // Licenses moved to the app-wide Global Settings screen.)
             Section("Engine") {
-                if let modelName = topUIState.modelName {
-                    LabeledContent("Model", value: modelName)
-                        .contentShape(Rectangle())
-                        .onTapGesture { confirmingQuit = true }
-                        // Stable handle for the quit-confirmation trigger (UI tests
-                        // reach quit via Settings ▸ Engine now that the sidebar Quit
-                        // button is gone).
-                        .accessibilityIdentifier("ConfigView.quitEngineRow")
-                }
-
-                if let version = topUIState.engineVersionDisplay {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Version")
-                        Text(version)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .onTapGesture { confirmingQuit = true }
-                }
-
-                // The raw GTP console, relocated here from the game-list "More"
-                // menu — a power/engine tool that no longer belongs at the top
-                // level of the menu.
                 NavigationLink {
                     CommandView(config: gameRecord.concreteConfig)
                         .navigationTitle("Developer Mode")
@@ -932,38 +972,7 @@ struct ConfigView: View {
                     Label("Developer Mode", systemImage: "doc.plaintext")
                 }
             }
-
-            // Kept at the bottom: secondary, rarely-visited reference content.
-            NavigationLink("Open-Source Licenses") {
-                AcknowledgmentsView()
-            }
         }
         .navigationTitle("Settings")
-        .confirmationDialog(
-            "Are you sure you want to quit? This will close KataGo model and go back to the model selection screen.",
-            isPresented: $confirmingQuit,
-            titleVisibility: .visible
-        ) {
-            Button("Quit", role: .destructive) { quitEngine() }
-            Button("Cancel", role: .cancel) { }
-        }
-    }
-
-    /// Tear down the engine and return to the model picker. Same sequence the
-    /// old toolbar `QuitButton` ran, now driving `topUIState.quitStatus`
-    /// (observed by `ContentView` to stop the session loop). Dismiss the
-    /// Configurations sheet so it doesn't linger over the picker.
-    private func quitEngine() {
-        topUIState.quitStatus = .quitting
-        KataGoHelper.sendCommand("quit")
-        Task {
-            // Wait until all messages are consumed.
-            try? await Task.sleep(for: .seconds(1))
-            // False the condition of the consumer's loop.
-            topUIState.quitStatus = .quitted
-            // An additional message to terminate the consumer.
-            KataGoHelper.sendMessage("\n")
-        }
-        dismiss()
     }
 }

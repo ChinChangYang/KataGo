@@ -275,10 +275,19 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "Settings menu item not found")
         settings.tap()
 
-        // The bottom row opens the Open-Source Licenses list.
+        // Licenses now live under Global Settings ▸ About.
+        let globalSettings = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
+                      "Global Settings row not found in Settings")
+        globalSettings.tap()
+
+        // The About section sits at the bottom of the (now longer) Global
+        // Settings list, so scroll it into view first — off-screen SwiftUI List
+        // cells aren't in the a11y tree.
         let licensesRow = app.buttons["Open-Source Licenses"].firstMatch
+        reveal(app, licensesRow, by: { app.swipeUp() })
         XCTAssertTrue(licensesRow.waitForExistence(timeout: 10),
-                      "'Open-Source Licenses' row missing from Settings")
+                      "'Open-Source Licenses' row missing from Global Settings")
         licensesRow.tap()
 
         // The list includes the MLX trigger and KataGo itself.
@@ -299,6 +308,20 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Swipe until `element` is present, up to `maxSwipes` (off-screen SwiftUI
+    /// List/Form cells aren't in the a11y tree).
+    @MainActor
+    private func reveal(_ app: XCUIApplication,
+                        _ element: XCUIElement,
+                        by swipe: () -> Void,
+                        maxSwipes: Int = 8) {
+        var n = 0
+        while !element.exists && n < maxSwipes {
+            swipe()
+            n += 1
+        }
+    }
 
     /// Parses the "<Label>: N of M" fragment from a footer line.
     private func parseCount(_ label: String) -> Int {
@@ -346,10 +369,11 @@ final class CoreMLCacheFooterUITests: XCTestCase {
 
     /// After tapping play, the engine launches and the goban (GameSplitView)
     /// appears. Quitting the engine (return to the model picker) now lives in
-    /// Settings ▸ Engine: tapping the Model row raises a confirmation dialog
-    /// whose destructive "Quit" tears down the engine — commit f9c85d85 removed
-    /// the old sidebar-toolbar Quit button. Reach it via the board "More" menu
-    /// (the same path the passing display-preferences / licenses tests use).
+    /// Global Settings ▸ Engine: tapping the Model row raises a confirmation
+    /// dialog whose destructive "Quit" tears down the engine — commit f9c85d85
+    /// removed the old sidebar-toolbar Quit button. Reach it via the board
+    /// "More" menu (the same path the passing display-preferences / licenses
+    /// tests use).
     @MainActor
     private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
         // Wait for the goban detail. The "Lock" toolbar button is the most
@@ -358,19 +382,25 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
                       "Goban (Lock button) did not appear after launching \(label) engine")
 
-        // Board "More" → "Settings".
+        // Board "More" → "Settings" → "Global Settings".
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")
         more.tap()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found (\(label))")
         settings.tap()
+        let globalSettings = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
+                      "Global Settings row not found (\(label))")
+        globalSettings.tap()
 
-        // Engine ▸ Model row raises the quit confirmation.
+        // Engine ▸ Model row raises the quit confirmation. It sits near the
+        // bottom of the (long) Global Settings list, so scroll it into view.
         let quitRow = app.descendants(matching: .any)
-            .matching(identifier: "ConfigView.quitEngineRow").firstMatch
+            .matching(identifier: "GlobalSettingsView.quitEngineRow").firstMatch
+        reveal(app, quitRow, by: { app.swipeUp() })
         XCTAssertTrue(quitRow.waitForExistence(timeout: 10),
-                      "Quit engine row not found in Settings (\(label))")
+                      "Quit engine row not found in Global Settings (\(label))")
         quitRow.tap()
 
         // Confirmation dialog renders as a sheet on iPhone. Tap the
