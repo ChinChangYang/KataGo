@@ -51,10 +51,7 @@ struct VisionRootView: View {
                     shell: shell,
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
-                    gameRecords: gameRecords,
-                    maxBoardLength: engineController.maxBoardLength,
                     onNewGame: { startNewGame(size: $0) },
-                    onOpenGame: { openGame($0) },
                     onUndo: { undoOneMove() },
                     onSparkle: { sparkleAnalysisAction() },
                     onToggleAI: { toggleAI(for: $0) },
@@ -71,6 +68,18 @@ struct VisionRootView: View {
                 VisionControllerLegend {
                     shell.showingControllerHelp = false
                 }
+            }
+        }
+        .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0, y: 0.5, z: 1)),
+                  contentAlignment: .trailing) {
+            if isReady, shell.showingGameList {
+                VisionGameListOrnament(
+                    gameRecords: gameRecords,
+                    maxBoardLength: engineController.maxBoardLength,
+                    navigationContext: navigationContext,
+                    onOpenGame: { openGame($0) },
+                    onDismiss: { shell.showingGameList = false }
+                )
             }
         }
         .onChange(of: controllerInput.isConnected) { _, connected in

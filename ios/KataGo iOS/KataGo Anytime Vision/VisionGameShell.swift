@@ -28,6 +28,10 @@ final class VisionGameShell {
     var showingControllerHelp = false
     var hasAutoShownControllerHelp = false
 
+    /// Left-side game-list ornament visibility, toggled from the control
+    /// bar's Games button.
+    var showingGameList = false
+
     /// Board orientation: false = lying flat on the volume floor (tabletop),
     /// true = standing upright facing the viewer (wall demonstration board).
     /// Persisted across launches.

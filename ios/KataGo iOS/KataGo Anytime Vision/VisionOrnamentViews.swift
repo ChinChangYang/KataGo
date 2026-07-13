@@ -3,11 +3,11 @@
 //  KataGo Anytime Vision
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
-//  New Game (9/13/19), the Games picker (newest iCloud-synced games), Undo,
-//  the analysis sparkle (run/pause/off), the board orientation toggle,
-//  controller help, the connect-controller hint, and the illegal-move row.
-//  Ordinary SwiftUI — always pinch-interactive; the game controller never
-//  drives the ornament.
+//  New Game (9/13/19), the Games toggle (shows/hides the left-side game-list
+//  ornament), Undo, the analysis sparkle (run/pause/off), the board
+//  orientation toggle, controller help, the connect-controller hint, and the
+//  illegal-move row. Ordinary SwiftUI — always pinch-interactive; the game
+//  controller never drives the ornament.
 //
 
 import SwiftUI
@@ -19,19 +19,11 @@ struct VisionControlOrnament: View {
     let shell: VisionGameShell
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
-    let gameRecords: [GameRecord]
-    let maxBoardLength: Int
     let onNewGame: (Int) -> Void
-    let onOpenGame: (GameRecord) -> Void
     let onUndo: () -> Void
     let onSparkle: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
-
-    /// The `@Query` is newest-first, so the games that matter are always in
-    /// range; beyond ~20 rows a pinch menu stops being usable anyway (same
-    /// cap as the widget's game picker).
-    private static let maxPickerGames = 20
 
     var body: some View {
         Group {
@@ -64,14 +56,12 @@ struct VisionControlOrnament: View {
                     Label("New Game", systemImage: "plus")
                 }
 
-                Menu {
-                    ForEach(gameRecords.prefix(Self.maxPickerGames)) { record in
-                        gameRow(record)
-                    }
+                Button {
+                    shell.showingGameList.toggle()
                 } label: {
-                    Label("Games", systemImage: "square.stack.3d.up")
+                    Label("Games", systemImage: shell.showingGameList
+                          ? "square.stack.3d.up.fill" : "square.stack.3d.up")
                 }
-                .disabled(gameRecords.isEmpty)
 
                 Button(action: onUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
@@ -132,36 +122,6 @@ struct VisionControlOrnament: View {
     }
 
     // MARK: - Pieces
-
-    /// One Games-picker row: name + "date · size", checkmark on the open
-    /// game, disabled when the stored size is known-unsupported (unknown
-    /// sizes stay enabled — openGame re-derives from the SGF and gates).
-    private func gameRow(_ record: GameRecord) -> some View {
-        let item = VisionGamePickerItem.make(
-            name: record.name,
-            lastModificationDate: record.lastModificationDate,
-            width: record.width,
-            height: record.height,
-            maxBoardLength: maxBoardLength)
-        let isCurrent = record.persistentModelID
-            == navigationContext.selectedGameRecord?.persistentModelID
-
-        return Button {
-            onOpenGame(record)
-        } label: {
-            // Bare Text/Text/Image in the label builder: menus map these to
-            // title, subtitle, and trailing icon (a Label's title builder
-            // drops the subtitle Text on visionOS).
-            Text(item.title)
-            if !item.detailText.isEmpty {
-                Text(item.detailText)
-            }
-            if isCurrent {
-                Image(systemName: "checkmark")
-            }
-        }
-        .disabled(!item.isSelectable)
-    }
 
     /// Pinch to flip the side between Human and AI (mirrors the iOS
     /// captured-stone-capsule tap).
@@ -268,5 +228,93 @@ struct VisionControllerLegend: View {
         }
         .padding(20)
         .glassBackgroundEffect()
+    }
+}
+
+/// Left-side game list, toggled from the control bar's Games button: the
+/// newest iCloud-synced games (the root @Query live-refreshes), pinch a row
+/// to load it. The list stays up after a pick so the checkmark tracks the
+/// switch; the toggle or the close button dismisses it.
+struct VisionGameListOrnament: View {
+    let gameRecords: [GameRecord]
+    let maxBoardLength: Int
+    let navigationContext: NavigationContext
+    let onOpenGame: (GameRecord) -> Void
+    let onDismiss: () -> Void
+
+    /// Newest-first, so the games that matter are always in range; the
+    /// scroll view keeps a long library usable (widget-picker precedent for
+    /// the bound itself).
+    private static let maxListedGames = 50
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Games", systemImage: "square.stack.3d.up")
+                    .font(.headline)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Close game list")
+            }
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(gameRecords.prefix(Self.maxListedGames)) { record in
+                        gameRow(record)
+                    }
+                }
+            }
+            .frame(width: 320)
+            .frame(maxHeight: 480)
+        }
+        .padding(20)
+        .glassBackgroundEffect()
+    }
+
+    /// One row: name over "date · size", checkmark on the open game,
+    /// disabled when the stored size is known-unsupported (unknown sizes
+    /// stay enabled — openGame re-derives from the SGF and gates).
+    private func gameRow(_ record: GameRecord) -> some View {
+        let item = VisionGamePickerItem.make(
+            name: record.name,
+            lastModificationDate: record.lastModificationDate,
+            width: record.width,
+            height: record.height,
+            maxBoardLength: maxBoardLength)
+        let isCurrent = record.persistentModelID
+            == navigationContext.selectedGameRecord?.persistentModelID
+
+        return Button {
+            onOpenGame(record)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.subheadline.bold())
+                        .lineLimit(1)
+                    if !item.detailText.isEmpty {
+                        Text(item.detailText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if isCurrent {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isCurrent ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .disabled(!item.isSelectable)
     }
 }
