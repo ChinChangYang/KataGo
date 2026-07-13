@@ -50,10 +50,6 @@ struct MacBoardHostView: View {
     /// generic MLX/GPU "Loading…"). `@Observable`, so reading `.phase` in `body`
     /// keeps the caption live as the launch path advances it.
     let engineLaunchStatus: EngineLaunchStatus
-    /// Title of the model currently being launched, shown under the caption so the
-    /// user knows which net is loading. Passed in (not threaded as state) — it is a
-    /// snapshot for display only.
-    let activeModelTitle: String
 
     /// `BoardView` takes a `FocusState<Bool>.Binding` for its comment field.
     /// Phase 1 has no comment editor on macOS, so this is a private focus state
@@ -97,8 +93,7 @@ struct MacBoardHostView: View {
                 }
             } else {
                 EngineLaunchStatusView(
-                    engineLaunchStatus: engineLaunchStatus,
-                    activeModelTitle: activeModelTitle
+                    engineLaunchStatus: engineLaunchStatus
                 )
             }
         }
@@ -106,16 +101,15 @@ struct MacBoardHostView: View {
 }
 
 /// Pre-ready board-pane loading screen: the spinning circular KataGo icon, a
-/// ticking "Loading…" headline, an optional Core ML compile-status caption, and
-/// the model name being launched — matching the iOS `LoadingView` design (the
-/// tvOS `TVLoadingView` is the same port). The icon rotates continuously until
+/// ticking "Loading…" headline, and an optional Core ML compile-status caption —
+/// matching the iOS `LoadingView` design (the tvOS `TVLoadingView` is the same
+/// port). The icon rotates continuously until
 /// the engine is ready — a first-launch Core ML compile can outlast a single
 /// turn — and is pinned when Reduce Motion is on. The MLX/GPU default path never
 /// advances the phase, so `secondaryLine` is `nil` there and the ticking
 /// headline carries the "Loading…" text.
 private struct EngineLaunchStatusView: View {
     let engineLaunchStatus: EngineLaunchStatus
-    let activeModelTitle: String
 
     @State private var degreesRotating = 0.0
     @State private var dotCount = 0
@@ -137,14 +131,6 @@ private struct EngineLaunchStatusView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                         .accessibilityAddTraits(.updatesFrequently)
-                }
-
-                if !activeModelTitle.isEmpty {
-                    Text(activeModelTitle)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
                 }
 
                 Image(.loadingIcon)

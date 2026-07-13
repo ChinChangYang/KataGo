@@ -1179,6 +1179,11 @@ final class MainWindowController: NSWindowController {
             modelSelection.pendingLoadModelTitle = ""
         }
         lastLoadedModelTitle = newValue
+        // The engine just reported the net it actually loaded; refresh the
+        // toolbar button title so a fallback launch (picked net missing → built-in
+        // runs) shows the running net, not the optimistic pick. The dropdown's
+        // checkmark is already live — it rebuilds via `menuNeedsUpdate` on open.
+        refreshActiveModelToolbarItem()
     }
 
     // MARK: - Continuous analysis lifecycle
@@ -2487,8 +2492,7 @@ final class MainWindowController: NSWindowController {
                                          navigationContext: self.navigationContext,
                                          audioModel: self.audioModel,
                                          readiness: self.boardReadiness,
-                                         engineLaunchStatus: self.engineLaunchStatus,
-                                         activeModelTitle: self.modelSelection.currentModel.title)
+                                         engineLaunchStatus: self.engineLaunchStatus)
                 .frame(width: 760, height: 800)
             let renderer = ImageRenderer(content: board)
             renderer.scale = 2
@@ -3036,12 +3040,38 @@ extension MainWindowController: NSToolbarDelegate {
         return item
     }
 
+    /// The model the switcher should mark active — its checkmark and the toolbar
+    /// button title. Prefers the net the engine actually reported loading
+    /// (`engineLifecycle.lastLoadedModelTitle`, the ground truth), so a fallback
+    /// launch (the picked net's file is missing → the engine runs the built-in)
+    /// marks the net that is really running rather than the optimistic pick.
+    /// Falls back to the persisted selection only before the first load completes
+    /// (`lastLoadedModelTitle` is nil until the engine's first GTP response).
+    private var activeModelTitleForDisplay: String {
+        if let loaded = engineLifecycle.lastLoadedModelTitle, !loaded.isEmpty {
+            return loaded
+        }
+        return modelSelection.currentModel.title
+    }
+
     /// Rebuilds the active-model dropdown's menu items from the live catalog +
     /// selection. Called from `menuNeedsUpdate(_:)` each time the menu opens, so
     /// checkmarks (active model) and enablement (downloaded?) are always current.
     fileprivate func rebuildActiveModelMenu(_ menu: NSMenu) {
         menu.removeAllItems()
-        let currentTitle = modelSelection.currentModel.title
+        let currentTitle = activeModelTitleForDisplay
+
+        // A pull-down `NSMenuToolbarItem` consumes menu item 0 as the button's
+        // label and does NOT show it in the dropdown list. Without a throwaway
+        // first item, the FIRST catalog entry — the built-in net, which is
+        // `NeuralNetworkModel.allCases[0]` — would silently vanish from the list.
+        // Prepend a disabled placeholder carrying the active title (matching the
+        // standard pull-down convention where item 0 is the current selection),
+        // so item 0 is the throwaway and every real model — built-in included —
+        // stays visible and selectable below it.
+        let header = NSMenuItem(title: currentTitle, action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
 
         for model in NeuralNetworkModel.allCases.filter({ $0.visible }) {
             let menuItem = NSMenuItem(title: model.title,
@@ -3071,7 +3101,7 @@ extension MainWindowController: NSToolbarDelegate {
     /// Called when the item is built and after a switch (the menu rebuilds itself,
     /// but the always-visible title is set imperatively).
     private func refreshActiveModelToolbarItem() {
-        activeModelToolbarItem?.title = modelSelection.currentModel.title
+        activeModelToolbarItem?.title = activeModelTitleForDisplay
     }
 
     /// Switches the active network from the toolbar dropdown. Resolves the chosen

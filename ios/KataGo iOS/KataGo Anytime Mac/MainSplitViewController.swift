@@ -78,8 +78,7 @@ final class MainSplitViewController: NSSplitViewController {
             navigationContext: navigationContext,
             audioModel: audioModel,
             readiness: readiness,
-            engineLaunchStatus: engineLaunchStatus,
-            activeModelTitle: windowController?.modelSelection.currentModel.title ?? ""
+            engineLaunchStatus: engineLaunchStatus
         )
         // Force the board VC's view to load now and remember it, so the window
         // controller can make it the window's `initialFirstResponder` (it's a
