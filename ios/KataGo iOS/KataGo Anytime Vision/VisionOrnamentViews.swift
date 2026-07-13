@@ -4,10 +4,11 @@
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
 //  New Game (9/13/19), the Games toggle (shows/hides the left-side game-list
-//  ornament), Undo, the analysis sparkle (run/pause/off), the board
-//  orientation toggle, controller help, the connect-controller hint, and the
-//  illegal-move row. Ordinary SwiftUI — always pinch-interactive; the game
-//  controller never drives the ornament.
+//  ornament), the analysis sparkle (run/pause/off), the board orientation
+//  toggle, controller help, the connect-controller hint, and the
+//  illegal-move row. No Undo button — the controller's X covers undo.
+//  Ordinary SwiftUI — always pinch-interactive; the game controller never
+//  drives the ornament.
 //
 
 import SwiftUI
@@ -20,7 +21,6 @@ struct VisionControlOrnament: View {
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
     let onNewGame: (Int) -> Void
-    let onUndo: () -> Void
     let onSparkle: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
@@ -61,10 +61,6 @@ struct VisionControlOrnament: View {
                 } label: {
                     Label("Games", systemImage: shell.showingGameList
                           ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                }
-
-                Button(action: onUndo) {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
                 }
 
                 // Sparkle = analysis engine state, with the three iOS styles:

@@ -52,7 +52,6 @@ struct VisionRootView: View {
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
                     onNewGame: { startNewGame(size: $0) },
-                    onUndo: { undoOneMove() },
                     onSparkle: { sparkleAnalysisAction() },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
