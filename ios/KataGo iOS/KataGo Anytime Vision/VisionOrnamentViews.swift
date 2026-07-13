@@ -3,9 +3,10 @@
 //  KataGo Anytime Vision
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
-//  New Game (9/13/19), Pass, Undo, the analysis eye, controller help, and
-//  the connect-controller hint. Ordinary SwiftUI — always pinch-interactive;
-//  the game controller never drives the ornament.
+//  New Game (9/13/19), Undo, the analysis sparkle (run/pause/off), the board
+//  orientation toggle, controller help, the connect-controller hint, and the
+//  illegal-move row. Ordinary SwiftUI — always pinch-interactive; the game
+//  controller never drives the ornament.
 //
 
 import SwiftUI

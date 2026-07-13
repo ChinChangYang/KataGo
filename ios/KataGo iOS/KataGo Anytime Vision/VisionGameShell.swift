@@ -7,7 +7,8 @@ import Foundation
 import KataGoUICore
 
 /// Volume-level UI state that lives outside GobanState: the boot/gating
-/// phase and the ornament's pass-confirmation flow.
+/// phase, controller-help visibility, and the persisted board-orientation
+/// preference.
 @Observable
 @MainActor
 final class VisionGameShell {
