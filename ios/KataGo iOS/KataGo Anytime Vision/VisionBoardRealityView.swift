@@ -37,6 +37,8 @@ struct VisionBoardRealityView: View {
                 // here in the update closure: reads deferred into the async
                 // board-load Task are invisible to SwiftUI's dependency
                 // tracking, and the view would never update again.
+                let showOwnership = session.gobanState.showOwnership
+                let ownershipUnits = session.analysis.ownershipUnits
                 let snapshot = SceneSnapshot(
                     width: Int(session.board.width),
                     height: Int(session.board.height),
@@ -49,6 +51,7 @@ struct VisionBoardRealityView: View {
                     maxVisits: maxVisits,
                     analysisVisible: analysisVisible,
                     analysisInformation: session.gobanState.analysisInformation,
+                    ownership: showOwnership ? ownershipUnits : [],
                     isBoardStanding: shell.isBoardStanding
                 )
                 syncScene(snapshot)
@@ -131,6 +134,7 @@ struct VisionBoardRealityView: View {
         let maxVisits: Int
         let analysisVisible: Bool
         let analysisInformation: Int
+        let ownership: [OwnershipUnit]
         let isBoardStanding: Bool
     }
 
@@ -173,6 +177,7 @@ struct VisionBoardRealityView: View {
         sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
         sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible
         sceneModel.applyCandidates(snapshot.candidates, maxVisits: snapshot.maxVisits)
+        sceneModel.applyOwnership(snapshot.ownership)
     }
 
     private func syncLabels(_ snapshot: SceneSnapshot, attachments: RealityViewAttachments) {

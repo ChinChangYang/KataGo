@@ -157,6 +157,7 @@ final class VisionBoardSceneModel {
         markerEntities.removeAll()
         labelEntities.removeAll()
         bestBackingEntity = nil
+        ownershipEntities.removeAll()
     }
 
     // MARK: - Stones
@@ -341,6 +342,66 @@ final class VisionBoardSceneModel {
             entity.removeFromParent()
             labelEntities.removeValue(forKey: vertex)
         }
+    }
+
+    // MARK: - Ownership overlay
+
+    private var ownershipEntities: [BoardPoint: (entity: ModelEntity, materialKey: Int)] = [:]
+    private var ownershipMesh: MeshResource?
+    /// Whiteness/opacity arrive digitized (5ths), so this stays tiny.
+    private var ownershipMaterials: [Int: UnlitMaterial] = [:]
+    /// Above the board top, below the best-move backing disc (its bottom
+    /// face sits at +0.0003) and the markers (+0.0015).
+    private static let ownershipLift: Float = 0.0002
+
+    /// Diffs the full-board ownership units into flat gray quads hugging the
+    /// board — the 3D mirror of AnalysisView.ownerships. Parented under
+    /// analysisRoot, so the B-button eye gate covers them; the caller passes
+    /// [] when Show ownership is off.
+    func applyOwnership(_ units: [OwnershipUnit]) {
+        guard let geometry, let manifest else { return }
+
+        let desired = Set(units.map(\.point))
+        for (point, entry) in ownershipEntities where !desired.contains(point) {
+            entry.entity.removeFromParent()
+            ownershipEntities.removeValue(forKey: point)
+        }
+
+        if ownershipMesh == nil {
+            ownershipMesh = MeshResource.generatePlane(width: 1, depth: 1)
+        }
+
+        for unit in units {
+            guard let position = geometry.position(of: unit.point) else { continue }
+            let mark = VisionOwnershipMark.make(unit: unit,
+                                                cellSpacingX: Float(manifest.spacing.x),
+                                                cellSpacingZ: Float(manifest.spacing.z))
+            let scale = SIMD3<Float>(mark.width, 1, mark.depth)
+            if let existing = ownershipEntities[unit.point] {
+                existing.entity.scale = scale
+                if existing.materialKey != mark.materialKey {
+                    existing.entity.model?.materials = [ownershipMaterial(for: mark)]
+                    ownershipEntities[unit.point] = (existing.entity, mark.materialKey)
+                }
+            } else {
+                let entity = ModelEntity(mesh: ownershipMesh!,
+                                         materials: [ownershipMaterial(for: mark)])
+                entity.position = position + SIMD3<Float>(0, Self.ownershipLift, 0)
+                entity.scale = scale
+                analysisRoot.addChild(entity)
+                ownershipEntities[unit.point] = (entity, mark.materialKey)
+            }
+        }
+    }
+
+    private func ownershipMaterial(for mark: VisionOwnershipMark) -> UnlitMaterial {
+        if let cached = ownershipMaterials[mark.materialKey] { return cached }
+        var material = UnlitMaterial(color: UIColor(white: CGFloat(mark.whiteness), alpha: 1))
+        material.faceCulling = .none
+        // Color alpha alone is ignored unless blending is transparent.
+        material.blending = .transparent(opacity: .init(floatLiteral: mark.opacity))
+        ownershipMaterials[mark.materialKey] = material
+        return material
     }
 
     // MARK: - Ghost
