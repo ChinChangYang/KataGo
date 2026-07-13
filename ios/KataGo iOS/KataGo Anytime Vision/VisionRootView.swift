@@ -54,6 +54,7 @@ struct VisionRootView: View {
                     onNewGame: { startNewGame(size: $0) },
                     onPass: { playPass() },
                     onUndo: { undoOneMove() },
+                    onSparkle: { sparkleAnalysisAction() },
                     onToggleEye: { toggleEye() },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
@@ -109,32 +110,40 @@ struct VisionRootView: View {
             }
         }
         .onChange(of: session.gobanState.waitingForAnalysis) { oldValue, newValue in
-            // Continuous-analysis re-arm (mirrors GameSplitView.processChange):
-            // any command sent mid-stream (a play, showboard, ...) halts the
-            // kata-analyze stream and drives this true→false edge. Unless the
-            // engine is about to gen-move, either stop for good (paused /
-            // power-saving) or RE-SEND the continuous bundle — without this,
-            // analysis freezes after the first human move.
+            // Stop half of the analysis lifecycle: when a freshly-armed wait
+            // resolves (first info line) while the user has paused or
+            // power-saving hides the overlay, halt the stream.
             guard oldValue, !newValue else { return }
-            guard let config = navigationContext.selectedGameRecord?.concreteConfig,
-                  !session.gobanState.shouldGenMove(config: config, player: session.player)
-            else { return }
-            if session.gobanState.analysisStatus == .pause
-                || session.gobanState.isAnalysisHiddenForPowerSaving(
-                    config: config,
-                    nextColorForPlayCommand: session.player.nextColorForPlayCommand) {
+            let powerHidden = navigationContext.selectedGameRecord.map {
+                session.gobanState.isAnalysisHiddenForPowerSaving(
+                    config: $0.concreteConfig,
+                    nextColorForPlayCommand: session.player.nextColorForPlayCommand)
+            } ?? false
+            if session.gobanState.analysisStatus == .pause || powerHidden {
                 session.messageList.appendAndSend(command: "stop")
-            } else if session.gobanState.analysisStatus == .run {
-                session.messageList.appendAndSend(commands: GtpCommandBuilder.continuousAnalyzeCommands(
-                    interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
             }
         }
-        .onChange(of: session.player.nextColorForPlayCommand) { _, _ in
-            guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return }
-            session.gobanState.maybeStopAnalysisForPowerSaving(
+        // THE per-move engine driver (mirrors BoardView's turn-change hook,
+        // which never mounts on Vision): every play/undo toggles the turn;
+        // re-establish the side-to-move's human-SL profile, then request
+        // either the gen-move bundle (AI's turn — the auto-reply) or the next
+        // continuous kata-analyze stream (the post-move analysis restart),
+        // and clear stale overlay data when nothing will stream.
+        .onChange(of: session.player.nextColorForPlayCommand) { oldValue, newValue in
+            guard oldValue != newValue,
+                  let config = navigationContext.selectedGameRecord?.concreteConfig
+            else { return }
+            session.gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+                nextColorForPlayCommand: newValue,
                 config: config,
-                nextColorForPlayCommand: session.player.nextColorForPlayCommand
-            )
+                messageList: session.messageList)
+            session.gobanState.maybeRequestAnalysis(
+                config: config,
+                nextColorForPlayCommand: newValue,
+                messageList: session.messageList)
+            session.gobanState.maybeRequestClearAnalysisData(
+                config: config,
+                nextColorForPlayCommand: newValue)
         }
         // 2D boards clear stale candidates in AnalysisView.onAppear; the 3D
         // scene has no such lifecycle hook, so honor the request here.
@@ -281,21 +290,48 @@ struct VisionRootView: View {
         }
     }
 
+    /// Eye = overlay VISIBILITY only (never touches analysisStatus). Its only
+    /// engine side effect is the power-saving pause/resume, exactly like the
+    /// iOS eye (GameSplitView's eye-status handler).
     private func toggleEye() {
         session.gobanState.eyeStatus =
             session.gobanState.eyeStatus == .opened ? .closed : .opened
-        // Closing the eye during a human-vs-AI human turn should also stop
-        // the stream (power saving); reopening re-requests analysis.
         guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return }
         if session.gobanState.eyeStatus == .opened {
-            session.gobanState.maybeRequestAnalysis(
-                config: config,
-                nextColorForPlayCommand: session.player.nextColorForPlayCommand,
-                messageList: session.messageList)
+            if session.gobanState.analysisStatus == .run,
+               !session.gobanState.shouldGenMove(config: config, player: session.player) {
+                session.gobanState.maybeRequestAnalysis(
+                    config: config,
+                    nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                    messageList: session.messageList)
+            }
         } else {
             session.gobanState.maybeStopAnalysisForPowerSaving(
                 config: config,
                 nextColorForPlayCommand: session.player.nextColorForPlayCommand)
+        }
+    }
+
+    /// Ported from the iOS toolbar's sparkle button: cycles the analysis
+    /// ENGINE state — run → pause → off → run. (The eye only hides it.)
+    private func sparkleAnalysisAction() {
+        switch session.gobanState.analysisStatus {
+        case .run:
+            session.gobanState.maybePauseAnalysis()
+        case .pause:
+            withAnimation {
+                session.gobanState.analysisStatus = .clear
+            }
+        case .clear:
+            session.gobanState.analysisStatus = .run
+            // Measure visits/s from this enable point so the prior pause
+            // doesn't drag the displayed rate down.
+            session.analysis.resetVisitsPerSecondSession()
+            guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return }
+            session.gobanState.maybeRequestAnalysis(
+                config: config,
+                nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                messageList: session.messageList)
         }
     }
 
@@ -431,6 +467,15 @@ struct VisionRootView: View {
             // Stand the board up (wall-demonstration orientation).
             try? await Task.sleep(for: .seconds(4))
             shell.isBoardStanding = true
+
+            // Feedback-1 regression probe: with White now AI, a second human
+            // Black move must draw an AUTOMATIC White reply (a stone with no
+            // VisionPlay log line) via the turn-change hook.
+            try? await Task.sleep(for: .seconds(3))
+            ghost.activate(width: 9, height: 9)
+            handleControllerEvent(.dpad(.down))
+            handleControllerEvent(.dpad(.down))
+            handleControllerEvent(.play)
         }
     }
     #endif

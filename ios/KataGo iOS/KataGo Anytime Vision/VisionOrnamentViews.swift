@@ -19,6 +19,7 @@ struct VisionControlOrnament: View {
     let onNewGame: (Int) -> Void
     let onPass: () -> Void
     let onUndo: () -> Void
+    let onSparkle: () -> Void
     let onToggleEye: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
@@ -60,6 +61,20 @@ struct VisionControlOrnament: View {
 
                 Button(action: onUndo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
+                }
+
+                // Sparkle = analysis engine on/pause/off (ported from the iOS
+                // toolbar); the eye below only controls overlay visibility.
+                Button(action: onSparkle) {
+                    Label {
+                        Text("Analysis")
+                    } icon: {
+                        Image(session.gobanState.analysisStatus == .clear
+                              ? "custom.sparkle.slash" : "custom.sparkle")
+                            .foregroundStyle(session.gobanState.analysisStatus == .run
+                                             ? AnyShapeStyle(.primary)
+                                             : AnyShapeStyle(.secondary))
+                    }
                 }
 
                 Button(action: onToggleEye) {
