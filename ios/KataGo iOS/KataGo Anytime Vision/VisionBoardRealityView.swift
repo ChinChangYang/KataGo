@@ -48,6 +48,7 @@ struct VisionBoardRealityView: View {
                     candidates: candidates,
                     maxVisits: maxVisits,
                     analysisVisible: analysisVisible,
+                    analysisInformation: session.gobanState.analysisInformation,
                     isBoardStanding: shell.isBoardStanding
                 )
                 syncScene(snapshot)
@@ -55,12 +56,19 @@ struct VisionBoardRealityView: View {
             } attachments: {
                 ForEach(candidates) { marker in
                     Attachment(id: marker.vertex) {
-                        Text("\(Int((marker.winrate * 100).rounded()))%")
+                        if !marker.labelLines.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(Array(marker.labelLines.enumerated()),
+                                        id: \.offset) { _, line in
+                                    Text(line)
+                                }
+                            }
                             .font(marker.isBest ? .caption.bold() : .caption2)
                             .monospacedDigit()
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .glassBackgroundEffect()
+                        }
                     }
                 }
             }
@@ -68,18 +76,28 @@ struct VisionBoardRealityView: View {
     }
 
     /// Top analysis candidates as marker view-models; `[0]` is the best move.
+    /// 2D parity for the Analysis information setting: None hides the whole
+    /// candidate layer (markers, labels, best backing — ownership is gated
+    /// separately), the other modes pick the label lines.
     private var candidateMarkers: [VisionBoardSceneModel.CandidateMarker] {
-        session.analysis
+        guard !session.gobanState.isAnalysisInformationNone else { return [] }
+        let information = session.gobanState.analysisInformation
+        return session.analysis
             .candidateMoves(width: Int(session.board.width),
                             height: Int(session.board.height),
                             limit: 8)
             .enumerated()
             .map { index, candidate in
-                VisionBoardSceneModel.CandidateMarker(point: candidate.point,
-                                                      vertex: candidate.vertex,
-                                                      visits: candidate.visits,
-                                                      winrate: candidate.winrate,
-                                                      isBest: index == 0)
+                VisionBoardSceneModel.CandidateMarker(
+                    point: candidate.point,
+                    vertex: candidate.vertex,
+                    visits: candidate.visits,
+                    labelLines: visionAnalysisLabelLines(
+                        analysisInformation: information,
+                        winrate: candidate.winrate,
+                        visits: candidate.visits,
+                        scoreLead: candidate.scoreLead),
+                    isBest: index == 0)
             }
     }
 
@@ -112,6 +130,7 @@ struct VisionBoardRealityView: View {
         let candidates: [VisionBoardSceneModel.CandidateMarker]
         let maxVisits: Int
         let analysisVisible: Bool
+        let analysisInformation: Int
         let isBoardStanding: Bool
     }
 

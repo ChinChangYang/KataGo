@@ -234,12 +234,14 @@ final class VisionBoardSceneModel {
 
     // MARK: - Analysis markers
 
-    /// View-model for one candidate move's 3D marker + label.
+    /// View-model for one candidate move's 3D marker + label. `labelLines`
+    /// is precomputed (visionAnalysisLabelLines) so the attachment renders
+    /// whatever the Analysis information setting selects.
     struct CandidateMarker: Equatable, Identifiable {
         let point: BoardPoint
         let vertex: String
         let visits: Int
-        let winrate: Float
+        let labelLines: [String]
         let isBest: Bool
         var id: String { vertex }
     }
