@@ -25,7 +25,8 @@ struct VisionCandidateMarkTests {
                       hiddenAnalysisVisitRatio: Float = 0.03125,
                       analysisInformation: Int = 0,
                       winrate: Float = 0.54,
-                      scoreLead: Float = -0.4) -> VisionCandidateMark {
+                      scoreLead: Float = -0.4,
+                      ownership: OwnershipUnit? = nil) -> VisionCandidateMark {
         VisionCandidateMark.make(visits: visits,
                                  maxVisits: maxVisits,
                                  utilityLcb: utilityLcb,
@@ -35,7 +36,8 @@ struct VisionCandidateMarkTests {
                                  winrate: winrate,
                                  scoreLead: scoreLead,
                                  cellSpacingX: spacingX,
-                                 cellSpacingZ: spacingZ)
+                                 cellSpacingZ: spacingZ,
+                                 ownership: ownership)
     }
 
     @Test func visibleMarkMatchesAnalysisViewAppearance() {
@@ -92,5 +94,48 @@ struct VisionCandidateMarkTests {
 
     @Test func equalInputsCompareEqual() {
         #expect(make() == make())
+    }
+
+    // Ownership at a candidate point renders INSIDE the attachment (a
+    // square beneath the circle) because RealityKit cannot sort scene
+    // transparents behind attachment planar UI — the square must mirror
+    // the scene quads' anisotropic sizing (cell × unit.scale per axis).
+
+    @Test func ownershipSquareMatchesSceneQuadProportions() {
+        let unit = OwnershipUnit(point: BoardPoint(x: 3, y: 4),
+                                 whiteness: 0.2, scale: 0.6, opacity: 0.5)
+        let square = make(ownership: unit).ownership
+        #expect(square != nil)
+        #expect(abs((square?.whiteness ?? -1) - 0.2) < 1e-6)
+        #expect(abs((square?.opacity ?? -1) - 0.5) < 1e-6)
+        // Frame side = one cellSpacingX (the smaller spacing), so the
+        // fractions reproduce width = 0.6·spacingX, height = 0.6·spacingZ.
+        #expect(abs(Float(square?.widthFraction ?? -1) - 0.6) < 1e-6)
+        #expect(abs(Float(square?.heightFraction ?? -1) - 0.6 * spacingZ / spacingX) < 1e-6)
+    }
+
+    @Test func ownershipSquareClampsToTheAttachmentFrame() {
+        // At scale 1.0 the true Z side (23.7 mm) exceeds the 22 mm frame;
+        // the attachment rasterizer clips at its bounds, so the fraction
+        // caps at 1 instead of silently drawing outside.
+        let unit = OwnershipUnit(point: BoardPoint(x: 0, y: 0),
+                                 whiteness: 1.0, scale: 1.0, opacity: 0.8)
+        let square = make(ownership: unit).ownership
+        #expect(square?.widthFraction == 1)
+        #expect(square?.heightFraction == 1)
+    }
+
+    @Test func noOwnershipUnitMeansNoSquare() {
+        #expect(make().ownership == nil)
+    }
+
+    @Test func hiddenCandidateKeepsOwnershipSquare() {
+        // The dim 0.2 bare circle still sits over its intersection — the
+        // ownership beneath it must not vanish just because the text did.
+        let unit = OwnershipUnit(point: BoardPoint(x: 1, y: 1),
+                                 whiteness: 0.0, scale: 0.8, opacity: 0.62)
+        let mark = make(visits: 24, ownership: unit)
+        #expect(mark.opacity == 0.2)
+        #expect(mark.ownership != nil)
     }
 }

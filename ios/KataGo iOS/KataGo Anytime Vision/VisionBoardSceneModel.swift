@@ -372,9 +372,12 @@ final class VisionBoardSceneModel {
     /// Whiteness/opacity arrive digitized (5ths), so this stays tiny.
     private var ownershipMaterials: [Int: UnlitMaterial] = [:]
     /// Above the board top (+0.0002), below the marker attachments
-    /// (+0.0008). The Y lift alone cannot order these against the
-    /// alpha-blended marker attachments — planar UI sorts in its own pass —
-    /// so the quads also carry `ModelSortGroup.planarUIAlwaysBehind`.
+    /// (+0.0008). The quads never share a point with a candidate circle:
+    /// RealityKit cannot sort scene transparents behind attachment planar
+    /// UI (`ModelSortGroup.planarUIAlwaysBehind` and a shared explicit
+    /// sort group were both no-ops against attachments, visionOS 26.5),
+    /// so candidate points are filtered out of the quad list and their
+    /// ownership renders inside the attachment (VisionCandidateMarkerView).
     private static let ownershipLift: Float = 0.0002
 
     /// Diffs the full-board ownership units into flat gray quads hugging the
@@ -412,8 +415,6 @@ final class VisionBoardSceneModel {
                                          materials: [ownershipMaterial(for: mark)])
                 entity.position = position + SIMD3<Float>(0, Self.ownershipLift, 0)
                 entity.scale = scale
-                entity.components.set(
-                    ModelSortGroupComponent(group: .planarUIAlwaysBehind, order: 0))
                 analysisRoot.addChild(entity)
                 ownershipEntities[unit.point] = (entity, mark.materialKey)
             }

@@ -25,6 +25,7 @@ struct VisionBoardRealityView: View {
     var body: some View {
         GeometryReader3D { proxy in
             let candidates = candidateMarkers
+            let candidatePoints = Set(candidates.map(\.point))
             let analysisVisible = session.gobanState.eyeStatus == .opened
 
             RealityView { content, _ in
@@ -50,7 +51,13 @@ struct VisionBoardRealityView: View {
                     candidates: candidates,
                     analysisVisible: analysisVisible,
                     analysisInformation: session.gobanState.analysisInformation,
-                    ownership: showOwnership ? ownershipUnits : [],
+                    // Candidate points render their ownership inside the
+                    // marker attachment (see candidateMarkers) — a scene
+                    // quad there would draw OVER the circle, because
+                    // RealityKit cannot sort transparents behind
+                    // attachment planar UI.
+                    ownership: (showOwnership ? ownershipUnits : [])
+                        .filter { !candidatePoints.contains($0.point) },
                     isBoardStanding: shell.isBoardStanding
                 )
                 syncScene(snapshot)
@@ -77,6 +84,11 @@ struct VisionBoardRealityView: View {
         let maxVisits = max(1, session.analysis.maxVisits ?? 1)
         let maxUtilityLcb = session.analysis.info.values.map(\.utilityLcb).max()
         let spacing = sceneModel.cellSpacing
+        // Same gate as the scene quads: no squares when ownership is off.
+        let ownershipByPoint = session.gobanState.showOwnership
+            ? Dictionary(session.analysis.ownershipUnits.map { ($0.point, $0) },
+                         uniquingKeysWith: { first, _ in first })
+            : [:]
         return session.analysis
             .candidateMoves(width: Int(session.board.width),
                             height: Int(session.board.height),
@@ -95,7 +107,8 @@ struct VisionBoardRealityView: View {
                         winrate: candidate.winrate,
                         scoreLead: candidate.scoreLead,
                         cellSpacingX: spacing.x,
-                        cellSpacingZ: spacing.z))
+                        cellSpacingZ: spacing.z,
+                        ownership: ownershipByPoint[candidate.point]))
             }
     }
 
@@ -192,6 +205,17 @@ private struct VisionCandidateMarkerView: View {
 
     var body: some View {
         ZStack {
+            // The intersection's ownership, beneath the circle — the same
+            // gray square the scene draws on non-candidate points (those
+            // points are filtered out of the quad overlay; see
+            // VisionCandidateMark.OwnershipSquare).
+            if let square = mark.ownership {
+                Rectangle()
+                    .fill(Color(white: square.whiteness)
+                        .opacity(square.opacity))
+                    .frame(width: mark.framePoints * square.widthFraction,
+                           height: mark.framePoints * square.heightFraction)
+            }
             Circle()
                 .fill(Color(hue: mark.hue, saturation: 1, brightness: 1))
                 .opacity(mark.opacity)
