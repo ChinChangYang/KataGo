@@ -297,16 +297,18 @@ struct VisionSettingsOrnament: View {
             // buffer, so changing it quits and respawns the engine — the same
             // proven flow as tvOS's Board Size setting. Disabled unless the
             // engine is running (a restart in flight serves the OLD buffer).
-            HStack {
+            // Segmented, not a Menu: this card sits at the volume's top edge
+            // and a Menu opened upward, clipping its upper options outside
+            // the window.
+            VStack(alignment: .leading, spacing: 8) {
                 Label("Max board size", systemImage: "squareshape.split.3x3")
-                Spacer()
                 Picker("Max board size", selection: $boardSize) {
                     ForEach(BoardSizeChoice.allCases) { choice in
                         Text(choice.label).tag(choice)
                     }
                 }
+                .pickerStyle(.segmented)
                 .labelsHidden()
-                .fixedSize()
                 .disabled(engine.phase != .running)
             }
             .onChange(of: boardSize) { oldValue, newValue in
