@@ -38,17 +38,20 @@ final class VisionGameShell {
     /// bar's Games button.
     var showingGameList = false
 
-    /// Settings, the controller legend, and the custom New Game panel share
-    /// the right-side anchor, so opening any one closes the others — use
-    /// the toggle helpers, never the flags directly, from the bar buttons.
+    /// Settings, the controller legend, the custom New Game panel, and the
+    /// Models card share the right-side anchor, so opening any one closes
+    /// the others — use the toggle helpers, never the flags directly, from
+    /// the bar buttons.
     var showingSettings = false
     var showingNewGamePanel = false
+    var showingModels = false
 
     func toggleSettings() {
         showingSettings.toggle()
         if showingSettings {
             showingControllerHelp = false
             showingNewGamePanel = false
+            showingModels = false
         }
     }
 
@@ -57,6 +60,7 @@ final class VisionGameShell {
         if showingControllerHelp {
             showingSettings = false
             showingNewGamePanel = false
+            showingModels = false
         }
     }
 
@@ -65,6 +69,7 @@ final class VisionGameShell {
         if showingNewGamePanel {
             showingSettings = false
             showingControllerHelp = false
+            showingModels = false
         }
     }
 
@@ -72,6 +77,15 @@ final class VisionGameShell {
     func presentControllerHelp() {
         showingControllerHelp = true
         showingSettings = false
+        showingNewGamePanel = false
+        showingModels = false
+    }
+
+    /// Settings' "Neural Net" row opens the Models card in the same slot.
+    func presentModels() {
+        showingModels = true
+        showingSettings = false
+        showingControllerHelp = false
         showingNewGamePanel = false
     }
 

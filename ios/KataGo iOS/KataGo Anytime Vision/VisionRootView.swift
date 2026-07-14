@@ -23,6 +23,7 @@ struct VisionRootView: View {
     @State private var engineLifecycle = EngineLifecycle()
     @State private var engineController = VisionEngineController()
     @State private var modelSelection = ModelSelectionStore()
+    @State private var cacheReadiness = CoreMLCacheReadiness()
     @State private var shell = VisionGameShell()
     @State private var navigationContext = NavigationContext()
     @State private var audioModel = AudioModel()
@@ -114,8 +115,14 @@ struct VisionRootView: View {
             if isReady, shell.showingSettings {
                 VisionSettingsOrnament(shell: shell,
                                        engine: engineController,
+                                       onShowModels: { shell.presentModels() },
                                        onRestart: { restartEngineForMaxBoardSize() },
                                        onDismiss: { shell.showingSettings = false })
+            } else if isReady, shell.showingModels {
+                VisionModelsOrnament(engine: engineController,
+                                     readiness: cacheReadiness,
+                                     onActivate: { activateModel($0) },
+                                     onDismiss: { shell.showingModels = false })
             } else if isReady, shell.showingControllerHelp {
                 VisionControllerLegend {
                     shell.showingControllerHelp = false
@@ -551,6 +558,10 @@ struct VisionRootView: View {
     // MARK: - Boot
 
     private func initializationTask() async {
+        // Arm the CoreML cache-readiness signal (the Models card's green
+        // checkmarks) — idempotent, and independent of the engine.
+        await cacheReadiness.start()
+
         // Session-level flags BEFORE the handshake completes, so no engine
         // reply can precede them (tvOS discipline).
         session.autoCreatesGameOnEmptyLibrary = false
@@ -652,6 +663,27 @@ struct VisionRootView: View {
         Task {
             shell.phase = .booting
             guard await engineController.restartEngine() else { return }
+            if resolveAndMountCurrentGame() {
+                shell.phase = .ready
+            }
+        }
+    }
+
+    /// Models-card activation: the Max-Board-Size restart flow with a model
+    /// swap — quit → respawn with the new net behind the loading card, then
+    /// re-gate and re-mount the current game. A board over the new net's
+    /// effective buffer (its own per-model Max Board Size, clamped to its
+    /// nnLen) lands in .boardTooLarge; the Settings picker then edits the
+    /// NEW model's key, so raising it there is a working exit. Persistence
+    /// happens via the lastLoadedModelTitle observer once the handshake
+    /// lands — an activation that dies mid-load leaves the sentinel armed
+    /// and the next boot falls back to the built-in.
+    private func activateModel(_ model: NeuralNetworkModel) {
+        guard engineController.phase == .running,
+              model.title != engineController.activeModel.title else { return }
+        Task {
+            shell.phase = .booting
+            guard await engineController.restartEngine(loading: model) else { return }
             if resolveAndMountCurrentGame() {
                 shell.phase = .ready
             }

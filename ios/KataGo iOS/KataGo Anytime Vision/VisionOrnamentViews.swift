@@ -334,6 +334,7 @@ struct VisionControllerLegend: View {
 struct VisionSettingsOrnament: View {
     @Bindable var shell: VisionGameShell
     let engine: VisionEngineController
+    let onShowModels: () -> Void
     let onRestart: () -> Void
     let onDismiss: () -> Void
 
@@ -343,10 +344,12 @@ struct VisionSettingsOrnament: View {
 
     init(shell: VisionGameShell,
          engine: VisionEngineController,
+         onShowModels: @escaping () -> Void,
          onRestart: @escaping () -> Void,
          onDismiss: @escaping () -> Void) {
         self.shell = shell
         self.engine = engine
+        self.onShowModels = onShowModels
         self.onRestart = onRestart
         self.onDismiss = onDismiss
         // The buffer setting is per-model (per-fileName BackendSettings
@@ -389,6 +392,24 @@ struct VisionSettingsOrnament: View {
             Toggle(isOn: $shell.isBoardStanding) {
                 Label("Stand board up", systemImage: "rectangle.portrait.rotate")
             }
+
+            // Opens the Models card in this same right-anchor slot (the
+            // shell's presentModels closes settings) — download and
+            // activate extra nets, iOS model-picker style.
+            Button(action: onShowModels) {
+                HStack {
+                    Label("Neural Net", systemImage: "brain")
+                    Spacer()
+                    Text(engine.activeModel.title)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Neural Net: \(engine.activeModel.title)")
 
             // NN-buffer cap: bigger boards need a bigger (slower, hungrier)
             // buffer, so changing it quits and respawns the engine — the same
