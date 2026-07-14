@@ -47,25 +47,6 @@ public struct BoardSceneGeometry: Sendable {
         stepZ = -Float(BoardGeometryRules.spacingZ)
     }
 
-    public init(entry: BoardAssetManifest.BoardEntry) {
-        width = entry.n
-        height = entry.n
-        topY = Float(entry.topY)
-        positions = entry.intersections.flatMap { row in
-            row.map { SIMD3<Float>(Float($0[0]), Float($0[1]), Float($0[2])) }
-        }
-        let first = positions[0]
-        originX = first.x
-        frontZ = first.z
-        if entry.n > 1 {
-            stepX = (positions[entry.n - 1].x - first.x) / Float(entry.n - 1)
-            stepZ = (positions[(entry.n - 1) * entry.n].z - first.z) / Float(entry.n - 1)
-        } else {
-            stepX = 1
-            stepZ = -1
-        }
-    }
-
     public func position(of point: BoardPoint) -> SIMD3<Float>? {
         guard point.x >= 0, point.x < width, point.y >= 0, point.y < height else { return nil }
         return positions[point.y * width + point.x]

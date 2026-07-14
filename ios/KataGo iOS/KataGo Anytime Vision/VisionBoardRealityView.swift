@@ -105,12 +105,12 @@ struct VisionBoardRealityView: View {
         sceneModel.frameSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
             MainActor.assumeIsolated {
                 let stick = controllerInput.readLeftStick()
-                guard stick != .zero, sceneModel.boardSize > 0 else { return }
+                guard stick != .zero, sceneModel.boardWidth > 0 else { return }
                 let dt = Float(event.deltaTime)
                 ghost.glide(dColumn: stick.x * Self.glideSpeed * dt,
                             dRow: stick.y * Self.glideSpeed * dt,
-                            width: sceneModel.boardSize,
-                            height: sceneModel.boardSize)
+                            width: sceneModel.boardWidth,
+                            height: sceneModel.boardHeight)
             }
         }
     }
@@ -154,10 +154,10 @@ struct VisionBoardRealityView: View {
     private func syncScene(_ snapshot: SceneSnapshot) {
         guard visionBoardIsSupported(width: snapshot.width, height: snapshot.height) else { return }
 
-        if sceneModel.boardSize != snapshot.width {
+        if sceneModel.boardWidth != snapshot.width || sceneModel.boardHeight != snapshot.height {
             guard !sceneModel.isLoadingBoard else { return }
             Task { @MainActor in
-                try? await sceneModel.loadBoard(size: snapshot.width)
+                try? await sceneModel.loadBoard(width: snapshot.width, height: snapshot.height)
                 applyDynamicState(snapshot)
             }
         } else {

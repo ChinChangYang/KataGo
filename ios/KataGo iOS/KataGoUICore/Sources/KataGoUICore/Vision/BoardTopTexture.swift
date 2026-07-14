@@ -16,6 +16,7 @@
 //  grain and all geometry are exact ports).
 //
 
+import CoreGraphics
 import Foundation
 
 public struct BoardTopTexture: Sendable {
@@ -23,6 +24,23 @@ public struct BoardTopTexture: Sendable {
     public let heightPX: Int
     /// RGBA8, row-major from the top-left corner.
     public let pixels: [UInt8]
+
+    /// The buffer as a CGImage (sRGB, alpha last) for TextureResource creation.
+    public var cgImage: CGImage? {
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGImage(width: widthPX,
+                       height: heightPX,
+                       bitsPerComponent: 8,
+                       bitsPerPixel: 32,
+                       bytesPerRow: widthPX * 4,
+                       space: colorSpace,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider,
+                       decode: nil,
+                       shouldInterpolate: true,
+                       intent: .defaultIntent)
+    }
 
     public static func generate(boardWidth: Int, boardHeight: Int) -> BoardTopTexture {
         let size = BoardGeometryRules.textureSize(width: boardWidth, height: boardHeight)

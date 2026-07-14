@@ -262,7 +262,6 @@
 		87553E56FC6BBBA046372FC7 /* SharedModelContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */; };
 		8963445BE5624392DCC7434A /* generated_message_util.cc in Sources */ = {isa = PBXBuildFile; fileRef = DD381267CDE6755BCF9CB1BA /* generated_message_util.cc */; };
 		8A6D501465C1CAA682321FC1 /* cord_rep_consume.cc in Sources */ = {isa = PBXBuildFile; fileRef = 20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */; };
-		8AB9E095880E742089CE79BC /* VisionTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8135EE6A7472476CD023E337 /* VisionTestFixtures.swift */; };
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
 		8BC1ECD0881AAE40EBD51E9F /* entropy_pool.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F0BA6B9BFF12E6C4D710DFA /* entropy_pool.cc */; };
 		8DCF5089D9460D2EE30FE445 /* WatchBoardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856DE13BF70384D14C92FA0B /* WatchBoardPage.swift */; };
@@ -335,7 +334,6 @@
 		AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		AE45237315F8D1F22A84E18C /* check_op.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9A84A6291B2BFE5CE2182097 /* check_op.cc */; };
 		AE962FFDE421736CB2AA09EB /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		AF092F2A5D4A10F81DCF26B1 /* BoardAssetManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25991B564F290D47AF90520E /* BoardAssetManifestTests.swift */; };
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
 		B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -418,7 +416,6 @@
 		DBC1AFC0053EB14FB17F9A7C /* crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = 735B5C87C4CA780F3E97EBA4 /* crc.cc */; };
 		DD2995ADAC6DF33E2A0675C8 /* SgfOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8F496C46C725561F7C5FE5 /* SgfOperationsTests.swift */; };
 		DD2A02CBBD4C336E9FA48A60 /* private_handle_accessor.cc in Sources */ = {isa = PBXBuildFile; fileRef = 22D8D0DC676FBF50F1B5ABDB /* private_handle_accessor.cc */; };
-		DD4801F6D202BFBA433A6124 /* BoardSceneGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF40EB51A6426D37127A92AC /* BoardSceneGeometryTests.swift */; };
 		DD9B8DC9B74721FCA5B5C001 /* img0811.bgr.raw in Resources */ = {isa = PBXBuildFile; fileRef = 6FB9A83B815280DFE56CEDB6 /* img0811.bgr.raw */; };
 		DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */; };
 		DE413A7DD5252929FD9EC41C /* MacBoardInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */; };
@@ -1004,7 +1001,6 @@
 		23916145488517F6991FE10B /* TVScoreChart.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVScoreChart.swift; sourceTree = "<group>"; };
 		23FE417A3D400E1C82F55C71 /* OwnershipBudgetTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OwnershipBudgetTests.swift; sourceTree = "<group>"; };
 		24A40B6C3B2B0D0D582CE4D7 /* common.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = common.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/stubs/common.cc"; sourceTree = SOURCE_ROOT; };
-		25991B564F290D47AF90520E /* BoardAssetManifestTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardAssetManifestTests.swift; sourceTree = "<group>"; };
 		25D1DEE9AEB16CE3578E7F54 /* time.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/time.cc"; sourceTree = SOURCE_ROOT; };
 		264B3893737FC446D6D67C6E /* numbers.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = numbers.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/numbers.cc"; sourceTree = SOURCE_ROOT; };
 		265F6595482BA2DE073D71EF /* WeightSerializer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WeightSerializer.cpp; path = ../../cpp/external/katagocoreml/src/serializer/WeightSerializer.cpp; sourceTree = SOURCE_ROOT; };
@@ -1151,7 +1147,6 @@
 		7F38048379046ED6C891F907 /* KataGo TV.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "KataGo TV.entitlements"; sourceTree = "<group>"; };
 		7FC19951736E383CCB25292A /* BoardTopTextureTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTopTextureTests.swift; sourceTree = "<group>"; };
 		805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_non_temporal_memcpy.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_non_temporal_memcpy.cc"; sourceTree = SOURCE_ROOT; };
-		8135EE6A7472476CD023E337 /* VisionTestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionTestFixtures.swift; sourceTree = "<group>"; };
 		822989D034C2C811FDDD8811 /* time_zone_impl.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_impl.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_impl.cc"; sourceTree = SOURCE_ROOT; };
 		822F1C257F53350EAC096A2A /* generic_printer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generic_printer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/generic_printer.cc"; sourceTree = SOURCE_ROOT; };
 		82B0CBAE49EB76F08CD6C3FA /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeWatchWidget/Info.plist; sourceTree = "<group>"; };
@@ -1325,7 +1320,6 @@
 		DD381267CDE6755BCF9CB1BA /* generated_message_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_message_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_message_util.cc"; sourceTree = SOURCE_ROOT; };
 		DD660F5C74D8EBF7E72E919F /* KataGoAnytimeWatchWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoAnytimeWatchWidgetBundle.swift; path = KataGoAnytimeWatchWidget/KataGoAnytimeWatchWidgetBundle.swift; sourceTree = "<group>"; };
 		DEA1AD8144A7D9DE42B555ED /* KataGo Anytime Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		DF40EB51A6426D37127A92AC /* BoardSceneGeometryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardSceneGeometryTests.swift; sourceTree = "<group>"; };
 		DF87CAF0BC8ED9616E552855 /* ModelPackage.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ModelPackage.cpp; path = ../../cpp/external/katagocoreml/vendor/modelpackage/src/ModelPackage.cpp; sourceTree = SOURCE_ROOT; };
 		DFC59CCEF4477CC17A3AA8E4 /* SampleGamesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SampleGamesTests.swift; sourceTree = "<group>"; };
 		E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = SubByteTypes.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/SubByteTypes.cpp; sourceTree = SOURCE_ROOT; };
@@ -2738,9 +2732,6 @@
 				C276ADB6F25F433978EE27AB /* CameraGuidanceLogicTests.swift */,
 				E4EE1ADF93ADB4E87458DB7B /* CropRectEditorTests.swift */,
 				3C752B2350908DEF196CB3E0 /* NewGameRulesetTests.swift */,
-				8135EE6A7472476CD023E337 /* VisionTestFixtures.swift */,
-				25991B564F290D47AF90520E /* BoardAssetManifestTests.swift */,
-				DF40EB51A6426D37127A92AC /* BoardSceneGeometryTests.swift */,
 				D26F1D6C1ED3EB7615BCE57B /* GhostCursorModelTests.swift */,
 				B18E6FCD9D36DF3E32236BAB /* VisionBoardSupportTests.swift */,
 				0D3E21A53DA500D5284C2130 /* AnalysisColorTests.swift */,
@@ -3976,9 +3967,6 @@
 				7B7A8A5EBC705F062329CC27 /* CameraGuidanceLogicTests.swift in Sources */,
 				99DFAB9CF401C3425EDE76ED /* CropRectEditorTests.swift in Sources */,
 				08A646E94882A058626D3743 /* NewGameRulesetTests.swift in Sources */,
-				8AB9E095880E742089CE79BC /* VisionTestFixtures.swift in Sources */,
-				AF092F2A5D4A10F81DCF26B1 /* BoardAssetManifestTests.swift in Sources */,
-				DD4801F6D202BFBA433A6124 /* BoardSceneGeometryTests.swift in Sources */,
 				5B6694CD33E651795A0C7B28 /* GhostCursorModelTests.swift in Sources */,
 				0FEC48B5C4644336A5986852 /* VisionBoardSupportTests.swift in Sources */,
 				456D0A81AD9E45506052044D /* AnalysisColorTests.swift in Sources */,

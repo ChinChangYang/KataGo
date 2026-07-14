@@ -34,13 +34,13 @@ final class VisionBoardSceneModel {
     private let ghostRoot = Entity()
 
     private(set) var geometry: BoardSceneGeometry?
-    private(set) var boardSize = 0
+    private(set) var boardWidth = 0
+    private(set) var boardHeight = 0
     private(set) var isLoadingBoard = false
 
     /// Retains the RealityView frame-update subscription (stick polling).
     var frameSubscription: EventSubscription?
 
-    private var manifest: BoardAssetManifest?
     private var boardModel: Entity?
     private var stonePrototypes: [PlayerColor: Entity] = [:]
     private var placed: [BoardPoint: (color: PlayerColor, entity: Entity)] = [:]
@@ -90,26 +90,17 @@ final class VisionBoardSceneModel {
         entity.children.forEach { disableFaceCulling(in: $0) }
     }
 
-    private func loadManifestIfNeeded() throws -> BoardAssetManifest {
-        if let manifest { return manifest }
-        let data = try Data(contentsOf: Self.assetURL("boards_manifest", ext: "json"))
-        let parsed = try BoardAssetManifest.parse(data)
-        manifest = parsed
-        return parsed
-    }
-
-    /// Swaps in the `size`×`size` board model (real scale, feet on y=0) and
-    /// resets the stone layer. No-op while a load is in flight or when the
-    /// size is already mounted.
-    func loadBoard(size: Int) async throws {
-        guard size != boardSize, !isLoadingBoard else { return }
+    /// Swaps in the board model for a `width` x `height` game and resets the
+    /// stone layer. No-op while a load is in flight or when the size is
+    /// already mounted. The bundled USDZs are geometry-only squares: a
+    /// rectangle reuses the width-matched square asset with its slab
+    /// depth-stretched and legs repositioned (BoardGeometryRules math), and
+    /// every board gets its top texture generated at load time — the swap
+    /// happens BEFORE the entity mounts, so the 4x4 placeholder never shows.
+    func loadBoard(width: Int, height: Int) async throws {
+        guard width != boardWidth || height != boardHeight, !isLoadingBoard else { return }
         isLoadingBoard = true
         defer { isLoadingBoard = false }
-
-        let manifest = try loadManifestIfNeeded()
-        guard let entry = manifest.entry(forSquareSize: size) else {
-            throw LoadError.missingAsset("go_board_\(size)x\(size).usdz")
-        }
 
         if stonePrototypes.isEmpty {
             let black = try await Entity(contentsOf: Self.assetURL("stone_black", ext: "usdz"))
@@ -120,15 +111,27 @@ final class VisionBoardSceneModel {
             stonePrototypes[.white] = white
         }
 
-        let board = try await Entity(contentsOf: Self.assetURL(entry.fileUSDZ.replacingOccurrences(of: ".usdz", with: ""), ext: "usdz"))
+        let fileName = "go_board_\(width)x\(width)"
+        let board = try await Entity(contentsOf: Self.assetURL(fileName, ext: "usdz"))
         Self.disableFaceCulling(in: board)
+        if height != width {
+            try Self.applyRectangularShape(to: board, width: width, height: height)
+        }
+
+        // Generate the top texture off-main and swap it over the placeholder
+        // while the OLD board is still mounted (no hole, no flash).
+        let top = await Task.detached {
+            BoardTopTexture.generate(boardWidth: width, boardHeight: height)
+        }.value
+        try await Self.applyTopTexture(top, to: board)
+
         boardModel?.removeFromParent()
         boardModel = board
         boardRoot.addChild(board)
 
         // Normalize whatever transform the USDZ loader produced back to the
         // asset contract (footprint center at the origin, feet on y=0), so
-        // manifest intersection coordinates land exactly on the drawn grid.
+        // computed intersection coordinates land exactly on the drawn grid.
         let local = board.visualBounds(relativeTo: boardRoot)
         board.position -= SIMD3<Float>(local.center.x, local.min.y, local.center.z)
         #if DEBUG
@@ -137,13 +140,14 @@ final class VisionBoardSceneModel {
               board.position.x, board.position.y, board.position.z)
         #endif
 
-        geometry = BoardSceneGeometry(entry: entry)
-        boardSize = size
+        geometry = BoardSceneGeometry(width: width, height: height)
+        boardWidth = width
+        boardHeight = height
 
         #if DEBUG
         let bounds = board.visualBounds(relativeTo: nil)
-        NSLog("VisionScene loadBoard n=%d file=%@ extents=(%.3f, %.3f, %.3f) center=(%.3f, %.3f, %.3f)",
-              size, entry.fileUSDZ,
+        NSLog("VisionScene loadBoard %dx%d file=%@ extents=(%.3f, %.3f, %.3f) center=(%.3f, %.3f, %.3f)",
+              width, height, fileName,
               bounds.extents.x, bounds.extents.y, bounds.extents.z,
               bounds.center.x, bounds.center.y, bounds.center.z)
         #endif
@@ -156,6 +160,78 @@ final class VisionBoardSceneModel {
         // "updates" detached entities that never re-mount.
         markerEntities.removeAll()
         ownershipEntities.removeAll()
+    }
+
+    /// Depth-stretches the width-matched square asset into a W x H rectangle,
+    /// reproducing the pipeline's parametric rules. The USDZ's `root` prim
+    /// carries Blender's -90° X rotation, so its children work in Blender
+    /// coordinates: local Y is the slab DEPTH and local Z is UP. The slab
+    /// Xform scales along local Y; the leg Xforms (bun feet, lathe-built
+    /// around local Z) move to the rectangle's inset corners and rescale
+    /// radially (local X/Y only — leg height and the board top stay put).
+    private static func applyRectangularShape(to board: Entity,
+                                              width: Int, height: Int) throws {
+        guard let root = board.findEntity(named: "root") else {
+            throw LoadError.missingAsset("root prim in go_board_\(width)x\(width).usdz")
+        }
+        let rect = BoardGeometryRules.dimensions(width: width, height: height)
+        let square = BoardGeometryRules.dimensions(width: width, height: width)
+        let depthRatio = Float(rect.boardZMM / square.boardZMM)
+        let radialRatio = Float(rect.kr / square.kr)
+
+        var slabFound = false
+        var legCount = 0
+        for child in root.children {
+            if child.name == "BoardSlab" {
+                child.scale.y *= depthRatio
+                slabFound = true
+            } else if child.name.hasPrefix("Leg") {
+                child.position.x = (child.position.x < 0 ? -1 : 1)
+                    * Float(rect.boardXMM / 2000 - rect.inset)
+                child.position.y = (child.position.y < 0 ? -1 : 1)
+                    * Float(rect.boardZMM / 2000 - rect.inset)
+                child.scale.x *= radialRatio
+                child.scale.y *= radialRatio
+                legCount += 1
+            }
+        }
+        guard slabFound, legCount == 4 else {
+            throw LoadError.missingAsset(
+                "BoardSlab/Leg prims in go_board_\(width)x\(width).usdz")
+        }
+    }
+
+    /// Swaps the generated board-top image over the 4x4 placeholder texture.
+    /// The top material is identified by that placeholder size — never by
+    /// name or subset order.
+    private static func applyTopTexture(_ top: BoardTopTexture, to board: Entity) async throws {
+        guard let cgImage = top.cgImage else {
+            throw LoadError.missingAsset("board top texture bitmap")
+        }
+        let resource = try await TextureResource(
+            image: cgImage, options: .init(semantic: .color))
+
+        func swapPlaceholder(in entity: Entity) -> Int {
+            var swapped = 0
+            if var model = entity.components[ModelComponent.self] {
+                model.materials = model.materials.map { material in
+                    guard var pbr = material as? PhysicallyBasedMaterial,
+                          let texture = pbr.baseColor.texture,
+                          texture.resource.width == 4, texture.resource.height == 4
+                    else { return material }
+                    pbr.baseColor = .init(tint: .white,
+                                          texture: .init(resource))
+                    swapped += 1
+                    return pbr
+                }
+                entity.components.set(model)
+            }
+            return swapped + entity.children.reduce(0) { $0 + swapPlaceholder(in: $1) }
+        }
+
+        guard swapPlaceholder(in: board) > 0 else {
+            throw LoadError.missingAsset("4x4 placeholder top material")
+        }
     }
 
     // MARK: - Stones
@@ -254,10 +330,10 @@ final class VisionBoardSceneModel {
     /// ghost only ever lands on marked points.
     static let candidateMoveLimit = 10
 
-    /// Anisotropic cell spacing (22 x 23.7 mm on the bundled boards) for
-    /// sizing the flat markers; pre-load fallback matches the manifest.
+    /// Anisotropic cell spacing (22 x 23.7 mm, a physical constant of the
+    /// board family) for sizing the flat markers and ownership quads.
     var cellSpacing: (x: Float, z: Float) {
-        (Float(manifest?.spacing.x ?? 0.022), Float(manifest?.spacing.z ?? 0.0237))
+        (Float(BoardGeometryRules.spacingX), Float(BoardGeometryRules.spacingZ))
     }
 
     /// Lays the marker attachment flat on the board: -π/2 about X maps the
@@ -303,7 +379,7 @@ final class VisionBoardSceneModel {
     /// analysisRoot, so the B-button eye gate covers them; the caller passes
     /// [] when Show ownership is off.
     func applyOwnership(_ units: [OwnershipUnit]) {
-        guard let geometry, let manifest else { return }
+        guard let geometry else { return }
 
         let desired = Set(units.map(\.point))
         for (point, entry) in ownershipEntities where !desired.contains(point) {
@@ -315,11 +391,12 @@ final class VisionBoardSceneModel {
             ownershipMesh = MeshResource.generatePlane(width: 1, depth: 1)
         }
 
+        let spacing = cellSpacing
         for unit in units {
             guard let position = geometry.position(of: unit.point) else { continue }
             let mark = VisionOwnershipMark.make(unit: unit,
-                                                cellSpacingX: Float(manifest.spacing.x),
-                                                cellSpacingZ: Float(manifest.spacing.z))
+                                                cellSpacingX: spacing.x,
+                                                cellSpacingZ: spacing.z)
             let scale = SIMD3<Float>(mark.width, 1, mark.depth)
             if let existing = ownershipEntities[unit.point] {
                 existing.entity.scale = scale
