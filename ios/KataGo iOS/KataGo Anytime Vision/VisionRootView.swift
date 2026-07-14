@@ -230,6 +230,22 @@ struct VisionRootView: View {
         .onChange(of: shell.showOwnership) { _, newValue in
             session.gobanState.showOwnership = newValue
         }
+        // Branch-end reload (iOS GameSplitView / Mac branch-observer parity):
+        // when Replace/Discard deactivates the branch, remount the selected
+        // game so the board leaves the branch line. switchGame lands at the
+        // tip — deliberate on Vision (no forward-navigation input; iOS's
+        // divergence-point landing would strand the user after a Discard) —
+        // and loadGame consumes commitBranch's one-shot unlockEditingOnReload,
+        // so Replace lands unlocked. Game switches that discard a branch via
+        // loadGame's own deactivateBranch re-enter switchGame once more here;
+        // idempotent, same accepted double-reload as iOS/Mac.
+        .onChange(of: session.gobanState.branchSgf) { oldValue, newValue in
+            guard oldValue.isActiveSgf, !newValue.isActiveSgf,
+                  isReady, shell.phase == .ready,
+                  let record = navigationContext.selectedGameRecord
+            else { return }
+            switchGame(to: record)
+        }
     }
 
     // MARK: - Content

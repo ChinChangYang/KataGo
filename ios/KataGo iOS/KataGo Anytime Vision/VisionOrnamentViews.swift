@@ -4,12 +4,15 @@
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
 //  New Game (9/13/19), the Games toggle (shows/hides the left-side game-list
-//  ornament), the analysis sparkle (run/pause/off), the Settings gear
-//  (right-side card: analysis-information picker, ownership toggle, board
-//  orientation — mutually exclusive with the controller legend), controller
-//  help, the connect-controller hint, and the illegal-move row. No Undo
-//  button — the controller's X covers undo. Ordinary SwiftUI — always
-//  pinch-interactive; the game controller never drives the ornament.
+//  ornament), the analysis sparkle (run/pause/off), the lock slot (iOS
+//  TopToolbarView parity: Lock/Unlock off-branch, red Deactivate Branch
+//  on-branch, with the Replace/Discard confirmation chain), the Settings
+//  gear (right-side card: analysis-information picker, ownership toggle,
+//  board orientation — mutually exclusive with the controller legend),
+//  controller help, the connect-controller hint, and the illegal-move row.
+//  No Undo button — the controller's X covers single-move undo. Ordinary
+//  SwiftUI — always pinch-interactive; the game controller never drives
+//  the ornament.
 //
 
 import SwiftUI
@@ -30,6 +33,7 @@ struct VisionControlOrnament: View {
     let onDismissIllegalMove: () -> Void
 
     var body: some View {
+        @Bindable var gobanState = session.gobanState
         Group {
             if session.gobanState.confirmingIllegalMove {
                 illegalMoveRow
@@ -40,6 +44,64 @@ struct VisionControlOrnament: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .glassBackgroundEffect()
+        // The iOS branch confirmation chain (GameSplitView), verbatim: a
+        // chooser, then one destructive confirm per outcome. Replace commits
+        // the branch into the saved game (and the branch-end reload in
+        // VisionRootView lands it unlocked); Discard just drops the branch.
+        .confirmationDialog(
+            "Branch moves are temporary. Replace the original game with this branch, or discard it?",
+            isPresented: $gobanState.confirmingBranchDeactivation,
+            titleVisibility: .visible
+        ) {
+            Button("Replace") {
+                // Defer to the next runloop so the first dialog fully
+                // dismisses before the second presents. Chaining
+                // confirmationDialogs in the same transaction (present
+                // while dismissing) is fragile on iOS 26 and can silently
+                // drop the second sheet. Button actions are MainActor-
+                // isolated, so this one-turn hop is concurrency-safe.
+                Task { @MainActor in
+                    gobanState.confirmingBranchReplace = true
+                }
+            }
+
+            Button("Discard Branch") {
+                Task { @MainActor in
+                    gobanState.confirmingBranchDiscard = true
+                }
+            }
+
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog(
+            "Replace the original game with this branch? The original game’s moves after this point will be permanently lost.",
+            isPresented: $gobanState.confirmingBranchReplace,
+            titleVisibility: .visible
+        ) {
+            Button("Replace", role: .destructive) {
+                if let gameRecord = navigationContext.selectedGameRecord {
+                    gobanState.commitBranch(gameRecord: gameRecord)
+                } else {
+                    // No game to replace (unreachable in practice): exit branch
+                    // mode anyway so confirming never leaves the branch stuck,
+                    // mirroring the Discard path below.
+                    gobanState.deactivateBranch()
+                }
+            }
+
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog(
+            "Discard this branch? Your newly played stones will be lost.",
+            isPresented: $gobanState.confirmingBranchDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Branch", role: .destructive) {
+                gobanState.deactivateBranch()
+            }
+
+            Button("Cancel", role: .cancel) { }
+        }
     }
 
     // MARK: - Rows
@@ -88,6 +150,8 @@ struct VisionControlOrnament: View {
                                  : AnyShapeStyle(.primary))
                 .contentTransition(.symbolEffect(.replace))
 
+                lockSlotButton
+
                 Button {
                     shell.toggleSettings()
                 } label: {
@@ -110,6 +174,37 @@ struct VisionControlOrnament: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The state-dependent lock slot (iOS TopToolbarView parity): Lock/Unlock
+    /// toggling isEditing while no branch is active; the red "Deactivate
+    /// Branch" u-turn while one is (editing must never toggle mid-branch —
+    /// a branch only forms while isEditing == false, and the editing play
+    /// path would clear the saved record's data while moves are
+    /// branch-routed). VisionLockSlotModel owns the mapping; tests pin it.
+    private var lockSlotButton: some View {
+        let config = navigationContext.selectedGameRecord?.concreteConfig
+        let slot = VisionLockSlotModel.make(
+            isBranchActive: session.gobanState.isBranchActive,
+            isEditing: session.gobanState.isEditing,
+            shouldGenMove: config.map {
+                session.gobanState.shouldGenMove(config: $0,
+                                                 player: session.player)
+            } ?? false)
+        return Button {
+            switch slot.kind {
+            case .toggleLock:
+                session.gobanState.isEditing.toggle()
+            case .deactivateBranch:
+                session.gobanState.confirmingBranchDeactivation = true
+            }
+        } label: {
+            Label(slot.label, systemImage: slot.systemImage)
+        }
+        .foregroundStyle(slot.isRed ? AnyShapeStyle(.red)
+                                    : AnyShapeStyle(.primary))
+        .disabled(slot.isDisabled)
+        .contentTransition(.symbolEffect(.replace))
     }
 
     private var illegalMoveRow: some View {
