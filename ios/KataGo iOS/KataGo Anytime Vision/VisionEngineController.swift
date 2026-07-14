@@ -3,12 +3,16 @@
 //  KataGo Anytime Vision
 //
 //  Owner of the visionOS engine lifecycle: the initial launch and the
-//  Max-Board-Size restart (a direct port of TVEngineController's proven
-//  quit → park read loop → respawn → handshake sequence, with two Vision
+//  full restarts — Max Board Size changes and model activations both go
+//  through the same quit → park read loop → respawn → handshake sequence
+//  (a direct port of TVEngineController's proven flow, with two Vision
 //  deviations: the device assignment stays the ANE-only [100, 100], and the
 //  post-restart handshake is `session.handshake` — never `initialize`,
 //  which would push default 19x19 config commands at the fresh engine
-//  before the root re-mounts the current game).
+//  before the root re-mounts the current game). Every spawn arms the
+//  ModelRunnerView.pendingLoadModelTitle crash sentinel; the root's
+//  lastLoadedModelTitle observer clears it and records the last-good
+//  selection once the handshake lands (iOS ModelRunnerView parity).
 //
 
 import Foundation
@@ -36,20 +40,34 @@ final class VisionEngineController {
     /// the real launched value before its thread starts.
     private(set) var maxBoardLength = 19
 
+    /// The net the CURRENTLY running (or launching) engine serves. Observable
+    /// so the Settings card can key its per-model Max Board Size on it and
+    /// the Models card can mark the active row. Set only by startInitial and
+    /// restartEngine(loading:), always before the spawn reads it.
+    private(set) var activeModel: NeuralNetworkModel =
+        NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+
     @ObservationIgnored private var session: GameSession?
     @ObservationIgnored private var engineLifecycle: EngineLifecycle?
+    @ObservationIgnored private var modelSelection: ModelSelectionStore?
     @ObservationIgnored private var runLoopExit: CheckedContinuation<Void, Never>?
     @ObservationIgnored private var readLoopPark: CheckedContinuation<Void, Never>?
     @ObservationIgnored private var engineThreadExit: CheckedContinuation<Void, Never>?
     @ObservationIgnored private var engineThreadRunning = false
 
-    func configure(session: GameSession, engineLifecycle: EngineLifecycle) {
+    func configure(session: GameSession,
+                   engineLifecycle: EngineLifecycle,
+                   modelSelection: ModelSelectionStore) {
         self.session = session
         self.engineLifecycle = engineLifecycle
+        self.modelSelection = modelSelection
     }
 
-    func startInitial() {
+    /// Boot with the model the root resolved (VisionModelBootResolver — the
+    /// persisted selection, crash-recovered to the built-in when needed).
+    func startInitial(model: NeuralNetworkModel) {
         guard phase == .idle, let engineLifecycle else { return }
+        activeModel = model
         engineLifecycle.reset()
         spawnEngineThread()
         phase = .starting
@@ -71,11 +89,13 @@ final class VisionEngineController {
         }
     }
 
-    /// Quit the running engine and bring it back with the freshly persisted
-    /// Max Board Size. Returns true when the new engine answered the version
-    /// handshake; the caller re-gates and re-mounts the current game.
+    /// Quit the running engine and bring it back — with `newModel` when a
+    /// model activation drives the restart, or with the same net and the
+    /// freshly persisted Max Board Size when nil. Returns true when the new
+    /// engine answered the version handshake; the caller re-gates and
+    /// re-mounts the current game.
     @discardableResult
-    func restartEngine() async -> Bool {
+    func restartEngine(loading newModel: NeuralNetworkModel? = nil) async -> Bool {
         guard phase == .running, let session, let engineLifecycle else { return false }
         phase = .stopping
 
@@ -113,14 +133,21 @@ final class VisionEngineController {
         }
 
         // Spawn the replacement and redo the handshake as the sole reader.
+        // The model swaps only after the old engine has fully torn down, so
+        // every reader of activeModel sees the running engine's net.
+        if let newModel {
+            activeModel = newModel
+        }
         engineLifecycle.reset()
         spawnEngineThread()
         session.stopRequested = false
         phase = .starting
 
-        let handshake: Bool? = await withTimeout(seconds: 120) {
+        // The handshake title is what markFirstResponse persists as the
+        // last-good selection — it must be the net this engine loads.
+        let handshake: Bool? = await withTimeout(seconds: 120) { [self] in
             _ = await session.handshake(
-                selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
+                selectedModelTitle: activeModel.title,
                 engineLifecycle: engineLifecycle)
             return true
         }
@@ -141,20 +168,30 @@ final class VisionEngineController {
 
     private func spawnEngineThread() {
         engineThreadRunning = true
-        // Read the user's Max Board Size on the MainActor and record what THIS
-        // engine is launched with, BEFORE the off-main thread starts (so the
-        // gates read a consistent value). `effectiveMaxBoardLength` clamps the
-        // choice to the net's nnLen (37); Vision always loads the bundled b18
-        // net, so the fallback is defensive only.
-        let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+        // Read the active model's Max Board Size on the MainActor and record
+        // what THIS engine is launched with, BEFORE the off-main thread
+        // starts (so the gates read a consistent value). The per-fileName
+        // BackendSettings keys make the buffer per-model automatically;
+        // `effectiveMaxBoardLength` clamps the choice to the net's nnLen.
+        let model = activeModel
         maxBoardLength = BackendSettings(model: model).effectiveMaxBoardLength
         let launchedMaxBoardLength = maxBoardLength
+        // Built-in → nil (runGtp resolves the bundled default_model);
+        // downloaded → the Documents file (iOS ModelRunnerView parity).
+        let modelPath = model.builtIn ? nil : model.downloadedURL?.path
+        // Arm the crash sentinel BEFORE the engine thread starts, for every
+        // spawn (boot, model switch, Max-Board-Size restart alike). If the
+        // process dies before the handshake's first GTP reply, the surviving
+        // value makes the next boot fall back to the built-in net instead of
+        // crash-looping (VisionModelBootResolver).
+        modelSelection?.pendingLoadModelTitle = model.title
         let thread = Thread { [weak self] in
             // CoreML/ANE only — deliberately NOT EngineDeviceAssignments
             // .platformMux, which resolves to [0, 100] (one MLX/GPU server)
             // on a real visionOS device; the GPU belongs to the 90 Hz
             // compositor, so both NN server threads go to the Neural Engine.
-            KataGoHelper.runGtp(deviceAssignments: [100, 100],
+            KataGoHelper.runGtp(modelPath: modelPath,
+                                deviceAssignments: [100, 100],
                                 numSearchThreads: KataGoHelper.mlxNumSearchThreads,
                                 maxBoardSizeForNNBuffer: launchedMaxBoardLength)
             // MainCmds::gtp returned — the engine is fully torn down.

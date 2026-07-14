@@ -349,8 +349,10 @@ struct VisionSettingsOrnament: View {
         self.engine = engine
         self.onRestart = onRestart
         self.onDismiss = onDismiss
-        let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
-        _boardSize = State(initialValue: BackendSettings(model: model).mlxBoardSize)
+        // The buffer setting is per-model (per-fileName BackendSettings
+        // keys) — seed from the ACTIVE net, not the built-in.
+        _boardSize = State(initialValue:
+            BackendSettings(model: engine.activeModel).mlxBoardSize)
     }
 
     var body: some View {
@@ -408,10 +410,17 @@ struct VisionSettingsOrnament: View {
             }
             .onChange(of: boardSize) { oldValue, newValue in
                 guard oldValue != newValue else { return }
-                let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
-                var settings = BackendSettings(model: model)
+                var settings = BackendSettings(model: engine.activeModel)
                 settings.mlxBoardSize = newValue
                 onRestart()
+            }
+            // A model activation while this card stays open switches which
+            // per-fileName key the picker edits — re-seed from the new
+            // net's persisted value (the init seeding only covers a fresh
+            // card). Without this the segmented control shows the OLD
+            // model's cap and its first change writes the old key.
+            .onChange(of: engine.activeModel.fileName) { _, _ in
+                boardSize = BackendSettings(model: engine.activeModel).mlxBoardSize
             }
 
             if engine.phase != .running {

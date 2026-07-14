@@ -7,15 +7,22 @@
 //  TVRootView on tvOS — there is no per-game host controller on visionOS).
 //
 
+import OSLog
 import SwiftUI
 import SwiftData
 import KataGoUICore
 import KataGoGameStore
 
+private let recoveryLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "KataGo Vision",
+    category: "engine.recovery"
+)
+
 struct VisionRootView: View {
     @State private var session = GameSession()
     @State private var engineLifecycle = EngineLifecycle()
     @State private var engineController = VisionEngineController()
+    @State private var modelSelection = ModelSelectionStore()
     @State private var shell = VisionGameShell()
     @State private var navigationContext = NavigationContext()
     @State private var audioModel = AudioModel()
@@ -145,8 +152,32 @@ struct VisionRootView: View {
             }
         }
         .onAppear {
-            engineController.configure(session: session, engineLifecycle: engineLifecycle)
-            engineController.startInitial()
+            engineController.configure(session: session,
+                                       engineLifecycle: engineLifecycle,
+                                       modelSelection: modelSelection)
+            // Resolve the boot model BEFORE startInitial arms the crash
+            // sentinel — the resolver must see the PREVIOUS run's sentinel,
+            // not this run's (iOS ModelRunnerView / Mac decideRecovery
+            // ordering).
+            #if DEBUG
+            let isDebug = true
+            #else
+            let isDebug = false
+            #endif
+            let resolution = VisionModelBootResolver.resolve(
+                pendingLoadModelTitle: modelSelection.pendingLoadModelTitle,
+                selectedModelTitle: modelSelection.selectedModelTitle,
+                isDebug: isDebug,
+                isFileDownloaded: { model in
+                    guard let url = model.downloadedURL else { return false }
+                    return FileManager.default.fileExists(atPath: url.path)
+                })
+            if resolution.fellBackFromIncompleteLoad {
+                recoveryLogger.error(
+                    "Previous launch did not finish loading model: \(modelSelection.pendingLoadModelTitle, privacy: .public). Booting the built-in net."
+                )
+            }
+            engineController.startInitial(model: resolution.model)
             controllerInput.onEvent = { handleControllerEvent($0) }
         }
         .task {
@@ -229,6 +260,15 @@ struct VisionRootView: View {
         }
         .onChange(of: shell.showOwnership) { _, newValue in
             session.gobanState.showOwnership = newValue
+        }
+        // Persist the last-good selection and clear the crash sentinel once
+        // the handshake's first GTP reply lands (iOS ModelRunnerView parity).
+        // One observer serves boot, model switches, and Max-Board-Size
+        // restarts — the handshake title is always the engine's activeModel.
+        .onChange(of: engineLifecycle.lastLoadedModelTitle) { _, newValue in
+            guard let newValue else { return }
+            modelSelection.selectedModelTitle = newValue
+            modelSelection.pendingLoadModelTitle = ""
         }
         // Branch-end reload (iOS GameSplitView / Mac branch-observer parity):
         // when Replace/Discard deactivates the branch, remount the selected
@@ -524,10 +564,12 @@ struct VisionRootView: View {
         session.gobanState.analysisInformation = shell.analysisInformation
         session.gobanState.showOwnership = shell.showOwnership
 
-        // Blocks on the engine's `version` reply (i.e. until the b18 net has
-        // finished loading).
+        // Blocks on the engine's `version` reply (i.e. until the net has
+        // finished loading). The title must be the booted net's: it is what
+        // markFirstResponse hands the lastLoadedModelTitle observer to
+        // persist as the last-good selection.
         _ = await session.handshake(
-            selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
+            selectedModelTitle: engineController.activeModel.title,
             engineLifecycle: engineLifecycle
         )
         engineController.noteInitialHandshakeComplete()
