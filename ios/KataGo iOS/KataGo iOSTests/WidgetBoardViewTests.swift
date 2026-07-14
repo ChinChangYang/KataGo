@@ -67,10 +67,15 @@ struct WidgetBoardViewTests {
         #expect(has19Tengen)
     }
 
-    /// Non-standard / non-square boards get no star points rather than wrong ones.
-    @Test func hoshiPoints_nonStandardSizes_areEmpty() {
-        #expect(WidgetBoardView.hoshiPoints(width: 7, height: 7).isEmpty)
-        #expect(WidgetBoardView.hoshiPoints(width: 19, height: 13).isEmpty)
-        #expect(WidgetBoardView.hoshiPoints(width: 37, height: 37).isEmpty)
+    /// Non-standard and rectangular boards now get star points too, from the
+    /// shared BoardStarPoints rule (even sizes still have none).
+    @Test func hoshiPoints_nonStandardSizes_useSharedRule() {
+        let count7 = WidgetBoardView.hoshiPoints(width: 7, height: 7).count
+        let count19x13 = WidgetBoardView.hoshiPoints(width: 19, height: 13).count
+        let count37 = WidgetBoardView.hoshiPoints(width: 37, height: 37).count
+        #expect(count7 == 5)      // corners + tengen
+        #expect(count19x13 == 5)  // corner crosses + tengen, no mixed side stars
+        #expect(count37 == 9)     // full 3x3 grid, like 19x19
+        #expect(WidgetBoardView.hoshiPoints(width: 24, height: 24).isEmpty)
     }
 }

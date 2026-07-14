@@ -92,27 +92,15 @@ public struct WidgetBoardView: View {
         return (dots, last)
     }
 
-    /// 0-based grid coordinates of the star points (hoshi) for a standard square
-    /// board, so the vector board reads as a real goban. Only the conventional
-    /// 9/13/19 layouts are defined; any other size (or a non-square board) returns
-    /// none rather than guessing wrong positions.
+    /// 0-based grid coordinates of the star points (hoshi), from the shared
+    /// `BoardStarPoints` rule so the vector board matches every other renderer
+    /// on any width x height (not just the classic squares).
     ///
-    /// `nonisolated` because it is pure (literals only): `WidgetBoardView` is a
-    /// SwiftUI `View` and thus `@MainActor`, which would otherwise pin this helper
-    /// to the main actor and trap when called off-main (e.g. from a test).
+    /// `nonisolated` because it is pure: `WidgetBoardView` is a SwiftUI `View`
+    /// and thus `@MainActor`, which would otherwise pin this helper to the main
+    /// actor and trap when called off-main (e.g. from a test).
     nonisolated public static func hoshiPoints(width: Int, height: Int) -> [(Int, Int)] {
-        guard width == height else { return [] }
-        switch width {
-        case 19:
-            let c = [3, 9, 15]
-            return c.flatMap { x in c.map { (x, $0) } }   // 3×3 grid (incl. tengen)
-        case 13:
-            return [(3, 3), (3, 9), (9, 3), (9, 9), (6, 6)]
-        case 9:
-            return [(2, 2), (2, 6), (6, 2), (6, 6), (4, 4)]
-        default:
-            return []
-        }
+        BoardStarPoints.points(width: width, height: height).map { ($0.x, $0.y) }
     }
 
     public var body: some View {

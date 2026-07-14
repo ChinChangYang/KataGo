@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoGameStore
 
 public struct BoardLineView: View {
     let dimensions: Dimensions
@@ -155,18 +156,9 @@ public struct BoardLineView: View {
     }
 
     private func drawStarPoints(dimensions: Dimensions) -> some View {
-        Group {
-            if dimensions.width == 19 && dimensions.height == 19 {
-                // Draw star points for 19x19 board
-                drawStarPointsForSize(points: [BoardPoint(x: 3, y: 3), BoardPoint(x: 3, y: 9), BoardPoint(x: 3, y: 15), BoardPoint(x: 9, y: 3), BoardPoint(x: 9, y: 9), BoardPoint(x: 9, y: 15), BoardPoint(x: 15, y: 3), BoardPoint(x: 15, y: 9), BoardPoint(x: 15, y: 15)], dimensions: dimensions)
-            } else if dimensions.width == 13 && dimensions.height == 13 {
-                // Draw star points for 13x13 board
-                drawStarPointsForSize(points: [BoardPoint(x: 6, y: 6), BoardPoint(x: 3, y: 3), BoardPoint(x: 3, y: 9), BoardPoint(x: 9, y: 3), BoardPoint(x: 9, y: 9)], dimensions: dimensions)
-            } else if dimensions.width == 9 && dimensions.height == 9 {
-                // Draw star points for 9x9 board
-                drawStarPointsForSize(points: [BoardPoint(x: 4, y: 4), BoardPoint(x: 2, y: 2), BoardPoint(x: 2, y: 6), BoardPoint(x: 6, y: 2), BoardPoint(x: 6, y: 6)], dimensions: dimensions)
-            }
-        }
+        let points = BoardStarPoints.points(width: Int(dimensions.width), height: Int(dimensions.height))
+            .map { BoardPoint(x: $0.x, y: $0.y) }
+        return drawStarPointsForSize(points: points, dimensions: dimensions)
     }
 }
 
