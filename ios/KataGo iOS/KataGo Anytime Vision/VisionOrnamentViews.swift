@@ -33,7 +33,6 @@ struct VisionControlOrnament: View {
     let onDismissIllegalMove: () -> Void
 
     var body: some View {
-        @Bindable var gobanState = session.gobanState
         Group {
             if session.gobanState.confirmingIllegalMove {
                 illegalMoveRow
@@ -44,64 +43,14 @@ struct VisionControlOrnament: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .glassBackgroundEffect()
-        // The iOS branch confirmation chain (GameSplitView), verbatim: a
-        // chooser, then one destructive confirm per outcome. Replace commits
-        // the branch into the saved game (and the branch-end reload in
-        // VisionRootView lands it unlocked); Discard just drops the branch.
-        .confirmationDialog(
-            "Branch moves are temporary. Replace the original game with this branch, or discard it?",
-            isPresented: $gobanState.confirmingBranchDeactivation,
-            titleVisibility: .visible
-        ) {
-            Button("Replace") {
-                // Defer to the next runloop so the first dialog fully
-                // dismisses before the second presents. Chaining
-                // confirmationDialogs in the same transaction (present
-                // while dismissing) is fragile on iOS 26 and can silently
-                // drop the second sheet. Button actions are MainActor-
-                // isolated, so this one-turn hop is concurrency-safe.
-                Task { @MainActor in
-                    gobanState.confirmingBranchReplace = true
-                }
-            }
-
-            Button("Discard Branch") {
-                Task { @MainActor in
-                    gobanState.confirmingBranchDiscard = true
-                }
-            }
-
-            Button("Cancel", role: .cancel) { }
-        }
-        .confirmationDialog(
-            "Replace the original game with this branch? The original game’s moves after this point will be permanently lost.",
-            isPresented: $gobanState.confirmingBranchReplace,
-            titleVisibility: .visible
-        ) {
-            Button("Replace", role: .destructive) {
-                if let gameRecord = navigationContext.selectedGameRecord {
-                    gobanState.commitBranch(gameRecord: gameRecord)
-                } else {
-                    // No game to replace (unreachable in practice): exit branch
-                    // mode anyway so confirming never leaves the branch stuck,
-                    // mirroring the Discard path below.
-                    gobanState.deactivateBranch()
-                }
-            }
-
-            Button("Cancel", role: .cancel) { }
-        }
-        .confirmationDialog(
-            "Discard this branch? Your newly played stones will be lost.",
-            isPresented: $gobanState.confirmingBranchDiscard,
-            titleVisibility: .visible
-        ) {
-            Button("Discard Branch", role: .destructive) {
-                gobanState.deactivateBranch()
-            }
-
-            Button("Cancel", role: .cancel) { }
-        }
+        // The branch chooser/confirm flow renders as front-anchored glass
+        // cards owned by the ROOT (VisionBranchChooserCard /
+        // VisionBranchConfirmCard), driven by the shared GobanState confirm
+        // flags this bar's Deactivate Branch button raises. Deliberately NO
+        // .confirmationDialog here: a button-tap dismissal of an
+        // ornament-hosted dialog that re-renders another ornament blanks
+        // the volumetric window's render tree on visionOS 26 (verified
+        // live; the app keeps running under a permanently empty volume).
     }
 
     // MARK: - Rows
@@ -260,6 +209,65 @@ struct VisionControlOrnament: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(color == .black ? "Black" : "White"): \(isAI ? "AI" : "Human"). Tap to switch.")
+    }
+}
+
+/// Front-anchored branch chooser — the glass-card stand-in for iOS's first
+/// confirmation dialog (see VisionControlOrnament's comment for why the
+/// flow uses no dialogs). Raising a confirm flag and clearing this one is
+/// the caller's job; there is no isPresented binding.
+struct VisionBranchChooserCard: View {
+    let onReplace: () -> Void
+    let onDiscard: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text(VisionBranchConfirm.chooserTitle)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                Button("Cancel", role: .cancel, action: onCancel)
+
+                Button("Discard Branch", action: onDiscard)
+
+                Button("Replace", action: onReplace)
+            }
+        }
+        .frame(width: 460)
+        .padding(20)
+        .glassBackgroundEffect()
+    }
+}
+
+/// Front-anchored destructive confirm for the Replace/Discard-branch flow —
+/// the glass-card stand-in for iOS's second confirmation dialog (see
+/// VisionControlOrnament's comment for why it is not a dialog). Driven
+/// entirely by the shared GobanState confirm flags; the callers clear the
+/// flag in BOTH actions (there is no isPresented binding to do it for
+/// them).
+struct VisionBranchConfirmCard: View {
+    let confirm: VisionBranchConfirm
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text(confirm.title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                Button("Cancel", role: .cancel, action: onCancel)
+
+                Button(confirm.confirmLabel, role: .destructive,
+                       action: onConfirm)
+            }
+        }
+        .frame(width: 460)
+        .padding(20)
+        .glassBackgroundEffect()
     }
 }
 

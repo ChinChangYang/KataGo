@@ -88,6 +88,7 @@
 		2F7AB7F5262213ECA72A6626 /* SavedGameWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73565E05B00F390767359DED /* SavedGameWidget.swift */; };
 		30751D7D954F6DFA110536F6 /* TVBestMovesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FADE37B017201850F2CC53 /* TVBestMovesList.swift */; };
 		31F7121B755A4A3D39196A16 /* periodic_sampler.cc in Sources */ = {isa = PBXBuildFile; fileRef = 008FE61EE6603F28C0E87C9F /* periodic_sampler.cc */; };
+		32C6BE054C75161395EC6A87 /* VisionBranchConfirmTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFB7BA5DF019CBB7D997242 /* VisionBranchConfirmTests.swift */; };
 		32E196F391F4CA4A7DBE194D /* WatchSharedCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E41C478AEBB56A72274F4B /* WatchSharedCursorTests.swift */; };
 		333BEE14A50F37F646EF8944 /* barrier.cc in Sources */ = {isa = PBXBuildFile; fileRef = AB10D18C7B3E859EF854E089 /* barrier.cc */; };
 		352C29EDD9C86AC81A68D6F8 /* ModelsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7787C9AF15E3ED8811688D3D /* ModelsWindowController.swift */; };
@@ -970,6 +971,7 @@
 		0A5190F0628EA555C14C7E9F /* mlxspike.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxspike.cpp; sourceTree = "<group>"; };
 		0A85319AE10A8198A3117ADE /* mutex.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mutex.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/mutex.cc"; sourceTree = SOURCE_ROOT; };
 		0B40E0A9D40BE4F1BFF2939B /* arg.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arg.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/arg.cc"; sourceTree = SOURCE_ROOT; };
+		0BFB7BA5DF019CBB7D997242 /* VisionBranchConfirmTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBranchConfirmTests.swift; sourceTree = "<group>"; };
 		0D3E21A53DA500D5284C2130 /* AnalysisColorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisColorTests.swift; sourceTree = "<group>"; };
 		0D48FC1E4B0BA7ACE8D3473C /* SelfPlayAttractPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SelfPlayAttractPolicyTests.swift; sourceTree = "<group>"; };
 		0DF418C9BDBE446239454E94 /* AudioFeaturePrint.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = AudioFeaturePrint.pb.cc; path = ../../cpp/external/katagocoreml/generated/AudioFeaturePrint.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -2764,6 +2766,7 @@
 				2FC5147B34571D123081175B /* VisionModelListItemTests.swift */,
 				85496767CF032689A724F1B3 /* VisionModelDetailStateTests.swift */,
 				FFD79CC9919790FED10D4219 /* VisionModelBootResolverTests.swift */,
+				0BFB7BA5DF019CBB7D997242 /* VisionBranchConfirmTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4005,6 +4008,7 @@
 				16755B516D10AA042FEE8661 /* VisionModelListItemTests.swift in Sources */,
 				56BF846525895806D50F8451 /* VisionModelDetailStateTests.swift in Sources */,
 				23BD041DE508CFC8BD3B27AC /* VisionModelBootResolverTests.swift in Sources */,
+				32C6BE054C75161395EC6A87 /* VisionBranchConfirmTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

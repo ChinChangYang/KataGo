@@ -60,7 +60,53 @@ struct VisionRootView: View {
                   contentAlignment: .center) {
             switch shell.phase {
             case .ready:
-                EmptyView()
+                // The whole branch chooser/confirm flow renders HERE as
+                // glass cards (never as .confirmationDialog — an
+                // ornament-hosted dialog's button dismissal blanks the
+                // volume's render tree; see VisionControlOrnament). The
+                // flags have no isPresented binding, so every action
+                // clears them explicitly.
+                if session.gobanState.confirmingBranchDeactivation {
+                    VisionBranchChooserCard(
+                        onReplace: {
+                            session.gobanState.confirmingBranchDeactivation = false
+                            session.gobanState.confirmingBranchReplace = true
+                        },
+                        onDiscard: {
+                            session.gobanState.confirmingBranchDeactivation = false
+                            session.gobanState.confirmingBranchDiscard = true
+                        },
+                        onCancel: {
+                            session.gobanState.confirmingBranchDeactivation = false
+                        })
+                } else if session.gobanState.confirmingBranchReplace {
+                    VisionBranchConfirmCard(
+                        confirm: .make(kind: .replace),
+                        onConfirm: {
+                            session.gobanState.confirmingBranchReplace = false
+                            if let gameRecord = navigationContext.selectedGameRecord {
+                                session.gobanState.commitBranch(gameRecord: gameRecord)
+                            } else {
+                                // No game to replace (unreachable in practice):
+                                // exit branch mode anyway so confirming never
+                                // leaves the branch stuck, mirroring Discard.
+                                session.gobanState.deactivateBranch()
+                            }
+                        },
+                        onCancel: {
+                            session.gobanState.confirmingBranchReplace = false
+                        })
+                } else if session.gobanState.confirmingBranchDiscard {
+                    VisionBranchConfirmCard(
+                        confirm: .make(kind: .discard),
+                        onConfirm: {
+                            session.gobanState.confirmingBranchDiscard = false
+                            session.gobanState.deactivateBranch()
+                        },
+                        onCancel: {
+                            session.gobanState.confirmingBranchDiscard = false
+                        })
+                }
             case .booting:
                 // Shared spinning-icon loading view (iOS/Mac/TV parity). It
                 // sizes via GeometryReader, so the ornament must bound it.
