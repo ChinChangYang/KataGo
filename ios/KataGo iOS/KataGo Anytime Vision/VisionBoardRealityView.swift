@@ -58,7 +58,8 @@ struct VisionBoardRealityView: View {
                     // attachment planar UI.
                     ownership: (showOwnership ? ownershipUnits : [])
                         .filter { !candidatePoints.contains($0.point) },
-                    isBoardStanding: shell.isBoardStanding
+                    isBoardStanding: shell.isBoardStanding,
+                    isBranchActive: session.gobanState.isBranchActive
                 )
                 syncScene(snapshot)
                 syncMarkers(snapshot, attachments: attachments)
@@ -143,6 +144,7 @@ struct VisionBoardRealityView: View {
         let analysisInformation: Int
         let ownership: [OwnershipUnit]
         let isBoardStanding: Bool
+        let isBranchActive: Bool
     }
 
     /// The board asset's feet rest on y=0, so seating it on the volume floor
@@ -184,6 +186,7 @@ struct VisionBoardRealityView: View {
         sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
         sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible
         sceneModel.applyOwnership(snapshot.ownership)
+        sceneModel.setBranchFrame(active: snapshot.isBranchActive)
     }
 
     private func syncMarkers(_ snapshot: SceneSnapshot, attachments: RealityViewAttachments) {

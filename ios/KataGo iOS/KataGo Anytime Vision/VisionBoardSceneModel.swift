@@ -32,6 +32,10 @@ final class VisionBoardSceneModel {
     private let boardRoot = Entity()
     private let stonesRoot = Entity()
     private let ghostRoot = Entity()
+    /// Red branch-frame layer. A boardRoot child (NOT analysisRoot): the
+    /// branch cue must survive the B-button eye gate — hiding analysis
+    /// must not hide "you are on a temporary line".
+    private let branchRoot = Entity()
 
     private(set) var geometry: BoardSceneGeometry?
     private(set) var boardWidth = 0
@@ -52,6 +56,7 @@ final class VisionBoardSceneModel {
         boardRoot.addChild(stonesRoot)
         boardRoot.addChild(ghostRoot)
         boardRoot.addChild(analysisRoot)
+        boardRoot.addChild(branchRoot)
     }
 
     // MARK: - Loading
@@ -160,6 +165,10 @@ final class VisionBoardSceneModel {
         // "updates" detached entities that never re-mount.
         markerEntities.removeAll()
         ownershipEntities.removeAll()
+        // The frame is sized to the slab; a still-active branch rebuilds it
+        // for the new board on the next sync.
+        branchRoot.children.forEach { $0.removeFromParent() }
+        branchFrameBoard = nil
     }
 
     /// Depth-stretches the width-matched square asset into a W x H rectangle,
@@ -429,6 +438,42 @@ final class VisionBoardSceneModel {
         material.blending = .transparent(opacity: .init(floatLiteral: mark.opacity))
         ownershipMaterials[mark.materialKey] = material
         return material
+    }
+
+    // MARK: - Branch frame
+
+    /// The board size the mounted frame was built for (nil = none built).
+    private var branchFrameBoard: SIMD2<Int>?
+
+    /// Shows or hides the red perimeter frame — the 3D stand-in for iOS's
+    /// red rectangle around the goban while a branch is active. The bars
+    /// are OPAQUE unlit boxes (VisionBranchFrame geometry): opaque
+    /// geometry depth-sorts normally, so this layer is immune to the
+    /// transparent-vs-attachment ordering gotcha the ownership quads hit.
+    func setBranchFrame(active: Bool) {
+        guard active else {
+            branchRoot.isEnabled = false
+            return
+        }
+        guard boardWidth > 0, boardHeight > 0 else { return }
+        let board = SIMD2<Int>(boardWidth, boardHeight)
+        if branchFrameBoard != board {
+            branchRoot.children.forEach { $0.removeFromParent() }
+            var material = UnlitMaterial(color: .systemRed)
+            material.faceCulling = .none
+            for bar in VisionBranchFrame.make(width: boardWidth,
+                                              height: boardHeight).bars {
+                let entity = ModelEntity(
+                    mesh: .generateBox(width: bar.size.x,
+                                       height: bar.size.y,
+                                       depth: bar.size.z),
+                    materials: [material])
+                entity.position = bar.center
+                branchRoot.addChild(entity)
+            }
+            branchFrameBoard = board
+        }
+        branchRoot.isEnabled = true
     }
 
     // MARK: - Ghost
