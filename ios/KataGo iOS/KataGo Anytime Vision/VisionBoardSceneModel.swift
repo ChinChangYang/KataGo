@@ -294,9 +294,10 @@ final class VisionBoardSceneModel {
         var target = Transform.identity
         if standing {
             target.rotation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
-            // Vertically centered in the 0.6 m volume (root sits on the
-            // floor); the rotated grid spans ±depth/2 about this point.
-            target.translation = [0, 0.3, 0]
+            // Vertically centered in the volume (root sits on the floor);
+            // the rotated grid spans ±depth/2 about this point, so even a
+            // standing 37x37 (0.88 m) stays inside the volume height.
+            target.translation = [0, VisionVolumeMetrics.heightMeters / 2, 0]
         }
 
         if animated {

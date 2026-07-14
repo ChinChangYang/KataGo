@@ -17,6 +17,9 @@ public struct VisionGamePickerItem: Equatable, Sendable {
     /// "3:24 PM · 19×19" — either part is omitted when unknown.
     public let detailText: String
     public let isSelectable: Bool
+    /// The board renders fine but exceeds the launched NN buffer — the row
+    /// caption points at the Max Board Size setting.
+    public let needsLargerBoardSetting: Bool
 
     public static func make(name: String,
                             lastModificationDate: Date?,
@@ -26,19 +29,25 @@ public struct VisionGamePickerItem: Equatable, Sendable {
                             now: Date = .now) -> VisionGamePickerItem {
         let sizeText: String?
         let isSelectable: Bool
+        let needsLargerBoardSetting: Bool
         if let width, let height {
             sizeText = "\(width)×\(height)"
-            isSelectable = visionBoardIsSupported(width: width, height: height)
-                && boardFits(width: width, height: height, maxBoardLength: maxBoardLength)
+            let supported = visionBoardIsSupported(width: width, height: height)
+            let fits = boardFits(width: width, height: height,
+                                 maxBoardLength: maxBoardLength)
+            isSelectable = supported && fits
+            needsLargerBoardSetting = supported && !fits
         } else {
             sizeText = nil
             isSelectable = true
+            needsLargerBoardSetting = false
         }
 
         let dateText = lastModificationDate?.shortened(now: now)
         let detailText = [dateText, sizeText].compactMap { $0 }.joined(separator: " · ")
         return VisionGamePickerItem(title: name,
                                     detailText: detailText,
-                                    isSelectable: isSelectable)
+                                    isSelectable: isSelectable,
+                                    needsLargerBoardSetting: needsLargerBoardSetting)
     }
 }

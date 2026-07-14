@@ -22,7 +22,9 @@ struct VisionControlOrnament: View {
     let shell: VisionGameShell
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
+    let maxBoardLength: Int
     let onNewGame: (Int) -> Void
+    let onCustomGame: () -> Void
     let onSparkle: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
@@ -51,9 +53,11 @@ struct VisionControlOrnament: View {
 
             Group {
                 Menu {
-                    Button("9 × 9") { onNewGame(9) }
-                    Button("13 × 13") { onNewGame(13) }
-                    Button("19 × 19") { onNewGame(19) }
+                    ForEach([9, 13, 19], id: \.self) { size in
+                        Button("\(size) × \(size)") { onNewGame(size) }
+                            .disabled(size > maxBoardLength)
+                    }
+                    Button("Custom…") { onCustomGame() }
                 } label: {
                     Label("New Game", systemImage: "plus")
                 }
@@ -335,6 +339,71 @@ struct VisionSettingsOrnament: View {
     }
 }
 
+/// Right-side custom New Game card (New Game ▸ Custom…): width/height
+/// steppers bounded by 2...min(37, the launched Max Board Size), any
+/// rectangle allowed. Shares the right anchor with settings and the legend
+/// (the shell's toggle helpers keep the three mutually exclusive).
+struct VisionNewGamePanel: View {
+    let maxBoardLength: Int
+    let onCreate: (Int, Int) -> Void
+    let onDismiss: () -> Void
+
+    @State private var boardWidth: Int
+    @State private var boardHeight: Int
+
+    private var sizeCap: Int { max(2, min(37, maxBoardLength)) }
+
+    init(maxBoardLength: Int,
+         onCreate: @escaping (Int, Int) -> Void,
+         onDismiss: @escaping () -> Void) {
+        self.maxBoardLength = maxBoardLength
+        self.onCreate = onCreate
+        self.onDismiss = onDismiss
+        let initial = min(19, max(2, min(37, maxBoardLength)))
+        _boardWidth = State(initialValue: initial)
+        _boardHeight = State(initialValue: initial)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("New Game", systemImage: "plus")
+                    .font(.headline)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Close new game")
+            }
+
+            Stepper(value: $boardWidth, in: 2...sizeCap) {
+                Label("Width: \(boardWidth)", systemImage: "arrow.left.and.right")
+            }
+            Stepper(value: $boardHeight, in: 2...sizeCap) {
+                Label("Height: \(boardHeight)", systemImage: "arrow.up.and.down")
+            }
+
+            if sizeCap < 37 {
+                Text("Boards up to \(sizeCap)×\(sizeCap) with the current Max Board Size — raise it in Settings for more.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                onCreate(boardWidth, boardHeight)
+            } label: {
+                Label("Create \(boardWidth) × \(boardHeight) Game", systemImage: "checkmark")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(width: 380)
+        .padding(20)
+        .glassBackgroundEffect()
+    }
+}
+
 /// Left-side game list, toggled from the control bar's Games button: the
 /// newest iCloud-synced games (the root @Query live-refreshes), pinch a row
 /// to load it. The list stays up after a pick so the checkmark tracks the
@@ -403,6 +472,11 @@ struct VisionGameListOrnament: View {
                         Text(item.detailText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if item.needsLargerBoardSetting {
+                        Text("Raise Max Board Size in Settings")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
                     }
                 }
                 Spacer()

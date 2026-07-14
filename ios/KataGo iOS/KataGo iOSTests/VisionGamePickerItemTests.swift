@@ -27,23 +27,33 @@ struct VisionGamePickerItemTests {
                                   now: now)
     }
 
-    @Test func supportedSquareSizesAreSelectable() {
+    @Test func sizesWithinTheEngineCapAreSelectable() {
         #expect(make(width: 9, height: 9).isSelectable)
-        #expect(make(width: 13, height: 13).isSelectable)
         #expect(make(width: 19, height: 19).isSelectable)
+        #expect(make(width: 13, height: 9).isSelectable)
+        #expect(make(width: 7, height: 7).isSelectable)
+        #expect(make(width: 21, height: 21, maxBoardLength: 37).isSelectable)
+        #expect(make(width: 37, height: 37, maxBoardLength: 37).isSelectable)
     }
 
-    @Test func rectangularAndUnbundledSizesAreNotSelectable() {
-        #expect(!make(width: 13, height: 9).isSelectable)
-        #expect(!make(width: 7, height: 7).isSelectable)
-        #expect(!make(width: 21, height: 21).isSelectable)
-    }
-
-    @Test func bundledSizeOverEngineCapIsNotSelectable() {
-        // A 19x19 with an engine launched at a smaller NN buffer must be
-        // gated even though the 3D asset exists (boardFits AND, not OR).
+    @Test func sizeOverEngineCapNeedsTheSetting() {
+        // Renders fine but exceeds the launched NN buffer: not selectable,
+        // and the row carries the raise-the-setting caption.
+        let blocked = make(width: 25, height: 25, maxBoardLength: 19)
+        #expect(!blocked.isSelectable)
+        #expect(blocked.needsLargerBoardSetting)
         #expect(!make(width: 19, height: 19, maxBoardLength: 13).isSelectable)
         #expect(make(width: 13, height: 13, maxBoardLength: 13).isSelectable)
+
+        let raised = make(width: 25, height: 25, maxBoardLength: 37)
+        #expect(raised.isSelectable)
+        #expect(!raised.needsLargerBoardSetting)
+    }
+
+    @Test func outOfRangeSizeIsNotSelectableAndNotTheSettingsFault() {
+        let item = make(width: 38, height: 38, maxBoardLength: 37)
+        #expect(!item.isSelectable)
+        #expect(!item.needsLargerBoardSetting)
     }
 
     @Test func unknownSizeIsOptimisticallySelectable() {

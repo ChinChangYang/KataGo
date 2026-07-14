@@ -31,20 +31,44 @@ struct VisionRootView: View {
 
     var body: some View {
         Group {
+            if case .ready = shell.phase {
+                readyContent
+            } else {
+                Color.clear
+            }
+        }
+        // Volumetric scenes are fixed-scale (~1360 pt/m); the window adopts
+        // this size via .contentSize. See VisionVolumeMetrics for why
+        // 0.9 x 0.95 x 0.9 m (a 37x37 board must fit both orientations).
+        .frame(width: VisionVolumeMetrics.widthPoints,
+               height: VisionVolumeMetrics.heightPoints)
+        .frame(depth: VisionVolumeMetrics.depthPoints)
+        // Phase messaging (loading/blocked) lives in a front-anchored glass
+        // ornament: plain 2D content inside a volumetric window lies flat on
+        // the base plate, where it is unreadable (nearly edge-on and unlit) —
+        // ornaments always face the viewer, like the settings card.
+        .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0.5, y: 0.55, z: 1)),
+                  contentAlignment: .center) {
             switch shell.phase {
+            case .ready:
+                EmptyView()
             case .booting:
                 ProgressView("Loading engine")
                     .controlSize(.extraLarge)
-            case .ready:
-                readyContent
+                    .padding(28)
+                    .glassBackgroundEffect()
             case .unsupportedBoard(let width, let height):
                 unsupportedBoardView(width: width, height: height)
+                    .frame(width: 460)
+                    .padding(20)
+                    .glassBackgroundEffect()
+            case .boardTooLarge(let width, let height):
+                boardTooLargeView(width: width, height: height)
+                    .frame(width: 460)
+                    .padding(20)
+                    .glassBackgroundEffect()
             }
         }
-        // Volumetric scenes are fixed-scale (~1360 pt/m): 1088 x 816 x 1088 pt
-        // ≈ 0.8 x 0.6 x 0.8 m. The window adopts this via .contentSize.
-        .frame(width: 1088, height: 816)
-        .frame(depth: 1088)
         // Hidden while `.booting` (initial boot has isReady false; a
         // Max-Board-Size restart re-enters .booting with isReady true) so no
         // pinch can send commands at a down engine. The settings card stays
@@ -56,7 +80,9 @@ struct VisionRootView: View {
                     shell: shell,
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
+                    maxBoardLength: engineController.maxBoardLength,
                     onNewGame: { startNewGame(size: $0) },
+                    onCustomGame: { shell.toggleNewGamePanel() },
                     onSparkle: { sparkleAnalysisAction() },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
@@ -80,6 +106,14 @@ struct VisionRootView: View {
                 VisionControllerLegend {
                     shell.showingControllerHelp = false
                 }
+            } else if isReady, shell.showingNewGamePanel, shell.phase != .booting {
+                VisionNewGamePanel(
+                    maxBoardLength: engineController.maxBoardLength,
+                    onCreate: { width, height in
+                        shell.showingNewGamePanel = false
+                        startNewGame(width: width, height: height)
+                    },
+                    onDismiss: { shell.showingNewGamePanel = false })
             }
         }
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0, y: 0.5, z: 1)),
@@ -277,28 +311,47 @@ struct VisionRootView: View {
         else { return }
 
         // Re-derive width/height from the SGF: the picker row's stored size
-        // may be nil or stale, and only this gate is authoritative. An
-        // unsupported board must never reach the engine (fatal on first
-        // analysis past the NN buffer; no 3D asset below it).
+        // may be nil or stale, and only this gate is authoritative. A blocked
+        // board must never reach the engine (fatal on first analysis past the
+        // NN buffer; no renderable geometry outside 2...37).
         record.updateToLatestVersion()
         let config = record.concreteConfig
-        guard visionBoardIsSupported(width: config.boardWidth, height: config.boardHeight),
-              boardFits(width: config.boardWidth, height: config.boardHeight,
-                        maxBoardLength: engineController.maxBoardLength) else {
-            // The old game stays loaded but unmounted — silence its stream.
-            session.messageList.appendAndSend(command: "stop")
-            shell.phase = .unsupportedBoard(width: config.boardWidth,
-                                            height: config.boardHeight)
+        guard let blocked = blockedPhase(width: config.boardWidth,
+                                         height: config.boardHeight) else {
+            switchGame(to: record)
+            shell.phase = .ready
             return
         }
+        // The old game stays loaded but unmounted — silence its stream.
+        session.messageList.appendAndSend(command: "stop")
+        shell.phase = blocked
+    }
 
-        switchGame(to: record)
-        shell.phase = .ready
+    /// The blocked phase for a board, or nil when it can mount: outside the
+    /// renderable 2...37 range -> unsupported; renderable but over the
+    /// launched NN buffer -> too large (raise Max Board Size in Settings).
+    private func blockedPhase(width: Int, height: Int) -> VisionGameShell.Phase? {
+        guard visionBoardIsSupported(width: width, height: height) else {
+            return .unsupportedBoard(width: width, height: height)
+        }
+        guard boardFits(width: width, height: height,
+                        maxBoardLength: engineController.maxBoardLength) else {
+            return .boardTooLarge(width: width, height: height)
+        }
+        return nil
     }
 
     private func startNewGame(size: Int) {
+        startNewGame(width: size, height: size)
+    }
+
+    /// Any width x height in 2...cap (the Custom panel's steppers enforce the
+    /// bounds; the quick 9/13/19 buttons disable above the cap). Default komi
+    /// and rules — the square path produces makeDefaultSgf byte-for-byte.
+    private func startNewGame(width: Int, height: Int) {
         let record = GameRecord.createGameRecord(
-            sgf: GameRecord.makeDefaultSgf(boardSize: size))
+            sgf: GameRecord.makeSgf(width: width, height: height, komi: 7.0,
+                                    ruleString: "koSIMPLEscoreAREAtaxNONEsui0whbN"))
         modelContext.insert(record)
         try? modelContext.save()
 
@@ -414,7 +467,21 @@ struct VisionRootView: View {
         ContentUnavailableView {
             Label("Board Size Not Supported", systemImage: "cube.transparent")
         } description: {
-            Text("This game uses a \(width)×\(height) board, which isn't available on Apple Vision yet. Start a new 9×9, 13×13, or 19×19 game.")
+            Text("This game uses a \(width)×\(height) board. Apple Vision supports boards from 2×2 to 37×37.")
+        }
+    }
+
+    private func boardTooLargeView(width: Int, height: Int) -> some View {
+        ContentUnavailableView {
+            Label("Board Too Large", systemImage: "square.grid.3x3.square")
+        } description: {
+            Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size in Settings, then reopen the game.")
+        } actions: {
+            Button("Open Settings") {
+                shell.showingSettings = true
+                shell.showingControllerHelp = false
+                shell.showingNewGamePanel = false
+            }
         }
     }
 
@@ -500,11 +567,9 @@ struct VisionRootView: View {
         record.updateToLatestVersion()
 
         let config = record.concreteConfig
-        guard visionBoardIsSupported(width: config.boardWidth, height: config.boardHeight),
-              boardFits(width: config.boardWidth, height: config.boardHeight,
-                        maxBoardLength: engineController.maxBoardLength) else {
-            shell.phase = .unsupportedBoard(width: config.boardWidth,
-                                            height: config.boardHeight)
+        if let blocked = blockedPhase(width: config.boardWidth,
+                                      height: config.boardHeight) {
+            shell.phase = blocked
             return false
         }
 

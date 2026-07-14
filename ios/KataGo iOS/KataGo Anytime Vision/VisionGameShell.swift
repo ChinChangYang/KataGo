@@ -16,10 +16,15 @@ final class VisionGameShell {
     enum Phase: Equatable {
         case booting
         case ready
-        /// The selected game's board has no bundled 3D asset (rectangular or
-        /// non-9/13/19). The game is never loaded into the engine — the
-        /// ornament's New Game menu is the exit.
+        /// The selected game's board is outside the renderable 2...37 range.
+        /// The game is never loaded into the engine — the ornament's New
+        /// Game menu is the exit.
         case unsupportedBoard(width: Int, height: Int)
+        /// The board renders fine but exceeds the launched NN buffer — the
+        /// engine would fatally abort on its first analysis. The exit is
+        /// raising Max Board Size in Settings (which restarts the engine and
+        /// re-mounts this game).
+        case boardTooLarge(width: Int, height: Int)
     }
 
     var phase: Phase = .booting
@@ -33,15 +38,17 @@ final class VisionGameShell {
     /// bar's Games button.
     var showingGameList = false
 
-    /// Settings card visibility. Settings and the controller legend share
-    /// the right-side anchor, so opening either one closes the other — use
+    /// Settings, the controller legend, and the custom New Game panel share
+    /// the right-side anchor, so opening any one closes the others — use
     /// the toggle helpers, never the flags directly, from the bar buttons.
     var showingSettings = false
+    var showingNewGamePanel = false
 
     func toggleSettings() {
         showingSettings.toggle()
         if showingSettings {
             showingControllerHelp = false
+            showingNewGamePanel = false
         }
     }
 
@@ -49,6 +56,15 @@ final class VisionGameShell {
         showingControllerHelp.toggle()
         if showingControllerHelp {
             showingSettings = false
+            showingNewGamePanel = false
+        }
+    }
+
+    func toggleNewGamePanel() {
+        showingNewGamePanel.toggle()
+        if showingNewGamePanel {
+            showingSettings = false
+            showingControllerHelp = false
         }
     }
 
@@ -56,6 +72,7 @@ final class VisionGameShell {
     func presentControllerHelp() {
         showingControllerHelp = true
         showingSettings = false
+        showingNewGamePanel = false
     }
 
     /// Board orientation: false = lying flat on the volume floor (tabletop),
@@ -91,3 +108,18 @@ final class VisionGameShell {
 private let boardStandingKey = "VisionSettings.boardStanding"
 private let analysisInformationKey = "VisionSettings.analysisInformation"
 private let showOwnershipKey = "VisionSettings.showOwnership"
+
+/// The fixed-scale volume dimensions (~1360 pt/m), shared by the window
+/// frame and the scene model's standing-orientation math. Sized so a 37x37
+/// board at native pitch fits both orientations: the tabletop slab spans
+/// 0.82 x 0.88 m within the 0.9 m floor, and the standing board's 0.88 m
+/// height sits centered inside the 0.95 m volume.
+enum VisionVolumeMetrics {
+    static let widthMeters: Float = 0.9
+    static let heightMeters: Float = 0.95
+    static let depthMeters: Float = 0.9
+    static let pointsPerMeter: CGFloat = 1360
+    static var widthPoints: CGFloat { CGFloat(widthMeters) * pointsPerMeter }    // 1224
+    static var heightPoints: CGFloat { CGFloat(heightMeters) * pointsPerMeter }  // 1292
+    static var depthPoints: CGFloat { CGFloat(depthMeters) * pointsPerMeter }    // 1224
+}
