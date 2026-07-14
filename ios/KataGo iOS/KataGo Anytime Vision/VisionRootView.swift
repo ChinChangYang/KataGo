@@ -26,6 +26,7 @@ struct VisionRootView: View {
     @State private var controllerInput = VisionControllerInput()
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(EngineLaunchStatus.self) private var engineLaunchStatus
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse)
     private var gameRecords: [GameRecord]
 
@@ -53,9 +54,15 @@ struct VisionRootView: View {
             case .ready:
                 EmptyView()
             case .booting:
-                ProgressView("Loading engine")
-                    .controlSize(.extraLarge)
-                    .padding(28)
+                // Shared spinning-icon loading view (iOS/Mac/TV parity). It
+                // sizes via GeometryReader, so the ornament must bound it.
+                EngineLoadingView(caption: "Loading engine",
+                                  secondaryFont: .callout,
+                                  icon: Image(.loadingIcon),
+                                  iconSizing: .fixed(220),
+                                  status: engineLaunchStatus)
+                    .frame(width: 460, height: 420)
+                    .padding(20)
                     .glassBackgroundEffect()
             case .unsupportedBoard(let width, let height):
                 unsupportedBoardView(width: width, height: height)
