@@ -33,15 +33,34 @@ enum UITestSeed {
     static let gifGameSgf =
         "(;FF[4]GM[1]SZ[19]RU[chinese]KM[7];B[pd];W[dp];B[qp];W[dc];B[fq];W[cn])"
 
-    /// Idempotent. Safe to call on every launch; a no-op once the record exists.
+    /// Seeds a rectangular game (13 wide x 9 high, `SZ[13:9]`, four stones):
+    /// the 2D board renders any width x height that fits the NN buffer, and
+    /// this exercises that path (visionOS creates such games since the 2..37
+    /// support landed).
+    static let rectGameLaunchArg = "--uitest-seed-rect-game"
+    static let rectGameUUID = UUID(uuidString: "0000A11F-0000-0000-0000-0000000013B9")!
+    static let rectGameName = "UITest Rect Game"
+    static let rectGameSgf =
+        "(;FF[4]GM[1]SZ[13:9]RU[chinese]KM[7];B[cc];W[kc];B[cg];W[kg])"
+
+    /// Idempotent. Safe to call on every launch; a no-op once the records exist.
     @MainActor
     static func seedIfNeeded() {
-        guard ProcessInfo.processInfo.arguments.contains(gifGameLaunchArg) else { return }
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains(gifGameLaunchArg) {
+            seed(uuid: gifGameUUID, name: gifGameName, sgf: gifGameSgf)
+        }
+        if arguments.contains(rectGameLaunchArg) {
+            seed(uuid: rectGameUUID, name: rectGameName, sgf: rectGameSgf)
+        }
+    }
 
+    @MainActor
+    private static func seed(uuid: UUID, name: String, sgf: String) {
         let context = SharedModelContainer.shared.mainContext
 
         // Find-or-create by the fixed uuid.
-        let target: UUID? = gifGameUUID
+        let target: UUID? = uuid
         var descriptor = FetchDescriptor<GameRecord>(predicate: #Predicate { $0.uuid == target })
         descriptor.fetchLimit = 1
         if let existing = try? context.fetch(descriptor).first {
@@ -59,11 +78,11 @@ enum UITestSeed {
         // Same construction the New Game path uses: createGameRecord builds the
         // record + its Config (board size / komi from the SGF) but does NOT insert.
         let record = GameRecord.createGameRecord(
-            sgf: gifGameSgf,
+            sgf: sgf,
             currentIndex: 0,
-            name: gifGameName
+            name: name
         )
-        record.uuid = gifGameUUID
+        record.uuid = uuid
         record.lastModificationDate = Date.now  // newest-first → top of the list
 
         context.insert(record)

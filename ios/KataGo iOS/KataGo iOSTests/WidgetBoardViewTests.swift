@@ -48,6 +48,23 @@ struct WidgetBoardViewTests {
         #expect(renderer.uiImage != nil)
     }
 
+    /// visionOS creates any 2..37 board, square or rectangular, and those games
+    /// reach the widget thumbnails and the watch (WatchBoardPage renders this
+    /// same view) — the extremes must render, not collapse or fault.
+    @MainActor @Test func widgetBoardView_rendersLargeRectangularAndTinyBoards() {
+        let large = WidgetBoardView(width: 37, height: 37,
+                                    blackVertices: ["AA1", "AM37"], whiteVertices: ["A1"])
+        #expect(ImageRenderer(content: large.frame(width: 360, height: 360)).uiImage != nil)
+
+        let rectangle = WidgetBoardView(width: 13, height: 9,
+                                        blackVertices: ["C3"], whiteVertices: ["L7"])
+        #expect(ImageRenderer(content: rectangle.frame(width: 360, height: 360)).uiImage != nil)
+
+        let tiny = WidgetBoardView(width: 2, height: 2,
+                                   blackVertices: ["A1"], whiteVertices: [])
+        #expect(ImageRenderer(content: tiny.frame(width: 120, height: 120)).uiImage != nil)
+    }
+
     /// The crisp vector board (now the only widget renderer) draws star points so
     /// it reads as a real goban, matching the standard hoshi layout per board size.
     /// Counts/booleans are computed into locals first: passing a non-empty
