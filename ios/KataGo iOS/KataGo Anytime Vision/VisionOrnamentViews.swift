@@ -563,6 +563,9 @@ struct VisionNewGamePanel: View {
 struct VisionGameListOrnament: View {
     let gameRecords: [GameRecord]
     let maxBoardLength: Int
+    /// The active net's nnLen — the largest value Max Board Size can reach.
+    /// Rows over it caption "switch the net", not "raise the setting".
+    let modelBoardCap: Int
     let navigationContext: NavigationContext
     let onOpenGame: (GameRecord) -> Void
     let onDismiss: () -> Void
@@ -608,7 +611,8 @@ struct VisionGameListOrnament: View {
             lastModificationDate: record.lastModificationDate,
             width: record.width,
             height: record.height,
-            maxBoardLength: maxBoardLength)
+            maxBoardLength: maxBoardLength,
+            modelBoardCap: modelBoardCap)
         let isCurrent = record.persistentModelID
             == navigationContext.selectedGameRecord?.persistentModelID
 
@@ -627,6 +631,10 @@ struct VisionGameListOrnament: View {
                     }
                     if item.needsLargerBoardSetting {
                         Text("Raise Max Board Size in Settings")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    } else if item.needsDifferentNet {
+                        Text("Switch the neural net in Settings")
                             .font(.caption2)
                             .foregroundStyle(.orange)
                     }

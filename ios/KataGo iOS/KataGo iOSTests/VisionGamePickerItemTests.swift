@@ -18,12 +18,14 @@ struct VisionGamePickerItemTests {
                       width: Int? = nil,
                       height: Int? = nil,
                       maxBoardLength: Int = 19,
+                      modelBoardCap: Int = 37,
                       now: Date = .now) -> VisionGamePickerItem {
         VisionGamePickerItem.make(name: name,
                                   lastModificationDate: lastModificationDate,
                                   width: width,
                                   height: height,
                                   maxBoardLength: maxBoardLength,
+                                  modelBoardCap: modelBoardCap,
                                   now: now)
     }
 
@@ -54,6 +56,31 @@ struct VisionGamePickerItemTests {
         let item = make(width: 38, height: 38, maxBoardLength: 37)
         #expect(!item.isSelectable)
         #expect(!item.needsLargerBoardSetting)
+        #expect(!item.needsDifferentNet)
+    }
+
+    @Test func boardOverTheNetCapNeedsADifferentNet() {
+        // A capped net (Lionffen class, nnLen 19): no Max Board Size choice
+        // can ever fit this board, so the caption must not point at the
+        // setting — switching the neural net is the exit.
+        let blocked = make(width: 25, height: 25,
+                           maxBoardLength: 19, modelBoardCap: 19)
+        #expect(!blocked.isSelectable)
+        #expect(!blocked.needsLargerBoardSetting)
+        #expect(blocked.needsDifferentNet)
+
+        let rectangle = make(width: 37, height: 19,
+                             maxBoardLength: 19, modelBoardCap: 19)
+        #expect(rectangle.needsDifferentNet)
+        #expect(!rectangle.needsLargerBoardSetting)
+    }
+
+    @Test func raisableBoardStillPointsAtTheSetting() {
+        // The board fits within the net's cap — raising the setting works.
+        let item = make(width: 25, height: 25,
+                        maxBoardLength: 19, modelBoardCap: 37)
+        #expect(item.needsLargerBoardSetting)
+        #expect(!item.needsDifferentNet)
     }
 
     @Test func unknownSizeIsOptimisticallySelectable() {

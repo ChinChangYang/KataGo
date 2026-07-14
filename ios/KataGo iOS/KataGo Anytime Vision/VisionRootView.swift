@@ -202,6 +202,7 @@ struct VisionRootView: View {
                 VisionGameListOrnament(
                     gameRecords: gameRecords,
                     maxBoardLength: engineController.maxBoardLength,
+                    modelBoardCap: engineController.activeModel.nnLen,
                     navigationContext: navigationContext,
                     onOpenGame: { openGame($0) },
                     onDismiss: { shell.showingGameList = false }
@@ -607,10 +608,19 @@ struct VisionRootView: View {
     }
 
     private func boardTooLargeView(width: Int, height: Int) -> some View {
-        ContentUnavailableView {
+        // A capped net (nnLen below the board) can never be raised far
+        // enough — the honest exit is switching the neural net, and both
+        // controls live in Settings.
+        let cap = engineController.activeModel.nnLen
+        let raisable = boardFits(width: width, height: height, maxBoardLength: cap)
+        return ContentUnavailableView {
             Label("Board Too Large", systemImage: "square.grid.3x3.square")
         } description: {
-            Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size in Settings, then reopen the game.")
+            if raisable {
+                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size in Settings, then reopen the game.")
+            } else {
+                Text("This game uses a \(width)×\(height) board, larger than the current neural net supports (\(cap)×\(cap)). Switch the neural net in Settings, then reopen the game.")
+            }
         } actions: {
             Button("Open Settings") {
                 shell.showingSettings = true
