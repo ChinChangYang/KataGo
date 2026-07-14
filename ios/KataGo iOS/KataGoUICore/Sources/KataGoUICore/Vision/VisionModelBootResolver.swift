@@ -4,21 +4,24 @@
 //
 //  Pure boot-time model resolution for visionOS: the shared
 //  RecoveryDecision contract (iOS ModelRunnerView / Mac decideRecovery)
-//  mapped onto a target with no picker screen. Every .showPicker outcome
-//  — a surviving crash sentinel, a Debug build, or no recorded selection
-//  — lands on the built-in net, and an auto-restore whose downloaded
-//  file vanished from Documents falls back to the built-in instead of
-//  crash-looping the headless engine boot.
+//  mapped onto ornament-based UI. A surviving load sentinel — the prior
+//  run died between arming the launch and the engine's first GTP reply —
+//  resolves to .chooseModel: NO engine boots and the Models card
+//  presents as a neutral chooser, the iOS picker design (auto-restoring
+//  a net whose load just crashed would loop the crash). Clean paths boot
+//  headlessly: Debug and empty selections boot the built-in, and an
+//  auto-restore whose downloaded file vanished from Documents falls back
+//  to the built-in instead of crashing the headless engine boot.
 //
 
 import Foundation
 
 public enum VisionModelBootResolver {
-    public struct Resolution {
-        public let model: NeuralNetworkModel
-        /// True only when a surviving crash sentinel forced the fallback —
-        /// the caller logs the incomplete prior load (no banner, iOS parity).
-        public let fellBackFromIncompleteLoad: Bool
+    public enum Resolution {
+        /// Spawn the engine on this net immediately (normal headless boot).
+        case boot(NeuralNetworkModel)
+        /// Present the Models card and boot nothing until the user picks.
+        case chooseModel
     }
 
     public static func resolve(pendingLoadModelTitle: String,
@@ -30,18 +33,24 @@ public enum VisionModelBootResolver {
                                        selectedModelTitle: selectedModelTitle,
                                        isDebug: isDebug) {
         case .showPicker:
-            return Resolution(
-                model: builtIn,
-                fellBackFromIncompleteLoad: !pendingLoadModelTitle.isEmpty)
+            // RecoveryDecision checks the sentinel before the Debug clause,
+            // so a surviving sentinel means the chooser even in Debug; a
+            // clean Debug/empty-selection boot stays headless on the
+            // built-in (Mac parity — and the sim QA tooling boots to the
+            // board).
+            if !pendingLoadModelTitle.isEmpty {
+                return .chooseModel
+            }
+            return .boot(builtIn)
         case .autoRestore(let title):
             guard let match = NeuralNetworkModel.allCases.first(where: { $0.title == title })
             else {
-                return Resolution(model: builtIn, fellBackFromIncompleteLoad: false)
+                return .boot(builtIn)
             }
             if match.builtIn || isFileDownloaded(match) {
-                return Resolution(model: match, fellBackFromIncompleteLoad: false)
+                return .boot(match)
             }
-            return Resolution(model: builtIn, fellBackFromIncompleteLoad: false)
+            return .boot(builtIn)
         }
     }
 }

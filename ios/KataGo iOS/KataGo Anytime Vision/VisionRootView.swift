@@ -118,6 +118,19 @@ struct VisionRootView: View {
                     .frame(width: 460, height: 420)
                     .padding(20)
                     .glassBackgroundEffect()
+            case .choosingModel:
+                // iOS picker design: a surviving load sentinel defers the
+                // launch to the user. The regular Models card doubles as
+                // the chooser (neutral — no crash wording, no marked rows);
+                // picking a net boots it.
+                VisionModelsOrnament(engine: engineController,
+                                     readiness: cacheReadiness,
+                                     isBootChooser: true,
+                                     onActivate: { model in
+                                         shell.phase = .booting
+                                         launchEngine(model: model)
+                                     },
+                                     onDismiss: {})
             case .unsupportedBoard(let width, let height):
                 unsupportedBoardView(width: width, height: height)
                     .frame(width: 460)
@@ -225,16 +238,22 @@ struct VisionRootView: View {
                     guard let url = model.downloadedURL else { return false }
                     return FileManager.default.fileExists(atPath: url.path)
                 })
-            if resolution.fellBackFromIncompleteLoad {
+            switch resolution {
+            case .boot(let model):
+                launchEngine(model: model)
+            case .chooseModel:
+                // A surviving load sentinel: iOS picker design — no engine
+                // until the user picks from the Models chooser (auto-
+                // restoring a net whose load just crashed would loop).
                 recoveryLogger.error(
-                    "Previous launch did not finish loading model: \(modelSelection.pendingLoadModelTitle, privacy: .public). Booting the built-in net."
+                    "Previous launch did not finish loading model: \(modelSelection.pendingLoadModelTitle, privacy: .public). Presenting the model chooser."
                 )
+                shell.phase = .choosingModel
             }
-            engineController.startInitial(model: resolution.model)
+            // The chooser's green cache-ready checkmarks need this before
+            // any engine exists (idempotent; engine-independent).
+            Task { await cacheReadiness.start() }
             controllerInput.onEvent = { handleControllerEvent($0) }
-        }
-        .task {
-            await initializationTask()
         }
         // The GTP read loop — parses board/analysis lines into the models.
         // Must not run concurrently with the handshake (the bridge's sole
@@ -603,11 +622,16 @@ struct VisionRootView: View {
 
     // MARK: - Boot
 
-    private func initializationTask() async {
-        // Arm the CoreML cache-readiness signal (the Models card's green
-        // checkmarks) — idempotent, and independent of the engine.
-        await cacheReadiness.start()
+    /// Spawns the engine on `model` and runs the one-shot boot
+    /// initialization. Called from onAppear for a headless boot, and from
+    /// the pre-boot Models chooser when a surviving load sentinel deferred
+    /// the launch to the user (shell.phase == .choosingModel until then).
+    private func launchEngine(model: NeuralNetworkModel) {
+        engineController.startInitial(model: model)
+        Task { await initializationTask() }
+    }
 
+    private func initializationTask() async {
         // Session-level flags BEFORE the handshake completes, so no engine
         // reply can precede them (tvOS discipline).
         session.autoCreatesGameOnEmptyLibrary = false

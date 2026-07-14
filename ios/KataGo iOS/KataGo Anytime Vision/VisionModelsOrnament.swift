@@ -21,14 +21,19 @@ import KataGoUICore
 struct VisionModelsOrnament: View {
     let engine: VisionEngineController
     let readiness: CoreMLCacheReadiness
+    /// Pre-boot chooser mode (shell.phase == .choosingModel): no engine is
+    /// running yet, so nothing is "active", every net is activatable, and
+    /// the card cannot be dismissed — picking a net IS the boot.
+    var isBootChooser = false
     let onActivate: (NeuralNetworkModel) -> Void
     let onDismiss: () -> Void
 
     @State private var downloaders: [String: Downloader] = [:]
 
     private var items: [VisionModelListItem] {
-        VisionModelListItem.makeAll(activeTitle: engine.activeModel.title,
-                                    readyFileNames: readiness.readyFileNames)
+        VisionModelListItem.makeAll(
+            activeTitle: isBootChooser ? "" : engine.activeModel.title,
+            readyFileNames: readiness.readyFileNames)
     }
 
     var body: some View {
@@ -57,16 +62,19 @@ struct VisionModelsOrnament: View {
                     .first(where: { $0.title == title }) {
                     VisionModelDetailView(model: model,
                                           engine: engine,
+                                          isBootChooser: isBootChooser,
                                           downloader: downloader(for: model),
                                           onActivate: onActivate)
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
+                if !isBootChooser {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                        }
+                        .accessibilityLabel("Close models")
                     }
-                    .accessibilityLabel("Close models")
                 }
             }
         }
@@ -101,18 +109,22 @@ struct VisionModelsOrnament: View {
 private struct VisionModelDetailView: View {
     let model: NeuralNetworkModel
     let engine: VisionEngineController
+    var isBootChooser = false
     let downloader: Downloader
     let onActivate: (NeuralNetworkModel) -> Void
 
     @State private var isDownloaded = false
 
     private var state: VisionModelDetailState {
-        VisionModelDetailState.make(isBuiltIn: model.builtIn,
-                                    fileSize: model.fileSize,
-                                    isDownloaded: isDownloaded,
-                                    isDownloading: downloader.isDownloading,
-                                    isActive: model.title == engine.activeModel.title,
-                                    engineIsRunning: engine.phase == .running)
+        // Pre-boot chooser: no engine yet, so nothing is active and
+        // activation is always allowed (it IS the boot).
+        VisionModelDetailState.make(
+            isBuiltIn: model.builtIn,
+            fileSize: model.fileSize,
+            isDownloaded: isDownloaded,
+            isDownloading: downloader.isDownloading,
+            isActive: !isBootChooser && model.title == engine.activeModel.title,
+            engineIsRunning: isBootChooser || engine.phase == .running)
     }
 
     var body: some View {

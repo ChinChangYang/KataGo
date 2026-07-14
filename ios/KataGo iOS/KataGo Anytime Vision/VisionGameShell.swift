@@ -15,6 +15,10 @@ import KataGoUICore
 final class VisionGameShell {
     enum Phase: Equatable {
         case booting
+        /// A surviving load sentinel: no engine runs; the Models card
+        /// presents front-center as a neutral chooser (iOS picker design)
+        /// and the pick boots the engine.
+        case choosingModel
         case ready
         /// The selected game's board is outside the renderable 2...37 range.
         /// The game is never loaded into the engine — the ornament's New

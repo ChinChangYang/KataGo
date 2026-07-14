@@ -4,10 +4,12 @@
 //
 //  Pins the pure boot-time model resolution for visionOS: the shared
 //  RecoveryDecision contract (iOS ModelRunnerView / Mac decideRecovery)
-//  mapped onto a target with no picker screen — every .showPicker outcome
-//  lands on the built-in net, and an auto-restore of a net whose file
-//  vanished from Documents falls back to the built-in instead of
-//  crash-looping the headless engine boot.
+//  mapped onto ornament-based UI. A surviving load sentinel resolves to
+//  .chooseModel — the iOS picker design: NO engine boots and the Models
+//  card presents as a neutral chooser (never auto-restoring a net whose
+//  load just crashed). Everything else boots headlessly: Debug and empty
+//  selections boot the built-in, an auto-restore whose downloaded file
+//  vanished from Documents falls back to the built-in.
 //
 
 import Testing
@@ -18,26 +20,47 @@ struct VisionModelBootResolverTests {
         NeuralNetworkModel.allCases.first { !$0.builtIn }!
     }
 
-    @Test func survivingSentinelFallsBackToBuiltInAndFlags() {
+    private func bootedModel(
+        _ resolution: VisionModelBootResolver.Resolution
+    ) -> NeuralNetworkModel? {
+        if case .boot(let model) = resolution { return model }
+        return nil
+    }
+
+    @Test func survivingSentinelShowsTheChooser() {
         let resolution = VisionModelBootResolver.resolve(
             pendingLoadModelTitle: official.title,
             selectedModelTitle: official.title,
             isDebug: false,
             isFileDownloaded: { _ in true })
-        #expect(resolution.model.builtIn)
-        #expect(resolution.fellBackFromIncompleteLoad)
+        guard case .chooseModel = resolution else {
+            Issue.record("expected .chooseModel, got \(resolution)")
+            return
+        }
     }
 
-    @Test func debugAlwaysBootsBuiltIn() {
-        // Exact Mac parity: RecoveryDecision returns .showPicker in Debug,
-        // and Vision's "picker fallback" is the built-in net.
+    @Test func survivingSentinelShowsTheChooserEvenInDebug() {
+        // RecoveryDecision checks the sentinel before the Debug clause.
+        let resolution = VisionModelBootResolver.resolve(
+            pendingLoadModelTitle: official.title,
+            selectedModelTitle: "",
+            isDebug: true,
+            isFileDownloaded: { _ in true })
+        guard case .chooseModel = resolution else {
+            Issue.record("expected .chooseModel, got \(resolution)")
+            return
+        }
+    }
+
+    @Test func debugBootsBuiltIn() {
+        // Mac parity for a clean Debug boot: headless built-in, no chooser
+        // (keeps the sim QA tooling boot-to-board).
         let resolution = VisionModelBootResolver.resolve(
             pendingLoadModelTitle: "",
             selectedModelTitle: official.title,
             isDebug: true,
             isFileDownloaded: { _ in true })
-        #expect(resolution.model.builtIn)
-        #expect(!resolution.fellBackFromIncompleteLoad)
+        #expect(bootedModel(resolution)?.builtIn == true)
     }
 
     @Test func emptySelectionBootsBuiltIn() {
@@ -46,8 +69,7 @@ struct VisionModelBootResolverTests {
             selectedModelTitle: "",
             isDebug: false,
             isFileDownloaded: { _ in true })
-        #expect(resolution.model.builtIn)
-        #expect(!resolution.fellBackFromIncompleteLoad)
+        #expect(bootedModel(resolution)?.builtIn == true)
     }
 
     @Test func selectedDownloadedNetAutoRestores() {
@@ -56,8 +78,7 @@ struct VisionModelBootResolverTests {
             selectedModelTitle: official.title,
             isDebug: false,
             isFileDownloaded: { $0.title == official.title })
-        #expect(resolution.model.title == official.title)
-        #expect(!resolution.fellBackFromIncompleteLoad)
+        #expect(bootedModel(resolution)?.title == official.title)
     }
 
     @Test func missingFileFallsBackToBuiltIn() {
@@ -66,8 +87,7 @@ struct VisionModelBootResolverTests {
             selectedModelTitle: official.title,
             isDebug: false,
             isFileDownloaded: { _ in false })
-        #expect(resolution.model.builtIn)
-        #expect(!resolution.fellBackFromIncompleteLoad)
+        #expect(bootedModel(resolution)?.builtIn == true)
     }
 
     @Test func unknownTitleFallsBackToBuiltIn() {
@@ -76,8 +96,7 @@ struct VisionModelBootResolverTests {
             selectedModelTitle: "No Such Network",
             isDebug: false,
             isFileDownloaded: { _ in true })
-        #expect(resolution.model.builtIn)
-        #expect(!resolution.fellBackFromIncompleteLoad)
+        #expect(bootedModel(resolution)?.builtIn == true)
     }
 
     @Test func builtInSelectionNeverConsultsTheDisk() {
@@ -90,6 +109,6 @@ struct VisionModelBootResolverTests {
                 Issue.record("built-in must not hit the file system")
                 return false
             })
-        #expect(resolution.model.builtIn)
+        #expect(bootedModel(resolution)?.builtIn == true)
     }
 }
