@@ -362,8 +362,18 @@ struct VisionSettingsOrnament: View {
         self.onDismiss = onDismiss
         // The buffer setting is per-model (per-fileName BackendSettings
         // keys) — seed from the ACTIVE net, not the built-in.
-        _boardSize = State(initialValue:
-            BackendSettings(model: engine.activeModel).mlxBoardSize)
+        _boardSize = State(initialValue: Self.persistedChoice(for: engine.activeModel))
+    }
+
+    /// The persisted per-model choice, clamped to the net's nnLen so the
+    /// selection always matches an offered segment (a 37x37 persisted for a
+    /// 19-capped net displays as 19x19 — which IS the effective buffer,
+    /// since effectiveMaxBoardLength takes min(choice, nnLen)).
+    private static func persistedChoice(for model: NeuralNetworkModel) -> BoardSizeChoice {
+        let persisted = BackendSettings(model: model).mlxBoardSize
+        let allowed = BoardSizeChoice.allCases.filter { $0.rawValue <= model.nnLen }
+        if allowed.contains(persisted) { return persisted }
+        return allowed.last ?? persisted
     }
 
     var body: some View {
@@ -428,8 +438,15 @@ struct VisionSettingsOrnament: View {
             // the window.
             VStack(alignment: .leading, spacing: 8) {
                 Label("Max board size", systemImage: "squareshape.split.3x3")
+                // Choices above the active net's nnLen are omitted, not
+                // silently clamped: effectiveMaxBoardLength = min(choice,
+                // nnLen), so offering 37x37 on a 19-capped net (the
+                // Lionffen class) would select a segment that changes
+                // nothing.
                 Picker("Max board size", selection: $boardSize) {
-                    ForEach(BoardSizeChoice.allCases) { choice in
+                    ForEach(BoardSizeChoice.allCases.filter {
+                        $0.rawValue <= engine.activeModel.nnLen
+                    }) { choice in
                         Text(choice.label).tag(choice)
                     }
                 }
@@ -449,7 +466,7 @@ struct VisionSettingsOrnament: View {
             // card). Without this the segmented control shows the OLD
             // model's cap and its first change writes the old key.
             .onChange(of: engine.activeModel.fileName) { _, _ in
-                boardSize = BackendSettings(model: engine.activeModel).mlxBoardSize
+                boardSize = Self.persistedChoice(for: engine.activeModel)
             }
 
             if engine.phase != .running {

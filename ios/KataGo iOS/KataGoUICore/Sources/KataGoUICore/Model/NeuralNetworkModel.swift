@@ -105,22 +105,24 @@ Board sizes: 2x2 to 37x37.
             description: """
 Trained by "lionffen", this is a heavily optimized very small 6-block network that in normal games may be competitive with or stronger than many of KataGo's historical 10-block nets on equal visits, while running much faster due to its tiny size! It has been trained specifically for 19x19 and might NOT perform well on any other board sizes. Additionally, due to being a very shallow net (only 6 residual blocks), it will have too few layers to be capable of "perceiving" the the whole board at once, so like any small net, it may be uncharacteristically weak relative to its strength otherwise in situations involving very large dragons or capturing races, more than neural nets in Go already are in such cases.
 
-Board sizes: 2x2 to 37x37.
+Board sizes: 2x2 to 19x19. This app limits this network to boards up to 19x19: larger boards can crash its CoreML evaluation, and it is trained for 19x19 anyway.
 """,
             url: "https://media.katagotraining.org/uploaded/networks/models_extra/lionffen_b6c64_3x3_v10.txt.gz",
             fileName: "lionffen.txt.gz",
-            fileSize: 2_196_103
+            fileSize: 2_196_103,
+            nnLen: 19
         ),
         .init(
             title: "Lionffen b24c64 Network",
             description: """
 Trained by "lionffen", this is a heavily optimized small network with a number of parameters between KataGo's historical 6 and 10 block networks in normal games that may be competitive with KataGo's historical 15-block nets or weaker 20-block networks. However, it might not be suitable for general game review/analysis, even on weaker hardware that might benefit from a small/fast net, since it appears to have been optimized head-to-head strength against superhuman opponents and might be fragile and play poor moves when behind or in some unfamiliar situations.
 
-Board sizes: 2x2 to 37x37.
+Board sizes: 2x2 to 19x19. This app limits this network to boards up to 19x19: very large boards can crash its CoreML evaluation, and the Lionffen nets are 19x19 nets by design.
 """,
             url: "https://media.katagotraining.org/uploaded/networks/models_extra/lionffen_b24c64_3x3_v3_12300.bin.gz",
             fileName: "lionffen_b24c64_3x3_v3_12300.bin.gz",
-            fileSize: 4_842_138
+            fileSize: 4_842_138,
+            nnLen: 19
         ),
         .init(
             title: "Finetuned 9x9 Network",

@@ -286,6 +286,7 @@
 		93145670B0CC5A2216810181 /* Scaler.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */; };
 		93220D07CE100955A981A6BF /* VisionAnalysisLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3712A5C7191AA84DBBDA0BF /* VisionAnalysisLabelTests.swift */; };
 		93D872B0DBA97838547744F4 /* FileWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D50CEC238BE790355F94D6D3 /* FileWriter.cpp */; };
+		94781886A108BB18B7BFB9C9 /* NeuralNetworkModelGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */; };
 		948CAEF78641599449997CFF /* statusor.cc in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB1E48C91DD79F0008B2C /* statusor.cc */; };
 		94BDAF9907F26647CC4164CF /* match.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC52A0100425C29AA86E3502 /* match.cc */; };
 		9621D8C7B7B6D544E921F80A /* Normalizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */; };
@@ -1256,6 +1257,7 @@
 		B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubprocessKataGoEngine.swift; sourceTree = "<group>"; };
 		B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfTruncationTests.swift; sourceTree = "<group>"; };
 		B797CDE40306D2B33B324106 /* status.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status.cc"; sourceTree = SOURCE_ROOT; };
+		B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModelGateTests.swift; sourceTree = "<group>"; };
 		B96A4284E69EB64814A4AB2D /* GameSessionReportModeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionReportModeTests.swift; sourceTree = "<group>"; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
 		B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionLockSlotModelTests.swift; sourceTree = "<group>"; };
@@ -2767,6 +2769,7 @@
 				85496767CF032689A724F1B3 /* VisionModelDetailStateTests.swift */,
 				FFD79CC9919790FED10D4219 /* VisionModelBootResolverTests.swift */,
 				0BFB7BA5DF019CBB7D997242 /* VisionBranchConfirmTests.swift */,
+				B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4009,6 +4012,7 @@
 				56BF846525895806D50F8451 /* VisionModelDetailStateTests.swift in Sources */,
 				23BD041DE508CFC8BD3B27AC /* VisionModelBootResolverTests.swift in Sources */,
 				32C6BE054C75161395EC6A87 /* VisionBranchConfirmTests.swift in Sources */,
+				94781886A108BB18B7BFB9C9 /* NeuralNetworkModelGateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
