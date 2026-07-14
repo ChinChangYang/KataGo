@@ -234,7 +234,25 @@ struct VisionControllerLegend: View {
 /// settings into GobanState, which is what the 3D scene reads.
 struct VisionSettingsOrnament: View {
     @Bindable var shell: VisionGameShell
+    let engine: VisionEngineController
+    let onRestart: () -> Void
     let onDismiss: () -> Void
+
+    /// Seeded from the persisted per-model setting (TVSettingsScreen pattern);
+    /// onChange persists and asks the root to restart the engine.
+    @State private var boardSize: BoardSizeChoice
+
+    init(shell: VisionGameShell,
+         engine: VisionEngineController,
+         onRestart: @escaping () -> Void,
+         onDismiss: @escaping () -> Void) {
+        self.shell = shell
+        self.engine = engine
+        self.onRestart = onRestart
+        self.onDismiss = onDismiss
+        let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+        _boardSize = State(initialValue: BackendSettings(model: model).mlxBoardSize)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -269,6 +287,46 @@ struct VisionSettingsOrnament: View {
 
             Toggle(isOn: $shell.isBoardStanding) {
                 Label("Stand board up", systemImage: "rectangle.portrait.rotate")
+            }
+
+            // NN-buffer cap: bigger boards need a bigger (slower, hungrier)
+            // buffer, so changing it quits and respawns the engine — the same
+            // proven flow as tvOS's Board Size setting. Disabled unless the
+            // engine is running (a restart in flight serves the OLD buffer).
+            HStack {
+                Label("Max board size", systemImage: "squareshape.split.3x3")
+                Spacer()
+                Picker("Max board size", selection: $boardSize) {
+                    ForEach(BoardSizeChoice.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .disabled(engine.phase != .running)
+            }
+            .onChange(of: boardSize) { oldValue, newValue in
+                guard oldValue != newValue else { return }
+                let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
+                var settings = BackendSettings(model: model)
+                settings.mlxBoardSize = newValue
+                onRestart()
+            }
+
+            if engine.phase != .running {
+                HStack(spacing: 8) {
+                    if case .failed(let reason) = engine.phase {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                        Text(reason)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Restarting engine…")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
         }
         .frame(width: 380)

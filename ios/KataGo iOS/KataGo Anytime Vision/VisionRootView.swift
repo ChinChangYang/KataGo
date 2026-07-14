@@ -45,8 +45,12 @@ struct VisionRootView: View {
         // ≈ 0.8 x 0.6 x 0.8 m. The window adopts this via .contentSize.
         .frame(width: 1088, height: 816)
         .frame(depth: 1088)
+        // Hidden while `.booting` (initial boot has isReady false; a
+        // Max-Board-Size restart re-enters .booting with isReady true) so no
+        // pinch can send commands at a down engine. The settings card stays
+        // up — it shows the restart progress and the disabled picker.
         .ornament(attachmentAnchor: .scene(.bottomFront), contentAlignment: .center) {
-            if isReady {
+            if isReady, shell.phase != .booting {
                 VisionControlOrnament(
                     session: session,
                     shell: shell,
@@ -68,9 +72,10 @@ struct VisionRootView: View {
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 1, y: 0.5, z: 1)),
                   contentAlignment: .leading) {
             if isReady, shell.showingSettings {
-                VisionSettingsOrnament(shell: shell) {
-                    shell.showingSettings = false
-                }
+                VisionSettingsOrnament(shell: shell,
+                                       engine: engineController,
+                                       onRestart: { restartEngineForMaxBoardSize() },
+                                       onDismiss: { shell.showingSettings = false })
             } else if isReady, shell.showingControllerHelp {
                 VisionControllerLegend {
                     shell.showingControllerHelp = false
@@ -79,7 +84,7 @@ struct VisionRootView: View {
         }
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0, y: 0.5, z: 1)),
                   contentAlignment: .trailing) {
-            if isReady, shell.showingGameList {
+            if isReady, shell.showingGameList, shell.phase != .booting {
                 VisionGameListOrnament(
                     gameRecords: gameRecords,
                     maxBoardLength: engineController.maxBoardLength,
@@ -99,6 +104,7 @@ struct VisionRootView: View {
             }
         }
         .onAppear {
+            engineController.configure(session: session, engineLifecycle: engineLifecycle)
             engineController.startInitial()
             controllerInput.onEvent = { handleControllerEvent($0) }
         }
@@ -107,7 +113,11 @@ struct VisionRootView: View {
         }
         // The GTP read loop — parses board/analysis lines into the models.
         // Must not run concurrently with the handshake (the bridge's sole
-        // reader), so it arms only once initialization finished.
+        // reader), so it arms only once initialization finished. `isReady`
+        // stays true across a Max-Board-Size restart: `session.run` exits on
+        // `stopRequested`, and `noteRunLoopExited` parks this loop until the
+        // restarted engine's handshake completes (TVRootView's discipline —
+        // without the park, the exited `run` would busy-spin here).
         .task(id: isReady) {
             guard isReady else { return }
             while !Task.isCancelled {
@@ -116,6 +126,7 @@ struct VisionRootView: View {
                                   navigationContext: navigationContext,
                                   audioModel: audioModel,
                                   aiMove: $aiMove)
+                await engineController.noteRunLoopExited()
             }
         }
         // Analysis stop lifecycle (mirrors TVRootView): without these the
@@ -429,47 +440,24 @@ struct VisionRootView: View {
             selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
             engineLifecycle: engineLifecycle
         )
+        engineController.noteInitialHandshakeComplete()
 
-        // Most recently modified synced game, else a fresh default game.
-        let record: GameRecord
-        if let existing = try? GameRecord.fetchGameRecords(
-            container: modelContext.container, fetchLimit: 1).first {
-            record = existing
-        } else {
-            let created = GameRecord.createGameRecord()
-            modelContext.insert(created)
-            try? modelContext.save()
-            record = created
+        if resolveAndMountCurrentGame() {
+            // One collection round (the printsgf reply) before the run loop
+            // arms, mirroring ContentView.initializationTask. Boot-only: after
+            // a restart the live read loop already owns the bridge, and a
+            // second reader would corrupt it.
+            await session.messaging(
+                gameRecords: gameRecords,
+                modelContext: modelContext,
+                navigationContext: navigationContext,
+                audioModel: audioModel,
+                aiMove: $aiMove
+            )
+            shell.phase = .ready
         }
-        record.updateToLatestVersion()
-
-        // Gate BEFORE any engine load: an unsupported board must never reach
-        // maybeLoadSgf — the engine fatally aborts on the first analysis of a
-        // board larger than its NN buffer, and smaller unsupported sizes have
-        // no 3D asset to render.
-        let config = record.concreteConfig
-        guard visionBoardIsSupported(width: config.boardWidth, height: config.boardHeight),
-              boardFits(width: config.boardWidth, height: config.boardHeight,
-                        maxBoardLength: engineController.maxBoardLength) else {
-            isReady = true
-            shell.phase = .unsupportedBoard(width: config.boardWidth, height: config.boardHeight)
-            return
-        }
-
-        switchGame(to: record)
-
-        // One collection round (the printsgf reply) before the run loop arms,
-        // mirroring ContentView.initializationTask.
-        await session.messaging(
-            gameRecords: gameRecords,
-            modelContext: modelContext,
-            navigationContext: navigationContext,
-            audioModel: audioModel,
-            aiMove: $aiMove
-        )
 
         isReady = true
-        shell.phase = .ready
 
         // onChange(of: isConnected) never fires for a controller that was
         // already paired before launch (the common simulator case).
@@ -481,6 +469,63 @@ struct VisionRootView: View {
         #if DEBUG
         autoplaySmokeIfRequested()
         #endif
+    }
+
+    /// Resolve the game to mount — the current selection, else the newest
+    /// synced record, else a fresh default sized to the engine cap — gate it
+    /// against the launched NN buffer, and mount it via the shared switch
+    /// path. Shared by boot and the Max-Board-Size restart; the caller owns
+    /// `isReady`, `.ready`, and any boot-only messaging round. Returns false
+    /// with the blocked phase set when the board cannot mount.
+    ///
+    /// The gate runs BEFORE any engine load: a too-large board must never
+    /// reach maybeLoadSgf — the engine fatally aborts on the first analysis
+    /// of a board larger than its NN buffer, and unsupported sizes have no
+    /// 3D asset to render.
+    @discardableResult
+    private func resolveAndMountCurrentGame() -> Bool {
+        let record: GameRecord
+        if let selected = navigationContext.selectedGameRecord {
+            record = selected
+        } else if let existing = try? GameRecord.fetchGameRecords(
+            container: modelContext.container, fetchLimit: 1).first {
+            record = existing
+        } else {
+            let created = GameRecord.createGameRecord(
+                maxBoardLength: engineController.maxBoardLength)
+            modelContext.insert(created)
+            try? modelContext.save()
+            record = created
+        }
+        record.updateToLatestVersion()
+
+        let config = record.concreteConfig
+        guard visionBoardIsSupported(width: config.boardWidth, height: config.boardHeight),
+              boardFits(width: config.boardWidth, height: config.boardHeight,
+                        maxBoardLength: engineController.maxBoardLength) else {
+            shell.phase = .unsupportedBoard(width: config.boardWidth,
+                                            height: config.boardHeight)
+            return false
+        }
+
+        switchGame(to: record)
+        return true
+    }
+
+    /// The settings card's Max Board Size picker changed (already persisted):
+    /// quit → respawn the engine with the new NN buffer behind the loading
+    /// view, then re-gate and re-mount the current game. `.booting` hides the
+    /// board and the command-sending ornaments; the read loop parks itself in
+    /// `noteRunLoopExited` while the engine is down. On failure the phase
+    /// stays `.booting` and the settings card shows the failure text.
+    private func restartEngineForMaxBoardSize() {
+        Task {
+            shell.phase = .booting
+            guard await engineController.restartEngine() else { return }
+            if resolveAndMountCurrentGame() {
+                shell.phase = .ready
+            }
+        }
     }
 
     #if DEBUG
