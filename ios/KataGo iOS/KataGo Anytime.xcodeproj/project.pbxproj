@@ -360,6 +360,7 @@
 		BF74CD58671D6C823D184CBE /* spinlock.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE3B9C2481C85939173A3A70 /* spinlock.cc */; };
 		C031C333DF5C116AA4A11ABB /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		C0B2D9C643DB33E94D856AF6 /* KataGoAnytimeWatchWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD660F5C74D8EBF7E72E919F /* KataGoAnytimeWatchWidgetBundle.swift */; };
+		C0C8E44FF75179EDFED07A66 /* VisionBranchFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */; };
 		C103BA9AACFA3CD38BF030F0 /* ScoreLeadWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70978EA0CBAB0F565B22F00 /* ScoreLeadWidget.swift */; };
 		C1E744A481D0CCB9C6F2501D /* KataGoEngineIPC in Frameworks */ = {isa = PBXBuildFile; productRef = B8D9B3A7C9D6AA463C92F6FD /* KataGoEngineIPC */; };
 		C227A0DD211C513793F83741 /* SVM.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2895D7938D3FA33D9E35700F /* SVM.pb.cc */; };
@@ -1573,6 +1574,7 @@
 		E374E9ECD35BA1AC5FD04463 /* KataGoVisionApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoVisionApp.swift; path = "KataGo Anytime Vision/KataGoVisionApp.swift"; sourceTree = "<group>"; };
 		E3C8DC0A8F9AF1ACB13FFEC5 /* poison.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = poison.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/poison.cc"; sourceTree = SOURCE_ROOT; };
 		E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordTagger.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordTagger.pb.cc; sourceTree = SOURCE_ROOT; };
+		E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBranchFrameTests.swift; sourceTree = "<group>"; };
 		E4E2DDB1A29692B06506E9C4 /* CustomModel.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CustomModel.pb.cc; path = ../../cpp/external/katagocoreml/generated/CustomModel.pb.cc; sourceTree = SOURCE_ROOT; };
 		E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = commandlineflag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/commandlineflag.cc"; sourceTree = SOURCE_ROOT; };
 		E4EE1ADF93ADB4E87458DB7B /* CropRectEditorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CropRectEditorTests.swift; sourceTree = "<group>"; };
@@ -2746,6 +2748,7 @@
 				55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */,
 				7FC19951736E383CCB25292A /* BoardTopTextureTests.swift */,
 				B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */,
+				E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3982,6 +3985,7 @@
 				23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */,
 				586E19A271956325BE8212F2 /* BoardTopTextureTests.swift in Sources */,
 				8576C911462316E43AEC314B /* VisionLockSlotModelTests.swift in Sources */,
+				C0C8E44FF75179EDFED07A66 /* VisionBranchFrameTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
