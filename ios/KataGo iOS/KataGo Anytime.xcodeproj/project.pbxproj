@@ -66,6 +66,7 @@
 		1F7EB7DC24D6B85275638C3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		200E2726222793045A3D463E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */; };
 		20D73A20AA9FB7484440EC4F /* Imputer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 14C9F049828D2C767A8EA405 /* Imputer.pb.cc */; };
+		23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */; };
 		2593AFF0249DB1D081BCCD34 /* zero_copy_stream_impl_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = A44E8E22CE4E5A8FDE17A8B0 /* zero_copy_stream_impl_lite.cc */; };
 		25D2E7192E786A192AE70232 /* GobanRecogKit in Frameworks */ = {isa = PBXBuildFile; productRef = C10478A9FA419EE22FAA8363 /* GobanRecogKit */; };
 		25E9CB6E9506E72BCA4DA657 /* failure_signal_handler.cc in Sources */ = {isa = PBXBuildFile; fileRef = C253BE842822B3F43B08DFEB /* failure_signal_handler.cc */; };
@@ -1075,6 +1076,7 @@
 		5421AC611426CA58B63851AA /* proto.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = proto.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/proto.cc"; sourceTree = SOURCE_ROOT; };
 		54D382D5D477A9008C934B67 /* BoardViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardViewController.swift; sourceTree = "<group>"; };
 		55915A5FD9CB10142DE64426 /* nullguard.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nullguard.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/nullguard.cc"; sourceTree = SOURCE_ROOT; };
+		55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardGeometryRulesTests.swift; sourceTree = "<group>"; };
 		55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		5617DDD280230D724D85091A /* str_cat.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_cat.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_cat.cc"; sourceTree = SOURCE_ROOT; };
 		56670017B37208754039FF64 /* Parameters.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Parameters.pb.cc; path = ../../cpp/external/katagocoreml/generated/Parameters.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -2746,6 +2748,7 @@
 				ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */,
 				0E5EC8C3BC837AFF4FA7029B /* VisionCandidateMarkTests.swift */,
 				9774AE44D6D0D96116485938 /* BoardStarPointsTests.swift */,
+				55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3982,6 +3985,7 @@
 				540E262FBA777FB1CA58478F /* VisionOwnershipMarkTests.swift in Sources */,
 				CFA11F177CF69001086CF3AD /* VisionCandidateMarkTests.swift in Sources */,
 				CE47EFCF5BB2BB492B8ADCBB /* BoardStarPointsTests.swift in Sources */,
+				23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
