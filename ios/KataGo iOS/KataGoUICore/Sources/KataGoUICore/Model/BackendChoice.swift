@@ -71,7 +71,7 @@ public enum BackendChoice: String, CaseIterable, Identifiable {
     }
 }
 
-public enum BoardSizeChoice: Int, CaseIterable, Identifiable {
+public enum BoardSizeChoice: Int, CaseIterable, Identifiable, Sendable {
     case nine = 9
     case thirteen = 13
     case nineteen = 19
