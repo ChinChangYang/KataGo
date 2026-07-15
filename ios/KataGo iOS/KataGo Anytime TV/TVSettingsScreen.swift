@@ -43,6 +43,7 @@ struct TVSettingsScreen: View {
                 recoverySection
                 boardSizeSection
                 soundSection
+                aboutSection
                 diagnosticsFooter
             }
             .frame(maxWidth: 1100)
@@ -281,6 +282,26 @@ struct TVSettingsScreen: View {
         case .cloudKit: return "iCloud (CloudKit sync)"
         case .localOnly: return "Local only (iCloud unavailable)"
         case .inMemory: return "In-memory (storage unavailable)"
+        }
+    }
+
+    // MARK: - About
+
+    /// EULA parity: every platform lists its third-party licenses under
+    /// Settings. The row pushes the shared registry list on this tab's
+    /// NavigationStack (TVRootView wraps the screen in one).
+    private var aboutSection: some View {
+        section("About") {
+            NavigationLink {
+                AcknowledgmentsView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "doc.text")
+                    Text("Open-Source Licenses")
+                }
+                .frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .buttonStyle(.bordered)
         }
     }
 

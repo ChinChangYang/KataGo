@@ -42,13 +42,14 @@ final class VisionGameShell {
     /// bar's Games button.
     var showingGameList = false
 
-    /// Settings, the controller legend, the custom New Game panel, and the
-    /// Models card share the right-side anchor, so opening any one closes
-    /// the others — use the toggle helpers, never the flags directly, from
-    /// the bar buttons.
+    /// Settings, the controller legend, the custom New Game panel, the
+    /// Models card, and the Licenses card share the right-side anchor, so
+    /// opening any one closes the others — use the toggle helpers, never
+    /// the flags directly, from the bar buttons.
     var showingSettings = false
     var showingNewGamePanel = false
     var showingModels = false
+    var showingLicenses = false
 
     func toggleSettings() {
         showingSettings.toggle()
@@ -56,6 +57,7 @@ final class VisionGameShell {
             showingControllerHelp = false
             showingNewGamePanel = false
             showingModels = false
+            showingLicenses = false
         }
     }
 
@@ -65,6 +67,7 @@ final class VisionGameShell {
             showingSettings = false
             showingNewGamePanel = false
             showingModels = false
+            showingLicenses = false
         }
     }
 
@@ -74,6 +77,7 @@ final class VisionGameShell {
             showingSettings = false
             showingControllerHelp = false
             showingModels = false
+            showingLicenses = false
         }
     }
 
@@ -83,6 +87,7 @@ final class VisionGameShell {
         showingSettings = false
         showingNewGamePanel = false
         showingModels = false
+        showingLicenses = false
     }
 
     /// Settings' "Neural Net" row opens the Models card in the same slot.
@@ -91,6 +96,18 @@ final class VisionGameShell {
         showingSettings = false
         showingControllerHelp = false
         showingNewGamePanel = false
+        showingLicenses = false
+    }
+
+    /// Settings' "Open-Source Licenses" row opens the Licenses card in the
+    /// same slot (EULA parity: every platform lists its third-party
+    /// licenses under Settings).
+    func presentLicenses() {
+        showingLicenses = true
+        showingSettings = false
+        showingControllerHelp = false
+        showingNewGamePanel = false
+        showingModels = false
     }
 
     /// Board orientation: false = lying flat on the volume floor (tabletop),

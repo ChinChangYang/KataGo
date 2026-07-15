@@ -343,6 +343,7 @@ struct VisionSettingsOrnament: View {
     @Bindable var shell: VisionGameShell
     let engine: VisionEngineController
     let onShowModels: () -> Void
+    let onShowLicenses: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
@@ -400,6 +401,20 @@ struct VisionSettingsOrnament: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Neural Net: \(engine.activeModel.title)")
+
+            // Opens the Licenses card in this same right-anchor slot —
+            // EULA parity: every platform lists its third-party licenses
+            // under Settings.
+            Button(action: onShowLicenses) {
+                HStack {
+                    Label("Open-Source Licenses", systemImage: "doc.text")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open-Source Licenses")
         }
         .frame(width: 380)
         .padding(20)

@@ -176,7 +176,10 @@ struct VisionRootView: View {
                 VisionSettingsOrnament(shell: shell,
                                        engine: engineController,
                                        onShowModels: { shell.presentModels() },
+                                       onShowLicenses: { shell.presentLicenses() },
                                        onDismiss: { shell.showingSettings = false })
+            } else if isReady, shell.showingLicenses {
+                VisionLicensesOrnament(onDismiss: { shell.showingLicenses = false })
             } else if isReady, shell.showingModels {
                 VisionModelsOrnament(engine: engineController,
                                      readiness: cacheReadiness,

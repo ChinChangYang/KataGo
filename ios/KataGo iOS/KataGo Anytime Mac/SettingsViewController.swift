@@ -34,6 +34,7 @@
 //
 
 import AppKit
+import SwiftUI
 import KataGoUICore
 
 @MainActor
@@ -73,6 +74,20 @@ final class SettingsViewController: NSTabViewController {
         addTab(boardPane, label: "Board", symbol: "squareshape.split.3x3")
         addTab(analysisPane, label: "Analysis", symbol: "chart.xyaxis.line")
         addTab(soundPane, label: "Sound & Feedback", symbol: "speaker.wave.2")
+        addTab(makeLicensesPane(), label: "Licenses", symbol: "doc.text")
+    }
+
+    /// The TestFlight EULA points users at "Settings > Open-Source
+    /// Licenses" on every platform — this tab hosts the shared SwiftUI
+    /// registry list (an NSHostingController is a plain NSViewController,
+    /// so it slots into the tab controller; the .toolbar tab style resizes
+    /// the window to each tab's preferred size).
+    private func makeLicensesPane() -> NSViewController {
+        let hosting = NSHostingController(rootView: NavigationStack {
+            AcknowledgmentsView()
+        })
+        hosting.preferredContentSize = NSSize(width: 640, height: 520)
+        return hosting
     }
 
     override func viewWillAppear() {
