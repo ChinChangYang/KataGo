@@ -417,7 +417,6 @@
 		D84376026AA68631857E15E7 /* DataStructures.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = DBEBF4527BDE5A1922B5D4B3 /* DataStructures.pb.cc */; };
 		D89C3188FF516CA5FE3547E3 /* FeatureVectorizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 736413C8053B763DABB40FC3 /* FeatureVectorizer.pb.cc */; };
 		D930A6F255E9FB9975F768EA /* OpeningBooksWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB0644056773B02D237B0E0 /* OpeningBooksWindowController.swift */; };
-		DA1AC8AAF58F6DAD80645635 /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */; };
 		DA2CD6AFAFF9FD2919C55848 /* clock.cc in Sources */ = {isa = PBXBuildFile; fileRef = 56B99DA3E143A43DEB93814E /* clock.cc */; };
 		DA32B41D935B785083AC3B84 /* SelfPlayGameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2798EED0CEBC7E6DFAEC7C6A /* SelfPlayGameTests.swift */; };
 		DA5060923883BE9305D77A2D /* GameSessionCollectSgfGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A5D3E438F162DC545BE612B /* GameSessionCollectSgfGuardTests.swift */; };
@@ -1118,7 +1117,6 @@
 		6744588CD056E4B130D12589 /* VisionGameDeleteFlowTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionGameDeleteFlowTests.swift; sourceTree = "<group>"; };
 		678C873A714F193ABAFBBE7C /* TVLoadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVLoadingView.swift; sourceTree = "<group>"; };
 		679F57E31260E5DA9F83608A /* BoardAssets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = BoardAssets; path = "KataGo Anytime Vision/Resources/BoardAssets"; sourceTree = "<group>"; };
-		6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AcknowledgmentsView.swift; sourceTree = "<group>"; };
 		691F7D2D624161247C295963 /* mlxspike.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = mlxspike.h; sourceTree = "<group>"; };
 		69B53B35A548BA23172D03D3 /* cord.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/cord.cc"; sourceTree = SOURCE_ROOT; };
 		6A50B060363C7FD69195AABA /* cord_rep_btree.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree.cc"; sourceTree = SOURCE_ROOT; };
@@ -1858,7 +1856,6 @@
 			children = (
 				E184F5E32EC022B700C06AEB /* InfoView.swift */,
 				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
-				6808E6D74813C09B4339C451 /* AcknowledgmentsView.swift */,
 				8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */,
 			);
 			path = Misc;
@@ -3906,7 +3903,6 @@
 				E15A220B2EE6AED800708C25 /* GameSplitView.swift in Sources */,
 				6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */,
 				0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */,
-				DA1AC8AAF58F6DAD80645635 /* AcknowledgmentsView.swift in Sources */,
 				DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */,
 				750AB6E334415C575285A957 /* OpeningBookPickerView.swift in Sources */,
 				4565143F783B8E54FD203372 /* WatchSessionRelay.swift in Sources */,
