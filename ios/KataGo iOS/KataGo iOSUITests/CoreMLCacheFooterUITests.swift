@@ -290,12 +290,16 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "'Open-Source Licenses' row missing from Global Settings")
         licensesRow.tap()
 
-        // The list includes the MLX trigger and KataGo itself.
-        let mlxRow = app.buttons["MLX"].firstMatch
-        XCTAssertTrue(mlxRow.waitForExistence(timeout: 10),
-                      "'MLX' row missing from Open-Source Licenses")
+        // The list includes KataGo itself (near the top) and the MLX
+        // trigger — which the three "KataGo …" content entries push below
+        // the fold on an iPhone, so scroll it into view first (off-screen
+        // SwiftUI List cells aren't in the a11y tree).
         XCTAssertTrue(app.buttons["KataGo"].firstMatch.waitForExistence(timeout: 10),
                       "'KataGo' row missing from Open-Source Licenses")
+        let mlxRow = app.buttons["MLX"].firstMatch
+        reveal(app, mlxRow, by: { app.swipeUp() })
+        XCTAssertTrue(mlxRow.waitForExistence(timeout: 10),
+                      "'MLX' row missing from Open-Source Licenses")
 
         // Opening a component shows its verbatim license text.
         mlxRow.tap()
