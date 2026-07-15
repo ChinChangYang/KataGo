@@ -583,8 +583,14 @@ struct VisionGameListOrnament: View {
     /// any pending confirm.
     private enum PendingDelete: Equatable {
         case single(PersistentIdentifier)
+        case bulk
     }
     @State private var pendingDelete: PendingDelete?
+
+    /// iOS select-mode parity, card-local (dismissing the card exits
+    /// selection, iOS's exitSelection-on-disappear for free).
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<PersistentIdentifier> = []
 
     /// Newest-first, so the games that matter are always in range; the
     /// scroll view keeps a long library usable (widget-picker precedent for
@@ -598,6 +604,9 @@ struct VisionGameListOrnament: View {
             } else {
                 header
                 gamesScroll
+                if isSelecting {
+                    bulkDeleteBar
+                }
             }
         }
         .padding(20)
@@ -609,11 +618,40 @@ struct VisionGameListOrnament: View {
             Label("Games", systemImage: "square.stack.3d.up")
                 .font(.headline)
             Spacer()
+            if !gameRecords.isEmpty {
+                Button(VisionGameDeleteFlow.selectToggleTitle(isSelecting: isSelecting)) {
+                    withAnimation {
+                        isSelecting.toggle()
+                        if !isSelecting {
+                            selectedIDs.removeAll()
+                        }
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Close game list")
+        }
+    }
+
+    /// iOS bottom-bar parity: red trash carrying the selection count,
+    /// disabled at zero.
+    private var bulkDeleteBar: some View {
+        HStack {
+            Spacer()
+            Button(role: .destructive) {
+                pendingDelete = .bulk
+            } label: {
+                Label(VisionGameDeleteFlow.trashCountLabel(count: selectedIDs.count),
+                      systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+            .disabled(VisionGameDeleteFlow.bulkTrashDisabled(count: selectedIDs.count))
+            .accessibilityLabel("Delete \(selectedIDs.count) selected game\(selectedIDs.count == 1 ? "" : "s")")
         }
     }
 
@@ -639,6 +677,12 @@ struct VisionGameListOrnament: View {
                 switch pending {
                 case .single(let id):
                     onDeleteGames([id])
+                case .bulk:
+                    onDeleteGames(selectedIDs)
+                    withAnimation {
+                        selectedIDs.removeAll()
+                        isSelecting = false
+                    }
                 }
             },
             onCancel: { pendingDelete = nil })
@@ -648,6 +692,8 @@ struct VisionGameListOrnament: View {
         switch pending {
         case .single:
             return VisionGameDeleteFlow.singleDeletePrompt
+        case .bulk:
+            return VisionGameDeleteFlow.bulkDeletePrompt(count: selectedIDs.count)
         }
     }
 
@@ -656,7 +702,10 @@ struct VisionGameListOrnament: View {
     /// stay enabled — openGame re-derives from the SGF and gates). The
     /// trash is a SIBLING of the open button, never nested in its label,
     /// and stays enabled even on blocked rows: deletion is the only remedy
-    /// for a game the active net can never open.
+    /// for a game the active net can never open. In select mode the whole
+    /// row toggles membership instead — blocked rows included, so no
+    /// .disabled there.
+    @ViewBuilder
     private func gameRow(_ record: GameRecord) -> some View {
         let item = VisionGamePickerItem.make(
             name: record.name,
@@ -668,55 +717,91 @@ struct VisionGameListOrnament: View {
         let isCurrent = record.persistentModelID
             == navigationContext.selectedGameRecord?.persistentModelID
 
-        return HStack(spacing: 8) {
-            Button {
-                onOpenGame(record)
-            } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.subheadline.bold())
-                            .lineLimit(1)
-                        if !item.detailText.isEmpty {
-                            Text(item.detailText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        if item.needsLargerBoardSetting {
-                            Text("Raise Max Board Size in Settings")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                        } else if item.needsDifferentNet {
-                            Text("Switch the neural net in Settings")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    Spacer()
-                    if isCurrent {
-                        Image(systemName: "checkmark")
-                            .font(.subheadline)
-                    }
+        if isSelecting {
+            selectableRow(record, item: item, isCurrent: isCurrent)
+        } else {
+            HStack(spacing: 8) {
+                Button {
+                    onOpenGame(record)
+                } label: {
+                    rowLabel(item: item, isCurrent: isCurrent)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(isCurrent ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
-                            in: RoundedRectangle(cornerRadius: 12))
-                .contentShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-            .disabled(!item.isSelectable)
+                .buttonStyle(.plain)
+                .disabled(!item.isSelectable)
 
-            Button {
-                pendingDelete = .single(record.persistentModelID)
-            } label: {
-                Image(systemName: "trash")
+                Button {
+                    pendingDelete = .single(record.persistentModelID)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+                .accessibilityLabel("Delete \(item.title)")
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
-            .accessibilityLabel("Delete \(item.title)")
         }
+    }
+
+    /// Select-mode row (iOS selectableRow parity): a leading selection
+    /// circle, the whole row toggles membership.
+    private func selectableRow(_ record: GameRecord,
+                               item: VisionGamePickerItem,
+                               isCurrent: Bool) -> some View {
+        let isSelected = selectedIDs.contains(record.persistentModelID)
+        return Button {
+            withAnimation {
+                if isSelected {
+                    selectedIDs.remove(record.persistentModelID)
+                } else {
+                    selectedIDs.insert(record.persistentModelID)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: VisionGameDeleteFlow.selectionImage(isSelected: isSelected))
+                    .imageScale(.large)
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint)
+                                                : AnyShapeStyle(.secondary))
+                rowLabel(item: item, isCurrent: isCurrent)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(isSelected ? "Deselect" : "Select") \(item.title)")
+    }
+
+    /// The row content shared by the open and select modes.
+    private func rowLabel(item: VisionGamePickerItem, isCurrent: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.subheadline.bold())
+                    .lineLimit(1)
+                if !item.detailText.isEmpty {
+                    Text(item.detailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if item.needsLargerBoardSetting {
+                    Text("Raise Max Board Size in Settings")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if item.needsDifferentNet {
+                    Text("Switch the neural net in Settings")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
+            Spacer()
+            if isCurrent {
+                Image(systemName: "checkmark")
+                    .font(.subheadline)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isCurrent ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                    in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
