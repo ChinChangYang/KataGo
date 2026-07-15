@@ -205,6 +205,7 @@ struct VisionRootView: View {
                     modelBoardCap: engineController.activeModel.nnLen,
                     navigationContext: navigationContext,
                     onOpenGame: { openGame($0) },
+                    onDeleteGames: { deleteGames(ids: $0) },
                     onDismiss: { shell.showingGameList = false }
                 )
             }
@@ -479,6 +480,67 @@ struct VisionRootView: View {
 
     private func startNewGame(size: Int) {
         startNewGame(width: size, height: size)
+    }
+
+    /// Games-list deletion (single or bulk). The replacement is decided and
+    /// MOUNTED before anything dies: switchGame passes the outgoing record
+    /// into loadGame as `previous`, so the doomed open game must stay alive
+    /// until the new one is loaded (the Mac dangling-record pitfall) — only
+    /// then bulkDelete. Fallout order rides the root @Query's reverse
+    /// lastModificationDate sort (the same "newest" boot's fetch resolves).
+    /// No WidgetCenter reload (iOS divergence): this target embeds no
+    /// widgets; iOS/watch widgets refresh from their own devices' stores.
+    private func deleteGames(ids: Set<PersistentIdentifier>) {
+        switch VisionGameDeleteFlow.fallout(
+            orderedNewestFirst: gameRecords.map(\.persistentModelID),
+            deleting: ids,
+            currentID: navigationContext.selectedGameRecord?.persistentModelID) {
+        case .keepCurrent:
+            break
+        case .switchTo(let id):
+            if let replacement = gameRecords.first(
+                where: { $0.persistentModelID == id }) {
+                mountReplacement(replacement)
+            } else {
+                // The fallout ID came from gameRecords, so this is
+                // unreachable in practice — but never risk leaving a doomed
+                // record mounted.
+                createAndMountFreshGame()
+            }
+        case .createFresh:
+            createAndMountFreshGame()
+        }
+        _ = modelContext.bulkDelete(gameIDs: ids)
+    }
+
+    /// openGame's gate for a replacement the user did not pick: mount when
+    /// the board fits, else silence the stream and surface the blocked
+    /// phase — clearing the selection first, so the doomed record is never
+    /// left selected (the Games list stays up as the way out).
+    private func mountReplacement(_ record: GameRecord) {
+        record.updateToLatestVersion()
+        let config = record.concreteConfig
+        if let blocked = blockedPhase(width: config.boardWidth,
+                                      height: config.boardHeight) {
+            session.messageList.appendAndSend(command: "stop")
+            navigationContext.selectedGameRecord = nil
+            shell.phase = blocked
+            return
+        }
+        switchGame(to: record)
+        shell.phase = .ready
+    }
+
+    /// Deleting the whole library: create and mount a fresh game sized to
+    /// the engine cap (resolveAndMountCurrentGame's create arm — always
+    /// mountable, no gate needed).
+    private func createAndMountFreshGame() {
+        let created = GameRecord.createGameRecord(
+            maxBoardLength: engineController.maxBoardLength)
+        modelContext.insert(created)
+        try? modelContext.save()
+        switchGame(to: created)
+        shell.phase = .ready
     }
 
     /// Any width x height in 2...cap (the Custom panel's steppers enforce the

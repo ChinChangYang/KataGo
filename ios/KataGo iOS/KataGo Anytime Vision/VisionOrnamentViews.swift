@@ -559,7 +559,9 @@ struct VisionNewGamePanel: View {
 /// Left-side game list, toggled from the control bar's Games button: the
 /// newest iCloud-synced games (the root @Query live-refreshes), pinch a row
 /// to load it. The list stays up after a pick so the checkmark tracks the
-/// switch; the toggle or the close button dismisses it.
+/// switch; the toggle or the close button dismisses it. Every row carries a
+/// trash button (iOS delete parity — the open game included; the root
+/// remounts the newest remaining game, else a fresh one).
 struct VisionGameListOrnament: View {
     let gameRecords: [GameRecord]
     let maxBoardLength: Int
@@ -568,7 +570,21 @@ struct VisionGameListOrnament: View {
     let modelBoardCap: Int
     let navigationContext: NavigationContext
     let onOpenGame: (GameRecord) -> Void
+    let onDeleteGames: (Set<PersistentIdentifier>) -> Void
     let onDismiss: () -> Void
+
+    /// Which deletion awaits confirmation. The confirm renders as an
+    /// in-card content swap (VisionBranchConfirmCard pattern), NEVER a
+    /// .confirmationDialog: deleting the open game re-renders the board and
+    /// other ornaments — the exact ornament-dialog action that blanks the
+    /// volume (see VisionControlOrnament's comment). Stores the ID, not the
+    /// record, so a CloudKit sync deleting it mid-confirm strands nothing
+    /// (bulkDelete then no-ops). Card-local: dismissing the card discards
+    /// any pending confirm.
+    private enum PendingDelete: Equatable {
+        case single(PersistentIdentifier)
+    }
+    @State private var pendingDelete: PendingDelete?
 
     /// Newest-first, so the games that matter are always in range; the
     /// scroll view keeps a long library usable (widget-picker precedent for
@@ -577,34 +593,70 @@ struct VisionGameListOrnament: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Games", systemImage: "square.stack.3d.up")
-                    .font(.headline)
-                Spacer()
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Close game list")
+            if let pendingDelete {
+                confirmView(for: pendingDelete)
+            } else {
+                header
+                gamesScroll
             }
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(gameRecords.prefix(Self.maxListedGames)) { record in
-                        gameRow(record)
-                    }
-                }
-            }
-            .frame(width: 320)
-            .frame(maxHeight: 480)
         }
         .padding(20)
         .glassBackgroundEffect()
     }
 
+    private var header: some View {
+        HStack {
+            Label("Games", systemImage: "square.stack.3d.up")
+                .font(.headline)
+            Spacer()
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Close game list")
+        }
+    }
+
+    private var gamesScroll: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 4) {
+                ForEach(gameRecords.prefix(Self.maxListedGames)) { record in
+                    gameRow(record)
+                }
+            }
+        }
+        .frame(width: 320)
+        .frame(maxHeight: 480)
+    }
+
+    /// Both actions explicitly clear the pending flag (no isPresented
+    /// binding to do it for them).
+    private func confirmView(for pending: PendingDelete) -> some View {
+        VisionGameDeleteConfirmCard(
+            prompt: prompt(for: pending),
+            onDelete: {
+                pendingDelete = nil
+                switch pending {
+                case .single(let id):
+                    onDeleteGames([id])
+                }
+            },
+            onCancel: { pendingDelete = nil })
+    }
+
+    private func prompt(for pending: PendingDelete) -> String {
+        switch pending {
+        case .single:
+            return VisionGameDeleteFlow.singleDeletePrompt
+        }
+    }
+
     /// One row: name over "date · size", checkmark on the open game,
     /// disabled when the stored size is known-unsupported (unknown sizes
-    /// stay enabled — openGame re-derives from the SGF and gates).
+    /// stay enabled — openGame re-derives from the SGF and gates). The
+    /// trash is a SIBLING of the open button, never nested in its label,
+    /// and stays enabled even on blocked rows: deletion is the only remedy
+    /// for a game the active net can never open.
     private func gameRow(_ record: GameRecord) -> some View {
         let item = VisionGamePickerItem.make(
             name: record.name,
@@ -616,43 +668,79 @@ struct VisionGameListOrnament: View {
         let isCurrent = record.persistentModelID
             == navigationContext.selectedGameRecord?.persistentModelID
 
-        return Button {
-            onOpenGame(record)
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.subheadline.bold())
-                        .lineLimit(1)
-                    if !item.detailText.isEmpty {
-                        Text(item.detailText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        return HStack(spacing: 8) {
+            Button {
+                onOpenGame(record)
+            } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
+                        if !item.detailText.isEmpty {
+                            Text(item.detailText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if item.needsLargerBoardSetting {
+                            Text("Raise Max Board Size in Settings")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        } else if item.needsDifferentNet {
+                            Text("Switch the neural net in Settings")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
                     }
-                    if item.needsLargerBoardSetting {
-                        Text("Raise Max Board Size in Settings")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    } else if item.needsDifferentNet {
-                        Text("Switch the neural net in Settings")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
+                    Spacer()
+                    if isCurrent {
+                        Image(systemName: "checkmark")
+                            .font(.subheadline)
                     }
                 }
-                Spacer()
-                if isCurrent {
-                    Image(systemName: "checkmark")
-                        .font(.subheadline)
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(isCurrent ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+                            in: RoundedRectangle(cornerRadius: 12))
+                .contentShape(RoundedRectangle(cornerRadius: 12))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isCurrent ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
-                        in: RoundedRectangle(cornerRadius: 12))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .buttonStyle(.plain)
+            .disabled(!item.isSelectable)
+
+            Button {
+                pendingDelete = .single(record.persistentModelID)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.red)
+            .accessibilityLabel("Delete \(item.title)")
         }
-        .buttonStyle(.plain)
-        .disabled(!item.isSelectable)
+    }
+}
+
+/// In-card destructive confirm for the Games-list deletes — the content the
+/// Games ornament swaps to while a delete awaits confirmation (the glass
+/// belongs to the hosting card). iOS delete-dialog wording, Cancel +
+/// destructive Delete; the caller clears the pending flag in BOTH actions.
+private struct VisionGameDeleteConfirmCard: View {
+    let prompt: String
+    let onDelete: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text(prompt)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                Button("Cancel", role: .cancel, action: onCancel)
+
+                Button("Delete", role: .destructive, action: onDelete)
+            }
+        }
+        .frame(width: 320)
     }
 }
