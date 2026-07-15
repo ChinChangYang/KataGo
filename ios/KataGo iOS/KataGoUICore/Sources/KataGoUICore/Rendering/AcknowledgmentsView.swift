@@ -16,7 +16,7 @@ public struct AcknowledgmentsView: View {
     public init() {}
 
     public var body: some View {
-        List(ThirdPartyLicense.all) { license in
+        List(ThirdPartyLicense.shipped) { license in
             NavigationLink {
                 LicenseDetailView(license: license)
             } label: {

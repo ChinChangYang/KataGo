@@ -15,10 +15,29 @@ public struct ThirdPartyLicense: Identifiable, Sendable {
 }
 
 extension ThirdPartyLicense {
-    /// Every third-party component compiled into or linked by the iOS app target,
+    /// Every third-party component compiled into or linked by any app target,
     /// sorted case-insensitively by name for stable display.
     public static let all: [ThirdPartyLicense] = unsorted
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+    /// The registry scoped to THIS platform's link graph. The vendored
+    /// OpenCV ships only where GobanRecogKit is linked (iOS and macOS —
+    /// photo import); tvOS/visionOS/watchOS never link it, so listing it
+    /// there would over-attribute. Everything else rides katago.framework
+    /// or the shared packages on every platform that renders this screen.
+    public static var shipped: [ThirdPartyLicense] {
+        #if os(tvOS) || os(visionOS) || os(watchOS)
+        shipped(includesOpenCV: false)
+        #else
+        shipped(includesOpenCV: true)
+        #endif
+    }
+
+    /// Testable core of the platform filter (the test suite only runs on
+    /// the iOS simulator, so the platform arms above stay compile-time).
+    public static func shipped(includesOpenCV: Bool) -> [ThirdPartyLicense] {
+        includesOpenCV ? all : all.filter { $0.name != "OpenCV" }
+    }
 
     private static let unsorted: [ThirdPartyLicense] = [
         ThirdPartyLicense(
@@ -1256,6 +1275,108 @@ extension ThirdPartyLicense {
             AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
             IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
             THE SOFTWARE.
+            """#),
+
+        // MARK: - Content (networks and opening books)
+
+        ThirdPartyLicense(
+            name: "KataGo Neural Networks",
+            subtitle: "Neural Net License (MIT-style) · David J Wu (lightvector)",
+            text: #"""
+            The bundled default network and the downloadable "Official KataGo
+            Network" are trained neural networks from KataGo's public
+            distributed training run ("kata1"), published at
+            katagotraining.org and redistributed here unmodified.
+
+            The site's Neural Network License page
+            (https://katagotraining.org/network_license/) states:
+
+            The following license applies to the official KataGo neural
+            network files and checkpoints available on this site
+            katagotraining.org, including all networks on the
+            https://katagotraining.org/networks/ page in the "kata1" run,
+            with a few exceptions, indicated further below.
+
+            Copyright 2026 David J Wu ("lightvector").
+
+            Permission is hereby granted, free of charge, to any person
+            obtaining a copy of the neural net files or training weight files
+            (the "Software"), to deal in the Software without restriction,
+            including without limitation the rights to use, copy, modify,
+            merge, publish, distribute, sublicense, and/or sell copies of the
+            Software, and to permit persons to whom the Software is furnished
+            to do so, subject to the following conditions:
+
+            The above copyright notice and this permission notice shall be
+            included in all copies or substantial portions of the Software.
+
+            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+            EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+            OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+            NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+            HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+            WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+            FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+            OTHER DEALINGS IN THE SOFTWARE.
+            """#),
+
+        ThirdPartyLicense(
+            name: "KataGo Extra Neural Networks",
+            subtitle: "Attribution · katagotraining.org contributors",
+            text: #"""
+            The optional downloadable networks offered in the model picker —
+            the Lionffen b6c64 and b24c64 networks (trained by "lionffen"),
+            the FD3 Network, the Finetuned 9x9 Network, the Short Distributed
+            Test Run Rect15 Final Net, and the Strong Large Board Net M2 —
+            and the bundled human-style network (b18c384nbt-humanv0, trained
+            by David J Wu) are hosted in the "extra networks" collection at
+            katagotraining.org
+            (https://katagotraining.org/extra_networks/) and are downloaded
+            or redistributed unmodified from that public host.
+
+            katagotraining.org's Neural Network License names only the
+            official "kata1" run; these extra network files carry
+            no explicit license statement of their own. They are included
+            here with attribution to their trainers and to katagotraining.org
+            as their public source.
+            """#),
+
+        ThirdPartyLicense(
+            name: "KataGo Opening Books",
+            subtitle: "MIT · Chin-Chang Yang; David J Wu (lightvector) and other KataGo authors",
+            text: #"""
+            The downloadable opening books are built from KataGo's
+            interactive opening books at katagobooks.org (by David J Wu) and
+            packaged for this app in the MIT-licensed ChinChangYang/KataGoBooks
+            repository (https://github.com/ChinChangYang/KataGoBooks), whose
+            license reads:
+
+            MIT License
+
+            Copyright (c) 2026 Chin-Chang Yang
+
+            Copyright (c) 2019-2026 David J Wu ("lightvector") and other KataGo authors
+
+            Permission is hereby granted, free of charge, to any person
+            obtaining a copy of this software and associated documentation
+            files (the "Software"), to deal in the Software without
+            restriction, including without limitation the rights to use,
+            copy, modify, merge, publish, distribute, sublicense, and/or sell
+            copies of the Software, and to permit persons to whom the
+            Software is furnished to do so, subject to the following
+            conditions:
+
+            The above copyright notice and this permission notice shall be
+            included in all copies or substantial portions of the Software.
+
+            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+            EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+            OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+            NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+            HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+            WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+            FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+            OTHER DEALINGS IN THE SOFTWARE.
             """#),
     ]
 }
