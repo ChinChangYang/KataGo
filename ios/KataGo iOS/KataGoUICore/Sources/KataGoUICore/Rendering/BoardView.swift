@@ -46,6 +46,13 @@ public struct BoardView: View {
     /// WHERE the focused candidate is before clicking it. Defaults nil (no
     /// ring), so the live iOS/visionOS/macOS board is unchanged.
     var highlightedPoint: BoardPoint? = nil
+    /// When set, a ghost stone of the side to move marks this point — the
+    /// tvOS play cursor (visible only while the board has remote focus; the
+    /// screens pass their GhostCursorModel's point, nil when hidden). Ringed
+    /// like `highlightedPoint` so it reads at 10 feet over wood and stones
+    /// alike; the two never show together (the panel and the board cannot
+    /// both hold focus). Defaults nil, so other platforms are unchanged.
+    var cursorPoint: BoardPoint? = nil
     @FocusState<Bool>.Binding var commentIsFocused: Bool
     @State private var confirmingOverwrite: Bool = false
     @State private var gestureLocation: CGPoint?
@@ -56,6 +63,7 @@ public struct BoardView: View {
                 showsPass: Bool = true,
                 showsWinrateBar: Bool = true,
                 highlightedPoint: BoardPoint? = nil,
+                cursorPoint: BoardPoint? = nil,
                 commentIsFocused: FocusState<Bool>.Binding) {
         self.gameRecord = gameRecord
         self.interactive = interactive
@@ -63,6 +71,7 @@ public struct BoardView: View {
         self.showsPass = showsPass
         self.showsWinrateBar = showsWinrateBar
         self.highlightedPoint = highlightedPoint
+        self.cursorPoint = cursorPoint
         self._commentIsFocused = commentIsFocused
     }
 
@@ -122,6 +131,25 @@ public struct BoardView: View {
                             .frame(width: dimensions.stoneLength * 1.15,
                                    height: dimensions.stoneLength * 1.15)
                             .position(dimensions.screenCenter(for: highlightedPoint, verticalFlip: gobanState.verticalFlip))
+                            .shadow(color: .black.opacity(0.6), radius: dimensions.squareLengthDiv16)
+                    }
+
+                    if let cursorPoint {
+                        // The play cursor: a ghost stone of the side to move
+                        // (recolors on turn flip via Observation) inside the
+                        // same white ring as highlightedPoint, so it stays
+                        // legible over empty wood, stones, and analysis marks.
+                        let cursorCenter = dimensions.screenCenter(for: cursorPoint, verticalFlip: gobanState.verticalFlip)
+                        Circle()
+                            .fill(player.nextColorForPlayCommand == .black ? Color.black : Color(white: 1.0))
+                            .opacity(0.55)
+                            .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
+                            .position(cursorCenter)
+                        Circle()
+                            .stroke(Color.white, lineWidth: max(3, dimensions.squareLengthDiv8))
+                            .frame(width: dimensions.stoneLength * 1.15,
+                                   height: dimensions.stoneLength * 1.15)
+                            .position(cursorCenter)
                             .shadow(color: .black.opacity(0.6), radius: dimensions.squareLengthDiv16)
                     }
 

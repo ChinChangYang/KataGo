@@ -810,4 +810,36 @@ struct KataGoModelTests {
         // Two-letter columns on big boards keep working.
         #expect(BoardPoint(move: "AB12", width: 37, height: 37) != nil)
     }
+
+    // MARK: - BoardPoint GTP vertex
+
+    @Test func boardPointGtpVertexFormatsCorners() {
+        #expect(BoardPoint(x: 0, y: 0).gtpVertex(width: 19, height: 19) == "A1")
+        #expect(BoardPoint(x: 18, y: 18).gtpVertex(width: 19, height: 19) == "T19")
+        // Letter I is skipped: column index 8 is "J".
+        #expect(BoardPoint(x: 8, y: 8).gtpVertex(width: 9, height: 9) == "J9")
+        #expect(BoardPoint(x: 15, y: 15).gtpVertex(width: 19, height: 19) == "Q16")
+        // Non-square boards use each axis's own bound.
+        #expect(BoardPoint(x: 12, y: 8).gtpVertex(width: 13, height: 9) == "N9")
+    }
+
+    @Test func boardPointGtpVertexRejectsOffBoardPoints() {
+        #expect(BoardPoint(x: 19, y: 0).gtpVertex(width: 19, height: 19) == nil)
+        #expect(BoardPoint(x: 0, y: 19).gtpVertex(width: 19, height: 19) == nil)
+        #expect(BoardPoint(x: -1, y: 0).gtpVertex(width: 19, height: 19) == nil)
+        #expect(BoardPoint(x: 0, y: -1).gtpVertex(width: 19, height: 19) == nil)
+    }
+
+    @Test func boardPointGtpVertexPassPoint() {
+        let pass = BoardPoint.pass(width: 19, height: 19)
+        #expect(pass.gtpVertex(width: 19, height: 19) == "pass")
+    }
+
+    @Test func boardPointGtpVertexRoundTripsThroughMoveInit() throws {
+        for point in [BoardPoint(x: 0, y: 0), BoardPoint(x: 15, y: 15),
+                      BoardPoint(x: 8, y: 12), BoardPoint(x: 18, y: 0)] {
+            let vertex = try #require(point.gtpVertex(width: 19, height: 19))
+            #expect(BoardPoint(move: vertex, width: 19, height: 19) == point)
+        }
+    }
 }

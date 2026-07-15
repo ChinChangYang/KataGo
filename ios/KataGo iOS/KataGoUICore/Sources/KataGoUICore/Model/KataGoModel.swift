@@ -84,6 +84,14 @@ extension BoardPoint {
 
 extension BoardPoint {
 
+    /// GTP vertex for this point ("A1", "J9", "Q16", …; letter I skipped), or
+    /// nil when the point lies outside the board. The pass point yields
+    /// "pass" — kept for contract completeness, though grid-clamped callers
+    /// (the tvOS play cursor) can never reach it.
+    public func gtpVertex(width: Int, height: Int) -> String? {
+        Coordinate(x: x, y: y + 1, width: width, height: height)?.move
+    }
+
     public static func toString(
         _ points: [BoardPoint],
         width: Int,

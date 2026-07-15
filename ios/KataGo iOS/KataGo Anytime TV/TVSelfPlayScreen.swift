@@ -64,6 +64,18 @@ struct TVSelfPlayScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     @FocusState private var commentFocused: Bool
+    /// The board itself, when the play cursor is aiming (manual mode only —
+    /// in attract the board is not focusable, so any press still exits).
+    /// While focused, the D-pad steps the ghost stone and Select injects the
+    /// move; Menu hops focus back to the Pause button.
+    @FocusState private var boardFocused: Bool
+    /// The Pause/Resume button: the entry landing spot (defaultFocus) and the
+    /// Menu hop target when leaving cursor mode.
+    @FocusState private var pauseFocused: Bool
+    /// The play cursor's grid logic (shared with the visionOS ghost stone).
+    /// Its point is non-nil only between board focus and unfocus, so passing
+    /// it straight into BoardView shows the marker exactly while aiming.
+    @State private var ghost = GhostCursorModel()
     @State private var didLoad = false
     @State private var game: GameRecord?
     @State private var restartTask: Task<Void, Never>?
@@ -96,6 +108,12 @@ struct TVSelfPlayScreen: View {
         } else {
             content
                 .onPlayPauseCommand { togglePause() }
+                // The panel held the only focusables before the board became
+                // one; keep the entry landing on Pause — the giant top-left
+                // board must not steal initial focus (deterministic even
+                // while analysis warms and the Top Moves rows are
+                // placeholders).
+                .defaultFocus($pauseFocused, true)
         }
     }
 
@@ -103,16 +121,20 @@ struct TVSelfPlayScreen: View {
         Group {
             if let game {
                 HStack(spacing: 0) {
-                    // Same hero-board geometry as the review screen, but the
-                    // board is NOT focusable — there is nothing to step; the
-                    // panel (manual) or the screen root (attract) handles the
-                    // remote.
+                    // Same hero-board geometry as the review screen. In
+                    // manual mode the board is a focusable leaf (one left
+                    // press from the panel): the D-pad steps the ghost
+                    // cursor, Select injects the move (the engine answers),
+                    // Menu hops focus back to Pause. In attract it stays
+                    // unfocusable so the screen root keeps owning the remote
+                    // (any press exits).
                     BoardView(gameRecord: game,
                               interactive: false,
                               showsCapturedStones: false,
                               showsPass: false,
                               showsWinrateBar: false,
                               highlightedPoint: highlightedPoint,
+                              cursorPoint: ghost.point,
                               commentIsFocused: $commentFocused)
                         // Same full-screen-height pin as the review screen
                         // (tvOS is always 1920×1080 pt; the NavigationStack's
@@ -120,6 +142,29 @@ struct TVSelfPlayScreen: View {
                         // otherwise shrink the fitted square). Also keeps the
                         // board independent of the panel's ideal height.
                         .frame(width: 1080, height: 1080)
+                        // Stays focusable through the game-over interstitial
+                        // so focus never loses its home mid-interstitial;
+                        // submit is guarded by !isGameOver, and restart()
+                        // drops board focus for the fresh board.
+                        .focusable(route.entry == .manual)
+                        .focused($boardFocused)
+                        .onMoveCommand(perform: boardMove)
+                        .onTapGesture(perform: playAtCursor)
+                        .overlay {
+                            // Focus affordance (the timeline-ring pattern):
+                            // no system focus lift on a bare board.
+                            Rectangle()
+                                .stroke(boardFocused ? Color.tvWoodAccent : .clear,
+                                        lineWidth: 4)
+                        }
+                        .onChange(of: boardFocused) { _, focused in
+                            if focused {
+                                ghost.activate(width: Int(board.width),
+                                               height: Int(board.height))
+                            } else {
+                                ghost.reset()
+                            }
+                        }
 
                     Spacer(minLength: 24)
 
@@ -154,8 +199,18 @@ struct TVSelfPlayScreen: View {
             }
         }
         // Attached ⇒ replaces the default Menu pop; reproduce it for BOTH
-        // modes so Menu always leaves the demo.
-        .onExitCommand { dismiss() }
+        // modes so Menu always leaves the demo — except while the play
+        // cursor is aiming (manual only; attract never focuses the board),
+        // where Menu leaves cursor mode instead: a focused board consumes
+        // every D-pad press, so this is the one way out.
+        .onExitCommand {
+            if boardFocused {
+                boardFocused = false   // ghost resets via the focus onChange
+                pauseFocused = true
+            } else {
+                dismiss()
+            }
+        }
         .onReceive(NotificationCenter.default
             .publisher(for: ProcessInfo.thermalStateDidChangeNotification)
             .receive(on: RunLoop.main)) { _ in
@@ -267,6 +322,7 @@ struct TVSelfPlayScreen: View {
             .frame(maxWidth: .infinity, minHeight: 56)
         }
         .buttonStyle(.bordered)
+        .focused($pauseFocused)
         .disabled(isGameOver)
     }
 
@@ -419,6 +475,10 @@ struct TVSelfPlayScreen: View {
         // A paused game can still end (two picked passes) — the next game
         // always starts live.
         gobanState.suppressesGenMove = false
+        // A cursor aimed at the finished game must not survive onto the
+        // fresh (possibly different-size) board; dropping focus also resets
+        // the ghost via the focus onChange.
+        boardFocused = false
 
         // loadsgf inherently cancels the continuous analysis of the finished
         // position; the rest of the setup mirrors first entry.
@@ -484,18 +544,55 @@ struct TVSelfPlayScreen: View {
         }
     }
 
-    /// Play a Top Moves candidate for the side to move. The kata-check-move
-    /// line cancels an in-flight gen-move (its trailing "play" reply is
-    /// dropped while the pick is pending); the legality reply then plays the
-    /// pick directly into the in-memory record. If the AI's own move landed
-    /// first, the reply is wrong_turn and the pick is silently dropped.
+    /// Play a Top Moves candidate — same submit path as the cursor.
     private func pick(_ candidate: Analysis.CandidateMove) {
+        submit(vertex: candidate.vertex)
+    }
+
+    /// Play at the cursor's intersection (remote Select while the board is
+    /// focused). Occupied points are rejected here — the engine's occupied
+    /// reply is dropped silently anyway; keeping the cursor in place after a
+    /// play relies on it. The ghost survives the submit: the AI answers, the
+    /// marker recolors, and the user plays on nearby without re-aiming.
+    private func playAtCursor() {
+        guard let point = ghost.point,
+              !stones.blackPoints.contains(point),
+              !stones.whitePoints.contains(point),
+              let vertex = point.gtpVertex(width: Int(board.width),
+                                           height: Int(board.height)) else { return }
+        submit(vertex: vertex)
+    }
+
+    /// Play a vertex for the side to move. The kata-check-move line cancels
+    /// an in-flight gen-move (its trailing "play" reply is dropped while the
+    /// play is pending); the legality reply then plays the move directly into
+    /// the in-memory record. If the AI's own move landed first, the reply is
+    /// wrong_turn and the play is silently dropped.
+    private func submit(vertex: String) {
         guard !isGameOver,
               stones.isReady,
               gobanState.pendingMoveTurn == nil,
               let turn = player.nextColorSymbolForPlayCommand else { return }
-        gobanState.sendCheckMoveCommand(turn: turn, move: candidate.vertex,
+        gobanState.sendCheckMoveCommand(turn: turn, move: vertex,
                                         messageList: messageList)
+    }
+
+    /// The board's D-pad handler: one intersection per press, clamped at the
+    /// edges (Menu is the exit — see the onExitCommand branch). verticalFlip
+    /// keeps the mapping honest with the rendering, though tvOS pins it
+    /// false at the root.
+    private func boardMove(_ direction: MoveCommandDirection) {
+        let step: GhostCursorModel.StepDirection?
+        switch direction {
+        case .up: step = .up
+        case .down: step = .down
+        case .left: step = .left
+        case .right: step = .right
+        default: step = nil
+        }
+        guard let step else { return }
+        ghost.step(step, width: Int(board.width), height: Int(board.height),
+                   verticalFlip: gobanState.verticalFlip)
     }
 
     /// Undo the last move. In a live game the gen-move loop would instantly

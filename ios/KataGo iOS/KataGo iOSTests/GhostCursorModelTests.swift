@@ -56,6 +56,43 @@ struct GhostCursorModelTests {
         #expect(ghost.point == BoardPoint(x: 4, y: 4))
     }
 
+    @Test func stepVerticalFlipInvertsUpDown() {
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+
+        // A flipped board renders +BoardPoint.y downward, so D-pad up must
+        // DECREASE y to keep moving toward the top of the screen.
+        ghost.step(.up, width: 9, height: 9, verticalFlip: true)
+        #expect(ghost.point == BoardPoint(x: 4, y: 3))
+        ghost.step(.down, width: 9, height: 9, verticalFlip: true)
+        ghost.step(.down, width: 9, height: 9, verticalFlip: true)
+        #expect(ghost.point == BoardPoint(x: 4, y: 5))
+
+        // Horizontal axis is unaffected by the flip.
+        ghost.step(.left, width: 9, height: 9, verticalFlip: true)
+        #expect(ghost.point == BoardPoint(x: 3, y: 5))
+        ghost.step(.right, width: 9, height: 9, verticalFlip: true)
+        #expect(ghost.point == BoardPoint(x: 4, y: 5))
+    }
+
+    @Test func stepVerticalFlipClampsAtEdges() {
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+        for _ in 0..<20 { ghost.step(.up, width: 9, height: 9, verticalFlip: true) }
+        #expect(ghost.point?.y == 0)
+        for _ in 0..<20 { ghost.step(.down, width: 9, height: 9, verticalFlip: true) }
+        #expect(ghost.point?.y == 8)
+    }
+
+    @Test func stepDefaultVerticalFlipMatchesUnflipped() {
+        // The defaulted parameter must preserve the visionOS behavior:
+        // .up = +y (away from the viewer on the 3D goban).
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+        ghost.step(.up, width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 4, y: 5))
+    }
+
     @Test func glideAccumulatesFractionsAndSnaps() {
         let ghost = GhostCursorModel()
         ghost.activate(width: 9, height: 9)

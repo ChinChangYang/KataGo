@@ -37,16 +37,22 @@ public final class GhostCursorModel {
 
     /// One intersection per press; +row (`.up`) moves away from the viewer.
     /// While hidden, the first press only reveals the ghost at the center.
-    public func step(_ direction: StepDirection, width: Int, height: Int) {
+    /// `verticalFlip` mirrors the 2D board's rendering flag: a flipped board
+    /// draws +BoardPoint.y downward, so `.up`/`.down` swap to keep the D-pad
+    /// matching what the viewer sees. Defaults false (the visionOS goban and
+    /// the unflipped tvOS board).
+    public func step(_ direction: StepDirection, width: Int, height: Int,
+                     verticalFlip: Bool = false) {
         guard let current = point else {
             activate(width: width, height: height)
             return
         }
         var x = current.x
         var y = current.y
+        let dy = verticalFlip ? -1 : 1
         switch direction {
-        case .up: y += 1
-        case .down: y -= 1
+        case .up: y += dy
+        case .down: y -= dy
         case .left: x -= 1
         case .right: x += 1
         }

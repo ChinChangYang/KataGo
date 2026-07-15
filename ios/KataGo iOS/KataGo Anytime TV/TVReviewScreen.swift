@@ -7,7 +7,9 @@
 //  hidden so the goban fills the screen) plus a legible 10-foot side panel —
 //  player labels, captures, win rate, score, and a move/komi/rules info row —
 //  with a focusable transport row. The Siri-Remote D-pad steps moves. There is
-//  no auto-play (nothing advances it on tvOS).
+//  no auto-play (nothing advances it on tvOS). Focusing the board itself arms
+//  the play cursor: the D-pad aims a ghost stone at any intersection, Select
+//  plays it as a variation, Menu returns to the panel.
 //
 
 import SwiftUI
@@ -35,6 +37,7 @@ struct TVReviewScreen: View {
     @Environment(NavigationContext.self) private var navigationContext
     @Environment(Analysis.self) private var analysis
     @Environment(TVEngineController.self) private var engine
+    @Environment(\.dismiss) private var dismiss
 
     @FocusState private var commentFocused: Bool
     /// The chart-timeline scrubber (the one element with an onMoveCommand).
@@ -43,6 +46,14 @@ struct TVReviewScreen: View {
     /// onMoveCommand consumes the D-pad, so leaving it must be explicit.
     @FocusState private var firstTopMoveFocused: Bool
     @FocusState private var toggleFocused: Bool
+    /// The board itself, when the play cursor is aiming (one left press from
+    /// the panel). While focused, every D-pad press steps the ghost stone and
+    /// Select plays it; Menu hops focus back to the timeline.
+    @FocusState private var boardFocused: Bool
+    /// The play cursor's grid logic (shared with the visionOS ghost stone).
+    /// Its point is non-nil only between board focus and unfocus, so passing
+    /// it straight into BoardView shows the marker exactly while aiming.
+    @State private var ghost = GhostCursorModel()
     @State private var didLoad = false
     // Parsed once from the SGF at load (a C++ parse — never per body eval).
     @State private var totalMoves = 0
@@ -67,20 +78,30 @@ struct TVReviewScreen: View {
 
     /// The board is too large for the current Max Board Size. tvOS has no
     /// neural-network picker, so (unlike iOS's copy) the remedy points at
-    /// Settings ▸ Board Size. Full-screen, legible at 10 feet.
+    /// Settings ▸ Board Size. Full-screen, legible at 10 feet. The Go Back
+    /// button is load-bearing beyond convenience: with zero focusable
+    /// elements the tvOS focus engine can wedge and swallow the Menu press,
+    /// dead-ending the screen — and the explicit onExitCommand reproduces
+    /// the default pop even if it wedges again. ("Go Back", not "Back to
+    /// Library": the Search tab pushes this screen too.)
     private var tooLargeView: some View {
         ContentUnavailableView {
             Label("Board Too Large", systemImage: "rectangle.portrait.and.arrow.forward")
         } description: {
-            Text("This \(config.boardWidth)×\(config.boardHeight) game is larger than the current Max Board Size (\(engine.maxBoardLength)×\(engine.maxBoardLength)). Raise Max Board Size in Settings to review it.")
+            Text("This \(config.boardWidth)×\(config.boardHeight) game is larger than the current Max Board Size (\(engine.maxBoardLength)×\(engine.maxBoardLength)). Raise Max Board Size in the Settings tab, then reopen the game.")
+        } actions: {
+            Button("Go Back") { dismiss() }
         }
+        .onExitCommand { dismiss() }
     }
 
     private var reviewContent: some View {
         // Full-bleed hero board: safe areas ignored on every edge, explicit
         // paddings are the only margins, so the square reaches the screen's
-        // full 1080 pt height. The board is NOT focusable — the remote lives
-        // in the panel (the chart timeline steps moves).
+        // full 1080 pt height. The board is a focusable leaf (one left press
+        // from any panel element): while focused, the D-pad steps the ghost
+        // cursor, Select plays at it, and Menu hops focus back to the
+        // timeline (see the onExitCommand branch below).
         HStack(spacing: 0) {
             BoardView(gameRecord: game,
                       interactive: false,
@@ -88,6 +109,7 @@ struct TVReviewScreen: View {
                       showsPass: false,
                       showsWinrateBar: false,
                       highlightedPoint: highlightedPoint,
+                      cursorPoint: ghost.point,
                       commentIsFocused: $commentFocused)
                 // tvOS is always exactly 1920×1080 pt, so pin the square to
                 // the full screen height outright: inside the NavigationStack
@@ -96,6 +118,30 @@ struct TVReviewScreen: View {
                 // A fixed frame also keeps the board independent of the
                 // panel's ideal height (it must never resize on toggles).
                 .frame(width: 1080, height: 1080)
+                // Focusable only while analysis runs — mirrors the submit
+                // guard (and the Top Moves rows, placeholders when off), so
+                // there is never a live cursor whose Select is dead. This is
+                // a leaf onMoveCommand like the timeline scrubber's, not the
+                // container-root kind that swallows child focus navigation.
+                .focusable(gobanState.analysisStatus == .run)
+                .focused($boardFocused)
+                .onMoveCommand(perform: boardMove)
+                .onTapGesture(perform: playAtCursor)
+                .overlay {
+                    // Focus affordance (the timeline-ring pattern): the board
+                    // has no system focus lift, so say "you are aiming" here.
+                    Rectangle()
+                        .stroke(boardFocused ? Color.tvWoodAccent : .clear,
+                                lineWidth: 4)
+                }
+                .onChange(of: boardFocused) { _, focused in
+                    if focused {
+                        ghost.activate(width: Int(board.width),
+                                       height: Int(board.height))
+                    } else {
+                        ghost.reset()
+                    }
+                }
 
             Spacer(minLength: 24)
 
@@ -115,6 +161,22 @@ struct TVReviewScreen: View {
         .padding(.leading, 24)
         .padding(.trailing, 40)
         .ignoresSafeArea()
+        // The panel held the only focusables before the board became one;
+        // keep the entry landing there — the giant top-left board must not
+        // steal initial focus.
+        .defaultFocus($timelineFocused, true)
+        // A focused board consumes every D-pad press (edges clamp, Select
+        // plays), so Menu is the one way out of cursor mode. Attaching an
+        // onExitCommand replaces the default NavigationStack pop; reproduce
+        // it in the unfocused branch (the TVSelfPlayScreen pattern).
+        .onExitCommand {
+            if boardFocused {
+                boardFocused = false   // ghost resets via the focus onChange
+                timelineFocused = true
+            } else {
+                dismiss()
+            }
+        }
         .onAppear(perform: loadIfNeeded)
         .onDisappear {
             // Silent discard (user decision): variations explored here are
@@ -405,27 +467,66 @@ struct TVReviewScreen: View {
                                    nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    /// Play a Top Moves candidate. The kata-check-move legality round-trip is
-    /// the same path a board tap takes on iOS: its reply plays the move via
-    /// playPendingHumanMove, which (forced branch) captures the variation
+    /// Play a Top Moves candidate — same submit path as the cursor.
+    private func pick(_ candidate: Analysis.CandidateMove) {
+        submit(vertex: candidate.vertex)
+    }
+
+    /// Play at the cursor's intersection (remote Select while the board is
+    /// focused). Occupied points are rejected here — the engine's occupied
+    /// reply is dropped silently, so without this guard a Select on a stone
+    /// would just do nothing invisibly anyway; keeping the cursor in place
+    /// after a play relies on it. The ghost survives the submit (unlike
+    /// visionOS's playAtGhost): the turn flips, the marker recolors, and the
+    /// user answers nearby without re-aiming from center.
+    private func playAtCursor() {
+        guard let point = ghost.point,
+              !stones.blackPoints.contains(point),
+              !stones.whitePoints.contains(point),
+              let vertex = point.gtpVertex(width: Int(board.width),
+                                           height: Int(board.height)) else { return }
+        submit(vertex: vertex)
+    }
+
+    /// Play a vertex as a variation. The kata-check-move legality round-trip
+    /// is the same path a board tap takes on iOS: its reply plays the move
+    /// via playPendingHumanMove, which (forced branch) captures the variation
     /// before requesting printsgf — so with the record selected here, every
     /// printsgf reply routes into branchSgf and the synced record is never
     /// written (isEditing == false keeps maybeUpdateAnalysisData inert too).
     /// The turn flip then re-fires BoardView's observer, the suppressed
     /// stream re-arms as plain kata-analyze for the new position, and the
     /// list refills for the other color.
-    private func pick(_ candidate: Analysis.CandidateMove) {
+    private func submit(vertex: String) {
         guard gobanState.analysisStatus == .run,
               stones.isReady,
               !gobanState.waitingForAnalysis,     // candidates are for the shown position
-              gobanState.pendingMoveTurn == nil,  // one pick in flight at a time
+              gobanState.pendingMoveTurn == nil,  // one play in flight at a time
               let turn = player.nextColorSymbolForPlayCommand else { return }
         // Selected lazily (not at load) so a stale printsgf reply from the
         // previous screen can never find a writable selection here;
         // maybeCollectCheckMove needs it set when the legality reply lands.
         navigationContext.selectedGameRecord = game
-        gobanState.sendCheckMoveCommand(turn: turn, move: candidate.vertex,
+        gobanState.sendCheckMoveCommand(turn: turn, move: vertex,
                                         messageList: messageList)
+    }
+
+    /// The board's D-pad handler: one intersection per press, clamped at the
+    /// edges (the cursor never walks off the board — Menu is the exit, see
+    /// the onExitCommand branch). verticalFlip keeps the mapping honest with
+    /// the rendering, though tvOS pins it false at the root.
+    private func boardMove(_ direction: MoveCommandDirection) {
+        let step: GhostCursorModel.StepDirection?
+        switch direction {
+        case .up: step = .up
+        case .down: step = .down
+        case .left: step = .left
+        case .right: step = .right
+        default: step = nil
+        }
+        guard let step else { return }
+        ghost.step(step, width: Int(board.width), height: Int(board.height),
+                   verticalFlip: gobanState.verticalFlip)
     }
 
     private func exitVariation() {
