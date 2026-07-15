@@ -26,6 +26,12 @@ struct VisionModelsOrnament: View {
     /// the card cannot be dismissed — picking a net IS the boot.
     var isBootChooser = false
     let onActivate: (NeuralNetworkModel) -> Void
+    /// Fired by the gear view when the ACTIVE model's Max Board Size
+    /// changes (already persisted) — the root quits and respawns the
+    /// engine with the new NN buffer. Other models never fire it (their
+    /// value applies at activation), so the pre-boot chooser keeps the
+    /// no-op default.
+    var onMaxBoardSizeRestart: () -> Void = {}
     let onDismiss: () -> Void
 
     @State private var downloaders: [String: Downloader] = [:]
@@ -67,6 +73,15 @@ struct VisionModelsOrnament: View {
                                           onActivate: onActivate)
                 }
             }
+            .navigationDestination(for: BoardSizeDestination.self) { destination in
+                if let model = NeuralNetworkModel.allCases
+                    .first(where: { $0.title == destination.modelTitle }) {
+                    VisionModelBoardSizeView(model: model,
+                                             engine: engine,
+                                             isBootChooser: isBootChooser,
+                                             onRestart: onMaxBoardSizeRestart)
+                }
+            }
             .toolbar {
                 if !isBootChooser {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -103,9 +118,9 @@ struct VisionModelsOrnament: View {
     }
 }
 
-/// Detail page: iOS ModelDetailView without the backend gear (Vision has no
-/// per-model backend/threads pickers; Max Board Size lives in Settings and
-/// keys off the active model). Rendering follows VisionModelDetailState.
+/// Detail page: iOS ModelDetailView, with the gear pushing the per-model
+/// Max Board Size view (Vision's only per-model setting — no
+/// backend/threads pickers). Rendering follows VisionModelDetailState.
 private struct VisionModelDetailView: View {
     let model: NeuralNetworkModel
     let engine: VisionEngineController
@@ -145,6 +160,16 @@ private struct VisionModelDetailView: View {
                         .foregroundStyle(.secondary)
 
                     primaryButton
+
+                    // iOS gear parity: per-model settings next to the
+                    // primary button. A push, not a sheet — the card owns
+                    // a NavigationStack, and sheets from ornaments are
+                    // unproven on visionOS.
+                    NavigationLink(value: BoardSizeDestination(modelTitle: model.title)) {
+                        Image(systemName: "gearshape")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Max Board Size")
 
                     Spacer()
 
@@ -208,6 +233,108 @@ private struct VisionModelDetailView: View {
         .accessibilityLabel(state.primary == .activate ? "Activate model"
                             : state.primary == .download ? "Download model"
                             : "Stop download")
+    }
+}
+
+/// Navigation value for the detail's gear push. Carries the title (the
+/// registry key the String destination already resolves by), not the model,
+/// so the destination lookup stays uniform.
+private struct BoardSizeDestination: Hashable {
+    let modelTitle: String
+}
+
+/// Max Board Size page pushed from the detail's gear — the iOS
+/// BackendConfigSheet analog, holding Vision's only per-model setting.
+/// Apply timing follows VisionBoardSizeSetting (hybrid): the ACTIVE model
+/// restarts the engine on change (its buffer can't be reloaded any other
+/// way — Activate is disabled for it); any other model, and the pre-boot
+/// chooser, persist only and apply at activation.
+private struct VisionModelBoardSizeView: View {
+    let model: NeuralNetworkModel
+    let engine: VisionEngineController
+    var isBootChooser = false
+    let onRestart: () -> Void
+
+    /// Seeded from the persisted per-model choice, clamped to the offered
+    /// segments; no re-seed observer — the displayed model is fixed for
+    /// the pushed view's lifetime.
+    @State private var boardSize: BoardSizeChoice
+
+    init(model: NeuralNetworkModel,
+         engine: VisionEngineController,
+         isBootChooser: Bool = false,
+         onRestart: @escaping () -> Void) {
+        self.model = model
+        self.engine = engine
+        self.isBootChooser = isBootChooser
+        self.onRestart = onRestart
+        // Only persisted + nnLen feed the seed; the activity flags don't
+        // affect `selection`.
+        _boardSize = State(initialValue: VisionBoardSizeSetting.make(
+            persisted: BackendSettings(model: model).mlxBoardSize,
+            nnLen: model.nnLen,
+            isActiveModel: false,
+            isBootChooser: isBootChooser,
+            engineIsRunning: false).selection)
+    }
+
+    private var setting: VisionBoardSizeSetting {
+        VisionBoardSizeSetting.make(
+            persisted: BackendSettings(model: model).mlxBoardSize,
+            nnLen: model.nnLen,
+            isActiveModel: !isBootChooser && model.title == engine.activeModel.title,
+            isBootChooser: isBootChooser,
+            engineIsRunning: engine.phase == .running)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Max board size", systemImage: "squareshape.split.3x3")
+                Picker("Max board size", selection: $boardSize) {
+                    ForEach(setting.choices) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(setting.pickerDisabled)
+            }
+
+            Text(setting.footerText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            if setting.showsEngineStatusFooter && engine.phase != .running {
+                HStack(spacing: 8) {
+                    if case .failed(let reason) = engine.phase {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                        Text(reason)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Restarting engine…")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Max Board Size")
+        .onChange(of: boardSize) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            // The setter writes the per-fileName UserDefaults key — the
+            // local var is the persist.
+            var settings = BackendSettings(model: model)
+            settings.mlxBoardSize = newValue
+            if setting.restartsEngineOnChange {
+                onRestart()
+            }
+        }
     }
 }
 

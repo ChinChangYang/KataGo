@@ -181,6 +181,7 @@ struct VisionRootView: View {
                 VisionModelsOrnament(engine: engineController,
                                      readiness: cacheReadiness,
                                      onActivate: { activateModel($0) },
+                                     onMaxBoardSizeRestart: { restartEngineForMaxBoardSize() },
                                      onDismiss: { shell.showingModels = false })
             } else if isReady, shell.showingControllerHelp {
                 VisionControllerLegend {
