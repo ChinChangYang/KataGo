@@ -99,9 +99,10 @@ struct TVReviewScreen: View {
         // Full-bleed hero board: safe areas ignored on every edge, explicit
         // paddings are the only margins, so the square reaches the screen's
         // full 1080 pt height. The board is a focusable leaf (one left press
-        // from any panel element): while focused, the D-pad steps the ghost
-        // cursor, Select plays at it, and Menu hops focus back to the
-        // timeline (see the onExitCommand branch below).
+        // from any panel control except the timeline, whose own scrub owns
+        // left): while focused, the D-pad steps the ghost cursor, Select
+        // plays at it, and Menu hops focus back to the timeline (see the
+        // onExitCommand branch below).
         HStack(spacing: 0) {
             BoardView(gameRecord: game,
                       interactive: false,
@@ -120,10 +121,13 @@ struct TVReviewScreen: View {
                 .frame(width: 1080, height: 1080)
                 // Focusable only while analysis runs — mirrors the submit
                 // guard (and the Top Moves rows, placeholders when off), so
-                // there is never a live cursor whose Select is dead. This is
-                // a leaf onMoveCommand like the timeline scrubber's, not the
-                // container-root kind that swallows child focus navigation.
-                .focusable(gobanState.analysisStatus == .run)
+                // there is never a live cursor whose Select is dead. NOT
+                // focusable while the timeline is: onMoveCommand is only a
+                // FALLBACK on tvOS (a focusable target in the pressed
+                // direction wins and moves focus before the handler fires,
+                // verified on device 2026-07-16), so a focusable board to the
+                // timeline's left would hijack its left-scrub presses.
+                .focusable(gobanState.analysisStatus == .run && !timelineFocused)
                 .focused($boardFocused)
                 .onMoveCommand(perform: boardMove)
                 .onTapGesture(perform: playAtCursor)
@@ -156,6 +160,14 @@ struct TVReviewScreen: View {
                 // lift/shadow on the rows at the edges.
                 .frame(width: 500, height: 1020, alignment: .top)
                 .padding(.vertical, 30)
+                // While the cursor is aiming, EVERY panel control must be
+                // unfocusable: onMoveCommand is only a fallback (see the
+                // board's focusable comment), so a focusable row to the
+                // board's right would swallow right-presses — the cursor
+                // could step every direction except right. Dimming doubles
+                // as the "aiming mode" affordance. The timeline is not a
+                // control, so it carries its own !boardFocused gate.
+                .disabled(boardFocused)
                 .focusSection()
         }
         .padding(.leading, 24)
@@ -246,7 +258,7 @@ struct TVReviewScreen: View {
                             .stroke(timelineFocused ? Color.tvWoodAccent : .clear,
                                     lineWidth: 3)
                     }
-                    .focusable(true)
+                    .focusable(!boardFocused)
                     .focused($timelineFocused)
                     .onMoveCommand(perform: timelineMove)
             }

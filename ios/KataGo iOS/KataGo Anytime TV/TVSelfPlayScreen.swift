@@ -179,6 +179,14 @@ struct TVSelfPlayScreen: View {
                         // the focus lift/shadow on the rows at the edges.
                         .frame(width: 500, height: 1000, alignment: .top)
                         .padding(.vertical, 40)
+                        // While the cursor is aiming, EVERY panel control
+                        // must be unfocusable: onMoveCommand is only a
+                        // fallback on tvOS (a focusable target in the pressed
+                        // direction wins and moves focus before the handler
+                        // fires — device finding 2026-07-16), so a focusable
+                        // row to the board's right would swallow right
+                        // presses. Dimming doubles as the aiming affordance.
+                        .disabled(boardFocused)
                         .focusSection()
                 }
                 // Full-bleed hero board (matches the review screen): all safe
