@@ -145,8 +145,9 @@ struct VisionRootView: View {
         }
         // Hidden while `.booting` (initial boot has isReady false; a
         // Max-Board-Size restart re-enters .booting with isReady true) so no
-        // pinch can send commands at a down engine. The settings card stays
-        // up — it shows the restart progress and the disabled picker.
+        // pinch can send commands at a down engine. The Models card stays
+        // up — its gear view shows the restart progress and the disabled
+        // picker.
         .ornament(attachmentAnchor: .scene(.bottomFront), contentAlignment: .center) {
             if isReady, shell.phase != .booting {
                 VisionControlOrnament(
@@ -175,7 +176,6 @@ struct VisionRootView: View {
                 VisionSettingsOrnament(shell: shell,
                                        engine: engineController,
                                        onShowModels: { shell.presentModels() },
-                                       onRestart: { restartEngineForMaxBoardSize() },
                                        onDismiss: { shell.showingSettings = false })
             } else if isReady, shell.showingModels {
                 VisionModelsOrnament(engine: engineController,
@@ -680,7 +680,7 @@ struct VisionRootView: View {
             Label("Board Too Large", systemImage: "square.grid.3x3.square")
         } description: {
             if raisable {
-                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size in Settings, then reopen the game.")
+                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size under Settings ▸ Neural Net, then reopen the game.")
             } else {
                 Text("This game uses a \(width)×\(height) board, larger than the current neural net supports (\(cap)×\(cap)). Switch the neural net in Settings, then reopen the game.")
             }
@@ -796,12 +796,13 @@ struct VisionRootView: View {
         return true
     }
 
-    /// The settings card's Max Board Size picker changed (already persisted):
-    /// quit → respawn the engine with the new NN buffer behind the loading
-    /// view, then re-gate and re-mount the current game. `.booting` hides the
-    /// board and the command-sending ornaments; the read loop parks itself in
-    /// `noteRunLoopExited` while the engine is down. On failure the phase
-    /// stays `.booting` and the settings card shows the failure text.
+    /// The model detail's gear view changed the ACTIVE model's Max Board
+    /// Size (already persisted): quit → respawn the engine with the new NN
+    /// buffer behind the loading view, then re-gate and re-mount the current
+    /// game. `.booting` hides the board and the command-sending ornaments;
+    /// the read loop parks itself in `noteRunLoopExited` while the engine is
+    /// down. On failure the phase stays `.booting` and the gear view shows
+    /// the failure text.
     private func restartEngineForMaxBoardSize() {
         Task {
             shell.phase = .booting

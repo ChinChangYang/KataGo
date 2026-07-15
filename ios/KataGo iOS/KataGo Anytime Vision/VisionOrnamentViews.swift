@@ -343,38 +343,7 @@ struct VisionSettingsOrnament: View {
     @Bindable var shell: VisionGameShell
     let engine: VisionEngineController
     let onShowModels: () -> Void
-    let onRestart: () -> Void
     let onDismiss: () -> Void
-
-    /// Seeded from the persisted per-model setting (TVSettingsScreen pattern);
-    /// onChange persists and asks the root to restart the engine.
-    @State private var boardSize: BoardSizeChoice
-
-    init(shell: VisionGameShell,
-         engine: VisionEngineController,
-         onShowModels: @escaping () -> Void,
-         onRestart: @escaping () -> Void,
-         onDismiss: @escaping () -> Void) {
-        self.shell = shell
-        self.engine = engine
-        self.onShowModels = onShowModels
-        self.onRestart = onRestart
-        self.onDismiss = onDismiss
-        // The buffer setting is per-model (per-fileName BackendSettings
-        // keys) — seed from the ACTIVE net, not the built-in.
-        _boardSize = State(initialValue: Self.persistedChoice(for: engine.activeModel))
-    }
-
-    /// The persisted per-model choice, clamped to the net's nnLen so the
-    /// selection always matches an offered segment (a 37x37 persisted for a
-    /// 19-capped net displays as 19x19 — which IS the effective buffer,
-    /// since effectiveMaxBoardLength takes min(choice, nnLen)).
-    private static func persistedChoice(for model: NeuralNetworkModel) -> BoardSizeChoice {
-        let persisted = BackendSettings(model: model).mlxBoardSize
-        let allowed = BoardSizeChoice.allCases.filter { $0.rawValue <= model.nnLen }
-        if allowed.contains(persisted) { return persisted }
-        return allowed.last ?? persisted
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -413,7 +382,10 @@ struct VisionSettingsOrnament: View {
 
             // Opens the Models card in this same right-anchor slot (the
             // shell's presentModels closes settings) — download and
-            // activate extra nets, iOS model-picker style.
+            // activate extra nets, iOS model-picker style. Per-model Max
+            // Board Size lives behind each model detail's gear there
+            // (which also owns the restart trigger and its progress
+            // feedback), so nothing on this card is engine-gated.
             Button(action: onShowModels) {
                 HStack {
                     Label("Neural Net", systemImage: "brain")
@@ -428,62 +400,6 @@ struct VisionSettingsOrnament: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Neural Net: \(engine.activeModel.title)")
-
-            // NN-buffer cap: bigger boards need a bigger (slower, hungrier)
-            // buffer, so changing it quits and respawns the engine — the same
-            // proven flow as tvOS's Board Size setting. Disabled unless the
-            // engine is running (a restart in flight serves the OLD buffer).
-            // Segmented, not a Menu: this card sits at the volume's top edge
-            // and a Menu opened upward, clipping its upper options outside
-            // the window.
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Max board size", systemImage: "squareshape.split.3x3")
-                // Choices above the active net's nnLen are omitted, not
-                // silently clamped: effectiveMaxBoardLength = min(choice,
-                // nnLen), so offering 37x37 on a 19-capped net (the
-                // Lionffen class) would select a segment that changes
-                // nothing.
-                Picker("Max board size", selection: $boardSize) {
-                    ForEach(BoardSizeChoice.allCases.filter {
-                        $0.rawValue <= engine.activeModel.nnLen
-                    }) { choice in
-                        Text(choice.label).tag(choice)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .disabled(engine.phase != .running)
-            }
-            .onChange(of: boardSize) { oldValue, newValue in
-                guard oldValue != newValue else { return }
-                var settings = BackendSettings(model: engine.activeModel)
-                settings.mlxBoardSize = newValue
-                onRestart()
-            }
-            // A model activation while this card stays open switches which
-            // per-fileName key the picker edits — re-seed from the new
-            // net's persisted value (the init seeding only covers a fresh
-            // card). Without this the segmented control shows the OLD
-            // model's cap and its first change writes the old key.
-            .onChange(of: engine.activeModel.fileName) { _, _ in
-                boardSize = Self.persistedChoice(for: engine.activeModel)
-            }
-
-            if engine.phase != .running {
-                HStack(spacing: 8) {
-                    if case .failed(let reason) = engine.phase {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
-                        Text(reason)
-                    } else {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Restarting engine…")
-                    }
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
         }
         .frame(width: 380)
         .padding(20)
@@ -537,7 +453,7 @@ struct VisionNewGamePanel: View {
             }
 
             if sizeCap < 37 {
-                Text("Boards up to \(sizeCap)×\(sizeCap) with the current Max Board Size — raise it in Settings for more.")
+                Text("Boards up to \(sizeCap)×\(sizeCap) with the current Max Board Size — raise it under Settings ▸ Neural Net for more.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -781,7 +697,7 @@ struct VisionGameListOrnament: View {
                         .foregroundStyle(.secondary)
                 }
                 if item.needsLargerBoardSetting {
-                    Text("Raise Max Board Size in Settings")
+                    Text("Raise Max Board Size in Settings ▸ Neural Net")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 } else if item.needsDifferentNet {

@@ -26,8 +26,8 @@ final class VisionGameShell {
         case unsupportedBoard(width: Int, height: Int)
         /// The board renders fine but exceeds the launched NN buffer — the
         /// engine would fatally abort on its first analysis. The exit is
-        /// raising Max Board Size in Settings (which restarts the engine and
-        /// re-mounts this game).
+        /// raising Max Board Size behind the model detail's gear (Settings ▸
+        /// Neural Net), which restarts the engine and re-mounts this game.
         case boardTooLarge(width: Int, height: Int)
     }
 
