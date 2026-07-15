@@ -37,8 +37,16 @@ struct WatchBoardPage: View {
                 .frame(height: 4)
                 .clipShape(Capsule())
 
-                Text(scoreText(s.rootScoreLeadBlack))
-                    .font(.system(.headline, design: .monospaced))
+                HStack(spacing: 4) {
+                    if model.isStale {
+                        Image(systemName: "wifi.slash")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .accessibilityLabel(staleAccessibilityLabel)
+                    }
+                    Text(scoreText(s.rootScoreLeadBlack))
+                        .font(.system(.headline, design: .monospaced))
+                }
             }
         }
         .overlay(alignment: .top) { statusPill }
@@ -95,14 +103,17 @@ struct WatchBoardPage: View {
         return model.peek.entry(forHostIndex: target, gameID: latest.hostGameID) ?? latest
     }
 
+    private var staleAccessibilityLabel: Text {
+        if let at = model.receivedAt ?? model.latest.map(\.hostTimestamp) {
+            Text("Not receiving updates; last update \(at, style: .relative) ago")
+        } else {
+            Text("Not receiving updates")
+        }
+    }
+
     @ViewBuilder private var statusPill: some View {
         let peek = model.peek
-        if model.isStale, let at = model.receivedAt ?? model.latest.map(\.hostTimestamp) {
-            Label { Text("Stale \(at, style: .relative)") }
-                icon: { Image(systemName: "wifi.slash") }
-                .font(.caption2).padding(3)
-                .background(.red.opacity(0.85), in: Capsule())
-        } else if model.sharedCursorAvailable {
+        if model.sharedCursorAvailable {
             if let target = model.cursorPendingTarget {
                 Text("→ \(target)/\(model.latest?.hostMoveCount ?? 0)")
                     .font(.caption2).padding(3)
