@@ -54,6 +54,14 @@ struct TVReviewScreen: View {
     /// Its point is non-nil only between board focus and unfocus, so passing
     /// it straight into BoardView shows the marker exactly while aiming.
     @State private var ghost = GhostCursorModel()
+    /// Aiming mode as PLAIN state (synced from boardFocused): the panel's
+    /// suppression and the timeline's focusability key off this — NOT off
+    /// boardFocused — so the Menu exit can flip it and hop focus in one
+    /// transaction. A FocusState write is only a request processed after
+    /// render; gating on boardFocused left the timeline unfocusable at the
+    /// moment the hop was processed, so Menu appeared dead (device finding
+    /// 2026-07-16).
+    @State private var isAiming = false
     @State private var didLoad = false
     // Parsed once from the SGF at load (a C++ parse — never per body eval).
     @State private var totalMoves = 0
@@ -119,15 +127,15 @@ struct TVReviewScreen: View {
                 // A fixed frame also keeps the board independent of the
                 // panel's ideal height (it must never resize on toggles).
                 .frame(width: 1080, height: 1080)
-                // Focusable only while analysis runs — mirrors the submit
-                // guard (and the Top Moves rows, placeholders when off), so
-                // there is never a live cursor whose Select is dead. NOT
-                // focusable while the timeline is: onMoveCommand is only a
-                // FALLBACK on tvOS (a focusable target in the pressed
+                // Focusable whenever the timeline isn't: onMoveCommand is
+                // only a FALLBACK on tvOS (a focusable target in the pressed
                 // direction wins and moves focus before the handler fires,
                 // verified on device 2026-07-16), so a focusable board to the
-                // timeline's left would hijack its left-scrub presses.
-                .focusable(gobanState.analysisStatus == .run && !timelineFocused)
+                // timeline's left would hijack its left-scrub presses. No
+                // analysis gate — the cursor plays with the engine silent
+                // too; the kata-check-move submit path never needed
+                // candidates.
+                .focusable(!timelineFocused)
                 .focused($boardFocused)
                 .onMoveCommand(perform: boardMove)
                 .onTapGesture(perform: playAtCursor)
@@ -139,6 +147,7 @@ struct TVReviewScreen: View {
                                 lineWidth: 4)
                 }
                 .onChange(of: boardFocused) { _, focused in
+                    isAiming = focused
                     if focused {
                         ghost.activate(width: Int(board.width),
                                        height: Int(board.height))
@@ -166,8 +175,8 @@ struct TVReviewScreen: View {
                 // board's right would swallow right-presses — the cursor
                 // could step every direction except right. Dimming doubles
                 // as the "aiming mode" affordance. The timeline is not a
-                // control, so it carries its own !boardFocused gate.
-                .disabled(boardFocused)
+                // control, so it carries its own !isAiming gate.
+                .disabled(isAiming)
                 .focusSection()
         }
         .padding(.leading, 24)
@@ -183,7 +192,14 @@ struct TVReviewScreen: View {
         // it in the unfocused branch (the TVSelfPlayScreen pattern).
         .onExitCommand {
             if boardFocused {
-                boardFocused = false   // ghost resets via the focus onChange
+                // Order matters: isAiming is plain state, so flipping it
+                // makes the timeline focusable in THIS transaction and the
+                // focus hop that follows finds a legal target. (Writing
+                // boardFocused = false first left focus with nowhere to go —
+                // FocusState writes are requests processed after render, so
+                // the timeline was still unfocusable and Menu appeared
+                // dead.) The ghost resets via the focus onChange.
+                isAiming = false
                 timelineFocused = true
             } else {
                 dismiss()
@@ -258,7 +274,7 @@ struct TVReviewScreen: View {
                             .stroke(timelineFocused ? Color.tvWoodAccent : .clear,
                                     lineWidth: 3)
                     }
-                    .focusable(!boardFocused)
+                    .focusable(!isAiming)
                     .focused($timelineFocused)
                     .onMoveCommand(perform: timelineMove)
             }
@@ -506,13 +522,14 @@ struct TVReviewScreen: View {
     /// before requesting printsgf — so with the record selected here, every
     /// printsgf reply routes into branchSgf and the synced record is never
     /// written (isEditing == false keeps maybeUpdateAnalysisData inert too).
-    /// The turn flip then re-fires BoardView's observer, the suppressed
-    /// stream re-arms as plain kata-analyze for the new position, and the
-    /// list refills for the other color.
+    /// Works with analysis on or off: on, the turn flip re-fires BoardView's
+    /// observer, the suppressed stream re-arms as plain kata-analyze for the
+    /// new position, and the list refills for the other color; off, the
+    /// engine plays quietly (the path never needed candidates — only the
+    /// Top Moves picks do, and their rows are placeholders when off).
     private func submit(vertex: String) {
-        guard gobanState.analysisStatus == .run,
-              stones.isReady,
-              !gobanState.waitingForAnalysis,     // candidates are for the shown position
+        guard stones.isReady,
+              !gobanState.waitingForAnalysis,     // position is settling
               gobanState.pendingMoveTurn == nil,  // one play in flight at a time
               let turn = player.nextColorSymbolForPlayCommand else { return }
         // Selected lazily (not at load) so a stale printsgf reply from the

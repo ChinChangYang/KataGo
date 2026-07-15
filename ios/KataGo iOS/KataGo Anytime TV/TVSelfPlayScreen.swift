@@ -76,6 +76,13 @@ struct TVSelfPlayScreen: View {
     /// Its point is non-nil only between board focus and unfocus, so passing
     /// it straight into BoardView shows the marker exactly while aiming.
     @State private var ghost = GhostCursorModel()
+    /// Aiming mode as PLAIN state (synced from boardFocused): the panel's
+    /// suppression keys off this — not off boardFocused — so the Menu exit
+    /// can flip it and hop focus in one transaction. A FocusState write is
+    /// only a request processed after render; gating on boardFocused left
+    /// the hop target unfocusable and Menu appeared dead (see
+    /// TVReviewScreen.isAiming).
+    @State private var isAiming = false
     @State private var didLoad = false
     @State private var game: GameRecord?
     @State private var restartTask: Task<Void, Never>?
@@ -158,6 +165,7 @@ struct TVSelfPlayScreen: View {
                                         lineWidth: 4)
                         }
                         .onChange(of: boardFocused) { _, focused in
+                            isAiming = focused
                             if focused {
                                 ghost.activate(width: Int(board.width),
                                                height: Int(board.height))
@@ -186,7 +194,7 @@ struct TVSelfPlayScreen: View {
                         // fires — device finding 2026-07-16), so a focusable
                         // row to the board's right would swallow right
                         // presses. Dimming doubles as the aiming affordance.
-                        .disabled(boardFocused)
+                        .disabled(isAiming)
                         .focusSection()
                 }
                 // Full-bleed hero board (matches the review screen): all safe
@@ -210,10 +218,18 @@ struct TVSelfPlayScreen: View {
         // modes so Menu always leaves the demo — except while the play
         // cursor is aiming (manual only; attract never focuses the board),
         // where Menu leaves cursor mode instead: a focused board consumes
-        // every D-pad press, so this is the one way out.
+        // every D-pad press, so this is the one way out. During the
+        // game-over interstitial the pause button is disabled (no legal hop
+        // target), so an aiming Menu falls through to dismiss — "Menu always
+        // leaves the demo" holds there.
         .onExitCommand {
-            if boardFocused {
-                boardFocused = false   // ghost resets via the focus onChange
+            if boardFocused, !isGameOver {
+                // isAiming is plain state: flipping it re-enables the panel
+                // in THIS transaction so the focus hop finds a legal target
+                // (a FocusState write is only a post-render request — see
+                // TVReviewScreen's Menu handler). Ghost resets via the focus
+                // onChange.
+                isAiming = false
                 pauseFocused = true
             } else {
                 dismiss()
@@ -484,9 +500,15 @@ struct TVSelfPlayScreen: View {
         // always starts live.
         gobanState.suppressesGenMove = false
         // A cursor aimed at the finished game must not survive onto the
-        // fresh (possibly different-size) board; dropping focus also resets
-        // the ghost via the focus onChange.
-        boardFocused = false
+        // fresh (possibly different-size) board. Re-enable the panel first
+        // (plain state, same transaction) so the focus hop off the board has
+        // a legal target; reset the ghost directly too in case the hop is
+        // ever rejected and the board keeps focus.
+        if boardFocused {
+            isAiming = false
+            pauseFocused = true
+        }
+        ghost.reset()
 
         // loadsgf inherently cancels the continuous analysis of the finished
         // position; the rest of the setup mirrors first entry.
