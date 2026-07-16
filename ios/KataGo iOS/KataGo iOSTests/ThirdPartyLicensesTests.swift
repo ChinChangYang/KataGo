@@ -45,13 +45,14 @@ struct ThirdPartyLicensesTests {
         #expect(extras?.text.contains("no explicit license statement") == true)
         #expect(extras?.text.contains("katagotraining.org/extra_networks") == true)
 
-        // Opening books: MIT via the ChinChangYang/KataGoBooks packaging,
-        // with both copyright lines retained.
+        // Opening books: lightvector's katagobooks.org license, verbatim,
+        // plus attribution of the ChinChangYang/KataGoBooks packaging.
         let books = byName["KataGo Opening Books"]
         #expect(books != nil)
         #expect(books?.subtitle.hasPrefix("MIT") == true)
-        #expect(books?.text.contains("Copyright (c) 2026 Chin-Chang Yang") == true)
-        #expect(books?.text.contains("David J Wu (\"lightvector\") and other KataGo authors") == true)
+        #expect(books?.text.contains("katagobooks.org/LICENSE.txt") == true)
+        #expect(books?.text.contains("Copyright 2026 David J Wu (\"lightvector\")") == true)
+        #expect(books?.text.contains("ChinChangYang/KataGoBooks") == true)
     }
 
     @Test func shippedScopesOpenCVToTheLinkGraph() {

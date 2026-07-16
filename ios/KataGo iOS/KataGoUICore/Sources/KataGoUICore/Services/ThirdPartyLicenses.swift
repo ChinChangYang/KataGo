@@ -1343,28 +1343,25 @@ extension ThirdPartyLicense {
 
         ThirdPartyLicense(
             name: "KataGo Opening Books",
-            subtitle: "MIT · Chin-Chang Yang; David J Wu (lightvector) and other KataGo authors",
+            subtitle: "MIT · David J Wu (lightvector)",
             text: #"""
             The downloadable opening books are built from KataGo's
-            interactive opening books at katagobooks.org (by David J Wu) and
-            packaged for this app in the MIT-licensed ChinChangYang/KataGoBooks
-            repository (https://github.com/ChinChangYang/KataGoBooks), whose
-            license reads:
+            interactive opening books at katagobooks.org (by David J Wu,
+            "lightvector"). The site's license
+            (https://katagobooks.org/LICENSE.txt) states:
 
-            MIT License
+            The following license covers the viewable and downloadable
+            opening books on this website (katagobooks.org).
 
-            Copyright (c) 2026 Chin-Chang Yang
-
-            Copyright (c) 2019-2026 David J Wu ("lightvector") and other KataGo authors
+            Copyright 2026 David J Wu ("lightvector").
 
             Permission is hereby granted, free of charge, to any person
-            obtaining a copy of this software and associated documentation
-            files (the "Software"), to deal in the Software without
-            restriction, including without limitation the rights to use,
-            copy, modify, merge, publish, distribute, sublicense, and/or sell
-            copies of the Software, and to permit persons to whom the
-            Software is furnished to do so, subject to the following
-            conditions:
+            obtaining the opening books (the "Software"), to deal in the
+            Software without restriction, including without limitation the
+            rights to use, copy, modify, merge, publish, distribute,
+            sublicense, and/or sell copies of the Software, and to permit
+            persons to whom the Software is furnished to do so, subject to
+            the following conditions:
 
             The above copyright notice and this permission notice shall be
             included in all copies or substantial portions of the Software.
@@ -1377,6 +1374,10 @@ extension ThirdPartyLicense {
             WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
             FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
             OTHER DEALINGS IN THE SOFTWARE.
+
+            The books are repackaged in compact binary form for this app via
+            the MIT-licensed ChinChangYang/KataGoBooks repository
+            (https://github.com/ChinChangYang/KataGoBooks).
             """#),
     ]
 }
