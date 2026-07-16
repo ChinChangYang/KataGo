@@ -20,8 +20,11 @@ enum ControllerEvent {
     case play
     /// B — show/hide the analysis overlay (the eye).
     case toggleAnalysisVisibility
-    /// X — undo one move.
+    /// X / L2 — one move back (mirrors iOS backward-frame).
     case undo
+    /// R2 — one move forward through the recorded game (mirrors iOS
+    /// forward-frame).
+    case forward
     /// Y — pass (immediate).
     case pass
     /// L1 / R1 — cycle the ghost through the analysis candidates.
@@ -71,6 +74,8 @@ final class VisionControllerInput {
         bind(pad.buttonY, to: .pass)
         bind(pad.leftShoulder, to: .cycle(forward: false))
         bind(pad.rightShoulder, to: .cycle(forward: true))
+        bind(pad.leftTrigger, to: .undo)
+        bind(pad.rightTrigger, to: .forward)
         bind(pad.dpad.up, to: .dpad(.up))
         bind(pad.dpad.down, to: .dpad(.down))
         bind(pad.dpad.left, to: .dpad(.left))

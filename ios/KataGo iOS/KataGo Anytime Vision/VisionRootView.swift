@@ -351,8 +351,9 @@ struct VisionRootView: View {
         // Branch-end reload (iOS GameSplitView / Mac branch-observer parity):
         // when Replace/Discard deactivates the branch, remount the selected
         // game so the board leaves the branch line. switchGame lands at the
-        // tip — deliberate on Vision (no forward-navigation input; iOS's
-        // divergence-point landing would strand the user after a Discard) —
+        // tip — deliberate on Vision (one consistent landing spot, unlike
+        // iOS's divergence-point landing; L2/R2 step through history from
+        // there) —
         // and loadGame consumes commitBranch's one-shot unlockEditingOnReload,
         // so Replace lands unlocked. Game switches that discard a branch via
         // loadGame's own deactivateBranch re-enter switchGame once more here;
@@ -402,6 +403,8 @@ struct VisionRootView: View {
             playAtGhost()
         case .undo:
             undoOneMove()
+        case .forward:
+            forwardOneMove()
         case .pass:
             // Immediate — no confirmation bar (a controller can't drive the
             // pinch-only ornament, and Undo is the safety net anyway).
@@ -665,6 +668,30 @@ struct VisionRootView: View {
         session.gobanState.sendShowBoardCommand(messageList: session.messageList)
     }
 
+    /// Mirrors StatusToolbarItems.forwardFrameAction (maybeForwardMoves with
+    /// limit 1). forwardMoves sends the post-execution commands itself — the
+    /// iOS asymmetry (backward never requests analysis, forward does) is
+    /// kept, and the turn-change hook re-arms analysis on the toggle either
+    /// way. At the tip it re-sends those commands and moves nothing.
+    private func forwardOneMove() {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        session.gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: session.analysis,
+            board: session.board,
+            stones: session.stones,
+            all: false
+        )
+        guard session.stones.isReady, !isAITurn else { return }
+        session.gobanState.forwardMoves(limit: 1,
+                                        gameRecord: gameRecord,
+                                        board: session.board,
+                                        messageList: session.messageList,
+                                        player: session.player,
+                                        audioModel: audioModel,
+                                        stones: session.stones)
+    }
+
     private func unsupportedBoardView(width: Int, height: Int) -> some View {
         ContentUnavailableView {
             Label("Board Size Not Supported", systemImage: "cube.transparent")
@@ -857,6 +884,14 @@ struct VisionRootView: View {
             handleControllerEvent(.dpad(.right))
             handleControllerEvent(.play)
 
+            // L2/R2 probe (both sides still human, default game unlocked on
+            // a fresh sim): backward removes the stone just played, forward
+            // replays it — the same stone must vanish and return.
+            try? await Task.sleep(for: .seconds(3))
+            handleControllerEvent(.undo)
+            try? await Task.sleep(for: .seconds(2))
+            handleControllerEvent(.forward)
+
             // Exercise the New Game board-swap path (19x19 -> 9x9) and play
             // one move on the fresh board.
             try? await Task.sleep(for: .seconds(6))
@@ -915,8 +950,8 @@ struct VisionRootView: View {
     /// deactivates any branch, clears pending moves, resets the player to
     /// .unknown, and reloads the SGF. Pre-setting currentIndex to the move
     /// count makes loadGame's undo loop a no-op, so the engine lands at the
-    /// tip (v1 semantic: Vision always plays at the latest position; a play
-    /// on a locked synced game forms a branch).
+    /// tip (Vision's consistent landing spot; L2/R2 step through history
+    /// from there, and a play on a locked synced game forms a branch).
     ///
     /// Stale-reply safety: switching mid-genmove cancels the running search,
     /// which still prints its best-so-far "play <vertex>" — postProcessAIMove
