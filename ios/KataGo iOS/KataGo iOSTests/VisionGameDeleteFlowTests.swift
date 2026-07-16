@@ -5,7 +5,7 @@
 //  Pins the pure logic behind the visionOS Games-list delete flow: the
 //  replacement decision when the OPEN game is deleted (newest remaining,
 //  else create fresh — boot's newest-else-create minus the deleted set),
-//  the iOS-verbatim confirmation prompts, and the select-mode chrome
+//  the iOS-verbatim bulk confirmation prompt, and the select-mode chrome
 //  strings (iOS GameListView/GameSplitView parity).
 //
 
@@ -55,11 +55,6 @@ struct VisionGameDeleteFlowTests {
                                                    deleting: ["a", "b"],
                                                    currentID: "a")
         #expect(fallout == .createFresh)
-    }
-
-    @Test func singlePromptMatchesIOSWordingVerbatim() {
-        #expect(VisionGameDeleteFlow.singleDeletePrompt
-                == "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!")
     }
 
     @Test func bulkPromptPluralizes() {

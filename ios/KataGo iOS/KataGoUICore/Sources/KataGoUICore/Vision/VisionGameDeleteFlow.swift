@@ -6,9 +6,9 @@
 //  renders as an in-card content swap (VisionBranchConfirmCard pattern),
 //  NEVER a .confirmationDialog: deleting the open game re-renders the board
 //  and other ornaments, and an ornament-hosted dialog whose action does that
-//  permanently blanks the volume (verified live on visionOS 26). Prompts are
-//  iOS-verbatim (GameSplitView's delete dialogs); the select-mode chrome
-//  mirrors iOS GameListView's Select/Done + "(N)" trash design.
+//  permanently blanks the volume (verified live on visionOS 26). The bulk
+//  prompt is iOS-verbatim (GameSplitView's delete dialog); the select-mode
+//  chrome mirrors iOS GameListView's Select/Done + "(N)" trash design.
 //
 
 import Foundation
@@ -40,10 +40,6 @@ public enum VisionGameDeleteFlow {
         }
         return .createFresh
     }
-
-    /// iOS GameSplitView's single-delete dialog title, verbatim.
-    public static let singleDeletePrompt =
-        "Are you sure you want to delete this game? THIS ACTION IS IRREVERSIBLE!"
 
     /// iOS GameSplitView's bulk-delete dialog title, verbatim, with the
     /// same count pluralization.

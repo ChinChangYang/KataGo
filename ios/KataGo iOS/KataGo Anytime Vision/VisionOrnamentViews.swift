@@ -490,9 +490,9 @@ struct VisionNewGamePanel: View {
 /// Left-side game list, toggled from the control bar's Games button: the
 /// newest iCloud-synced games (the root @Query live-refreshes), pinch a row
 /// to load it. The list stays up after a pick so the checkmark tracks the
-/// switch; the toggle or the close button dismisses it. Every row carries a
-/// trash button (iOS delete parity — the open game included; the root
-/// remounts the newest remaining game, else a fresh one).
+/// switch; the toggle or the close button dismisses it. Deletion happens in
+/// Select mode only (the open game included; the root remounts the newest
+/// remaining game, else a fresh one).
 struct VisionGameListOrnament: View {
     let gameRecords: [GameRecord]
     let maxBoardLength: Int
@@ -504,19 +504,15 @@ struct VisionGameListOrnament: View {
     let onDeleteGames: (Set<PersistentIdentifier>) -> Void
     let onDismiss: () -> Void
 
-    /// Which deletion awaits confirmation. The confirm renders as an
-    /// in-card content swap (VisionBranchConfirmCard pattern), NEVER a
+    /// Whether the bulk deletion awaits confirmation. The confirm renders
+    /// as an in-card content swap (VisionBranchConfirmCard pattern), NEVER a
     /// .confirmationDialog: deleting the open game re-renders the board and
     /// other ornaments — the exact ornament-dialog action that blanks the
-    /// volume (see VisionControlOrnament's comment). Stores the ID, not the
-    /// record, so a CloudKit sync deleting it mid-confirm strands nothing
-    /// (bulkDelete then no-ops). Card-local: dismissing the card discards
-    /// any pending confirm.
-    private enum PendingDelete: Equatable {
-        case single(PersistentIdentifier)
-        case bulk
-    }
-    @State private var pendingDelete: PendingDelete?
+    /// volume (see VisionControlOrnament's comment). The doomed IDs live in
+    /// `selectedIDs`, so a CloudKit sync deleting one mid-confirm strands
+    /// nothing (bulkDelete then no-ops). Card-local: dismissing the card
+    /// discards a pending confirm.
+    @State private var confirmingBulkDelete = false
 
     /// iOS select-mode parity, card-local (dismissing the card exits
     /// selection, iOS's exitSelection-on-disappear for free).
@@ -530,8 +526,8 @@ struct VisionGameListOrnament: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let pendingDelete {
-                confirmView(for: pendingDelete)
+            if confirmingBulkDelete {
+                confirmView
             } else {
                 header
                 gamesScroll
@@ -574,7 +570,7 @@ struct VisionGameListOrnament: View {
         HStack {
             Spacer()
             Button(role: .destructive) {
-                pendingDelete = .bulk
+                confirmingBulkDelete = true
             } label: {
                 Label(VisionGameDeleteFlow.trashCountLabel(count: selectedIDs.count),
                       systemImage: "trash")
@@ -600,42 +596,26 @@ struct VisionGameListOrnament: View {
 
     /// Both actions explicitly clear the pending flag (no isPresented
     /// binding to do it for them).
-    private func confirmView(for pending: PendingDelete) -> some View {
+    private var confirmView: some View {
         VisionGameDeleteConfirmCard(
-            prompt: prompt(for: pending),
+            prompt: VisionGameDeleteFlow.bulkDeletePrompt(count: selectedIDs.count),
             onDelete: {
-                pendingDelete = nil
-                switch pending {
-                case .single(let id):
-                    onDeleteGames([id])
-                case .bulk:
-                    onDeleteGames(selectedIDs)
-                    withAnimation {
-                        selectedIDs.removeAll()
-                        isSelecting = false
-                    }
+                confirmingBulkDelete = false
+                onDeleteGames(selectedIDs)
+                withAnimation {
+                    selectedIDs.removeAll()
+                    isSelecting = false
                 }
             },
-            onCancel: { pendingDelete = nil })
-    }
-
-    private func prompt(for pending: PendingDelete) -> String {
-        switch pending {
-        case .single:
-            return VisionGameDeleteFlow.singleDeletePrompt
-        case .bulk:
-            return VisionGameDeleteFlow.bulkDeletePrompt(count: selectedIDs.count)
-        }
+            onCancel: { confirmingBulkDelete = false })
     }
 
     /// One row: name over "date · size", checkmark on the open game,
     /// disabled when the stored size is known-unsupported (unknown sizes
-    /// stay enabled — openGame re-derives from the SGF and gates). The
-    /// trash is a SIBLING of the open button, never nested in its label,
-    /// and stays enabled even on blocked rows: deletion is the only remedy
-    /// for a game the active net can never open. In select mode the whole
-    /// row toggles membership instead — blocked rows included, so no
-    /// .disabled there.
+    /// stay enabled — openGame re-derives from the SGF and gates). Deletion
+    /// lives in select mode only, where the whole row toggles membership —
+    /// blocked rows included (so no .disabled there): deleting is the only
+    /// remedy for a game the active net can never open.
     @ViewBuilder
     private func gameRow(_ record: GameRecord) -> some View {
         let item = VisionGamePickerItem.make(
@@ -651,24 +631,13 @@ struct VisionGameListOrnament: View {
         if isSelecting {
             selectableRow(record, item: item, isCurrent: isCurrent)
         } else {
-            HStack(spacing: 8) {
-                Button {
-                    onOpenGame(record)
-                } label: {
-                    rowLabel(item: item, isCurrent: isCurrent)
-                }
-                .buttonStyle(.plain)
-                .disabled(!item.isSelectable)
-
-                Button {
-                    pendingDelete = .single(record.persistentModelID)
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.red)
-                .accessibilityLabel("Delete \(item.title)")
+            Button {
+                onOpenGame(record)
+            } label: {
+                rowLabel(item: item, isCurrent: isCurrent)
             }
+            .buttonStyle(.plain)
+            .disabled(!item.isSelectable)
         }
     }
 
