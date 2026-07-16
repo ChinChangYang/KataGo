@@ -27,13 +27,12 @@ public enum ReportNarrator {
             facts.append("Current evaluation for \(side): \(percent(position.winrate)) win rate, \(points(position.scoreLead)) points, from \(position.visits) visits.")
         }
 
-        // Same labels the report UI shows ("Best Move …" / "Alternative …",
-        // with the game-move/your-pick source suffix) so Copy-to-Comment
-        // output and LLM input match what the user reads.
+        // Same labels the report UI shows ("Best Move …" / "Alternative …")
+        // so Copy-to-Comment output and LLM input match what the user reads.
+        // Plain "Alternative" regardless of the slot's source — the
+        // game-move/your-pick provenance is picker-only detail.
         for (index, candidate) in model.candidates.enumerated() {
-            let label = index == 0
-                ? "Best move"
-                : DeepReportModel.alternativeLabel(source: model.alternativeSource)
+            let label = index == 0 ? "Best move" : "Alternative"
             var line = "\(label) \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
             if !candidate.pv.isEmpty {
                 line += " Expected continuation: \(candidate.pv.joined(separator: " "))."

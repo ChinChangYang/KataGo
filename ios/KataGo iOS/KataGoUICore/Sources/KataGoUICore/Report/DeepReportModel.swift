@@ -288,16 +288,6 @@ public final class DeepReportModel {
         budgetMultiplier >= ReportConstants.maxBudgetMultiplier
     }
 
-    /// Single source of truth for the Alternative slot's heading, shared by
-    /// the report section and the narrator's facts.
-    nonisolated public static func alternativeLabel(source: AlternativeSource) -> String {
-        switch source {
-        case .engine: return "Alternative"
-        case .gameMove: return "Alternative (game move)"
-        case .userPick: return "Alternative (your pick)"
-        }
-    }
-
     public var isGenerating: Bool {
         switch stage {
         case .snapshot, .passProbe, .tenuki, .narrating: return true

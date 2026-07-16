@@ -362,10 +362,6 @@ struct CandidateSectionView: View {
     var onChangeAlternative: (() -> Void)?
     @State private var showsDelta = false
 
-    private var isQuickEstimate: Bool {
-        candidate.visits < ReportConstants.lowVisitThreshold
-    }
-
     private var statsText: String {
         var text = "\(String(format: "%.0f%%", candidate.winrate * 100)) win rate"
         if !isBest {
@@ -379,13 +375,8 @@ struct CandidateSectionView: View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
             HStack {
-                Text(isBest
-                     ? "Best Move \(candidate.vertex)"
-                     : "\(DeepReportModel.alternativeLabel(source: model.alternativeSource)) \(candidate.vertex)")
+                Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
                     .font(.title3.bold())
-                if isQuickEstimate {
-                    QuickEstimateBadge(visits: candidate.visits)
-                }
                 if let onChangeAlternative {
                     Spacer()
                     Button("Change…") { onChangeAlternative() }
@@ -393,8 +384,6 @@ struct CandidateSectionView: View {
                         .controlSize(.small)
                 }
             }
-            // Low-visit candidates read as less trustworthy structurally:
-            // their content dims while the heading + badge stay full-strength.
             VStack(alignment: .leading, spacing: 8) {
                 Text(statsText)
                     .font(.callout)
@@ -431,21 +420,7 @@ struct CandidateSectionView: View {
                     }
                 }
             }
-            .opacity(isQuickEstimate ? 0.75 : 1.0)
         }
-    }
-}
-
-/// Shared low-confidence badge: prominent enough that a skimming reader
-/// can't mistake a 13-visit quick probe for a fully analyzed line.
-struct QuickEstimateBadge: View {
-    let visits: Int
-
-    var body: some View {
-        Label("Quick estimate — only \(visits.formatted()) visits",
-              systemImage: "exclamationmark.triangle.fill")
-            .font(.caption.bold())
-            .foregroundStyle(.orange)
     }
 }
 

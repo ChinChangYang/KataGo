@@ -67,23 +67,23 @@ struct ReportNarratorTests {
         #expect(!joined.contains("the opponent would punish"))
     }
 
-    /// The alternative fact names its source (game move / user pick), matching
-    /// the report UI's heading; the default engine source keeps the plain
-    /// "Alternative" label the earlier tests assert.
-    @Test func factsLabelAlternativeBySource() {
+    /// The alternative fact keeps the plain "Alternative" label whatever the
+    /// slot's source — the game-move/user-pick provenance is picker-only
+    /// detail, not title text (user simplification request).
+    @Test func factsKeepPlainAlternativeLabelForEverySource() {
         let model = makeModel()
         model.candidates.append(
             CandidateReport(vertex: "C3", visits: 20, winrate: 0.30, scoreLead: -8.0,
                             winrateDelta: -0.10, scoreLeadDelta: -3.0, pv: [],
                             ownershipDelta: [:], tenuki: nil)
         )
-        model.alternativeSource = .gameMove
-        #expect(ReportNarrator.facts(from: model).joined(separator: "\n")
-            .contains("Alternative (game move) C3:"))
-
-        model.alternativeSource = .userPick
-        #expect(ReportNarrator.facts(from: model).joined(separator: "\n")
-            .contains("Alternative (your pick) C3:"))
+        for source: AlternativeSource in [.engine, .gameMove, .userPick] {
+            model.alternativeSource = source
+            let joined = ReportNarrator.facts(from: model).joined(separator: "\n")
+            #expect(joined.contains("Alternative C3:"))
+            #expect(!joined.contains("game move"))
+            #expect(!joined.contains("your pick"))
+        }
     }
 
     /// Round 5: with no candidates there is no best vertex to name — the pass

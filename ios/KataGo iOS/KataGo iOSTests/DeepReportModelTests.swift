@@ -72,12 +72,6 @@ struct DeepReportModelTests {
         #expect(model.transientNotice == nil)
     }
 
-    @Test func alternativeLabelNamesSource() {
-        #expect(DeepReportModel.alternativeLabel(source: .engine) == "Alternative")
-        #expect(DeepReportModel.alternativeLabel(source: .gameMove) == "Alternative (game move)")
-        #expect(DeepReportModel.alternativeLabel(source: .userPick) == "Alternative (your pick)")
-    }
-
     @Test func budgetsScaleLinearly() {
         let base = ReportBudgets(snapshot: 2, pass: 1, tenuki: 1, candidateCount: 2)
         let scaled = base.scaled(by: 4)
