@@ -2432,11 +2432,11 @@ final class MainWindowController: NSWindowController {
         // after `hosting` exists (it needs to reference it weakly) and closed
         // over by the root view built just above.
         var dismissSheet: (() -> Void) = {}
-        let root = NavigationStack {
-            DeepReportView(gameRecord: gameRecord, onClose: { dismissSheet() })
-        }
-        .environment(session.messageList)
-        .frame(minWidth: 560, minHeight: 640)
+        // No NavigationStack wrapper: DeepReportView owns its stack (the
+        // alternative-move picker pushes inside it).
+        let root = DeepReportView(gameRecord: gameRecord, onClose: { dismissSheet() })
+            .environment(session.messageList)
+            .frame(minWidth: 560, minHeight: 640)
         let hosting = NSHostingController(rootView: root)
         dismissSheet = { [weak hosting] in
             guard let hosting else { return }

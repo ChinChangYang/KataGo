@@ -58,6 +58,7 @@
 		19F4D6C935D215A19F84521E /* int128.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4BE7511F72FFCCBFDD1A791A /* int128.cc */; };
 		19FCE0D533DF33E0FAFEF0F0 /* Fp16.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BD22490FB6D2F00C83C1BD22 /* Fp16.cpp */; };
 		1AC9BD756030A9BAFC68A404 /* address_is_readable.cc in Sources */ = {isa = PBXBuildFile; fileRef = 34CB7A74633C707C6093A25B /* address_is_readable.cc */; };
+		1C48E07A6F7F54414AF9B3F6 /* DeepReportRepickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBDE941FD4AFC241A7462832 /* DeepReportRepickTests.swift */; };
 		1C812A66FDDACB405051108E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 63451C3EC52A31C93708C06A /* Foundation.framework */; };
 		1C932250F604F7132815DE21 /* unscaledcycleclock.cc in Sources */ = {isa = PBXBuildFile; fileRef = C8269527CA97AE161731B9CB /* unscaledcycleclock.cc */; };
 		1CC870949253FB94170D4AE9 /* Gazetteer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7796CFED474942C453ABC091 /* Gazetteer.pb.cc */; };
@@ -232,6 +233,7 @@
 		77C02C65E55EC657E2FBDAF8 /* crc32c.cc in Sources */ = {isa = PBXBuildFile; fileRef = 15BA1592C87481A57E8CC1BE /* crc32c.cc */; };
 		783DDF812C4F66BCED0AA666 /* OpeningBookRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4E7F679814F57F8C377BBA /* OpeningBookRowView.swift */; };
 		78B21C5A4EB552E78AC9F029 /* GobanRecogSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 283BD222F619D3128051E3D4 /* GobanRecogSmokeTests.swift */; };
+		79DF7861BA3F8212EA3DF0A9 /* ReportMovePickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47782792A496CF885425190 /* ReportMovePickerTests.swift */; };
 		79FC99D1FE195C3BDC7AE8D8 /* commandlineflag.cc in Sources */ = {isa = PBXBuildFile; fileRef = E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */; };
 		7A43A80CA476432883E1E82F /* Model.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F5D1E35537739536323FC2B /* Model.pb.cc */; };
 		7B0589FD3D239038D3CFBB38 /* status.cc in Sources */ = {isa = PBXBuildFile; fileRef = B797CDE40306D2B33B324106 /* status.cc */; };
@@ -285,6 +287,7 @@
 		92E4D615B82FE93C35320828 /* vlog_config.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4D052BCCBD2D036B1E839690 /* vlog_config.cc */; };
 		93145670B0CC5A2216810181 /* Scaler.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */; };
 		93220D07CE100955A981A6BF /* VisionAnalysisLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3712A5C7191AA84DBBDA0BF /* VisionAnalysisLabelTests.swift */; };
+		93BF5798AED3D29460510346 /* DeepReportAlternativeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9062ABB4142118B8E575C8F1 /* DeepReportAlternativeTests.swift */; };
 		93D872B0DBA97838547744F4 /* FileWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D50CEC238BE790355F94D6D3 /* FileWriter.cpp */; };
 		94781886A108BB18B7BFB9C9 /* NeuralNetworkModelGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */; };
 		948CAEF78641599449997CFF /* statusor.cc in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB1E48C91DD79F0008B2C /* statusor.cc */; };
@@ -429,6 +432,7 @@
 		DD9B8DC9B74721FCA5B5C001 /* img0811.bgr.raw in Resources */ = {isa = PBXBuildFile; fileRef = 6FB9A83B815280DFE56CEDB6 /* img0811.bgr.raw */; };
 		DDB6C200B23419289D2F81FE /* LibraryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */; };
 		DE413A7DD5252929FD9EC41C /* MacBoardInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6B8BDADC069556FE9F1F04 /* MacBoardInteractionLayer.swift */; };
+		DE9BE4A514EAD434C2A0BB71 /* DeepReportRefineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B46DF5EB710EA4BDC35EA3E /* DeepReportRefineTests.swift */; };
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
@@ -1069,6 +1073,7 @@
 		4ACC295BC21E8BE626A5B861 /* KataGoAnytimeWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoAnytimeWatchApp.swift; path = "KataGo Anytime Watch/KataGoAnytimeWatchApp.swift"; sourceTree = "<group>"; };
 		4B1FB377A827EF5CA47BF88C /* utf8_for_code_point.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utf8_for_code_point.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/utf8_for_code_point.cc"; sourceTree = SOURCE_ROOT; };
 		4B353F521781321D83987622 /* TextClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TextClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/TextClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
+		4B46DF5EB710EA4BDC35EA3E /* DeepReportRefineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportRefineTests.swift; sourceTree = "<group>"; };
 		4B723FFDCF4553074736CA50 /* graphcycles.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = graphcycles.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/graphcycles.cc"; sourceTree = SOURCE_ROOT; };
 		4B9176A9365E11D68DD9298E /* AnalysisLineParserReportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisLineParserReportTests.swift; sourceTree = "<group>"; };
 		4BE7511F72FFCCBFDD1A791A /* int128.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = int128.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/numeric/int128.cc"; sourceTree = SOURCE_ROOT; };
@@ -1193,6 +1198,7 @@
 		8F928DADF19E916D9C547562 /* InspectorInfoViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorInfoViewController.swift; sourceTree = "<group>"; };
 		8FF2B17B41FD5A035930E809 /* KataGoParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = KataGoParser.cpp; path = ../../cpp/external/katagocoreml/src/parser/KataGoParser.cpp; sourceTree = SOURCE_ROOT; };
 		904A32F79FF14B278483B17D /* CameraCaptureController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CameraCaptureController.swift; path = "KataGo iOS/Camera/CameraCaptureController.swift"; sourceTree = "<group>"; };
+		9062ABB4142118B8E575C8F1 /* DeepReportAlternativeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportAlternativeTests.swift; sourceTree = "<group>"; };
 		91095E97336B749B96944BD8 /* charconv_bigint.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = charconv_bigint.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/charconv_bigint.cc"; sourceTree = SOURCE_ROOT; };
 		9207E3CE350BEC0550A3893A /* GameSessionCollectSgfReviewGuardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionCollectSgfReviewGuardTests.swift; sourceTree = "<group>"; };
 		920FF0ED642A58B9D57848B9 /* utf8_range.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = utf8_range.c; path = "../../cpp/external/protobuf-34.1/third_party/utf8_range/utf8_range.c"; sourceTree = SOURCE_ROOT; };
@@ -1329,6 +1335,7 @@
 		DB4A44BA9F9E01AA3DA6FE91 /* hash.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hash.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/hash/internal/hash.cc"; sourceTree = SOURCE_ROOT; };
 		DB8C70B55F90A8E5D519D0D1 /* VisionBoardSceneModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionBoardSceneModel.swift; path = "KataGo Anytime Vision/VisionBoardSceneModel.swift"; sourceTree = "<group>"; };
 		DB916B370975783C74200B08 /* blocking_counter.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = blocking_counter.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/blocking_counter.cc"; sourceTree = SOURCE_ROOT; };
+		DBDE941FD4AFC241A7462832 /* DeepReportRepickTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportRepickTests.swift; sourceTree = "<group>"; };
 		DBEBF4527BDE5A1922B5D4B3 /* DataStructures.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = DataStructures.pb.cc; path = ../../cpp/external/katagocoreml/generated/DataStructures.pb.cc; sourceTree = SOURCE_ROOT; };
 		DC2CED6534484C095E0B08DC /* crc_memcpy_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_memcpy_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_memcpy_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
 		DC4762AACF9C73ECA5FBF891 /* AnalysisCandidateMovesTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisCandidateMovesTests.swift; sourceTree = "<group>"; };
@@ -1624,6 +1631,7 @@
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F366CA82A77C8E4E7C13586A /* VisionLicensesOrnament.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionLicensesOrnament.swift; path = "KataGo Anytime Vision/VisionLicensesOrnament.swift"; sourceTree = "<group>"; };
 		F42A3F61F5D728D923150B06 /* status_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/internal/status_internal.cc"; sourceTree = SOURCE_ROOT; };
+		F47782792A496CF885425190 /* ReportMovePickerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReportMovePickerTests.swift; sourceTree = "<group>"; };
 		F4C159FB921FB252C225F18A /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; name = "KataGo Engine Helper"; path = "katago-engine"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_btree_reader.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_btree_reader.cc"; sourceTree = SOURCE_ROOT; };
@@ -2776,6 +2784,10 @@
 				B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */,
 				6744588CD056E4B130D12589 /* VisionGameDeleteFlowTests.swift */,
 				EC487969D102B8B2B1690658 /* VisionBoardSizeSettingTests.swift */,
+				9062ABB4142118B8E575C8F1 /* DeepReportAlternativeTests.swift */,
+				DBDE941FD4AFC241A7462832 /* DeepReportRepickTests.swift */,
+				4B46DF5EB710EA4BDC35EA3E /* DeepReportRefineTests.swift */,
+				F47782792A496CF885425190 /* ReportMovePickerTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4020,6 +4032,10 @@
 				94781886A108BB18B7BFB9C9 /* NeuralNetworkModelGateTests.swift in Sources */,
 				BD4FC7857C878EC30A61B5DB /* VisionGameDeleteFlowTests.swift in Sources */,
 				B8C7B65A548A6358B3DD7921 /* VisionBoardSizeSettingTests.swift in Sources */,
+				93BF5798AED3D29460510346 /* DeepReportAlternativeTests.swift in Sources */,
+				1C48E07A6F7F54414AF9B3F6 /* DeepReportRepickTests.swift in Sources */,
+				DE9BE4A514EAD434C2A0BB71 /* DeepReportRefineTests.swift in Sources */,
+				79DF7861BA3F8212EA3DF0A9 /* ReportMovePickerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

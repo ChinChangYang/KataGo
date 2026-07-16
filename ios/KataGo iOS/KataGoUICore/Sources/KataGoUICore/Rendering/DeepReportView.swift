@@ -11,12 +11,25 @@
 import SwiftUI
 
 public struct DeepReportView: View {
+    /// One engine operation on the report; `.task(id:)` keyed on this value
+    /// runs it and auto-cancels the previous one. The seq/attempt/pass
+    /// payloads exist to make retries distinct ids — SwiftUI won't re-fire
+    /// an unchanged id.
+    private enum ReportOperation: Equatable, Hashable {
+        case initial(attempt: Int)
+        case refine(pass: Int)
+        case pick(vertex: String, seq: Int)
+        case idle
+    }
+
     var gameRecord: GameRecord
     @Environment(MessageList.self) var messageList
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var model = DeepReportModel()
-    @State private var runID = 0
+    @State private var operation: ReportOperation = .initial(attempt: 0)
+    @State private var opSeq = 0
+    @State private var showingPicker = false
 
     /// AppKit hosts (NSHostingController + presentAsSheet) pass a closure
     /// here because SwiftUI's DismissAction cannot reach an AppKit-presented
@@ -38,31 +51,51 @@ public struct DeepReportView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                headerSection
-                candidatesSection
-                passSection
-                narrativeSection
+        // The NavigationStack lives INSIDE the view (not at the call sites) so
+        // the picker push works identically under the iOS/visionOS .sheet and
+        // the macOS NSHostingController+presentAsSheet host.
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    headerSection
+                    candidatesSection
+                    passSection
+                    narrativeSection
+                }
+                .padding()
             }
-            .padding()
-        }
-        .navigationTitle("Deep Analysis Report")
+            .navigationTitle("Deep Analysis Report")
 #if !os(macOS) && !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
 #endif
-        .toolbar { toolbarContent }
-        .task(id: runID) {
-            model = DeepReportModel()
+            .toolbar { toolbarContent }
+            .navigationDestination(isPresented: $showingPicker) {
+                ReportMovePickerView(model: model) { vertex in
+                    opSeq += 1
+                    operation = .pick(vertex: vertex, seq: opSeq)
+                }
+            }
+        }
+        .task(id: operation) {
             let generator = DeepReportGenerator(messageList: messageList)
-            await generator.generate(model: model, gameRecord: gameRecord)
+            switch operation {
+            case .initial:
+                model = DeepReportModel()
+                await generator.generate(model: model, gameRecord: gameRecord)
+            case .refine:
+                await generator.refine(model: model, gameRecord: gameRecord)
+            case .pick(let vertex, _):
+                await generator.repickAlternative(model: model, gameRecord: gameRecord, vertex: vertex)
+            case .idle:
+                break
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             // Spec: app backgrounding aborts generation (iOS/visionOS — suspension
             // would freeze mid-probe). Inert on macOS by design: the AppKit host
             // never leaves .active, and macOS never suspends the process, so
             // there is nothing to abort. Dismissing cancels the .task, which the
-            // generator turns into abort + restore.
+            // generator turns into abort + restore — mid-refine/pick included.
             if newPhase == .background && model.isGenerating {
                 close()
             }
@@ -91,6 +124,13 @@ public struct DeepReportView: View {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
             }
+            // One-shot refine/pick outcome ("… was kept/reset"); cleared at
+            // the start of the next operation.
+            if let notice = model.transientNotice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -100,11 +140,20 @@ public struct DeepReportView: View {
             skeletonRow(height: 180)
         }
         ForEach(model.candidates) { candidate in
+            let isBest = candidate.id == model.candidates.first?.id
             CandidateSectionView(candidate: candidate,
                                  model: model,
                                  sideName: sideName,
                                  opponentName: opponentName,
-                                 isBest: candidate.id == model.candidates.first?.id)
+                                 isBest: isBest,
+                                 onChangeAlternative: (!isBest && model.stage == .complete)
+                                     ? { showingPicker = true } : nil)
+        }
+        // A single-candidate report (the engine ranked only one move) still
+        // deserves a reachable Alternative slot.
+        if model.stage == .complete && model.candidates.count == 1 {
+            Button("Pick an alternative…") { showingPicker = true }
+                .buttonStyle(.bordered)
         }
     }
 
@@ -177,21 +226,35 @@ public struct DeepReportView: View {
     private var toolbarContent: some ToolbarContent {
         if model.isGenerating {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { close() }   // cancels .task → abort + restore
+                // The initial generation has nothing to fall back to, so
+                // Cancel closes the sheet; a refine/pick abort returns to the
+                // still-valid completed report instead (the generator restores
+                // and re-completes on task cancellation).
+                Button("Cancel") {
+                    if model.mode == .initial {
+                        close()
+                    } else {
+                        operation = .idle
+                    }
+                }
             }
             ToolbarItem(placement: .confirmationAction) {
                 ProgressView()
             }
-        } else {
+        } else if model.stage == .complete {
             // macOS follows the Mac sheet convention (text buttons + tooltips,
             // like ConfigEditor); the space-constrained iOS/visionOS nav bar
             // keeps icons, whose titles double as accessibility labels.
             ToolbarItem(placement: .cancellationAction) {
 #if os(macOS)
-                Button("Regenerate") { runID += 1 }
-                    .help("Run the report again for this position")
+                Button("Refine") { startRefine() }
+                    .disabled(model.isAtBudgetCap)
+                    .help(model.isAtBudgetCap
+                          ? "Already at the deepest analysis budget"
+                          : "Search deeper — twice the previous analysis budget")
 #else
-                Button("Regenerate", systemImage: "arrow.clockwise") { runID += 1 }
+                Button("Refine", systemImage: "plus.magnifyingglass") { startRefine() }
+                    .disabled(model.isAtBudgetCap)
 #endif
             }
             ToolbarItem(placement: .primaryAction) {
@@ -219,7 +282,31 @@ public struct DeepReportView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { close() }
             }
+        } else {
+            // Failed or cancelled: the only path forward is a fresh
+            // base-budget run.
+            ToolbarItem(placement: .cancellationAction) {
+#if os(macOS)
+                Button("Regenerate") { startRegenerate() }
+                    .help("Run the report again for this position")
+#else
+                Button("Regenerate", systemImage: "arrow.clockwise") { startRegenerate() }
+#endif
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { close() }
+            }
         }
+    }
+
+    private func startRefine() {
+        opSeq += 1
+        operation = .refine(pass: opSeq)
+    }
+
+    private func startRegenerate() {
+        opSeq += 1
+        operation = .initial(attempt: opSeq)
     }
 
     private func copyToComment() {
@@ -270,6 +357,9 @@ struct CandidateSectionView: View {
     /// always shows its variation. Its heading reads "Best Move" and its
     /// stats drop the vs-best delta (always ~+0% for itself).
     let isBest: Bool
+    /// Opens the alternative-move picker. nil while generating (and always
+    /// for the best move), which hides the Change… affordance.
+    var onChangeAlternative: (() -> Void)?
     @State private var showsDelta = false
 
     private var isQuickEstimate: Bool {
@@ -289,10 +379,18 @@ struct CandidateSectionView: View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
             HStack {
-                Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
+                Text(isBest
+                     ? "Best Move \(candidate.vertex)"
+                     : "\(DeepReportModel.alternativeLabel(source: model.alternativeSource)) \(candidate.vertex)")
                     .font(.title3.bold())
                 if isQuickEstimate {
                     QuickEstimateBadge(visits: candidate.visits)
+                }
+                if let onChangeAlternative {
+                    Spacer()
+                    Button("Change…") { onChangeAlternative() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
             }
             // Low-visit candidates read as less trustworthy structurally:

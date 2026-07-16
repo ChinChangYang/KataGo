@@ -38,6 +38,15 @@ public struct ReportBudgets: Sendable {
                                                pass: ReportConstants.passBudget,
                                                tenuki: ReportConstants.tenukiBudget,
                                                candidateCount: ReportConstants.candidateCount)
+
+    /// Refine's escalated budgets: wall-clock stages scale linearly (visits
+    /// scale with time), candidateCount stays fixed.
+    public func scaled(by factor: Int) -> ReportBudgets {
+        ReportBudgets(snapshot: snapshot * TimeInterval(factor),
+                      pass: pass * TimeInterval(factor),
+                      tenuki: tenuki * TimeInterval(factor),
+                      candidateCount: candidateCount)
+    }
 }
 
 /// Injectable wait so tests can feed scripted replies instead of sleeping.
@@ -80,39 +89,55 @@ public final class DeepReportGenerator {
         reportSideSymbol = sideToMove == .black ? "b" : "w"
         seedModel(model, session: session, gameRecord: gameRecord, sideToMove: sideToMove)
 
+        do {
+            try await withProbeSession(session: session, gameRecord: gameRecord) {
+                try await runProbes(model: model, session: session,
+                                    gameRecord: gameRecord, sideToMove: sideToMove)
+            }
+            await renarrate(model: model, gameRecord: gameRecord)
+            model.stage = .complete
+        } catch is CancellationError {
+            model.stage = .cancelled
+        } catch let error as ReportError {
+            model.stage = .failed(error.message)
+        } catch {
+            model.stage = .failed(error.localizedDescription)
+        }
+    }
+
+    /// The hijack/restore envelope every probe session runs inside: freezes
+    /// live analysis collection, routes reply lines into the collector, runs
+    /// `body`, and guarantees the single `restore` path on every exit
+    /// (success, cancellation, engine error).
+    private func withProbeSession(session: GameSession,
+                                  gameRecord: GameRecord,
+                                  body: () async throws -> Void) async throws {
         collector.reset()
         outstandingPlays = 0
         priorObserver = session.lineObserver
         let collector = self.collector
         session.lineObserver = { line in collector.ingest(line: line) }
         session.gobanState.reportGenerationActive = true
+        defer { restore(session: session, gameRecord: gameRecord) }
+        try await body()
+    }
 
-        do {
-            try await runProbes(model: model, session: session, sideToMove: sideToMove)
-            restore(session: session, gameRecord: gameRecord)
-            if gameRecord.concreteConfig.useLLM {
-                model.stage = .narrating
-                await ReportNarrator.narrate(model: model,
-                                             tone: gameRecord.concreteConfig.tone,
-                                             temperature: Double(gameRecord.concreteConfig.temperature))
-            }
-            model.stage = .complete
-        } catch is CancellationError {
-            restore(session: session, gameRecord: gameRecord)
-            model.stage = .cancelled
-        } catch let error as ReportError {
-            restore(session: session, gameRecord: gameRecord)
-            model.stage = .failed(error.message)
-        } catch {
-            restore(session: session, gameRecord: gameRecord)
-            model.stage = .failed(error.localizedDescription)
-        }
+    /// Streams the narrative for the current report data (no engine access —
+    /// always called after `restore`). Re-narration replaces the prior text.
+    private func renarrate(model: DeepReportModel, gameRecord: GameRecord) async {
+        guard gameRecord.concreteConfig.useLLM else { return }
+        model.stage = .narrating
+        model.narrative = ""
+        await ReportNarrator.narrate(model: model,
+                                     tone: gameRecord.concreteConfig.tone,
+                                     temperature: Double(gameRecord.concreteConfig.temperature))
     }
 
     // MARK: - Stages
 
     private func runProbes(model: DeepReportModel,
                            session: GameSession,
+                           gameRecord: GameRecord,
                            sideToMove: PlayerColor) async throws {
         let width = model.boardWidth
         let height = model.boardHeight
@@ -122,18 +147,279 @@ public final class DeepReportGenerator {
 
         // Stage 1: snapshot (zero mutation) — candidates, PVs, root + subtree ownership.
         model.stage = .snapshot
+        let snapshot = try await snapshotProbe(budget: budgets.snapshot, parser: parser)
+        let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
+                                         width: width, height: height)
+
+        // Smart default for the Alternative slot: the game's actually-played
+        // next move (when reviewing mid-game and it differs from the best
+        // move) beats the engine's #2 pedagogically — "what you played vs.
+        // what's best". A cached snapshot entry costs nothing; anything else
+        // needs one forced-allow probe. Probe silence → keep engine #2.
+        model.gameMoveVertex = gameMoveVertex(session: session,
+                                              gameRecord: gameRecord,
+                                              sideToMove: sideToMove)
+        if let gameMove = model.gameMoveVertex,
+           gameMove != model.candidates.first?.vertex {
+            if let entry = model.snapshotEntries.first(where: { $0.vertex == gameMove }) {
+                setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
+                                              position: position, sideToMove: sideToMove,
+                                              baseOwnership: model.snapshotOwnership,
+                                              width: width, height: height),
+                               source: .gameMove, model: model)
+            } else if let parsed = try await forcedCandidateProbe(vertex: gameMove,
+                                                                  budget: budgets.tenuki,
+                                                                  mySymbol: mySymbol,
+                                                                  parser: parser),
+                      let entry = rankedEntries(in: parsed, width: width, height: height)
+                          .first(where: { $0.vertex == gameMove }) {
+                setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
+                                              position: position, sideToMove: sideToMove,
+                                              baseOwnership: model.snapshotOwnership,
+                                              width: width, height: height),
+                               source: .gameMove, model: model)
+            }
+        }
+
+        // Stage 2: pass probe (zero mutation) — opponent to move on the same board.
+        try await passStage(model: model, snapshot: snapshot, budget: budgets.pass,
+                            oppSymbol: oppSymbol, parser: parser,
+                            sideToMove: sideToMove, width: width, height: height)
+
+        // Stage 3: tenuki probes — play the candidate, analyze with the SAME side
+        // to move (= opponent ignored it), undo. The only state mutation.
+        try await tenukiStage(model: model, budget: budgets.tenuki,
+                              mySymbol: mySymbol, parser: parser,
+                              sideToMove: sideToMove, width: width, height: height)
+    }
+
+    /// refine()'s probe pipeline: the same three stages at scaled budgets,
+    /// replacing model sections as each lands — never wiping first. The
+    /// Alternative slot is reconstructed around the new snapshot: a picked or
+    /// game-move vertex is preserved (from the new snapshot's cache or one
+    /// forced-allow probe); if it became the best move — or can't be
+    /// re-analyzed — the slot falls back to the smart default with a notice.
+    private func runRefineProbes(model: DeepReportModel,
+                                 scaled: ReportBudgets,
+                                 sideToMove: PlayerColor) async throws {
+        let width = model.boardWidth
+        let height = model.boardHeight
+        let parser = AnalysisLineParser(boardWidth: width, boardHeight: height, nextColor: .white)
+        let mySymbol = sideToMove == .black ? "b" : "w"
+        let oppSymbol = sideToMove == .black ? "w" : "b"
+        let preservedVertex = model.alternativeSource == .engine
+            ? nil : model.candidates.last?.vertex
+        let preservedSource = model.alternativeSource
+
+        model.stage = .snapshot
+        let snapshot = try await snapshotProbe(budget: scaled.snapshot, parser: parser)
+        let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
+                                         width: width, height: height)
+
+        if let preserved = preservedVertex {
+            if preserved == model.candidates.first?.vertex {
+                model.transientNotice = "\(preserved) is now the Best Move — the alternative was reset."
+                applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
+                                     width: width, height: height)
+            } else if let entry = model.snapshotEntries.first(where: { $0.vertex == preserved }) {
+                setAlternative(buildCandidate(vertex: preserved, info: entry.info,
+                                              position: position, sideToMove: sideToMove,
+                                              baseOwnership: model.snapshotOwnership,
+                                              width: width, height: height),
+                               source: preservedSource, model: model)
+            } else if let parsed = try await forcedCandidateProbe(vertex: preserved,
+                                                                  budget: scaled.tenuki,
+                                                                  mySymbol: mySymbol,
+                                                                  parser: parser),
+                      let entry = rankedEntries(in: parsed, width: width, height: height)
+                          .first(where: { $0.vertex == preserved }) {
+                setAlternative(buildCandidate(vertex: preserved, info: entry.info,
+                                              position: position, sideToMove: sideToMove,
+                                              baseOwnership: model.snapshotOwnership,
+                                              width: width, height: height),
+                               source: preservedSource, model: model)
+            } else {
+                model.transientNotice = "The engine couldn't re-analyze \(preserved) — the alternative was reset."
+                applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
+                                     width: width, height: height)
+            }
+        } else {
+            applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
+                                 width: width, height: height)
+        }
+
+        try await passStage(model: model, snapshot: snapshot, budget: scaled.pass,
+                            oppSymbol: oppSymbol, parser: parser,
+                            sideToMove: sideToMove, width: width, height: height)
+        try await tenukiStage(model: model, budget: scaled.tenuki,
+                              mySymbol: mySymbol, parser: parser,
+                              sideToMove: sideToMove, width: width, height: height)
+    }
+
+    /// The cached-only smart default: the game move when it differs from the
+    /// new best and sits in the snapshot cache, else the engine's #2 (which
+    /// `applySnapshot` already placed). Used by refine's fallbacks — unlike
+    /// the initial run it never spends a probe on the game move.
+    private func applyGameMoveDefault(model: DeepReportModel,
+                                      position: PositionSummary,
+                                      sideToMove: PlayerColor,
+                                      width: Int, height: Int) {
+        model.alternativeSource = .engine
+        guard let gameMove = model.gameMoveVertex,
+              gameMove != model.candidates.first?.vertex,
+              let entry = model.snapshotEntries.first(where: { $0.vertex == gameMove })
+        else { return }
+        setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
+                                      position: position, sideToMove: sideToMove,
+                                      baseOwnership: model.snapshotOwnership,
+                                      width: width, height: height),
+                       source: .gameMove, model: model)
+    }
+
+    /// Targeted re-probe of a newly picked Alternative on a completed report:
+    /// only the picked move is probed (cached snapshot info when available,
+    /// one forced-allow probe otherwise, plus its tenuki follow-up); the
+    /// snapshot, best-move, and pass sections stay untouched. A failed or
+    /// cancelled pick leaves the prior alternative standing and posts a
+    /// `transientNotice` instead of failing the report.
+    public func repickAlternative(model: DeepReportModel,
+                                  gameRecord: GameRecord,
+                                  vertex: String) async {
+        guard model.stage == .complete,
+              let position = model.position,
+              let best = model.candidates.first,
+              vertex != best.vertex,
+              vertex != "pass",
+              let session = messageList.session,
+              !session.gobanState.reportGenerationActive else { return }
+
+        let sideToMove = model.sideToMove
+        reportSideSymbol = sideToMove == .black ? "b" : "w"
+        let mySymbol = reportSideSymbol
+        let width = model.boardWidth
+        let height = model.boardHeight
+        let parser = AnalysisLineParser(boardWidth: width, boardHeight: height, nextColor: .white)
+        // Deeper reports probe picks at the same depth they were refined to.
+        let budget = budgets.tenuki * TimeInterval(model.budgetMultiplier)
+        let priorCandidates = model.candidates
+        let priorSource = model.alternativeSource
+        model.mode = .pick
+        model.transientNotice = nil
+        model.stage = .tenuki(1)
+
+        do {
+            try await withProbeSession(session: session, gameRecord: gameRecord) {
+                // The post-report re-arm may have left a gen-move's sticky
+                // maxVisits cap behind — every probe session lifts it first.
+                send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
+                let info: AnalysisInfo
+                if let entry = model.snapshotEntries.first(where: { $0.vertex == vertex }) {
+                    info = entry.info
+                } else {
+                    guard let parsed = try await forcedCandidateProbe(vertex: vertex,
+                                                                      budget: budget,
+                                                                      mySymbol: mySymbol,
+                                                                      parser: parser),
+                          let entry = rankedEntries(in: parsed, width: width, height: height)
+                              .first(where: { $0.vertex == vertex })
+                    else {
+                        throw ReportError("The engine couldn't analyze \(vertex) here — it may be an illegal move.")
+                    }
+                    info = entry.info
+                }
+                var alternative = buildCandidate(vertex: vertex, info: info,
+                                                 position: position, sideToMove: sideToMove,
+                                                 baseOwnership: model.snapshotOwnership,
+                                                 width: width, height: height)
+                alternative.tenuki = try await tenukiProbe(
+                    vertex: vertex, index: 1, budget: budget,
+                    mySymbol: mySymbol, parser: parser,
+                    sideToMove: sideToMove, width: width, height: height)
+                setAlternative(alternative,
+                               source: vertex == model.gameMoveVertex ? .gameMove : .userPick,
+                               model: model)
+            }
+            await renarrate(model: model, gameRecord: gameRecord)
+            model.stage = .complete
+        } catch {
+            model.candidates = priorCandidates
+            model.alternativeSource = priorSource
+            model.transientNotice = Self.keepAlternativeNotice(for: error)
+            model.stage = .complete
+        }
+    }
+
+    /// Re-runs the whole probe pipeline at the next doubled budget (capped at
+    /// `ReportConstants.maxBudgetMultiplier`× base), replacing report sections
+    /// in place as each stage lands — a mid-flight cancel or engine error
+    /// leaves a valid (possibly mixed-depth) report, never a wiped one. The
+    /// picked alternative is preserved and re-probed at the deeper budget;
+    /// the multiplier advances only on full success.
+    public func refine(model: DeepReportModel, gameRecord: GameRecord) async {
+        guard model.stage == .complete,
+              let session = messageList.session,
+              !session.gobanState.reportGenerationActive else { return }
+
+        let sideToMove = model.sideToMove
+        reportSideSymbol = sideToMove == .black ? "b" : "w"
+        let multiplier = model.nextBudgetMultiplier
+        let scaled = budgets.scaled(by: multiplier)
+        model.mode = .refine
+        model.transientNotice = nil
+
+        do {
+            try await withProbeSession(session: session, gameRecord: gameRecord) {
+                try await runRefineProbes(model: model, scaled: scaled, sideToMove: sideToMove)
+            }
+            await renarrate(model: model, gameRecord: gameRecord)
+            model.budgetMultiplier = multiplier
+            model.stage = .complete
+        } catch {
+            model.transientNotice = Self.keepAlternativeNotice(for: error)
+            model.stage = .complete
+        }
+    }
+
+    /// A pick/refine abort must read as "your report survived": the message
+    /// explains what didn't happen, never a failure stage.
+    private static func keepAlternativeNotice(for error: Error) -> String {
+        switch error {
+        case is CancellationError:
+            return "Cancelled — the previous report was kept."
+        case let reportError as ReportError:
+            return reportError.message
+        default:
+            return error.localizedDescription
+        }
+    }
+
+    // MARK: - Probes
+
+    /// The snapshot analyze (zero board mutation): lifts the sticky maxVisits
+    /// cap, streams candidates + PVs + root/subtree ownership, and returns the
+    /// last report line. Throws when the engine stays silent.
+    private func snapshotProbe(budget: TimeInterval,
+                               parser: AnalysisLineParser) async throws -> ParsedAnalysis {
         send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
         send("kata-analyze interval \(ReportConstants.probeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
              stage: .snapshot)
-        try await sleeper(budgets.snapshot)
+        try await sleeper(budget)
         try checkEngineError()
         send("stop", stage: nil)
         // Let a final in-flight report line cross the pipe before reading.
         try await sleeper(ReportConstants.stopGrace)
-        guard let snapshotLine = collector.latestLine(for: .snapshot) else {
+        guard let line = collector.latestLine(for: .snapshot) else {
             throw ReportError("The engine produced no analysis for this position.")
         }
-        let snapshot = parser.parse(message: snapshotLine)
+        return parser.parse(message: line)
+    }
+
+    /// Commits a snapshot to the model: position summary, the ranked-entry +
+    /// root-ownership caches, and the engine's top candidates.
+    private func applySnapshot(_ snapshot: ParsedAnalysis,
+                               model: DeepReportModel,
+                               sideToMove: PlayerColor,
+                               width: Int, height: Int) throws -> PositionSummary {
         guard let rootInfo = snapshot.rootInfo else {
             throw ReportError("The engine's analysis carried no root values.")
         }
@@ -142,14 +428,30 @@ public final class DeepReportGenerator {
             scoreLead: ReportPerspective.score(rootInfo.scoreLead, for: sideToMove),
             visits: rootInfo.visits)
         model.position = position
+        // Cache the ranked snapshot candidates + root ownership: the picker's
+        // quick-pick marks, and the no-reprobe path for picking one of them.
+        model.snapshotEntries = rankedEntries(in: snapshot, width: width, height: height)
+            .prefix(ReportConstants.probeMaxMoves)
+            .map { SnapshotEntry(vertex: $0.vertex, info: $0.info) }
+        model.snapshotOwnership = snapshot.rawOwnership
         model.candidates = buildCandidates(from: snapshot, position: position,
                                            sideToMove: sideToMove, width: width, height: height)
+        return position
+    }
 
-        // Stage 2: pass probe (zero mutation) — opponent to move on the same board.
+    /// The pass probe (zero board mutation): opponent to move on the same
+    /// board. Replaces the model's pass comparison only when a line landed.
+    private func passStage(model: DeepReportModel,
+                           snapshot: ParsedAnalysis,
+                           budget: TimeInterval,
+                           oppSymbol: String,
+                           parser: AnalysisLineParser,
+                           sideToMove: PlayerColor,
+                           width: Int, height: Int) async throws {
         model.stage = .passProbe
         send("kata-analyze \(oppSymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
              stage: .passProbe)
-        try await sleeper(budgets.pass)
+        try await sleeper(budget)
         try checkEngineError()
         send("stop", stage: nil)
         // Let a final in-flight report line cross the pipe before reading.
@@ -162,33 +464,70 @@ public final class DeepReportGenerator {
                                                        best: model.candidates.first,
                                                        width: width, height: height)
         }
+    }
 
-        // Stage 3: tenuki probes — play the candidate, analyze with the SAME side
-        // to move (= opponent ignored it), undo. The only state mutation.
+    /// Tenuki probes for every current candidate.
+    private func tenukiStage(model: DeepReportModel,
+                             budget: TimeInterval,
+                             mySymbol: String,
+                             parser: AnalysisLineParser,
+                             sideToMove: PlayerColor,
+                             width: Int, height: Int) async throws {
         for (index, candidate) in model.candidates.enumerated() {
             guard candidate.vertex != "pass" else { continue }
             model.stage = .tenuki(index)
-            send("play \(mySymbol) \(candidate.vertex)", stage: nil)
-            outstandingPlays = 1
-            send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
-                 stage: .tenuki(index))
-            try await sleeper(budgets.tenuki)
-            try checkEngineError()
-            send("stop", stage: nil)
-            // Let a final in-flight report line cross the pipe before reading;
-            // the undo (which yanks the cold tree out) must still always
-            // follow, whether or not a line landed.
-            try await sleeper(ReportConstants.stopGrace)
-            let tenukiLine = collector.latestLine(for: .tenuki(index))
-            send("undo", stage: nil)
-            outstandingPlays = 0
-            if let line = tenukiLine {
-                let parsed = parser.parse(message: line)
-                model.candidates[index].tenuki = buildTenuki(parsed: parsed,
-                                                             sideToMove: sideToMove,
-                                                             width: width, height: height)
-            }
+            model.candidates[index].tenuki = try await tenukiProbe(
+                vertex: candidate.vertex, index: index, budget: budget,
+                mySymbol: mySymbol, parser: parser,
+                sideToMove: sideToMove, width: width, height: height)
         }
+    }
+
+    /// One `allow`-constrained analyze: every root visit is funneled into
+    /// `vertex`, yielding full candidate info (winrate/PV/movesOwnership) for
+    /// a move the snapshot didn't rank. The constraint is per-analyze-call
+    /// engine state, so the next plain kata-analyze clears it. Returns nil
+    /// when no report line landed (typically an illegal vertex — the engine
+    /// searches nothing and emits nothing).
+    private func forcedCandidateProbe(vertex: String,
+                                      budget: TimeInterval,
+                                      mySymbol: String,
+                                      parser: AnalysisLineParser) async throws -> ParsedAnalysis? {
+        send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) allow \(mySymbol) \(vertex) 1 maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
+             stage: .forcedCandidate)
+        try await sleeper(budget)
+        try checkEngineError()
+        send("stop", stage: nil)
+        // Let a final in-flight report line cross the pipe before reading.
+        try await sleeper(ReportConstants.stopGrace)
+        guard let line = collector.latestLine(for: .forcedCandidate) else { return nil }
+        return parser.parse(message: line)
+    }
+
+    /// One tenuki probe: play the candidate, analyze with the SAME side to
+    /// move (= opponent ignored it), undo. The only board mutation any probe
+    /// makes, tracked by `outstandingPlays` for the restore path.
+    private func tenukiProbe(vertex: String, index: Int, budget: TimeInterval,
+                             mySymbol: String, parser: AnalysisLineParser,
+                             sideToMove: PlayerColor,
+                             width: Int, height: Int) async throws -> TenukiFollowUp? {
+        send("play \(mySymbol) \(vertex)", stage: nil)
+        outstandingPlays = 1
+        send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
+             stage: .tenuki(index))
+        try await sleeper(budget)
+        try checkEngineError()
+        send("stop", stage: nil)
+        // Let a final in-flight report line cross the pipe before reading;
+        // the undo (which yanks the cold tree out) must still always follow,
+        // whether or not a line landed.
+        try await sleeper(ReportConstants.stopGrace)
+        let line = collector.latestLine(for: .tenuki(index))
+        send("undo", stage: nil)
+        outstandingPlays = 0
+        guard let line else { return nil }
+        return buildTenuki(parsed: parser.parse(message: line),
+                           sideToMove: sideToMove, width: width, height: height)
     }
 
     // MARK: - Builders (White-perspective in, side-to-move out)
@@ -200,21 +539,60 @@ public final class DeepReportGenerator {
         rankedEntries(in: snapshot, width: width, height: height)
             .prefix(budgets.candidateCount)
             .map { vertex, info in
-                let winrate = ReportPerspective.winrate(info.winrate, for: sideToMove)
-                let scoreLead = ReportPerspective.score(info.scoreLead, for: sideToMove)
-                return CandidateReport(
-                    vertex: vertex,
-                    visits: info.visits,
-                    winrate: winrate,
-                    scoreLead: scoreLead,
-                    winrateDelta: winrate - position.winrate,
-                    scoreLeadDelta: scoreLead - position.scoreLead,
-                    pv: info.pv,
-                    ownershipDelta: OwnershipDelta.grid(base: snapshot.rawOwnership,
-                                                        probe: info.movesOwnership ?? [],
-                                                        width: width, height: height),
-                    tenuki: nil)
+                buildCandidate(vertex: vertex, info: info, position: position,
+                               sideToMove: sideToMove,
+                               baseOwnership: snapshot.rawOwnership,
+                               width: width, height: height)
             }
+    }
+
+    /// Single construction path for snapshot-, cached-, and forced-probe
+    /// candidates: deltas vs. the position summary, Δ-ownership vs. the
+    /// SNAPSHOT root grid (the report's one baseline).
+    private func buildCandidate(vertex: String, info: AnalysisInfo,
+                                position: PositionSummary,
+                                sideToMove: PlayerColor,
+                                baseOwnership: [Float],
+                                width: Int, height: Int) -> CandidateReport {
+        let winrate = ReportPerspective.winrate(info.winrate, for: sideToMove)
+        let scoreLead = ReportPerspective.score(info.scoreLead, for: sideToMove)
+        return CandidateReport(
+            vertex: vertex,
+            visits: info.visits,
+            winrate: winrate,
+            scoreLead: scoreLead,
+            winrateDelta: winrate - position.winrate,
+            scoreLeadDelta: scoreLead - position.scoreLead,
+            pv: info.pv,
+            ownershipDelta: OwnershipDelta.grid(base: baseOwnership,
+                                                probe: info.movesOwnership ?? [],
+                                                width: width, height: height),
+            tenuki: nil)
+    }
+
+    /// Replaces the Alternative slot (everything after the best move) and
+    /// records where the new occupant came from.
+    private func setAlternative(_ candidate: CandidateReport,
+                                source: AlternativeSource,
+                                model: DeepReportModel) {
+        guard let best = model.candidates.first else { return }
+        model.candidates = [best, candidate]
+        model.alternativeSource = source
+    }
+
+    /// The game's next recorded move as a GTP vertex, when it can seed the
+    /// Alternative slot: not on a branch (a throwaway line has no "game
+    /// move"), a real board vertex (not a pass), and the side to move's color.
+    private func gameMoveVertex(session: GameSession,
+                                gameRecord: GameRecord,
+                                sideToMove: PlayerColor) -> String? {
+        guard !session.gobanState.isBranchActive,
+              let next = session.gobanState.getNextMove(gameRecord: gameRecord) else { return nil }
+        let nextColor: PlayerColor = next.player == .black ? .black : .white
+        guard nextColor == sideToMove,
+              let vertex = session.board.locationToMove(location: next.location),
+              vertex != "pass" else { return nil }
+        return vertex
     }
 
     private func buildPassComparison(passParsed: ParsedAnalysis,
@@ -326,12 +704,21 @@ public final class DeepReportGenerator {
         model.showCoordinate = session.gobanState.showCoordinate
         model.verticalFlip = session.gobanState.verticalFlip
 
-        // A reused model must never show a previous run's results.
+        // A reused model must never show a previous run's results. Regenerate
+        // is a true base-budget reset, so the refine multiplier and the
+        // alternative pick go back to their defaults too.
         model.position = nil
         model.candidates = []
         model.passComparison = nil
         model.narrative = ""
         model.narrativeUnavailableReason = nil
+        model.alternativeSource = .engine
+        model.gameMoveVertex = nil
+        model.snapshotEntries = []
+        model.snapshotOwnership = []
+        model.budgetMultiplier = 1
+        model.mode = .initial
+        model.transientNotice = nil
     }
 
     private func vertices(of points: [BoardPoint], width: Int, height: Int) -> [String] {

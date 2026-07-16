@@ -34,6 +34,27 @@ public struct ReportMarkedMove {
     }
 }
 
+/// A quick-pick annotation on the move picker's board: how a marked vertex
+/// relates to the report (engine rank, the game's move, the current
+/// alternative, or the unselectable best move). One mark per vertex.
+public struct ReportPickMark: Identifiable {
+    public enum Kind: Equatable {
+        case engineRank(Int)
+        case gameMove
+        case currentAlternative
+        case bestDisallowed
+    }
+
+    public let vertex: String
+    public let kind: Kind
+    public var id: String { vertex }
+
+    public init(vertex: String, kind: Kind) {
+        self.vertex = vertex
+        self.kind = kind
+    }
+}
+
 public struct ReportBoardView: View {
     let width: Int
     let height: Int
@@ -41,6 +62,10 @@ public struct ReportBoardView: View {
     let whiteVertices: [String]
     let overlay: ReportBoardOverlay
     let markedMove: ReportMarkedMove?
+    /// Quick-pick annotations drawn on top of everything (the move picker's
+    /// marks layer). Empty (the default) keeps every existing call site
+    /// unchanged.
+    let pickMarks: [ReportPickMark]
     /// A GTP vertex to mark with the app's red last-move dot (drawn on top,
     /// independent of `overlay`). The stone itself is expected to already be in
     /// `blackVertices`/`whiteVertices`, so this only adds the marker — unlike
@@ -64,6 +89,7 @@ public struct ReportBoardView: View {
                 overlay: ReportBoardOverlay,
                 markedMove: ReportMarkedMove? = nil,
                 lastMoveVertex: String? = nil,
+                pickMarks: [ReportPickMark] = [],
                 isClassicStoneStyle: Bool, showCoordinate: Bool, verticalFlip: Bool,
                 onTapCoordinate: ((Coordinate) -> Void)? = nil) {
         self.width = width
@@ -73,6 +99,7 @@ public struct ReportBoardView: View {
         self.overlay = overlay
         self.markedMove = markedMove
         self.lastMoveVertex = lastMoveVertex
+        self.pickMarks = pickMarks
         self.isClassicStoneStyle = isClassicStoneStyle
         self.showCoordinate = showCoordinate
         self.verticalFlip = verticalFlip
@@ -99,6 +126,7 @@ public struct ReportBoardView: View {
                                    style: .lastMoveMarker,
                                    moveNumbers: MoveNumbers(numbers: [:], lastPoint: point, lastNumber: nil))
                 }
+                pickMarksLayer(dimensions: dims)
             }
             .environment(localBoardSize)
             .environment(localStones)
@@ -203,6 +231,49 @@ public struct ReportBoardView: View {
                 .frame(width: dimensions.squareLength * CGFloat(scale), height: dimensions.squareLength * CGFloat(scale))
                 .position(x: dimensions.boardLineStartX + CGFloat(entry.point.x) * dimensions.squareLength,
                           y: dimensions.boardLineStartY + entry.point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength)
+        }
+    }
+
+    /// The picker's quick-pick annotations, drawn at intersections with the
+    /// same positioning math as `deltaSquares`. One symbol per mark kind:
+    /// numbered blue circle (engine rank), green diamond (game move), orange
+    /// ring (current alternative), gray X (best move — not selectable).
+    private func pickMarksLayer(dimensions: Dimensions) -> some View {
+        ForEach(pickMarks) { mark in
+            if let point = BoardPoint(move: mark.vertex, width: width, height: height) {
+                pickMarkSymbol(mark.kind, side: dimensions.squareLength * 0.55)
+                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pickMarkSymbol(_ kind: ReportPickMark.Kind, side: CGFloat) -> some View {
+        switch kind {
+        case .engineRank(let rank):
+            ZStack {
+                Circle().fill(.blue.opacity(0.75))
+                Text("\(rank)")
+                    .font(.system(size: side * 0.6, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: side, height: side)
+
+        case .gameMove:
+            Image(systemName: "diamond.fill")
+                .font(.system(size: side * 0.8, weight: .bold))
+                .foregroundStyle(.green)
+
+        case .currentAlternative:
+            Circle()
+                .stroke(.orange, lineWidth: side * 0.16)
+                .frame(width: side, height: side)
+
+        case .bestDisallowed:
+            Image(systemName: "xmark")
+                .font(.system(size: side * 0.7, weight: .bold))
+                .foregroundStyle(.secondary)
         }
     }
 

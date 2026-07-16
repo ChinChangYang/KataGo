@@ -32,6 +32,40 @@ public enum ReportConstants {
     public static let scoreNoise: Float = 1.0
     public static let lowVisitThreshold = 100
     public static let contestedPointCount = 8
+    /// Refine's budget-escalation ceiling: presses double the probe budgets
+    /// until they reach maxBudgetMultiplier × the base budgets.
+    public static let maxBudgetMultiplier = 8
+}
+
+/// Where the report's Alternative candidate came from.
+public enum AlternativeSource: Equatable, Sendable {
+    /// The engine's #2-ranked candidate (the pre-pick default).
+    case engine
+    /// The game's actually-played next move (smart default when reviewing).
+    case gameMove
+    /// A vertex the user picked in the report's board picker.
+    case userPick
+}
+
+/// One snapshot-probe candidate kept for the picker's quick-pick marks and
+/// for rebuilding a picked Alternative without re-probing.
+public struct SnapshotEntry {
+    public let vertex: String
+    public let info: AnalysisInfo
+
+    public init(vertex: String, info: AnalysisInfo) {
+        self.vertex = vertex
+        self.info = info
+    }
+}
+
+/// Which operation the generator is currently running for this model —
+/// drives the toolbar's Cancel semantics (close vs. return-to-complete)
+/// and skeleton-vs-in-place section rendering.
+public enum ReportMode: Equatable, Sendable {
+    case initial
+    case refine
+    case pick
 }
 
 /// Converts the engine's White-perspective values to a side's perspective.
@@ -225,6 +259,44 @@ public final class DeepReportModel {
     public var isClassicStoneStyle = false
     public var showCoordinate = true
     public var verticalFlip = false
+
+    /// Which candidate fills the Alternative slot and how it got there.
+    public var alternativeSource: AlternativeSource = .engine
+    /// The game's next recorded move at the reported position, when it is a
+    /// board vertex of the side to move (nil at the game tip, for a pass,
+    /// on a branch, or on color mismatch). Kept even when it equals the best
+    /// move so the picker can still mark it.
+    public var gameMoveVertex: String?
+    /// The snapshot probe's ranked top candidates: quick-pick marks for the
+    /// picker, and a cache so picking one of them needs no forced probe.
+    public var snapshotEntries: [SnapshotEntry] = []
+    /// The snapshot's root ownership grid (White-perspective, engine emission
+    /// order) — the Δ baseline for candidates built after the snapshot stage.
+    public var snapshotOwnership: [Float] = []
+    /// Refine's current budget scale (1 = base ~5 s report).
+    public var budgetMultiplier: Int = 1
+    public var mode: ReportMode = .initial
+    /// One-shot user-facing notice (pick rejected, refine cancelled, …);
+    /// cleared at the start of each operation.
+    public var transientNotice: String?
+
+    public var nextBudgetMultiplier: Int {
+        min(budgetMultiplier * 2, ReportConstants.maxBudgetMultiplier)
+    }
+
+    public var isAtBudgetCap: Bool {
+        budgetMultiplier >= ReportConstants.maxBudgetMultiplier
+    }
+
+    /// Single source of truth for the Alternative slot's heading, shared by
+    /// the report section and the narrator's facts.
+    nonisolated public static func alternativeLabel(source: AlternativeSource) -> String {
+        switch source {
+        case .engine: return "Alternative"
+        case .gameMove: return "Alternative (game move)"
+        case .userPick: return "Alternative (your pick)"
+        }
+    }
 
     public var isGenerating: Bool {
         switch stage {

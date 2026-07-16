@@ -48,6 +48,50 @@ struct DeepReportModelTests {
         #expect(OwnershipDelta.regionName(point: BoardPoint(x: 9, y: 18), width: 19, height: 19) == "upper center")
     }
 
+    @Test @MainActor func budgetMultiplierDoublesAndCaps() {
+        let model = DeepReportModel()
+        #expect(model.budgetMultiplier == 1)
+        #expect(model.isAtBudgetCap == false)
+        #expect(model.nextBudgetMultiplier == 2)
+        model.budgetMultiplier = 2
+        #expect(model.nextBudgetMultiplier == 4)
+        model.budgetMultiplier = 4
+        #expect(model.nextBudgetMultiplier == 8)
+        model.budgetMultiplier = 8
+        #expect(model.nextBudgetMultiplier == 8)
+        #expect(model.isAtBudgetCap == true)
+    }
+
+    @Test @MainActor func alternativeStateDefaults() {
+        let model = DeepReportModel()
+        #expect(model.alternativeSource == .engine)
+        #expect(model.gameMoveVertex == nil)
+        #expect(model.snapshotEntries.isEmpty)
+        #expect(model.snapshotOwnership.isEmpty)
+        #expect(model.mode == .initial)
+        #expect(model.transientNotice == nil)
+    }
+
+    @Test func alternativeLabelNamesSource() {
+        #expect(DeepReportModel.alternativeLabel(source: .engine) == "Alternative")
+        #expect(DeepReportModel.alternativeLabel(source: .gameMove) == "Alternative (game move)")
+        #expect(DeepReportModel.alternativeLabel(source: .userPick) == "Alternative (your pick)")
+    }
+
+    @Test func budgetsScaleLinearly() {
+        let base = ReportBudgets(snapshot: 2, pass: 1, tenuki: 1, candidateCount: 2)
+        let scaled = base.scaled(by: 4)
+        #expect(scaled.snapshot == 8)
+        #expect(scaled.pass == 4)
+        #expect(scaled.tenuki == 4)
+        #expect(scaled.candidateCount == 2)
+        // Tests inject zero budgets; scaling must keep them zero.
+        let zero = ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2).scaled(by: 8)
+        #expect(zero.snapshot == 0)
+        #expect(zero.pass == 0)
+        #expect(zero.tenuki == 0)
+    }
+
     @Test @MainActor func modelStageDrivesIsGenerating() {
         let model = DeepReportModel()
         #expect(model.isGenerating == false)

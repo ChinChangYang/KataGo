@@ -23,6 +23,9 @@ public enum ReportStage: Hashable, Sendable {
     case snapshot
     case passProbe
     case tenuki(Int)
+    /// A single-vertex `allow`-constrained analyze supplying candidate info
+    /// for a move outside the snapshot's ranked list (game move or user pick).
+    case forcedCandidate
 }
 
 public final class ReportCollector: @unchecked Sendable {

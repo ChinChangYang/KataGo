@@ -173,9 +173,9 @@ struct PlusMenuView: View {
         }
         .sheet(isPresented: $showingReport) {
             if let gameRecord {
-                NavigationStack {
-                    DeepReportView(gameRecord: gameRecord)
-                }
+                // No NavigationStack wrapper: DeepReportView owns its stack
+                // (the alternative-move picker pushes inside it).
+                DeepReportView(gameRecord: gameRecord)
             }
         }
         .sheet(isPresented: $showingGifExport) {
