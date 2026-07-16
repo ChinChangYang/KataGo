@@ -10,6 +10,7 @@
 import OSLog
 import SwiftUI
 import SwiftData
+import GameController
 import KataGoUICore
 import KataGoGameStore
 
@@ -52,96 +53,109 @@ struct VisionRootView: View {
         .frame(width: VisionVolumeMetrics.widthPoints,
                height: VisionVolumeMetrics.heightPoints)
         .frame(depth: VisionVolumeMetrics.depthPoints)
+        // The Info.plist's GCSupportsControllerUserInteraction otherwise
+        // makes visionOS convert controller button presses into pinches on
+        // the gazed-at view (GCEventInteraction semantics), so presses died
+        // whenever gaze rested on anything interactive. Claim gamepad events
+        // for VisionControllerInput's handlers instead — here and on every
+        // ornament content root (ornaments are separately hosted
+        // hierarchies, so the root application alone may not cover them).
+        .handlesGameControllerEvents(matching: .gamepad)
         // Phase messaging (loading/blocked) lives in a front-anchored glass
         // ornament: plain 2D content inside a volumetric window lies flat on
         // the base plate, where it is unreadable (nearly edge-on and unlit) —
         // ornaments always face the viewer, like the settings card.
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0.5, y: 0.55, z: 1)),
                   contentAlignment: .center) {
-            switch shell.phase {
-            case .ready:
-                // The whole branch chooser/confirm flow renders HERE as
-                // glass cards (never as .confirmationDialog — an
-                // ornament-hosted dialog's button dismissal blanks the
-                // volume's render tree; see VisionControlOrnament). The
-                // flags have no isPresented binding, so every action
-                // clears them explicitly.
-                if session.gobanState.confirmingBranchDeactivation {
-                    VisionBranchChooserCard(
-                        onReplace: {
-                            session.gobanState.confirmingBranchDeactivation = false
-                            session.gobanState.confirmingBranchReplace = true
-                        },
-                        onDiscard: {
-                            session.gobanState.confirmingBranchDeactivation = false
-                            session.gobanState.confirmingBranchDiscard = true
-                        },
-                        onCancel: {
-                            session.gobanState.confirmingBranchDeactivation = false
-                        })
-                } else if session.gobanState.confirmingBranchReplace {
-                    VisionBranchConfirmCard(
-                        confirm: .make(kind: .replace),
-                        onConfirm: {
-                            session.gobanState.confirmingBranchReplace = false
-                            if let gameRecord = navigationContext.selectedGameRecord {
-                                session.gobanState.commitBranch(gameRecord: gameRecord)
-                            } else {
-                                // No game to replace (unreachable in practice):
-                                // exit branch mode anyway so confirming never
-                                // leaves the branch stuck, mirroring Discard.
+            Group {
+                switch shell.phase {
+                case .ready:
+                    // The whole branch chooser/confirm flow renders HERE as
+                    // glass cards (never as .confirmationDialog — an
+                    // ornament-hosted dialog's button dismissal blanks the
+                    // volume's render tree; see VisionControlOrnament). The
+                    // flags have no isPresented binding, so every action
+                    // clears them explicitly.
+                    if session.gobanState.confirmingBranchDeactivation {
+                        VisionBranchChooserCard(
+                            onReplace: {
+                                session.gobanState.confirmingBranchDeactivation = false
+                                session.gobanState.confirmingBranchReplace = true
+                            },
+                            onDiscard: {
+                                session.gobanState.confirmingBranchDeactivation = false
+                                session.gobanState.confirmingBranchDiscard = true
+                            },
+                            onCancel: {
+                                session.gobanState.confirmingBranchDeactivation = false
+                            })
+                    } else if session.gobanState.confirmingBranchReplace {
+                        VisionBranchConfirmCard(
+                            confirm: .make(kind: .replace),
+                            onConfirm: {
+                                session.gobanState.confirmingBranchReplace = false
+                                if let gameRecord = navigationContext.selectedGameRecord {
+                                    session.gobanState.commitBranch(gameRecord: gameRecord)
+                                } else {
+                                    // No game to replace (unreachable in practice):
+                                    // exit branch mode anyway so confirming never
+                                    // leaves the branch stuck, mirroring Discard.
+                                    session.gobanState.deactivateBranch()
+                                }
+                            },
+                            onCancel: {
+                                session.gobanState.confirmingBranchReplace = false
+                            })
+                    } else if session.gobanState.confirmingBranchDiscard {
+                        VisionBranchConfirmCard(
+                            confirm: .make(kind: .discard),
+                            onConfirm: {
+                                session.gobanState.confirmingBranchDiscard = false
                                 session.gobanState.deactivateBranch()
-                            }
-                        },
-                        onCancel: {
-                            session.gobanState.confirmingBranchReplace = false
-                        })
-                } else if session.gobanState.confirmingBranchDiscard {
-                    VisionBranchConfirmCard(
-                        confirm: .make(kind: .discard),
-                        onConfirm: {
-                            session.gobanState.confirmingBranchDiscard = false
-                            session.gobanState.deactivateBranch()
-                        },
-                        onCancel: {
-                            session.gobanState.confirmingBranchDiscard = false
-                        })
+                            },
+                            onCancel: {
+                                session.gobanState.confirmingBranchDiscard = false
+                            })
+                    }
+                case .booting:
+                    // Shared spinning-icon loading view (iOS/Mac/TV parity). It
+                    // sizes via GeometryReader, so the ornament must bound it.
+                    EngineLoadingView(caption: "Loading engine",
+                                      secondaryFont: .callout,
+                                      icon: Image(.loadingIcon),
+                                      iconSizing: .fixed(220),
+                                      status: engineLaunchStatus)
+                        .frame(width: 460, height: 420)
+                        .padding(20)
+                        .glassBackgroundEffect()
+                case .choosingModel:
+                    // iOS picker design: a surviving load sentinel defers the
+                    // launch to the user. The regular Models card doubles as
+                    // the chooser (neutral — no crash wording, no marked rows);
+                    // picking a net boots it.
+                    VisionModelsOrnament(engine: engineController,
+                                         readiness: cacheReadiness,
+                                         isBootChooser: true,
+                                         onActivate: { model in
+                                             shell.phase = .booting
+                                             launchEngine(model: model)
+                                         },
+                                         onDismiss: {})
+                case .unsupportedBoard(let width, let height):
+                    unsupportedBoardView(width: width, height: height)
+                        .frame(width: 460)
+                        .padding(20)
+                        .glassBackgroundEffect()
+                case .boardTooLarge(let width, let height):
+                    boardTooLargeView(width: width, height: height)
+                        .frame(width: 460)
+                        .padding(20)
+                        .glassBackgroundEffect()
                 }
-            case .booting:
-                // Shared spinning-icon loading view (iOS/Mac/TV parity). It
-                // sizes via GeometryReader, so the ornament must bound it.
-                EngineLoadingView(caption: "Loading engine",
-                                  secondaryFont: .callout,
-                                  icon: Image(.loadingIcon),
-                                  iconSizing: .fixed(220),
-                                  status: engineLaunchStatus)
-                    .frame(width: 460, height: 420)
-                    .padding(20)
-                    .glassBackgroundEffect()
-            case .choosingModel:
-                // iOS picker design: a surviving load sentinel defers the
-                // launch to the user. The regular Models card doubles as
-                // the chooser (neutral — no crash wording, no marked rows);
-                // picking a net boots it.
-                VisionModelsOrnament(engine: engineController,
-                                     readiness: cacheReadiness,
-                                     isBootChooser: true,
-                                     onActivate: { model in
-                                         shell.phase = .booting
-                                         launchEngine(model: model)
-                                     },
-                                     onDismiss: {})
-            case .unsupportedBoard(let width, let height):
-                unsupportedBoardView(width: width, height: height)
-                    .frame(width: 460)
-                    .padding(20)
-                    .glassBackgroundEffect()
-            case .boardTooLarge(let width, let height):
-                boardTooLargeView(width: width, height: height)
-                    .frame(width: 460)
-                    .padding(20)
-                    .glassBackgroundEffect()
             }
+            // Ornaments are separately hosted hierarchies — claim gamepad
+            // events on each content root too (see the root modifier).
+            .handlesGameControllerEvents(matching: .gamepad)
         }
         // Hidden while `.booting` (initial boot has isReady false; a
         // Max-Board-Size restart re-enters .booting with isReady true) so no
@@ -165,6 +179,7 @@ struct VisionRootView: View {
                         session.gobanState.clearPendingMove()
                     }
                 )
+                .handlesGameControllerEvents(matching: .gamepad)
             }
         }
         // Settings and the controller legend share the right anchor — one
@@ -172,33 +187,36 @@ struct VisionRootView: View {
         // flags mutually exclusive.
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 1, y: 0.5, z: 1)),
                   contentAlignment: .leading) {
-            if isReady, shell.showingSettings {
-                VisionSettingsOrnament(shell: shell,
-                                       engine: engineController,
-                                       onShowModels: { shell.presentModels() },
-                                       onShowLicenses: { shell.presentLicenses() },
-                                       onDismiss: { shell.showingSettings = false })
-            } else if isReady, shell.showingLicenses {
-                VisionLicensesOrnament(onDismiss: { shell.showingLicenses = false })
-            } else if isReady, shell.showingModels {
-                VisionModelsOrnament(engine: engineController,
-                                     readiness: cacheReadiness,
-                                     onActivate: { activateModel($0) },
-                                     onMaxBoardSizeRestart: { restartEngineForMaxBoardSize() },
-                                     onDismiss: { shell.showingModels = false })
-            } else if isReady, shell.showingControllerHelp {
-                VisionControllerLegend {
-                    shell.showingControllerHelp = false
+            Group {
+                if isReady, shell.showingSettings {
+                    VisionSettingsOrnament(shell: shell,
+                                           engine: engineController,
+                                           onShowModels: { shell.presentModels() },
+                                           onShowLicenses: { shell.presentLicenses() },
+                                           onDismiss: { shell.showingSettings = false })
+                } else if isReady, shell.showingLicenses {
+                    VisionLicensesOrnament(onDismiss: { shell.showingLicenses = false })
+                } else if isReady, shell.showingModels {
+                    VisionModelsOrnament(engine: engineController,
+                                         readiness: cacheReadiness,
+                                         onActivate: { activateModel($0) },
+                                         onMaxBoardSizeRestart: { restartEngineForMaxBoardSize() },
+                                         onDismiss: { shell.showingModels = false })
+                } else if isReady, shell.showingControllerHelp {
+                    VisionControllerLegend {
+                        shell.showingControllerHelp = false
+                    }
+                } else if isReady, shell.showingNewGamePanel, shell.phase != .booting {
+                    VisionNewGamePanel(
+                        maxBoardLength: engineController.maxBoardLength,
+                        onCreate: { width, height in
+                            shell.showingNewGamePanel = false
+                            startNewGame(width: width, height: height)
+                        },
+                        onDismiss: { shell.showingNewGamePanel = false })
                 }
-            } else if isReady, shell.showingNewGamePanel, shell.phase != .booting {
-                VisionNewGamePanel(
-                    maxBoardLength: engineController.maxBoardLength,
-                    onCreate: { width, height in
-                        shell.showingNewGamePanel = false
-                        startNewGame(width: width, height: height)
-                    },
-                    onDismiss: { shell.showingNewGamePanel = false })
             }
+            .handlesGameControllerEvents(matching: .gamepad)
         }
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0, y: 0.5, z: 1)),
                   contentAlignment: .trailing) {
@@ -212,6 +230,7 @@ struct VisionRootView: View {
                     onDeleteGames: { deleteGames(ids: $0) },
                     onDismiss: { shell.showingGameList = false }
                 )
+                .handlesGameControllerEvents(matching: .gamepad)
             }
         }
         .onChange(of: controllerInput.isConnected) { _, connected in

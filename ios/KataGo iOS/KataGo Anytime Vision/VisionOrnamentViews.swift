@@ -12,7 +12,10 @@
 //  controller help, the connect-controller hint, and the illegal-move row.
 //  No Undo or navigation buttons — the controller's X/L2 cover single-move
 //  undo and R2 steps forward. Ordinary SwiftUI — always pinch-interactive;
-//  the game controller never drives the ornament.
+//  the game controller never drives the ornament (enforced by
+//  handlesGameControllerEvents on every ornament content root in
+//  VisionRootView, which keeps presses flowing to VisionControllerInput
+//  even while gaze rests here).
 //
 
 import SwiftUI
