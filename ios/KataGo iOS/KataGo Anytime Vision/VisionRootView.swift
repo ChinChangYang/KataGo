@@ -384,6 +384,44 @@ struct VisionRootView: View {
             else { return }
             switchGame(to: record)
         }
+        // Ghost anchor: reveal (and follow) the cursor at the board's last
+        // move — players expect to answer near it. Keyed on the exact inputs
+        // of MoveNumbers.derive so passes and L2/R2 navigation retrigger even
+        // though the stones don't change; the O(moves) SGF walk runs once per
+        // position, never on the glide frame path. (Not getMoveNumbers — it
+        // returns .empty under the last-3-moves display setting.)
+        .onChange(of: lastMoveKey, initial: true) { _, newValue in
+            let lastPoint = newValue.flatMap {
+                MoveNumbers.derive(sgf: $0.sgf, currentIndex: $0.index).lastPoint
+            }
+            #if DEBUG
+            NSLog("VisionAnchor index=%@ lastPoint=%@ sgfLen=%@",
+                  newValue.map { String($0.index) } ?? "nil",
+                  lastPoint.map { "(\($0.x),\($0.y))" } ?? "nil",
+                  newValue.map { String($0.sgf.count) } ?? "nil")
+            #endif
+            ghost.setAnchor(lastPoint,
+                            width: Int(session.board.width),
+                            height: Int(session.board.height))
+        }
+    }
+
+    // MARK: - Ghost anchor
+
+    private struct LastMoveKey: Equatable {
+        let sgf: String
+        let index: Int
+    }
+
+    /// Branch-aware last-move derivation inputs; reading them in body keeps
+    /// the onChange armed for own moves, AI replies, L2/R2 and branch
+    /// navigation, passes, and game switches.
+    private var lastMoveKey: LastMoveKey? {
+        let gameRecord = navigationContext.selectedGameRecord
+        guard let sgf = session.gobanState.getSgf(gameRecord: gameRecord),
+              let index = session.gobanState.getCurrentIndex(gameRecord: gameRecord)
+        else { return nil }
+        return LastMoveKey(sgf: sgf, index: index)
     }
 
     // MARK: - Content
@@ -438,8 +476,9 @@ struct VisionRootView: View {
 
     private func playAtGhost() {
         #if DEBUG
-        NSLog("VisionPlay ghost=%@ geom=%d stonesReady=%d pending=%@ aiTurn=%d",
+        NSLog("VisionPlay ghost=%@ anchor=%@ geom=%d stonesReady=%d pending=%@ aiTurn=%d",
               ghost.point.map { "(\($0.x),\($0.y))" } ?? "nil",
+              ghost.anchor.map { "(\($0.x),\($0.y))" } ?? "nil",
               sceneModel.geometry?.size ?? -1,
               session.stones.isReady ? 1 : 0,
               session.gobanState.pendingMoveTurn ?? "nil",
@@ -891,14 +930,18 @@ struct VisionRootView: View {
     private func autoplaySmokeIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("vision-autoplay-smoke") else { return }
         Task {
+            // Explicit center reveals throughout: the script's step sequences
+            // were tuned against center starts, and the anchor (the game's
+            // last move) would shift the landings onto occupied points.
             try? await Task.sleep(for: .seconds(5))
             let width = Int(session.board.width)
             let height = Int(session.board.height)
-            ghost.activate(width: width, height: height)
+            let center = BoardPoint(x: width / 2, y: height / 2)
+            ghost.activate(width: width, height: height, at: center)
             handleControllerEvent(.play)
 
             try? await Task.sleep(for: .seconds(5))
-            ghost.activate(width: width, height: height)
+            ghost.activate(width: width, height: height, at: center)
             handleControllerEvent(.dpad(.up))
             handleControllerEvent(.dpad(.right))
             handleControllerEvent(.play)
@@ -916,7 +959,7 @@ struct VisionRootView: View {
             try? await Task.sleep(for: .seconds(6))
             startNewGame(size: 9)
             try? await Task.sleep(for: .seconds(5))
-            ghost.activate(width: 9, height: 9)
+            ghost.activate(width: 9, height: 9, at: BoardPoint(x: 4, y: 4))
             handleControllerEvent(.play)
 
             // Flip the side to move to AI: the toggle's re-arm must gen-move
@@ -932,7 +975,7 @@ struct VisionRootView: View {
             // Black move must draw an AUTOMATIC White reply (a stone with no
             // VisionPlay log line) via the turn-change hook.
             try? await Task.sleep(for: .seconds(3))
-            ghost.activate(width: 9, height: 9)
+            ghost.activate(width: 9, height: 9, at: BoardPoint(x: 4, y: 4))
             handleControllerEvent(.dpad(.down))
             handleControllerEvent(.dpad(.down))
             handleControllerEvent(.play)
@@ -956,8 +999,23 @@ struct VisionRootView: View {
                 openGame(other)
             }
             try? await Task.sleep(for: .seconds(6))
-            ghost.activate(width: Int(session.board.width),
-                           height: Int(session.board.height))
+            let switchedWidth = Int(session.board.width)
+            let switchedHeight = Int(session.board.height)
+            ghost.activate(width: switchedWidth, height: switchedHeight,
+                           at: BoardPoint(x: switchedWidth / 2,
+                                          y: switchedHeight / 2))
+            handleControllerEvent(.play)
+
+            // Feedback-2 regression probe: a reveal WITHOUT an explicit
+            // origin must anchor at the game's last move, not the center.
+            // This game's tip is the white stone at (10,10), so the first
+            // D-pad press only reveals there, the second steps right, and
+            // the play lands at (11,10) — a center reveal would log
+            // VisionPlay ghost=(10,9) instead.
+            try? await Task.sleep(for: .seconds(3))
+            ghost.reset()
+            handleControllerEvent(.dpad(.right))
+            handleControllerEvent(.dpad(.right))
             handleControllerEvent(.play)
         }
     }

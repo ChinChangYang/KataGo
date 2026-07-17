@@ -171,4 +171,98 @@ struct GhostCursorModelTests {
         ghost.cycle(through: [], forward: true)
         #expect(ghost.point == BoardPoint(x: 4, y: 4))
     }
+
+    @Test func activateAtStoredAnchor() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        ghost.activate(width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+    }
+
+    @Test func activateWithNilAnchorCenters() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(nil, width: 9, height: 9)
+        ghost.activate(width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 4, y: 4))
+    }
+
+    @Test func activateExplicitOriginOverridesAnchor() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        ghost.activate(width: 9, height: 9, at: BoardPoint(x: 7, y: 1))
+        #expect(ghost.point == BoardPoint(x: 7, y: 1))
+    }
+
+    @Test func activateClampsOutOfBoundsAnchor() {
+        // A stale anchor from a larger board must never reveal off-board.
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 30, y: 30), width: 37, height: 37)
+        ghost.activate(width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 8, y: 8))
+    }
+
+    @Test func stepWhileHiddenActivatesAtAnchorWithoutStepping() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        ghost.step(.up, width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+    }
+
+    @Test func glideWhileHiddenActivatesAtAnchorWithoutStepping() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        ghost.glide(dColumn: 0.7, dRow: 0, width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+    }
+
+    @Test func setAnchorMovesVisibleGhost() {
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+
+        // Out-of-bounds snaps clamp too.
+        ghost.setAnchor(BoardPoint(x: 30, y: -1), width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 8, y: 0))
+    }
+
+    @Test func setAnchorNilLeavesVisibleGhostInPlace() {
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+        ghost.step(.right, width: 9, height: 9)
+        ghost.setAnchor(nil, width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 5, y: 4))
+
+        // But the cleared anchor means the next reveal centers.
+        ghost.reset()
+        ghost.activate(width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 4, y: 4))
+    }
+
+    @Test func setAnchorWhileHiddenStaysHidden() {
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        #expect(ghost.point == nil)
+    }
+
+    @Test func setAnchorClearsGlideAccumulators() {
+        let ghost = GhostCursorModel()
+        ghost.activate(width: 9, height: 9)
+        ghost.glide(dColumn: 0.7, dRow: 0, width: 9, height: 9)
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+
+        // If accumulators survived the snap, this 0.7 would combine to a step.
+        ghost.glide(dColumn: 0.7, dRow: 0, width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+    }
+
+    @Test func resetKeepsAnchorForNextActivation() {
+        // Hide-on-play then reveal-at-the-newest-move is the core UX.
+        let ghost = GhostCursorModel()
+        ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)
+        ghost.activate(width: 9, height: 9)
+        ghost.reset()
+        ghost.activate(width: 9, height: 9)
+        #expect(ghost.point == BoardPoint(x: 2, y: 6))
+    }
 }
