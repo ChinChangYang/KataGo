@@ -46,5 +46,35 @@ final class KataGoShortcuts: AppShortcutsProvider {
                     shortTitle: "Get Latest Go Game",
                     systemImageName: "swirl.circle.righthalf.filled"
         )
+
+        AppShortcut(intent: OpenGame(),
+                    phrases: [
+                        "Open \(\.$game) with \(.applicationName)",
+                        "Open \(\.$game) in \(.applicationName)",
+                        "Show \(\.$game) in \(.applicationName)",
+                        "Open the game \(\.$game) with \(.applicationName)",
+                        "Continue \(\.$game) with \(.applicationName)"
+                    ],
+                    shortTitle: "Open Go Game",
+                    systemImageName: "swirl.circle.righthalf.filled",
+                    parameterPresentation: ParameterPresentation(
+                        for: \.$game,
+                        summary: Summary("Open \(\.$game)"),
+                        optionsCollections: {
+                            OptionsCollection(GameEntityQuery(), title: "Go Games", systemImageName: "swirl.circle.righthalf.filled")
+                        }
+                    )
+        )
+
+        AppShortcut(intent: OpenLatestGame(),
+                    phrases: [
+                        "Open the latest go game with \(.applicationName)",
+                        "Open my latest go game in \(.applicationName)",
+                        "Continue the latest go game with \(.applicationName)",
+                        "Resume my go game with \(.applicationName)"
+                    ],
+                    shortTitle: "Open Latest Go Game",
+                    systemImageName: "swirl.circle.righthalf.filled"
+        )
     }
 }
