@@ -111,7 +111,11 @@ struct TVSelfPlayScreen: View {
                 .focusable(true)
                 .onMoveCommand { _ in dismiss() }
                 .onPlayPauseCommand { dismiss() }
-                .onTapGesture { dismiss() }
+                // Select exits via the UIKit catcher: the root is the same
+                // bare-focusable + .onTapGesture pattern that dropped first
+                // Selects on device (see TVSelectPressCatcher). Always armed
+                // here — attract has no other Select target.
+                .tvSelectPress(isEnabled: true, perform: { dismiss() })
         } else {
             content
                 .onPlayPauseCommand { togglePause() }
@@ -156,7 +160,14 @@ struct TVSelfPlayScreen: View {
                         .focusable(route.entry == .manual)
                         .focused($boardFocused)
                         .onMoveCommand(perform: boardMove)
-                        .onTapGesture(perform: playAtCursor)
+                        // Select plays via the UIKit catcher (see
+                        // TVSelectPressCatcher — .onTapGesture dropped every
+                        // first Select on device). !isGameOver disarms it
+                        // under the interstitial instead of leaning on
+                        // submit's guard alone (the window-wide recognizer
+                        // must not stay live beneath an overlay).
+                        .tvSelectPress(isEnabled: isAiming && !isGameOver,
+                                       perform: playAtCursor)
                         .overlay {
                             // Focus affordance (the timeline-ring pattern):
                             // no system focus lift on a bare board.

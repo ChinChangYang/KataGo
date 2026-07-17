@@ -138,7 +138,11 @@ struct TVReviewScreen: View {
                 .focusable(!timelineFocused)
                 .focused($boardFocused)
                 .onMoveCommand(perform: boardMove)
-                .onTapGesture(perform: playAtCursor)
+                // Select plays via the UIKit catcher (see TVSelectPressCatcher
+                // — .onTapGesture dropped every first Select on device).
+                // Armed off plain isAiming so the Menu exit disarms it in the
+                // same transaction that re-enables the panel.
+                .tvSelectPress(isEnabled: isAiming, perform: playAtCursor)
                 .overlay {
                     // Focus affordance (the timeline-ring pattern): the board
                     // has no system focus lift, so say "you are aiming" here.
@@ -495,8 +499,13 @@ struct TVReviewScreen: View {
                                    nextColorForPlayCommand: player.nextColorForPlayCommand)
     }
 
-    /// Play a Top Moves candidate — same submit path as the cursor.
+    /// Play a Top Moves candidate — same submit path as the cursor, but
+    /// gated on a settled analysis: between a re-request and its first reply,
+    /// analysis.info still holds the PREVIOUS position's candidates, so an
+    /// ungated pick could play a stale vertex. (The cursor needs no such
+    /// gate — kata-check-move validates against the engine's own position.)
     private func pick(_ candidate: Analysis.CandidateMove) {
+        guard !gobanState.waitingForAnalysis else { return }
         submit(vertex: candidate.vertex)
     }
 
@@ -526,10 +535,12 @@ struct TVReviewScreen: View {
     /// observer, the suppressed stream re-arms as plain kata-analyze for the
     /// new position, and the list refills for the other color; off, the
     /// engine plays quietly (the path never needed candidates — only the
-    /// Top Moves picks do, and their rows are placeholders when off).
+    /// Top Moves picks do, and their rows are placeholders when off). No
+    /// waitingForAnalysis gate here: it belongs to pick() alone — on the
+    /// cursor path it silently swallowed Select during the warmup after
+    /// every move, reading as "double-press required".
     private func submit(vertex: String) {
         guard stones.isReady,
-              !gobanState.waitingForAnalysis,     // position is settling
               gobanState.pendingMoveTurn == nil,  // one play in flight at a time
               let turn = player.nextColorSymbolForPlayCommand else { return }
         // Selected lazily (not at load) so a stale printsgf reply from the
