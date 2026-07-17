@@ -20,10 +20,11 @@ enum ControllerEvent {
     case play
     /// B — show/hide the analysis overlay (the eye).
     case toggleAnalysisVisibility
-    /// X / L2 — one move back (mirrors iOS backward-frame).
+    /// X / L2 — one move back (mirrors iOS backward-frame). L2 auto-repeats
+    /// while held; X stays single-shot.
     case undo
     /// R2 — one move forward through the recorded game (mirrors iOS
-    /// forward-frame).
+    /// forward-frame). Auto-repeats while held.
     case forward
     /// Y — pass (immediate).
     case pass
@@ -37,6 +38,14 @@ final class VisionControllerInput {
     private(set) var isConnected = false
 
     @ObservationIgnored var onEvent: ((ControllerEvent) -> Void)?
+
+    /// Hold-to-repeat tasks for the triggers, keyed by button identity so a
+    /// re-bind or release cancels exactly its own loop. MainActor-confined.
+    @ObservationIgnored private var repeatTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+
+    /// L2/R2 hold-repeat cadence: first repeat after the delay, then steady.
+    private static let repeatInitialDelay: Duration = .milliseconds(400)
+    private static let repeatInterval: Duration = .milliseconds(125)
 
     @ObservationIgnored private nonisolated(unsafe) var observerTokens: [NSObjectProtocol] = []
 
@@ -67,6 +76,9 @@ final class VisionControllerInput {
     /// Rebound on every connect/disconnect so the handlers always live on the
     /// current pad.
     private func bindButtons() {
+        // A rebind on connect/disconnect must kill any running repeat loop —
+        // a pad that just vanished will never deliver its release edge.
+        cancelRepeats()
         guard let pad = currentPad else { return }
         bind(pad.buttonA, to: .play)
         bind(pad.buttonB, to: .toggleAnalysisVisibility)
@@ -74,8 +86,8 @@ final class VisionControllerInput {
         bind(pad.buttonY, to: .pass)
         bind(pad.leftShoulder, to: .cycle(forward: false))
         bind(pad.rightShoulder, to: .cycle(forward: true))
-        bind(pad.leftTrigger, to: .undo)
-        bind(pad.rightTrigger, to: .forward)
+        bindRepeating(pad.leftTrigger, to: .undo)
+        bindRepeating(pad.rightTrigger, to: .forward)
         bind(pad.dpad.up, to: .dpad(.up))
         bind(pad.dpad.down, to: .dpad(.down))
         bind(pad.dpad.left, to: .dpad(.left))
@@ -87,6 +99,35 @@ final class VisionControllerInput {
             guard pressed else { return }
             Task { @MainActor in self?.onEvent?(event) }
         }
+    }
+
+    /// Like bind(_:to:), but the event auto-repeats while held: one event on
+    /// the press edge (preserving the single-tap feel), then after an initial
+    /// delay it repeats until release. The loop double-checks
+    /// button.isPressed so a press/release Task-hop inversion or a vanished
+    /// release edge can never leave a runaway repeat.
+    private func bindRepeating(_ button: GCControllerButtonInput, to event: ControllerEvent) {
+        let key = ObjectIdentifier(button)
+        button.pressedChangedHandler = { [weak self] _, _, pressed in
+            Task { @MainActor in
+                guard let self else { return }
+                self.repeatTasks.removeValue(forKey: key)?.cancel()
+                guard pressed else { return }
+                self.onEvent?(event)
+                self.repeatTasks[key] = Task { @MainActor [weak self, weak button] in
+                    try? await Task.sleep(for: Self.repeatInitialDelay)
+                    while !Task.isCancelled, let self, let button, button.isPressed {
+                        self.onEvent?(event)
+                        try? await Task.sleep(for: Self.repeatInterval)
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelRepeats() {
+        repeatTasks.values.forEach { $0.cancel() }
+        repeatTasks.removeAll()
     }
 
     /// Left stick with a radial deadzone; +y = stick forward = away from the
