@@ -202,7 +202,12 @@ struct VisionControlOrnament: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(isToMove ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.clear),
+            // Flat tint, never a material: a .regularMaterial capsule nested
+            // inside the ornament's glassBackgroundEffect becomes its own
+            // glass plate with separate depth on visionOS, so the two chips
+            // ended up on different visual planes (read as vertically
+            // misaligned).
+            .background(isToMove ? AnyShapeStyle(.primary.opacity(0.15)) : AnyShapeStyle(.clear),
                         in: Capsule())
             .overlay {
                 if isToMove {
@@ -294,7 +299,7 @@ struct VisionControllerLegend: View {
         Row(symbol: "xmark.circle", name: "✕ / A", action: "Play at the ghost stone"),
         Row(symbol: "circle.circle", name: "○ / B", action: "Show / hide analysis"),
         Row(symbol: "l1.rectangle.roundedbottom", name: "L1 · R1", action: "Previous / next suggested move"),
-        Row(symbol: "l2.rectangle.roundedtop", name: "L2 · R2", action: "Back / forward one move"),
+        Row(symbol: "l2.rectangle.roundedtop", name: "L2 · R2", action: "Back / forward one move (hold to repeat)"),
         Row(symbol: "square.circle", name: "□ / X", action: "Undo"),
         Row(symbol: "triangle.circle", name: "△ / Y", action: "Pass"),
     ]
