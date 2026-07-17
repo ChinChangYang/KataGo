@@ -9,11 +9,19 @@ Modes:
             red=original-only, green=render-only) and prints the match %.
             Informational: the original is hand-drawn and asymmetric, so
             expect roughly 50-60% at +/-2px tolerance. Inspect the overlay.
+  loading : hard assertions on LoadingIcon.pdf (regression test; exits 1 on
+            failure). Chiefly: NO /SMask — cairo emits a Luminosity SMask
+            for alpha gradients, and the visionOS runtime PDF rasterizer
+            ignores SMasks, rendering the stone shadows as opaque black
+            discs. Also pins the stones staying vector /Shading and no
+            rasterized images sneaking in.
 
 Usage:
   python3 verify_icon.py probe   <preview.png>
   python3 verify_icon.py overlay <original.png> <match-preview.png> <out.png>
+  python3 verify_icon.py loading <LoadingIcon.pdf>
 """
+import re
 import struct
 import sys
 import zlib
@@ -177,11 +185,42 @@ def overlay(orig_path, render_path, out_path, S=512):
     print(f"edge match vs original: {100 * m / t:.1f}%  (overlay: {out_path})")
 
 
+def check_loading_pdf(path):
+    d = open(path, "rb").read()
+    # /SMask refs live in uncompressed ExtGState dicts, but scan decompressed
+    # FlateDecode streams too, defensively.
+    streams = b"".join(
+        s for s in (try_inflate(m) for m in
+                    re.findall(rb"stream\r?\n(.*?)endstream", d, re.S))
+        if s is not None)
+    checks = [
+        ("no /SMask (visionOS runtime rasterizer ignores Luminosity SMasks)",
+         d.count(b"/SMask") == 0 and streams.count(b"/SMask") == 0),
+        ("stone gradients still vector /Shading", d.count(b"/Shading") > 0),
+        ("no rasterized /Image XObjects",
+         b"/Subtype /Image" not in d and b"/Subtype/Image" not in d),
+    ]
+    ok = True
+    for name, passed in checks:
+        print(f"  {'PASS' if passed else 'FAIL'}  {name}")
+        ok = ok and passed
+    return ok
+
+
+def try_inflate(data):
+    try:
+        return zlib.decompress(data)
+    except zlib.error:
+        return None
+
+
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "probe":
         sys.exit(0 if probe(sys.argv[2]) else 1)
     elif len(sys.argv) == 5 and sys.argv[1] == "overlay":
         overlay(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif len(sys.argv) == 3 and sys.argv[1] == "loading":
+        sys.exit(0 if check_loading_pdf(sys.argv[2]) else 1)
     else:
         print(__doc__)
         sys.exit(2)

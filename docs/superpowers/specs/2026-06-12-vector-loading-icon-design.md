@@ -28,7 +28,7 @@ Flattened composite, geometry identical to the app icon (`R = 420`, `r = R/(1+�
 
 1. Full-bleed gold rect `#CC994C`.
 2. The four-diagonal-sector field disc (reuses `field_svg(R)`).
-3. **Four stone shadows as radial-gradient circles** — center offset `(+10, +14)` px from each stone center, radius `1.12·r`, gradient stops black 35% → 30% (at 70%) → 0% opacity. Gradients, not `feDropShadow`: librsvg rasterizes SVG *filters* during PDF export, while gradients become true PDF shadings. Prototype-verified: the exported PDF contains `/Shading` objects and **no** `/Image` XObjects (~10 KB).
+3. **Four stone shadows as constant-opacity ring stacks** — center offset `(+10, +14)` px from each stone center, outer radius `1.12·r`, 12 concentric black discs per stone whose composited alpha `1 − ∏(1 − oᵢ)` approximates the original falloff (black 35% → 30% at 70% → 0% at the rim; `SHADOW_STOPS`/`shadow_rings()` in the generator). Not `feDropShadow`: librsvg rasterizes SVG *filters* during PDF export. And not an alpha **radialGradient** (the original design): cairo encodes alpha gradients as a PDF shading masked by a **Luminosity `/SMask`**, which the visionOS runtime PDF rasterizer ignores — each shadow then rendered as an opaque black disc spilling out from behind its stone (2026-07 Vision feedback). Constant fill-opacity becomes plain ExtGState `/ca` — no SMask. Verified by `verify_icon.py loading`: the exported PDF contains `/Shading` objects (the stones), **no** `/SMask`, and **no** `/Image` XObjects (~10 KB).
 4. The four glossy stones (reuses `stones_svg(R)`, no baked shadow).
 
 ## Changes

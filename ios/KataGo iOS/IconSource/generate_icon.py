@@ -15,8 +15,12 @@ Outputs:
                  match-preview.svg (original-matching R=444, k=1.03) plus a
                  background-only gold rect is baked into both previews.
   --loading-dir: writes LoadingIcon.svg (flattened: gold + field + vector
-                 stone shadows + stones, R=420) and converts it to
-                 LoadingIcon.pdf via rsvg-convert when available.
+                 stone shadows as constant-opacity ring stacks + stones,
+                 R=420) and converts it to LoadingIcon.pdf via rsvg-convert
+                 when available. The shadows must stay constant-opacity: an
+                 SVG alpha gradient becomes a Luminosity /SMask in cairo's
+                 PDF, and the visionOS runtime PDF rasterizer ignores those,
+                 rendering each shadow as an opaque black disc.
 
 Regenerate after any geometry change (then copy LoadingIcon.pdf into
 LoadingIcon.imageset):
@@ -47,12 +51,39 @@ STONE_DEFS = """
     <stop offset="70%" stop-color="#ededed"/><stop offset="100%" stop-color="#d2d2d2"/>
   </radialGradient>"""
 
-SHADOW_DEFS = """
-  <radialGradient id="sg" cx="0.5" cy="0.5" r="0.5">
-    <stop offset="0%" stop-color="#000" stop-opacity="0.35"/>
-    <stop offset="70%" stop-color="#000" stop-opacity="0.30"/>
-    <stop offset="100%" stop-color="#000" stop-opacity="0"/>
-  </radialGradient>"""
+# Cumulative-alpha profile of the stone shadow, as (radius_fraction, alpha)
+# stops: black 0.35 at the center, 0.30 at 70%, fading to 0 at the rim.
+# Formerly an SVG <radialGradient> with alpha stops — cairo encodes those in
+# PDF as a shading masked by a Luminosity /SMask, which the visionOS runtime
+# PDF rasterizer ignores (the shadow then renders as an opaque black disc).
+# shadow_rings() approximates the same falloff with constant-opacity discs,
+# which cairo emits as plain ExtGState /ca — no SMask.
+SHADOW_STOPS = ((0.0, 0.35), (0.70, 0.30), (1.0, 0.0))
+
+
+def shadow_alpha(f):
+    """Piecewise-linear cumulative alpha at radius fraction f."""
+    for (f0, a0), (f1, a1) in zip(SHADOW_STOPS, SHADOW_STOPS[1:]):
+        if f <= f1:
+            return a0 + (a1 - a0) * (f - f0) / (f1 - f0)
+    return 0.0
+
+
+def shadow_rings(n=12):
+    """(radius_fraction, fill_opacity) pairs, outermost disc first: stacked
+    constant-opacity black discs whose composited alpha 1 - prod(1 - o_i)
+    matches SHADOW_STOPS at each band's midpoint. n-1 discs span the fade
+    zone [0.70, 1.0]; the innermost disc covers the near-flat core (mostly
+    hidden under the opaque stone anyway)."""
+    step = (1.0 - SHADOW_STOPS[1][0]) / (n - 1)
+    fractions = [1.0 - k * step for k in range(n)]
+    rings, prev = [], 0.0
+    for k, f in enumerate(fractions):
+        mid = f - step / 2 if k < n - 1 else f / 2
+        target = shadow_alpha(mid)
+        rings.append((f, 1.0 - (1.0 - target) / (1.0 - prev)))
+        prev = target
+    return rings
 
 
 def svg_header(extra_defs=""):
@@ -122,10 +153,12 @@ def preview_svg(R, k=1.0):
 
 def loading_svg(R):
     """Flattened LoadingIcon composite: gold background + field + vector
-    stone shadows + stones. Shadows are radial-gradient circles offset
-    (+10, +14) at radius 1.12*r — NOT feDropShadow, because librsvg
-    rasterizes SVG filters during PDF export while gradients become true
-    PDF shadings, keeping the exported PDF fully vector."""
+    stone shadows + stones. Shadows are constant-opacity ring stacks offset
+    (+10, +14) at outer radius 1.12*r — NOT feDropShadow (librsvg rasterizes
+    SVG filters during PDF export) and NOT an alpha radialGradient (cairo
+    encodes those as a Luminosity /SMask, which the visionOS runtime PDF
+    rasterizer ignores — see SHADOW_STOPS). Constant fill-opacity keeps the
+    exported PDF fully vector and SMask-free."""
     r = R / (1 + math.sqrt(2))
     field_body = field_svg(R).split("</defs>\n", 1)[1].rsplit("</svg>", 1)[0]
     stones = stones_svg(R)
@@ -133,9 +166,10 @@ def loading_svg(R):
     stones_body = stones.split("</defs>\n", 1)[1].rsplit("</svg>", 1)[0]
     shadows = "".join(
         f'<circle cx="{C + sx * r + 10:.2f}" cy="{C + sy * r + 14:.2f}" '
-        f'r="{r * 1.12:.2f}" fill="url(#sg)"/>'
-        for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)))
-    return (svg_header(stones_defs + SHADOW_DEFS)
+        f'r="{r * 1.12 * f:.2f}" fill="#000" fill-opacity="{o:.4f}"/>'
+        for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1))
+        for f, o in shadow_rings())
+    return (svg_header(stones_defs)
             + f'<rect width="{CANVAS}" height="{CANVAS}" fill="{GOLD}"/>\n'
             + field_body + shadows + stones_body + "\n</svg>\n")
 
