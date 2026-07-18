@@ -27,7 +27,7 @@ Inside `ios/KataGo iOS/`, the product is split across:
 ## Build Commands
 
 ### Building for All Platforms
-The app must build for all supported platforms. There are **five app targets/schemes**: `KataGo Anytime` (iOS only), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime Vision` (visionOS, volumetric RealityKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme supports **neither macOS nor visionOS** — use `KataGo Anytime Mac` / `KataGo Anytime Vision`.
+The app must build for all supported platforms. There are **five app targets/schemes**: `KataGo Anytime` (iOS only), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime Vision` (visionOS, volumetric RealityKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme supports **neither macOS nor visionOS** — use `KataGo Anytime Mac` / `KataGo Anytime Vision`. The iOS app also embeds the **`KataGoAnytimeMessages`** iMessage extension (engine-free human-vs-human Go in a Messages thread; builds with the iOS scheme, no scheme of its own). Like the widget/watch, the Messages extension links ONLY bridge-free products: `KataGoGameStore` + `GoRulesKit` (a pure-Swift port of the engine's board rules + scoring in `KataGoUICore/Sources/GoRulesKit/`, differential-tested against the C++ board in `GoRulesKitDifferentialTests`) — never `KataGoUICore`/`GobanRecogKit`.
 ```bash
 cd ios/KataGo\ iOS
 

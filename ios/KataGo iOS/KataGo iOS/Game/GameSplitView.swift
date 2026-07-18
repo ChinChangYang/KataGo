@@ -242,11 +242,21 @@ struct GameSplitView: View {
         .onOpenURL { url in
             // `open-game` deep links are captured at the root (`DeepLinkRouter`)
             // so they survive a cold launch; they are applied via the
-            // `pendingGameID` `.onChange` below. Here we only handle SGF
-            // file-import URLs.
-            if GameDeepLink.gameID(from: url) == nil {
+            // `pendingGameID` `.onChange` below. `import-sgf` links come from
+            // the Messages extension, whose game rides a spool file in the
+            // App Group (the URL only names it). Everything else is an SGF
+            // file-import URL.
+            if let fileName = GameDeepLink.importSgfFileName(from: url) {
+                drainMessagesHandoffSpool(preferring: fileName)
+            } else if GameDeepLink.gameID(from: url) == nil {
                 importAndSelect(from: url)
             }
+        }
+        .task {
+            // A cold launch can drop the Messages extension's `import-sgf`
+            // URL (this view is not mounted while the loading screens run),
+            // but the spool FILE survives — drain whatever is queued.
+            drainMessagesHandoffSpool(preferring: nil)
         }
         .onChange(of: deepLinkRouter.pendingGameID, initial: true) { _, _ in
             // Warm app: a deep link arrived after the board was already shown
@@ -665,6 +675,44 @@ struct GameSplitView: View {
         guard let match = GameRecord.resolveDeepLinkTarget(id: id, container: modelContext.container)
         else { return }
         navigationContext.selectedGameRecord = match
+    }
+
+    /// Imports every SGF the Messages extension spooled into the App Group
+    /// (each "Analyze in KataGo Anytime" tap writes one), deletes the spool
+    /// files, and selects the named file's game (or the newest). Runs at
+    /// mount for cold launches and from `.onOpenURL` when warm; the existing
+    /// exact-SGF dedupe makes repeated drains harmless.
+    @MainActor
+    private func drainMessagesHandoffSpool(preferring fileName: String?) {
+        guard let directory = GameDeepLink.messagesHandoffDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                  at: directory, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let spooled = files
+            .filter { $0.pathExtension == "sgf" }
+            .sorted { a, b in
+                let dateA = (try? a.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                let dateB = (try? b.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                return dateA < dateB
+            }
+        var selected: (gameRecord: GameRecord, isNew: Bool)?
+        for file in spooled {
+            if let sgf = try? String(contentsOf: file, encoding: .utf8),
+               let result = GameRecord.importGameRecord(sgf: sgf, name: "iMessage Game",
+                                                        in: modelContext) {
+                if result.isNew {
+                    modelContext.insert(result.gameRecord)
+                }
+                if selected == nil || fileName == nil || file.lastPathComponent == fileName {
+                    selected = result
+                }
+            }
+            try? FileManager.default.removeItem(at: file)
+        }
+        if let selected {
+            navigationContext.selectedGameRecord = selected.gameRecord
+        }
     }
 
     private func importAndSelect(from file: URL) {

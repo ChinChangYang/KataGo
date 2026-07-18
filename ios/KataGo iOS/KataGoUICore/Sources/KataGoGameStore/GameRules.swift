@@ -8,24 +8,24 @@
 
 import Foundation
 
-public enum KoRule: Int {
+public enum KoRule: Int, Sendable {
     case simple = 0
     case positional = 1
     case situational = 2
 }
 
-public enum ScoringRule: Int {
+public enum ScoringRule: Int, Sendable {
     case area = 0
     case territory = 1
 }
 
-public enum TaxRule: Int {
+public enum TaxRule: Int, Sendable {
     case none = 0
     case seki = 1
     case all = 2
 }
 
-public enum WhiteHandicapBonusRule: Int {
+public enum WhiteHandicapBonusRule: Int, Sendable {
     case zero = 0
     case n = 1
     case n_minus_one = 2
@@ -39,7 +39,7 @@ public enum CommentTone: Int {
     case poetic = 4
 }
 
-public enum PlayerColor {
+public enum PlayerColor: Sendable {
     case black
     case white
     case unknown

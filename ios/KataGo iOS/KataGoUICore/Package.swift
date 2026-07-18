@@ -73,6 +73,13 @@ let package = Package(
         // product from KataGoUICore so that OpenCV (heavy, and absent on
         // tvOS/watchOS) never enters those platforms' link graphs.
         .library(name: "GobanRecogKit", type: .static, targets: ["GobanRecogKit"]),
+        // Bridge-free pure-Swift Go rules engine (captures, ko/superko,
+        // suicide, finished-game scoring, iMessage wire codec). Exists for
+        // processes that cannot link the C++ engine: the Messages extension
+        // links ONLY this + KataGoGameStore. The iOS app links it too so the
+        // engine-linked test target can differential-test it against the
+        // C++ board via -bundle_loader.
+        .library(name: "GoRulesKit", type: .static, targets: ["GoRulesKit"]),
     ],
     dependencies: [
         // Vendored OpenCV 5.0.0 (local SwiftPM package). Consumed ONLY by the
@@ -115,6 +122,22 @@ let package = Package(
         // Pure-Swift, bridge-free SwiftData layer. No Cxx interop.
         .target(
             name: "KataGoGameStore"
+        ),
+        // Pure-Swift Go rules engine, ported from cpp/game/board.cpp +
+        // boardhistory.cpp. Depends on KataGoGameStore ONLY for the shared
+        // rule enums (KoRule/ScoringRule/...) and BoardStarPoints — never on
+        // CKataGoBridge/MLX, so it stays legal for app extensions.
+        .target(
+            name: "GoRulesKit",
+            dependencies: ["KataGoGameStore"]
+        ),
+        // Standalone tests for GoRulesKit (rules, scoring, codec). No engine
+        // dependency, so they run via `swift test --filter GoRulesKitTests`
+        // on macOS like GobanRecogNativeTests; the engine-differential tests
+        // live in the app test target instead.
+        .testTarget(
+            name: "GoRulesKitTests",
+            dependencies: ["GoRulesKit"]
         ),
         .target(
             name: "KataGoUICore",
