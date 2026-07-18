@@ -247,13 +247,16 @@ struct GameScreenView: View {
         }
     }
 
+    /// Icon-only so the control row never wraps; the sparkle is the app's
+    /// analysis glyph (custom.sparkle on the iOS board, sparkles on tvOS).
     private var analyzeButton: some View {
         Button {
             actions.openInApp(effectiveMessage)
         } label: {
-            Label("Analyze", systemImage: "brain")
+            Image(systemName: "sparkle")
         }
         .buttonStyle(.bordered)
+        .accessibilityLabel("Analyze in KataGo Anytime")
     }
 
     // MARK: - Staging
