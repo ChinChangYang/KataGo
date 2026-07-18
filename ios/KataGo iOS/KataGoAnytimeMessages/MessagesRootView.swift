@@ -41,16 +41,11 @@ final class ExtensionModel {
     @ObservationIgnored var actions = ExtensionActions(
         stage: { _ in }, openInApp: { _ in }, requestExpanded: {})
 
-    /// Rebuilds the screen from a message. `selecting` overrides the
-    /// conversation's selected message — didStartSending passes the message
-    /// that just went out, whose sender is the LOCAL participant, so the
-    /// screen flips straight to the view-only waiting state.
     func refresh(from conversation: MSConversation,
-                 selecting overrideMessage: MSMessage? = nil,
                  presentationStyle style: MSMessagesAppPresentationStyle) {
         presentationStyle = style == .expanded ? .expanded : .compact
-        guard let message = overrideMessage ?? conversation.selectedMessage,
-              let url = message.url, MessageGameCodec.isGameURL(url) else {
+        guard let message = conversation.selectedMessage, let url = message.url,
+              MessageGameCodec.isGameURL(url) else {
             screen = .newGame
             return
         }
@@ -60,6 +55,15 @@ final class ExtensionModel {
         }
         let isLocalTurn = message.senderParticipantIdentifier != conversation.localParticipantIdentifier
         screen = .game(decoded, isLocalTurn: isLocalTurn, staged: false)
+    }
+
+    /// didStartSending: the outgoing message is OURS by definition, so show
+    /// it view-only ("Waiting for opponent"). Its participant fields cannot
+    /// be trusted here — they are not populated until delivery.
+    func noteSent(_ message: MSMessage) {
+        guard let url = message.url, MessageGameCodec.isGameURL(url),
+              let decoded = try? MessageGameCodec.decode(url) else { return }
+        screen = .game(decoded, isLocalTurn: false, staged: false)
     }
 
     /// Our reply is in the compose field: keep showing it, view-only, until

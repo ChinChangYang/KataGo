@@ -68,8 +68,8 @@ final class MessagesViewController: MSMessagesAppViewController {
 
     override func didStartSending(_ message: MSMessage, conversation: MSConversation) {
         // Our staged move went out: show IT (not the stale selectedMessage),
-        // which reads as "Waiting for opponent" since we sent it.
-        model.refresh(from: conversation, selecting: message, presentationStyle: presentationStyle)
+        // view-only, since the next move belongs to the opponent.
+        model.noteSent(message)
     }
 
     override func didCancelSending(_ message: MSMessage, conversation: MSConversation) {

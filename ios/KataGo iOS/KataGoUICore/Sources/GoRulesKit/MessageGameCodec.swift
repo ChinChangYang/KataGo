@@ -45,13 +45,12 @@ public enum MessageGameCodecError: Error, Equatable, Sendable {
 }
 
 public enum MessageGameCodec {
-    /// MSMessage.url must be an http(s) URL: Messages DROPS custom-scheme
-    /// URLs in transit (the receiver sees url == nil), verified in the
-    /// harness. The https form also serves as the future web-fallback hook
-    /// for recipients without the extension.
-    public static let scheme = "https"
-    public static let host = "katagoanytime.app"
-    public static let path = "/game"
+    /// The wire URL is QUERY-ONLY (no scheme/host), the pattern Apple's
+    /// IceCreamBuilder sample uses. Messages DROPS custom-scheme URLs in
+    /// transit (the receiver sees url == nil — verified in the harness),
+    /// and an https URL on an unowned domain would hand every old bubble's
+    /// fallback link to whoever registers it. A relative URL has nothing to
+    /// strip and nothing to squat.
     public static let version = 1
 
     /// 38 symbols: coordinates 0...36 need 37, one spare. URL-query safe.
@@ -101,9 +100,6 @@ public enum MessageGameCodec {
             }
         }
         var components = URLComponents()
-        components.scheme = scheme
-        components.host = host
-        components.path = path
         components.queryItems = items
         return components.url!
     }
@@ -123,8 +119,11 @@ public enum MessageGameCodec {
 
     // MARK: - Decode
 
+    /// Messages only routes our own extension's bubbles to us, so a
+    /// version field in the query is identification enough.
     public static func isGameURL(_ url: URL) -> Bool {
-        url.scheme == scheme && url.host == host && url.path == path
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.contains { $0.name == "v" } ?? false
     }
 
     /// Rebuilds the game by replaying every move through the rules engine.
