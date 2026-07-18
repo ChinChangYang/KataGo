@@ -45,8 +45,13 @@ public enum MessageGameCodecError: Error, Equatable, Sendable {
 }
 
 public enum MessageGameCodec {
-    public static let scheme = "katago-anytime"
-    public static let host = "imessage-game"
+    /// MSMessage.url must be an http(s) URL: Messages DROPS custom-scheme
+    /// URLs in transit (the receiver sees url == nil), verified in the
+    /// harness. The https form also serves as the future web-fallback hook
+    /// for recipients without the extension.
+    public static let scheme = "https"
+    public static let host = "katagoanytime.app"
+    public static let path = "/game"
     public static let version = 1
 
     /// 38 symbols: coordinates 0...36 need 37, one spare. URL-query safe.
@@ -98,6 +103,7 @@ public enum MessageGameCodec {
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
+        components.path = path
         components.queryItems = items
         return components.url!
     }
@@ -118,7 +124,7 @@ public enum MessageGameCodec {
     // MARK: - Decode
 
     public static func isGameURL(_ url: URL) -> Bool {
-        url.scheme == scheme && url.host == host
+        url.scheme == scheme && url.host == host && url.path == path
     }
 
     /// Rebuilds the game by replaying every move through the rules engine.

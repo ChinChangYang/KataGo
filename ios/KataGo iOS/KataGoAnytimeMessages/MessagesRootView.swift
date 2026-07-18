@@ -41,11 +41,16 @@ final class ExtensionModel {
     @ObservationIgnored var actions = ExtensionActions(
         stage: { _ in }, openInApp: { _ in }, requestExpanded: {})
 
+    /// Rebuilds the screen from a message. `selecting` overrides the
+    /// conversation's selected message — didStartSending passes the message
+    /// that just went out, whose sender is the LOCAL participant, so the
+    /// screen flips straight to the view-only waiting state.
     func refresh(from conversation: MSConversation,
+                 selecting overrideMessage: MSMessage? = nil,
                  presentationStyle style: MSMessagesAppPresentationStyle) {
         presentationStyle = style == .expanded ? .expanded : .compact
-        guard let message = conversation.selectedMessage, let url = message.url,
-              MessageGameCodec.isGameURL(url) else {
+        guard let message = overrideMessage ?? conversation.selectedMessage,
+              let url = message.url, MessageGameCodec.isGameURL(url) else {
             screen = .newGame
             return
         }
@@ -140,7 +145,11 @@ struct CompactSummaryView: View {
         switch model.screen {
         case .newGame: "Start a game of Go"
         case .game(let game, let isLocalTurn, _):
-            BubbleRenderer.caption(for: game) + (isLocalTurn ? " — your move" : "")
+            if case .finished = game.game.phase {
+                BubbleRenderer.caption(for: game)
+            } else {
+                BubbleRenderer.caption(for: game) + (isLocalTurn ? " — your move" : "")
+            }
         case .invalid: "Invalid game"
         }
     }

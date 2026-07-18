@@ -49,6 +49,17 @@ final class MessagesViewController: MSMessagesAppViewController {
         model.refresh(from: conversation, presentationStyle: presentationStyle)
     }
 
+    override func didBecomeActive(with conversation: MSConversation) {
+        model.refresh(from: conversation, presentationStyle: presentationStyle)
+    }
+
+    override func didSelect(_ message: MSMessage, conversation: MSConversation) {
+        // Fires when a bubble is tapped while the extension is ALREADY
+        // running (e.g. after switching conversations); willBecomeActive
+        // alone misses this, leaving a stale screen.
+        model.refresh(from: conversation, presentationStyle: presentationStyle)
+    }
+
     override func didReceive(_ message: MSMessage, conversation: MSConversation) {
         // A new bubble landed while we're open (closes the simultaneous-send
         // race): rebuild from the conversation.
@@ -56,8 +67,9 @@ final class MessagesViewController: MSMessagesAppViewController {
     }
 
     override func didStartSending(_ message: MSMessage, conversation: MSConversation) {
-        // Our staged move went out: the sent message is now the latest state.
-        model.refresh(from: conversation, presentationStyle: presentationStyle)
+        // Our staged move went out: show IT (not the stale selectedMessage),
+        // which reads as "Waiting for opponent" since we sent it.
+        model.refresh(from: conversation, selecting: message, presentationStyle: presentationStyle)
     }
 
     override func didCancelSending(_ message: MSMessage, conversation: MSConversation) {
