@@ -256,6 +256,7 @@
 		802334E7EC804634D209F64E /* CaptureQualityAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C18C12B3B71E721A31AAF40 /* CaptureQualityAnalyzerTests.swift */; };
 		8136C4DCABCF7FB15724B736 /* blocking_counter.cc in Sources */ = {isa = PBXBuildFile; fileRef = DB916B370975783C74200B08 /* blocking_counter.cc */; };
 		81F672ADF761CA061240B4CE /* GameGifRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B30AE54DE374630205B8514 /* GameGifRendererTests.swift */; };
+		825FACA01A6A8D1C394FFB85 /* TimelineStepClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D6A59AC5AAD1DCC93B2231 /* TimelineStepClassifierTests.swift */; };
 		842666643E432D9B6054592E /* OpeningBooksViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF3FFE4F8D21F2CC612B268 /* OpeningBooksViewController.swift */; };
 		84AF9FF552710D9A69E2AEBA /* casts.cc in Sources */ = {isa = PBXBuildFile; fileRef = A384C5A1A349F4B5F0FC3169 /* casts.cc */; };
 		8514DA92E7C49142B62D8A66 /* initialize.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5E86CB9461F2B8990E7855E /* initialize.cc */; };
@@ -1103,6 +1104,7 @@
 		56B99DA3E143A43DEB93814E /* clock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = clock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/clock.cc"; sourceTree = SOURCE_ROOT; };
 		5794706AF4B265E17CEF12A4 /* ArrayFeatureExtractor.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ArrayFeatureExtractor.pb.cc; path = ../../cpp/external/katagocoreml/generated/ArrayFeatureExtractor.pb.cc; sourceTree = SOURCE_ROOT; };
 		57AFFAB6093C799F02577B92 /* WidgetBoardAnnotationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetBoardAnnotationTests.swift; sourceTree = "<group>"; };
+		57D6A59AC5AAD1DCC93B2231 /* TimelineStepClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineStepClassifierTests.swift; sourceTree = "<group>"; };
 		58D05F34FDBFCFC1406CF9AA /* waiter_base.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = waiter_base.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/internal/waiter_base.cc"; sourceTree = SOURCE_ROOT; };
 		59BDE2664FA33EFE5A79F545 /* wire_format_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = wire_format_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/wire_format_lite.cc"; sourceTree = SOURCE_ROOT; };
 		59E556A6B20E1ACB368463BE /* VisionModelsOrnament.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionModelsOrnament.swift; path = "KataGo Anytime Vision/VisionModelsOrnament.swift"; sourceTree = "<group>"; };
@@ -2797,6 +2799,7 @@
 				4B46DF5EB710EA4BDC35EA3E /* DeepReportRefineTests.swift */,
 				F47782792A496CF885425190 /* ReportMovePickerTests.swift */,
 				644ED7C199FE381B2216711F /* StoneAnimationPlannerTests.swift */,
+				57D6A59AC5AAD1DCC93B2231 /* TimelineStepClassifierTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4050,6 +4053,7 @@
 				DE9BE4A514EAD434C2A0BB71 /* DeepReportRefineTests.swift in Sources */,
 				79DF7861BA3F8212EA3DF0A9 /* ReportMovePickerTests.swift in Sources */,
 				C1BAF46506F5A41BDDA2C16A /* StoneAnimationPlannerTests.swift in Sources */,
+				825FACA01A6A8D1C394FFB85 /* TimelineStepClassifierTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

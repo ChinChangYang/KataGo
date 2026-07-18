@@ -63,6 +63,10 @@ struct TVReviewScreen: View {
     /// 2026-07-16).
     @State private var isAiming = false
     @State private var didLoad = false
+    /// Click-vs-swipe for the timeline's move commands: fed raw arrow press
+    /// down/up by the window-level monitor, queried by timelineMove for the
+    /// step magnitude (click = 1, touch-surface swipe = 10).
+    @State private var stepClassifier = TimelineStepClassifier()
     // Parsed once from the SGF at load (a C++ parse — never per body eval).
     @State private var totalMoves = 0
     /// The Top Moves row under remote focus, ringed on the board.
@@ -265,12 +269,14 @@ struct TVReviewScreen: View {
                     .foregroundStyle(.secondary)
 
                 // The TIMELINE: the score chart doubles as the move scrubber
-                // (the amber rule is the playhead). Focus it and press
-                // left/right to step — holding auto-repeats into a scrub.
-                // Down hops focus out programmatically (the onMoveCommand
-                // consumes the D-pad); entry from below is natural focus
-                // movement. Works with analysis off (persisted values) and on
-                // the no-history placeholder alike.
+                // (the amber rule is the playhead). Focus it and click
+                // left/right to step one move — holding auto-repeats into a
+                // scrub — or swipe the touch surface to jump 10 (the
+                // classifier below tells the two apart by their arrow
+                // presses). Down hops focus out programmatically (the
+                // onMoveCommand consumes the D-pad); entry from below is
+                // natural focus movement. Works with analysis off (persisted
+                // values) and on the no-history placeholder alike.
                 TVScoreChart(gameRecord: game, currentIndex: displayIndex)
                     .padding(8)
                     .overlay {
@@ -281,6 +287,15 @@ struct TVReviewScreen: View {
                     .focusable(!isAiming)
                     .focused($timelineFocused)
                     .onMoveCommand(perform: timelineMove)
+                    .tvArrowPressMonitor(isEnabled: timelineFocused && !isAiming,
+                                         onPressBegan: { stepClassifier.arrowPressBegan(at: Date()) },
+                                         onPressEnded: { stepClassifier.arrowPressEnded(at: Date()) })
+                    .onChange(of: timelineFocused) { _, _ in
+                        // Failsafe: if focus leaves mid-press the monitor is
+                        // disarmed before the release arrives, which would
+                        // wedge the down-count at "click" forever.
+                        stepClassifier.reset()
+                    }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -582,16 +597,19 @@ struct TVReviewScreen: View {
         reanalyze()
     }
 
-    /// The timeline's D-pad handler. Left/right step (holding auto-repeats
-    /// into a scrub); down hops focus out programmatically — an onMoveCommand
-    /// consumes every direction, so without the hop the timeline would trap
-    /// focus the way the old focusable board did.
+    /// The timeline's D-pad handler. Left/right step — an edge click steps 1
+    /// (holding auto-repeats into a scrub), a touch-surface swipe jumps 10;
+    /// the classifier tells them apart by whether an arrow press is down or
+    /// just occurred (swipes produce none). Down hops focus out
+    /// programmatically — an onMoveCommand consumes every direction, so
+    /// without the hop the timeline would trap focus the way the old
+    /// focusable board did.
     private func timelineMove(_ direction: MoveCommandDirection) {
         switch direction {
         case .left:
-            stepBy(-1)
+            stepBy(-stepClassifier.stepCount(at: Date()))
         case .right:
-            stepBy(1)
+            stepBy(stepClassifier.stepCount(at: Date()))
         case .down:
             if gobanState.eyeStatus != .closed, !analysis.info.isEmpty {
                 firstTopMoveFocused = true
@@ -605,6 +623,12 @@ struct TVReviewScreen: View {
     }
 
     private func stepBy(_ delta: Int) {
+        // Drop ticks while a previous batch's board refresh is in flight
+        // (the visionOS undo/forward precedent) — a 10-move jump keeps the
+        // engine busy longer than a single step, and ungated flurries would
+        // pile GTP batches into the queue. No isAITurn term: review is a
+        // spectator (suppressesGenMove) and submit() trusts isReady alone.
+        guard stones.isReady else { return }
         if delta < 0 {
             gobanState.backwardMoves(limit: -delta, gameRecord: game, messageList: messageList,
                                      player: player, stones: stones)
