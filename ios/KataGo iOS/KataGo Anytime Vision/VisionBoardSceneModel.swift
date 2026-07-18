@@ -51,6 +51,13 @@ final class VisionBoardSceneModel {
     private var ghostEntity: Entity?
     private var ghostColor: PlayerColor = .unknown
 
+    /// FIFO of what the command sites are about to do to the board; each
+    /// stone diff resolves against it to pick the one stone that animates.
+    private var planner = StoneAnimationPlanner()
+    /// Undone stones still lifting off the board, keyed by point so a stone
+    /// re-mounting there can replace the in-flight entity.
+    private var flyingAway: [BoardPoint: Entity] = [:]
+
     init() {
         volumeRoot.addChild(boardRoot)
         boardRoot.addChild(stonesRoot)
@@ -159,6 +166,11 @@ final class VisionBoardSceneModel {
 
         placed.values.forEach { $0.entity.removeFromParent() }
         placed.removeAll()
+        // A board swap must also kill in-flight fly-away entities and any
+        // stale animation intents, or detached stones linger mid-air.
+        flyingAway.values.forEach { $0.removeFromParent() }
+        flyingAway.removeAll()
+        planner.clear()
         setGhost(point: nil, color: .unknown)
         analysisRoot.children.forEach { $0.removeFromParent() }
         // The caches must empty with the entity tree, or the next sync
@@ -245,8 +257,36 @@ final class VisionBoardSceneModel {
 
     // MARK: - Stones
 
+    /// Flight height above the rest position, along board-local +Y — the
+    /// board normal in both orientations, since stones are stonesRoot
+    /// children under the (possibly rotated) boardRoot.
+    private static let flightHeight: Float = 0.06
+    private static let flyInDuration: TimeInterval = 0.25
+    private static let flyAwayDuration: TimeInterval = 0.25
+
+    /// Registers what a command site is about to do so the next stone diff
+    /// animates the right stone (see StoneAnimationPlanner for why this is
+    /// provenance-based, not an index-delta heuristic).
+    func expectStoneAnimation(_ intent: StoneAnimationPlanner.Intent) {
+        planner.expect(intent)
+    }
+
+    /// Drops outstanding animation intents ahead of a batch update (jump to
+    /// start/end, game switch) so the mass diff mounts instantly.
+    func clearStoneAnimationIntents() {
+        planner.clear()
+    }
+
+    /// Withdraws an intent whose command the engine rejected (illegal move)
+    /// so it can never satisfy a later, unrelated diff.
+    func retractStoneAnimation(_ intent: StoneAnimationPlanner.Intent) {
+        planner.retract(intent)
+    }
+
     /// Diffs the engine's stone lists against the mounted entities —
-    /// O(changed), not O(board).
+    /// O(changed), not O(board). At most one stone of the diff animates
+    /// (the one a queued intent accounts for); everything else — captures,
+    /// restores, batch remounts — mounts and unmounts instantly.
     func applyStones(black: [BoardPoint], white: [BoardPoint]) {
         guard let geometry else { return }
 
@@ -256,25 +296,68 @@ final class VisionBoardSceneModel {
         // A pass is encoded as an off-board sentinel point — never mount it.
         desired = desired.filter { geometry.position(of: $0.key) != nil }
 
+        // Resolve the diff against the intent queue BEFORE mutating `placed`.
+        let removedPoints = Set(placed.keys.filter { desired[$0] != placed[$0]?.color })
+        let addedPoints = Set(desired.keys.filter { placed[$0] == nil })
+        let effect = planner.resolve(additions: addedPoints, removals: removedPoints)
+
         for (point, current) in placed where desired[point] != current.color {
-            current.entity.removeFromParent()
+            if effect == .flyAway(point) {
+                flyAway(current.entity, from: point)
+            } else {
+                current.entity.removeFromParent()
+            }
             placed.removeValue(forKey: point)
         }
 
         for (point, color) in desired where placed[point] == nil {
             guard let prototype = stonePrototypes[color],
                   let position = geometry.position(of: point) else { continue }
+            // A stone mounting where an undone one is still lifting off
+            // replaces the in-flight entity.
+            flyingAway.removeValue(forKey: point)?.removeFromParent()
             let stone = prototype.clone(recursive: true)
             stone.position = position
             stone.transform.rotation = simd_quatf(angle: Self.grainAngle(for: point),
                                                   axis: [0, 1, 0])
-            stonesRoot.addChild(stone)
+            if effect == .flyIn(point) {
+                let rest = stone.transform
+                stone.position.y += Self.flightHeight
+                stonesRoot.addChild(stone)
+                stone.move(to: rest, relativeTo: stonesRoot,
+                           duration: Self.flyInDuration, timingFunction: .easeOut)
+            } else {
+                stonesRoot.addChild(stone)
+            }
             placed[point] = (color, stone)
             #if DEBUG
             NSLog("VisionScene stone %@ at (%d,%d) pos=(%.4f, %.4f, %.4f)",
                   color == .black ? "black" : "white", point.x, point.y,
                   position.x, position.y, position.z)
             #endif
+        }
+    }
+
+    /// Lifts an undone stone off the board and removes it when the flight
+    /// ends. The stone leaves `placed` at the call site; `flyingAway` tracks
+    /// the entity so a re-mount at the same point can replace it mid-flight.
+    /// Cleanup is a Task.sleep rather than an AnimationEvents subscription:
+    /// the scene model has no RealityViewContent to subscribe from, and
+    /// removeFromParent() on an already-detached entity is a harmless no-op,
+    /// so a late cleanup can never corrupt state.
+    private func flyAway(_ entity: Entity, from point: BoardPoint) {
+        flyingAway[point]?.removeFromParent()
+        flyingAway[point] = entity
+        var target = entity.transform
+        target.translation.y += Self.flightHeight
+        entity.move(to: target, relativeTo: stonesRoot,
+                    duration: Self.flyAwayDuration, timingFunction: .easeIn)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.flyAwayDuration))
+            entity.removeFromParent()
+            if let self, self.flyingAway[point] === entity {
+                self.flyingAway.removeValue(forKey: point)
+            }
         }
     }
 
@@ -336,8 +419,7 @@ final class VisionBoardSceneModel {
     /// the 2D overlay's draw order.
     private static let markerLift: Float = 0.0008
 
-    /// One list length drives both the markers and L1/R1 cycling, so the
-    /// ghost only ever lands on marked points.
+    /// How many candidate-move markers the analysis overlay shows.
     static let candidateMoveLimit = 10
 
     /// Anisotropic cell spacing (22 x 23.7 mm, a physical constant of the

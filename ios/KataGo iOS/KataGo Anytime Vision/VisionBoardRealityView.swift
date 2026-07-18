@@ -241,9 +241,8 @@ private struct VisionCandidateMarkerView: View {
             }
         }
         .frame(width: mark.framePoints, height: mark.framePoints)
-        // Purely decorative (L1/R1 cycles candidates) — keep the hosted
-        // attachment out of gaze targeting so it can never soak up a
-        // controller press or a pinch.
+        // Purely decorative overlay — keep the hosted attachment out of gaze
+        // targeting so it can never soak up a controller press or a pinch.
         .allowsHitTesting(false)
     }
 }

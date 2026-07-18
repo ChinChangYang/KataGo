@@ -137,41 +137,6 @@ struct GhostCursorModelTests {
         #expect(ghost.point == BoardPoint(x: 4, y: 4))
     }
 
-    @Test func cycleJumpsToFirstWhenOffList() {
-        let ghost = GhostCursorModel()
-        let candidates = [BoardPoint(x: 2, y: 2), BoardPoint(x: 6, y: 6), BoardPoint(x: 4, y: 4)]
-
-        ghost.cycle(through: candidates, forward: true)
-        #expect(ghost.point == BoardPoint(x: 2, y: 2))
-    }
-
-    @Test func cycleAdvancesAndWraps() {
-        let ghost = GhostCursorModel()
-        let candidates = [BoardPoint(x: 2, y: 2), BoardPoint(x: 6, y: 6), BoardPoint(x: 4, y: 4)]
-
-        ghost.cycle(through: candidates, forward: true)
-        ghost.cycle(through: candidates, forward: true)
-        #expect(ghost.point == BoardPoint(x: 6, y: 6))
-        ghost.cycle(through: candidates, forward: true)
-        #expect(ghost.point == BoardPoint(x: 4, y: 4))
-        // Wrap forward from the last element.
-        ghost.cycle(through: candidates, forward: true)
-        #expect(ghost.point == BoardPoint(x: 2, y: 2))
-        // Wrap backward from the first element.
-        ghost.cycle(through: candidates, forward: false)
-        #expect(ghost.point == BoardPoint(x: 4, y: 4))
-    }
-
-    @Test func cycleWithNoCandidatesIsNoOp() {
-        let ghost = GhostCursorModel()
-        ghost.cycle(through: [], forward: true)
-        #expect(ghost.point == nil)
-
-        ghost.activate(width: 9, height: 9)
-        ghost.cycle(through: [], forward: true)
-        #expect(ghost.point == BoardPoint(x: 4, y: 4))
-    }
-
     @Test func activateAtStoredAnchor() {
         let ghost = GhostCursorModel()
         ghost.setAnchor(BoardPoint(x: 2, y: 6), width: 9, height: 9)

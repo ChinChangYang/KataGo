@@ -40,6 +40,15 @@ struct VisionRootView: View {
     private var gameRecords: [GameRecord]
 
     var body: some View {
+        // Two independently type-checked halves — the combined ~380-line
+        // modifier chain blew the compiler's expression budget once the
+        // stone-animation hooks landed.
+        engineEventHooks(bootChrome)
+    }
+
+    /// The volumetric content, every ornament, and the boot/run-loop
+    /// infrastructure.
+    private var bootChrome: some View {
         Group {
             if case .ready = shell.phase {
                 readyContent
@@ -298,6 +307,12 @@ struct VisionRootView: View {
                 await engineController.noteRunLoopExited()
             }
         }
+    }
+
+    /// Engine and gameplay event hooks: analysis lifecycle, the per-move
+    /// engine driver, stone-animation intents, and the ghost anchor.
+    private func engineEventHooks(_ content: some View) -> some View {
+        content
         // Analysis stop lifecycle (mirrors TVRootView): without these the
         // engine would keep streaming kata-analyze after analysis turns off,
         // and the power-saving pause could never halt the search.
@@ -342,6 +357,16 @@ struct VisionRootView: View {
                 config: config,
                 nextColorForPlayCommand: newValue)
         }
+        // Stone-animation intent hooks — rationale on each method.
+        .onChange(of: aiMove) { _, newValue in
+            captureAIMoveIntent(newValue)
+        }
+        .onChange(of: session.gobanState.confirmingAIOverwrite) { _, confirming in
+            autoDeclineAIOverwrite(confirming)
+        }
+        .onChange(of: session.gobanState.confirmingIllegalMove) { _, confirming in
+            retractRejectedPlayIntent(confirming)
+        }
         // 2D boards clear stale candidates in AnalysisView.onAppear; the 3D
         // scene has no such lifecycle hook, so honor the request here.
         .onChange(of: session.gobanState.requestingClearAnalysis) { _, requesting in
@@ -371,7 +396,7 @@ struct VisionRootView: View {
         // when Replace/Discard deactivates the branch, remount the selected
         // game so the board leaves the branch line. switchGame lands at the
         // tip — deliberate on Vision (one consistent landing spot, unlike
-        // iOS's divergence-point landing; L2/R2 step through history from
+        // iOS's divergence-point landing; L1/R1 step through history from
         // there) —
         // and loadGame consumes commitBranch's one-shot unlockEditingOnReload,
         // so Replace lands unlocked. Game switches that discard a branch via
@@ -386,7 +411,7 @@ struct VisionRootView: View {
         }
         // Ghost anchor: reveal (and follow) the cursor at the board's last
         // move — players expect to answer near it. Keyed on the exact inputs
-        // of MoveNumbers.derive so passes and L2/R2 navigation retrigger even
+        // of MoveNumbers.derive so passes and step/jump navigation retrigger even
         // though the stones don't change; the O(moves) SGF walk runs once per
         // position, never on the glide frame path. (Not getMoveNumbers — it
         // returns .empty under the last-3-moves display setting.)
@@ -414,7 +439,7 @@ struct VisionRootView: View {
     }
 
     /// Branch-aware last-move derivation inputs; reading them in body keeps
-    /// the onChange armed for own moves, AI replies, L2/R2 and branch
+    /// the onChange armed for own moves, AI replies, step/jump and branch
     /// navigation, passes, and game switches.
     private var lastMoveKey: LastMoveKey? {
         let gameRecord = navigationContext.selectedGameRecord
@@ -450,18 +475,16 @@ struct VisionRootView: View {
             ghost.step(direction, width: width, height: height)
         case .toggleAnalysisVisibility:
             toggleEye()
-        case .cycle(let forward):
-            let candidates = session.analysis
-                .candidateMoves(width: width, height: height,
-                                limit: VisionBoardSceneModel.candidateMoveLimit)
-                .map(\.point)
-            ghost.cycle(through: candidates, forward: forward)
         case .play:
             playAtGhost()
         case .undo:
             undoOneMove()
         case .forward:
             forwardOneMove()
+        case .backwardToStart:
+            backwardToStart()
+        case .forwardToEnd:
+            forwardToEnd()
         case .pass:
             // Immediate — no confirmation bar (a controller can't drive the
             // pinch-only ornament, and Undo is the safety net anyway).
@@ -493,6 +516,9 @@ struct VisionRootView: View {
               !session.stones.blackPoints.contains(point),
               !session.stones.whitePoints.contains(point)
         else { return }
+        // The stone about to land flies in; an illegal-move rejection leaves
+        // a stale intent that the planner scavenges on the next real diff.
+        sceneModel.expectStoneAnimation(.place(point))
         // Legality + play flow through the engine's kata-check-move reply
         // (GameSession.maybeCollectCheckMove → playPendingHumanMove), the same
         // path the 2D board tap and TVReviewScreen.pick use.
@@ -720,6 +746,14 @@ struct VisionRootView: View {
             all: false
         )
         guard session.stones.isReady, !isAITurn else { return }
+        // The tip stone flies off (nothing to animate after a pass); derive
+        // it before undoIndex moves the cursor. Same derivation as the ghost
+        // anchor, so the animated point always matches the mounted stone.
+        if let sgf = session.gobanState.getSgf(gameRecord: gameRecord),
+           let index = session.gobanState.getCurrentIndex(gameRecord: gameRecord),
+           let tip = MoveNumbers.derive(sgf: sgf, currentIndex: index).lastPoint {
+            sceneModel.expectStoneAnimation(.remove(tip))
+        }
         session.gobanState.undoIndex(gameRecord: gameRecord)
         session.gobanState.undo(messageList: session.messageList, stones: session.stones)
         session.player.toggleNextColorForPlayCommand()
@@ -741,7 +775,117 @@ struct VisionRootView: View {
             all: false
         )
         guard session.stones.isReady, !isAITurn else { return }
+        // The recorded next stone flies in (nothing to animate for a pass).
+        if let next = session.gobanState.getNextMove(gameRecord: gameRecord),
+           !next.location.pass {
+            sceneModel.expectStoneAnimation(.place(
+                BoardPoint(location: next.location,
+                           width: Int(session.board.width),
+                           height: Int(session.board.height))))
+        }
         session.gobanState.forwardMoves(limit: 1,
+                                        gameRecord: gameRecord,
+                                        board: session.board,
+                                        messageList: session.messageList,
+                                        player: session.player,
+                                        audioModel: audioModel,
+                                        stones: session.stones)
+    }
+
+    /// AI reply → fly-in intent, then consume the binding (onChange never
+    /// fires for equal consecutive values, and the AI can reply with the
+    /// same vertex in a later position). postProcessAIMove writes the
+    /// binding at command time, before its showboard reply diffs the
+    /// stones, so the intent always precedes the diff. Skipped when the
+    /// reply was never played: the overwrite path latches
+    /// confirmingAIOverwrite (still latched here — autoDeclineAIOverwrite
+    /// resets it a runloop later), and nothing plays without a selected
+    /// record. NB: BoardPoint(move: "pass") yields the off-board pass
+    /// SENTINEL, not nil — the explicit pass check is required.
+    private func captureAIMoveIntent(_ newValue: String?) {
+        guard let move = newValue else { return }
+        if move != "pass",
+           !session.gobanState.confirmingAIOverwrite,
+           navigationContext.selectedGameRecord != nil,
+           let point = BoardPoint(move: move,
+                                  width: Int(session.board.width),
+                                  height: Int(session.board.height)) {
+            sceneModel.expectStoneAnimation(.place(point))
+        }
+        aiMove = nil
+    }
+
+    /// Vision has no AI-overwrite confirmation dialog (iOS GameSplitView,
+    /// Mac alert), so an auto-genmove landing mid-record in an unlocked
+    /// game would latch the flag forever — and the controller with it,
+    /// since every game action guards on !isAITurn while shouldGenMove
+    /// stays true. Auto-decline exactly like the iOS Cancel button: the
+    /// reply is already dropped, and analysisStatus = .clear turns gen-move
+    /// off (shouldGenMove needs .run), unlocking navigation. The sparkle
+    /// re-arms the AI; a human play truncates the record and makes the tip
+    /// current again. The reset hops one runloop so same-transaction
+    /// onChanges (the aiMove capture) still see the latched flag.
+    private func autoDeclineAIOverwrite(_ confirming: Bool) {
+        guard confirming else { return }
+        Task { @MainActor in
+            session.gobanState.confirmingAIOverwrite = false
+            session.gobanState.analysisStatus = .clear
+        }
+    }
+
+    /// An illegal-move rejection means playAtGhost's fly-in intent will
+    /// never see its diff; withdraw it so it cannot satisfy a later,
+    /// unrelated diff (e.g. an undo restoring a capture at the rejected ko
+    /// point). Vision never plays rejected moves (the ornament row only
+    /// dismisses), so retraction is always correct here.
+    private func retractRejectedPlayIntent(_ confirming: Bool) {
+        guard confirming,
+              let vertex = session.gobanState.pendingMoveVertex,
+              let point = BoardPoint(move: vertex,
+                                     width: Int(session.board.width),
+                                     height: Int(session.board.height))
+        else { return }
+        sceneModel.retractStoneAnimation(.place(point))
+    }
+
+    /// Mirrors StatusToolbarItems.backwardEndAction (backwardMoves, limit
+    /// nil): rewinds to the starting position. backwardMoves ends with
+    /// sendPostExecutionCommands, so the board refreshes and analysis
+    /// re-arms even when an even-length rewind leaves the side to move
+    /// unchanged and the turn-change hook never fires.
+    private func backwardToStart() {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        session.gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: session.analysis,
+            board: session.board,
+            stones: session.stones,
+            all: false
+        )
+        guard session.stones.isReady, !isAITurn else { return }
+        sceneModel.clearStoneAnimationIntents()
+        session.gobanState.backwardMoves(limit: nil,
+                                         gameRecord: gameRecord,
+                                         messageList: session.messageList,
+                                         player: session.player,
+                                         stones: session.stones)
+    }
+
+    /// Mirrors StatusToolbarItems.forwardEndAction (forwardMoves, limit nil):
+    /// replays the record to the tip. At the tip it re-sends the
+    /// post-execution commands and moves nothing.
+    private func forwardToEnd() {
+        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        session.gobanState.maybeUpdateAnalysisData(
+            gameRecord: gameRecord,
+            analysis: session.analysis,
+            board: session.board,
+            stones: session.stones,
+            all: false
+        )
+        guard session.stones.isReady, !isAITurn else { return }
+        sceneModel.clearStoneAnimationIntents()
+        session.gobanState.forwardMoves(limit: nil,
                                         gameRecord: gameRecord,
                                         board: session.board,
                                         messageList: session.messageList,
@@ -946,9 +1090,10 @@ struct VisionRootView: View {
             handleControllerEvent(.dpad(.right))
             handleControllerEvent(.play)
 
-            // L2/R2 probe (both sides still human, default game unlocked on
-            // a fresh sim): backward removes the stone just played, forward
-            // replays it — the same stone must vanish and return.
+            // Single-step probe (X/L1 back, R1 forward; both sides still
+            // human, default game unlocked on a fresh sim): backward removes
+            // the stone just played, forward replays it — the same stone
+            // must vanish and return.
             try? await Task.sleep(for: .seconds(3))
             handleControllerEvent(.undo)
             try? await Task.sleep(for: .seconds(2))
@@ -1027,7 +1172,7 @@ struct VisionRootView: View {
     /// deactivates any branch, clears pending moves, resets the player to
     /// .unknown, and reloads the SGF. Pre-setting currentIndex to the move
     /// count makes loadGame's undo loop a no-op, so the engine lands at the
-    /// tip (Vision's consistent landing spot; L2/R2 step through history
+    /// tip (Vision's consistent landing spot; L1/R1 step through history
     /// from there, and a play on a locked synced game forms a branch).
     ///
     /// Stale-reply safety: switching mid-genmove cancels the running search,
@@ -1037,6 +1182,8 @@ struct VisionRootView: View {
     /// analysis (or the genmove bundle) for the new game.
     private func switchGame(to record: GameRecord) {
         ghost.reset()
+        // The remount is a batch diff — no stone of it should animate.
+        sceneModel.clearStoneAnimationIntents()
         session.sendInitialCommands(config: record.concreteConfig)
         record.currentIndex = SgfOperations(sgf: record.sgf).moveSize ?? 0
 

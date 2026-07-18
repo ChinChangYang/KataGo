@@ -20,16 +20,18 @@ enum ControllerEvent {
     case play
     /// B — show/hide the analysis overlay (the eye).
     case toggleAnalysisVisibility
-    /// X / L2 — one move back (mirrors iOS backward-frame). L2 auto-repeats
+    /// X / L1 — one move back (mirrors iOS backward-frame). L1 auto-repeats
     /// while held; X stays single-shot.
     case undo
-    /// R2 — one move forward through the recorded game (mirrors iOS
+    /// R1 — one move forward through the recorded game (mirrors iOS
     /// forward-frame). Auto-repeats while held.
     case forward
     /// Y — pass (immediate).
     case pass
-    /// L1 / R1 — cycle the ghost through the analysis candidates.
-    case cycle(forward: Bool)
+    /// L2 — jump to the start of the game (single-shot).
+    case backwardToStart
+    /// R2 — jump to the end of the recorded game (single-shot).
+    case forwardToEnd
 }
 
 @Observable
@@ -39,11 +41,11 @@ final class VisionControllerInput {
 
     @ObservationIgnored var onEvent: ((ControllerEvent) -> Void)?
 
-    /// Hold-to-repeat tasks for the triggers, keyed by button identity so a
-    /// re-bind or release cancels exactly its own loop. MainActor-confined.
+    /// Hold-to-repeat tasks for the shoulder buttons, keyed by button identity
+    /// so a re-bind or release cancels exactly its own loop. MainActor-confined.
     @ObservationIgnored private var repeatTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 
-    /// L2/R2 hold-repeat cadence: first repeat after the delay, then steady.
+    /// L1/R1 hold-repeat cadence: first repeat after the delay, then steady.
     private static let repeatInitialDelay: Duration = .milliseconds(400)
     private static let repeatInterval: Duration = .milliseconds(125)
 
@@ -84,10 +86,10 @@ final class VisionControllerInput {
         bind(pad.buttonB, to: .toggleAnalysisVisibility)
         bind(pad.buttonX, to: .undo)
         bind(pad.buttonY, to: .pass)
-        bind(pad.leftShoulder, to: .cycle(forward: false))
-        bind(pad.rightShoulder, to: .cycle(forward: true))
-        bindRepeating(pad.leftTrigger, to: .undo)
-        bindRepeating(pad.rightTrigger, to: .forward)
+        bindRepeating(pad.leftShoulder, to: .undo)
+        bindRepeating(pad.rightShoulder, to: .forward)
+        bind(pad.leftTrigger, to: .backwardToStart)
+        bind(pad.rightTrigger, to: .forwardToEnd)
         bind(pad.dpad.up, to: .dpad(.up))
         bind(pad.dpad.down, to: .dpad(.down))
         bind(pad.dpad.left, to: .dpad(.left))

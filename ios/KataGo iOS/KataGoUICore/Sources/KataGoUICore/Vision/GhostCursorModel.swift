@@ -3,8 +3,8 @@
 //  KataGoUICore
 //
 //  Controller-driven aiming cursor for the 3D goban: a ghost stone that
-//  glides (thumbstick), steps (D-pad), and cycles through analysis
-//  candidates. Pure grid logic; rendering and input live in the app target.
+//  glides (thumbstick) and steps (D-pad). Pure grid logic; rendering and
+//  input live in the app target.
 //
 
 import Foundation
@@ -100,18 +100,6 @@ public final class GhostCursorModel {
         guard dx != 0 || dy != 0 else { return }
         point = clamped(BoardPoint(x: current.x + dx, y: current.y + dy),
                         width: width, height: height)
-    }
-
-    /// Jumps to the next/previous candidate (wrapping); from off-list or
-    /// hidden, jumps to the first candidate. No-op when there are none.
-    public func cycle(through candidates: [BoardPoint], forward: Bool) {
-        guard !candidates.isEmpty else { return }
-        guard let current = point, let index = candidates.firstIndex(of: current) else {
-            point = candidates.first
-            return
-        }
-        let offset = forward ? 1 : candidates.count - 1
-        point = candidates[(index + offset) % candidates.count]
     }
 
     /// Hides the ghost and clears any partial glide. Keeps the anchor so the

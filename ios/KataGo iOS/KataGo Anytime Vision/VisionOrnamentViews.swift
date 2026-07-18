@@ -10,8 +10,9 @@
 //  gear (right-side card: analysis-information picker, ownership toggle,
 //  board orientation — mutually exclusive with the controller legend),
 //  controller help, the connect-controller hint, and the illegal-move row.
-//  No Undo or navigation buttons — the controller's X/L2 cover single-move
-//  undo and R2 steps forward. Ordinary SwiftUI — always pinch-interactive;
+//  No Undo or navigation buttons — the controller's X/L1 cover single-move
+//  undo, R1 steps forward, and L2/R2 jump to the start/end of the game.
+//  Ordinary SwiftUI — always pinch-interactive;
 //  the game controller never drives the ornament (enforced by
 //  handlesGameControllerEvents on every ornament content root in
 //  VisionRootView, which keeps presses flowing to VisionControllerInput
@@ -298,8 +299,8 @@ struct VisionControllerLegend: View {
         Row(symbol: "dpad", name: "D-Pad", action: "Step one intersection"),
         Row(symbol: "xmark.circle", name: "✕ / A", action: "Play at the ghost stone"),
         Row(symbol: "circle.circle", name: "○ / B", action: "Show / hide analysis"),
-        Row(symbol: "l1.rectangle.roundedbottom", name: "L1 · R1", action: "Previous / next suggested move"),
-        Row(symbol: "l2.rectangle.roundedtop", name: "L2 · R2", action: "Back / forward one move (hold to repeat)"),
+        Row(symbol: "l1.rectangle.roundedbottom", name: "L1 · R1", action: "Back / forward one move (hold to repeat)"),
+        Row(symbol: "l2.rectangle.roundedtop", name: "L2 · R2", action: "Jump to start / end of game"),
         Row(symbol: "square.circle", name: "□ / X", action: "Undo"),
         Row(symbol: "triangle.circle", name: "△ / Y", action: "Pass"),
     ]
