@@ -117,7 +117,7 @@ final class OpeningBooksViewController: NSViewController {
         guard !isDownloading(book),
               let sourceURL = URL(string: book.url) else { return }
         // Downloader does not create directories.
-        try? OpeningBook.ensureBooksDirectory()
+        _ = try? OpeningBook.ensureBooksDirectory()
 
         let downloader = Downloader(destinationURL: book.downloadedURL)
         downloaders[book.fileName] = downloader

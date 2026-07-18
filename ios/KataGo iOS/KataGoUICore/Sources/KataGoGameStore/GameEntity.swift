@@ -13,7 +13,7 @@ public struct GameEntity: AppEntity {
     public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(stringLiteral: "Computer Go Game")
     }
-    nonisolated(unsafe) public static let defaultQuery = GameEntityQuery()
+    public static let defaultQuery = GameEntityQuery()
 
     public let id: UUID
     @Property(title: "Name") public var name: String

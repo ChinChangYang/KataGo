@@ -62,7 +62,7 @@ struct OpeningBookDetailView: View {
             } else {
                 Task {
                     // Downloader does not create directories.
-                    try? OpeningBook.ensureBooksDirectory()
+                    _ = try? OpeningBook.ensureBooksDirectory()
                     if let url = URL(string: book.url) {
                         try? await downloader.download(from: url)
                     }
