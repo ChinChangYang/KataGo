@@ -582,6 +582,11 @@ public struct Dimensions {
     }
 }
 
+// Synthesized memberwise equality (all stored properties are CGFloat/Bool) —
+// lets `BoardAccessibilityOverlay.==` detect board relayouts. Sendable so that
+// nonisolated `==` can read a MainActor view's stored copy.
+extension Dimensions: Equatable, Sendable {}
+
 /// Message with a text and an ID
 public struct Message: Identifiable, Equatable, Hashable {
     /// Default maximum message characters

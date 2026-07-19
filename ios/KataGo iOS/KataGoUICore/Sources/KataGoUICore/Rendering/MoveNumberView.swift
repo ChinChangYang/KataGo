@@ -109,6 +109,10 @@ struct MoveNumberView: View {
             .bold()
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(position(of: point))
+            // Decorative: bare move numbers ("5", "42") would pollute Voice
+            // Control's speakable-name space; the intersection's identity is
+            // owned by BoardAccessibilityOverlay.
+            .accessibilityHidden(true)
     }
 }
 

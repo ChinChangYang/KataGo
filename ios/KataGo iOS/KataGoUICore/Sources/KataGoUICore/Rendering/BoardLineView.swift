@@ -57,6 +57,10 @@ public struct BoardLineView: View {
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(x: dimensions.boardLineStartX + (CGFloat(i) * dimensions.squareLength),
                       y: dimensions.boardLineStartY - dimensions.squareLength)
+            // Decorative: BoardAccessibilityOverlay owns the speakable board
+            // targets; a bare edge label "A" would collide with them in Voice
+            // Control's name space.
+            .accessibilityHidden(true)
     }
 
     private func verticalCoordinate(i: Int, dimensions: Dimensions) -> some View {
@@ -68,6 +72,8 @@ public struct BoardLineView: View {
             .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(x: dimensions.boardLineStartX - dimensions.squareLength,
                       y: dimensions.boardLineStartY + (BoardPoint.getPositionY(y: i, height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength))
+            // Decorative — see horizontalCoordinate.
+            .accessibilityHidden(true)
     }
 
     private func drawBoardBackground(dimensions: Dimensions) -> some View {
@@ -118,6 +124,11 @@ public struct BoardLineView: View {
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
                 .position(labelCenter)
+                // Decorative: this label sits BESIDE the pass tile, so a
+                // Voice Control "Tap Pass" aimed at it would miss the tile.
+                // BoardAccessibilityOverlay's "Pass" element covers the tile
+                // itself.
+                .accessibilityHidden(true)
         }
     }
 

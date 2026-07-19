@@ -55,7 +55,7 @@ public struct BoardView: View {
     var cursorPoint: BoardPoint? = nil
     @FocusState<Bool>.Binding var commentIsFocused: Bool
     @State private var confirmingOverwrite: Bool = false
-    @State private var gestureLocation: CGPoint?
+    @State private var pendingCoordinate: Coordinate?
 
     public init(gameRecord: GameRecord,
                 interactive: Bool = true,
@@ -167,6 +167,21 @@ public struct BoardView: View {
                         WinrateBarView(dimensions: dimensions)
                             .transition(.opacity)
                     }
+
+#if !os(tvOS)
+                    // Named accessibility targets ("K 10", "Pass") so Voice
+                    // Control and VoiceOver can play moves; guarded exactly
+                    // like the tap gesture below (tvOS plays via its focus
+                    // cursor, display-only boards get no targets).
+                    if interactive {
+                        BoardAccessibilityOverlay(dimensions: dimensions,
+                                                  boardWidth: Int(board.width),
+                                                  boardHeight: Int(board.height),
+                                                  showPass: effectiveShowPass,
+                                                  playAction: { attemptHumanMove(at: $0, showPass: effectiveShowPass) })
+                            .equatable()
+                    }
+#endif
                 }
 #if !os(tvOS)
                 // The location-providing onTapGesture variant is unavailable on
@@ -174,36 +189,9 @@ public struct BoardView: View {
                 // (interactive == false); Phase 2 play uses a focus cursor, not taps.
                 .onTapGesture { location in
                     commentIsFocused = false
-                    gestureLocation = location
 
-                    if interactive && stones.isReady && !gobanState.isAutoPlaying && (gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale),
-                       let coordinate = locationToCoordinate(location: location, dimensions: dimensions),
-                       let point = coordinate.point,
-                       // Accept a pass ONLY when the visible pass tile is shown.
-                       // With Show Pass off the tile is hidden and its row is
-                       // reclaimed, but a tap in the empty band below/around the
-                       // board can still resolve to the pass point — reject that
-                       // phantom so a stray tap can't silently play a pass. Mirrors
-                       // the macOS overlay's pass-tile guard.
-                       effectiveShowPass || !point.isPass(width: Int(board.width), height: Int(board.height)),
-                       let move = coordinate.move,
-                       let turn = player.nextColorSymbolForPlayCommand,
-                       !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
-                       !gobanState.shouldGenMove(config: config, player: player) {
-
-                        if gobanState.isPendingMoveStale {
-                            gobanState.clearPendingMove()
-                        }
-
-                        if gobanState.isOverwriting(gameRecord: gameRecord) {
-                            confirmingOverwrite = true
-                        } else {
-                            gobanState.sendCheckMoveCommand(
-                                turn: turn,
-                                move: move,
-                                messageList: messageList
-                            )
-                        }
+                    if let coordinate = locationToCoordinate(location: location, dimensions: dimensions) {
+                        attemptHumanMove(at: coordinate, showPass: effectiveShowPass)
                     }
                 }
                 .confirmationDialog(
@@ -212,9 +200,7 @@ public struct BoardView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Overwrite", role: .destructive) {
-                        if let gestureLocation,
-                           let coordinate = locationToCoordinate(location: gestureLocation, dimensions: dimensions),
-                           let move = coordinate.move,
+                        if let move = pendingCoordinate?.move,
                            let turn = player.nextColorSymbolForPlayCommand {
                             gobanState.sendCheckMoveCommand(
                                 turn: turn,
@@ -351,5 +337,46 @@ public struct BoardView: View {
                         boardHeight: Int(board.height),
                         verticalFlip: gobanState.verticalFlip)
     }
+
+#if !os(tvOS)
+    /// The single gate for playing a human move at a resolved coordinate —
+    /// shared by the tap gesture and `BoardAccessibilityOverlay`'s per-element
+    /// accessibility action, so a spoken "Tap K ten" obeys the exact same
+    /// turn/lock/occupancy rules as a touch.
+    private func attemptHumanMove(at coordinate: Coordinate, showPass: Bool) {
+        // Voice activation must dismiss the comment keyboard just like a touch.
+        commentIsFocused = false
+        pendingCoordinate = coordinate
+
+        if interactive && stones.isReady && !gobanState.isAutoPlaying && (gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale),
+           let point = coordinate.point,
+           // Accept a pass ONLY when the visible pass tile is shown.
+           // With Show Pass off the tile is hidden and its row is
+           // reclaimed, but a tap in the empty band below/around the
+           // board can still resolve to the pass point — reject that
+           // phantom so a stray tap can't silently play a pass. Mirrors
+           // the macOS overlay's pass-tile guard.
+           showPass || !point.isPass(width: Int(board.width), height: Int(board.height)),
+           let move = coordinate.move,
+           let turn = player.nextColorSymbolForPlayCommand,
+           !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
+           !gobanState.shouldGenMove(config: config, player: player) {
+
+            if gobanState.isPendingMoveStale {
+                gobanState.clearPendingMove()
+            }
+
+            if gobanState.isOverwriting(gameRecord: gameRecord) {
+                confirmingOverwrite = true
+            } else {
+                gobanState.sendCheckMoveCommand(
+                    turn: turn,
+                    move: move,
+                    messageList: messageList
+                )
+            }
+        }
+    }
+#endif
 }
 
