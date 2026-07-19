@@ -882,6 +882,11 @@ struct GlobalSettingsView: View {
                         // reach quit via Global Settings ▸ Engine now that the sidebar
                         // Quit button is gone).
                         .accessibilityIdentifier("GlobalSettingsView.quitEngineRow")
+                        // The tap gesture is invisible to Voice Control/VoiceOver;
+                        // expose the row as a button with a speakable quit name.
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { confirmingQuit = true }
+                        .accessibilityInputLabels(["Quit Engine", "Model"])
                 }
 
                 if let version = topUIState.engineVersionDisplay {
@@ -894,6 +899,10 @@ struct GlobalSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture { confirmingQuit = true }
+                    // See the Model row above.
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { confirmingQuit = true }
+                    .accessibilityInputLabels(["Quit Engine", "Version"])
                 }
             }
 

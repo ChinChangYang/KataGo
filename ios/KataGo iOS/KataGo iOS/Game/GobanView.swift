@@ -61,12 +61,18 @@ struct GobanView: View {
 
                             ToolbarItem(placement: .principal) {
                                 HStack {
-                                    Text(gameRecord.name)
-                                        .bold()
-                                        .onTapGesture {
-                                            isEditorPresented = true
-                                        }
-                                        .id(toolbarUuid)
+                                    // A real Button (not Text + tap gesture) so
+                                    // Voice Control / VoiceOver can invoke the
+                                    // rename editor; .plain keeps the title look.
+                                    Button {
+                                        isEditorPresented = true
+                                    } label: {
+                                        Text(gameRecord.name)
+                                            .bold()
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityInputLabels([gameRecord.name, "Rename Game", "Game Name"])
+                                    .id(toolbarUuid)
                                 }
                             }
                         }

@@ -58,18 +58,24 @@ struct GameLinksView: View {
     @ViewBuilder
     private func selectableRow(for gameRecord: GameRecord) -> some View {
         let isSelected = topUIState.selectedGameIDs.contains(gameRecord.persistentModelID)
-        HStack {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                .imageScale(.large)
-            GameLinkView(gameRecord: gameRecord)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        // A real Button (not HStack + tap gesture) so Voice Control can toggle
+        // selection by speaking the game's name; .plain keeps the row look.
+        Button {
             withAnimation {
                 topUIState.toggle(gameRecord.persistentModelID)
             }
+        } label: {
+            HStack {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .imageScale(.large)
+                    .accessibilityHidden(true)
+                GameLinkView(gameRecord: gameRecord)
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var deleteAction: ((IndexSet) -> Void)? {
