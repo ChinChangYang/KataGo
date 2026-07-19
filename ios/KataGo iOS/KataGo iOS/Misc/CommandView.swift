@@ -48,7 +48,8 @@ struct CommandView: View {
                     messageList.appendAndSend(command: command)
                     command = ""
                 }) {
-                    Image(systemName: "paperplane")
+                    Label("Send", systemImage: "paperplane")
+                        .labelStyle(.iconOnly)
                 }
             }
             .padding()

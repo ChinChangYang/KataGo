@@ -31,7 +31,8 @@ struct ModelTrashButton: View {
         Button(role: .destructive) {
             isConfirming = true
         } label: {
-            Image(systemName: "trash")
+            Label("Remove Model", systemImage: "trash")
+                .labelStyle(.iconOnly)
         }
         .accessibilityIdentifier("ModelDetailView.trashButton")
         .confirmationDialog(
@@ -77,15 +78,22 @@ struct ModelDetailView: View {
             }
         } label: {
             if isDownloaded {
-                Image(systemName: "play.fill")
+                Label("Play", systemImage: "play.fill")
+                    .labelStyle(.iconOnly)
             } else if !(downloader.isDownloading) {
-                Image(systemName: "arrow.down")
+                Label("Download", systemImage: "arrow.down")
+                    .labelStyle(.iconOnly)
             } else {
+                Label {
+                    Text("Stop Download")
+                } icon: {
                     Image(
                         systemName: "stop.circle",
                         variableValue: downloader.progress
                     )
                     .symbolVariableValueMode(.draw)
+                }
+                .labelStyle(.iconOnly)
             }
         }
         .buttonStyle(.borderedProminent)

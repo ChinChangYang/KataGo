@@ -43,13 +43,13 @@ struct InfoView: View {
                 Spacer()
 
                 HStack {
-                    createButton(systemImage: "chart.xyaxis.line") {
+                    createButton("Chart", systemImage: "chart.xyaxis.line") {
                         withAnimation {
                             selectedTab = .chart
                         }
                     }
 
-                    createButton(systemImage: "text.rectangle") {
+                    createButton("Comments", systemImage: "text.rectangle") {
                         withAnimation {
                             selectedTab = .comments
                         }
@@ -65,13 +65,19 @@ struct InfoView: View {
     }
 
     func createButton(
+        _ title: String,
         systemImage: String,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .resizable()
-                .scaledToFit()
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .scaledToFit()
+            }
+            .labelStyle(.iconOnly)
         }
         .buttonStyle(.glass)
     }

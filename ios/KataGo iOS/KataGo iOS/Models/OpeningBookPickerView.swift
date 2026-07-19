@@ -22,7 +22,8 @@ struct OpeningBookTrashButton: View {
         Button(role: .destructive) {
             isConfirming = true
         } label: {
-            Image(systemName: "trash")
+            Label("Remove Opening Book", systemImage: "trash")
+                .labelStyle(.iconOnly)
         }
         .accessibilityIdentifier("OpeningBookDetailView.trashButton")
         .confirmationDialog(
@@ -70,10 +71,16 @@ struct OpeningBookDetailView: View {
             }
         } label: {
             if downloader.isDownloading {
-                Image(systemName: "stop.circle", variableValue: downloader.progress)
-                    .symbolVariableValueMode(.draw)
+                Label {
+                    Text("Stop Download")
+                } icon: {
+                    Image(systemName: "stop.circle", variableValue: downloader.progress)
+                        .symbolVariableValueMode(.draw)
+                }
+                .labelStyle(.iconOnly)
             } else {
-                Image(systemName: "arrow.down")
+                Label("Download", systemImage: "arrow.down")
+                    .labelStyle(.iconOnly)
             }
         }
         .buttonStyle(.borderedProminent)

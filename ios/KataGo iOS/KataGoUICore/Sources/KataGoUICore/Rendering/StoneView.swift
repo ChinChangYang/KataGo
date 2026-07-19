@@ -144,6 +144,10 @@ public struct StoneView: View {
                 .font(.system(size: dimensions.capturedStonesHeight * 0.7))
         }
         .controlSize(.mini)
+        // A stable speakable name for Voice Control: the visible label is the
+        // dynamic player name ("AI" / a rank profile / "Human"), which the
+        // user may not know to say.
+        .accessibilityInputLabels([name, playerColor == .black ? "Black Player" : "White Player"])
 
 #if os(visionOS) || os(tvOS)
         return button.buttonStyle(.bordered)
