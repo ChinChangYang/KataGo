@@ -354,7 +354,6 @@
 		AB94328A07BCACFA44DCB6EC /* TVSampleGameStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33CD3DF1666BC41A52FD8A3 /* TVSampleGameStore.swift */; };
 		ABDAD4BE72DFB4372CE86377 /* utf8_range.c in Sources */ = {isa = PBXBuildFile; fileRef = 920FF0ED642A58B9D57848B9 /* utf8_range.c */; };
 		AD38793CC430FE93C7EB51A3 /* extension_set.cc in Sources */ = {isa = PBXBuildFile; fileRef = A56F240AFB6311B643324AAC /* extension_set.cc */; };
-		AD87A82AFC5B9E45503D6AB8 /* iMessage App Icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D39BF2C940461BA90F6B46DB /* iMessage App Icon.icon */; };
 		ADDB71762E8FC9DCB6625131 /* output.cc in Sources */ = {isa = PBXBuildFile; fileRef = A45EF436A160EEA1E0BD3205 /* output.cc */; };
 		AE0F21A5D7A907A41C2BA700 /* GetGameInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B675272C95C1430043E527 /* GetGameInfo.swift */; };
 		AE45237315F8D1F22A84E18C /* check_op.cc in Sources */ = {isa = PBXBuildFile; fileRef = 9A84A6291B2BFE5CE2182097 /* check_op.cc */; };
@@ -1362,7 +1361,6 @@
 		D1F4B3BEA316F4BAC370ACA2 /* globals.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = globals.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/globals.cc"; sourceTree = SOURCE_ROOT; };
 		D21BF2739ADFEFF85E52094E /* stringify_sink.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stringify_sink.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/stringify_sink.cc"; sourceTree = SOURCE_ROOT; };
 		D26F1D6C1ED3EB7615BCE57B /* GhostCursorModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GhostCursorModelTests.swift; sourceTree = "<group>"; };
-		D39BF2C940461BA90F6B46DB /* iMessage App Icon.icon */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.iconcomposer.icon; name = "iMessage App Icon.icon"; path = "KataGoAnytimeMessages/iMessage App Icon.icon"; sourceTree = "<group>"; };
 		D4487A85C0D851B8CFC37E0A /* LinkedModel.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = LinkedModel.pb.cc; path = ../../cpp/external/katagocoreml/generated/LinkedModel.pb.cc; sourceTree = SOURCE_ROOT; };
 		D50CEC238BE790355F94D6D3 /* FileWriter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = FileWriter.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/FileWriter.cpp; sourceTree = SOURCE_ROOT; };
 		D53357C0B8CA23F49DBCC01E /* marshalling.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = marshalling.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/marshalling.cc"; sourceTree = SOURCE_ROOT; };
@@ -2348,7 +2346,6 @@
 				5C4E95A95BD9FCFF980A2DE4 /* Info.plist */,
 				EFB25C5CE4F1F86368576B5D /* KataGoAnytimeMessages.entitlements */,
 				60E6EEEF11176A47A8CB6554 /* Assets.xcassets */,
-				D39BF2C940461BA90F6B46DB /* iMessage App Icon.icon */,
 			);
 			name = KataGoAnytimeMessages;
 			sourceTree = SOURCE_ROOT;
@@ -3154,7 +3151,7 @@
 			);
 			productName = KataGoAnytimeMessages;
 			productReference = 805EC188B8350CF6F0525805 /* KataGoAnytimeMessages.appex */;
-			productType = "com.apple.product-type.app-extension";
+			productType = "com.apple.product-type.app-extension.messages";
 		};
 		8151A47FB047FE500278D8E6 /* KataGoAnytimeWidget */ = {
 			isa = PBXNativeTarget;
@@ -3475,7 +3472,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D05495FECDA9556C22FC6340 /* Assets.xcassets in Resources */,
-				AD87A82AFC5B9E45503D6AB8 /* iMessage App Icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

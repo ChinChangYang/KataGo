@@ -23,12 +23,18 @@ import tempfile
 GOLD = "#CC994C"
 
 # (filename, point size "WxH", scale, idiom, extra keys, mode)
-# All entries use mode "fit" (letterbox on gold). NOTE: at iOS 26
-# deployment actool silently DROPS every runtime size here — the runtime
-# icon ships as the Icon Composer stack instead (see
-# generate_imessage_iconstack.py). This set survives only to supply the
-# 1024x768 ios-marketing App Store icon. mode "fill" (stretch to the full
-# rect) is kept for experiments but currently unused.
+# All entries use mode "fit" (letterbox on gold). This stickersiconset is
+# the ONLY icon source for the Messages extension: with the target's
+# productType set to com.apple.product-type.app-extension.messages, actool
+# emits the rectangular runtime sizes as loose PNGs in the appex, injects
+# MSMessagesExtensionStoreIconName + CFBundleIcons via the partial plist,
+# and packs the 1024x768 ios-marketing icon into Assets.car. App Store
+# validation requires all of these (build 314 was rejected with
+# ITMS-90642/90649 when the target had the generic app-extension product
+# type, which makes actool ignore this set). Icon Composer .icon bundles
+# have no iMessage icon type — never add one named "iMessage App Icon".
+# mode "fill" (stretch to the full rect) is kept for experiments but
+# currently unused.
 IMAGES = [
     ("icon-29@2x.png",    (29, 29),    2, "iphone",        {}, "fit"),
     ("icon-29@3x.png",    (29, 29),    3, "iphone",        {}, "fit"),
