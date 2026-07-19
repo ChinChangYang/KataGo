@@ -68,6 +68,13 @@ final class PhotoImportCropUITests: XCTestCase {
         XCTAssertTrue(importButton.waitForExistence(timeout: 10), "Import button not found")
         importButton.tap()
 
+        // Import lands on the created game's board, whose toolbar title is a
+        // Button (voice-actionable rename) — not a static text — so reveal the
+        // Games list and assert the library cell, matching PhotoImportUITests'
+        // post-import pattern.
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.waitForExistence(timeout: 10) { back.tap() }
+
         let cell = app.staticTexts["UITest Crop Board"].firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 30),
                       "Imported game 'UITest Crop Board' not found in the library")
