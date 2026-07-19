@@ -11,6 +11,7 @@ import OSLog
 import SwiftUI
 import SwiftData
 import GameController
+import WidgetKit
 import KataGoUICore
 import KataGoGameStore
 
@@ -33,6 +34,7 @@ struct VisionRootView: View {
     @State private var ghost = GhostCursorModel()
     @State private var sceneModel = VisionBoardSceneModel()
     @State private var controllerInput = VisionControllerInput()
+    @State private var deepLinkRouter = DeepLinkRouter()
 
     @Environment(\.modelContext) private var modelContext
     @Environment(EngineLaunchStatus.self) private var engineLaunchStatus
@@ -429,6 +431,46 @@ struct VisionRootView: View {
                             width: Int(session.board.width),
                             height: Int(session.board.height))
         }
+        // Persist the DISPLAYED position into the record whenever a board
+        // diff lands (iOS processStonesReadyChange parity, minus iOS-only
+        // auto-play/book concerns). The Saved Game widget renders
+        // blackStones/whiteStones[currentIndex]; without this hook a game
+        // played on Vision has empty stone dictionaries and its widget shows
+        // a bare board.
+        .onChange(of: session.stones.isReady) { oldValue, newValue in
+            guard !oldValue, newValue,
+                  let gameRecord = navigationContext.selectedGameRecord
+            else { return }
+            // `refillString` (not `toString`) so an empty side stays
+            // present-but-empty rather than dropping the key, keeping
+            // GameEntity.lastIndex on the displayed move (iOS parity).
+            gameRecord.blackStones?[gameRecord.currentIndex] =
+                BoardPoint.refillString(session.stones.blackPoints,
+                                        width: Int(session.board.width),
+                                        height: Int(session.board.height))
+            gameRecord.whiteStones?[gameRecord.currentIndex] =
+                BoardPoint.refillString(session.stones.whitePoints,
+                                        width: Int(session.board.width),
+                                        height: Int(session.board.height))
+        }
+        // Widget/URL taps. Latch only open-game links (visionOS has no SGF
+        // import or Messages spool) and funnel every delivery window through
+        // applyPendingDeepLink: this onChange is the warm path; the boot
+        // resolver consumes the latch on a cold launch; and the post-ready
+        // drain in initializationTask covers a mid-boot delivery.
+        .onOpenURL { url in
+            #if DEBUG
+            NSLog("VisionDeepLink onOpenURL url=%@ parsed=%@",
+                  url.absoluteString,
+                  GameDeepLink.gameID(from: url)?.uuidString ?? "nil")
+            #endif
+            guard let id = GameDeepLink.gameID(from: url) else { return }
+            deepLinkRouter.pendingGameID = id
+        }
+        .onChange(of: deepLinkRouter.pendingGameID) { _, newValue in
+            guard newValue != nil else { return }
+            applyPendingDeepLink()
+        }
     }
 
     // MARK: - Ghost anchor
@@ -555,6 +597,49 @@ struct VisionRootView: View {
         shell.phase = blocked
     }
 
+    /// Applies a latched open-game deep link through the same gated path as
+    /// the Games picker. Applying is allowed from the blocked phases too
+    /// (`.unsupportedBoard`/`.boardTooLarge`): like the picker, a widget tap
+    /// must be a way out of them — only an in-flight boot keeps the latch.
+    private func applyPendingDeepLink() {
+        let isBooting = shell.phase == .booting || shell.phase == .choosingModel
+        let disposition = VisionDeepLinkFlow.disposition(
+            hasPending: deepLinkRouter.pendingGameID != nil,
+            isReady: isReady,
+            isBooting: isBooting)
+        #if DEBUG
+        NSLog("VisionDeepLink apply pending=%@ isReady=%d isBooting=%d disposition=%@",
+              deepLinkRouter.pendingGameID?.uuidString ?? "nil",
+              isReady ? 1 : 0, isBooting ? 1 : 0, String(describing: disposition))
+        #endif
+        switch disposition {
+        case .nothingPending, .keepLatched:
+            return
+        case .apply:
+            break
+        }
+        guard let id = deepLinkRouter.pendingGameID else { return }
+        deepLinkRouter.pendingGameID = nil
+        guard let match = GameRecord.resolveDeepLinkTarget(
+            id: id, container: modelContext.container) else { return }
+        #if DEBUG
+        NSLog("VisionDeepLink openGame uuid=%@", match.uuid?.uuidString ?? "nil")
+        #endif
+        if match.persistentModelID
+            == navigationContext.selectedGameRecord?.persistentModelID {
+            // openGame's identity guard would swallow the tap. Fine when the
+            // board is up — but from a blocked card (the user browsed into a
+            // too-large game; the picker's blocked arm keeps the PREVIOUS game
+            // selected and loaded) the tap must still be a way out: re-gate
+            // and remount the selection. Same-record switchGame is the
+            // branch-end reload's accepted double-reload.
+            guard shell.phase != .ready else { return }
+            mountReplacement(match)
+            return
+        }
+        openGame(match)
+    }
+
     /// The blocked phase for a board, or nil when it can mount: outside the
     /// renderable 2...37 range -> unsupported; renderable but over the
     /// launched NN buffer -> too large (raise Max Board Size in Settings).
@@ -579,8 +664,6 @@ struct VisionRootView: View {
     /// until the new one is loaded (the Mac dangling-record pitfall) — only
     /// then bulkDelete. Fallout order rides the root @Query's reverse
     /// lastModificationDate sort (the same "newest" boot's fetch resolves).
-    /// No WidgetCenter reload (iOS divergence): this target embeds no
-    /// widgets; iOS/watch widgets refresh from their own devices' stores.
     private func deleteGames(ids: Set<PersistentIdentifier>) {
         switch VisionGameDeleteFlow.fallout(
             orderedNewestFirst: gameRecords.map(\.persistentModelID),
@@ -602,6 +685,9 @@ struct VisionRootView: View {
             createAndMountFreshGame()
         }
         _ = modelContext.bulkDelete(gameIDs: ids)
+        // A widget configured for a deleted game must fall back to
+        // most-recent now, not at the next hourly reload (iOS parity).
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// openGame's gate for a replacement the user did not pick: mount when
@@ -977,6 +1063,13 @@ struct VisionRootView: View {
 
         isReady = true
 
+        // One-shot drain for a deep link delivered mid-boot: after
+        // resolveAndMountCurrentGame consumed a (possibly nil) latch but
+        // before the ready handshake above, onOpenURL can still land — the
+        // iOS Release-only cold-launch race, closed the same way here. Must
+        // run AFTER `.ready`/`isReady` so the disposition gate opens.
+        applyPendingDeepLink()
+
         // onChange(of: isConnected) never fires for a controller that was
         // already paired before launch (the common simulator case).
         if controllerInput.isConnected, !shell.hasAutoShownControllerHelp {
@@ -1002,8 +1095,19 @@ struct VisionRootView: View {
     /// 3D asset to render.
     @discardableResult
     private func resolveAndMountCurrentGame() -> Bool {
+        // A deep link latched before or during boot (a widget tap on a cold
+        // launch) overrides the default selection. Consume unconditionally:
+        // a stale latch must never re-fire on a later Max-Board-Size or
+        // model-swap restart, which re-enters this resolver.
+        let pendingID = deepLinkRouter.pendingGameID
+        deepLinkRouter.pendingGameID = nil
+
         let record: GameRecord
-        if let selected = navigationContext.selectedGameRecord {
+        if let pendingID,
+           let match = GameRecord.resolveDeepLinkTarget(
+               id: pendingID, container: modelContext.container) {
+            record = match
+        } else if let selected = navigationContext.selectedGameRecord {
             record = selected
         } else if let existing = try? GameRecord.fetchGameRecords(
             container: modelContext.container, fetchLimit: 1).first {
@@ -1200,5 +1304,8 @@ struct VisionRootView: View {
         session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
                                                      messageList: session.messageList,
                                                      player: session.player)
+        // The switch bumps the game's lastModificationDate, which can change
+        // an unconfigured widget's "most recent" resolution (iOS parity).
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

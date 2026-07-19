@@ -5,7 +5,7 @@ import KataGoGameStore
 struct SavedGameWidget: Widget {
     let kind = "SavedGameWidget"
 
-    var body: some WidgetConfiguration {
+    private var base: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind,
                                intent: SelectGameIntent.self,
                                provider: SavedGameProvider()) { entry in
@@ -17,6 +17,24 @@ struct SavedGameWidget: Widget {
         // platforms this widget ships to); iPhone simply never offers it. No `#if`
         // guard is needed — the enum case compiles on every slice.
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
+    }
+
+    var body: some WidgetConfiguration {
+        // The spatial modifiers exist only on the xros slice (mounting styles
+        // and textures are also macOS-unavailable), so the split must be
+        // compile-time: each slice returns one concrete opaque type.
+        #if os(visionOS)
+        base
+            // Elevated (desk/wall frame) AND recessed (wall cutout) — the
+            // full placement choice; the glass layout works in both.
+            .supportedMountingStyles([.elevated, .recessed])
+            // Glass, not paper: this is an information widget — the name and
+            // comment stay bright and legible over the glass backdrop instead
+            // of dimming with the room like a print.
+            .widgetTexture(.glass)
+        #else
+        base
+        #endif
     }
 }
 

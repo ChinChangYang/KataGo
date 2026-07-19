@@ -1,4 +1,22 @@
 import SwiftUI
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+
+/// `widgetAccentable` hands a view's luminance to the system tint in the
+/// widget accented rendering mode. `KataGoGameStore` also compiles for tvOS
+/// (the TV app renders this board), which has no WidgetKit — there the
+/// helper is an inert pass-through. Outside a widget (watch app, Messages)
+/// the modifier is a no-op, so call sites need no context checks.
+private extension View {
+    @ViewBuilder func boardAccentable(_ on: Bool) -> some View {
+        #if canImport(WidgetKit)
+        self.widgetAccentable(on)
+        #else
+        self
+        #endif
+    }
+}
 
 /// GTP columns skip the letter 'I'. Columns 0–24 are single letters A–Z (skip I);
 /// columns 25–49 are "A"+letter AA–AZ (skip AI) — boards up to 37×37 are
@@ -48,10 +66,12 @@ public struct WidgetBoardView: View {
     let candidateDots: [(x: Int, y: Int, rank: Int)]
     let lastMovePoint: (x: Int, y: Int)?
     let showCoordinates: Bool
+    let style: WidgetBoardStyle
 
     public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String],
                 candidateVertices: [String] = [], lastMoveVertex: String? = nil,
-                showCoordinates: Bool = false) {
+                showCoordinates: Bool = false,
+                style: WidgetBoardStyle = .standard) {
         let w = max(width, 1)
         let h = max(height, 1)
         self.width = w
@@ -63,6 +83,7 @@ public struct WidgetBoardView: View {
         self.candidateDots = annotations.dots
         self.lastMovePoint = annotations.last
         self.showCoordinates = showCoordinates
+        self.style = style
     }
 
     /// GTP column label for a 0-based column index, skipping 'I' and using the
@@ -116,8 +137,18 @@ public struct WidgetBoardView: View {
             let originX = (geo.size.width - cell * CGFloat(width - 1)) / 2
             let originY = (geo.size.height - cell * CGFloat(height - 1)) / 2
 
+            // Accented (tinted) mode: the wood would render as one flat tinted
+            // slab, so it is dropped; lines and labels become dim NEUTRAL
+            // (non-accentable) marks, and the stones carry the position in two
+            // distinguishable accent treatments — black solid, white outlined.
+            let gridColor = style.isAccented
+                ? Color.white.opacity(style.gridOpacity)
+                : Color.black.opacity(style.gridOpacity)
+
             ZStack {
-                Color(red: 0.85, green: 0.68, blue: 0.40)
+                if style.showsWoodBackground {
+                    Color(red: 0.85, green: 0.68, blue: 0.40)
+                }
                 Path { p in
                     for x in 0..<width {
                         let p1 = CGPoint(x: originX + CGFloat(x) * cell, y: originY)
@@ -132,38 +163,75 @@ public struct WidgetBoardView: View {
                         p.addLine(to: p2)
                     }
                 }
-                .stroke(Color.black.opacity(0.55), lineWidth: 0.5)
+                .stroke(gridColor, lineWidth: 0.5)
                 let hoshi = WidgetBoardView.hoshiPoints(width: width, height: height)
                 ForEach(Array(hoshi.enumerated()), id: \.offset) { _, p in
-                    Circle().fill(Color.black.opacity(0.55))
+                    Circle().fill(gridColor)
                         .frame(width: max(cell * 0.16, 2), height: max(cell * 0.16, 2))
                         .position(CGPoint(x: originX + CGFloat(p.0) * cell, y: originY + CGFloat(p.1) * cell))
                 }
                 ForEach(Array(white.enumerated()), id: \.offset) { _, s in
-                    Circle().fill(.white)
-                        .frame(width: cell * 0.92, height: cell * 0.92)
-                        .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
+                    Group {
+                        if style.whiteStoneIsAccentOutline {
+                            // Accent RING over a faint neutral interior — the
+                            // counterpart to black's solid disc; the two stay
+                            // tellable apart under any single tint.
+                            ZStack {
+                                Circle().fill(.white.opacity(0.2))
+                                Circle().strokeBorder(.white, lineWidth: max(cell * 0.08, 1))
+                                    .boardAccentable(true)
+                            }
+                        } else {
+                            Circle().fill(.white)
+                        }
+                    }
+                    .frame(width: cell * 0.92, height: cell * 0.92)
+                    .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
                 }
                 ForEach(Array(black.enumerated()), id: \.offset) { _, s in
-                    Circle().fill(.black)
-                        .frame(width: cell * 0.92, height: cell * 0.92)
-                        .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
+                    Group {
+                        if style.blackStoneIsAccentFill {
+                            // Full-luminance fill; the system supplies the hue.
+                            Circle().fill(.white).boardAccentable(true)
+                        } else {
+                            Circle().fill(.black)
+                        }
+                    }
+                    .frame(width: cell * 0.92, height: cell * 0.92)
+                    .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
                 }
                 let rankColors: [Color] = [.green, .yellow, .orange]
                 ForEach(Array(candidateDots.enumerated()), id: \.offset) { _, d in
-                    Circle().fill(rankColors[min(d.rank, rankColors.count - 1)])
-                        .frame(width: max(cell * 0.36, 3), height: max(cell * 0.36, 3))
-                        .position(CGPoint(x: originX + CGFloat(d.x) * cell, y: originY + CGFloat(d.y) * cell))
+                    Group {
+                        if style.usesRankHueDots {
+                            Circle().fill(rankColors[min(d.rank, rankColors.count - 1)])
+                        } else {
+                            // Hue is meaningless under one tint; rank becomes
+                            // a neutral opacity ramp instead.
+                            Circle().fill(.white.opacity(style.candidateDotOpacity(rank: d.rank)))
+                        }
+                    }
+                    .frame(width: max(cell * 0.36, 3), height: max(cell * 0.36, 3))
+                    .position(CGPoint(x: originX + CGFloat(d.x) * cell, y: originY + CGFloat(d.y) * cell))
                 }
                 if let lm = lastMovePoint {
-                    Circle().stroke(Color.red, lineWidth: max(cell * 0.08, 1))
-                        .frame(width: cell * 0.6, height: cell * 0.6)
-                        .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
+                    Group {
+                        if style.isAccented {
+                            Circle().stroke(Color.white.opacity(0.9), lineWidth: max(cell * 0.08, 1))
+                                .boardAccentable(true)
+                        } else {
+                            Circle().stroke(Color.red, lineWidth: max(cell * 0.08, 1))
+                        }
+                    }
+                    .frame(width: cell * 0.6, height: cell * 0.6)
+                    .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
                 }
                 if showCoordinates {
                     let fontSize = max(cell * 0.42, 5)
                     let offset = cell * 0.62
-                    let labelColor = Color.black.opacity(0.75)
+                    let labelColor = style.isAccented
+                        ? Color.white.opacity(0.75)
+                        : Color.black.opacity(0.75)
                     // Column letters (A–T, skipping I) above and below the grid.
                     ForEach(0..<width, id: \.self) { x in
                         let cx = originX + CGFloat(x) * cell
