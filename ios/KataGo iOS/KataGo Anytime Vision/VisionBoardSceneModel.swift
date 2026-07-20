@@ -57,6 +57,17 @@ final class VisionBoardSceneModel {
     /// Undone stones still lifting off the board, keyed by point so a stone
     /// re-mounting there can replace the in-flight entity.
     private var flyingAway: [BoardPoint: Entity] = [:]
+    /// Plays the stone placement click; the root wires it to the AudioModel.
+    /// Sound is scene-driven on this platform (it fires at the landing or
+    /// lift-off the cue picks), replacing GobanState's commit-time sound.
+    var playStoneSound: (() -> Void)?
+    /// True until the first non-empty stone diff after boot, a board
+    /// rebuild, or a game switch — that remount batch must stay silent.
+    private var isInitialStoneSync = true
+    /// Bumped by every switch/rebuild so an already-scheduled landing click
+    /// (a 0.25 s Task) can tell its stone's world was torn down and stay
+    /// quiet.
+    private var stoneSyncEpoch = 0
 
     init() {
         volumeRoot.addChild(boardRoot)
@@ -102,6 +113,22 @@ final class VisionBoardSceneModel {
         entity.children.forEach { disableFaceCulling(in: $0) }
     }
 
+    /// Placed stones cast a grounding shadow onto the board so they read as
+    /// seated rather than floating. Applied to every model-bearing
+    /// descendant of the stone prototypes so clones inherit it (the ghost
+    /// clone strips it again — an aiming cursor floats by design).
+    private static func applyGroundingShadow(in entity: Entity) {
+        if entity.components[ModelComponent.self] != nil {
+            entity.components.set(GroundingShadowComponent(castsShadow: true))
+        }
+        entity.children.forEach { applyGroundingShadow(in: $0) }
+    }
+
+    private static func removeGroundingShadow(in entity: Entity) {
+        entity.components.remove(GroundingShadowComponent.self)
+        entity.children.forEach { removeGroundingShadow(in: $0) }
+    }
+
     /// Swaps in the board model for a `width` x `height` game and resets the
     /// stone layer. No-op while a load is in flight or when the size is
     /// already mounted. The bundled USDZs are geometry-only squares: a
@@ -119,6 +146,8 @@ final class VisionBoardSceneModel {
             let white = try await Entity(contentsOf: Self.assetURL("stone_white", ext: "usdz"))
             Self.disableFaceCulling(in: black)
             Self.disableFaceCulling(in: white)
+            Self.applyGroundingShadow(in: black)
+            Self.applyGroundingShadow(in: white)
             stonePrototypes[.black] = black
             stonePrototypes[.white] = white
         }
@@ -171,6 +200,9 @@ final class VisionBoardSceneModel {
         flyingAway.values.forEach { $0.removeFromParent() }
         flyingAway.removeAll()
         planner.clear()
+        // The rebuilt board's first stone batch is a remount, not a move.
+        isInitialStoneSync = true
+        stoneSyncEpoch += 1
         setGhost(point: nil, color: .unknown)
         analysisRoot.children.forEach { $0.removeFromParent() }
         // The caches must empty with the entity tree, or the next sync
@@ -271,10 +303,24 @@ final class VisionBoardSceneModel {
         planner.expect(intent)
     }
 
-    /// Drops outstanding animation intents ahead of a batch update (jump to
-    /// start/end, game switch) so the mass diff mounts instantly.
+    /// Drops outstanding animation intents ahead of a user-initiated batch
+    /// update (jump to start/end) so the mass diff mounts instantly. Also
+    /// ends any initial-sync window: a same-position reload can leave the
+    /// mount flag armed (its diff is empty), and the jump the user just
+    /// pressed must click once, not consume the flag silently.
     func clearStoneAnimationIntents() {
         planner.clear()
+        isInitialStoneSync = false
+    }
+
+    /// Game-switch reset: drops outstanding intents AND silences the next
+    /// stone sync — the remount batch is not a played move. L2/R2 jumps use
+    /// clearStoneAnimationIntents instead: their batch diff still clicks
+    /// once.
+    func prepareForGameSwitch() {
+        planner.clear()
+        isInitialStoneSync = true
+        stoneSyncEpoch += 1
     }
 
     /// Withdraws an intent whose command the engine rejected (illegal move)
@@ -300,6 +346,20 @@ final class VisionBoardSceneModel {
         let removedPoints = Set(placed.keys.filter { desired[$0] != placed[$0]?.color })
         let addedPoints = Set(desired.keys.filter { placed[$0] == nil })
         let effect = planner.resolve(additions: addedPoints, removals: removedPoints)
+        let cue = StoneAnimationPlanner.soundCue(effect: effect,
+                                                 additions: addedPoints.count,
+                                                 removals: removedPoints.count,
+                                                 isInitialSync: isInitialStoneSync)
+        // A lift-off or batch click plays now; the fly-in landing click is
+        // scheduled at the mount site below, where the entity is in hand.
+        if cue == .playImmediately {
+            playStoneSound?()
+        }
+        // Only a non-empty diff consumes the mount flag: the flag must
+        // survive the empty re-syncs between a switch and its showboard.
+        if !addedPoints.isEmpty || !removedPoints.isEmpty {
+            isInitialStoneSync = false
+        }
 
         for (point, current) in placed where desired[point] != current.color {
             if effect == .flyAway(point) {
@@ -326,6 +386,17 @@ final class VisionBoardSceneModel {
                 stonesRoot.addChild(stone)
                 stone.move(to: rest, relativeTo: stonesRoot,
                            duration: Self.flyInDuration, timingFunction: .easeOut)
+                // The landing click, guarded like the flyAway cleanup: an
+                // undo can pull the stone back mid-flight and a switch or
+                // rebuild can tear its world down — a stone that never
+                // seated must not click.
+                let epoch = stoneSyncEpoch
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(Self.flyInDuration))
+                    guard let self, self.stoneSyncEpoch == epoch,
+                          self.placed[point]?.entity === stone else { return }
+                    self.playStoneSound?()
+                }
             } else {
                 stonesRoot.addChild(stone)
             }
@@ -573,6 +644,9 @@ final class VisionBoardSceneModel {
             ghostEntity?.removeFromParent()
             guard let prototype = stonePrototypes[color == .white ? .white : .black] else { return }
             let ghost = prototype.clone(recursive: true)
+            // The prototypes carry the placed-stone grounding shadow; a
+            // semi-transparent aiming cursor must not cast one.
+            Self.removeGroundingShadow(in: ghost)
             ghost.components.set(OpacityComponent(opacity: 0.45))
             ghostRoot.addChild(ghost)
             ghostEntity = ghost

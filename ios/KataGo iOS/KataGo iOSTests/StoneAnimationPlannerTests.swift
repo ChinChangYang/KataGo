@@ -148,4 +148,63 @@ struct StoneAnimationPlannerTests {
         #expect(planner.resolve(additions: [p], removals: []) == .flyIn(p))
         #expect(planner.pending.isEmpty)
     }
+
+    // MARK: - Sound cues
+
+    @Test func flyInCuesSoundAtLanding() {
+        #expect(StoneAnimationPlanner.soundCue(effect: .flyIn(p),
+                                               additions: 1,
+                                               removals: 0,
+                                               isInitialSync: false) == .playAfterFlyIn)
+    }
+
+    @Test func flyInCuesSoundEvenOnInitialSync() {
+        // An intent that survives into the first sync is a real move —
+        // the sound follows the animation, not the mount flag.
+        #expect(StoneAnimationPlanner.soundCue(effect: .flyIn(p),
+                                               additions: 1,
+                                               removals: 0,
+                                               isInitialSync: true) == .playAfterFlyIn)
+    }
+
+    @Test func flyAwayCuesImmediateSound() {
+        #expect(StoneAnimationPlanner.soundCue(effect: .flyAway(p),
+                                               additions: 0,
+                                               removals: 1,
+                                               isInitialSync: false) == .playImmediately)
+    }
+
+    @Test func batchDiffCuesOneImmediateSound() {
+        // L2/R2 bulk jump: stones changed, nothing animates.
+        #expect(StoneAnimationPlanner.soundCue(effect: .none,
+                                               additions: 7,
+                                               removals: 2,
+                                               isInitialSync: false) == .playImmediately)
+    }
+
+    @Test func removalOnlyBatchDiffCuesOneImmediateSound() {
+        #expect(StoneAnimationPlanner.soundCue(effect: .none,
+                                               additions: 0,
+                                               removals: 5,
+                                               isInitialSync: false) == .playImmediately)
+    }
+
+    @Test func initialMountStaysSilent() {
+        // Boot, game switch, and board rebuild remounts are not moves.
+        #expect(StoneAnimationPlanner.soundCue(effect: .none,
+                                               additions: 42,
+                                               removals: 0,
+                                               isInitialSync: true) == .none)
+    }
+
+    @Test func emptyDiffStaysSilent() {
+        #expect(StoneAnimationPlanner.soundCue(effect: .none,
+                                               additions: 0,
+                                               removals: 0,
+                                               isInitialSync: false) == .none)
+        #expect(StoneAnimationPlanner.soundCue(effect: .none,
+                                               additions: 0,
+                                               removals: 0,
+                                               isInitialSync: true) == .none)
+    }
 }

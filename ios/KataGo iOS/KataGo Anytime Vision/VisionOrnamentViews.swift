@@ -3,13 +3,14 @@
 //  KataGo Anytime Vision
 //
 //  The volume's control ornament: player chips (pinch to flip Human⇄AI),
-//  New Game (9/13/19), the Games toggle (shows/hides the left-side game-list
-//  ornament), the analysis sparkle (run/pause/off), the lock slot (iOS
-//  TopToolbarView parity: Lock/Unlock off-branch, red Deactivate Branch
-//  on-branch, with the Replace/Discard confirmation chain), the Settings
-//  gear (right-side card: analysis-information picker, ownership toggle,
-//  board orientation — mutually exclusive with the controller legend),
-//  controller help, the connect-controller hint, and the illegal-move row.
+//  the Games toggle (shows/hides the left-side game-list ornament, whose
+//  header carries New Game), the analysis sparkle (run/pause/off), the lock
+//  slot (iOS TopToolbarView parity: Lock/Unlock off-branch, red Deactivate
+//  Branch on-branch, with the Replace/Discard confirmation chain), the
+//  Settings gear (right-side card: analysis-information picker, ownership
+//  toggle, board orientation — mutually exclusive with the controller
+//  legend), controller help, the connect-controller hint, and the
+//  illegal-move row.
 //  No Undo or navigation buttons — the controller's X/L1 cover single-move
 //  undo, R1 steps forward, and L2/R2 jump to the start/end of the game.
 //  Ordinary SwiftUI — always pinch-interactive;
@@ -29,9 +30,6 @@ struct VisionControlOrnament: View {
     let shell: VisionGameShell
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
-    let maxBoardLength: Int
-    let onNewGame: (Int) -> Void
-    let onCustomGame: () -> Void
     let onSparkle: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
@@ -67,16 +65,6 @@ struct VisionControlOrnament: View {
             Divider().frame(height: 24)
 
             Group {
-                Menu {
-                    ForEach([9, 13, 19], id: \.self) { size in
-                        Button("\(size) × \(size)") { onNewGame(size) }
-                            .disabled(size > maxBoardLength)
-                    }
-                    Button("Custom…") { onCustomGame() }
-                } label: {
-                    Label("New Game", systemImage: "plus")
-                }
-
                 Button {
                     shell.showingGameList.toggle()
                 } label: {
@@ -183,6 +171,18 @@ struct VisionControlOrnament: View {
             : session.stones.whiteStonesCaptured
         let isToMove = session.player.nextColorForPlayCommand == color
 
+        // One interpolated Text so the SF Symbol shares the label's baseline:
+        // sibling Image + Text views center-align in the HStack, which reads
+        // as vertical misalignment on device. The captured count concatenates
+        // in so it stays on that same baseline.
+        var chipText = Text("\(Image(systemName: isAI ? "cpu" : "person.fill")) \(isAI ? "AI" : "Human")")
+            .font(.caption)
+        if captured > 0 {
+            chipText = chipText + Text(" ×\(captured)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+
         return Button {
             onToggleAI(color)
         } label: {
@@ -191,15 +191,7 @@ struct VisionControlOrnament: View {
                     .fill(color == .black ? Color.black : Color.white)
                     .stroke(.secondary, lineWidth: 1)
                     .frame(width: 14, height: 14)
-                Image(systemName: isAI ? "cpu" : "person.fill")
-                    .font(.caption)
-                Text(isAI ? "AI" : "Human")
-                    .font(.caption)
-                if captured > 0 {
-                    Text("×\(captured)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+                chipText
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -499,9 +491,12 @@ struct VisionNewGamePanel: View {
 
 /// Left-side game list, toggled from the control bar's Games button: the
 /// newest iCloud-synced games (the root @Query live-refreshes), pinch a row
-/// to load it. The list stays up after a pick so the checkmark tracks the
-/// switch; the toggle or the close button dismisses it. Deletion happens in
-/// Select mode only (the open game included; the root remounts the newest
+/// to load it. The header's + menu starts a new game (9/13/19 quick sizes,
+/// gated by the engine cap, or Custom… → the right-anchor panel) — shown
+/// even when the library is empty. The list stays up after a pick so the
+/// checkmark tracks the switch — and after a create, for the same reason;
+/// the toggle or the close button dismisses it. Deletion happens in Select
+/// mode only (the open game included; the root remounts the newest
 /// remaining game, else a fresh one).
 struct VisionGameListOrnament: View {
     let gameRecords: [GameRecord]
@@ -511,6 +506,8 @@ struct VisionGameListOrnament: View {
     let modelBoardCap: Int
     let navigationContext: NavigationContext
     let onOpenGame: (GameRecord) -> Void
+    let onNewGame: (Int) -> Void
+    let onCustomGame: () -> Void
     let onDeleteGames: (Set<PersistentIdentifier>) -> Void
     let onDismiss: () -> Void
 
@@ -555,6 +552,22 @@ struct VisionGameListOrnament: View {
             Label("Games", systemImage: "square.stack.3d.up")
                 .font(.headline)
             Spacer()
+            // Hidden in Select mode (iOS GameListToolbar parity): selection
+            // is a focused flow, and a mid-selection create would land the
+            // new game inside it as a deletable row.
+            if !isSelecting {
+                Menu {
+                    ForEach([9, 13, 19], id: \.self) { size in
+                        Button("\(size) × \(size)") { onNewGame(size) }
+                            .disabled(size > maxBoardLength)
+                    }
+                    Button("Custom…") { onCustomGame() }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("New Game")
+            }
             if !gameRecords.isEmpty {
                 Button(VisionGameDeleteFlow.selectToggleTitle(isSelecting: isSelecting)) {
                     withAnimation {

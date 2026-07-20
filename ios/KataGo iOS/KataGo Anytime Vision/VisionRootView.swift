@@ -180,9 +180,6 @@ struct VisionRootView: View {
                     shell: shell,
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
-                    maxBoardLength: engineController.maxBoardLength,
-                    onNewGame: { startNewGame(size: $0) },
-                    onCustomGame: { shell.toggleNewGamePanel() },
                     onSparkle: { sparkleAnalysisAction() },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
@@ -238,6 +235,8 @@ struct VisionRootView: View {
                     modelBoardCap: engineController.activeModel.nnLen,
                     navigationContext: navigationContext,
                     onOpenGame: { openGame($0) },
+                    onNewGame: { startNewGame(size: $0) },
+                    onCustomGame: { shell.toggleNewGamePanel() },
                     onDeleteGames: { deleteGames(ids: $0) },
                     onDismiss: { shell.showingGameList = false }
                 )
@@ -290,6 +289,9 @@ struct VisionRootView: View {
             // any engine exists (idempotent; engine-independent).
             Task { await cacheReadiness.start() }
             controllerInput.onEvent = { handleControllerEvent($0) }
+            // Scene-driven sound (gobanState.soundEffect stays false here):
+            // the scene model cues the click at the stone's landing.
+            sceneModel.playStoneSound = { audioModel.playPlaySound(soundEffect: true) }
         }
         // The GTP read loop — parses board/analysis lines into the models.
         // Must not run concurrently with the handshake (the bridge's sole
@@ -746,6 +748,10 @@ struct VisionRootView: View {
               session.gobanState.pendingMoveTurn == nil,
               !isAITurn
         else { return }
+        // A pass changes no stones, so the scene-driven sound never fires
+        // for it — click here instead (a pass is always legal, so the
+        // kata-check-move round cannot retract this).
+        audioModel.playPlaySound(soundEffect: true)
         session.gobanState.sendCheckMoveCommand(turn: turn,
                                                 move: "pass",
                                                 messageList: session.messageList)
@@ -861,13 +867,17 @@ struct VisionRootView: View {
             all: false
         )
         guard session.stones.isReady, !isAITurn else { return }
-        // The recorded next stone flies in (nothing to animate for a pass).
-        if let next = session.gobanState.getNextMove(gameRecord: gameRecord),
-           !next.location.pass {
-            sceneModel.expectStoneAnimation(.place(
-                BoardPoint(location: next.location,
-                           width: Int(session.board.width),
-                           height: Int(session.board.height))))
+        // The recorded next stone flies in; stepping over a pass diffs no
+        // stone, so its click plays here (the commit-time sound it had).
+        if let next = session.gobanState.getNextMove(gameRecord: gameRecord) {
+            if next.location.pass {
+                audioModel.playPlaySound(soundEffect: true)
+            } else {
+                sceneModel.expectStoneAnimation(.place(
+                    BoardPoint(location: next.location,
+                               width: Int(session.board.width),
+                               height: Int(session.board.height))))
+            }
         }
         session.gobanState.forwardMoves(limit: 1,
                                         gameRecord: gameRecord,
@@ -890,13 +900,18 @@ struct VisionRootView: View {
     /// SENTINEL, not nil — the explicit pass check is required.
     private func captureAIMoveIntent(_ newValue: String?) {
         guard let move = newValue else { return }
-        if move != "pass",
-           !session.gobanState.confirmingAIOverwrite,
-           navigationContext.selectedGameRecord != nil,
-           let point = BoardPoint(move: move,
-                                  width: Int(session.board.width),
-                                  height: Int(session.board.height)) {
-            sceneModel.expectStoneAnimation(.place(point))
+        if !session.gobanState.confirmingAIOverwrite,
+           navigationContext.selectedGameRecord != nil {
+            if move == "pass" {
+                // An AI pass commits with no stone diff, so the scene-driven
+                // sound never fires — click here (playPass covers the human
+                // pass).
+                audioModel.playPlaySound(soundEffect: true)
+            } else if let point = BoardPoint(move: move,
+                                             width: Int(session.board.width),
+                                             height: Int(session.board.height)) {
+                sceneModel.expectStoneAnimation(.place(point))
+            }
         }
         aiMove = nil
     }
@@ -971,6 +986,23 @@ struct VisionRootView: View {
         )
         guard session.stones.isReady, !isAITurn else { return }
         sceneModel.clearStoneAnimationIntents()
+        // A jump whose remaining tail is all passes (finished games end
+        // pass-pass) diffs no stones, so the scene-driven batch click never
+        // fires — click here, like forwardOneMove's recorded-pass click.
+        if let sgf = session.gobanState.getSgf(gameRecord: gameRecord),
+           let start = session.gobanState.getCurrentIndex(gameRecord: gameRecord) {
+            let sgfHelper = SgfOperations(sgf: sgf)
+            var index = start
+            var tailIsOnlyPasses = false
+            while let move = sgfHelper.getMove(at: index) {
+                guard move.location.pass else { tailIsOnlyPasses = false; break }
+                tailIsOnlyPasses = true
+                index += 1
+            }
+            if tailIsOnlyPasses {
+                audioModel.playPlaySound(soundEffect: true)
+            }
+        }
         session.gobanState.forwardMoves(limit: nil,
                                         gameRecord: gameRecord,
                                         board: session.board,
@@ -1024,10 +1056,12 @@ struct VisionRootView: View {
 
     private func initializationTask() async {
         // Session-level flags BEFORE the handshake completes, so no engine
-        // reply can precede them (tvOS discipline).
+        // reply can precede them (tvOS discipline). soundEffect stays false:
+        // on this platform the placement sound is scene-driven — the scene
+        // model cues it when the flying stone lands, not at GTP commit time
+        // (the pass paths, which never diff a stone, click for themselves).
         session.autoCreatesGameOnEmptyLibrary = false
         session.gobanState.verticalFlip = false
-        session.gobanState.soundEffect = true
         session.gobanState.continuousAnalysisUsesConfigInterval = true
         session.gobanState.analysisStatus = .run
         // Persisted display settings (the shell owns the VisionSettings.*
@@ -1286,8 +1320,13 @@ struct VisionRootView: View {
     /// analysis (or the genmove bundle) for the new game.
     private func switchGame(to record: GameRecord) {
         ghost.reset()
-        // The remount is a batch diff — no stone of it should animate.
-        sceneModel.clearStoneAnimationIntents()
+        // The remount is a batch diff — no stone of it should animate or
+        // click (loading a game is not a move). Aborting a half-parsed
+        // showboard block keeps the OLD game's stones from diffing after
+        // this reset (which would consume the silence flag and let the
+        // remount click).
+        sceneModel.prepareForGameSwitch()
+        session.abortInFlightBoardCollection()
         session.sendInitialCommands(config: record.concreteConfig)
         record.currentIndex = SgfOperations(sgf: record.sgf).moveSize ?? 0
 

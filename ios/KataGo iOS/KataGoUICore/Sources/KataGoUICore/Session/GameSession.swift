@@ -267,6 +267,17 @@ public final class GameSession {
 
     // MARK: - Collectors
 
+    /// Drops a half-parsed showboard block (a game switch can race the read
+    /// loop mid-block). The block's remaining lines then fall through the
+    /// isShowingBoard guard as ordinary messages, so the old game's stones
+    /// and "Next player" line can never land after the switch's reset.
+    /// showBoardCount bookkeeping is unaffected: the block's "= MoveNum"
+    /// was already consumed.
+    public func abortInFlightBoardCollection() {
+        isShowingBoard = false
+        boardText = []
+    }
+
     func maybeCollectBoard(message: String) async {
         // Check if the board is not currently being shown
         guard isShowingBoard else {
