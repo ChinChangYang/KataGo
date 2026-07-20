@@ -13,7 +13,10 @@ import KataGoUICore
 struct KataGo_iOSApp: App {
     @State private var cacheReadiness: CoreMLCacheReadiness = CoreMLCacheReadiness()
     @State private var engineLaunchStatus: EngineLaunchStatus
-    @State private var deepLinkRouter = DeepLinkRouter()
+    // The process-wide shared router (not a private instance) so the Shortcuts
+    // "Open …" App Intents can write `pendingGameID` in-process — the system
+    // refuses to open the custom katago-anytime scheme on their behalf.
+    @State private var deepLinkRouter = DeepLinkRouter.shared
 
     init() {
         // Create the EngineLaunchStatus object first so we can capture a

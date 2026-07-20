@@ -1,7 +1,9 @@
 import Testing
 import Foundation
 import SwiftData
+import AppIntents
 import KataGoUICore
+@testable import KataGo_Anytime
 
 struct GameDeepLinkTests {
     @Test func roundTrip_buildsAndParsesGameID() {
@@ -187,5 +189,53 @@ struct GameDrainTargetTests {
         let newest = rec("Newest")
         #expect(GameRecord.resolveDrainTarget(stashed: nil, stashedIsDeleted: false,
                                              fetched: [newest]) === newest)
+    }
+}
+
+/// Shortcuts "Open Go Game" / "Open Latest Go Game": returning `OpenURLIntent`
+/// with the custom `katago-anytime` scheme is refused on-device ("The provided
+/// URL scheme 'katago-anytime' is unsupported; launch is prohibited") —
+/// `OpenURLIntent` supports only universal links. The intents must instead
+/// declare foreground execution and route the game id in-process through the
+/// shared `DeepLinkRouter` (iOS) / `selectGame(byID:)` (macOS), preserving the
+/// hardened pipeline (readiness gating, deleted-game fallback) without asking
+/// the system to open a URL.
+struct OpenGameIntentRoutingTests {
+    @Test func openGame_declaresForegroundExecution() {
+        #expect(OpenGame.supportedModes == .foreground)
+    }
+
+    @Test func openLatestGame_declaresForegroundExecution() {
+        #expect(OpenLatestGame.supportedModes == .foreground)
+    }
+
+    @Test @MainActor func gameOpener_publishesPendingGameID_toSharedRouter() async {
+        DeepLinkRouter.shared.pendingGameID = nil
+        defer { DeepLinkRouter.shared.pendingGameID = nil }   // no cross-test residue
+        let id = UUID()
+        await GameOpener.open(gameID: id)
+        #expect(DeepLinkRouter.shared.pendingGameID == id)
+    }
+
+    @MainActor
+    private func container() throws -> ModelContainer {
+        try ModelContainer(for: SharedModelContainer.schema,
+                           configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                                              isStoredInMemoryOnly: true))
+    }
+
+    @Test @MainActor func latestGameID_returnsNewestRecord() throws {
+        let c = try container()
+        let older = GameRecord(config: Config()); older.name = "Older"
+        older.uuid = UUID(); older.lastModificationDate = Date(timeIntervalSince1970: 1)
+        let newer = GameRecord(config: Config()); newer.name = "Newer"
+        newer.uuid = UUID(); newer.lastModificationDate = Date(timeIntervalSince1970: 2)
+        c.mainContext.insert(older); c.mainContext.insert(newer)
+        try c.mainContext.save()
+        #expect(OpenLatestGame.latestGameID(container: c) == newer.uuid)
+    }
+
+    @Test @MainActor func latestGameID_emptyStore_returnsNil() throws {
+        #expect(try OpenLatestGame.latestGameID(container: container()) == nil)
     }
 }

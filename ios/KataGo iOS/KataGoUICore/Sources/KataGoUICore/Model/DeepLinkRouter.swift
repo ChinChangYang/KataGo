@@ -20,4 +20,13 @@ import SwiftUI
 public class DeepLinkRouter {
     public var pendingGameID: UUID?
     public init() {}
+
+    /// Process-wide instance shared between the iOS app (environment-injected
+    /// at the root) and the Shortcuts "Open …" App Intents, which cannot reach
+    /// a `@State`-owned router. The intents write `pendingGameID` here directly:
+    /// returning `OpenURLIntent` with the custom `katago-anytime` scheme is
+    /// refused by the system ("launch is prohibited" — only universal links are
+    /// supported), so they route in-process instead. visionOS keeps its own
+    /// per-view instance and does not use this.
+    @MainActor public static let shared = DeepLinkRouter()
 }
