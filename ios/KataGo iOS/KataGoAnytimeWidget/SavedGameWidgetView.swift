@@ -135,5 +135,14 @@ struct SavedGameWidgetView: View {
         // With the visionOS glass texture this renders as the glass backdrop
         // layer while the content above stays bright; unchanged elsewhere.
         .containerBackground(.fill.tertiary, for: .widget)
+        #if os(visionOS)
+        // The glass texture composites content over DARK glass, but the
+        // widget's inherited color scheme stays light, so default label
+        // colors resolved to black-on-black (verified in the simulator:
+        // the game name was laid out yet invisible). Pin the content to
+        // the dark scheme so .primary/.secondary stay bright over glass —
+        // the HIG's "foreground elements always stay bright" for glass.
+        .environment(\.colorScheme, .dark)
+        #endif
     }
 }
