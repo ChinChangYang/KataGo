@@ -3,13 +3,15 @@ import KataGoGameStore
 
 struct SavedGameBackgroundTests {
     @Test func rawValuesAreStable() {
-        // The raw values are the contract with the widget's AppEnum parameter
-        // (SavedGameBackgroundOption shares them) and with any stored intent on
-        // a user's device — renaming a case must never change these strings.
-        #expect(SavedGameBackground.wood.rawValue == "wood")
-        #expect(SavedGameBackground.glass.rawValue == "glass")
-        #expect(SavedGameBackground.light.rawValue == "light")
-        #expect(SavedGameBackground.dark.rawValue == "dark")
+        // The raw values are the contract with the widget's stored intent
+        // parameter AND the strings the Edit sheet displays for a
+        // never-configured widget (the sheet shows the raw value until the
+        // user picks from the options list) — so they are the capitalized
+        // display names, and renaming a case must never change them.
+        #expect(SavedGameBackground.wood.rawValue == "Wood")
+        #expect(SavedGameBackground.glass.rawValue == "Glass")
+        #expect(SavedGameBackground.light.rawValue == "Light")
+        #expect(SavedGameBackground.dark.rawValue == "Dark")
     }
 
     @Test func defaultIsWood() {
@@ -19,11 +21,13 @@ struct SavedGameBackgroundTests {
 
     @Test func resolveFallsBackToTheDefault() {
         // Pre-upgrade widgets have no stored background parameter (nil), and a
-        // corrupted or future raw value must degrade the same way: to Wood.
+        // corrupted, case-mismatched, or future raw value must degrade the
+        // same way: to Wood.
         #expect(SavedGameBackground.resolve(rawValue: nil) == .wood)
         #expect(SavedGameBackground.resolve(rawValue: "") == .wood)
         #expect(SavedGameBackground.resolve(rawValue: "sandstone") == .wood)
-        #expect(SavedGameBackground.resolve(rawValue: "Wood") == .wood)
+        #expect(SavedGameBackground.resolve(rawValue: "WOOD") == .wood)
+        #expect(SavedGameBackground.resolve(rawValue: "glass") == .wood)
     }
 
     @Test func resolveRoundTripsEveryCase() {
@@ -33,8 +37,17 @@ struct SavedGameBackgroundTests {
     }
 
     @Test func caseOrderMatchesThePicker() {
-        // allCases drives nothing at runtime today, but it documents the Edit
-        // Widget picker order: default first, then the pre-redesign glass look.
+        // allCases drives the Edit Widget picker order: default first, then
+        // the pre-redesign glass look.
         #expect(SavedGameBackground.allCases == [.wood, .glass, .light, .dark])
+    }
+
+    @Test func displayNamesAreTheHumanPickerTitles() {
+        // The Background options provider shows these in the Edit Widget
+        // picker (the raw values stay lowercase persistence keys).
+        #expect(SavedGameBackground.wood.displayName == "Wood")
+        #expect(SavedGameBackground.glass.displayName == "Glass")
+        #expect(SavedGameBackground.light.displayName == "Light")
+        #expect(SavedGameBackground.dark.displayName == "Dark")
     }
 }

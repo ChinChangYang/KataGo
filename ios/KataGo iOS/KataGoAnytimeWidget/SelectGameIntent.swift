@@ -20,28 +20,37 @@ struct SelectGameIntent: WidgetConfigurationIntent {
     @Parameter(title: "Game", optionsProvider: GameOptionsProvider())
     var gameID: String?
 
-    /// The widget backplate. Defaults to Wood (the full-bleed goban look);
-    /// configurations stored before this parameter existed decode to the same
-    /// default via the declared `default:`. A plain String-backed AppEnum for
-    /// the same appex-survivability reason `gameID` is a plain String.
-    @Parameter(title: "Background", default: .wood)
-    var background: SavedGameBackgroundOption
+    /// The widget backplate, stored as a `SavedGameBackground` RAW VALUE
+    /// String. This started life as an AppEnum parameter, but an AppEnum goes
+    /// through the same AppIntents resolver machinery as `GameEntity` — and in
+    /// the widget process that resolution yields NIL (verified in the
+    /// simulator log: every timeline request logged "Prepared background to
+    /// SavedGameBackgroundOption(nil)" even after the user picked Glass and
+    /// the Edit sheet redisplayed Glass), so the declared default silently won
+    /// forever. A plain String decodes directly from the stored intent — the
+    /// same fix as `gameID` above. nil (unconfigured or pre-upgrade) resolves
+    /// to Wood via `SavedGameBackground.resolve`.
+    @Parameter(title: "Background", optionsProvider: BackgroundOptionsProvider())
+    var background: String?
 }
 
-/// The Edit Widget background choices, mirroring `SavedGameBackground` in
-/// KataGoGameStore case-for-case: the provider hands only the RAW VALUE
-/// across (via `SavedGameBackground.resolve`), so the raw strings are the
-/// contract between the two enums and must stay in sync.
-enum SavedGameBackgroundOption: String, AppEnum {
-    case wood, glass, light, dark
+/// Supplies the Background picker: one item per `SavedGameBackground` case,
+/// value = the raw String the provider restores, title = the display name.
+/// Static list, no store access — instant and memory-free in the appex.
+struct BackgroundOptionsProvider: DynamicOptionsProvider {
+    func results() async throws -> ItemCollection<String> {
+        let items = SavedGameBackground.allCases.map { background in
+            IntentItem<String>(background.rawValue,
+                               title: "\(background.displayName)")
+        }
+        return ItemCollection(sections: [IntentItemSection(items: items)])
+    }
 
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Background"
-    static let caseDisplayRepresentations: [SavedGameBackgroundOption: DisplayRepresentation] = [
-        .wood: "Wood",
-        .glass: "Glass",
-        .light: "Light",
-        .dark: "Dark"
-    ]
+    /// Shown in the Edit sheet row before the user ever picks — the designed
+    /// Wood default rather than an empty row.
+    func defaultResult() async -> String? {
+        SavedGameBackground.default.rawValue
+    }
 }
 
 /// Supplies the widget configuration picker with one option per saved game: the

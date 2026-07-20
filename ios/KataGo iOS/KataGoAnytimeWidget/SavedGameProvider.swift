@@ -24,7 +24,7 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         if context.isPreview {
             return SavedGameEntry(date: .now, snapshot: .placeholder,
                                   background: SavedGameBackground.resolve(
-                                      rawValue: configuration.background.rawValue))
+                                      rawValue: configuration.background))
         }
         return await entry(for: configuration)
     }
@@ -52,6 +52,6 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         }
         return SavedGameEntry(date: .now, snapshot: snapshot,
                               background: SavedGameBackground.resolve(
-                                  rawValue: configuration.background.rawValue))
+                                  rawValue: configuration.background))
     }
 }
