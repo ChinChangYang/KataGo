@@ -83,6 +83,15 @@ public enum SelfPlayGame {
         }
     }
 
+    /// The interstitial's fallback before the engine's post-pass printsgf
+    /// lands RE[…] in the record: anticipate the result from the live score
+    /// sign. Shares `ScoreLeadText`'s evenness rule — a score that would
+    /// display as 0.0 is a draw, not a Black win.
+    public static func anticipatedResultText(blackScore: Float) -> String {
+        if ScoreLeadText.isEven(blackScore: blackScore) { return resultText(.draw) }
+        return blackScore > 0 ? "Black wins" : "White wins"
+    }
+
     /// "2" for whole points, "3.5" for halves — no trailing ".0".
     private static func marginText(_ margin: Float) -> String {
         String(format: "%g", margin)

@@ -403,9 +403,7 @@ struct TVSelfPlayScreen: View {
     }
 
     private var scoreText: String {
-        let s = rootScore.black
-        let side = s >= 0 ? "B" : "W"
-        return String(format: "%@+%.1f", side, abs(s))
+        ScoreLeadText.sideAnnotated(blackScore: rootScore.black)
     }
 
     // MARK: - Interstitial
@@ -429,13 +427,14 @@ struct TVSelfPlayScreen: View {
     }
 
     /// The engine's anticipated result lands as RE[…] in the post-pass
-    /// printsgf; until that reply arrives, fall back to the live score sign.
+    /// printsgf; until that reply arrives, fall back to the live score sign
+    /// (draw-aware: a dead-even score must not read as a Black win).
     private func resultText(for game: GameRecord) -> String {
         let parsed = SelfPlayGame.result(fromSgf: game.sgf)
         if parsed != .unknown {
             return SelfPlayGame.resultText(parsed)
         }
-        return rootScore.black >= 0 ? "Black wins" : "White wins"
+        return SelfPlayGame.anticipatedResultText(blackScore: rootScore.black)
     }
 
     // MARK: - Lifecycle
@@ -471,9 +470,18 @@ struct TVSelfPlayScreen: View {
         gobanState.eyeStatus = .opened
         gobanState.analysisStatus = .run
 
-        // defaultSgf → loads unlocked (editing), so moves persist into the
-        // record. Never rewind this game (a rewound editing position would
-        // trip the AI-overwrite confirmation instead of playing).
+        // The demo must load unlocked (editing) so moves persist into the
+        // record — but editingAfterLoad only auto-unlocks the 19×19
+        // defaultSgf, and a sub-19 Max Board Size swaps in a small-board
+        // default. Loaded locked, the first AI move silently activates a
+        // branch and every printsgf reply — including the final RE[…] —
+        // routes into branchSgf, so the interstitial's score-sign fallback
+        // (wrong for draws) shows all 8 s, "Move N" freezes at 0, and the
+        // chart stays empty. Request the one-shot unlock (the
+        // VisionRootView.startNewGame precedent; loadGame consumes it).
+        // Never rewind this game (a rewound editing position would trip the
+        // AI-overwrite confirmation instead of playing).
+        gobanState.unlockEditingOnReload = true
         gobanState.loadGame(gameRecord: newGame, previous: nil, player: player,
                             bookLookup: bookLookup, messageList: messageList,
                             board: board, stones: stones)
@@ -522,7 +530,10 @@ struct TVSelfPlayScreen: View {
         ghost.reset()
 
         // loadsgf inherently cancels the continuous analysis of the finished
-        // position; the rest of the setup mirrors first entry.
+        // position; the rest of the setup mirrors first entry — including
+        // the one-shot unlock (see startIfNeeded: a Max-Board-Size-clamped
+        // demo would otherwise load locked and branch-route every printsgf).
+        gobanState.unlockEditingOnReload = true
         gobanState.loadGame(gameRecord: next, previous: finished, player: player,
                             bookLookup: bookLookup, messageList: messageList,
                             board: board, stones: stones)

@@ -417,8 +417,7 @@ struct TVReviewScreen: View {
         } else {
             s = rootScore.black
         }
-        let side = s >= 0 ? "B" : "W"
-        return String(format: "%@+%.1f", side, abs(s))
+        return ScoreLeadText.sideAnnotated(blackScore: s)
     }
 
     // MARK: - Timeline + branch exit

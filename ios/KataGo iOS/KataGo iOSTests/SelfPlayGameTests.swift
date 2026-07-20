@@ -80,4 +80,49 @@ struct SelfPlayGameTests {
         #expect(SelfPlayGame.resultText(.draw) == "Draw")
         #expect(SelfPlayGame.resultText(.unknown) == "Game over")
     }
+
+    // The interstitial's pre-RE[] fallback anticipates the result from the
+    // live score sign. A dead-even score is a draw — the old `>= 0` sign
+    // check attributed it to Black (user-reported on a drawn live game).
+    @Test("Anticipated result from live score: sign wins, even is a draw")
+    func anticipatedResultText() {
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: 3.5) == "Black wins")
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: 0.1) == "Black wins")
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: -0.5) == "White wins")
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: 0) == "Draw")
+        // Same evenness rule as the score label: anything that would display
+        // as 0.0 is a draw, either side of zero.
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: 0.04) == "Draw")
+        #expect(SelfPlayGame.anticipatedResultText(blackScore: -0.04) == "Draw")
+    }
+
+    @Test("Side-annotated score lead: B+/W+ one decimal, Even at zero")
+    func sideAnnotatedScoreLead() {
+        #expect(ScoreLeadText.sideAnnotated(blackScore: 2.34) == "B+2.3")
+        #expect(ScoreLeadText.sideAnnotated(blackScore: 0.06) == "B+0.1")
+        #expect(ScoreLeadText.sideAnnotated(blackScore: -0.51) == "W+0.5")
+        #expect(ScoreLeadText.sideAnnotated(blackScore: -12) == "W+12.0")
+        // A lead that would display as 0.0 must not claim a side (the old
+        // `>= 0` check rendered a drawn position as "B+0.0").
+        #expect(ScoreLeadText.sideAnnotated(blackScore: 0) == "Even")
+        #expect(ScoreLeadText.sideAnnotated(blackScore: 0.04) == "Even")
+        #expect(ScoreLeadText.sideAnnotated(blackScore: -0.04) == "Even")
+    }
+
+    // Why TVSelfPlayScreen must set unlockEditingOnReload before loading the
+    // demo: editingAfterLoad only auto-unlocks the 19×19 defaultSgf, so a
+    // Max-Board-Size-clamped (9/13) demo record would load LOCKED — the first
+    // AI move then silently activates a branch and every printsgf reply
+    // (including the final RE[…]) routes into branchSgf, never game.sgf: the
+    // interstitial's score-sign fallback persists for the whole 8 s.
+    @MainActor
+    @Test("Clamped demo SGF does not auto-unlock — the demo must request it")
+    func clampedDemoNeedsUnlockRequest() {
+        let clamped = SelfPlayGame.makeRecord(maxBoardLength: 9)
+        #expect(!GobanState.editingAfterLoad(sgf: clamped.sgf, unlockRequested: false))
+        #expect(GobanState.editingAfterLoad(sgf: clamped.sgf, unlockRequested: true))
+        // The full-size demo keeps auto-unlocking with or without the request.
+        let full = SelfPlayGame.makeRecord(maxBoardLength: 19)
+        #expect(GobanState.editingAfterLoad(sgf: full.sgf, unlockRequested: false))
+    }
 }
