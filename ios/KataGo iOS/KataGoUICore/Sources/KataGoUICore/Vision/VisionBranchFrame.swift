@@ -13,6 +13,7 @@
 //
 
 import Foundation
+import KataGoGameStore
 import simd
 
 public struct VisionBranchFrame: Equatable, Sendable {

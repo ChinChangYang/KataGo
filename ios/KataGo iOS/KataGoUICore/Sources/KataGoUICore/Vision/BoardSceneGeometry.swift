@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import KataGoGameStore
 
 public struct BoardSceneGeometry: Sendable {
     public let width: Int
