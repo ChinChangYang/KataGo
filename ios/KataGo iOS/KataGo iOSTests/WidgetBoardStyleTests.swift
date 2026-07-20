@@ -56,4 +56,70 @@ struct WidgetBoardStyleTests {
             #expect(style.candidateDotOpacity(rank: rank) == 1)
         }
     }
+
+    @Test func gobanStyle_matchesTheAppGoban() {
+        // The widget's faux-3D goban: the real wood grain image, fully opaque
+        // dark-brown (ink) grid, spherical stones — while candidate/annotation
+        // semantics stay exactly standard (rank hues, opaque dots).
+        let style = WidgetBoardStyle.goban(drawsOwnWood: true)
+        #expect(!style.isAccented)
+        #expect(style.isGoban)
+        #expect(style.showsWoodBackground)
+        #expect(style.usesWoodImage)
+        #expect(style.gridOpacity == 1)
+        #expect(style.stonesAreSpherical)
+        #expect(style.usesRankHueDots)
+        #expect(!style.blackStoneIsAccentFill)
+        #expect(!style.whiteStoneIsAccentOutline)
+        for rank in 0...3 {
+            #expect(style.candidateDotOpacity(rank: rank) == 1)
+        }
+    }
+
+    @Test func gobanFullBleed_drawsNoWoodOfItsOwn() {
+        // With the Wood widget background the backplate carries the wood; the
+        // board itself must draw nothing behind the grid or a seam appears.
+        let style = WidgetBoardStyle.goban(drawsOwnWood: false)
+        #expect(style.isGoban)
+        #expect(!style.showsWoodBackground)
+        #expect(style.stonesAreSpherical)
+    }
+
+    @Test func gobanMetrics_areMillimeterProportional() {
+        // The 3D goban draws 0.8 mm lines and 2 mm-radius hoshi on a 22 mm
+        // grid; at cell size 22 those are 0.8 pt and 4 pt exactly, with the
+        // legacy floors keeping tiny widgets legible.
+        let style = WidgetBoardStyle.goban(drawsOwnWood: true)
+        #expect(abs(style.gridLineWidth(cellSize: 22) - 0.8) < 1e-9)
+        #expect(style.gridLineWidth(cellSize: 4) == 0.5)
+        #expect(abs(style.hoshiDiameter(cellSize: 22) - 4) < 1e-9)
+        #expect(style.hoshiDiameter(cellSize: 5) == 2)
+    }
+
+    @Test func legacyMetrics_areUnchanged() {
+        // The five flat consumers (watch, Messages, TV) ride on these numbers:
+        // hairline 0.5 grid and the 0.16-of-a-cell hoshi with a 2 pt floor.
+        for style in [WidgetBoardStyle.standard, .accented] {
+            #expect(style.gridLineWidth(cellSize: 40) == 0.5)
+            #expect(abs(style.hoshiDiameter(cellSize: 40) - 6.4) < 1e-9)
+            #expect(style.hoshiDiameter(cellSize: 10) == 2)
+            #expect(!style.stonesAreSpherical)
+            #expect(!style.usesWoodImage)
+        }
+    }
+
+    @Test func gobanPalette_matchesTheTextureGenerator() {
+        // BoardTopTexture composites ink RGB(95, 65, 25) over wood around
+        // RGB(216, 185, 92); the vector grid must use the same ink and the
+        // no-image fallback the same wood so the two renderers agree.
+        #expect(WidgetBoardStyle.gobanInk == WidgetBoardStyle.RGB(red: 95 / 255,
+                                                                  green: 65 / 255,
+                                                                  blue: 25 / 255))
+        #expect(WidgetBoardStyle.gobanWood == WidgetBoardStyle.RGB(red: 216 / 255,
+                                                                   green: 185 / 255,
+                                                                   blue: 92 / 255))
+        #expect(WidgetBoardStyle.stoneShadowOpacity == 0.30)
+        #expect(WidgetBoardStyle.stoneShadowRadiusRatio == 0.06)
+        #expect(WidgetBoardStyle.stoneShadowYOffsetRatio == 0.05)
+    }
 }

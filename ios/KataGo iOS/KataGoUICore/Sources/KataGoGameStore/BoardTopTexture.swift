@@ -142,6 +142,35 @@ public struct BoardTopTexture: Sendable {
         }
         return BoardTopTexture(widthPX: widthPX, heightPX: heightPX, pixels: pixels)
     }
+
+    /// Wood only — the same grain model as `generate` (identical base color,
+    /// sine wobble, and seeded Gaussian) with no grid or hoshi ink, at an
+    /// arbitrary pixel size. The widget draws its grid as vectors on top, so
+    /// it needs bare wood for the backplate and the board card; a fixed seed
+    /// keeps every widget's wood identical and stable across renders.
+    public static func generateWood(widthPX: Int, heightPX: Int,
+                                    seed: UInt64 = 33) -> BoardTopTexture {
+        let w = max(widthPX, 1)
+        let h = max(heightPX, 1)
+        var noise = GaussianNoise(seed: seed)
+        var pixels = [UInt8](repeating: 255, count: w * h * 4)
+        for y in 0..<h {
+            let wobbleOffset = 6.0 * sin(Double(y) * 0.004) + 3.0 * sin(Double(y) * 0.013 + 0.7)
+            let rowBase = y * w
+            for x in 0..<w {
+                let wobble = Double(x) + wobbleOffset
+                let grain = 3.5 * sin(wobble * 0.09)
+                    + 2.5 * sin(wobble * 0.023 + 1.2)
+                    + 1.5 * sin(wobble * 0.24 + 0.4)
+                    + 1.2 * noise.next()
+                let offset = (rowBase + x) * 4
+                pixels[offset] = UInt8(min(max(216.0 + grain, 0), 255))
+                pixels[offset + 1] = UInt8(min(max(185.0 + grain * 0.9, 0), 255))
+                pixels[offset + 2] = UInt8(min(max(92.0 + grain * 0.7, 0), 255))
+            }
+        }
+        return BoardTopTexture(widthPX: w, heightPX: h, pixels: pixels)
+    }
 }
 
 /// Deterministic standard-normal stream: SplitMix64 + Box-Muller (the spare
