@@ -398,15 +398,27 @@ final class MainWindowController: NSWindowController {
     // mirrors `maybeUpdateAnalysisData` before navigating to persist analysis
     // data while editing, so we do the same.
 
+    /// True while an AppKit sheet (Deep Report, config editor, GIF export) is
+    /// presented over the board. The nil-target responder chain still delivers
+    /// menu key-equivalents (bare arrows/`,`/`P`/Space, LizzieYzy) to this
+    /// controller under a sheet, so game-mutating / analysis-arming actions
+    /// gate on this to avoid running behind the sheet — which would desync the
+    /// board (and the Deep Report's currentIndex-keyed Copy-to-Comment) and
+    /// re-arm the engine the report deliberately paused.
+    private var isPresentingSheet: Bool {
+        contentViewController?.presentedViewControllers?.isEmpty == false
+    }
+
     /// Mirrors `StatusToolbarItems.isFunctional`: navigation is only allowed
-    /// when the engine isn't generating an AI move, isn't auto-playing, and no
-    /// `showboard` round-trip is in flight.
+    /// when the engine isn't generating an AI move, isn't auto-playing, no
+    /// `showboard` round-trip is in flight, and no modal sheet is up.
     private var isFunctional: Bool {
         guard let gameRecord = navigationContext.selectedGameRecord else { return false }
         let gobanState = session.gobanState
         return !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
             && !gobanState.isAutoPlaying
             && (gobanState.showBoardCount == 0)
+            && !isPresentingSheet
     }
 
     /// Persists in-progress analysis data (when editing) before navigating,
@@ -1264,9 +1276,10 @@ final class MainWindowController: NSWindowController {
     /// transitions detected against the snapshots, then refreshes the snapshots.
     private func handleAnalysisLifecycleChange() {
         // Deep Report probes own the engine stream; the report's restore path
-        // re-arms analysis itself. Frozen waitingForAnalysis means this can't
-        // fire mid-report today — this guard keeps that true if the freeze
-        // semantics ever change. Placed before the `lastWaitingForAnalysis`/
+        // deliberately does NOT re-arm analysis (the sheet pauses it, and it
+        // stays paused until the user resumes). Frozen waitingForAnalysis
+        // means this can't fire mid-report today — this guard keeps that true
+        // if the freeze semantics ever change. Placed before the `lastWaitingForAnalysis`/
         // `lastAnalysisStatus` snapshot update below (not just the reactive
         // block): a skipped pass must skip that update too, or the transition
         // that triggered this call would be silently marked "seen" without
@@ -2426,6 +2439,11 @@ final class MainWindowController: NSWindowController {
     @objc func showDeepReport(_ sender: Any?) {
         guard let gameRecord = navigationContext.selectedGameRecord,
               !session.gobanState.reportGenerationActive else { return }
+        // The report's probes cancel live analysis and its restore doesn't
+        // re-arm, so the engine sits idle under the sheet; analysis re-arms on
+        // dismissal (dismissSheet). Deliberately no maybePauseAnalysis() here:
+        // its waitingForAnalysis edge would emit a stray "stop" whose ack
+        // desyncs the probe collector's FIFO.
         // SwiftUI's \.dismiss cannot reach an NSHostingController presented via
         // presentAsSheet, so DeepReportView is handed a closure that bridges
         // Done/Cancel back to AppKit dismissal. `dismissSheet` is filled in
@@ -2438,7 +2456,7 @@ final class MainWindowController: NSWindowController {
             .environment(session.messageList)
             .frame(minWidth: 560, minHeight: 640)
         let hosting = NSHostingController(rootView: root)
-        dismissSheet = { [weak hosting] in
+        dismissSheet = { [weak hosting, weak self] in
             guard let hosting else { return }
             // ConfigEditorViewController.done(_:) idiom — the codebase's
             // canonical way to close a presentAsSheet presentation.
@@ -2446,6 +2464,14 @@ final class MainWindowController: NSWindowController {
                 presenting.dismiss(hosting)
             } else {
                 hosting.dismiss(nil)
+            }
+            // Re-arm live analysis the report left idle (a no-op unless
+            // analysis is on), so it — and a human-vs-AI opponent — resumes.
+            if let self {
+                self.session.gobanState.resumeAnalysisAfterReport(
+                    config: gameRecord.concreteConfig,
+                    nextColorForPlayCommand: self.session.player.nextColorForPlayCommand,
+                    messageList: self.session.messageList)
             }
         }
         contentViewController?.presentAsSheet(hosting)
@@ -2912,22 +2938,30 @@ extension MainWindowController: NSMenuItemValidation {
             return hasGame
 
         // Game-menu board-move shortcuts: bare `,` / `P` (LizzieYzy). Disabled
-        // while a text control is editing so the key types instead of playing.
+        // while a text control is editing so the key types instead of playing,
+        // and while a sheet is presented so a bare key doesn't play a real move
+        // into the game (and re-arm analysis) behind the Deep Report / config
+        // sheet via the nil-target responder chain.
         // "Play Best Move" additionally requires a live best move (analysis on).
         case #selector(playBestMove(_:)):
             let hasBestMove = session.analysis.getBestMove(
                 width: Int(session.board.width),
                 height: Int(session.board.height)) != nil
-            return hasGame && hasBestMove && !isTextInputActive
+            return hasGame && hasBestMove && !isTextInputActive && !isPresentingSheet
         case #selector(passMove(_:)):
-            return hasGame && !isTextInputActive
+            return hasGame && !isTextInputActive && !isPresentingSheet
 
         // Analysis menu: checkmark reflects the live status, enabled with a game.
         // `toggleAnalysis` is bound to bare Space (LizzieYzy), so it is also
         // disabled while a text control is editing — `false` lets Space type there.
+        // Also disabled while any sheet is presented: the responder chain still
+        // reaches this controller under an AppKit sheet (e.g. the Deep Report,
+        // which pauses analysis and must keep it down), and a .clear→.run
+        // toggle would re-arm the engine underneath it. Pause/Off stay enabled
+        // — they cannot resume anything.
         case #selector(toggleAnalysis(_:)):
             menuItem.state = gobanState.analysisStatus != .clear ? .on : .off
-            return hasGame && !isTextInputActive
+            return hasGame && !isTextInputActive && !isPresentingSheet
         case #selector(pauseAnalysis(_:)):
             menuItem.state = gobanState.analysisStatus == .pause ? .on : .off
             return hasGame

@@ -92,6 +92,23 @@ struct DeepReportGeneratorTests {
         }
     }
 
+    /// The full probe command stream of the happy-path fixture, in order.
+    static let expectedProbePrefix = [
+        "kata-set-param maxVisits 1000000000",
+        "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true",
+        "stop",
+        "kata-analyze w interval 10 maxmoves 8 ownership true rootInfo true",
+        "stop",
+        "play b A1",
+        "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
+        "stop",
+        "undo",
+        "play b B2",
+        "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
+        "stop",
+        "undo",
+    ]
+
     @Test func happyPathBuildsFullReport() async {
         let f = Fixture()
         await f.generator.generate(model: f.model, gameRecord: f.record)
@@ -121,23 +138,9 @@ struct DeepReportGeneratorTests {
 
         // Exact probe command stream, in order.
         let sent = f.engine.sent
-        let expectedPrefix = [
-            "kata-set-param maxVisits 1000000000",
-            "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true",
-            "stop",
-            "kata-analyze w interval 10 maxmoves 8 ownership true rootInfo true",
-            "stop",
-            "play b A1",
-            "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
-            "stop",
-            "undo",
-            "play b B2",
-            "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
-            "stop",
-            "undo",
-        ]
+        let expectedPrefix = Self.expectedProbePrefix
         #expect(Array(sent.prefix(expectedPrefix.count)) == expectedPrefix)
-        // Restore: a final stop then the standard post-execution showboard.
+        // Restore: a final stop then the board re-sync showboard.
         #expect(sent.dropFirst(expectedPrefix.count).contains("stop"))
         #expect(sent.dropFirst(expectedPrefix.count).contains("showboard"))
         #expect(sent.dropFirst(expectedPrefix.count).contains("play b pass"))
@@ -150,6 +153,27 @@ struct DeepReportGeneratorTests {
         // Copy-to-Comment stays available.
         #expect(f.model.moveNumber == f.record.currentIndex)
         #expect(f.model.isBranchPosition == false)
+    }
+
+    @Test func restoreDoesNotRearmContinuousAnalysis() async {
+        let f = Fixture()
+        // Make the re-arm preconditions explicit rather than relying on
+        // defaults: analysis is on and it is Black's turn, so the old
+        // restore's sendPostExecutionCommands would provably emit a
+        // kata-analyze bundle here.
+        f.session.gobanState.analysisStatus = .run
+        f.session.player.nextColorForPlayCommand = .black
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .complete)
+        // Restore still stops, re-anchors the side to move, and re-syncs the
+        // board — but must NOT re-arm analysis: the Deep Report sheet pauses
+        // live analysis, and it stays paused until the user resumes manually.
+        let tail = f.engine.sent.dropFirst(Self.expectedProbePrefix.count)
+        #expect(tail.contains("stop"))
+        #expect(tail.contains("showboard"))
+        #expect(tail.contains("play b pass"))
+        #expect(tail.allSatisfy { !$0.hasPrefix("kata-analyze") && !$0.hasPrefix("kata-search") })
     }
 
     @Test func branchPositionSeedsBranchFlagAndMoveNumber() async {
@@ -186,7 +210,7 @@ struct DeepReportGeneratorTests {
         #expect(f.engine.sent.contains("play b pass"))
         #expect(!f.engine.sent.contains("play b A1"))
         #expect(f.engine.sent.contains("stop"))           // restore stop
-        #expect(f.engine.sent.contains("showboard"))      // re-arm path ran
+        #expect(f.engine.sent.contains("showboard"))      // restore showboard ran
     }
 
     @Test func cancellationMidTenukiUndoesTheOutstandingPlay() async {

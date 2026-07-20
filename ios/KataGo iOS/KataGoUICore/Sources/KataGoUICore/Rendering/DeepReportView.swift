@@ -30,6 +30,10 @@ public struct DeepReportView: View {
     @State private var operation: ReportOperation = .initial(attempt: 0)
     @State private var opSeq = 0
     @State private var showingPicker = false
+    @State private var confirmingReplaceComment = false
+    /// Drives the Copy-to-Comment icon's brief checkmark morph after a write.
+    @State private var justCopied = false
+    @State private var copyRevertTask: Task<Void, Never>?
 
     /// AppKit hosts (NSHostingController + presentAsSheet) pass a closure
     /// here because SwiftUI's DismissAction cannot reach an AppKit-presented
@@ -69,6 +73,14 @@ public struct DeepReportView: View {
             .navigationBarTitleDisplayMode(.inline)
 #endif
             .toolbar { toolbarContent }
+            .confirmationDialog("Replace existing comment?",
+                                isPresented: $confirmingReplaceComment,
+                                titleVisibility: .visible) {
+                Button("Replace", role: .destructive) { performCopyToComment() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This move already has a comment. Copying the report replaces it.")
+            }
             .navigationDestination(isPresented: $showingPicker) {
                 ReportMovePickerView(model: model) { vertex in
                     opSeq += 1
@@ -242,41 +254,35 @@ public struct DeepReportView: View {
                 ProgressView()
             }
         } else if model.stage == .complete {
-            // macOS follows the Mac sheet convention (text buttons + tooltips,
-            // like ConfigEditor); the space-constrained iOS/visionOS nav bar
-            // keeps icons, whose titles double as accessibility labels.
+            // Every platform shares the icon-button form (titles are the
+            // accessibility labels, `.help` carries the tooltip text) so the
+            // Copy-to-Comment checkmark morph reads identically everywhere.
             ToolbarItem(placement: .cancellationAction) {
-#if os(macOS)
-                Button("Refine") { startRefine() }
+                Button("Refine", systemImage: "plus.magnifyingglass") { startRefine() }
                     .disabled(model.isAtBudgetCap)
                     .help(model.isAtBudgetCap
                           ? "Already at the deepest analysis budget"
                           : "Search deeper — twice the previous analysis budget")
-#else
-                Button("Refine", systemImage: "plus.magnifyingglass") { startRefine() }
-                    .disabled(model.isAtBudgetCap)
-#endif
             }
             ToolbarItem(placement: .primaryAction) {
                 // Disabled for branch positions: the comment would be keyed by
                 // the committed game's currentIndex (the divergence point), not
                 // the analyzed branch move.
-#if os(macOS)
-                Button("Copy to Comment") { copyToComment() }
-                    .disabled(model.position == nil || model.isBranchPosition)
-                    .help(model.isBranchPosition
-                          ? "Unavailable for branch positions — comments belong to the saved game's moves"
-                          : "Append the report summary to this move's comment")
-#else
-                Button("Copy to Comment", systemImage: "text.bubble") { copyToComment() }
-                    .disabled(model.position == nil || model.isBranchPosition)
-#endif
+                Button("Copy to Comment",
+                       systemImage: justCopied ? "checkmark" : "text.bubble") {
+                    requestCopyToComment()
+                }
+                .contentTransition(.symbolEffect(.replace))
+                .disabled(model.position == nil || model.isBranchPosition)
+                .help(model.isBranchPosition
+                      ? "Unavailable for branch positions — comments belong to the saved game's moves"
+                      : "Replace this move's comment with the report summary")
             }
 #if os(iOS)
             // Break the trailing Liquid Glass group so Copy-to-Comment and
             // Done read as separate actions on iPhone (round-4 feedback).
             // iOS only: ToolbarSpacer doesn't compile on visionOS/tvOS, and
-            // macOS uses separate text buttons already.
+            // macOS toolbar buttons don't group in the first place.
             ToolbarSpacer(.fixed, placement: .confirmationAction)
 #endif
             ToolbarItem(placement: .confirmationAction) {
@@ -286,12 +292,8 @@ public struct DeepReportView: View {
             // Failed or cancelled: the only path forward is a fresh
             // base-budget run.
             ToolbarItem(placement: .cancellationAction) {
-#if os(macOS)
-                Button("Regenerate") { startRegenerate() }
-                    .help("Run the report again for this position")
-#else
                 Button("Regenerate", systemImage: "arrow.clockwise") { startRegenerate() }
-#endif
+                    .help("Run the report again for this position")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { close() }
@@ -309,14 +311,54 @@ public struct DeepReportView: View {
         operation = .initial(attempt: opSeq)
     }
 
-    private func copyToComment() {
-        let text = model.narrative.isEmpty
+    /// Copy-to-Comment REPLACES the move's comment, so a non-empty existing
+    /// comment is user data about to be lost — that, and only that, warrants
+    /// a confirmation dialog. Static so it is unit-testable (the passSentence
+    /// precedent).
+    static func replaceNeedsConfirmation(existingComment: String?) -> Bool {
+        !(existingComment ?? "").isEmpty
+    }
+
+    private func requestCopyToComment() {
+        if Self.replaceNeedsConfirmation(
+            existingComment: gameRecord.comments?[gameRecord.currentIndex]) {
+            confirmingReplaceComment = true
+        } else {
+            performCopyToComment()
+        }
+    }
+
+    /// The text Copy-to-Comment writes: the streamed narrative when present,
+    /// else the joined fact list. Static + pure so it is unit-testable (the
+    /// passSentence precedent).
+    static func copiedCommentText(model: DeepReportModel) -> String {
+        model.narrative.isEmpty
             ? ReportNarrator.facts(from: model).joined(separator: "\n")
             : model.narrative
-        if gameRecord.comments == nil { gameRecord.comments = [:] }
-        let existing = gameRecord.comments?[gameRecord.currentIndex] ?? ""
-        gameRecord.comments?[gameRecord.currentIndex] =
-            existing.isEmpty ? text : existing + "\n\n" + text
+    }
+
+    /// Applies Copy-to-Comment to the move's comment dictionary: REPLACES the
+    /// entry at `index` (never appends to any prior comment). Static + pure so
+    /// the headline replace-not-append behavior is tested without the view.
+    static func applyingCopiedComment(_ comments: [Int: String]?,
+                                      text: String, index: Int) -> [Int: String] {
+        var result = comments ?? [:]
+        result[index] = text
+        return result
+    }
+
+    private func performCopyToComment() {
+        let text = Self.copiedCommentText(model: model)
+        gameRecord.comments = Self.applyingCopiedComment(
+            gameRecord.comments, text: text, index: gameRecord.currentIndex)
+        withAnimation { justCopied = true }
+        copyRevertTask?.cancel()
+        copyRevertTask = Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if !Task.isCancelled {
+                withAnimation { justCopied = false }
+            }
+        }
     }
 
     // MARK: - Bits

@@ -65,8 +65,8 @@ struct DeepReportRepickTests {
     @Test func cachedRepickSkipsForcedProbe() async {
         // Repick conversation: tenuki probe feed (maxVisits-reset ack, play
         // ack, header, line), grace. Every repick opens with the unbounded
-        // maxVisits reset — the post-report re-arm may have left a gen-move's
-        // sticky 400-visit cap behind.
+        // maxVisits reset — a prior gen-move may have left its sticky
+        // 400-visit cap behind.
         let f = Fixture(steps: Self.generateSteps + [
             ["= ", "= ", "=", Self.tenukiLine],
             [],
@@ -143,7 +143,7 @@ struct DeepReportRepickTests {
         #expect(f.model.alternativeSource == .engine)
         #expect(f.model.transientNotice?.contains("A2") == true)
         #expect(f.session.gobanState.reportGenerationActive == false)
-        // The failed probe session still restored (stop + re-arm ran).
+        // The failed probe session still restored (stop + showboard ran).
         #expect(f.engine.sent.filter { $0 == "showboard" }.count >= 2)
     }
 

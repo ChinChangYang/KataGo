@@ -231,7 +231,7 @@ struct DeepReportRefineTests {
         #expect(f.model.budgetMultiplier == 1)
         #expect(f.model.transientNotice != nil)
         #expect(f.session.gobanState.reportGenerationActive == false)
-        // The aborted refine still restored (stop + re-arm ran again).
+        // The aborted refine still restored (stop + showboard ran again).
         #expect(f.engine.sent.filter { $0 == "showboard" }.count >= 2)
     }
 

@@ -90,7 +90,7 @@ public final class DeepReportGenerator {
         seedModel(model, session: session, gameRecord: gameRecord, sideToMove: sideToMove)
 
         do {
-            try await withProbeSession(session: session, gameRecord: gameRecord) {
+            try await withProbeSession(session: session) {
                 try await runProbes(model: model, session: session,
                                     gameRecord: gameRecord, sideToMove: sideToMove)
             }
@@ -110,7 +110,6 @@ public final class DeepReportGenerator {
     /// `body`, and guarantees the single `restore` path on every exit
     /// (success, cancellation, engine error).
     private func withProbeSession(session: GameSession,
-                                  gameRecord: GameRecord,
                                   body: () async throws -> Void) async throws {
         collector.reset()
         outstandingPlays = 0
@@ -118,7 +117,7 @@ public final class DeepReportGenerator {
         let collector = self.collector
         session.lineObserver = { line in collector.ingest(line: line) }
         session.gobanState.reportGenerationActive = true
-        defer { restore(session: session, gameRecord: gameRecord) }
+        defer { restore(session: session) }
         try await body()
     }
 
@@ -308,9 +307,9 @@ public final class DeepReportGenerator {
         model.stage = .tenuki(1)
 
         do {
-            try await withProbeSession(session: session, gameRecord: gameRecord) {
-                // The post-report re-arm may have left a gen-move's sticky
-                // maxVisits cap behind — every probe session lifts it first.
+            try await withProbeSession(session: session) {
+                // A prior gen-move may have left its sticky maxVisits cap
+                // behind — every probe session lifts it first.
                 send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
                 let info: AnalysisInfo
                 if let entry = model.snapshotEntries.first(where: { $0.vertex == vertex }) {
@@ -368,7 +367,7 @@ public final class DeepReportGenerator {
         model.transientNotice = nil
 
         do {
-            try await withProbeSession(session: session, gameRecord: gameRecord) {
+            try await withProbeSession(session: session) {
                 try await runRefineProbes(model: model, scaled: scaled, sideToMove: sideToMove)
             }
             await renarrate(model: model, gameRecord: gameRecord)
@@ -727,9 +726,11 @@ public final class DeepReportGenerator {
 
     /// Single restore path for every exit: undo any outstanding probe play,
     /// stop whatever streams, hand the line stream back, unfreeze live
-    /// collection, and re-arm via the standard post-execution sequence (which
-    /// resets the sticky maxVisits before kata-analyze).
-    private func restore(session: GameSession, gameRecord: GameRecord) {
+    /// collection, and re-sync the board via showboard. Deliberately does NOT
+    /// re-arm live analysis: the Deep Report sheet pauses it on presentation,
+    /// and it stays paused until the user resumes manually — re-arming here
+    /// would restart kata-analyze underneath the still-open sheet.
+    private func restore(session: GameSession) {
         session.lineObserver = priorObserver
         priorObserver = nil
         session.gobanState.reportGenerationActive = false
@@ -748,8 +749,6 @@ public final class DeepReportGenerator {
         // candidates were "pass").
         messageList.appendAndSend(command: "play \(reportSideSymbol) pass")
         messageList.appendAndSend(command: "undo")
-        session.gobanState.sendPostExecutionCommands(config: gameRecord.concreteConfig,
-                                                     messageList: messageList,
-                                                     player: session.player)
+        session.gobanState.sendShowBoardCommand(messageList: messageList)
     }
 }

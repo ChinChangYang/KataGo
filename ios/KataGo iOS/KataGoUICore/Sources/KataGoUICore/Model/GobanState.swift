@@ -224,6 +224,23 @@ public class GobanState {
         }
     }
 
+    /// Re-arm live analysis after a Deep Report closes. The report's probes
+    /// cancel the user's live `kata-analyze` and its restore intentionally does
+    /// NOT re-arm (so nothing runs under the still-open sheet), leaving the
+    /// engine idle. Called unconditionally on dismissal: it re-arms only when
+    /// analysis is enabled (`.run`) — which also revives a human-vs-AI opponent
+    /// (gated on `.run` via `shouldGenMove`) — and leaves paused/off untouched.
+    /// The report never changes `analysisStatus`, so `.run` here means analysis
+    /// was running when the report opened.
+    public func resumeAnalysisAfterReport(config: Config,
+                                          nextColorForPlayCommand: PlayerColor?,
+                                          messageList: MessageList) {
+        guard analysisStatus == .run else { return }
+        maybeRequestAnalysis(config: config,
+                             nextColorForPlayCommand: nextColorForPlayCommand,
+                             messageList: messageList)
+    }
+
     public func shouldGenMove(config: Config, player: Turn) -> Bool {
         if (!isAutoPlaying) &&
             (!suppressesGenMove) &&

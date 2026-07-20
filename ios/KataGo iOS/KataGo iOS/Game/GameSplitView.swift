@@ -792,6 +792,13 @@ struct GameSplitView: View {
 
     private func processChange(oldWaitingForAnalysis: Bool,
                                newWaitingForAnalysis: Bool) {
+        // Deep Report probes own the engine stream; while a report is active
+        // this handler must not send its own "stop"/re-arm — a stray command
+        // ack would desync the probe collector's FIFO. maybeCollectAnalysis is
+        // already frozen during a report (so no waiting edge fires), making
+        // this a defensive invariant that mirrors the macOS
+        // handleAnalysisLifecycleChange guard.
+        guard !gobanState.reportGenerationActive else { return }
         if (oldWaitingForAnalysis && !newWaitingForAnalysis) {
             if let gameRecord = navigationContext.selectedGameRecord,
                let config = gameRecord.config,

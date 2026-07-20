@@ -18,6 +18,7 @@ struct PlusMenuView: View {
     @Environment(TopUIState.self) var topUIState
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
+    @Environment(MessageList.self) var messageList
     @State private var showingConfig = false
     @State private var confirmingClone = false
     @State private var showingReport = false
@@ -114,6 +115,11 @@ struct PlusMenuView: View {
                     }
 
                     Button {
+                        // The report's probes cancel live analysis and its
+                        // restore doesn't re-arm, so the engine sits idle under
+                        // the sheet; analysis re-arms on dismissal. (Pausing
+                        // here would set a waitingForAnalysis edge whose stray
+                        // "stop" ack desyncs the probe collector.)
                         showingReport = true
                     } label: {
                         Label("Deep Report", systemImage: "doc.text.magnifyingglass")
@@ -171,7 +177,17 @@ struct PlusMenuView: View {
                 GlobalSettingsView()
             }
         }
-        .sheet(isPresented: $showingReport) {
+        .sheet(isPresented: $showingReport, onDismiss: {
+            // The report left the engine idle; re-arm live analysis (a no-op
+            // unless analysis is on) so it — and a human-vs-AI opponent — comes
+            // back after the sheet closes.
+            if let gameRecord {
+                gobanState.resumeAnalysisAfterReport(
+                    config: gameRecord.concreteConfig,
+                    nextColorForPlayCommand: player.nextColorForPlayCommand,
+                    messageList: messageList)
+            }
+        }) {
             if let gameRecord {
                 // No NavigationStack wrapper: DeepReportView owns its stack
                 // (the alternative-move picker pushes inside it).
