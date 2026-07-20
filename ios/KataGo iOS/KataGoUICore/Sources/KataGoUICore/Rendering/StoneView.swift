@@ -15,7 +15,6 @@ public struct StoneView: View {
     let isClassicStoneStyle: Bool
     let verticalFlip: Bool
     var isDrawingCapturedStones: Bool = true
-    var speedText: String? = nil
     /// Name shown beside each color's captured-stone count: the engine profile
     /// (e.g. "AI" / "9d") when that side plays with thinking time, or
     /// "Human" otherwise. `nil` hides the label (e.g. the game-list thumbnail).
@@ -30,7 +29,6 @@ public struct StoneView: View {
                 isClassicStoneStyle: Bool,
                 verticalFlip: Bool,
                 isDrawingCapturedStones: Bool = true,
-                speedText: String? = nil,
                 blackPlayerName: String? = nil,
                 whitePlayerName: String? = nil,
                 onToggleAI: ((PlayerColor) -> Void)? = nil) {
@@ -38,7 +36,6 @@ public struct StoneView: View {
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
         self.isDrawingCapturedStones = isDrawingCapturedStones
-        self.speedText = speedText
         self.blackPlayerName = blackPlayerName
         self.whitePlayerName = whitePlayerName
         self.onToggleAI = onToggleAI
@@ -62,11 +59,6 @@ public struct StoneView: View {
                                name: whitePlayerName,
                                nameAccessibilityID: "whitePlayerName",
                                dimensions: dimensions)
-
-            if let speedText {
-                drawSpeedText(speedText, dimensions: dimensions)
-            }
-
         }
     }
 
@@ -156,143 +148,140 @@ public struct StoneView: View {
 #endif
     }
 
-    // Shows the visits/s readout centered in the empty gap between the captured-stone
-    // counts. The counts keep their fixed positions, so enabling/disabling the readout
-    // never shifts them.
-    private func drawSpeedText(_ text: String, dimensions: Dimensions) -> some View {
-        let spread = 0.75 * max(dimensions.gobanWidth / 2, dimensions.capturedStonesWidth)
-        let gapWidth = max(0, (2 * spread) - dimensions.capturedStonesWidth)
-        return Text(text)
-            .contentTransition(.numericText())
-            .font(.system(size: dimensions.capturedStonesHeight * 0.85, design: .monospaced))
-            .minimumScaleFactor(0.5)
-            .lineLimit(1)
-            .foregroundStyle(.secondary)
-            .frame(width: gapWidth, height: dimensions.capturedStonesHeight)
-            .position(x: dimensions.gobanStartX + (dimensions.gobanWidth / 2),
-                      y: dimensions.capturedStonesStartY)
+    /// Every stone of one color/style looks identical, so the whole board is
+    /// one `Canvas` stamping a handful of pre-rasterized symbols. The old tree
+    /// built ~3 SwiftUI views per classic stone (shader circle + two shadow
+    /// circles, one blurred) that were each composited as separate layers —
+    /// on a dense 19×19 that meant hundreds of per-stone offscreen shader and
+    /// blur passes per redraw.
+    private enum StoneSymbolID: Hashable {
+        case shadow
+        case classicBlack
+        case classicWhite
+        case fastBlack
+        case fastWhite
     }
 
-    private func drawClassicStone(x: Int, y: CGFloat, r: Float, g: Float, b: Float, dimensions: Dimensions) -> some View {
+    private func drawStones(dimensions: Dimensions) -> some View {
+        // Snapshot the observable arrays during body evaluation: Observation
+        // only tracks reads made here, not inside the Canvas renderer closure
+        // (which runs at draw time, after body returns).
+        let blackPoints = stones.blackPoints
+        let whitePoints = stones.whitePoints
+
+        let canvas = Canvas { context, _ in
+            func center(of point: BoardPoint) -> CGPoint {
+                CGPoint(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                        y: dimensions.boardLineStartY + point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip) * dimensions.squareLength)
+            }
+
+            if isClassicStoneStyle {
+                // All shadows under all stones, matching the old layer order.
+                if let shadow = context.resolveSymbol(id: StoneSymbolID.shadow) {
+                    for point in blackPoints { context.draw(shadow, at: center(of: point)) }
+                    for point in whitePoints { context.draw(shadow, at: center(of: point)) }
+                }
+                if let black = context.resolveSymbol(id: StoneSymbolID.classicBlack) {
+                    for point in blackPoints { context.draw(black, at: center(of: point)) }
+                }
+                if let white = context.resolveSymbol(id: StoneSymbolID.classicWhite) {
+                    for point in whitePoints { context.draw(white, at: center(of: point)) }
+                }
+            } else {
+                if let black = context.resolveSymbol(id: StoneSymbolID.fastBlack) {
+                    for point in blackPoints { context.draw(black, at: center(of: point)) }
+                }
+                if let white = context.resolveSymbol(id: StoneSymbolID.fastWhite) {
+                    for point in whitePoints { context.draw(white, at: center(of: point)) }
+                }
+            }
+        } symbols: {
+            if isClassicStoneStyle {
+                classicShadowSymbol(dimensions: dimensions)
+                    .tag(StoneSymbolID.shadow)
+                classicStoneSymbol(red: 0, green: 0, blue: 0, dimensions: dimensions)
+                    .tag(StoneSymbolID.classicBlack)
+                classicStoneSymbol(red: 0.9, green: 0.9, blue: 0.9, dimensions: dimensions)
+                    .tag(StoneSymbolID.classicWhite)
+            } else {
+                fastStoneSymbol(stoneColor: .black, dimensions: dimensions)
+                    .tag(StoneSymbolID.fastBlack)
+                fastStoneSymbol(stoneColor: Color(white: 0.9), dimensions: dimensions)
+                    .tag(StoneSymbolID.fastWhite)
+            }
+        }
+        // The old per-stone circles never mattered for input (the wood rect
+        // covers every intersection), but a full-board canvas would expand tap
+        // coverage into the dead margins — where a resolved tap can reach the
+        // pass point — so it must stay transparent to hit testing.
+        .allowsHitTesting(false)
+
+        // Removing the canvas when the board empties lets the animated clear
+        // in `placeLoadingBoard` fade the stones out on a game switch, as the
+        // per-stone views' removal transitions used to. Per-move updates set
+        // the arrays with `.none`, so normal play still swaps instantly. The
+        // haptic stays on the always-present wrapper: a new game becomes
+        // ready with zero stones on the board.
+        let layer = Group {
+            if !blackPoints.isEmpty || !whitePoints.isEmpty {
+                canvas
+                    .transition(.opacity)
+            }
+        }
+
+#if os(tvOS)
+        // No haptics on tvOS (the Siri Remote has none); .impact is also not a
+        // valid SensoryFeedback case there.
+        return layer
+#else
+        return layer
+            .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
+                !wasReady && isReady && gobanState.hapticFeedback
+            }
+#endif
+    }
+
+    /// One classic stone, drawn by the same Metal shader as before. The layer
+    /// handed to `colorEffect` must stay exactly stoneLength², or the shader's
+    /// uv = position / stoneLength mapping breaks — so no padding here.
+    private func classicStoneSymbol(red: Float, green: Float, blue: Float, dimensions: Dimensions) -> some View {
         Circle()
             .colorEffect(ShaderLibrary.stone(
                 .float(Float(dimensions.stoneLength)),
-                .float3(r, g, b)
+                .float3(red, green, blue)
             ))
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.boardLineStartY + y * dimensions.squareLength)
     }
 
-    private func drawBlackStone(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
-        drawClassicStone(x: x, y: y, r: 0, g: 0, b: 0, dimensions: dimensions)
-    }
-
-    private func drawBlackStones(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(stones.blackPoints, id: \.self) { point in
-                drawBlackStone(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
-            }
-        }
-    }
-
-    private func drawWhiteStone(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
-        drawClassicStone(x: x, y: y, r: 0.9, g: 0.9, b: 0.9, dimensions: dimensions)
-    }
-
-    private func drawWhiteStones(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(stones.whitePoints, id: \.self) { point in
-                drawWhiteStone(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
-            }
-        }
-    }
-
-    private func drawShadow(x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
-        Group {
+    /// Both shadow layers of one classic stone, pre-composited. Symmetric
+    /// padding keeps the sprite center on the stone center while extending the
+    /// raster bounds to cover the offset/blur spill (≤ squareLength/4 beyond
+    /// the stone edge).
+    private func classicShadowSymbol(dimensions: Dimensions) -> some View {
+        ZStack {
             // Shifted shadow
             Circle()
-                .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
-                .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-                .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + y * dimensions.squareLength)
+                .shadow(radius: dimensions.squareLengthDiv16,
+                        x: dimensions.squareLengthDiv8,
+                        y: dimensions.squareLengthDiv8)
 
             // Centered shadow
             Circle()
                 .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLengthDiv16)
                 .blur(radius: dimensions.squareLengthDiv16)
-                .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-                .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.boardLineStartY + y * dimensions.squareLength)
         }
+        .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
+        .padding(0.3 * dimensions.squareLength)
     }
 
-    private func drawShadows(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(stones.blackPoints, id: \.self) { point in
-                drawShadow(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
-            }
-
-            ForEach(stones.whitePoints, id: \.self) { point in
-                drawShadow(x: point.x, y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip), dimensions: dimensions)
-            }
-        }
-    }
-
-    private func drawStones(dimensions: Dimensions) -> some View {
-        ZStack {
-            if isClassicStoneStyle {
-                drawShadows(dimensions: dimensions)
-
-                Group {
-                    drawBlackStones(dimensions: dimensions)
-                    drawWhiteStones(dimensions: dimensions)
-                }
-            } else {
-                Group {
-                    drawFastBlackStones(dimensions: dimensions)
-                    drawFastWhiteStones(dimensions: dimensions)
-                }
-            }
-        }
-#if !os(tvOS)
-        // No haptics on tvOS (the Siri Remote has none); .impact is also not a
-        // valid SensoryFeedback case there.
-        .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
-            !wasReady && isReady && gobanState.hapticFeedback
-        }
-#endif
-    }
-
-    private func drawFastBlackStones(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(stones.blackPoints, id: \.self) { point in
-                drawFastStoneBase(stoneColor: .black,
-                                  x: point.x,
-                                  y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip),
-                                  dimensions: dimensions)
-            }
-        }
-    }
-
-    private func drawFastWhiteStones(dimensions: Dimensions) -> some View {
-        Group {
-            ForEach(stones.whitePoints, id: \.self) { point in
-                drawFastStoneBase(stoneColor: Color(white: 0.9),
-                                  x: point.x,
-                                  y: point.getPositionY(height: dimensions.height, verticalFlip: verticalFlip),
-                                  dimensions: dimensions)
-            }
-        }
-    }
-
-    private func drawFastStoneBase(stoneColor: Color, x: Int, y: CGFloat, dimensions: Dimensions) -> some View {
+    /// One fast-style stone with its drop shadow baked in, so a later stone's
+    /// shadow falls over earlier stones exactly like the old per-stone views.
+    private func fastStoneSymbol(stoneColor: Color, dimensions: Dimensions) -> some View {
         Circle()
             .foregroundStyle(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.boardLineStartY + y * dimensions.squareLength)
             .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
+            .padding(0.3 * dimensions.squareLength)
     }
 }
 

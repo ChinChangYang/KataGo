@@ -15,7 +15,6 @@ public struct BoardView: View {
     @Environment(GobanState.self) var gobanState
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
-    @Environment(Analysis.self) var analysis
     @Environment(BookLookup.self) var bookLookup
     @Environment(Winrate.self) var rootWinrate
     @Environment(Score.self) var rootScore
@@ -106,11 +105,17 @@ public struct BoardView: View {
                         isClassicStoneStyle: gobanState.isClassicStoneStyle,
                         verticalFlip: gobanState.verticalFlip,
                         isDrawingCapturedStones: showsCapturedStones,
-                        speedText: speedText,
                         blackPlayerName: showsCapturedStones ? config.playerLabel(for: .black) : nil,
                         whitePlayerName: showsCapturedStones ? config.playerLabel(for: .white) : nil,
                         onToggleAI: interactive ? { toggleAI(for: $0) } : nil
                     )
+
+                    if showsCapturedStones {
+                        // Own view, not a BoardView.body read: the visits/s
+                        // value ticks on every kata-analyze line, and reading
+                        // it here would re-render the whole board each tick.
+                        AnalysisSpeedTextView(dimensions: dimensions)
+                    }
 
                     drawNextMove(dimensions: dimensions,
                                  verticalFlip: gobanState.verticalFlip,
@@ -295,14 +300,6 @@ public struct BoardView: View {
         case .unknown:
             break
         }
-    }
-
-    /// The visits/s text to show beside the captured-stone counts, or nil when hidden.
-    private var speedText: String? {
-        guard gobanState.showVisitsPerSecond,
-              gobanState.analysisStatus == .run,
-              analysis.visitsPerSecond > 0 else { return nil }
-        return analysis.visitsPerSecondText
     }
 
     private func drawNextMove(dimensions: Dimensions, verticalFlip: Bool, showPass: Bool) -> some View {
