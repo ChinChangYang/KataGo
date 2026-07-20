@@ -5,6 +5,10 @@ import KataGoGameStore
 struct SavedGameEntry: TimelineEntry {
     let date: Date
     let snapshot: SavedGameSnapshot
+    /// The user's Edit Widget backplate choice, resolved from the intent by
+    /// the provider (the view never sees the intent). Presentation config,
+    /// not game data — deliberately NOT part of SavedGameSnapshot.
+    var background: SavedGameBackground = .default
 }
 
 struct SavedGameProvider: AppIntentTimelineProvider {
@@ -18,7 +22,9 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         // opening the App-Group SwiftData store from this memory-constrained
         // extension just to render a preview.
         if context.isPreview {
-            return SavedGameEntry(date: .now, snapshot: .placeholder)
+            return SavedGameEntry(date: .now, snapshot: .placeholder,
+                                  background: SavedGameBackground.resolve(
+                                      rawValue: configuration.background.rawValue))
         }
         return await entry(for: configuration)
     }
@@ -44,6 +50,8 @@ struct SavedGameProvider: AppIntentTimelineProvider {
             SavedGameSnapshot.resolveSnapshot(configuredID: configuredID,
                                               container: SharedModelContainer.shared)
         }
-        return SavedGameEntry(date: .now, snapshot: snapshot)
+        return SavedGameEntry(date: .now, snapshot: snapshot,
+                              background: SavedGameBackground.resolve(
+                                  rawValue: configuration.background.rawValue))
     }
 }

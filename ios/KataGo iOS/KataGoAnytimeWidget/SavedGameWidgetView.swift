@@ -27,8 +27,24 @@ struct SavedGameWidgetView: View {
         }
     }
 
-    private var boardStyle: WidgetBoardStyle {
-        renderingMode == .accented ? .accented : .standard
+    /// visionOS's glass texture composites widget content over DARK glass, so
+    /// glass-backed plans pin the dark scheme there; elsewhere glass stays
+    /// adaptive. Injected into the resolver so the mapping is testable.
+    private var glassPrefersDarkScheme: Bool {
+        #if os(visionOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// One authority for backplate, scheme pin, board style, and whether the
+    /// board draws its own wood card — tint (accented mode) wins over the
+    /// user's background choice.
+    private var backgroundPlan: WidgetBackgroundPlan.Plan {
+        WidgetBackgroundPlan.resolve(background: entry.background,
+                                     isAccented: renderingMode == .accented,
+                                     glassPrefersDarkScheme: glassPrefersDarkScheme)
     }
 
     // Always render the crisp VECTOR board, never a stored bitmap. The persisted
@@ -38,18 +54,49 @@ struct SavedGameWidgetView: View {
     // `lastBlackStones`/`lastWhiteStones` + board size) as sharp vectors at any
     // family size, and keeps a heavy Data blob out of the memory-constrained appex.
     private var board: some View {
-        WidgetBoardView(width: entry.snapshot.boardWidth,
+        let plan = backgroundPlan
+        return WidgetBoardView(width: entry.snapshot.boardWidth,
                         height: entry.snapshot.boardHeight,
                         blackVertices: entry.snapshot.lastBlackStones,
                         whiteVertices: entry.snapshot.lastWhiteStones,
-                        style: boardStyle)
+                        style: plan.boardStyle,
+                        woodImage: WidgetWoodTexture.sharedSquareImage())
             // Keep the goban square. WidgetBoardView is a greedy GeometryReader with
             // no intrinsic size, so in the non-square medium/large layouts it would
             // otherwise paint the wooden background across the whole rectangle with a
             // small centred grid floating in wide tan margins. The old bitmap path
             // got this for free via `.aspectRatio(contentMode: .fit)`.
             .aspectRatio(1, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            // The wood CARD gets the rounded edge; on the full-bleed Wood
+            // backplate the board draws no card, and rounding a cornerless
+            // grid would just shave the outer coordinates' hit area.
+            .clipShape(RoundedRectangle(cornerRadius: plan.boardDrawsOwnWood ? 6 : 0))
+    }
+
+    /// The user-chosen backplate (or the neutral system material while the
+    /// widget is tinted). The wood image is the SAME shared bitmap the board
+    /// card draws, scaled to fill the container.
+    @ViewBuilder private var backplate: some View {
+        switch backgroundPlan.backplate {
+        case .wood:
+            if let wood = WidgetWoodTexture.sharedSquareImage() {
+                Image(decorative: wood, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color(red: WidgetBoardStyle.gobanWood.red,
+                      green: WidgetBoardStyle.gobanWood.green,
+                      blue: WidgetBoardStyle.gobanWood.blue)
+            }
+        case .glass, .neutralAccent:
+            // Today's translucent system material (the glass backdrop layer
+            // on visionOS); also what the accent tint recolors.
+            Color.clear.background(.fill.tertiary)
+        case .light:
+            Color(white: 0.96)
+        case .dark:
+            Color(white: 0.12)
+        }
     }
 
     var body: some View {
@@ -132,17 +179,20 @@ struct SavedGameWidgetView: View {
         // configured game momentarily can't be resolved; using it for the tap would
         // open a game the user didn't pick. See `SavedGameSnapshot.configuredGameID`.
         .widgetURL((snap.configuredGameID ?? snap.gameID).map(GameDeepLink.url(for:)))
-        // With the visionOS glass texture this renders as the glass backdrop
-        // layer while the content above stays bright; unchanged elsewhere.
-        .containerBackground(.fill.tertiary, for: .widget)
-        #if os(visionOS)
-        // The glass texture composites content over DARK glass, but the
-        // widget's inherited color scheme stays light, so default label
-        // colors resolved to black-on-black (verified in the simulator:
-        // the game name was laid out yet invisible). Pin the content to
-        // the dark scheme so .primary/.secondary stay bright over glass —
-        // the HIG's "foreground elements always stay bright" for glass.
-        .environment(\.colorScheme, .dark)
-        #endif
+        .containerBackground(for: .widget) {
+            backplate
+        }
+        // Per-backplate contrast, the generalization of the visionOS glass
+        // black-on-black fix (340df0cd): Wood/Light pin the LIGHT scheme so
+        // .primary reads as dark ink even in system dark mode; Dark (and
+        // glass over visionOS's dark glass) pin DARK so labels stay bright;
+        // adaptive glass elsewhere inherits (nil pin).
+        .transformEnvironment(\.colorScheme) { scheme in
+            switch backgroundPlan.colorSchemePin {
+            case .light: scheme = .light
+            case .dark: scheme = .dark
+            case nil: break
+            }
+        }
     }
 }

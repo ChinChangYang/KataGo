@@ -67,11 +67,13 @@ public struct WidgetBoardView: View {
     let lastMovePoint: (x: Int, y: Int)?
     let showCoordinates: Bool
     let style: WidgetBoardStyle
+    let woodImage: CGImage?
 
     public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String],
                 candidateVertices: [String] = [], lastMoveVertex: String? = nil,
                 showCoordinates: Bool = false,
-                style: WidgetBoardStyle = .standard) {
+                style: WidgetBoardStyle = .standard,
+                woodImage: CGImage? = nil) {
         let w = max(width, 1)
         let h = max(height, 1)
         self.width = w
@@ -84,6 +86,7 @@ public struct WidgetBoardView: View {
         self.lastMovePoint = annotations.last
         self.showCoordinates = showCoordinates
         self.style = style
+        self.woodImage = woodImage
     }
 
     /// GTP column label for a 0-based column index, skipping 'I' and using the
@@ -137,17 +140,37 @@ public struct WidgetBoardView: View {
             let originX = (geo.size.width - cell * CGFloat(width - 1)) / 2
             let originY = (geo.size.height - cell * CGFloat(height - 1)) / 2
 
-            // Accented (tinted) mode: the wood would render as one flat tinted
-            // slab, so it is dropped; lines and labels become dim NEUTRAL
+            // Goban: the texture generator's opaque dark-brown ink. Accented
+            // (tinted) mode: the wood would render as one flat tinted slab, so
+            // it is dropped; lines and labels become dim NEUTRAL
             // (non-accentable) marks, and the stones carry the position in two
             // distinguishable accent treatments — black solid, white outlined.
-            let gridColor = style.isAccented
-                ? Color.white.opacity(style.gridOpacity)
-                : Color.black.opacity(style.gridOpacity)
+            let gridColor = style.isGoban
+                ? Color(red: WidgetBoardStyle.gobanInk.red,
+                        green: WidgetBoardStyle.gobanInk.green,
+                        blue: WidgetBoardStyle.gobanInk.blue).opacity(style.gridOpacity)
+                : style.isAccented
+                    ? Color.white.opacity(style.gridOpacity)
+                    : Color.black.opacity(style.gridOpacity)
+            let hoshiDiameter = style.hoshiDiameter(cellSize: cell)
 
             ZStack {
                 if style.showsWoodBackground {
-                    Color(red: 0.85, green: 0.68, blue: 0.40)
+                    if style.usesWoodImage, let woodImage {
+                        // The real grain, cropped to fill — same image the
+                        // Wood backplate uses, so card and full-bleed agree.
+                        Image(decorative: woodImage, scale: 1)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                    } else if style.usesWoodImage {
+                        Color(red: WidgetBoardStyle.gobanWood.red,
+                              green: WidgetBoardStyle.gobanWood.green,
+                              blue: WidgetBoardStyle.gobanWood.blue)
+                    } else {
+                        Color(red: 0.85, green: 0.68, blue: 0.40)
+                    }
                 }
                 Path { p in
                     for x in 0..<width {
@@ -163,16 +186,18 @@ public struct WidgetBoardView: View {
                         p.addLine(to: p2)
                     }
                 }
-                .stroke(gridColor, lineWidth: 0.5)
+                .stroke(gridColor, lineWidth: style.gridLineWidth(cellSize: cell))
                 let hoshi = WidgetBoardView.hoshiPoints(width: width, height: height)
                 ForEach(Array(hoshi.enumerated()), id: \.offset) { _, p in
                     Circle().fill(gridColor)
-                        .frame(width: max(cell * 0.16, 2), height: max(cell * 0.16, 2))
+                        .frame(width: hoshiDiameter, height: hoshiDiameter)
                         .position(CGPoint(x: originX + CGFloat(p.0) * cell, y: originY + CGFloat(p.1) * cell))
                 }
                 ForEach(Array(white.enumerated()), id: \.offset) { _, s in
                     Group {
-                        if style.whiteStoneIsAccentOutline {
+                        if style.stonesAreSpherical {
+                            SphericalStone(isBlack: false, diameter: cell * 0.92)
+                        } else if style.whiteStoneIsAccentOutline {
                             // Accent RING over a faint neutral interior — the
                             // counterpart to black's solid disc; the two stay
                             // tellable apart under any single tint.
@@ -190,7 +215,9 @@ public struct WidgetBoardView: View {
                 }
                 ForEach(Array(black.enumerated()), id: \.offset) { _, s in
                     Group {
-                        if style.blackStoneIsAccentFill {
+                        if style.stonesAreSpherical {
+                            SphericalStone(isBlack: true, diameter: cell * 0.92)
+                        } else if style.blackStoneIsAccentFill {
                             // Full-luminance fill; the system supplies the hue.
                             Circle().fill(.white).boardAccentable(true)
                         } else {
@@ -229,9 +256,13 @@ public struct WidgetBoardView: View {
                 if showCoordinates {
                     let fontSize = max(cell * 0.42, 5)
                     let offset = cell * 0.62
-                    let labelColor = style.isAccented
-                        ? Color.white.opacity(0.75)
-                        : Color.black.opacity(0.75)
+                    let labelColor = style.isGoban
+                        ? Color(red: WidgetBoardStyle.gobanInk.red,
+                                green: WidgetBoardStyle.gobanInk.green,
+                                blue: WidgetBoardStyle.gobanInk.blue).opacity(0.9)
+                        : style.isAccented
+                            ? Color.white.opacity(0.75)
+                            : Color.black.opacity(0.75)
                     // Column letters (A–T, skipping I) above and below the grid.
                     ForEach(0..<width, id: \.self) { x in
                         let cx = originX + CGFloat(x) * cell
@@ -253,5 +284,37 @@ public struct WidgetBoardView: View {
                 }
             }
         }
+    }
+}
+
+/// A flat-vector approximation of the 3D stones: an off-center radial
+/// highlight (upper-left key light) over a darkening rim, plus a soft drop
+/// shadow that scales with the stone. White additionally gets a faint dark
+/// rim so it separates from the light wood underneath.
+private struct SphericalStone: View {
+    let isBlack: Bool
+    let diameter: CGFloat
+
+    var body: some View {
+        let stops: [Gradient.Stop] = isBlack
+            ? [.init(color: Color(white: 0.52), location: 0),
+               .init(color: Color(white: 0.22), location: 0.45),
+               .init(color: Color(white: 0.05), location: 1)]
+            : [.init(color: .white, location: 0),
+               .init(color: Color(white: 0.93), location: 0.55),
+               .init(color: Color(white: 0.78), location: 1)]
+        ZStack {
+            Circle().fill(RadialGradient(stops: stops,
+                                         center: UnitPoint(x: 0.37, y: 0.33),
+                                         startRadius: 0,
+                                         endRadius: diameter * 0.70))
+            if !isBlack {
+                Circle().strokeBorder(.black.opacity(0.12),
+                                      lineWidth: max(diameter * 0.02, 0.5))
+            }
+        }
+        .shadow(color: .black.opacity(WidgetBoardStyle.stoneShadowOpacity),
+                radius: diameter * WidgetBoardStyle.stoneShadowRadiusRatio,
+                x: 0, y: diameter * WidgetBoardStyle.stoneShadowYOffsetRatio)
     }
 }

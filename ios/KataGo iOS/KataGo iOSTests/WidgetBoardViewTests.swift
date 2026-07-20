@@ -84,6 +84,74 @@ struct WidgetBoardViewTests {
         #expect(has19Tengen)
     }
 
+    /// Samples one pixel of a rendered view via a 1x1 sRGB context, in
+    /// top-left image coordinates (CGContext draws bottom-up, hence the flip).
+    @MainActor private func pixel(of view: some View, size: CGFloat,
+                                  x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8)? {
+        let renderer = ImageRenderer(content: view.frame(width: size, height: size))
+        guard let cg = renderer.cgImage,
+              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        var buffer = [UInt8](repeating: 0, count: 4)
+        guard let ctx = CGContext(data: &buffer, width: 1, height: 1,
+                                  bitsPerComponent: 8, bytesPerRow: 4, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(cg, in: CGRect(x: CGFloat(-x), y: CGFloat(-(cg.height - 1 - y)),
+                                width: CGFloat(cg.width), height: CGFloat(cg.height)))
+        return (buffer[0], buffer[1], buffer[2], buffer[3])
+    }
+
+    /// The goban style renders at both widget-family extremes, with and
+    /// without the wood image, in both card and full-bleed modes.
+    @MainActor @Test(arguments: [CGFloat(120), CGFloat(360)])
+    func widgetBoardView_gobanRendersToImage(side: CGFloat) {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let card = WidgetBoardView(width: 19, height: 19,
+                                   blackVertices: ["Q16", "D4"], whiteVertices: ["Q4"],
+                                   style: .goban(drawsOwnWood: true), woodImage: wood)
+        #expect(ImageRenderer(content: card.frame(width: side, height: side)).uiImage != nil)
+
+        let fullBleed = WidgetBoardView(width: 9, height: 9,
+                                        blackVertices: ["C3"], whiteVertices: ["G7"],
+                                        style: .goban(drawsOwnWood: false), woodImage: wood)
+        #expect(ImageRenderer(content: fullBleed.frame(width: side, height: side)).uiImage != nil)
+
+        let noImageFallback = WidgetBoardView(width: 9, height: 9,
+                                              blackVertices: ["C3"], whiteVertices: [],
+                                              style: .goban(drawsOwnWood: true))
+        #expect(ImageRenderer(content: noImageFallback.frame(width: side, height: side)).uiImage != nil)
+    }
+
+    /// The wood-card goban actually paints wood: a margin pixel (outside the
+    /// grid) reads warm wood — red high and materially above blue, ruling out
+    /// both a transparent miss and the pre-redesign flat gray/black.
+    @MainActor @Test func widgetBoardView_gobanCardPaintsWood() {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   style: .goban(drawsOwnWood: true), woodImage: wood)
+        guard let corner = pixel(of: view, size: 200, x: 4, y: 4) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(corner.a == 255)
+        #expect(corner.r > 150)
+        #expect(Int(corner.r) - Int(corner.b) > 50)
+    }
+
+    /// Full-bleed mode draws NOTHING behind the grid — the widget backplate
+    /// already is the wood, and a second slab would create a grain seam. The
+    /// same margin pixel must stay fully transparent.
+    @MainActor @Test func widgetBoardView_gobanFullBleedLeavesMarginTransparent() {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   style: .goban(drawsOwnWood: false), woodImage: wood)
+        guard let corner = pixel(of: view, size: 200, x: 4, y: 4) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(corner.a == 0)
+    }
+
     /// Non-standard and rectangular boards now get star points too, from the
     /// shared BoardStarPoints rule (even sizes still have none).
     @Test func hoshiPoints_nonStandardSizes_useSharedRule() {

@@ -19,6 +19,29 @@ struct SelectGameIntent: WidgetConfigurationIntent {
     // `GameOptionsProvider`.
     @Parameter(title: "Game", optionsProvider: GameOptionsProvider())
     var gameID: String?
+
+    /// The widget backplate. Defaults to Wood (the full-bleed goban look);
+    /// configurations stored before this parameter existed decode to the same
+    /// default via the declared `default:`. A plain String-backed AppEnum for
+    /// the same appex-survivability reason `gameID` is a plain String.
+    @Parameter(title: "Background", default: .wood)
+    var background: SavedGameBackgroundOption
+}
+
+/// The Edit Widget background choices, mirroring `SavedGameBackground` in
+/// KataGoGameStore case-for-case: the provider hands only the RAW VALUE
+/// across (via `SavedGameBackground.resolve`), so the raw strings are the
+/// contract between the two enums and must stay in sync.
+enum SavedGameBackgroundOption: String, AppEnum {
+    case wood, glass, light, dark
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Background"
+    static let caseDisplayRepresentations: [SavedGameBackgroundOption: DisplayRepresentation] = [
+        .wood: "Wood",
+        .glass: "Glass",
+        .light: "Light",
+        .dark: "Dark"
+    ]
 }
 
 /// Supplies the widget configuration picker with one option per saved game: the
