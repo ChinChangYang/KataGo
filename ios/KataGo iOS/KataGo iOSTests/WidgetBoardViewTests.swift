@@ -152,6 +152,56 @@ struct WidgetBoardViewTests {
         #expect(corner.a == 0)
     }
 
+    /// The Saved Game widget now always shows coordinate labels (the goban
+    /// styles pass showCoordinates: true). The labeled board must render at
+    /// both widget-family extremes without collapsing or faulting.
+    @MainActor @Test(arguments: [CGFloat(120), CGFloat(360)])
+    func widgetBoardView_rendersCoordinatesToImage(side: CGFloat) {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let card = WidgetBoardView(width: 19, height: 19,
+                                   blackVertices: ["Q16", "D4"], whiteVertices: ["Q4"],
+                                   showCoordinates: true,
+                                   style: .goban(drawsOwnWood: true), woodImage: wood)
+        #expect(ImageRenderer(content: card.frame(width: side, height: side)).uiImage != nil)
+
+        let fullBleed = WidgetBoardView(width: 9, height: 9,
+                                        blackVertices: ["C3"], whiteVertices: ["G7"],
+                                        showCoordinates: true,
+                                        style: .goban(drawsOwnWood: false), woodImage: wood)
+        #expect(ImageRenderer(content: fullBleed.frame(width: side, height: side)).uiImage != nil)
+    }
+
+    /// Labels smear once the cell pitch drops under the 5 pt font floor's
+    /// glyph height, so the view falls back to the unlabeled layout: a 19x19
+    /// keeps its coordinates even in the small families, while a 37x37 only
+    /// gets them at large-family sizes.
+    @Test func coordinateLabelsFit_gatesOnCellPitch() {
+        let small = CGSize(width: 110, height: 110)
+        #expect(WidgetBoardView.coordinateLabelsFit(size: small, width: 19, height: 19))
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 37, height: 37))
+        let large = CGSize(width: 320, height: 320)
+        #expect(WidgetBoardView.coordinateLabelsFit(size: large, width: 37, height: 37))
+        // Rectangular boards gate on their LONG side (the colliding one).
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 37, height: 2))
+    }
+
+    /// Reserving the coordinate margin shrinks the GRID, never the card: the
+    /// wood still fills the whole frame, so the corner pixel (now inside the
+    /// label band) keeps reading as warm wood.
+    @MainActor @Test func widgetBoardView_coordinateMarginStaysWoodInCardMode() {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   showCoordinates: true,
+                                   style: .goban(drawsOwnWood: true), woodImage: wood)
+        guard let corner = pixel(of: view, size: 200, x: 4, y: 4) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(corner.a == 255)
+        #expect(corner.r > 150)
+        #expect(Int(corner.r) - Int(corner.b) > 50)
+    }
+
     /// Non-standard and rectangular boards now get star points too, from the
     /// shared BoardStarPoints rule (even sizes still have none).
     @Test func hoshiPoints_nonStandardSizes_useSharedRule() {

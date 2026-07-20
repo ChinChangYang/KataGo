@@ -54,11 +54,12 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public static let gobanInk = RGB(red: 95 / 255, green: 65 / 255, blue: 25 / 255)
     public static let gobanWood = RGB(red: 216 / 255, green: 185 / 255, blue: 92 / 255)
 
-    /// Spherical-stone drop shadow, as ratios of the stone diameter — subtle
-    /// at watch-dot sizes, a soft lift at large-widget sizes.
-    public static let stoneShadowOpacity = 0.30
-    public static let stoneShadowRadiusRatio = 0.06
-    public static let stoneShadowYOffsetRatio = 0.05
+    /// Spherical-stone drop shadow, as ratios of the stone diameter. Raised
+    /// from 0.30/0.06/0.05: at widget cell sizes that shadow blurred into
+    /// the wood and the stones read as flat discs.
+    public static let stoneShadowOpacity = 0.42
+    public static let stoneShadowRadiusRatio = 0.11
+    public static let stoneShadowYOffsetRatio = 0.08
 
     /// The wood slab would render as one big flat tinted rectangle in accented
     /// mode, so it is dropped and the system tint/glass shows through instead.

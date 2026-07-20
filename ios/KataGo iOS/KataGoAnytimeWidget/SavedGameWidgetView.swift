@@ -27,9 +27,10 @@ struct SavedGameWidgetView: View {
         }
     }
 
-    /// visionOS's glass texture composites widget content over DARK glass, so
-    /// glass-backed plans pin the dark scheme there; elsewhere glass stays
-    /// adaptive. Injected into the resolver so the mapping is testable.
+    /// visionOS's system glass texture (`.widgetTexture(.glass)`) composites
+    /// widget content over DARK glass. Only the accented plan still renders
+    /// over that glass, so only it consumes the flag — injected into the
+    /// resolver so the mapping is testable.
     private var glassPrefersDarkScheme: Bool {
         #if os(visionOS)
         true
@@ -59,6 +60,7 @@ struct SavedGameWidgetView: View {
                         height: entry.snapshot.boardHeight,
                         blackVertices: entry.snapshot.lastBlackStones,
                         whiteVertices: entry.snapshot.lastWhiteStones,
+                        showCoordinates: true,
                         style: plan.boardStyle,
                         woodImage: WidgetWoodTexture.sharedSquareImage())
             // Keep the goban square. WidgetBoardView is a greedy GeometryReader with
@@ -88,9 +90,20 @@ struct SavedGameWidgetView: View {
                       green: WidgetBoardStyle.gobanWood.green,
                       blue: WidgetBoardStyle.gobanWood.blue)
             }
-        case .glass, .neutralAccent:
-            // Today's translucent system material (the glass backdrop layer
-            // on visionOS); also what the accent tint recolors.
+        case .material(let material):
+            // Same rendering as the wood, from the per-material memoized
+            // texture — the board draws its own wood card on top.
+            if let texture = WidgetBackplateTexture.sharedSquareImage(material) {
+                Image(decorative: texture, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color(red: material.baseColor.red,
+                      green: material.baseColor.green,
+                      blue: material.baseColor.blue)
+            }
+        case .neutralAccent:
+            // The translucent system material the accent tint recolors.
             Color.clear.background(.fill.tertiary)
         case .light:
             Color(white: 0.96)
@@ -183,10 +196,11 @@ struct SavedGameWidgetView: View {
             backplate
         }
         // Per-backplate contrast, the generalization of the visionOS glass
-        // black-on-black fix (340df0cd): Wood/Light pin the LIGHT scheme so
-        // .primary reads as dark ink even in system dark mode; Dark (and
-        // glass over visionOS's dark glass) pin DARK so labels stay bright;
-        // adaptive glass elsewhere inherits (nil pin).
+        // black-on-black fix (340df0cd): the pale backplates (Wood/Light/
+        // Tatami/Sky) pin the LIGHT scheme so .primary reads as dark ink even
+        // in system dark mode; the dark ones (Dark/Grass/Slate, and accented
+        // over visionOS's dark glass) pin DARK so labels stay bright; the
+        // accented widget elsewhere inherits (nil pin).
         .transformEnvironment(\.colorScheme) { scheme in
             switch backgroundPlan.colorSchemePin {
             case .light: scheme = .light

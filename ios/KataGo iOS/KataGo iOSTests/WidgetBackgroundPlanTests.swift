@@ -47,26 +47,32 @@ struct WidgetBackgroundPlanTests {
         }
     }
 
-    @Test func glassReproducesThePreRedesignLook() {
-        // Glass is the shipped look: translucent system backplate, the board as
-        // its own wood card, and the visionOS-only dark pin (commit 340df0cd —
-        // content over dark glass with a light inherited scheme rendered
-        // black-on-black). Elsewhere the scheme stays adaptive (no pin).
-        let vision = WidgetBackgroundPlan.resolve(background: .glass,
-                                                  isAccented: false,
-                                                  glassPrefersDarkScheme: true)
-        #expect(vision.backplate == .glass)
-        #expect(vision.colorSchemePin == .dark)
-        #expect(vision.boardDrawsOwnWood)
-        #expect(!vision.textIsInk)
-        #expect(vision.boardStyle == .goban(drawsOwnWood: true))
-
-        let phone = WidgetBackgroundPlan.resolve(background: .glass,
-                                                 isAccented: false,
-                                                 glassPrefersDarkScheme: false)
-        #expect(phone.backplate == .glass)
-        #expect(phone.colorSchemePin == nil)
-        #expect(phone.boardDrawsOwnWood)
+    @Test func materialBackplatesPutAGobanOnTheMaterial() {
+        // The four material backdrops all read as a goban resting on the
+        // material: full-bleed texture backplate, the board as its OWN wood
+        // card, and a pinned scheme chosen for legibility over that material —
+        // ink text over the pale ones (tatami, sky), bright text over the
+        // darker ones (grass, slate). The platform glass flag is irrelevant.
+        let expectations: [(SavedGameBackground,
+                            WidgetBackplateMaterial,
+                            WidgetBackgroundPlan.SchemePin)] = [
+            (.grass, .grass, .dark),
+            (.tatami, .tatami, .light),
+            (.slate, .slate, .dark),
+            (.sky, .sky, .light),
+        ]
+        for glassDark in [false, true] {
+            for (background, material, pin) in expectations {
+                let plan = WidgetBackgroundPlan.resolve(background: background,
+                                                        isAccented: false,
+                                                        glassPrefersDarkScheme: glassDark)
+                #expect(plan.backplate == .material(material))
+                #expect(plan.colorSchemePin == pin)
+                #expect(plan.boardDrawsOwnWood)
+                #expect(plan.textIsInk == (pin == .light))
+                #expect(plan.boardStyle == .goban(drawsOwnWood: true))
+            }
+        }
     }
 
     @Test func lightAndDarkPinTheirSchemes() {

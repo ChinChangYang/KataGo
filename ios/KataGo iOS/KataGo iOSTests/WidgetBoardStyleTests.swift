@@ -118,8 +118,10 @@ struct WidgetBoardStyleTests {
         #expect(WidgetBoardStyle.gobanWood == WidgetBoardStyle.RGB(red: 216 / 255,
                                                                    green: 185 / 255,
                                                                    blue: 92 / 255))
-        #expect(WidgetBoardStyle.stoneShadowOpacity == 0.30)
-        #expect(WidgetBoardStyle.stoneShadowRadiusRatio == 0.06)
-        #expect(WidgetBoardStyle.stoneShadowYOffsetRatio == 0.05)
+        // Raised from 0.30/0.06/0.05: at widget cell sizes the original shadow
+        // blurred into the wood and the stones read as flat discs.
+        #expect(WidgetBoardStyle.stoneShadowOpacity == 0.42)
+        #expect(WidgetBoardStyle.stoneShadowRadiusRatio == 0.11)
+        #expect(WidgetBoardStyle.stoneShadowYOffsetRatio == 0.08)
     }
 }

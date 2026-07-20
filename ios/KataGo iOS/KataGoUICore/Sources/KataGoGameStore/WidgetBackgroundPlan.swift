@@ -10,11 +10,15 @@
 /// and the pre-existing two-tone accent treatment takes over unchanged.
 ///
 /// Platform variance is injected (`glassPrefersDarkScheme` is true only on
-/// visionOS, where the glass texture composites content over DARK glass), so
-/// the whole matrix stays testable from the iOS simulator suite.
+/// visionOS, where the widget's system glass texture composites content over
+/// DARK glass — only the accented plan still composites over it), so the
+/// whole matrix stays testable from the iOS simulator suite.
 public enum WidgetBackgroundPlan {
     public enum Backplate: Equatable, Sendable {
-        case wood, glass, light, dark
+        case wood, light, dark
+        /// A full-bleed procedural texture (`WidgetBackplateTexture`) the
+        /// board's own wood card sits on.
+        case material(WidgetBackplateMaterial)
         /// The neutral system material behind the accent-tinted board.
         case neutralAccent
     }
@@ -31,7 +35,8 @@ public enum WidgetBackgroundPlan {
         /// Wood backplate — one wood surface at a time, so no grain seam can
         /// exist between the board and its margins.
         public let boardDrawsOwnWood: Bool
-        /// Dark ink on a light surface (wood/light) vs bright text (glass/dark).
+        /// Dark ink on a light surface (wood/light/tatami/sky) vs bright
+        /// text on a dark one (dark/grass/slate).
         public let textIsInk: Bool
         public let boardStyle: WidgetBoardStyle
     }
@@ -53,12 +58,14 @@ public enum WidgetBackgroundPlan {
                         boardDrawsOwnWood: false,
                         textIsInk: true,
                         boardStyle: .goban(drawsOwnWood: false))
-        case .glass:
-            return Plan(backplate: .glass,
-                        colorSchemePin: glassPrefersDarkScheme ? .dark : nil,
-                        boardDrawsOwnWood: true,
-                        textIsInk: false,
-                        boardStyle: .goban(drawsOwnWood: true))
+        case .grass:
+            return materialPlan(.grass, pin: .dark)
+        case .tatami:
+            return materialPlan(.tatami, pin: .light)
+        case .slate:
+            return materialPlan(.slate, pin: .dark)
+        case .sky:
+            return materialPlan(.sky, pin: .light)
         case .light:
             return Plan(backplate: .light,
                         colorSchemePin: .light,
@@ -72,5 +79,17 @@ public enum WidgetBackgroundPlan {
                         textIsInk: false,
                         boardStyle: .goban(drawsOwnWood: true))
         }
+    }
+
+    /// A goban resting on the material: full-bleed texture backplate, the
+    /// board as its own wood card, and the scheme pinned for legibility over
+    /// that material — ink text over the pale ones, bright over the dark.
+    private static func materialPlan(_ material: WidgetBackplateMaterial,
+                                     pin: SchemePin) -> Plan {
+        Plan(backplate: .material(material),
+             colorSchemePin: pin,
+             boardDrawsOwnWood: true,
+             textIsInk: pin == .light,
+             boardStyle: .goban(drawsOwnWood: true))
     }
 }

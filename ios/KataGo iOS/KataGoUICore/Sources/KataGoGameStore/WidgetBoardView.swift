@@ -116,6 +116,19 @@ public struct WidgetBoardView: View {
         return (dots, last)
     }
 
+    /// Whether coordinate labels stay legible for a `width` x `height` board
+    /// rendered into `size`: the label font floors at 5 pt (glyphs ~3.6 pt
+    /// tall), so once the cell pitch drops below ~4 pt adjacent labels merge
+    /// into a smear — a 25x25+ board in the small widget families. Below the
+    /// floor the board renders as if coordinates were off, margin included,
+    /// so the stones get the space back. Mirrors `body`'s margin/cell math.
+    nonisolated public static func coordinateLabelsFit(size: CGSize, width: Int, height: Int) -> Bool {
+        let margin = min(size.width, size.height) * 0.06
+        let cell = min((size.width - 2 * margin) / CGFloat(width),
+                       (size.height - 2 * margin) / CGFloat(height))
+        return cell >= 4
+    }
+
     /// 0-based grid coordinates of the star points (hoshi), from the shared
     /// `BoardStarPoints` rule so the vector board matches every other renderer
     /// on any width x height (not just the classic squares).
@@ -130,9 +143,11 @@ public struct WidgetBoardView: View {
     public var body: some View {
         GeometryReader { geo in
             // Coordinates need a band outside the outermost lines. Reserving it
-            // shrinks the grid; with showCoordinates == false the margin is 0 and
-            // the geometry is byte-identical to the widget's original layout.
-            let coordinateMargin = showCoordinates
+            // shrinks the grid; with the labels off the margin is 0 and the
+            // geometry is byte-identical to the widget's original layout.
+            let showsLabels = showCoordinates
+                && Self.coordinateLabelsFit(size: geo.size, width: width, height: height)
+            let coordinateMargin = showsLabels
                 ? min(geo.size.width, geo.size.height) * 0.06 : 0
             let availableWidth = geo.size.width - 2 * coordinateMargin
             let availableHeight = geo.size.height - 2 * coordinateMargin
@@ -253,7 +268,7 @@ public struct WidgetBoardView: View {
                     .frame(width: cell * 0.6, height: cell * 0.6)
                     .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
                 }
-                if showCoordinates {
+                if showsLabels {
                     let fontSize = max(cell * 0.42, 5)
                     let offset = cell * 0.62
                     let labelColor = style.isGoban

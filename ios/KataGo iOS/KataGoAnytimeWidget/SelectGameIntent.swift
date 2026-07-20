@@ -25,11 +25,12 @@ struct SelectGameIntent: WidgetConfigurationIntent {
     /// through the same AppIntents resolver machinery as `GameEntity` — and in
     /// the widget process that resolution yields NIL (verified in the
     /// simulator log: every timeline request logged "Prepared background to
-    /// SavedGameBackgroundOption(nil)" even after the user picked Glass and
-    /// the Edit sheet redisplayed Glass), so the declared default silently won
-    /// forever. A plain String decodes directly from the stored intent — the
-    /// same fix as `gameID` above. nil (unconfigured or pre-upgrade) resolves
-    /// to Wood via `SavedGameBackground.resolve`.
+    /// SavedGameBackgroundOption(nil)" even after the user picked a
+    /// non-default option and the Edit sheet redisplayed it), so the declared
+    /// default silently won forever. A plain String decodes directly from the
+    /// stored intent — the same fix as `gameID` above. nil (unconfigured or
+    /// pre-upgrade) and retired raw values resolve to the designed default
+    /// via `SavedGameBackground.resolve`.
     @Parameter(title: "Background", optionsProvider: BackgroundOptionsProvider())
     var background: String?
 }
@@ -47,7 +48,7 @@ struct BackgroundOptionsProvider: DynamicOptionsProvider {
     }
 
     /// Shown in the Edit sheet row before the user ever picks — the designed
-    /// Wood default rather than an empty row.
+    /// default rather than an empty row.
     func defaultResult() async -> String? {
         SavedGameBackground.default.rawValue
     }
