@@ -218,7 +218,7 @@ public struct LinePlotView: View {
                     Button {
                         gobanState.isEditing = true
                         gobanState.isAutoPlaying.toggle()
-                        gobanState.isAutoPlayed = false
+                        gobanState.clearAutoPlayStep()
                     } label: {
                         let systemName = gobanState.isAutoPlaying ? "stop.circle" : "wand.and.sparkles"
                         Image(systemName: systemName)

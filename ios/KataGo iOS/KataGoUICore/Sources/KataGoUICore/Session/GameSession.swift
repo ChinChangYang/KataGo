@@ -434,13 +434,16 @@ public final class GameSession {
         // A cancelled kata-search_analyze_cancellable still prints its
         // best-so-far "play <vertex>" (the engine never plays it on its own
         // board). While the session is a spectator or paused
-        // (suppressesGenMove) or a user pick is mid-legality-check
-        // (pendingMoveTurn set — the kata-check-move is what cancelled the
-        // search), that reply must not be played into the record. Unreachable
-        // on iOS/macOS: they never suppress, and the board tap gate
-        // (!shouldGenMove) means no pending move can coexist with a gen-move
-        // reply there.
-        guard !gobanState.suppressesGenMove, gobanState.pendingMoveTurn == nil else { return }
+        // (suppressesGenMove), replaying (isAutoPlaying — the wand's command
+        // burst is what cancelled an in-flight gen-move, and the stray reply
+        // would truncate the record via the editing path), or a user pick is
+        // mid-legality-check (pendingMoveTurn set — the kata-check-move is
+        // what cancelled the search), that reply must not be played into the
+        // record. shouldGenMove forbids issuing gen-moves in all three
+        // states, so no legitimate reply is ever dropped here.
+        guard !gobanState.suppressesGenMove,
+              !gobanState.isAutoPlaying,
+              gobanState.pendingMoveTurn == nil else { return }
 
         let pattern = /play (pass|\w+\d+)/
         if let match = message.firstMatch(of: pattern),

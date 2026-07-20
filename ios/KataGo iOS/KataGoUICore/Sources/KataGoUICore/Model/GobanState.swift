@@ -23,7 +23,15 @@ public class GobanState {
     public var isShownBoard: Bool = false
     public var eyeStatus = EyeStatus.opened
     public var isAutoPlaying: Bool = false
-    public var isAutoPlayed: Bool = false
+    public private(set) var isAutoPlayed: Bool = false
+    /// Auto-play replay: the absolute index the record will sit at once the
+    /// current step's showboard round-trips. The advance site assigns this
+    /// (never increments) so spurious stones.isReady edges — e.g. the
+    /// "? illegal move" reply of a raced duplicate play arriving via
+    /// resetPendingStatesOnError — are idempotent and can't skip a move.
+    /// private(set): both flags move only through recordAutoPlayStep /
+    /// clearAutoPlayStep, so no play site can resurrect increment semantics.
+    @ObservationIgnored public private(set) var autoPlayTargetIndex: Int? = nil
     public var passCount: Int = 0
     /// When true, a side whose config says "engine plays" (maxTime > 0) still
     /// gets plain continuous analysis instead of a gen-move — the whole screen
@@ -108,12 +116,38 @@ public class GobanState {
 
     public func consumeShowBoardResponse(response: String) -> Bool {
         if response.hasPrefix("= MoveNum") {
-            showBoardCount = showBoardCount - 1
+            // Clamp at zero: a stray response (count desync) must parse as a
+            // harmless extra board, not push the count negative and silently
+            // drop every future board parse.
+            showBoardCount = max(0, showBoardCount - 1)
             isShownBoard = true
             return showBoardCount == 0
         } else {
             return false
         }
+    }
+
+    /// Auto-play replay, play site: the step just sent `play` for the move at
+    /// `nextIndex - 1`; once its showboard round-trips, the record must sit at
+    /// `nextIndex`.
+    public func recordAutoPlayStep(nextIndex: Int) {
+        isAutoPlayed = true
+        autoPlayTargetIndex = nextIndex
+    }
+
+    public func clearAutoPlayStep() {
+        isAutoPlayed = false
+        autoPlayTargetIndex = nil
+    }
+
+    /// Auto-play replay, advance site: the absolute index to assign on a
+    /// stones.isReady edge, or nil when the edge is not an auto-play step.
+    /// Assignment (not increment) keeps spurious extra edges — a raced
+    /// duplicate play's "? illegal move" reset, or a doubled showboard —
+    /// idempotent, so they can never skip an SGF move's `play`.
+    public func autoPlayAdvancedIndex() -> Int? {
+        guard isAutoPlayed else { return nil }
+        return autoPlayTargetIndex
     }
 
     func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
@@ -904,7 +938,7 @@ public class GobanState {
             }
             newGameRecord.updateToLatestVersion()
             isAutoPlaying = false
-            isAutoPlayed = false
+            clearAutoPlayStep()
             isEditing = Self.editingAfterLoad(sgf: newGameRecord.sgf,
                                               unlockRequested: unlockRequested)
             let currentIndex = newGameRecord.currentIndex

@@ -1326,7 +1326,10 @@ final class MainWindowController: NSWindowController {
                 // the `toggleNextColorForPlayCommand()` below) -> `maybeRequestAnalysis`.
                 // That next `info` line is the next `true -> false` edge, and the
                 // `sendShowBoardCommand` round-trip's `stones.isReady` false->true edge
-                // is what the auto-play observer turns into `currentIndex += 1`. The
+                // is what the auto-play observer turns into an ASSIGNMENT of the
+                // target recorded at the play site (`recordAutoPlayStep` /
+                // `autoPlayAdvancedIndex` — absolute, so a spurious extra edge
+                // re-assigns the same value instead of skipping a move). The
                 // terminal `getMove` miss sets `isAutoPlaying = false`, ending the loop.
                 if gobanState.isAutoPlaying,
                    !session.analysis.info.isEmpty,
@@ -1355,10 +1358,10 @@ final class MainWindowController: NSWindowController {
                         session.player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: session.messageList)
                         audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
-                        gobanState.isAutoPlayed = true
+                        gobanState.recordAutoPlayStep(nextIndex: gameRecord.currentIndex + 1)
                     } else {
                         gobanState.isAutoPlaying = false
-                        gobanState.isAutoPlayed = false
+                        gobanState.clearAutoPlayStep()
                     }
                 }
             }
@@ -1464,7 +1467,7 @@ final class MainWindowController: NSWindowController {
         // loop can't be left running with no edit session). iOS lines 351-356.
         if !gobanState.isEditing && lastIsEditing {
             gobanState.isAutoPlaying = false
-            gobanState.isAutoPlayed = false
+            gobanState.clearAutoPlayStep()
         }
 
         lastIsAutoPlaying = gobanState.isAutoPlaying
@@ -1538,15 +1541,14 @@ final class MainWindowController: NSWindowController {
     /// when an auto-play step just played, advances `currentIndex`. Ends by
     /// re-syncing the opening-book state (P6-T5), exactly as iOS does (line 291).
     ///
-    /// CAVEAT: this is the one observed edge whose miss is NOT self-correcting. The
-    /// `withObservationTracking` re-arm gap (see `handleAnalysisLifecycleChange`'s
-    /// note) is harmless for `waitingForAnalysis` (re-read live + self-correct), but
-    /// a dropped `stones.isReady` false->true edge during auto-play would skip one
-    /// `currentIndex += 1`, permanently mis-indexing later `scoreLeads`/`winRates`
-    /// writes. In practice the edges are spaced by full `showboard` round-trips and
-    /// the re-arm `Task` drains on `messaging`'s per-line `await` well before the
-    /// next edge, so a miss is not reachable in this flow — but auto-play is the one
-    /// path to revisit if that assumption ever changes.
+    /// CAVEAT (softened): the auto-play advance ASSIGNS the absolute target
+    /// recorded at the play site (`autoPlayAdvancedIndex`) instead of
+    /// incrementing, so a dropped or doubled `stones.isReady` edge re-assigns
+    /// the same value rather than skipping or double-advancing. The historical
+    /// hazard — a missed edge permanently mis-indexing later
+    /// `scoreLeads`/`winRates` writes — now self-heals on the next edge (a
+    /// raced duplicate play is rejected by the engine, and its "? illegal
+    /// move" reset supplies that edge).
     private func handleStonesReadyChange() {
         let gobanState = session.gobanState
         guard let gameRecord = navigationContext.selectedGameRecord else { return }
@@ -1568,8 +1570,8 @@ final class MainWindowController: NSWindowController {
             height: Int(session.board.height)
         )
 
-        if gobanState.isAutoPlayed {
-            gameRecord.currentIndex += 1
+        if let advanced = gobanState.autoPlayAdvancedIndex() {
+            gameRecord.currentIndex = advanced
         }
 
         // Sync book state after undo/forward/backward (mirrors iOS line 291).

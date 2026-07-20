@@ -456,8 +456,8 @@ struct GameSplitView: View {
                 height: Int(board.height)
             )
 
-            if gobanState.isAutoPlayed {
-                gameRecord.currentIndex += 1
+            if let advanced = gobanState.autoPlayAdvancedIndex() {
+                gameRecord.currentIndex = advanced
             }
 
             // Sync book state after undo/forward/backward
@@ -524,7 +524,7 @@ struct GameSplitView: View {
     private func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
         if !newIsEditing {
             gobanState.isAutoPlaying = false
-            gobanState.isAutoPlayed = false
+            gobanState.clearAutoPlayStep()
         }
     }
 
@@ -838,10 +838,10 @@ struct GameSplitView: View {
                         player.toggleNextColorForPlayCommand()
                         gobanState.sendShowBoardCommand(messageList: messageList)
                         audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
-                        gobanState.isAutoPlayed = true
+                        gobanState.recordAutoPlayStep(nextIndex: gameRecord.currentIndex + 1)
                     } else {
                         gobanState.isAutoPlaying = false
-                        gobanState.isAutoPlayed = false
+                        gobanState.clearAutoPlayStep()
                     }
                 }
             }
