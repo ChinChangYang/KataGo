@@ -102,8 +102,6 @@ struct TVSelfPlayScreen: View {
     /// the whole broadcast; the licensed gen-move plays the moves.)
     private var isPaused: Bool { broadcast?.phase == .paused }
 
-    private var isShowingSlides: Bool { broadcast?.isShowingSlides == true }
-
     var body: some View {
         // Attract is a screensaver: the root owns focus and ANY press exits.
         // Manual is interactive: the root must NOT be focusable and must not
@@ -710,17 +708,19 @@ struct TVSelfPlayScreen: View {
                    verticalFlip: gobanState.verticalFlip)
     }
 
-    /// Undo the last move. In a live game the gen-move loop would instantly
-    /// refill the position, so pause FIRST (raise the spectator flag): then
-    /// `backwardMoves`' post-execution re-request AND the turn toggle both fall
-    /// through to plain continuous kata-analyze instead of a gen-move, and any
-    /// trailing "play" from the cancelled in-flight search is dropped by
-    /// postProcessAIMove's suppressesGenMove guard — so the undone position
-    /// holds. maybePauseAnalysis() then stops that re-requested stream so the
-    /// engine idles (one snapshot of the undone position, then quiet). The
-    /// game stays paused; Resume plays forward from here, discarding the undone
-    /// moves (a real rewind). Same readiness gating as `pick()` so a press
-    /// can't race an in-flight legality check or a just-arrived move.
+    /// Paused-interactive undo — the button renders only while the broadcast
+    /// is paused, so this is reached with no cycle running. Steps the shared
+    /// history back one move. The `suppressesGenMove = true` here is
+    /// redundant-but-defensive (the broadcast keeps it true for its whole
+    /// lifetime): with it set, `backwardMoves`' post-execution re-request AND
+    /// the turn toggle both fall through to plain continuous kata-analyze
+    /// instead of a gen-move, and any trailing "play" from a cancelled
+    /// in-flight search is dropped by postProcessAIMove's suppression guard —
+    /// so the undone position holds. maybePauseAnalysis() then stops that
+    /// re-requested stream so the engine idles (one snapshot of the undone
+    /// position, then quiet). The game stays paused; Resume runs a fresh
+    /// report on the rewound position. Same readiness gating as `pick()` so a
+    /// press can't race an in-flight legality check or a just-arrived move.
     private func stepBack() {
         guard let game, !isGameOver,
               stones.isReady,
@@ -831,20 +831,6 @@ private struct TVSelfPlayPreviewHost: View {
                                               blackScore: 0)
     session.gobanState.analysisStatus = .run
     session.gobanState.eyeStatus = .opened
-    return TVSelfPlayPreviewHost(game: game, session: session)
-}
-
-// Paused mid-game: the badge reads "Paused", the button offers Resume, and
-// the Top Moves rows stay visible (frozen at their last candidates — pausing
-// stops the analysis stream, so analysisStatus is .pause, not .run).
-#Preview("Self-play — paused") {
-    let game = TVPreviewData.denseAnalyzedGame()
-    let session = TVPreviewData.reviewSession(game: game,
-                                              blackWinrate: 0.55,
-                                              blackScore: 1.5)
-    session.gobanState.analysisStatus = .pause
-    session.gobanState.eyeStatus = .opened
-    session.gobanState.suppressesGenMove = true
     return TVSelfPlayPreviewHost(game: game, session: session)
 }
 

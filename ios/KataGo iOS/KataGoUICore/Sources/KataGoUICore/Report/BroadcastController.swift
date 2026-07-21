@@ -19,6 +19,11 @@
 //    of the gen-move reply on the FIFO pipe, never near a collector swap.
 //  - maybePauseAnalysis is NEVER called around generation; the generator's
 //    probe cancellation + restore() leave the engine idle on their own.
+//  - BoardView's turn observer also sends asymmetric human-SL kata-set-param
+//    commands regardless of analysisStatus; inert for the symmetric self-play
+//    config, but an asymmetric demo config would inject acks at cycle-start —
+//    keep the config symmetric or gate those sends before reusing this
+//    controller.
 //
 
 import SwiftUI
@@ -54,6 +59,9 @@ public final class BroadcastController {
 
     private var cycleTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
+    /// The in-flight pause drain, stored so cancelAll (a Menu exit) can cancel
+    /// it before its continuation re-arms analysis for a torn-down screen.
+    private var pauseTask: Task<Void, Never>?
     private var moveLanded = false
     private var genMoveIssued = false
     private var skipRequested = false
@@ -109,19 +117,39 @@ public final class BroadcastController {
     /// screen to the interactive paused UI. Continuous analysis re-arms so
     /// the Top Moves list fills — unlike the old self-play pause there is no
     /// live stream to freeze, because the broadcast never runs one.
+    ///
+    /// Idempotent and cancel-safe: the whole body runs inside a stored task.
+    /// A second Play/Pause press during the drain early-returns (else it would
+    /// double-arm continuous analysis), and a Menu-exit's cancelAll can cancel
+    /// the in-flight drain — whose continuation must NOT re-arm kata-analyze
+    /// for a screen cancelAll already tore down.
     public func pause(game: GameRecord) async {
-        let task = cycleTask
-        cycleTask = nil
-        task?.cancel()
-        await task?.value
-        currentSlide = nil
-        typedText = ""
-        slideNumber = 0
-        phase = .paused
-        gobanState.analysisStatus = .run
-        gobanState.requestAnalysis(config: game.concreteConfig,
-                                   messageList: messageList,
-                                   nextColorForPlayCommand: player.nextColorForPlayCommand)
+        guard pauseTask == nil, phase != .paused else { return }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let cycle = self.cycleTask
+            self.cycleTask = nil
+            cycle?.cancel()
+            await cycle?.value
+            // A cancelAll during the drain cancels THIS task: it must not
+            // mutate state (re-arm analysis, flip to .paused) after cancelAll
+            // has already returned the screen to .idle.
+            guard !Task.isCancelled else { return }
+            self.currentSlide = nil
+            self.typedText = ""
+            self.slideNumber = 0
+            self.phase = .paused
+            self.gobanState.analysisStatus = .run
+            self.gobanState.requestAnalysis(config: game.concreteConfig,
+                                            messageList: self.messageList,
+                                            nextColorForPlayCommand: self.player.nextColorForPlayCommand)
+        }
+        pauseTask = task
+        await task.value
+        // Only clear the handle if a concurrent cancelAll (which nils it) or a
+        // later pause has not already replaced it. Task is Equatable by
+        // identity.
+        if pauseTask == task { pauseTask = nil }
     }
 
     /// Re-enter the loop from the current (possibly user-altered) position.
@@ -130,19 +158,34 @@ public final class BroadcastController {
     /// ack was consumed long ago). issueGenMove restores the .clear protocol
     /// at the cycle's end.
     public func resume(game: GameRecord) {
-        guard phase == .paused else { return }
+        // Drop a resume pressed while a pick's legality check or a cancelled
+        // gen-move reply is still in flight (the next press works): the
+        // resumed cycle's collector must not arm over un-acked non-probe
+        // traffic — the ReportCollector FIFO pops one stage per `=` line.
+        guard phase == .paused,
+              gobanState.pendingMoveTurn == nil,
+              !gobanState.broadcastGenMovePending else { return }
         startCycle(game: game)
     }
 
     /// Teardown / new-game restart: abandon everything. The generator's
     /// probe-session defer runs restore() on cancellation, so the engine
-    /// comes back to the game position on its own.
+    /// comes back to the game position on its own. Callers own analysisStatus
+    /// restoration after this returns — cancelAll deliberately does not touch
+    /// it.
     public func cancelAll() {
         cycleToken += 1
+        pauseTask?.cancel()
+        pauseTask = nil
         cycleTask?.cancel()
         cycleTask = nil
         generationTask?.cancel()
         generationTask = nil
+        // An exit during .awaitingMove must not leave the gen-move license
+        // armed: a later screen's stray "play" reply would otherwise consume
+        // it, bypassing the review screen's spectator protection into a
+        // CloudKit-synced record.
+        gobanState.broadcastGenMovePending = false
         currentSlide = nil
         typedText = ""
         slideNumber = 0
@@ -175,7 +218,7 @@ public final class BroadcastController {
         let token = cycleToken
         cycleTask = Task { [weak self] in
             guard let self else { return }
-            let chain = await self.runCycle(game: game)
+            let chain = await self.runCycle(game: game, token: token)
             guard self.cycleToken == token else { return }
             self.cycleTask = nil
             if chain {
@@ -186,7 +229,22 @@ public final class BroadcastController {
 
     /// Returns true when the gen-move's stone already landed mid-slideshow,
     /// so the caller chains straight into the next cycle.
-    private func runCycle(game: GameRecord) async -> Bool {
+    private func runCycle(game: GameRecord, token: Int) async -> Bool {
+        // Turn-quiescence gate (structural): playAIMove toggles
+        // nextColorForPlayCommand before the showboard/printsgf replies land,
+        // so a cycle can arm over their un-acked `=` tails and generate() can
+        // read a stale nextColorFromShowBoard (wrong-side report). The
+        // showboard reply both settles the reply tail and makes the report
+        // side authoritative — wait for it. Bounded, so a lost reply degrades
+        // to today's behavior instead of hanging.
+        var polls = 0
+        while player.nextColorFromShowBoard != player.nextColorForPlayCommand
+                && polls < 50 && !Task.isCancelled {
+            try? await sleeper(BroadcastConstants.pollSeconds)
+            polls += 1
+        }
+        if Task.isCancelled { return false }
+
         let model = DeepReportModel()
         reportModel = model
         let generation = Task { [generateReport] in
@@ -234,9 +292,14 @@ public final class BroadcastController {
             generation.cancel()
         }
         await generation.value
-        currentSlide = nil
-        typedText = ""
-        slideNumber = 0
+        // Only blank the shared slide state if no newer cycle owns it — a
+        // late-draining cancelled cycle must not wipe its successor's live
+        // slide (the same cycleToken the continuation checks).
+        if cycleToken == token {
+            currentSlide = nil
+            typedText = ""
+            slideNumber = 0
+        }
         if Task.isCancelled { return false }
         if !genMoveIssued {
             issueGenMove(game: game)
@@ -281,7 +344,20 @@ public final class BroadcastController {
         guard !Task.isCancelled else { return }
         let dwell = max(BroadcastConstants.minimumSlideSeconds - elapsed,
                         BroadcastConstants.dwellSeconds)
-        try? await sleeper(dwell)
+        // Poll the dwell so a skip pressed during it is honored AND consumed.
+        // A single sleeper(dwell) swallowed such a skip, and the stale flag
+        // then blanked the NEXT slide on entry (its typing loop saw the flag,
+        // reset, and returned — that slide's content lost).
+        var dwelled: TimeInterval = 0
+        while dwelled < dwell {
+            if Task.isCancelled { return }
+            if skipRequested {
+                skipRequested = false
+                return
+            }
+            try? await sleeper(BroadcastConstants.pollSeconds)
+            dwelled += BroadcastConstants.pollSeconds
+        }
     }
 
     private func issueGenMove(game: GameRecord) {

@@ -272,4 +272,20 @@ struct DeepReportGeneratorTests {
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.engine.sent.contains("showboard"))
     }
+
+    /// The re-entrancy bail must SETTLE the stage, not leave it .idle: a
+    /// broadcast cycle polls the model waiting for a landed/settled stage, and
+    /// an .idle bail would spin that loop forever.
+    @Test func reentrancyBailSettlesToFailedStage() async {
+        let f = Fixture()
+        f.session.gobanState.reportGenerationActive = true   // another report is active
+
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        guard case .failed(let message) = f.model.stage else {
+            Issue.record("expected .failed, got \(f.model.stage)")
+            return
+        }
+        #expect(message == "Another report is active.")
+    }
 }

@@ -199,6 +199,9 @@ struct BroadcastControllerTests {
         await f.controller.pause(game: f.record)
         #expect(f.session.gobanState.analysisStatus == .run)
 
+        // The engine's play reply consumed the prior cycle's gen-move license
+        // and the picker is idle: resume's quiescence gate (F2) now passes.
+        f.session.gobanState.broadcastGenMovePending = false
         f.controller.resume(game: f.record)
         await f.pump(until: { f.controller.phase == .awaitingMove })
         #expect(f.session.gobanState.analysisStatus == .clear)
@@ -249,5 +252,164 @@ struct BroadcastControllerTests {
         await f.controller.pause(game: f.record)
         await f.pump(until: { exited.value == 2 })
         #expect(f.controller.phase == .paused)
+    }
+
+    /// A never-settling generator that widens the cancellation-drain window
+    /// (so an interleaved cancelAll lands squarely mid-drain).
+    private static func slowDrainGenerator(_ model: DeepReportModel) async {
+        model.sideToMove = .black
+        model.candidates = [CandidateReport(vertex: "E5", visits: 10, winrate: 0.5,
+                                            scoreLead: 0, winrateDelta: 0, scoreLeadDelta: 0,
+                                            pv: ["E5"], ownershipDelta: [:], tenuki: nil)]
+        while !Task.isCancelled { await Task.yield() }
+        for _ in 0..<50 { await Task.yield() }   // widen the drain window
+        model.stage = .cancelled
+    }
+
+    // MARK: - F1: pause task lifecycle
+
+    @Test("Two overlapping pauses re-arm continuous analysis exactly once")
+    func pauseIsIdempotentWhileDraining() async {
+        let f = Fixture(generate: { model, _ in
+            await BroadcastControllerTests.slowDrainGenerator(model)
+        })
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.isShowingSlides })
+
+        // Fire two overlapping pauses; the first arms, the second must
+        // early-return while the first is still draining.
+        let a = Task { await f.controller.pause(game: f.record) }
+        let b = Task { await f.controller.pause(game: f.record) }
+        await a.value
+        await b.value
+
+        #expect(f.controller.phase == .paused)
+        #expect(f.sentCount("kata-analyze") == 1)
+    }
+
+    @Test("cancelAll during a pause drain suppresses the re-arm")
+    func cancelAllDuringPauseDrainSuppressesRearm() async {
+        let f = Fixture(generate: { model, _ in
+            await BroadcastControllerTests.slowDrainGenerator(model)
+        })
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.isShowingSlides })
+
+        let pauseCall = Task { await f.controller.pause(game: f.record) }
+        for _ in 0..<3 { await Task.yield() }   // let the pause reach its drain
+        f.controller.cancelAll()
+        await pauseCall.value
+        for _ in 0..<200 { await Task.yield() }
+
+        #expect(f.controller.phase == .idle)
+        #expect(f.session.gobanState.analysisStatus != .run)
+        #expect(!f.sent("kata-analyze"))        // the pause path never re-armed
+    }
+
+    // MARK: - F2: resume quiescence gate
+
+    @Test("Resume is dropped while a pick or gen-move reply is still in flight")
+    func resumeDroppedWhilePickInFlight() async {
+        let gen = Box()
+        let f = Fixture(generate: { model, _ in
+            gen.value += 1
+            BroadcastControllerTests.stageFullReport(model)
+        })
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        await f.controller.pause(game: f.record)
+        let genAfterPause = gen.value
+        // The prior cycle's license was consumed by its play reply — isolate
+        // each drop condition.
+        f.session.gobanState.broadcastGenMovePending = false
+
+        // (a) a pick's legality check is still in flight.
+        f.session.gobanState.pendingMoveTurn = "b"
+        f.controller.resume(game: f.record)
+        for _ in 0..<200 { await Task.yield() }
+        #expect(f.controller.phase == .paused)
+        #expect(gen.value == genAfterPause)
+
+        // (b) a cancelled gen-move reply is still in flight.
+        f.session.gobanState.pendingMoveTurn = nil
+        f.session.gobanState.broadcastGenMovePending = true
+        f.controller.resume(game: f.record)
+        for _ in 0..<200 { await Task.yield() }
+        #expect(f.controller.phase == .paused)
+        #expect(gen.value == genAfterPause)
+    }
+
+    // MARK: - F3: stale license cleared on cancelAll
+
+    @Test("cancelAll clears an armed gen-move license")
+    func cancelAllClearsArmedLicense() async {
+        let f = Fixture()
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(f.session.gobanState.broadcastGenMovePending)   // armed first
+
+        f.controller.cancelAll()
+        #expect(!f.session.gobanState.broadcastGenMovePending)
+    }
+
+    // MARK: - F4: skip honored during dwell
+
+    @Test("A skip during a slide never blanks the next slide")
+    func skipDuringDwellDoesNotSwallowNextSlide() async {
+        let f = Fixture()   // settling full report → three slides
+        var seen: Set<Int> = []
+        var maxLenSlide2 = 0
+        var skipped = false
+
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            let n = f.controller.slideNumber
+            if n > 0 { seen.insert(n) }
+            if n == 2 { maxLenSlide2 = max(maxLenSlide2, f.controller.typedText.count) }
+            if !skipped && n == 1 {
+                f.controller.skipSlide()
+                skipped = true
+            }
+            await Task.yield()
+        }
+
+        #expect(seen.contains(1))
+        #expect(seen.contains(2))
+        #expect(seen.contains(3))
+        #expect(maxLenSlide2 > 0)   // slide 2 typed through, never blanked
+    }
+
+    // MARK: - F5: turn-quiescence gate at cycle start
+
+    @Test("The cycle waits for showboard turn-quiescence before generating")
+    func cycleWaitsForShowboardQuiescence() async {
+        let gen = Box()
+        let f = Fixture(generate: { model, _ in
+            gen.value += 1
+            BroadcastControllerTests.stageFullReport(model)
+        })
+        // showboard has not yet made the reported side authoritative.
+        f.session.player.nextColorForPlayCommand = .black
+        f.session.player.nextColorFromShowBoard = .white
+
+        f.controller.noteTurnChanged(game: f.record)
+        // Pump below the bounded 50-poll cap: the gate holds generation while
+        // the sides disagree. (The plan's "~200 yields" would overshoot the
+        // cap and let the bounded degradation release it — the point here is
+        // to pin the HOLD, so we stay under the cap.)
+        for _ in 0..<30 { await Task.yield() }
+
+        #expect(gen.value == 0)
+        #expect(f.controller.phase == .generating)
+
+        // The showboard reply lands: the sides agree, generation runs.
+        f.session.player.nextColorFromShowBoard = .black
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(gen.value == 1)
     }
 }

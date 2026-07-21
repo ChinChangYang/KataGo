@@ -83,7 +83,14 @@ public final class DeepReportGenerator {
             model.stage = .failed("No engine session.")
             return
         }
-        guard !session.gobanState.reportGenerationActive else { return }
+        guard !session.gobanState.reportGenerationActive else {
+            // Settle the stage: a bare return leaves .idle, on which a
+            // broadcast cycle's "wait for a landed/settled model" poll loop
+            // would spin forever. Harmless on iOS — this guard only trips when
+            // another report is genuinely active.
+            model.stage = .failed("Another report is active.")
+            return
+        }
 
         let sideToMove = session.player.nextColorFromShowBoard
         reportSideSymbol = sideToMove == .black ? "b" : "w"
