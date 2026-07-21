@@ -117,8 +117,8 @@ struct BroadcastScriptTests {
             let joined = slide.facts.joined(separator: "\n")
             #expect(!joined.contains("Expected continuation"))
             if slide.kind == .pass {
-                // Round 2: the contested sentence returned — it types while
-                // the Δ overlay shows the swings on the board.
+                // Round 2: the contested sentence returned — it types over
+                // the punish-stone board; the Δ payoff follows it.
                 #expect(joined.contains("Most contested areas"))
             } else {
                 #expect(!joined.contains("Most contested areas"))
@@ -315,6 +315,40 @@ struct BroadcastScriptTests {
             BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
                                 overlay: .none, passChip: .black),
             BroadcastBoardFrame(anchor: .fact(2), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .black)],
+                                overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .black)],
+                                overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),
+                                passChip: nil),
+        ])
+    }
+
+    /// Contested-empty guard: no fact 2 exists, so there must be NO .fact(2)
+    /// barrier — an unconditional barrier would anchor to a never-typing
+    /// fact and strand the bare → best → Δ payoff.
+    @Test func passSlideWithoutContestedOmitsTheSecondBarrier() {
+        let model = fullModel()
+        model.passComparison = PassComparison(punishmentVertex: "Q16", winrate: 0.3,
+                                              scoreLead: -5.0, winrateDeltaVsBest: 0.2,
+                                              scoreLeadDeltaVsBest: 6.0,
+                                              ownershipDelta: [BoardPoint(x: 15, y: 15): 0.5],
+                                              contestedPoints: [])
+        let pass = BroadcastScript.slides(from: model)[2]
+        let beat = BroadcastConstants.choreographyBeatSeconds
+        #expect(BroadcastScript.frames(for: pass, model: model) == [
+            BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
+                                overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .white)],
                                 overlay: .none, passChip: .black),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
                                 overlay: .none, passChip: nil),
