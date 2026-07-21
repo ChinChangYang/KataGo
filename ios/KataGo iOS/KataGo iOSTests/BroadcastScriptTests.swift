@@ -3,8 +3,9 @@
 //  KataGo AnytimeTests
 //
 //  Pure slide-building for the tvOS Deep-Report Broadcast: which slides exist
-//  for a partially/fully generated report model, their titles/facts/overlays,
-//  the may-still-grow signal the typewriter waits on, and word chunking.
+//  for a partially/fully generated report model, their titles/facts and board
+//  choreography frames, the may-still-grow signal the typewriter waits on,
+//  and word chunking.
 //
 
 import Testing
@@ -50,41 +51,14 @@ struct BroadcastScriptTests {
         #expect(slides[2].title == "Playing vs. Passing")
     }
 
-    @Test func bestSlideLeadsWithPositionFactsAndUsesPVOverlay() {
-        let model = fullModel()
-        let best = BroadcastScript.slides(from: model)[0]
+    @Test func bestSlideLeadsWithPositionFacts() {
+        let best = BroadcastScript.slides(from: fullModel())[0]
         #expect(best.facts.first?.hasPrefix("Position: move") == true)
         #expect(best.facts.contains { $0.hasPrefix("Best move Q16") })
-        guard case .pv(let vertices, let starting) = best.overlay else {
-            Issue.record("expected PV overlay"); return
-        }
-        #expect(vertices == ["Q16", "C3"])
-        #expect(starting == .black)
-        #expect(best.markedMove == nil)
     }
 
-    @Test func alternativeSlideUsesDeltaOverlayWithMarkedMove() {
-        let alternative = BroadcastScript.slides(from: fullModel())[1]
-        guard case .ownershipDelta = alternative.overlay else {
-            Issue.record("expected delta overlay"); return
-        }
-        #expect(alternative.markedMove?.vertex == "D4")
-        #expect(alternative.markedMove?.color == .black)
-    }
-
-    @Test func alternativeWithoutDeltaFallsBackToPVWithoutMark() {
-        let model = fullModel()
-        model.candidates[1] = candidate("D4")   // empty ownershipDelta
-        let alternative = BroadcastScript.slides(from: model)[1]
-        guard case .pv = alternative.overlay else {
-            Issue.record("expected PV fallback"); return
-        }
-        #expect(alternative.markedMove == nil)
-    }
-
-    @Test func passSlideMarksTheBestMove() {
+    @Test func passSlideNamesThePassComparison() {
         let pass = BroadcastScript.slides(from: fullModel())[2]
-        #expect(pass.markedMove?.vertex == "Q16")
         #expect(pass.facts.first?.contains("passes instead") == true)
     }
 
@@ -228,6 +202,34 @@ struct BroadcastScriptTests {
                                 overlay: .ownershipDelta([BoardPoint(x: 3, y: 3): -0.4]),
                                 passChip: nil),
         ])
+    }
+
+    @Test func alternativeSlideTenukiPhaseActsOutIgnoreAndFollowUp() {
+        let model = fullModel()
+        model.candidates[1] = candidate("D4",
+                                        tenuki: TenukiFollowUp(vertex: "F3", winrate: 0.6,
+                                                               scoreLead: 2.0, visits: 30,
+                                                               pv: ["F3"]),
+                                        delta: [BoardPoint(x: 3, y: 3): -0.4])
+        let alternative = BroadcastScript.slides(from: model)[1]
+        let frames = BroadcastScript.frames(for: alternative, model: model)
+        let beat = BroadcastConstants.choreographyBeatSeconds
+        let d4 = PlacedStone(vertex: "D4", color: .black)
+        // entry: best-stone/bare/D4/D4+Δ occupy frames[0...3]; the tenuki
+        // phase occupies frames[4...6].
+        #expect(frames.count == 7)
+        #expect(frames[4] == BroadcastBoardFrame(anchor: .fact(1), placedStones: [d4],
+                                                  overlay: .none, passChip: nil))
+        #expect(frames[5] == BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                                  placedStones: [d4],
+                                                  overlay: .none,
+                                                  passChip: .playsElsewhere(.white)))
+        #expect(frames[6] == BroadcastBoardFrame(
+            anchor: .afterPrevious(beat),
+            placedStones: [d4, PlacedStone(vertex: "F3", color: .black)],
+            overlay: .none,
+            passChip: .playsElsewhere(.white)))
+        #expect(frames[6].lastMoveVertex == "F3")   // the punish stone gets the red dot
     }
 
     @Test func alternativeWithoutDeltaPlaysItsPVInstead() {

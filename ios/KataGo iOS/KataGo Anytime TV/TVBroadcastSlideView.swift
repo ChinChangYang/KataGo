@@ -11,23 +11,65 @@
 import SwiftUI
 import KataGoUICore
 
-/// The hero-slot slide board. Sized by the parent (the 1080 pt square).
+/// The hero-slot slide board: the controller's current choreography frame
+/// rendered over the report's base position. Full-bleed (no inner padding) —
+/// Dimensions centers the wood with its own margins, and the removed margin
+/// closes the board-to-panel gap. Opaque backdrop so the live board
+/// underneath can't ghost through.
 struct TVBroadcastSlideBoard: View {
-    let slide: BroadcastSlide
+    let frame: BroadcastBoardFrame
     let model: DeepReportModel
 
     var body: some View {
         ReportBoardView(width: model.boardWidth, height: model.boardHeight,
-                        blackVertices: model.blackVertices,
-                        whiteVertices: model.whiteVertices,
-                        overlay: slide.overlay,
-                        markedMove: slide.markedMove,
+                        blackVertices: frame.blackVertices(base: model.blackVertices),
+                        whiteVertices: frame.whiteVertices(base: model.whiteVertices),
+                        overlay: frame.overlay,
+                        lastMoveVertex: frame.lastMoveVertex,
                         isClassicStoneStyle: model.isClassicStoneStyle,
                         showCoordinate: model.showCoordinate,
                         verticalFlip: model.verticalFlip)
-            .padding(24)
+            .overlay(alignment: .top) {
+                if let chip = frame.passChip {
+                    TVPassChip(kind: chip)
+                        .padding(.top, 28)
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
+    }
+}
+
+/// The acted-out pass beat's caption ("White plays elsewhere" / "Black
+/// passes"): stone glyph + label in a capsule, top-center over the board.
+/// The band above the top grid line only ever holds decorative coordinate
+/// letters, so the chip can never cover an acting stone on any board size.
+private struct TVPassChip: View {
+    let kind: PassChipKind
+
+    private var color: PlayerColor {
+        switch kind {
+        case .playsElsewhere(let color), .passes(let color): color
+        }
+    }
+
+    private var label: String {
+        let name = color == .black ? "Black" : "White"
+        switch kind {
+        case .playsElsewhere: return "\(name) plays elsewhere"
+        case .passes: return "\(name) passes"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            TVStoneIndicator(isBlack: color == .black)
+            Text(label)
+                .font(.title3.weight(.semibold))
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: Capsule())
     }
 }
 
@@ -82,25 +124,53 @@ private func previewModel() -> DeepReportModel {
         CandidateReport(vertex: "R14", visits: 210, winrate: 0.56, scoreLead: 1.8,
                         winrateDelta: 0, scoreLeadDelta: 0,
                         pv: ["R14", "R10", "Q12"], ownershipDelta: [:],
-                        tenuki: nil),
+                        tenuki: TenukiFollowUp(vertex: "R10", winrate: 0.6,
+                                               scoreLead: 2.5, visits: 60,
+                                               pv: ["R10"])),
         CandidateReport(vertex: "C6", visits: 90, winrate: 0.53, scoreLead: 0.9,
                         winrateDelta: -0.03, scoreLeadDelta: -0.9, pv: ["C6"],
                         ownershipDelta: [BoardPoint(x: 2, y: 5): -0.5,
                                          BoardPoint(x: 3, y: 6): 0.3],
                         tenuki: nil),
     ]
+    model.passComparison = PassComparison(punishmentVertex: "R13", winrate: 0.31,
+                                          scoreLead: -4.0, winrateDeltaVsBest: 0.25,
+                                          scoreLeadDeltaVsBest: 5.8,
+                                          ownershipDelta: [BoardPoint(x: 16, y: 13): 0.6,
+                                                           BoardPoint(x: 15, y: 12): -0.4],
+                                          contestedPoints: [])
     return model
 }
 
-#Preview("Slide board — Best (PV)") {
-    TVBroadcastSlideBoard(slide: BroadcastScript.slides(from: previewModel())[0],
-                          model: previewModel())
+@MainActor
+private func previewFrames(_ slideIndex: Int) -> [BroadcastBoardFrame] {
+    let model = previewModel()
+    let slides = BroadcastScript.slides(from: model)
+    return BroadcastScript.frames(for: slides[slideIndex], model: model)
+}
+
+#Preview("Best — mid-PV") {
+    TVBroadcastSlideBoard(frame: previewFrames(0)[2], model: previewModel())
         .frame(width: 900, height: 900)
 }
 
-#Preview("Slide board — Alternative (delta)") {
-    TVBroadcastSlideBoard(slide: BroadcastScript.slides(from: previewModel())[1],
-                          model: previewModel())
+#Preview("Best — tenuki chip") {
+    TVBroadcastSlideBoard(frame: previewFrames(0)[5], model: previewModel())
+        .frame(width: 900, height: 900)
+}
+
+#Preview("Alternative — entry (best stone only)") {
+    TVBroadcastSlideBoard(frame: previewFrames(1)[0], model: previewModel())
+        .frame(width: 900, height: 900)
+}
+
+#Preview("Alternative — delta") {
+    TVBroadcastSlideBoard(frame: previewFrames(1).last!, model: previewModel())
+        .frame(width: 900, height: 900)
+}
+
+#Preview("Pass — punish + chip") {
+    TVBroadcastSlideBoard(frame: previewFrames(2)[3], model: previewModel())
         .frame(width: 900, height: 900)
 }
 
@@ -109,7 +179,7 @@ private func previewModel() -> DeepReportModel {
                           text: "Position: move 12, Black to play.\nBest move R14: 56% win rate",
                           slideNumber: 1,
                           slideCount: 3)
-        .frame(width: 500, height: 900)
+        .frame(width: 752, height: 900)
         .background(.thinMaterial)
 }
 #endif

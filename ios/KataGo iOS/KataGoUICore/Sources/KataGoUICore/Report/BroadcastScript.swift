@@ -18,13 +18,13 @@ public enum BroadcastSlideKind: Equatable, Sendable {
     case pass
 }
 
-/// One board-plus-facts segment of the broadcast.
+/// One board-plus-facts segment of the broadcast. Board content lives in the
+/// slide's frame timeline (frames(for:model:)) — the slide itself carries
+/// only identity, title, and text.
 public struct BroadcastSlide {
     public let kind: BroadcastSlideKind
     public let title: String
     public let facts: [String]
-    public let overlay: ReportBoardOverlay
-    public let markedMove: ReportMarkedMove?
 }
 
 /// Broadcast pacing knobs (QA-tunable, not load-bearing).
@@ -136,11 +136,6 @@ public extension DeepReportModel.Stage {
 
 @MainActor
 public enum BroadcastScript {
-    /// The slides whose report sections have landed, in broadcast order.
-    /// Overlay choices mirror the iOS report sheet: the best candidate shows
-    /// its variation (its Δ-vs-root is ~zero by construction), the
-    /// alternative shows Δ-ownership with the candidate marked, and the pass
-    /// comparison shows its Δ grid with the best move marked.
     public static func slides(from model: DeepReportModel) -> [BroadcastSlide] {
         var slides: [BroadcastSlide] = []
         if let best = model.candidates.first {
@@ -148,33 +143,22 @@ public enum BroadcastScript {
                 kind: .best,
                 title: "Best Move \(best.vertex)",
                 facts: ReportNarrator.positionFacts(from: model)
-                    + ReportNarrator.candidateFacts(from: model, index: 0, includeContinuation: false),
-                overlay: .pv(best.pv, startingWith: model.sideToMove),
-                markedMove: nil))
+                    + ReportNarrator.candidateFacts(from: model, index: 0,
+                                                    includeContinuation: false)))
         }
         if model.candidates.count > 1 {
-            let alternative = model.candidates[1]
-            let hasDelta = !alternative.ownershipDelta.isEmpty
             slides.append(BroadcastSlide(
                 kind: .alternative,
-                title: "Alternative \(alternative.vertex)",
-                facts: ReportNarrator.candidateFacts(from: model, index: 1, includeContinuation: false),
-                overlay: hasDelta
-                    ? .ownershipDelta(alternative.ownershipDelta)
-                    : .pv(alternative.pv, startingWith: model.sideToMove),
-                markedMove: hasDelta
-                    ? ReportMarkedMove(vertex: alternative.vertex, color: model.sideToMove)
-                    : nil))
+                title: "Alternative \(model.candidates[1].vertex)",
+                facts: ReportNarrator.candidateFacts(from: model, index: 1,
+                                                     includeContinuation: false)))
         }
-        if let pass = model.passComparison {
+        if model.passComparison != nil {
             slides.append(BroadcastSlide(
                 kind: .pass,
                 title: "Playing vs. Passing",
-                facts: ReportNarrator.passFacts(from: model, includeContestedAreas: false),
-                overlay: .ownershipDelta(pass.ownershipDelta),
-                markedMove: model.candidates.first.map {
-                    ReportMarkedMove(vertex: $0.vertex, color: model.sideToMove)
-                }))
+                facts: ReportNarrator.passFacts(from: model,
+                                                includeContestedAreas: false)))
         }
         return slides
     }

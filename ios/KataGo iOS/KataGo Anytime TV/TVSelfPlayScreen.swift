@@ -185,9 +185,10 @@ struct TVSelfPlayScreen: View {
                                 }
                             }
 
-                        if let broadcast, let slide = broadcast.currentSlide,
+                        if let broadcast, broadcast.currentSlide != nil,
+                           let frame = broadcast.currentFrame,
                            let model = broadcast.reportModel {
-                            TVBroadcastSlideBoard(slide: slide, model: model)
+                            TVBroadcastSlideBoard(frame: frame, model: model)
                                 // Skip controls: right/Select advance the
                                 // slide; past the last one the move plays
                                 // immediately. Attract stays unfocusable so
@@ -219,15 +220,18 @@ struct TVSelfPlayScreen: View {
                             panel(for: game)
                         }
                     }
-                        // Hard ceiling: the 1080 pt screen minus the 40 pt
-                        // vertical margins. A fixed frame reports this size
-                        // to the HStack no matter how tall the content wants
-                        // to be, so panel growth can never inflate the HStack
-                        // and push the 1080 pt board off-screen — content
-                        // that outgrows the budget overflows inside this
-                        // slot, top-aligned. No .clipped(): it would shear
-                        // the focus lift/shadow on the rows at the edges.
-                        .frame(width: 500, height: 1000, alignment: .top)
+                        // Hard ceiling: 752 pt is the max width that keeps
+                        // the Spacer at its 24 pt floor (24 + 1080 + 24 + 752
+                        // + 40 = 1920); the 1000 pt height is the screen
+                        // minus the 40 pt vertical margins. A fixed frame
+                        // reports this size to the HStack no matter how tall
+                        // the content wants to be, so panel growth can never
+                        // inflate the HStack and push the 1080 pt board
+                        // off-screen — content that outgrows the budget
+                        // overflows inside this slot, top-aligned. No
+                        // .clipped(): it would shear the focus lift/shadow on
+                        // the rows at the edges.
+                        .frame(width: 752, height: 1000, alignment: .top)
                         .padding(.vertical, 40)
                         // While the cursor is aiming, EVERY panel control
                         // must be unfocusable: onMoveCommand is only a
@@ -316,7 +320,7 @@ struct TVSelfPlayScreen: View {
                     .font(.title2.bold())
                     .lineLimit(1)
                     // Shrinks a touch so the full name fits beside the badge
-                    // in the 500 pt panel.
+                    // in the 752 pt panel.
                     .minimumScaleFactor(0.7)
                 liveBadge
             }
