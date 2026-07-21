@@ -116,7 +116,13 @@ struct BroadcastScriptTests {
         for slide in BroadcastScript.slides(from: fullModel()) {
             let joined = slide.facts.joined(separator: "\n")
             #expect(!joined.contains("Expected continuation"))
-            #expect(!joined.contains("Most contested areas"))
+            if slide.kind == .pass {
+                // Round 2: the contested sentence returned — it types while
+                // the Δ overlay shows the swings on the board.
+                #expect(joined.contains("Most contested areas"))
+            } else {
+                #expect(!joined.contains("Most contested areas"))
+            }
         }
     }
 

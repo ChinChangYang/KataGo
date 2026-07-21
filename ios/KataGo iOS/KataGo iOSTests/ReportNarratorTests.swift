@@ -206,28 +206,33 @@ struct ReportNarratorTests {
         #expect(!broadcast[0].contains("Expected continuation"))
     }
 
-    /// Same treatment for the contested-areas sentence on the pass fact.
-    @Test func passFactsWithoutContestedDropOnlyTheSecondFact() {
+    /// Choreography round 2: the broadcast splits the pass sentence so the
+    /// board can act each half out. Reconstruction pin: the split re-joins
+    /// into the report sentence, so the two surfaces can never drift.
+    @Test func passFactsSplitFormReJoinsIntoTheReportSentence() {
         let model = makeModel()
         let full = ReportNarrator.passFacts(from: model)
-        let broadcast = ReportNarrator.passFacts(from: model,
-                                                 includeContestedAreas: false)
+        let split = ReportNarrator.passFacts(from: model, split: true)
         #expect(full.count == 2)
-        #expect(broadcast.count == 1)
-        #expect(full[0] == broadcast[0])
+        #expect(split.count == 3)
+        #expect(full[0] == String(split[0].dropLast()) + "; " + split[1])
+        #expect(split[2] == full[1])   // contested fact identical in both forms
 
-        // With no contested points the variants are identical.
+        // With no contested points both forms drop the third fact only.
         model.passComparison = PassComparison(punishmentVertex: "B2", winrate: 0.28,
                                               scoreLead: -7.0, winrateDeltaVsBest: 0.12,
                                               scoreLeadDeltaVsBest: 2.0,
                                               ownershipDelta: [:], contestedPoints: [])
-        #expect(ReportNarrator.passFacts(from: model)
-                == ReportNarrator.passFacts(from: model, includeContestedAreas: false))
+        let bare = ReportNarrator.passFacts(from: model)
+        let bareSplit = ReportNarrator.passFacts(from: model, split: true)
+        #expect(bare.count == 1)
+        #expect(bareSplit.count == 2)
+        #expect(bare[0] == String(bareSplit[0].dropLast()) + "; " + bareSplit[1])
     }
 
-    /// The defaults guard: the flags can never leak into facts(from:) — the
-    /// iOS report sheet, narration prompt, and Copy-to-Comment keep both
-    /// sentences.
+    /// The defaults guard: the broadcast variants can never leak into
+    /// facts(from:) — the iOS report sheet, narration prompt, and
+    /// Copy-to-Comment keep the joined sentence and both coordinate lists.
     @Test func factsFromStillIncludesContinuationAndContested() {
         let joined = ReportNarrator.facts(from: makeModel()).joined(separator: "\n")
         #expect(joined.contains("Expected continuation: A1 B2."))

@@ -59,24 +59,27 @@ public enum ReportNarrator {
         return facts
     }
 
-    /// The pass-comparison fact (+ contested-areas line when present).
-    /// `includeContestedAreas: false` (the TV broadcast) drops the region
-    /// list — the slide's Δ overlay shows the swings instead.
+    /// The pass-comparison facts (+ the contested-areas line when present).
+    /// `split: true` (the TV broadcast) splits the sentence into two facts —
+    /// the pass evaluation, then the punishment — so the slide board can act
+    /// each out as its sentence types. The default joins them into the single
+    /// report sentence, byte-identical to the pre-split output.
     @MainActor
     public static func passFacts(from model: DeepReportModel,
-                                 includeContestedAreas: Bool = true) -> [String] {
+                                 split: Bool = false) -> [String] {
         guard let pass = model.passComparison else { return [] }
         let side = model.sideToMove == .black ? "Black" : "White"
         let opponent = model.sideToMove == .black ? "White" : "Black"
-        var facts: [String] = []
         let best = model.candidates.first.flatMap { $0.vertex == "pass" ? nil : $0.vertex }
         let playing = best.map { "playing \($0)" } ?? "playing the best candidate"
-        var fact = "If \(side) passes instead: \(percent(pass.winrate)) win rate — \(playing) is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex)"
+        let head = "If \(side) passes instead: \(percent(pass.winrate)) win rate — \(playing) is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points"
+        var punish = "\(opponent) would punish at \(pass.punishmentVertex)"
         if let best {
-            fact += " if \(side) doesn't play at \(best)"
+            punish += " if \(side) doesn't play at \(best)"
         }
-        facts.append(fact + ".")
-        if includeContestedAreas, !pass.contestedPoints.isEmpty {
+        var facts = split ? [head + ".", punish + "."]
+                          : [head + "; " + punish + "."]
+        if !pass.contestedPoints.isEmpty {
             let regions = orderedUniqueRegions(pass.contestedPoints)
             facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
         }

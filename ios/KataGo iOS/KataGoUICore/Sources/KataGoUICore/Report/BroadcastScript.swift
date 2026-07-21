@@ -157,8 +157,7 @@ public enum BroadcastScript {
             slides.append(BroadcastSlide(
                 kind: .pass,
                 title: "Playing vs. Passing",
-                facts: ReportNarrator.passFacts(from: model,
-                                                includeContestedAreas: false)))
+                facts: ReportNarrator.passFacts(from: model, split: true)))
         }
         return slides
     }
