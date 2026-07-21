@@ -164,4 +164,31 @@ struct ReportNarratorTests {
         let b = ReportNarrator.facts(from: makeModel())
         #expect(a == b)
     }
+
+    /// The broadcast consumes facts per section; facts(from:) must be exactly
+    /// the concatenation so the two surfaces can never drift.
+    @Test func factsAreTheConcatenationOfSectionFacts() {
+        let model = makeModel()
+        let composed = ReportNarrator.positionFacts(from: model)
+            + model.candidates.indices.flatMap { ReportNarrator.candidateFacts(from: model, index: $0) }
+            + ReportNarrator.passFacts(from: model)
+        #expect(composed == ReportNarrator.facts(from: model))
+    }
+
+    @Test func sectionFactsAreEmptyForMissingSections() {
+        let model = DeepReportModel()
+        model.sideToMove = .black
+        #expect(ReportNarrator.positionFacts(from: model).count == 1)   // position line only
+        #expect(ReportNarrator.candidateFacts(from: model, index: 0).isEmpty)
+        #expect(ReportNarrator.candidateFacts(from: model, index: 5).isEmpty)
+        #expect(ReportNarrator.passFacts(from: model).isEmpty)
+    }
+
+    @Test func candidateFactsCarryTenukiWhenPresent() {
+        let model = makeModel()
+        let facts = ReportNarrator.candidateFacts(from: model, index: 0)
+        #expect(facts.count == 2)                       // candidate line + tenuki line
+        #expect(facts[0].hasPrefix("Best move A1"))
+        #expect(facts[1].contains("ignores A1"))
+    }
 }

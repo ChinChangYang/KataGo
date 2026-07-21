@@ -18,46 +18,61 @@ public enum ReportNarrator {
 
     @MainActor
     public static func facts(from model: DeepReportModel) -> [String] {
+        positionFacts(from: model)
+            + model.candidates.indices.flatMap { candidateFacts(from: model, index: $0) }
+            + passFacts(from: model)
+    }
+
+    /// "Position: …" + the current-evaluation line (when the snapshot landed).
+    @MainActor
+    public static func positionFacts(from model: DeepReportModel) -> [String] {
         var facts: [String] = []
         let side = model.sideToMove == .black ? "Black" : "White"
-        let opponent = model.sideToMove == .black ? "White" : "Black"
         facts.append("Position: move \(model.moveNumber), \(side) to play.")
-
         if let position = model.position {
             facts.append("Current evaluation for \(side): \(percent(position.winrate)) win rate, \(points(position.scoreLead)) points, from \(position.visits) visits.")
         }
+        return facts
+    }
 
-        // Same labels the report UI shows ("Best Move …" / "Alternative …")
-        // so Copy-to-Comment output and LLM input match what the user reads.
-        // Plain "Alternative" regardless of the slot's source — the
-        // game-move/your-pick provenance is picker-only detail.
-        for (index, candidate) in model.candidates.enumerated() {
-            let label = index == 0 ? "Best move" : "Alternative"
-            var line = "\(label) \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
-            if !candidate.pv.isEmpty {
-                line += " Expected continuation: \(candidate.pv.joined(separator: " "))."
-            }
-            facts.append(line)
-            if let tenuki = candidate.tenuki {
-                facts.append("If \(opponent) ignores \(candidate.vertex) (plays elsewhere), \(side) follows up with \(tenuki.vertex): \(percent(tenuki.winrate)) win rate, \(points(tenuki.scoreLead)) points.")
-            }
+    /// One candidate's fact line (+ its tenuki line when present). Labels
+    /// match the report UI ("Best move …" / "Alternative …").
+    @MainActor
+    public static func candidateFacts(from model: DeepReportModel, index: Int) -> [String] {
+        guard model.candidates.indices.contains(index) else { return [] }
+        let candidate = model.candidates[index]
+        let side = model.sideToMove == .black ? "Black" : "White"
+        let opponent = model.sideToMove == .black ? "White" : "Black"
+        var facts: [String] = []
+        let label = index == 0 ? "Best move" : "Alternative"
+        var line = "\(label) \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
+        if !candidate.pv.isEmpty {
+            line += " Expected continuation: \(candidate.pv.joined(separator: " "))."
         }
+        facts.append(line)
+        if let tenuki = candidate.tenuki {
+            facts.append("If \(opponent) ignores \(candidate.vertex) (plays elsewhere), \(side) follows up with \(tenuki.vertex): \(percent(tenuki.winrate)) win rate, \(points(tenuki.scoreLead)) points.")
+        }
+        return facts
+    }
 
-        if let pass = model.passComparison {
-            // Round 5: name the best move and condition the punishment on it,
-            // mirroring the report UI's sentence. No best candidate, or a
-            // "pass" one (not a nameable point) → keep the generic phrasing.
-            let best = model.candidates.first.flatMap { $0.vertex == "pass" ? nil : $0.vertex }
-            let playing = best.map { "playing \($0)" } ?? "playing the best candidate"
-            var fact = "If \(side) passes instead: \(percent(pass.winrate)) win rate — \(playing) is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex)"
-            if let best {
-                fact += " if \(side) doesn't play at \(best)"
-            }
-            facts.append(fact + ".")
-            if !pass.contestedPoints.isEmpty {
-                let regions = orderedUniqueRegions(pass.contestedPoints)
-                facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
-            }
+    /// The pass-comparison fact (+ contested-areas line when present).
+    @MainActor
+    public static func passFacts(from model: DeepReportModel) -> [String] {
+        guard let pass = model.passComparison else { return [] }
+        let side = model.sideToMove == .black ? "Black" : "White"
+        let opponent = model.sideToMove == .black ? "White" : "Black"
+        var facts: [String] = []
+        let best = model.candidates.first.flatMap { $0.vertex == "pass" ? nil : $0.vertex }
+        let playing = best.map { "playing \($0)" } ?? "playing the best candidate"
+        var fact = "If \(side) passes instead: \(percent(pass.winrate)) win rate — \(playing) is worth \(signedPercent(pass.winrateDeltaVsBest)) and \(points(pass.scoreLeadDeltaVsBest)) points; \(opponent) would punish at \(pass.punishmentVertex)"
+        if let best {
+            fact += " if \(side) doesn't play at \(best)"
+        }
+        facts.append(fact + ".")
+        if !pass.contestedPoints.isEmpty {
+            let regions = orderedUniqueRegions(pass.contestedPoints)
+            facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
         }
         return facts
     }
