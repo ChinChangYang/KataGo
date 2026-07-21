@@ -57,9 +57,10 @@ struct WatchHostGateTests {
     }
 
     @Test func aiTurnBlocksBoth() {
-        // shouldGenMove true (gen-move may be streaming; a goTo's undo would
-        // cancel it and its best-so-far "play" reply could land on the wrong
-        // board — the tvOS lesson).
+        // shouldGenMove true (gen-move may be streaming; if it completes
+        // just as a goTo's undo lands, its "play" reply could land on the
+        // wrong board — the tvOS lesson; an undo-cancelled search prints
+        // "play cancelled", which the vertex regex drops).
         let (session, gameRecord) = makeHost()
         gameRecord.concreteConfig.blackMaxTime = 10
         let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)

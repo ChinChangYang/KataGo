@@ -2,11 +2,12 @@
 //  GameSessionAutoPlayPlayLineGuardTests.swift
 //  KataGo iOSTests
 //
-//  Pins the auto-play guard in GameSession.postProcessAIMove: a cancelled
-//  kata-search_analyze_cancellable still prints its best-so-far
-//  "play <vertex>" line. If a gen-move was in flight when the replay wand
-//  was toggled on, that stray line must be dropped — played into the record
-//  it would truncate and rewrite the game mid-replay (the wand sets
+//  Pins the auto-play guard in GameSession.postProcessAIMove: a gen-move
+//  that completes just as the replay wand is toggled on still prints its
+//  "play <vertex>" line (one the wand's command burst cancels mid-search
+//  prints the literal "play cancelled", which the vertex regex drops).
+//  That completed stray line must be dropped — played into the record it
+//  would truncate and rewrite the game mid-replay (the wand sets
 //  isEditing). shouldGenMove already forbids ISSUING gen-moves while
 //  auto-playing, so no legitimate play line coexists with isAutoPlaying.
 //

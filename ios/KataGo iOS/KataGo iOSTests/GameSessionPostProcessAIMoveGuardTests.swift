@@ -125,8 +125,10 @@ struct GameSessionPostProcessAIMoveGuardTests {
     func stalePlayReplyDroppedWhilePlayerUnknown() {
         // The Vision game switch relies on this: loadGame resets the player
         // to .unknown (nil symbol) until the new game's showboard reply
-        // resolves the side to move, so a cancelled search's best-so-far
-        // "play" line from the OLD game must fall through here.
+        // resolves the side to move. A search from the OLD game that
+        // completed just before the switch prints a real "play <vertex>"
+        // that must fall through here (one cancelled by the switch prints
+        // "play cancelled", which the vertex regex already drops).
         let f = Fixture()
         f.session.player.nextColorForPlayCommand = .unknown
 

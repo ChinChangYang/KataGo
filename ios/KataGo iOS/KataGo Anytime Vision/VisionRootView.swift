@@ -1314,10 +1314,13 @@ struct VisionRootView: View {
     /// from there, and a play on a locked synced game forms a branch).
     ///
     /// Stale-reply safety: switching mid-genmove cancels the running search,
-    /// which still prints its best-so-far "play <vertex>" — postProcessAIMove
-    /// drops it while the player is .unknown (nil symbol). The showboard
-    /// reply then resolves the side to move, and the turn-change hook arms
-    /// analysis (or the genmove bundle) for the new game.
+    /// which prints the literal "play cancelled" (dropped by
+    /// postProcessAIMove's vertex regex); a search that completed just
+    /// before the switch prints a real "play <vertex>", which
+    /// postProcessAIMove drops while the player is .unknown (nil symbol).
+    /// The showboard reply then resolves the side to move, and the
+    /// turn-change hook arms analysis (or the genmove bundle) for the new
+    /// game.
     private func switchGame(to record: GameRecord) {
         ghost.reset()
         // The remount is a batch diff — no stone of it should animate or
