@@ -528,7 +528,7 @@ struct BroadcastControllerTests {
         f.controller.noteTurnChanged(game: f.record)
         for _ in 0..<20_000 {
             if f.controller.phase == .awaitingMove { break }
-            if f.controller.currentFrame?.passChip == .playsElsewhere(.white) {
+            if f.controller.currentFrame?.passChip == .white {
                 sawTenukiChip = true
             }
             await Task.yield()

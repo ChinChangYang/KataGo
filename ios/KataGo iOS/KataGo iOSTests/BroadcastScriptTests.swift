@@ -159,12 +159,12 @@ struct BroadcastScriptTests {
         #expect(frames[4] == BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                  placedStones: [q16],
                                                  overlay: .none,
-                                                 passChip: .playsElsewhere(.white)))
+                                                 passChip: .white))
         #expect(frames[5] == BroadcastBoardFrame(
             anchor: .afterPrevious(beat),
             placedStones: [q16, PlacedStone(vertex: "R14", color: .black)],
             overlay: .none,
-            passChip: .playsElsewhere(.white)))
+            passChip: .white))
         #expect(frames[5].lastMoveVertex == "R14")   // the punish stone gets the red dot
     }
 
@@ -229,12 +229,12 @@ struct BroadcastScriptTests {
         #expect(frames[5] == BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                   placedStones: [d4],
                                                   overlay: .none,
-                                                  passChip: .playsElsewhere(.white)))
+                                                  passChip: .white))
         #expect(frames[6] == BroadcastBoardFrame(
             anchor: .afterPrevious(beat),
             placedStones: [d4, PlacedStone(vertex: "F3", color: .black)],
             overlay: .none,
-            passChip: .playsElsewhere(.white)))
+            passChip: .white))
         #expect(frames[6].lastMoveVertex == "F3")   // the punish stone gets the red dot
     }
 
@@ -254,6 +254,11 @@ struct BroadcastScriptTests {
         #expect(frames[3].anchor == .afterPrevious(BroadcastConstants.pvStoneSeconds))
     }
 
+    /// Round 2 (user feedback): the pass slide interleaves sentence-by-
+    /// sentence — bare board while "If Black passes…" types, the chip beat,
+    /// a barrier while "would punish at…" types, the punish stone, a barrier
+    /// while the contested sentence types, then the payoff: bare board →
+    /// best move → the Δ the static slide always showed.
     @Test func passSlideActsOutBothScenariosAndEndsCanonically() {
         let model = fullModel()
         let pass = BroadcastScript.slides(from: model)[2]
@@ -261,16 +266,61 @@ struct BroadcastScriptTests {
         #expect(BroadcastScript.frames(for: pass, model: model) == [
             BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
                                 overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .white)],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .fact(2),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .white)],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
                                 overlay: .none, passChip: nil),
-            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: .passes(.black)),
-            BroadcastBoardFrame(anchor: .afterPrevious(beat),
-                                placedStones: [PlacedStone(vertex: "Q16", color: .white)],
-                                overlay: .none, passChip: .passes(.black)),
             // Canonical end: the same board the static pass slide showed —
             // best stone marked over the Δ grid.
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .black)],
+                                overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),
+                                passChip: nil),
+        ])
+    }
+
+    /// punish == "pass" + contested non-empty: the punish frame is skipped
+    /// and .fact(1)/.fact(2) become two consecutive barriers, both copies of
+    /// the chip frame — a hardcoded punish barrier would place a "pass"
+    /// stone (drawn off-grid).
+    @Test func passSlideWithPassPunishmentUsesConsecutiveChipBarriers() {
+        let model = fullModel()
+        model.passComparison = PassComparison(punishmentVertex: "pass", winrate: 0.3,
+                                              scoreLead: -5.0, winrateDeltaVsBest: 0.2,
+                                              scoreLeadDeltaVsBest: 6.0,
+                                              ownershipDelta: [BoardPoint(x: 15, y: 15): 0.5],
+                                              contestedPoints: [
+                                                ContestedPoint(point: BoardPoint(x: 15, y: 15),
+                                                               vertex: "Q16", delta: 0.5,
+                                                               regionName: "upper right"),
+                                              ])
+        let pass = BroadcastScript.slides(from: model)[2]
+        let beat = BroadcastConstants.choreographyBeatSeconds
+        #expect(BroadcastScript.frames(for: pass, model: model) == [
+            BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
+                                overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .fact(2), placedStones: [],
+                                overlay: .none, passChip: .black),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
+                                overlay: .none, passChip: nil),
+            BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                placedStones: [PlacedStone(vertex: "Q16", color: .black)],
+                                overlay: .none, passChip: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
                                 overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),

@@ -31,7 +31,7 @@ struct TVBroadcastSlideBoard: View {
                         verticalFlip: model.verticalFlip)
             .overlay(alignment: .top) {
                 if let chip = frame.passChip {
-                    TVPassChip(kind: chip)
+                    TVPassChip(color: chip)
                         .padding(.top, 28)
                 }
             }
@@ -40,31 +40,18 @@ struct TVBroadcastSlideBoard: View {
     }
 }
 
-/// The acted-out pass beat's caption ("White plays elsewhere" / "Black
-/// passes"): stone glyph + label in a capsule, top-center over the board.
-/// The band above the top grid line only ever holds decorative coordinate
-/// letters, so the chip can never cover an acting stone on any board size.
+/// The acted-out pass beat's caption ("Black plays elsewhere"): stone glyph
+/// + label in a capsule, top-center over the board. The band above the top
+/// grid line only ever holds decorative coordinate letters, so the chip can
+/// never cover an acting stone on any board size.
 private struct TVPassChip: View {
-    let kind: PassChipKind
-
-    private var color: PlayerColor {
-        switch kind {
-        case .playsElsewhere(let color), .passes(let color): color
-        }
-    }
-
-    private var label: String {
-        let name = color == .black ? "Black" : "White"
-        switch kind {
-        case .playsElsewhere: return "\(name) plays elsewhere"
-        case .passes: return "\(name) passes"
-        }
-    }
+    /// Who plays elsewhere in the acted-out beat.
+    let color: PlayerColor
 
     var body: some View {
         HStack(spacing: 12) {
             TVStoneIndicator(isBlack: color == .black)
-            Text(label)
+            Text("\(color == .black ? "Black" : "White") plays elsewhere")
                 .font(.title3.weight(.semibold))
         }
         .padding(.horizontal, 24)

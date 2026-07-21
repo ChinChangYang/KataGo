@@ -56,15 +56,6 @@ public struct PlacedStone: Equatable {
     }
 }
 
-/// The on-board caption for an acted-out pass beat. Carries WHO acts; the
-/// TV layer owns the user-facing copy.
-public enum PassChipKind: Equatable {
-    /// Tenuki phases: the opponent ignores the candidate ("White plays elsewhere").
-    case playsElsewhere(PlayerColor)
-    /// The pass slide: the side to move passes ("Black passes").
-    case passes(PlayerColor)
-}
-
 /// One board state of a slide's choreography. Frames are ordered; each shows
 /// when its anchor is satisfied. A frame uses EITHER a .pv overlay OR
 /// placedStones, never both (PV prefixes already draw their own stones) —
@@ -80,10 +71,13 @@ public struct BroadcastBoardFrame: Equatable {
     public let anchor: Anchor
     public let placedStones: [PlacedStone]
     public let overlay: ReportBoardOverlay
-    public let passChip: PassChipKind?
+    /// The color who "plays elsewhere" in an acted-out pass/tenuki beat;
+    /// nil = no chip. The TV layer owns the caption copy
+    /// ("Black plays elsewhere").
+    public let passChip: PlayerColor?
 
     public init(anchor: Anchor, placedStones: [PlacedStone],
-                overlay: ReportBoardOverlay, passChip: PassChipKind?) {
+                overlay: ReportBoardOverlay, passChip: PlayerColor?) {
         self.anchor = anchor
         self.placedStones = placedStones
         self.overlay = overlay
@@ -242,25 +236,50 @@ public enum BroadcastScript {
 
         case .pass:
             guard let pass = model.passComparison else { return [] }
+            let bestStones = bestVertex.map { [PlacedStone(vertex: $0, color: side)] } ?? []
+            // Fact 0 ("If Black passes instead: …"): open on the bare board,
+            // then act the pass — chip only, no stone.
             var frames = [BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
                                               overlay: .none, passChip: nil)]
-            let bestStones = bestVertex.map { [PlacedStone(vertex: $0, color: side)] } ?? []
-            if !bestStones.isEmpty {
-                frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
-                                                  placedStones: bestStones,
-                                                  overlay: .none, passChip: nil))
-            }
             frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                               placedStones: [],
-                                              overlay: .none, passChip: .passes(side)))
+                                              overlay: .none, passChip: side))
+            // A barrier holds the beat drain so the next stone waits for its
+            // sentence: a .fact-anchored copy of the LAST APPENDED frame
+            // (never a hardcoded board — with a "pass" punishment the two
+            // barriers are both chip-frame copies). Emitting one is a visual
+            // no-op; its .fact index must exist or every later frame strands.
+            func appendBarrier(at factIndex: Int) {
+                guard let last = frames.last else { return }
+                frames.append(BroadcastBoardFrame(anchor: .fact(factIndex),
+                                                  placedStones: last.placedStones,
+                                                  overlay: last.overlay,
+                                                  passChip: last.passChip))
+            }
+            // Fact 1 ("White would punish at …") types over the unchanged
+            // chip board, then the punish stone lands.
+            appendBarrier(at: 1)
             if pass.punishmentVertex != "pass" {
                 frames.append(BroadcastBoardFrame(
                     anchor: .afterPrevious(beat),
                     placedStones: [PlacedStone(vertex: pass.punishmentVertex,
                                                color: opponent)],
-                    overlay: .none, passChip: .passes(side)))
+                    overlay: .none, passChip: side))
             }
-            // Canonical end: the board the static pass slide always showed.
+            // Fact 2 (contested areas) exists exactly when contestedPoints is
+            // non-empty — the same condition as passFacts. Then the payoff:
+            // bare board → best move → the Δ the static slide always showed.
+            if !pass.contestedPoints.isEmpty {
+                appendBarrier(at: 2)
+            }
+            frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                              placedStones: [],
+                                              overlay: .none, passChip: nil))
+            if !bestStones.isEmpty {
+                frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
+                                                  placedStones: bestStones,
+                                                  overlay: .none, passChip: nil))
+            }
             frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                               placedStones: bestStones,
                                               overlay: .ownershipDelta(pass.ownershipDelta),
@@ -304,12 +323,12 @@ public enum BroadcastScript {
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [candidateStone],
                                 overlay: .none,
-                                passChip: .playsElsewhere(opponent)),
+                                passChip: opponent),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [candidateStone,
                                                PlacedStone(vertex: punish, color: side)],
                                 overlay: .none,
-                                passChip: .playsElsewhere(opponent)),
+                                passChip: opponent),
         ]
     }
 
