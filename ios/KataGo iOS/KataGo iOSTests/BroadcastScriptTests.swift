@@ -118,4 +118,16 @@ struct BroadcastScriptTests {
         #expect(chunks.count == 6)                 // one chunk per word incl. its space
         #expect(BroadcastScript.typewriterChunks("").isEmpty)
     }
+
+    // MARK: - Overlay equality (frame-model prerequisite)
+
+    @Test func reportBoardOverlayIsEquatable() {
+        #expect(ReportBoardOverlay.pv(["A1"], startingWith: .black)
+                == ReportBoardOverlay.pv(["A1"], startingWith: .black))
+        #expect(ReportBoardOverlay.pv(["A1"], startingWith: .black)
+                != ReportBoardOverlay.pv(["A1"], startingWith: .white))
+        #expect(ReportBoardOverlay.ownershipDelta([BoardPoint(x: 1, y: 1): 0.5])
+                == ReportBoardOverlay.ownershipDelta([BoardPoint(x: 1, y: 1): 0.5]))
+        #expect(ReportBoardOverlay.ownershipDelta([:]) != ReportBoardOverlay.none)
+    }
 }

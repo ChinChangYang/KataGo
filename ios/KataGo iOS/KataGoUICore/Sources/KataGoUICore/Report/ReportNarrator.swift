@@ -37,8 +37,11 @@ public enum ReportNarrator {
 
     /// One candidate's fact line (+ its tenuki line when present). Labels
     /// match the report UI ("Best move …" / "Alternative …").
+    /// `includeContinuation: false` (the TV broadcast) drops the PV
+    /// coordinate list — the slide board plays the continuation instead.
     @MainActor
-    public static func candidateFacts(from model: DeepReportModel, index: Int) -> [String] {
+    public static func candidateFacts(from model: DeepReportModel, index: Int,
+                                      includeContinuation: Bool = true) -> [String] {
         guard model.candidates.indices.contains(index) else { return [] }
         let candidate = model.candidates[index]
         let side = model.sideToMove == .black ? "Black" : "White"
@@ -46,7 +49,7 @@ public enum ReportNarrator {
         var facts: [String] = []
         let label = index == 0 ? "Best move" : "Alternative"
         var line = "\(label) \(candidate.vertex): \(percent(candidate.winrate)) win rate (\(signedPercent(candidate.winrateDelta)) vs the position\(noiseSuffix(candidate.winrateDelta, scoreDelta: candidate.scoreLeadDelta, visits: candidate.visits))), \(points(candidate.scoreLead)) points, \(candidate.visits) visits."
-        if !candidate.pv.isEmpty {
+        if includeContinuation, !candidate.pv.isEmpty {
             line += " Expected continuation: \(candidate.pv.joined(separator: " "))."
         }
         facts.append(line)
@@ -57,8 +60,11 @@ public enum ReportNarrator {
     }
 
     /// The pass-comparison fact (+ contested-areas line when present).
+    /// `includeContestedAreas: false` (the TV broadcast) drops the region
+    /// list — the slide's Δ overlay shows the swings instead.
     @MainActor
-    public static func passFacts(from model: DeepReportModel) -> [String] {
+    public static func passFacts(from model: DeepReportModel,
+                                 includeContestedAreas: Bool = true) -> [String] {
         guard let pass = model.passComparison else { return [] }
         let side = model.sideToMove == .black ? "Black" : "White"
         let opponent = model.sideToMove == .black ? "White" : "Black"
@@ -70,7 +76,7 @@ public enum ReportNarrator {
             fact += " if \(side) doesn't play at \(best)"
         }
         facts.append(fact + ".")
-        if !pass.contestedPoints.isEmpty {
+        if includeContestedAreas, !pass.contestedPoints.isEmpty {
             let regions = orderedUniqueRegions(pass.contestedPoints)
             facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
         }

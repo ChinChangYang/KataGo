@@ -11,7 +11,7 @@
 
 import SwiftUI
 
-public enum ReportBoardOverlay {
+public enum ReportBoardOverlay: Equatable {
     case none
     /// White-positive ownership deltas, direction-rendered: positive → white
     /// square, negative → black square (no perspective conversion).

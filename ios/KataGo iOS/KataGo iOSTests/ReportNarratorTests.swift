@@ -191,4 +191,46 @@ struct ReportNarratorTests {
         #expect(facts[0].hasPrefix("Best move A1"))
         #expect(facts[1].contains("ignores A1"))
     }
+
+    /// Choreography round: the broadcast drops the PV coordinate list — the
+    /// board plays it instead. Exact-suffix pin: default == variant + the
+    /// appendage, so the two surfaces can never drift.
+    @Test func candidateFactsWithoutContinuationDropOnlyTheAppendage() {
+        let model = makeModel()
+        let full = ReportNarrator.candidateFacts(from: model, index: 0)
+        let broadcast = ReportNarrator.candidateFacts(from: model, index: 0,
+                                                      includeContinuation: false)
+        #expect(full.count == broadcast.count)
+        #expect(full[0] == broadcast[0] + " Expected continuation: A1 B2.")
+        #expect(full[1] == broadcast[1])                 // tenuki line untouched
+        #expect(!broadcast[0].contains("Expected continuation"))
+    }
+
+    /// Same treatment for the contested-areas sentence on the pass fact.
+    @Test func passFactsWithoutContestedDropOnlyTheSecondFact() {
+        let model = makeModel()
+        let full = ReportNarrator.passFacts(from: model)
+        let broadcast = ReportNarrator.passFacts(from: model,
+                                                 includeContestedAreas: false)
+        #expect(full.count == 2)
+        #expect(broadcast.count == 1)
+        #expect(full[0] == broadcast[0])
+
+        // With no contested points the variants are identical.
+        model.passComparison = PassComparison(punishmentVertex: "B2", winrate: 0.28,
+                                              scoreLead: -7.0, winrateDeltaVsBest: 0.12,
+                                              scoreLeadDeltaVsBest: 2.0,
+                                              ownershipDelta: [:], contestedPoints: [])
+        #expect(ReportNarrator.passFacts(from: model)
+                == ReportNarrator.passFacts(from: model, includeContestedAreas: false))
+    }
+
+    /// The defaults guard: the flags can never leak into facts(from:) — the
+    /// iOS report sheet, narration prompt, and Copy-to-Comment keep both
+    /// sentences.
+    @Test func factsFromStillIncludesContinuationAndContested() {
+        let joined = ReportNarrator.facts(from: makeModel()).joined(separator: "\n")
+        #expect(joined.contains("Expected continuation: A1 B2."))
+        #expect(joined.contains("Most contested areas"))
+    }
 }
