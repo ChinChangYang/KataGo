@@ -57,6 +57,11 @@ public final class BroadcastController {
     private var moveLanded = false
     private var genMoveIssued = false
     private var skipRequested = false
+    /// Monotonic cycle identity: a cycle's continuation may only clear the
+    /// shared handle (and chain) if no newer cycle has been started since —
+    /// a cancelled cycle's continuation draining late must not clobber a
+    /// successor's cycleTask (the double-cycle / double-gen-move race).
+    private var cycleToken = 0
 
     public init(messageList: MessageList,
                 gobanState: GobanState,
@@ -133,6 +138,7 @@ public final class BroadcastController {
     /// probe-session defer runs restore() on cancellation, so the engine
     /// comes back to the game position on its own.
     public func cancelAll() {
+        cycleToken += 1
         cycleTask?.cancel()
         cycleTask = nil
         generationTask?.cancel()
@@ -165,9 +171,12 @@ public final class BroadcastController {
             return
         }
         phase = .generating
+        cycleToken += 1
+        let token = cycleToken
         cycleTask = Task { [weak self] in
             guard let self else { return }
             let chain = await self.runCycle(game: game)
+            guard self.cycleToken == token else { return }
             self.cycleTask = nil
             if chain {
                 self.startCycle(game: game)

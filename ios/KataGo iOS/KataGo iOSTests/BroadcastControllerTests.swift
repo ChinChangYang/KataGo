@@ -215,4 +215,39 @@ struct BroadcastControllerTests {
         #expect(f.controller.phase == .idle)
         #expect(f.controller.currentSlide == nil)
     }
+
+    @MainActor
+    private final class Box {
+        var value = 0
+    }
+
+    @Test("A cancelled cycle's late continuation cannot clobber a newer cycle")
+    func cancelAllContinuationCannotClobberNewerCycle() async {
+        let started = Box()
+        let exited = Box()
+        let f = Fixture(generate: { model, _ in
+            started.value += 1
+            model.sideToMove = .black
+            model.candidates = [CandidateReport(vertex: "E5", visits: 10, winrate: 0.5,
+                                                scoreLead: 0, winrateDelta: 0, scoreLeadDelta: 0,
+                                                pv: ["E5"], ownershipDelta: [:], tenuki: nil)]
+            while !Task.isCancelled { await Task.yield() }
+            model.stage = .cancelled
+            exited.value += 1
+        })
+
+        f.controller.noteTurnChanged(game: f.record)            // cycle A
+        await f.pump(until: { f.controller.isShowingSlides })
+        f.controller.cancelAll()
+        f.controller.noteTurnChanged(game: f.record)            // cycle B
+        await f.pump(until: { started.value == 2 })
+        for _ in 0..<500 { await Task.yield() }                 // drain A's cancelled continuation
+
+        // pause must find B's live handle (not a clobbered nil), cancel it,
+        // and await it — so every started generation has observed
+        // cancellation and exited by the time we're paused.
+        await f.controller.pause(game: f.record)
+        await f.pump(until: { exited.value == 2 })
+        #expect(f.controller.phase == .paused)
+    }
 }
