@@ -91,14 +91,18 @@ struct TVSelfPlayScreen: View {
     @State private var analysisWasUserOff = false
     /// The Top Moves row under remote focus, ringed on the board.
     @State private var highlightedPoint: BoardPoint?
+    /// The broadcast loop driver (created at entry — it needs the session's
+    /// environment objects). nil only before startIfNeeded runs.
+    @State private var broadcast: BroadcastController?
 
     private var isGameOver: Bool { gobanState.passCount >= 2 }
 
-    /// Pause = the shared spectator flag (no gen-move). togglePause also stops
-    /// the analysis stream so the fanless Apple TV idles while paused; the Top
-    /// Moves list freezes at its last candidates (still pickable). One source
-    /// of truth — previews stage it directly on the session.
-    private var isPaused: Bool { gobanState.suppressesGenMove }
+    /// Paused = the broadcast handed the screen to the interactive UI.
+    /// (suppressesGenMove is no longer the pause signal — it stays true for
+    /// the whole broadcast; the licensed gen-move plays the moves.)
+    private var isPaused: Bool { broadcast?.phase == .paused }
+
+    private var isShowingSlides: Bool { broadcast?.isShowingSlides == true }
 
     var body: some View {
         // Attract is a screensaver: the root owns focus and ANY press exits.
@@ -139,55 +143,84 @@ struct TVSelfPlayScreen: View {
                     // Menu hops focus back to Pause. In attract it stays
                     // unfocusable so the screen root keeps owning the remote
                     // (any press exits).
-                    BoardView(gameRecord: game,
-                              interactive: false,
-                              showsCapturedStones: false,
-                              showsPass: false,
-                              showsWinrateBar: false,
-                              highlightedPoint: highlightedPoint,
-                              cursorPoint: ghost.point,
-                              commentIsFocused: $commentFocused)
-                        // Same full-screen-height pin as the review screen
-                        // (tvOS is always 1920×1080 pt; the NavigationStack's
-                        // safe-area insets survive ignoresSafeArea and would
-                        // otherwise shrink the fitted square). Also keeps the
-                        // board independent of the panel's ideal height.
-                        .frame(width: 1080, height: 1080)
-                        // Stays focusable through the game-over interstitial
-                        // so focus never loses its home mid-interstitial;
-                        // submit is guarded by !isGameOver, and restart()
-                        // drops board focus for the fresh board.
-                        .focusable(route.entry == .manual)
-                        .focused($boardFocused)
-                        .onMoveCommand(perform: boardMove)
-                        // Select plays via the UIKit catcher (see
-                        // TVSelectPressCatcher — .onTapGesture dropped every
-                        // first Select on device). !isGameOver disarms it
-                        // under the interstitial instead of leaning on
-                        // submit's guard alone (the window-wide recognizer
-                        // must not stay live beneath an overlay).
-                        .tvSelectPress(isEnabled: isAiming && !isGameOver,
-                                       perform: playAtCursor)
-                        .overlay {
-                            // Focus affordance (the timeline-ring pattern):
-                            // no system focus lift on a bare board.
-                            Rectangle()
-                                .stroke(boardFocused ? Color.tvWoodAccent : .clear,
-                                        lineWidth: 4)
-                        }
-                        .onChange(of: boardFocused) { _, focused in
-                            isAiming = focused
-                            if focused {
-                                ghost.activate(width: Int(board.width),
-                                               height: Int(board.height))
-                            } else {
-                                ghost.reset()
+                    ZStack {
+                        BoardView(gameRecord: game,
+                                  interactive: false,
+                                  showsCapturedStones: false,
+                                  showsPass: false,
+                                  showsWinrateBar: false,
+                                  highlightedPoint: highlightedPoint,
+                                  cursorPoint: ghost.point,
+                                  commentIsFocused: $commentFocused)
+                            // Stays focusable through the game-over interstitial
+                            // so focus never loses its home mid-interstitial;
+                            // submit is guarded by !isGameOver, and restart()
+                            // drops board focus for the fresh board. Reachable
+                            // only while the broadcast has handed the screen to
+                            // the interactive UI (paused) — watch-first,
+                            // play-on-pause.
+                            .focusable(route.entry == .manual && isPaused)
+                            .focused($boardFocused)
+                            .onMoveCommand(perform: boardMove)
+                            // Select plays via the UIKit catcher (see
+                            // TVSelectPressCatcher — .onTapGesture dropped every
+                            // first Select on device). !isGameOver disarms it
+                            // under the interstitial instead of leaning on
+                            // submit's guard alone (the window-wide recognizer
+                            // must not stay live beneath an overlay).
+                            .tvSelectPress(isEnabled: isAiming && !isGameOver,
+                                           perform: playAtCursor)
+                            .overlay {
+                                // Focus affordance (the timeline-ring pattern):
+                                // no system focus lift on a bare board.
+                                Rectangle()
+                                    .stroke(boardFocused ? Color.tvWoodAccent : .clear,
+                                            lineWidth: 4)
                             }
+                            .onChange(of: boardFocused) { _, focused in
+                                isAiming = focused
+                                if focused {
+                                    ghost.activate(width: Int(board.width),
+                                                   height: Int(board.height))
+                                } else {
+                                    ghost.reset()
+                                }
+                            }
+
+                        if let broadcast, let slide = broadcast.currentSlide,
+                           let model = broadcast.reportModel {
+                            TVBroadcastSlideBoard(slide: slide, model: model)
+                                // Skip controls: right/Select advance the
+                                // slide; past the last one the move plays
+                                // immediately. Attract stays unfocusable so
+                                // any press exits at the root.
+                                .focusable(route.entry == .manual)
+                                .onMoveCommand { direction in
+                                    if direction == .right { broadcast.skipSlide() }
+                                }
+                                .tvSelectPress(isEnabled: route.entry == .manual,
+                                               perform: { broadcast.skipSlide() })
                         }
+                    }
+                    // Same full-screen-height pin as the review screen
+                    // (tvOS is always 1920×1080 pt; the NavigationStack's
+                    // safe-area insets survive ignoresSafeArea and would
+                    // otherwise shrink the fitted square). Also keeps the
+                    // board independent of the panel's ideal height.
+                    .frame(width: 1080, height: 1080)
 
                     Spacer(minLength: 24)
 
-                    panel(for: game)
+                    Group {
+                        if let broadcast, let slide = broadcast.currentSlide {
+                            TVBroadcastSlidePanel(title: slide.title,
+                                                  text: broadcast.typedText,
+                                                  slideNumber: broadcast.slideNumber,
+                                                  slideCount: broadcast.slideCount)
+                        } else {
+                            panel(for: game)
+                        }
+                    }
                         // Hard ceiling: the 1080 pt screen minus the 40 pt
                         // vertical margins. A fixed frame reports this size
                         // to the HStack no matter how tall the content wants
@@ -262,6 +295,14 @@ struct TVSelfPlayScreen: View {
                 scheduleRestart()
             }
         }
+        .onChange(of: player.nextColorForPlayCommand) { _, newValue in
+            // The broadcast's cycle trigger — mirrors BoardView's turn
+            // observer signal. BoardView's own observer is inert while the
+            // broadcast runs (analysisStatus .clear), so this is the only
+            // reaction to a landed stone.
+            guard newValue != .unknown, let game, !isGameOver else { return }
+            broadcast?.noteTurnChanged(game: game)
+        }
     }
 
     // MARK: - Panel
@@ -319,19 +360,29 @@ struct TVSelfPlayScreen: View {
             // in-flight gen-move and the AI answers the user's move; while
             // paused, alternate picks explore a line. In attract mode the
             // rows are placeholders (not focusable) so any press still exits.
-            TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
-                                                                height: Int(board.height),
-                                                                limit: 3),
-                            isEnabled: route.entry == .manual && !isGameOver,
-                            rowCount: 3,
-                            onFocus: { highlightedPoint = $0?.point },
-                            onPick: pick)
+            if isPaused {
+                // Interactive pause: picks explore (suppression keeps the AI
+                // from answering), exactly the old paused semantics.
+                TVBestMovesList(candidates: analysis.candidateMoves(width: Int(board.width),
+                                                                    height: Int(board.height),
+                                                                    limit: 3),
+                                isEnabled: route.entry == .manual && !isGameOver,
+                                rowCount: 3,
+                                onFocus: { highlightedPoint = $0?.point },
+                                onPick: pick)
+            } else if broadcast?.phase == .generating {
+                Label("Analyzing…", systemImage: "sparkles")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
             if route.entry == .manual {
                 HStack(spacing: 16) {
-                    stepBackButton(for: game)
+                    if isPaused {
+                        stepBackButton(for: game)
+                    }
                     pauseResumeButton
                 }
             }
@@ -457,7 +508,13 @@ struct TVSelfPlayScreen: View {
         // This screen is the player, not a spectator of a synced record —
         // and entry is always un-paused. Picks play directly into the
         // in-memory record (editing mode), never via a branch.
-        gobanState.suppressesGenMove = false
+        // Broadcast protocol: suppression stays TRUE forever (the licensed
+        // gen-move plays the moves) and analysisStatus stays .clear so
+        // BoardView's turn observer never races an analyze command against a
+        // report cycle's collector swap. The .clear transition fires the TV
+        // root's "stop"; its ack drains long before the first cycle (FIFO:
+        // stop-ack < showboard reply < turn change < first probe).
+        gobanState.suppressesGenMove = true
         gobanState.forcesBranchOnPlay = false
         // Required or postProcessAIMove drops every engine reply; also routes
         // each move's printsgf into the in-memory record.
@@ -468,7 +525,12 @@ struct TVSelfPlayScreen: View {
         // Analysis ON is the show; remember a user OFF to restore on exit.
         analysisWasUserOff = (gobanState.analysisStatus == .clear)
         gobanState.eyeStatus = .opened
-        gobanState.analysisStatus = .run
+        gobanState.analysisStatus = .clear
+        broadcast = BroadcastController(messageList: messageList,
+                                        gobanState: gobanState,
+                                        player: player,
+                                        rootWinrate: rootWinrate,
+                                        rootScore: rootScore)
 
         // The demo must load unlocked (editing) so moves persist into the
         // record — but editingAfterLoad only auto-unlocks the 19×19
@@ -514,10 +576,12 @@ struct TVSelfPlayScreen: View {
         game = next
         navigationContext.selectedGameRecord = next
         gobanState.passCount = 0
-        gobanState.analysisStatus = .run
         // A paused game can still end (two picked passes) — the next game
-        // always starts live.
-        gobanState.suppressesGenMove = false
+        // always starts fresh under the broadcast protocol (cancel any
+        // in-flight cycle, back to .clear/suppressed).
+        broadcast?.cancelAll()
+        gobanState.analysisStatus = .clear
+        gobanState.suppressesGenMove = true
         // A cursor aimed at the finished game must not survive onto the
         // fresh (possibly different-size) board. Re-enable the panel first
         // (plain state, same transaction) so the focus hop off the board has
@@ -550,6 +614,7 @@ struct TVSelfPlayScreen: View {
 
     private func tearDown() {
         guard stagedPreviewGame == nil else { return }
+        broadcast?.cancelAll()
         restartTask?.cancel()
         restartTask = nil
         // A late `play` reply after this is dropped harmlessly; the session's
@@ -562,6 +627,12 @@ struct TVSelfPlayScreen: View {
             // sends the GTP "stop".
             gobanState.analysisStatus = .clear
             gobanState.eyeStatus = .closed
+        } else if gobanState.analysisStatus == .clear {
+            // Lift the broadcast's protocol-.clear so other screens read it
+            // as system-paused (resumable on entry normalization), not
+            // user-OFF. A paused-interactive exit leaves .run for BoardView's
+            // onDisappear machinery, which this branch then skips.
+            gobanState.analysisStatus = .pause
         }
         // Otherwise BoardView's onDisappear → maybePauseAnalysis plus the
         // root's pause observer stop the engine stream.
@@ -572,27 +643,18 @@ struct TVSelfPlayScreen: View {
         game = nil
     }
 
-    /// Pause: raise the spectator flag and stop the analysis stream so the
-    /// fanless Apple TV goes idle. maybePauseAnalysis() sets analysisStatus =
-    /// .pause and arms waitingForAnalysis, so the in-flight stream's next line
-    /// drives the true->false edge and TVRootView's pause observer sends GTP
-    /// "stop"; the cancelled search's trailing "play" is dropped by
-    /// postProcessAIMove's suppressesGenMove guard, so the pause is crisp. Top
-    /// Moves freezes at its last candidates (still pickable).
-    /// Resume: clear the flag, restore analysisStatus = .run (the gen-move
-    /// gate requires it), then re-request — with both maxTimes > 0 that emits
-    /// the gen-move command directly and the loop continues from the current
-    /// (possibly user-explored) position.
+    /// Pause = cancel the broadcast cycle (probes cancel → restore) and hand
+    /// the screen to the interactive UI with continuous analysis running so
+    /// Top Moves fills. Resume = re-enter the loop (report first, then the
+    /// licensed gen-move). suppressesGenMove stays TRUE in both states —
+    /// the broadcast invariant; NEVER call maybePauseAnalysis around the
+    /// report (the round-7 stray-ack gotcha).
     private func togglePause() {
-        guard let game, !isGameOver else { return }
-        gobanState.suppressesGenMove.toggle()
-        if gobanState.suppressesGenMove {
-            gobanState.maybePauseAnalysis()
+        guard let game, let broadcast, !isGameOver else { return }
+        if broadcast.phase == .paused {
+            broadcast.resume(game: game)
         } else {
-            gobanState.analysisStatus = .run
-            gobanState.requestAnalysis(config: game.concreteConfig,
-                                       messageList: messageList,
-                                       nextColorForPlayCommand: player.nextColorForPlayCommand)
+            Task { await broadcast.pause(game: game) }
         }
     }
 
@@ -621,7 +683,8 @@ struct TVSelfPlayScreen: View {
     /// the in-memory record. If the AI's own move landed first, the reply is
     /// wrong_turn and the play is silently dropped.
     private func submit(vertex: String) {
-        guard !isGameOver,
+        guard isPaused,
+              !isGameOver,
               stones.isReady,
               gobanState.pendingMoveTurn == nil,
               let turn = player.nextColorSymbolForPlayCommand else { return }
@@ -796,6 +859,15 @@ private struct TVSelfPlayPreviewHost: View {
     session.gobanState.analysisStatus = .run
     session.gobanState.eyeStatus = .opened
     session.gobanState.passCount = 2
+    return TVSelfPlayPreviewHost(game: game, session: session)
+}
+
+// Mid-broadcast: slide board over the hero slot, streaming panel.
+#Preview("Self-play — broadcast slide") {
+    let game = TVPreviewData.denseAnalyzedGame()
+    let session = TVPreviewData.reviewSession(game: game,
+                                              blackWinrate: 0.55,
+                                              blackScore: 1.5)
     return TVSelfPlayPreviewHost(game: game, session: session)
 }
 
