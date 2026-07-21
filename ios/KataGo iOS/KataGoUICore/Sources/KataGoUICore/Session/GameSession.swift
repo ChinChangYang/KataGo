@@ -442,21 +442,24 @@ public final class GameSession {
         audioModel: AudioModel,
         aiMove: Binding<String?>
     ) {
-        // A cancelled kata-search_analyze_cancellable still prints its
-        // best-so-far "play <vertex>" (the engine never plays it on its own
-        // board). While the session is a spectator or paused
-        // (suppressesGenMove), replaying (isAutoPlaying — the wand's command
-        // burst is what cancelled an in-flight gen-move, and the stray reply
-        // would truncate the record via the editing path), or a user pick is
-        // mid-legality-check (pendingMoveTurn set — the kata-check-move is
-        // what cancelled the search), that reply must not be played into the
-        // record. shouldGenMove forbids issuing gen-moves in all three
-        // states, so no legitimate reply is ever dropped here.
+        // A kata-search_analyze_cancellable that runs to completion prints
+        // "play <vertex>" (the engine never plays it on its own board); one
+        // interrupted by ANY queued line — kata-check-move, a replay burst,
+        // "stop" — prints the literal "play cancelled", which the vertex
+        // regex below ignores. A completed reply can still arrive stale:
+        // while the session is a spectator or paused (suppressesGenMove),
+        // replaying (isAutoPlaying — the wand's command burst cancelled the
+        // in-flight gen-move, and a stray reply would truncate the record
+        // via the editing path), or a user pick is mid-legality-check
+        // (pendingMoveTurn set), it must not be played into the record.
+        // shouldGenMove forbids issuing gen-moves in all three states, so no
+        // legitimate reply is ever dropped here.
         // The tvOS broadcast licenses exactly ONE gen-move reply through the
         // suppression guard (suppressesGenMove stays true for its whole
-        // lifetime). The license is consumed on this play line even when a
-        // later guard drops it — the broadcast re-issues per cycle, and a
-        // stale license must never leak a future stray reply through.
+        // lifetime). The license is consumed on ANY "play " line — including
+        // "play cancelled" — even when a later guard drops it: the broadcast
+        // re-issues per cycle, and a stale license must never leak a future
+        // stray reply through.
         let broadcastLicensed = gobanState.broadcastGenMovePending
         gobanState.broadcastGenMovePending = false
         guard broadcastLicensed || !gobanState.suppressesGenMove,

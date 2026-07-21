@@ -3,13 +3,15 @@
 //  KataGo iOSTests
 //
 //  Pins the drop guard at the top of GameSession.postProcessAIMove. A
-//  cancelled kata-search_analyze_cancellable still prints its best-so-far
-//  "play <vertex>" line (the engine never plays it on its own board), so while
-//  a screen is a spectator or paused (suppressesGenMove) or a user pick is
-//  mid-legality-check (pendingMoveTurn set — the kata-check-move is what
-//  cancelled the search), that line must be dropped, not played into the
-//  record. With neither condition, the reply plays exactly as before the
-//  guard existed (the iOS/macOS regression pin).
+//  kata-search_analyze_cancellable that completes prints its "play <vertex>"
+//  line (the engine never plays it on its own board); one cancelled
+//  mid-search prints the literal "play cancelled". A completed line can
+//  still arrive stale: while a screen is a spectator or paused
+//  (suppressesGenMove) or a user pick is mid-legality-check
+//  (pendingMoveTurn set — the kata-check-move is what cancelled the
+//  search), it must be dropped, not played into the record. With neither
+//  condition, the reply plays exactly as before the guard existed (the
+//  iOS/macOS regression pin).
 //
 
 import Testing
@@ -92,6 +94,31 @@ struct GameSessionPostProcessAIMoveGuardTests {
 
         #expect(f.captured.value == "Q16")
         #expect(f.sent("play b Q16"))
+    }
+
+    @Test("Interrupted search ('play cancelled'): license consumed, nothing plays")
+    func playCancelledConsumesTheLicenseWithoutPlaying() {
+        let f = Fixture()
+        // Broadcast state: spectator suppression with the one-shot license
+        // armed. "play cancelled" is the engine's literal reply when a
+        // queued line cancels the licensed kata-search_analyze_cancellable
+        // mid-search (cpp/tests/results/gtp/searchcancellable.stdout).
+        f.session.gobanState.suppressesGenMove = true
+        f.session.gobanState.broadcastGenMovePending = true
+
+        let captured = f.captured
+        f.session.maybeCollectPlay(message: "play cancelled",
+                                   navigationContext: f.navigation,
+                                   audioModel: f.audioModel,
+                                   aiMove: Binding(get: { captured.value },
+                                                   set: { captured.value = $0 }))
+
+        // Consumed even though nothing plays: a stale license must never
+        // leak a later stray reply through the suppression guard.
+        #expect(!f.session.gobanState.broadcastGenMovePending)
+        #expect(f.captured.value == nil)
+        #expect(f.record.currentIndex == 0)
+        #expect(!f.sent("play b cancelled"))
     }
 
     @Test("Player .unknown (mid game-switch): the play line is dropped")
