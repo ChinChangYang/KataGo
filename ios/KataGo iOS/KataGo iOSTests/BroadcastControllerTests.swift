@@ -536,6 +536,26 @@ struct BroadcastControllerTests {
         #expect(sawTenukiChip)
     }
 
+    @Test("Pass slide: the punish stone lands only after its sentence typed")
+    func passSlidePunishStoneWaitsForItsSentence() async {
+        let f = Fixture()
+        var sawPunishFrame = false
+        var textPrecededStone = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if !sawPunishFrame,
+               f.controller.currentFrame?.placedStones
+                   .contains(PlacedStone(vertex: "E5", color: .white)) == true {
+                sawPunishFrame = true
+                textPrecededStone = f.controller.typedText.contains("would punish at E5")
+            }
+            await Task.yield()
+        }
+        #expect(sawPunishFrame)
+        #expect(textPrecededStone)
+    }
+
     @Test("Frames freeze at slide entry: a mid-slide candidate swap cannot reshape the choreography")
     func framesFrozenAtSlideEntryAdoptOnlyPrefixExtensions() async {
         let settle = Box()
