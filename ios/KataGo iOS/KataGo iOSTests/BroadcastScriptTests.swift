@@ -119,9 +119,9 @@ struct BroadcastScriptTests {
             if slide.kind == .pass {
                 // Round 2: the contested sentence returned — it types over
                 // the punish-stone board; the Δ payoff follows it.
-                #expect(joined.contains("Most contested areas"))
+                #expect(joined.contains("contested areas"))
             } else {
-                #expect(!joined.contains("Most contested areas"))
+                #expect(!joined.contains("contested areas"))
             }
         }
     }

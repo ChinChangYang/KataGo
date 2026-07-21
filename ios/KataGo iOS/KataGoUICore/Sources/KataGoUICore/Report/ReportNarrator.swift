@@ -62,8 +62,10 @@ public enum ReportNarrator {
     /// The pass-comparison facts (+ the contested-areas line when present).
     /// `split: true` (the TV broadcast) splits the sentence into two facts —
     /// the pass evaluation, then the punishment — so the slide board can act
-    /// each out as its sentence types. The default joins them into the single
-    /// report sentence, byte-identical to the pre-split output.
+    /// each out as its sentence types. The split form also prefixes the contested
+    /// fact with "If X plays the best move at Y instead, " — the payoff hand-off
+    /// the board acts out — when a best move is named. The default joins them
+    /// into the single report sentence, byte-identical to the pre-split output.
     @MainActor
     public static func passFacts(from model: DeepReportModel,
                                  split: Bool = false) -> [String] {
@@ -80,8 +82,16 @@ public enum ReportNarrator {
         var facts = split ? [head + ".", punish + "."]
                           : [head + "; " + punish + "."]
         if !pass.contestedPoints.isEmpty {
-            let regions = orderedUniqueRegions(pass.contestedPoints)
-            facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions.joined(separator: ", ")).")
+            let regions = orderedUniqueRegions(pass.contestedPoints).joined(separator: ", ")
+            if split, let best {
+                // When this fact types, the board still shows the pass
+                // scenario — the prefix announces the payoff it acts next
+                // (bare → best stone → Δ). "instead" carries the vs-passing
+                // baseline, so the parenthetical trims.
+                facts.append("If \(side) plays the best move at \(best) instead, the most contested areas (largest ownership swings): \(regions).")
+            } else {
+                facts.append("Most contested areas (largest ownership swings between playing and passing): \(regions).")
+            }
         }
         return facts
     }

@@ -216,7 +216,11 @@ struct ReportNarratorTests {
         #expect(full.count == 2)
         #expect(split.count == 3)
         #expect(full[0] == String(split[0].dropLast()) + "; " + split[1])
-        #expect(split[2] == full[1])   // contested fact identical in both forms
+        // The broadcast's contested fact gains the playing-payoff prefix and
+        // trims the baseline (carried by "instead"); the report keeps the
+        // full wording.
+        #expect(full[1] == "Most contested areas (largest ownership swings between playing and passing): upper left.")
+        #expect(split[2] == "If Black plays the best move at A1 instead, the most contested areas (largest ownership swings): upper left.")
 
         // With no contested points both forms drop the third fact only.
         model.passComparison = PassComparison(punishmentVertex: "B2", winrate: 0.28,
@@ -228,6 +232,16 @@ struct ReportNarratorTests {
         #expect(bare.count == 1)
         #expect(bareSplit.count == 2)
         #expect(bare[0] == String(bareSplit[0].dropLast()) + "; " + bareSplit[1])
+    }
+
+    /// With no named best move the prefix has no vertex to name — the
+    /// broadcast keeps the report's contested sentence unchanged.
+    @Test func passFactsSplitFormDropsThePrefixWithoutABestMove() {
+        let model = makeModel()
+        model.candidates = []
+        let split = ReportNarrator.passFacts(from: model, split: true)
+        #expect(split.count == 3)
+        #expect(split[2] == "Most contested areas (largest ownership swings between playing and passing): upper left.")
     }
 
     /// The defaults guard: the broadcast variants can never leak into
