@@ -15,8 +15,12 @@
 //    per-cycle gen-move is licensed via gobanState.broadcastGenMovePending,
 //    consumed exactly once in GameSession.postProcessAIMove.
 //  - issueGenMove re-asserts .clear BEFORE sending (a paused-interactive
-//    stretch runs .run): the status observer's "stop" ack then drains ahead
-//    of the gen-move reply on the FIFO pipe, never near a collector swap.
+//    stretch runs .run). The TV root's status observer fires one MainActor
+//    update pass LATER — after the gen-move is already on the FIFO — so it
+//    is gated on the armed license (shouldStopEngineOnAnalysisClear): an
+//    ungated "stop" would cancel the licensed search, which then prints
+//    "play cancelled" instead of a vertex and the broadcast would park in
+//    .awaitingMove forever (the pause→resume stall).
 //  - maybePauseAnalysis is NEVER called around generation; the generator's
 //    probe cancellation + restore() leave the engine idle on their own.
 //  - BoardView's turn observer also sends asymmetric human-SL kata-set-param
@@ -432,10 +436,14 @@ public final class BroadcastController {
         guard gobanState.passCount < 2 else { return }
         genMoveIssued = true
         // Restore the broadcast protocol BEFORE the gen-move: after a
-        // paused-interactive stretch status is .run, and the .clear
-        // transition fires the TV root's "stop" — its ack drains ahead of
-        // the gen-move reply on the FIFO pipe, and .clear keeps BoardView's
-        // turn observer silent at the upcoming turn change.
+        // paused-interactive stretch status is .run, and .clear keeps
+        // BoardView's turn observer silent at the upcoming turn change.
+        // The TV root's status observer reacts one update pass LATER —
+        // after the gen-move below is on the FIFO — and is gated on the
+        // armed license (GobanState.shouldStopEngineOnAnalysisClear), so
+        // its "stop" cannot cancel this search (a stop-cancelled search
+        // prints "play cancelled", never a vertex, and the cycle would
+        // park in .awaitingMove forever).
         if gobanState.analysisStatus != .clear {
             gobanState.analysisStatus = .clear
         }

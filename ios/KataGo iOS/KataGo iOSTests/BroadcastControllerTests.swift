@@ -73,6 +73,13 @@ struct BroadcastControllerTests {
             session.messageList.messages.filter { $0.text.contains(fragment) }.count
         }
 
+        /// Exact "stop" commands on the wire. Message texts carry a "> "
+        /// display prefix, so match the suffix (no other command in these
+        /// fixtures ends in "stop").
+        var stopCommandCount: Int {
+            session.messageList.messages.filter { $0.text.hasSuffix("stop") }.count
+        }
+
         /// Bounded MainActor pump: yields until the condition holds.
         func pump(until condition: () -> Bool) async {
             for _ in 0..<20_000 {
@@ -205,6 +212,66 @@ struct BroadcastControllerTests {
         f.controller.resume(game: f.record)
         await f.pump(until: { f.controller.phase == .awaitingMove })
         #expect(f.session.gobanState.analysisStatus == .clear)
+    }
+
+    /// The root's stop observer fires one MainActor pass AFTER
+    /// issueGenMove's .run→.clear flip — with the license armed in the
+    /// same synchronous job, the gate must keep its "stop" off the wire
+    /// (an ungated stop cancels the licensed search: the engine prints
+    /// "play cancelled" and the broadcast parks in .awaitingMove forever —
+    /// the pause→resume stall).
+    @Test("Resumed cycle: license armed at the flip; the gated root stop stays silent")
+    func resumedCycleKeepsLicenseArmedAtTheFlipAndGatesTheRootStop() async {
+        let f = Fixture()
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        await f.controller.pause(game: f.record)
+        // The prior cycle's reply consumed the license while paused.
+        f.session.gobanState.broadcastGenMovePending = false
+        let stopsBefore = f.stopCommandCount
+
+        f.controller.resume(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+
+        // The flip and the license arm are one synchronous MainActor job:
+        // whenever the observer later fires for this flip, the license is
+        // armed — the invariant the gate depends on.
+        #expect(f.session.gobanState.analysisStatus == .clear)
+        #expect(f.session.gobanState.broadcastGenMovePending)
+
+        // TVRootView's observer body, verbatim: gated, it sends nothing.
+        if f.session.gobanState.analysisStatus == .clear,
+           f.session.gobanState.shouldStopEngineOnAnalysisClear {
+            f.session.messageList.appendAndSend(command: "stop")
+        }
+        #expect(f.stopCommandCount == stopsBefore)
+    }
+
+    /// A pass picked while paused routes resume through the endgame
+    /// formality (startCycle → immediate issueGenMove, no report) — same
+    /// .run→.clear flip, same gate.
+    @Test("Resumed endgame formality: license armed; the gated root stop stays silent")
+    func resumedEndgameFormalityGatesTheRootStop() async {
+        let f = Fixture()
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        await f.controller.pause(game: f.record)
+        f.session.gobanState.broadcastGenMovePending = false
+        f.session.gobanState.passCount = 1
+        let stopsBefore = f.stopCommandCount
+
+        f.controller.resume(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+
+        #expect(f.session.gobanState.analysisStatus == .clear)
+        #expect(f.session.gobanState.broadcastGenMovePending)
+        if f.session.gobanState.analysisStatus == .clear,
+           f.session.gobanState.shouldStopEngineOnAnalysisClear {
+            f.session.messageList.appendAndSend(command: "stop")
+        }
+        #expect(f.stopCommandCount == stopsBefore)
     }
 
     @Test("cancelAll abandons everything and returns to idle")

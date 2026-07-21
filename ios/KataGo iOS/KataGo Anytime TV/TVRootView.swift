@@ -161,8 +161,11 @@ struct TVRootView: View {
                 // would keep running NN search forever after the user turns
                 // analysis off or backs out to the library.
                 .onChange(of: session.gobanState.analysisStatus) { _, newValue in
-                    // User toggled analysis off (TVReviewScreen sets .clear).
-                    if newValue == .clear {
+                    // User toggled analysis off (TVReviewScreen sets .clear) —
+                    // but never while the broadcast's licensed gen-move is in
+                    // flight; see GobanState.shouldStopEngineOnAnalysisClear.
+                    if newValue == .clear,
+                       session.gobanState.shouldStopEngineOnAnalysisClear {
                         session.messageList.appendAndSend(command: "stop")
                     }
                 }

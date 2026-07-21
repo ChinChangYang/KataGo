@@ -46,6 +46,20 @@ public class GobanState {
     /// would be dropped by postProcessAIMove's guard — this flag licenses
     /// exactly one reply through it; postProcessAIMove consumes it.
     public var broadcastGenMovePending = false
+    /// Gate for the tvOS root's analysisStatus observer: it sends the GTP
+    /// "stop" whenever the status transitions to .clear, but SwiftUI's
+    /// onChange fires one MainActor update pass AFTER the write — by then
+    /// issueGenMove has already sent the licensed
+    /// kata-search_analyze_cancellable, and a trailing "stop" would cancel
+    /// it (the engine prints "play cancelled", no stone lands, and the
+    /// broadcast parks in .awaitingMove forever — the pause→resume stall).
+    /// Sound because the .clear flip and the license arm execute in the
+    /// same synchronous MainActor job (issueGenMove →
+    /// requestBroadcastGenMove): whenever the observer fires for that
+    /// flip, the license is still armed. If requestBroadcastGenMove
+    /// early-returns without arming (unknown side, maxTime 0), this stays
+    /// true and the stop goes out — safe degradation.
+    public var shouldStopEngineOnAnalysisClear: Bool { !broadcastGenMovePending }
     /// tvOS: stream continuous kata-analyze at `config.analysisInterval`
     /// instead of the fast 0.1 s first-report interval. iOS/macOS keep
     /// fastAnalyzeCommand plus their own re-arm at the config interval
