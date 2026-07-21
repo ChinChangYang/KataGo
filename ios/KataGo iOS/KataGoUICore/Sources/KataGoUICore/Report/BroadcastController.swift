@@ -47,6 +47,10 @@ public final class BroadcastController {
     public private(set) var slideCount = 0
     public private(set) var typedText = ""
     public private(set) var reportModel: DeepReportModel?
+    /// The slide board's current choreography frame; non-nil exactly while
+    /// currentSlide is non-nil (the first frame is assigned in the same
+    /// synchronous block as the slide).
+    public private(set) var currentFrame: BroadcastBoardFrame?
 
     private let messageList: MessageList
     private let gobanState: GobanState
@@ -136,6 +140,7 @@ public final class BroadcastController {
             // has already returned the screen to .idle.
             guard !Task.isCancelled else { return }
             self.currentSlide = nil
+            self.currentFrame = nil
             self.typedText = ""
             self.slideNumber = 0
             self.phase = .paused
@@ -187,6 +192,7 @@ public final class BroadcastController {
         // CloudKit-synced record.
         gobanState.broadcastGenMovePending = false
         currentSlide = nil
+        currentFrame = nil
         typedText = ""
         slideNumber = 0
         phase = .idle
@@ -276,6 +282,11 @@ public final class BroadcastController {
             slideNumber = index + 1
             slideCount = max(slides.count, slideCount)
             currentSlide = slides[index]
+            // Constraint 5: the first frame lands in the SAME synchronous
+            // block — the early-genmove await below would otherwise render
+            // the new slide's title over the previous slide's terminal frame
+            // (a stray pass chip under "Best Move …").
+            currentFrame = BroadcastScript.frames(for: slides[index], model: model).first
             if model.stage.isSettled && index == slides.count - 1 && !genMoveIssued {
                 // Early gen-move (grilled decision): sent as the FINAL slide
                 // starts, so the reply lands invisibly (hero and panel both
@@ -284,7 +295,7 @@ public final class BroadcastController {
                 await generation.value
                 issueGenMove(game: game)
             }
-            await typewrite(slideIndex: index, model: model)
+            await present(slideIndex: index, model: model)
             index += 1
         }
 
@@ -297,6 +308,7 @@ public final class BroadcastController {
         // slide (the same cycleToken the continuation checks).
         if cycleToken == token {
             currentSlide = nil
+            currentFrame = nil
             typedText = ""
             slideNumber = 0
         }
@@ -308,19 +320,74 @@ public final class BroadcastController {
         return moveLanded
     }
 
-    /// Types one slide's facts word-by-word, tolerating a fact list that is
-    /// still growing (slide 1's tenuki line lands mid-typewriter), then
-    /// dwells so short slides don't flash by.
-    private func typewrite(slideIndex: Int, model: DeepReportModel) async {
+    /// Types one slide's facts word-by-word while advancing its board
+    /// choreography in LOCKSTEP: a fact's frames appear the moment it starts
+    /// typing, its trailing beat frames drain before the next fact starts,
+    /// and the dwell runs after both text and frames are done. Tolerates a
+    /// fact list that is still growing (slide 1's tenuki line lands
+    /// mid-typewriter).
+    ///
+    /// Frames are FROZEN at slide entry: re-derivation adopts a fresh list
+    /// only when it strictly extends the current one (the late tenuki tail).
+    /// setAlternative can replace model.candidates wholesale mid-show
+    /// (resume-after-Undo + forced probe) — an unfrozen rebuild could flip
+    /// the Δ/PV branch and reshape the list mid-drain.
+    private func present(slideIndex: Int, model: DeepReportModel) async {
         typedText = ""
         var elapsed: TimeInterval = 0
         var factIndex = 0
+        var frames: [BroadcastBoardFrame] = []
+        var frameCursor = 0
+
+        func refreshFrames() {
+            let slides = BroadcastScript.slides(from: model)
+            guard slideIndex < slides.count else { return }
+            let fresh = BroadcastScript.frames(for: slides[slideIndex], model: model)
+            if frames.isEmpty
+                || (fresh.count > frames.count
+                    && Array(fresh.prefix(frames.count)) == frames) {
+                frames = fresh
+            }
+        }
+        refreshFrames()
+
+        // Emit every frame due at the CURRENT fact (anchor .fact(i),
+        // i ≤ factIndex). No sleeps: these show as their fact starts typing.
+        func emitDueFactFrames() {
+            while frameCursor < frames.count,
+                  case .fact(let i) = frames[frameCursor].anchor, i <= factIndex {
+                currentFrame = frames[frameCursor]
+                frameCursor += 1
+            }
+        }
+
+        // Drain consecutive beat frames at poll granularity so a skip stays
+        // responsive and a pause's cancellation is honored; beat time accrues
+        // into `elapsed` so the dwell formula stays honest.
+        func drainBeatFrames() async {
+            while frameCursor < frames.count,
+                  case .afterPrevious(let beatLength) = frames[frameCursor].anchor {
+                if Task.isCancelled || skipRequested { return }
+                currentFrame = frames[frameCursor]
+                frameCursor += 1
+                var waited: TimeInterval = 0
+                while waited < beatLength {
+                    if Task.isCancelled || skipRequested { return }
+                    try? await sleeper(BroadcastConstants.pollSeconds)
+                    waited += BroadcastConstants.pollSeconds
+                    elapsed += BroadcastConstants.pollSeconds
+                }
+            }
+        }
+
         while !Task.isCancelled && !skipRequested {
             let slides = BroadcastScript.slides(from: model)
             guard slideIndex < slides.count else { break }
             let slide = slides[slideIndex]
             let facts = slide.facts
+            refreshFrames()
             if factIndex < facts.count {
+                emitDueFactFrames()
                 for chunk in BroadcastScript.typewriterChunks(facts[factIndex]) {
                     guard !Task.isCancelled && !skipRequested else { break }
                     typedText += chunk
@@ -330,6 +397,7 @@ public final class BroadcastController {
                 }
                 typedText += "\n"
                 factIndex += 1
+                await drainBeatFrames()
             } else if BroadcastScript.factsMayGrow(kind: slide.kind, model: model) {
                 try? await sleeper(BroadcastConstants.pollSeconds)
                 elapsed += BroadcastConstants.pollSeconds
@@ -346,8 +414,7 @@ public final class BroadcastController {
                         BroadcastConstants.dwellSeconds)
         // Poll the dwell so a skip pressed during it is honored AND consumed.
         // A single sleeper(dwell) swallowed such a skip, and the stale flag
-        // then blanked the NEXT slide on entry (its typing loop saw the flag,
-        // reset, and returned — that slide's content lost).
+        // then blanked the NEXT slide on entry (see the F4 regression).
         var dwelled: TimeInterval = 0
         while dwelled < dwell {
             if Task.isCancelled { return }

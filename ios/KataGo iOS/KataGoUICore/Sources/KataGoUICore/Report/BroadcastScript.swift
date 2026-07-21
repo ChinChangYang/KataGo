@@ -73,7 +73,7 @@ public struct BroadcastBoardFrame: Equatable {
     public enum Anchor: Equatable {
         /// Show the moment the fact at this index starts typing.
         case fact(Int)
-        /// Show this long after the previous frame appeared.
+        /// Show after the previous frame has been visible this long.
         case afterPrevious(TimeInterval)
     }
 

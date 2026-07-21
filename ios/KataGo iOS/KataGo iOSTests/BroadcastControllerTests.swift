@@ -412,4 +412,162 @@ struct BroadcastControllerTests {
         await f.pump(until: { f.controller.phase == .awaitingMove })
         #expect(gen.value == 1)
     }
+
+    // MARK: - Choreography: lockstep frames
+
+    @Test("The slide opens on its first frame; the PV stone waits for its fact")
+    func frameAppearsWhenItsFactStartsTyping() async {
+        let f = Fixture()
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.currentFrame != nil })
+        // Slide entry: the bare-position frame (fact 0's), synchronously with
+        // currentSlide.
+        #expect(f.controller.currentSlide != nil)
+        #expect(f.controller.currentFrame?.overlay == ReportBoardOverlay.none)
+        #expect(f.controller.currentFrame?.placedStones.isEmpty == true)
+        // The first PV frame appears only once the best-move fact starts —
+        // by then both position facts are fully typed.
+        await f.pump(until: {
+            if let overlay = f.controller.currentFrame?.overlay,
+               case .pv = overlay { return true }
+            return false
+        })
+        #expect(f.controller.typedText.contains("visits."))
+    }
+
+    @Test("Beat frames drain before the next fact: the tenuki phase never starts mid-PV")
+    func afterPreviousFramesDrainBeforeNextFact() async {
+        let f = Fixture()
+        var sawFullPV = false
+        var pvCompleteBeforeTenuki = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if let overlay = f.controller.currentFrame?.overlay,
+               case .pv(let vertices, _) = overlay, vertices.count == 2 {
+                sawFullPV = true
+            }
+            if f.controller.currentFrame?.placedStones.first?.vertex == "E5",
+               f.controller.currentFrame?.overlay == ReportBoardOverlay.none,
+               f.controller.slideNumber == 1 {
+                pvCompleteBeforeTenuki = sawFullPV   // tenuki phase began
+                break
+            }
+            await Task.yield()
+        }
+        #expect(sawFullPV)
+        #expect(pvCompleteBeforeTenuki)
+    }
+
+    @Test("Skip during a beat drain ends the slide; the next slide still types")
+    func skipSlideAbortsFrameDrain() async {
+        let f = Fixture()
+        var maxLenSlide2 = 0
+        var skipped = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.slideNumber == 2 {
+                maxLenSlide2 = max(maxLenSlide2, f.controller.typedText.count)
+            }
+            // Skip the FIRST slide the moment a PV frame is up (mid-drain).
+            if !skipped, f.controller.slideNumber == 1,
+               let overlay = f.controller.currentFrame?.overlay,
+               case .pv = overlay {
+                f.controller.skipSlide()
+                skipped = true
+            }
+            await Task.yield()
+        }
+        #expect(skipped)
+        #expect(maxLenSlide2 > 0)   // slide 2 typed through — no stale skip flag
+    }
+
+    @Test("Pause lands while a beat frame is draining and returns")
+    func pauseDuringBeatDrainReturns() async {
+        let f = Fixture()
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: {
+            if let overlay = f.controller.currentFrame?.overlay,
+               case .pv = overlay { return true }
+            return false
+        })
+        await f.controller.pause(game: f.record)   // hangs here if a drain loop misses Task.isCancelled
+        #expect(f.controller.phase == .paused)
+        #expect(f.controller.currentFrame == nil)
+        #expect(f.controller.currentSlide == nil)
+    }
+
+    @Test("currentFrame clears at cycle end and on cancelAll")
+    func currentFrameClearsAtCycleEndAndOnCancelAll() async {
+        let f = Fixture()
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(f.controller.currentFrame == nil)
+
+        f.session.player.nextColorForPlayCommand = .white
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.currentFrame != nil })
+        f.controller.cancelAll()
+        #expect(f.controller.currentFrame == nil)
+    }
+
+    @Test("A late tenuki fact grows the frozen frame list and acts out its phase")
+    func lateTenukiFactProducesItsFramesWhenItLands() async {
+        let f = Fixture(generate: { model, _ in
+            BroadcastControllerTests.stageFullReport(model)
+            model.candidates[0].tenuki = nil
+            model.stage = .tenuki(0)                  // best slide's facts may grow
+            for _ in 0..<300 { await Task.yield() }   // land mid-typewriter
+            model.candidates[0].tenuki = TenukiFollowUp(vertex: "C3", winrate: 0.65,
+                                                        scoreLead: 3.0, visits: 40,
+                                                        pv: ["C3"])
+            model.stage = .complete
+        })
+        var sawTenukiChip = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.currentFrame?.passChip == .playsElsewhere(.white) {
+                sawTenukiChip = true
+            }
+            await Task.yield()
+        }
+        #expect(sawTenukiChip)
+    }
+
+    @Test("Frames freeze at slide entry: a mid-slide candidate swap cannot reshape the choreography")
+    func framesFrozenAtSlideEntryAdoptOnlyPrefixExtensions() async {
+        let settle = Box()
+        let f = Fixture(generate: { model, _ in
+            BroadcastControllerTests.stageFullReport(model)
+            model.stage = .passProbe                  // keep generation open
+            while settle.value == 0 { await Task.yield() }
+            model.stage = .complete
+        })
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.isShowingSlides })
+        f.controller.skipSlide()
+        await f.pump(until: { f.controller.slideNumber == 2 })
+
+        // The setAlternative window: wholesale candidate swap while the
+        // Alternative slide is showing — flips the Δ branch to Δ-empty.
+        let model = f.controller.reportModel!
+        model.candidates[1] = CandidateReport(vertex: "G7", visits: 5, winrate: 0.5,
+                                              scoreLead: 0, winrateDelta: 0,
+                                              scoreLeadDelta: 0, pv: ["G7"],
+                                              ownershipDelta: [:], tenuki: nil)
+        var sawFrozenDelta = false
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.slideNumber == 2,
+               let overlay = f.controller.currentFrame?.overlay,
+               case .ownershipDelta = overlay {
+                sawFrozenDelta = true
+                if settle.value == 0 { settle.value = 1 }   // release the generator
+            }
+            await Task.yield()
+        }
+        #expect(sawFrozenDelta)   // the frozen C3 Δ frame still showed
+    }
 }
