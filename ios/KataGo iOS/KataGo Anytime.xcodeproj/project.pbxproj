@@ -348,6 +348,7 @@
 		A278FA3433320FD3F1C491AC /* conditions.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4FA4F0662AABA7D774C87B46 /* conditions.cc */; };
 		A373D98B7B38A844AF7A93B2 /* generic_printer.cc in Sources */ = {isa = PBXBuildFile; fileRef = 822F1C257F53350EAC096A2A /* generic_printer.cc */; };
 		A42B269D4421AE4425A1CD22 /* time_zone_format.cc in Sources */ = {isa = PBXBuildFile; fileRef = F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */; };
+		A43E8F373A35747D2A46D94C /* BroadcastGenMoveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AA4DE8BFD675668DF35BB6 /* BroadcastGenMoveTests.swift */; };
 		A5AC0420BFE1BF7DAF9791B0 /* WidgetBoardStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23D4845595CCEAA7720D3C5 /* WidgetBoardStyleTests.swift */; };
 		A6AE3BC7D126E3F5EEB32D01 /* MIL.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = BA88218FE439761B96AE38F7 /* MIL.pb.cc */; };
 		A6D80A79C45FBC852FF91AA1 /* DictVectorizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 081E2F8909C4E3DCDAC21F71 /* DictVectorizer.pb.cc */; };
@@ -1732,6 +1733,7 @@
 		F76F77D2854F4AF2862EF966 /* profile_builder.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = profile_builder.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/internal/profile_builder.cc"; sourceTree = SOURCE_ROOT; };
 		F7CDB1E48C91DD79F0008B2C /* statusor.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = statusor.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/statusor.cc"; sourceTree = SOURCE_ROOT; };
 		F847CA5CA45B9D54788527ED /* WatchMovesPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchMovesPage.swift; path = "KataGo Anytime Watch/WatchMovesPage.swift"; sourceTree = "<group>"; };
+		F8AA4DE8BFD675668DF35BB6 /* BroadcastGenMoveTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BroadcastGenMoveTests.swift; sourceTree = "<group>"; };
 		F9E318D52312E92994233C24 /* time_zone_posix.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_posix.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_posix.cc"; sourceTree = SOURCE_ROOT; };
 		FA37D5F19C1BE5F0B94427F0 /* OpeningBookPickerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpeningBookPickerView.swift; sourceTree = "<group>"; };
 		FB77AE0C1C1E08B886E39DED /* WordEmbedding.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordEmbedding.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordEmbedding.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -2925,6 +2927,7 @@
 				A2250F79E966F1F479E353F2 /* GameSessionAutoPlayPlayLineGuardTests.swift */,
 				1273EBF32E596BD4360CD12F /* StoneRenderPerfTests.swift */,
 				75F6297E4EA23B50787BA5F9 /* BroadcastScriptTests.swift */,
+				F8AA4DE8BFD675668DF35BB6 /* BroadcastGenMoveTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4243,6 +4246,7 @@
 				07C0D47D8A0787637AAB0707 /* GameSessionAutoPlayPlayLineGuardTests.swift in Sources */,
 				F9198795138AD9BC31D2C753 /* StoneRenderPerfTests.swift in Sources */,
 				42B5692AB828B6BDBF086802 /* BroadcastScriptTests.swift in Sources */,
+				A43E8F373A35747D2A46D94C /* BroadcastGenMoveTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -452,7 +452,14 @@ public final class GameSession {
         // what cancelled the search), that reply must not be played into the
         // record. shouldGenMove forbids issuing gen-moves in all three
         // states, so no legitimate reply is ever dropped here.
-        guard !gobanState.suppressesGenMove,
+        // The tvOS broadcast licenses exactly ONE gen-move reply through the
+        // suppression guard (suppressesGenMove stays true for its whole
+        // lifetime). The license is consumed on this play line even when a
+        // later guard drops it — the broadcast re-issues per cycle, and a
+        // stale license must never leak a future stray reply through.
+        let broadcastLicensed = gobanState.broadcastGenMovePending
+        gobanState.broadcastGenMovePending = false
+        guard broadcastLicensed || !gobanState.suppressesGenMove,
               !gobanState.isAutoPlaying,
               gobanState.pendingMoveTurn == nil else { return }
 

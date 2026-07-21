@@ -40,6 +40,12 @@ public class GobanState {
     /// reviewed on TV); the tvOS self-play screen clears it. Transient view
     /// state, never persisted; defaults false so iOS/macOS are unchanged.
     public var suppressesGenMove = false
+    /// The tvOS broadcast's one-shot gen-move license. The broadcast keeps
+    /// `suppressesGenMove` true for its whole lifetime (the turn observer
+    /// must never free-run the game), so its single per-cycle gen-move reply
+    /// would be dropped by postProcessAIMove's guard — this flag licenses
+    /// exactly one reply through it; postProcessAIMove consumes it.
+    public var broadcastGenMovePending = false
     /// tvOS: stream continuous kata-analyze at `config.analysisInterval`
     /// instead of the fast 0.1 s first-report interval. iOS/macOS keep
     /// fastAnalyzeCommand plus their own re-arm at the config interval
@@ -170,6 +176,35 @@ public class GobanState {
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
         let commands = getRequestAnalysisCommands(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
+        messageList.appendAndSend(commands: commands)
+        waitingForAnalysis = true
+    }
+
+    /// Issue the broadcast's single gen-move for the side to move. Mirrors
+    /// getRequestAnalysisCommands' gen-move branch but bypasses the
+    /// suppressesGenMove gate via the one-shot license instead of clearing it
+    /// (which would re-enter the free-running loop at the next turn change).
+    public func requestBroadcastGenMove(config: Config,
+                                        messageList: MessageList,
+                                        nextColorForPlayCommand: PlayerColor?) {
+        guard passCount < 2 else { return }
+        let commands: [String]
+        if nextColorForPlayCommand == .black, config.blackMaxTime > 0 {
+            commands = GtpCommandBuilder.genMoveAnalyzeCommands(
+                effectiveProfile: config.effectiveHumanProfileForBlack,
+                maxTime: config.blackMaxTime,
+                interval: config.analysisInterval,
+                maxMoves: config.maxAnalysisMoves)
+        } else if nextColorForPlayCommand == .white, config.whiteMaxTime > 0 {
+            commands = GtpCommandBuilder.genMoveAnalyzeCommands(
+                effectiveProfile: config.effectiveHumanProfileForWhite,
+                maxTime: config.whiteMaxTime,
+                interval: config.analysisInterval,
+                maxMoves: config.maxAnalysisMoves)
+        } else {
+            return
+        }
+        broadcastGenMovePending = true
         messageList.appendAndSend(commands: commands)
         waitingForAnalysis = true
     }
