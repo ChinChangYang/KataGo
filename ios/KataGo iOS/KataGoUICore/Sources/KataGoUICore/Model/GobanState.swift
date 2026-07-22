@@ -666,6 +666,15 @@ public class GobanState {
     /// The earliest index navigation may reach: the divergence while a branch is
     /// active (gameRecord.currentIndex stays frozen there), else 0. Stepping
     /// below it would undo pre-branch moves that belong to the saved mainline.
+    ///
+    /// Nil-record-with-active-branch is unreachable: every navigation caller
+    /// guards a non-nil record before consulting the floor. The `?? 0` fallback
+    /// therefore never fires in practice, and it deliberately differs from
+    /// `getMoveNumbers`' nil-record fallback (which uses `currentIndex`, yielding
+    /// empty branch numbering) — neither fallback is load-bearing. They are NOT
+    /// interchangeable: naively aligning this floor to the cursor would freeze
+    /// navigation (the floor would equal the cursor, so `canStepBackward` /
+    /// `undoIndex` could never step), so the 0 default must stay as-is.
     public func navigationFloor(gameRecord: GameRecord?) -> Int {
         isBranchActive ? (gameRecord?.currentIndex ?? 0) : 0
     }

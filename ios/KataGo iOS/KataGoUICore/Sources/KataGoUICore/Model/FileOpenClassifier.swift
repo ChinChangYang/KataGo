@@ -59,9 +59,16 @@ public enum FileOpenClassifier {
         // AND require the file to live under one of the app's own container
         // roots. The Inbox-suffix match alone must never authorize deletion — a
         // user could open in place a folder they happened to name "Inbox".
-        let filePath = fileURL.path
+        //
+        // Resolve symlinks on BOTH sides before comparing: on a real device the
+        // incoming URL and the FileManager-derived roots can spell the same
+        // location differently (`/private/var/...` vs `/var/...`, a symlink), so
+        // a raw string-prefix check would fail and silently no-op the cleanup
+        // (leaked Inbox copy). `resolvingSymlinksInPath()` canonicalizes both to
+        // the `/private/var/...` form so the prefix match holds.
+        let filePath = fileURL.resolvingSymlinksInPath().path
         let isUnderContainerRoot = containerRoots.contains { root in
-            let rootPath = root.standardizedFileURL.path
+            let rootPath = root.resolvingSymlinksInPath().path
             return filePath == rootPath || filePath.hasPrefix(rootPath + "/")
         }
         guard isUnderContainerRoot else { return }

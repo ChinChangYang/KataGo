@@ -95,6 +95,33 @@ struct FileOpenClassifierTests {
         #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 
+    @Test func cleanUpInboxFile_deletesAcrossSymlinkedRootSpelling() throws {
+        // On a real device the incoming URL and the FileManager-derived roots can
+        // spell the same location differently across a symlink (/private/var vs
+        // /var). Resolving symlinks on BOTH sides must still authorize deletion;
+        // a raw string-prefix check would miss and silently leak the Inbox copy.
+        let realRoot = try makeTempDir()
+        let linkParent = try makeTempDir()
+        defer {
+            try? FileManager.default.removeItem(at: realRoot)
+            try? FileManager.default.removeItem(at: linkParent)
+        }
+        // A symlink that points at the real root — a different spelling of it.
+        let linkedRoot = linkParent.appendingPathComponent("linkedRoot", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: linkedRoot, withDestinationURL: realRoot)
+
+        // The file arrives via the real (resolved) spelling of the root...
+        let inbox = realRoot.appendingPathComponent("Inbox", isDirectory: true)
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        let file = inbox.appendingPathComponent("board.png")
+        try Data([0x89, 0x50]).write(to: file)
+
+        // ...while the container root arrives via the symlinked spelling. Only
+        // resolving symlinks on both sides makes the prefix check hold and deletes.
+        FileOpenClassifier.cleanUpInboxFile(at: file, containerRoots: [linkedRoot])
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+    }
+
     @Test func cleanUpInboxFile_neverDeletesRootLevelFile() throws {
         // An in-place file that happens to sit directly under a container root
         // (no Inbox parent) is the user's real file — must survive.
