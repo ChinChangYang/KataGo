@@ -21,14 +21,16 @@ import re
 import sys
 
 from katago.game.board import Board
-from katago.puzzles.endgame import Difficulty, generate_endgame_puzzle
+from katago.puzzles.endgame import (
+    DIFFICULTY_MAX, DIFFICULTY_MIN, Difficulty, generate_endgame_puzzle,
+)
 
 _DIFF_ALIASES = {
-    "1": Difficulty.VERY_EASY, "very_easy": Difficulty.VERY_EASY, "veryeasy": Difficulty.VERY_EASY,
-    "2": Difficulty.EASY, "easy": Difficulty.EASY,
-    "3": Difficulty.MEDIUM, "medium": Difficulty.MEDIUM,
-    "4": Difficulty.HARD, "hard": Difficulty.HARD,
-    "5": Difficulty.VERY_HARD, "very_hard": Difficulty.VERY_HARD, "veryhard": Difficulty.VERY_HARD,
+    "very_easy": int(Difficulty.VERY_EASY), "veryeasy": int(Difficulty.VERY_EASY),
+    "easy": int(Difficulty.EASY),
+    "medium": int(Difficulty.MEDIUM), "med": int(Difficulty.MEDIUM),
+    "hard": int(Difficulty.HARD),
+    "very_hard": int(Difficulty.VERY_HARD), "veryhard": int(Difficulty.VERY_HARD),
 }
 
 
@@ -36,9 +38,18 @@ def _parse_difficulty(text):
     key = text.strip().lower().replace("-", "_")
     if key in _DIFF_ALIASES:
         return _DIFF_ALIASES[key]
-    raise argparse.ArgumentTypeError(
-        "difficulty must be 1-5 or one of: very_easy, easy, medium, hard, very_hard"
-    )
+    try:
+        value = int(key)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "difficulty must be an integer %d-%d, or one of: very_easy, easy, "
+            "medium, hard, very_hard" % (DIFFICULTY_MIN, DIFFICULTY_MAX)
+        )
+    if not (DIFFICULTY_MIN <= value <= DIFFICULTY_MAX):
+        raise argparse.ArgumentTypeError(
+            "difficulty must be between %d and %d" % (DIFFICULTY_MIN, DIFFICULTY_MAX)
+        )
+    return value
 
 
 def _board_from_sgf(sgf):
@@ -61,8 +72,9 @@ def main(argv=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "-d", "--difficulty", type=_parse_difficulty, default=Difficulty.MEDIUM,
-        help="1-5 or very_easy|easy|medium|hard|very_hard",
+        "-d", "--difficulty", type=_parse_difficulty, default=int(Difficulty.MEDIUM),
+        help="integer %d-%d (1 easiest, %d hardest), or a name: very_easy|easy|"
+             "medium|hard|very_hard" % (DIFFICULTY_MIN, DIFFICULTY_MAX, DIFFICULTY_MAX),
     )
     parser.add_argument("-s", "--seed", type=int, default=0, help="integer seed")
     parser.add_argument(
@@ -82,9 +94,11 @@ def main(argv=None):
         if args.show:
             side = "Black" if puzzle.side_to_move == Board.BLACK else "White"
             sys.stderr.write(
-                "# difficulty=%s seed=%d  %s to play  best=%s  result=%+.1f\n"
-                % (args.difficulty.name, seed, side, ",".join(puzzle.best_first_moves),
-                   puzzle.optimal_score)
+                "# difficulty=%d/%d seed=%d  %s to play  best=%s  result=%+.1f  "
+                "complexity=%d\n"
+                % (args.difficulty, DIFFICULTY_MAX, seed, side,
+                   ",".join(puzzle.best_first_moves), puzzle.optimal_score,
+                   puzzle.complexity)
             )
             sys.stderr.write(_board_from_sgf(puzzle.sgf).to_string() + "\n\n")
 

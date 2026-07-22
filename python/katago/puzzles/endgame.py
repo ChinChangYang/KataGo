@@ -1,25 +1,34 @@
 """Algorithm-only 9x9 endgame ("biggest move") puzzle generator.
 
-No neural net is involved.  A puzzle is a settled 9x9 position, area-scored
-under Tromp-Taylor rules with komi 7.5, in which the side to move wins the game
-*if and only if* they play the biggest endgame moves in the correct order.  Any
-suboptimal move, against best play by the opponent, flips the result to a loss.
+No neural net is involved.  A puzzle is a settled 9x9 position, area-scored under
+Tromp-Taylor rules with komi 7.5, in which the side to move wins the game if and
+only if they find the correct endgame play; any suboptimal move, against best
+opposition, flips the razor-thin result into a loss.  Correctness is *certified
+at generation time* by exact minimax search over the small set of contested
+points, so the generator never guesses.
 
-Correctness is *certified at generation time* by exact minimax search over the
-small set of contested points, so the generator never guesses -- it constructs a
-candidate, solves it exactly, and only emits positions that provably have the
-required "correct play wins / any mistake loses" property.
+Difficulty is an integer in ``[1, 999]`` (1 easiest, 999 hardest), calibrated to
+what is achievable on a 9x9 board under area scoring.  It scales three ways:
+
+* **More regions** -- more independent local endgames to handle and order.
+* **Reading traps** -- capture "gadgets" where the natural atari fails and only
+  the connection-denying move works, so choosing the move requires reading, not
+  just comparing sizes.
+* **Close values** -- regions of near-equal value, so the win hinges on counting
+  and parity (tedomari) rather than an obvious biggest point.
+
+(Note: classic *sente* is inherently weak under area scoring -- a defensive
+connection into one's own area is free -- so the harder puzzles here get their
+difficulty from reading and counting instead.  Territory scoring would be needed
+for true sente/gote yose.)
 
 The contested regions are independent "capture-or-connect" gadgets.  A gadget is
-a chain of ``k`` stones enclosed on three sides, with a single shared liberty
-``q`` (the "door") that is also adjacent to that colour's own living wall.
-Whoever plays ``q`` first wins the gadget's ``k + 1`` points for their colour:
-the enemy of the chain captures it, the owner connects it to safety.  Gadgets
-come in both orientations (White chains that Black captures, and Black chains
-that White captures), which balances the position and means each side simply
-wants the biggest available door on its turn.  Because the chain sizes are
-distinct, every mistake costs at least one point, and the razor-thin margin turns
-any mistake into a loss.
+a chain of ``k`` stones enclosed on three sides, touching that colour's living
+wall through a single door ``q``; whoever plays ``q`` first wins the gadget's
+``k + 1`` points (the enemy captures the chain, the owner connects it to safety).
+A *reading* gadget gives the chain a second, outside liberty: capturing then
+requires playing the door (denying the connection) first -- the natural atari
+from the outside lets the chain connect out and fails.
 
 Public API
 ----------
@@ -33,7 +42,7 @@ from __future__ import annotations
 
 import enum
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from katago.game.board import Board
@@ -41,6 +50,8 @@ from katago.game.board import Board
 KOMI = 7.5
 SIZE = 9
 WCOL = 5  # boundary: Black frame is columns 0..4, White frame is columns 5..8.
+DIFFICULTY_MIN = 1
+DIFFICULTY_MAX = 999
 
 # SGF point letters: index 0->'a' .. 25->'z', 26->'A' ..  (top-origin, column x
 # then row y), identical to KataGo's WriteSgf::writeSgfLoc encoding.
@@ -51,12 +62,7 @@ _SGF_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 # Scoring: Tromp-Taylor area scoring.
 # --------------------------------------------------------------------------- #
 def area_score(board: Board) -> Tuple[int, int]:
-    """Return ``(black_area, white_area)`` under Tromp-Taylor area scoring.
-
-    Every stone counts for its colour.  Every maximal empty region counts for a
-    colour iff every stone bordering it is that colour; regions bordering both
-    colours (dame) count for neither.
-    """
+    """Return ``(black_area, white_area)`` under Tromp-Taylor area scoring."""
     black = 0
     white = 0
     visited: Set[int] = set()
@@ -87,7 +93,6 @@ def area_score(board: Board) -> Tuple[int, int]:
                                 stack.append(adj)
                         elif ac == Board.BLACK or ac == Board.WHITE:
                             borders.add(ac)
-                        # WALL: ignore
                 if borders == {Board.BLACK}:
                     black += len(region)
                 elif borders == {Board.WHITE}:
@@ -123,8 +128,8 @@ class EndgameSolver:
     Moves are restricted to ``contested`` locations (plus pass).  The rest of the
     board is settled/alive, so no other move is ever beneficial; this keeps the
     search tiny and exact.  Leaf value (after two consecutive passes) is the
-    Tromp-Taylor area score ``black - white``.  ``to_move`` picks the move that
-    maximises ``black - white`` for Black and minimises it for White.
+    Tromp-Taylor area score ``black - white``.  Black maximises it, White
+    minimises it.
     """
 
     def __init__(self, contested: Sequence[int]):
@@ -141,7 +146,10 @@ class EndgameSolver:
     def _value(self, board: Board, to_move: int, passes: int) -> int:
         if passes >= 2:
             return score_black_minus_white(board)
-        key = (int(board.pos_zobrist()), to_move, passes)
+        # Key on the exact board contents (not the incremental Zobrist hash, which
+        # can drift out of sync with the board after capture sequences) plus the
+        # side to move, pass count, and ko point (which changes legal moves).
+        key = (board.board.tobytes(), to_move, passes, board.simple_ko_point)
         cached = self._memo.get(key)
         if cached is not None:
             return cached
@@ -149,13 +157,14 @@ class EndgameSolver:
         opp = Board.get_opp(to_move)
         maximizing = to_move == Board.BLACK
         best: Optional[int] = None
+        # Copy per node so the Zobrist hash stays exact and memoisation collapses
+        # transpositions (the reachable state space is small once memoised).
         for loc in self._candidates(board, to_move):
             child = board.copy()
             child.play(to_move, loc)
             v = self._value(child, opp, 0)
             if best is None or (v > best if maximizing else v < best):
                 best = v
-        # Pass is always available.
         child = board.copy()
         child.play(to_move, Board.PASS_LOC)
         v = self._value(child, opp, passes + 1)
@@ -166,11 +175,7 @@ class EndgameSolver:
         return best
 
     def evaluate_root(self, board: Board, to_move: int) -> Dict[int, int]:
-        """Value (``black - white`` at game end) of each legal first move.
-
-        Keys are contested locations; the pass move is excluded (a real puzzle is
-        never solved by passing first).
-        """
+        """Value (``black - white`` at game end) of each legal first move."""
         opp = Board.get_opp(to_move)
         results: Dict[int, int] = {}
         for loc in self._candidates(board, to_move):
@@ -201,12 +206,8 @@ def empty_points(board: Board) -> List[int]:
 
 def best_endgame_moves(board: Board, to_move: int) -> Tuple[float, List[int]]:
     """Public helper: optimal final margin (``black - white`` incl. komi) and the
-    optimal move location(s) for ``to_move`` in an endgame position.
-
-    Candidate moves are every empty on-board point that is legal for ``to_move``.
-    Intended for an app to use this module as an algorithm-only endgame opponent
-    or grader.  For large open positions this is expensive; it is meant for
-    settled endgames like the ones this module generates.
+    optimal move location(s) for ``to_move`` in a settled endgame position.
+    Intended for an app to use this module as an algorithm-only opponent/grader.
     """
     solver = EndgameSolver(empty_points(board))
     value, moves = solver.solve(board, to_move)
@@ -232,13 +233,7 @@ def to_sgf(
     black_name: str = "Black",
     white_name: str = "White",
 ) -> str:
-    """Serialise a setup position to a single-line SGF string.
-
-    Produces ``AB``/``AW`` setup stones and an explicit ``PL`` for the side to
-    move (KataGo's own writer omits ``PL``; a setup puzzle needs it).  No ``RE``
-    is written -- the game has not been played; the intended result lives in the
-    comment.
-    """
+    """Serialise a setup position to a single-line SGF string (with ``PL``)."""
     ab: List[str] = []
     aw: List[str] = []
     for y in range(board.y_size):
@@ -271,80 +266,88 @@ def to_sgf(
 
 
 # --------------------------------------------------------------------------- #
-# Difficulty.
+# Difficulty (integer 1..999) + schedule.
 # --------------------------------------------------------------------------- #
 class Difficulty(enum.IntEnum):
+    """Convenience anchors; any integer in [1, 999] is accepted as difficulty."""
+
     VERY_EASY = 1
-    EASY = 2
-    MEDIUM = 3
-    HARD = 4
-    VERY_HARD = 5
+    EASY = 250
+    MEDIUM = 500
+    HARD = 750
+    VERY_HARD = 999
 
 
-# Orientation policies for the gadget set:
-#   "capture" -- every gadget is an enemy chain the side to move captures.
-#   "mixed"   -- at least one gadget is the side-to-move's own chain, so the
-#                player must value defending (connecting) as well as capturing.
-#   "defense" -- mixed, and the single biggest move is a defence of the side to
-#                move's own group (the hardest to spot).
 @dataclass
-class _DiffParams:
-    num_gadgets: int   # how many contested gadgets (moves to order correctly)
-    min_gap: int       # min difference between adjacent gadget sizes
-    policy: str
+class _Schedule:
+    n_regions: int   # number of contested gadgets (2..4 on 9x9)
+    n_traps: int     # reading-trap gadgets (0..2), attacked by the side to move
+    closeness: float # 0 -> wide value gaps, 1 -> near-equal values
 
 
-def _difficulty_params(difficulty: Difficulty) -> _DiffParams:
-    # Distinct gadget values on a 9x9 board are limited to {2,3,4} (chains must
-    # leave a connecting column so a frame is never split), so difficulty scales
-    # by gadget count, size spacing, and how much defence the player must read.
-    return {
-        Difficulty.VERY_EASY: _DiffParams(num_gadgets=2, min_gap=2, policy="capture"),
-        Difficulty.EASY:      _DiffParams(num_gadgets=2, min_gap=1, policy="capture"),
-        Difficulty.MEDIUM:    _DiffParams(num_gadgets=3, min_gap=1, policy="capture"),
-        Difficulty.HARD:      _DiffParams(num_gadgets=3, min_gap=1, policy="mixed"),
-        Difficulty.VERY_HARD: _DiffParams(num_gadgets=3, min_gap=1, policy="defense"),
-    }[difficulty]
+def _schedule(difficulty: int) -> _Schedule:
+    """Map an integer difficulty to construction knobs (monotone in difficulty).
+
+    The 9x9 board caps structural complexity, so 999 tops out at ~4 regions with
+    2 reading traps and near-equal values; higher difficulty within a tier tightens
+    the counting rather than adding regions.
+    """
+    d = max(DIFFICULTY_MIN, min(DIFFICULTY_MAX, int(difficulty)))
+    t = (d - 1) / (DIFFICULTY_MAX - 1)                       # 0..1
+    n = 2 if t < 1.0 / 3.0 else 3                            # 2 or 3 regions
+    n_traps = 0 if t < 0.25 else (1 if t < 2.0 / 3.0 else 2)  # 0, 1, 2 reading traps
+    n_traps = min(n_traps, n - 1)                            # keep >=1 gote region
+    return _Schedule(n_regions=n, n_traps=n_traps, closeness=t)
 
 
 # --------------------------------------------------------------------------- #
-# Position construction.
+# Gadgets.
 # --------------------------------------------------------------------------- #
-# A gadget is (row, size, orient).  orient == Board.WHITE means a White chain in
-# Black's area that Black captures / White connects (door on the Black side of the
-# boundary).  orient == Board.BLACK is the mirror image in White's area.
-Gadget = Tuple[int, int, int]
+GOTE = "gote"        # 1-liberty chain: door is the capture point.
+READING = "reading"  # 2-liberty chain: door captures, outside approach is a trap.
 
-# Chain-size limits at the WCOL=5 boundary.  Chains must NOT span a frame's full
-# width, or they split the frame into two one-eyed (killable) groups.  Leaving one
-# connecting column caps White chains at WCOL-2=3 and Black chains at
-# SIZE-WCOL-2=2, so the distinct gadget sizes available are {1, 2, 3}.
-_MAX_W_SIZE = WCOL - 2          # 3  (keeps column 0 black -> frame stays joined)
-_MAX_B_SIZE = SIZE - WCOL - 2   # 2  (keeps column 8 white -> frame stays joined)
+# A gadget is (row, size, chain_color, kind).  chain_color WHITE = a White chain in
+# Black's area (attacked/captured by Black); BLACK is the mirror in White's area.
+Gadget = Tuple[int, int, int, str]
+
+# Size limits so a chain never spans a frame's full width (which would split the
+# frame into two one-eyed groups).  A reading gadget needs an extra approach column.
+_GOTE_MAX = {Board.WHITE: WCOL - 2, Board.BLACK: SIZE - WCOL - 2}        # {W:3, B:2}
+_READING_MAX = {Board.WHITE: WCOL - 3, Board.BLACK: SIZE - WCOL - 3}     # {W:2, B:1}
+
+
+@dataclass
+class _GadgetInfo:
+    door: int
+    approach: Optional[int]   # reading only
+    probe: int                # a chain stone
+    size: int
+    chain_color: int
+    kind: str
 
 
 @dataclass
 class _Built:
     board: Board
-    contested: List[int]        # door locations q, one per gadget
-    gadget_doors: List[int]     # door loc per gadget (same order as gadget_sizes)
-    gadget_sizes: List[int]
-    gadget_orients: List[int]
-    chain_probe: List[int]      # one chain stone per gadget (for validation)
+    contested: List[int]          # all gadget cells (doors + approaches)
+    gadgets: List[_GadgetInfo]
     side_to_move: int
 
 
-def _gadget_cells(gadget: Gadget):
-    """Return (door_x, chain_xs, chain_color, probe_x) for a gadget on its row."""
-    row, k, orient = gadget
-    if orient == Board.WHITE:
+def _gadget_geometry(gadget: Gadget):
+    """Return (door_x, chain_xs, approach_x_or_None, probe_x) for a gadget row."""
+    _row, size, chain_color, kind = gadget
+    if chain_color == Board.WHITE:
         door_x = WCOL - 1
-        chain_xs = list(range(door_x - k, door_x))   # left of the door
-        return door_x, chain_xs, Board.WHITE, door_x - 1
+        chain_xs = list(range(door_x - size, door_x))       # left of door
+        approach_x = (door_x - size - 1) if kind == READING else None
+        probe_x = door_x - 1
     else:
         door_x = WCOL
-        chain_xs = list(range(door_x + 1, door_x + 1 + k))  # right of the door
-        return door_x, chain_xs, Board.BLACK, door_x + 1
+        chain_xs = list(range(door_x + 1, door_x + 1 + size))  # right of door
+        approach_x = (door_x + size + 1) if kind == READING else None
+        probe_x = door_x + 1
+    return door_x, chain_xs, approach_x, probe_x
 
 
 def _build_position(
@@ -353,109 +356,76 @@ def _build_position(
     black_extra: int,
     rng: Optional[random.Random] = None,
 ) -> _Built:
-    """Construct a settled 9x9 position with capture-or-connect gadgets.
+    """Construct a settled 9x9 position with the given gadgets.
 
     ``black_extra`` is a signed baseline knob (each unit shifts ``black - white``
-    by 2 uniformly): ``>0`` flips White boundary points to Black marching right
-    from column WCOL; ``<0`` flips Black boundary points to White marching left
-    from column WCOL-1.  Flips only touch rows with no gadget and keep the two
-    outermost columns of each colour intact (so each frame stays connected and
-    can host two eyes).
+    by 2 uniformly): >0 flips White boundary cells to Black; <0 the reverse.
+    Two isolated eyes are carved into each frame for unconditional life.
     """
-    gadget_rows = {row for row, _, _ in gadgets}
+    gadget_rows = {g[0] for g in gadgets}
 
-    # Default frame colours.
     color: Dict[int, int] = {}
     board = Board(SIZE)
     for y in range(SIZE):
         for x in range(SIZE):
             color[board.loc(x, y)] = Board.BLACK if x < WCOL else Board.WHITE
 
-    doors: List[int] = []
-    sizes: List[int] = []
-    orients: List[int] = []
-    probes: List[int] = []
+    infos: List[_GadgetInfo] = []
     sensitive: Set[int] = set()
-
+    contested: List[int] = []
     for g in gadgets:
-        row, k, orient = g
-        door_x, chain_xs, chain_color, probe_x = _gadget_cells(g)
-        door = board.loc(door_x, row)
-        del color[door]  # door stays empty
+        row, size, chain_color, kind = g
+        door_x, chain_xs, approach_x, probe_x = _gadget_geometry(g)
         for x in chain_xs:
             color[board.loc(x, row)] = chain_color
-        doors.append(door)
-        sizes.append(k)
-        orients.append(orient)
-        probes.append(board.loc(probe_x, row))
-        # Mark gadget cells (and their neighbours) off-limits for eye carving.
-        for x in chain_xs + [door_x]:
+        door = board.loc(door_x, row)
+        del color[door]
+        approach = None
+        if approach_x is not None:
+            approach = board.loc(approach_x, row)
+            del color[approach]
+        info = _GadgetInfo(
+            door=door, approach=approach, probe=board.loc(probe_x, row),
+            size=size, chain_color=chain_color, kind=kind,
+        )
+        infos.append(info)
+        contested.append(door)
+        if approach is not None:
+            contested.append(approach)
+        cells = list(chain_xs) + [door_x] + ([approach_x] if approach_x is not None else [])
+        for x in cells:
             loc = board.loc(x, row)
             sensitive.add(loc)
             for d in board.adj:
                 sensitive.add(loc + d)
 
     _apply_baseline(board, color, gadget_rows, black_extra)
-
     for loc, c in color.items():
         board.set_stone(c, loc)
 
     _carve_eyes(board, Board.BLACK, sensitive, rng)
     _carve_eyes(board, Board.WHITE, sensitive, rng)
 
-    # The doors are the only contested points: every other empty is a real eye
-    # (fillable only by its owner, and strictly dominated by passing) and there is
-    # no dame.  A generation-time check (_only_doors_contested) enforces that, so
-    # solving over just the doors equals solving the full legal-move game -- while
-    # keeping the search tiny.
-    return _Built(
-        board=board,
-        contested=list(doors),
-        gadget_doors=doors,
-        gadget_sizes=sizes,
-        gadget_orients=orients,
-        chain_probe=probes,
-        side_to_move=side_to_move,
-    )
+    return _Built(board=board, contested=contested, gadgets=infos, side_to_move=side_to_move)
 
 
 def _apply_baseline(
     board: Board, color: Dict[int, int], gadget_rows: Set[int], black_extra: int
 ) -> None:
-    """Flip ``|black_extra|`` boundary cells to tune the score, in place."""
-    non_gadget_rows = [y for y in range(SIZE) if y not in gadget_rows]
-    if black_extra > 0:
-        # White -> Black, marching right from WCOL, keeping columns 7,8 white.
-        cells = [
-            board.loc(x, y)
-            for x in range(WCOL, SIZE - 2)
-            for y in non_gadget_rows
-        ]
+    """Flip ``|black_extra|`` boundary cells (on gadget-free rows) to tune the score."""
+    rows = [y for y in range(SIZE) if y not in gadget_rows]
+    if black_extra > 0:  # White -> Black, marching right from WCOL, keeping cols 7,8 white
+        cells = [board.loc(x, y) for x in range(WCOL, SIZE - 2) for y in rows]
         for loc in cells[:black_extra]:
             color[loc] = Board.BLACK
-    elif black_extra < 0:
-        # Black -> White, marching left from WCOL-1, keeping columns 0,1 black.
-        cells = [
-            board.loc(x, y)
-            for x in range(WCOL - 1, 1, -1)
-            for y in non_gadget_rows
-        ]
+    elif black_extra < 0:  # Black -> White, marching left from WCOL-1, keeping cols 0,1 black
+        cells = [board.loc(x, y) for x in range(WCOL - 1, 1, -1) for y in rows]
         for loc in cells[: -black_extra]:
             color[loc] = Board.WHITE
 
 
-def _carve_eyes(
-    board: Board,
-    eye_color: int,
-    sensitive: Set[int],
-    rng: Optional[random.Random],
-) -> None:
-    """Turn two isolated single points of ``eye_color``'s mass into real eyes.
-
-    Picks two well-separated points that are currently ``eye_color`` stones, whose
-    four orthogonal neighbours are all ``eye_color``, and that are away from any
-    gadget (``sensitive``) so emptying them cannot free a chain.
-    """
+def _carve_eyes(board: Board, eye_color: int, sensitive: Set[int], rng) -> None:
+    """Turn two well-separated isolated points of ``eye_color`` into real eyes."""
     candidates: List[int] = []
     for y in range(board.y_size):
         for x in range(board.x_size):
@@ -468,8 +438,6 @@ def _carve_eyes(
         rng.shuffle(candidates)
     chosen: List[int] = []
     for loc in candidates:
-        # Manhattan distance >= 2 keeps the eyes from being orthogonally adjacent
-        # (which would merge them into one two-space region rather than two eyes).
         if all(
             abs(board.loc_x(loc) - board.loc_x(c)) + abs(board.loc_y(loc) - board.loc_y(c)) >= 2
             for c in chosen
@@ -482,7 +450,6 @@ def _carve_eyes(
 
 
 def _count_real_eyes(board: Board, color: int) -> int:
-    """Number of single empty points fully surrounded by ``color`` (real eyes)."""
     n = 0
     for y in range(board.y_size):
         for x in range(board.x_size):
@@ -496,7 +463,6 @@ def _count_real_eyes(board: Board, color: int) -> int:
 
 
 def _connected_component(board: Board, start: int, color: int) -> Set[int]:
-    """All ``color`` stones connected to ``start`` by orthogonal adjacency."""
     seen = {start}
     stack = [start]
     while stack:
@@ -510,30 +476,22 @@ def _connected_component(board: Board, start: int, color: int) -> Set[int]:
 
 
 def _frames_alive(built: _Built) -> bool:
-    """Each frame is a single connected group with two real eyes.
-
-    Gadget chains are isolated groups of their own colour (surrounded by the
-    enemy), so they are excluded; every other stone of a colour must form one
-    connected group (the frame), and that frame must have >= 2 real eyes -- i.e.
-    be unconditionally alive and un-invadable.
-    """
+    """Each frame is a single connected group with two real eyes (alive)."""
     board = built.board
     chain_cells: Set[int] = set()
-    for probe in built.chain_probe:
-        chain_cells |= _connected_component(board, probe, int(board.board[probe]))
-
+    for g in built.gadgets:
+        chain_cells |= _connected_component(board, g.probe, int(board.board[g.probe]))
     for color in (Board.BLACK, Board.WHITE):
         frame = {
             board.loc(x, y)
             for y in range(board.y_size)
             for x in range(board.x_size)
-            if int(board.board[board.loc(x, y)]) == color
-            and board.loc(x, y) not in chain_cells
+            if int(board.board[board.loc(x, y)]) == color and board.loc(x, y) not in chain_cells
         }
         if not frame:
             return False
         comp = _connected_component(board, next(iter(frame)), color) - chain_cells
-        if comp != frame:  # frame split into disconnected pieces
+        if comp != frame:
             return False
         if _count_real_eyes(board, color) < 2:
             return False
@@ -541,7 +499,7 @@ def _frames_alive(built: _Built) -> bool:
 
 
 def _contested_empties(board: Board) -> List[int]:
-    """Empty on-board points bordering both colours (doors / dame)."""
+    """Empty on-board points bordering both colours (doors / approaches / dame)."""
     out: List[int] = []
     for loc in empty_points(board):
         cols = {int(board.board[loc + d]) for d in board.adj}
@@ -550,22 +508,23 @@ def _contested_empties(board: Board) -> List[int]:
     return out
 
 
-def _only_doors_contested(built: _Built) -> bool:
-    """No stray dame: the doors are exactly the both-colour-bordering empties, so
-    solving over the doors is the same game as the full legal-move game."""
-    return set(_contested_empties(built.board)) == set(built.gadget_doors)
+def _only_gadget_cells_contested(built: _Built) -> bool:
+    """No stray dame: contested empties are exactly the gadget cells, so solving
+    over the gadget cells equals solving the full legal-move game."""
+    return set(_contested_empties(built.board)) == set(built.contested)
 
 
 def _validate_gadgets(built: _Built) -> bool:
-    """Confirm every gadget chain is in atari with its door as the sole liberty."""
+    """Confirm every chain is present with the right colour, size and liberties."""
     board = built.board
-    for probe, orient, k in zip(built.chain_probe, built.gadget_orients, built.gadget_sizes):
-        if int(board.board[probe]) != orient:
+    for g in built.gadgets:
+        if int(board.board[g.probe]) != g.chain_color:
             return False
-        if board.num_liberties(probe) != 1:
+        want_libs = 2 if g.kind == READING else 1
+        if board.num_liberties(g.probe) != want_libs:
             return False
-        head = board.group_head[probe]
-        if int(board.group_stone_count[head]) != k:
+        head = board.group_head[g.probe]
+        if int(board.group_stone_count[head]) != g.size:
             return False
     return True
 
@@ -577,147 +536,176 @@ def _validate_gadgets(built: _Built) -> bool:
 class EndgamePuzzle:
     sgf: str
     side_to_move: int
-    best_first_moves: List[str]     # GTP coords, e.g. ["C3"]
+    best_first_moves: List[str]     # GTP coords of the winning first move(s)
     optimal_score: float            # final black - white incl. komi
-    difficulty: Difficulty = field(default=Difficulty.MEDIUM)
-
-
-def _certify(built: _Built) -> Optional[Tuple[int, List[int]]]:
-    """Return ``(optimal_black_minus_white, best_move_locs)`` iff this position is
-    a valid "biggest move wins" puzzle, else ``None``.
-
-    Requirements:
-      * exactly one strictly-best first move (a unique biggest point),
-      * the side to move wins by the minimal decisive margin under optimal play
-        (0 < |result| < 2 after komi), and
-      * every other first move loses for the side to move.
-    """
-    stm = built.side_to_move
-    solver = EndgameSolver(built.contested)
-    per_move = solver.evaluate_root(built.board, stm)
-    if len(per_move) < 2:
-        return None
-
-    if stm == Board.BLACK:
-        optimal = max(per_move.values())
-        result = optimal - KOMI
-        wins = lambda v: (v - KOMI) > 0
-    else:
-        optimal = min(per_move.values())
-        result = KOMI - optimal
-        wins = lambda v: (KOMI - v) > 0
-
-    best_moves = [loc for loc, v in per_move.items() if v == optimal]
-    if len(best_moves) != 1:
-        return None
-    if not (0 < result < 2):
-        return None
-    for loc, v in per_move.items():
-        if loc not in best_moves and wins(v):
-            return None
-    return optimal, best_moves
+    difficulty: int = 500
+    complexity: int = 0             # measured structural difficulty (for labelling/tests)
 
 
 def _razor_target(stm: int, optimal0: int) -> int:
-    """Baseline target for ``black - white`` giving the minimal decisive win for
-    ``stm`` (result of +/-0.5 or +/-1.5), matching the parity of ``optimal0`` so
-    the required baseline shift is an even number of units."""
     if stm == Board.BLACK:
         return 9 if optimal0 % 2 else 8
     return 7 if optimal0 % 2 else 6
 
 
-def _choose_layout(
-    rng: random.Random, params: _DiffParams
-) -> Tuple[List[Gadget], int]:
-    """Pick distinct gadget sizes, orientations, rows and the side to move.
-
-    White chains realise sizes 1..3, Black chains sizes 1..2, so the biggest size
-    (3) is always a White chain.  The orientation policy decides how many gadgets
-    are the side-to-move's own chains (defences) versus captures.
-    """
-    n = params.num_gadgets
-    sizes = sorted(_distinct_sizes(rng, n, params.min_gap), reverse=True)  # big first
-
-    if params.policy == "defense":
-        # Side to move is White so the biggest (White) chain is White's OWN group;
-        # its best move is to connect/defend it rather than capture.
-        stm = Board.WHITE
+def _analyze(built: _Built):
+    """Return (optimal_value, best_move_locs, losing_move_locs) for the side to move."""
+    stm = built.side_to_move
+    per = EndgameSolver(built.contested).evaluate_root(built.board, stm)
+    if not per:
+        return None
+    if stm == Board.BLACK:
+        optimal = max(per.values())
+        wins = lambda v: (v - KOMI) > 0
     else:
-        stm = Board.BLACK if rng.random() < 0.5 else Board.WHITE
+        optimal = min(per.values())
+        wins = lambda v: (KOMI - v) > 0
+    best = [loc for loc, v in per.items() if v == optimal]
+    losing = [loc for loc, v in per.items() if not wins(v)]
+    return per, optimal, best, losing
 
-    orients: List[int] = []
-    for idx, s in enumerate(sizes):
-        if s > _MAX_B_SIZE:
-            orients.append(Board.WHITE)      # size 3 must be White
-        elif params.policy == "capture":
-            # Every gadget is an enemy chain of the side to move.
-            orients.append(Board.get_opp(stm))
-        elif idx == 0 and params.policy == "defense":
-            orients.append(stm)              # biggest is the mover's own group
-        else:
-            orients.append(Board.BLACK if rng.random() < 0.5 else Board.WHITE)
 
-    # "mixed" must contain at least one of the mover's own chains (a defence).
-    if params.policy == "mixed" and stm not in orients:
-        swap = next((i for i, s in enumerate(sizes) if s <= _MAX_B_SIZE), None)
-        if swap is not None:
-            orients[swap] = stm
+def _certify(built: _Built) -> Optional[Tuple[int, List[int], List[int]]]:
+    """Return ``(optimal, best_moves, losing_moves)`` iff this is a valid puzzle.
 
+    Requirements: the side to move wins by the razor margin under optimal play
+    (0 < |result| < 2 after komi), and *every* non-optimal first move loses (so
+    any mistake -- wrong reading, wrong region, wrong order -- loses the game).
+    There must be at least one losing first move (a real test).
+    """
+    res = _analyze(built)
+    if res is None:
+        return None
+    per, optimal, best, losing = res
+    stm = built.side_to_move
+    result = (optimal - KOMI) if stm == Board.BLACK else (KOMI - optimal)
+    if not (0 < result < 2):
+        return None
+    # Every non-optimal-valued first move must lose.
+    non_optimal = [loc for loc, v in per.items() if v != optimal]
+    if not non_optimal:
+        return None
+    for loc in non_optimal:
+        if loc not in losing:
+            return None
+    return optimal, best, losing
+
+
+def _reading_trap_count(built: _Built, best: List[int], losing: Set[int]) -> int:
+    """Number of reading gadgets whose door is a winning move and whose approach
+    (the natural but wrong atari) is a losing move -- i.e. genuine reading traps
+    that the side to move must navigate."""
+    n = 0
+    best_set = set(best)
+    for g in built.gadgets:
+        if g.kind == READING and g.approach is not None:
+            if g.door in best_set and g.approach in losing:
+                n += 1
+    return n
+
+
+def _complexity(built: _Built, best: List[int], losing: List[int]) -> int:
+    """A monotone structural-difficulty measure used for labelling and tests."""
+    n_regions = len(built.gadgets)
+    traps = _reading_trap_count(built, best, set(losing))
+    n_losing = len(losing)
+    # Close-value pressure: how many distinct winning first moves there are NOT
+    # (fewer winning moves + more losing moves == more error-prone).
+    return 2 * n_regions + 3 * traps + n_losing
+
+
+def _gote_color(idx: int, size: int) -> int:
+    """A chain colour whose gote size limit admits ``size``, alternating for
+    baseline balance."""
+    ok = [c for c in (Board.WHITE, Board.BLACK) if _GOTE_MAX[c] >= size]
+    if not ok:
+        return Board.WHITE
+    return ok[idx % len(ok)]
+
+
+def _choose_layout(rng: random.Random, sched: _Schedule, stm: int) -> List[Gadget]:
+    """Pick gadgets (rows, sizes, colours, kinds) honouring the schedule.
+
+    Reading gadgets are chains of the *opponent's* colour (so the side to move
+    attacks them and must navigate the trap), and are sized to be pivotal -- as
+    big as any gote gadget -- so their door is a winning move and their approach
+    a losing one.
+    """
+    opp = Board.get_opp(stm)
+    n = min(sched.n_regions, 5)
     rows = rng.sample([0, 2, 4, 6, 8], n)
-    gadgets = [(rows[i], sizes[i], orients[i]) for i in range(n)]
-    return gadgets, stm
+    want_traps = sched.n_traps
+
+    gadgets: List[Gadget] = []
+    if want_traps >= 1:
+        reading_size = _READING_MAX[opp]           # pivotal size (opp WHITE -> 2)
+        for i in range(n):
+            if i < want_traps:
+                gadgets.append((rows[i], reading_size, opp, READING))
+            else:
+                if sched.closeness >= 0.5:
+                    size = rng.randint(max(1, reading_size - 1), reading_size)
+                else:
+                    size = rng.randint(1, reading_size)
+                gadgets.append((rows[i], size, _gote_color(i, size), GOTE))
+    else:
+        # All gote.  Wide value gaps when easy; closer values when harder.
+        if sched.closeness < 0.35 and n <= 3:
+            sizes = rng.sample(range(1, 4), min(n, 3))
+        else:
+            sizes = [rng.randint(1, 3) for _ in range(n)]
+            if len(set(sizes)) == 1 and n > 1:
+                sizes[0] = 1 if sizes[0] != 1 else 2
+        sizes.sort(reverse=True)
+        for i in range(n):
+            gadgets.append((rows[i], sizes[i], _gote_color(i, sizes[i]), GOTE))
+    return gadgets
 
 
-def _distinct_sizes(rng: random.Random, n: int, min_gap: int) -> List[int]:
-    hi = _MAX_W_SIZE
-    if min_gap >= 2:
-        pool = list(range(1, hi + 1))
-        sizes: List[int] = []
-        for s in sorted(pool, reverse=True):
-            if all(abs(s - t) >= min_gap for t in sizes):
-                sizes.append(s)
-            if len(sizes) == n:
-                break
-        if len(sizes) == n:
-            rng.shuffle(sizes)
-            return sizes
-    return rng.sample(range(1, hi + 1), n)
-
-
-def generate_endgame_puzzle(difficulty: Difficulty, seed: int) -> EndgamePuzzle:
+def generate_endgame_puzzle(difficulty: int, seed: int) -> EndgamePuzzle:
     """Deterministically generate a certified 9x9 endgame puzzle.
 
-    Same ``(difficulty, seed)`` always yields the identical puzzle.
+    ``difficulty`` is an integer in [1, 999] (clamped).  Same ``(difficulty,
+    seed)`` always yields the identical puzzle.
     """
-    difficulty = Difficulty(int(difficulty))
-    params = _difficulty_params(difficulty)
+    difficulty = max(DIFFICULTY_MIN, min(DIFFICULTY_MAX, int(difficulty)))
+    sched = _schedule(difficulty)
     rng = random.Random()
-    rng.seed("katago-endgame|%d|%d" % (int(difficulty), int(seed)))
+    rng.seed("katago-endgame-v2|%d|%d" % (difficulty, int(seed)))
 
-    for _attempt in range(400):
-        gadgets, stm = _choose_layout(rng, params)
+    want_traps = sched.n_traps
+    for _attempt in range(1200):
+        # When reading traps are wanted, Black attacks White reading chains (the
+        # bigger, more interesting side); otherwise the side to move is free.
+        stm = Board.BLACK if want_traps >= 1 else (
+            Board.BLACK if rng.random() < 0.5 else Board.WHITE)
+        gadgets = _choose_layout(rng, sched, stm)
 
-        # Probe at neutral baseline; baseline shifts translate every value by 2,
-        # so we can compute the exact knob needed for a razor margin directly.
         probe = _build_position(gadgets, stm, 0, rng)
         if not _validate_gadgets(probe) or not _frames_alive(probe):
             continue
-        per0 = EndgameSolver(probe.contested).evaluate_root(probe.board, stm)
-        if len(per0) < len(gadgets):
+        res0 = _analyze(probe)
+        if res0 is None:
             continue
-        optimal0 = max(per0.values()) if stm == Board.BLACK else min(per0.values())
+        per0, optimal0, _b0, _l0 = res0
         black_extra = (_razor_target(stm, optimal0) - optimal0) // 2
 
         built = _build_position(gadgets, stm, black_extra, rng)
         if not _validate_gadgets(built) or not _frames_alive(built):
             continue
-        if not _only_doors_contested(built):
+        if not _only_gadget_cells_contested(built):
             continue
         cert = _certify(built)
-        if cert is not None:
-            optimal, best_moves = cert
-            return _finish(built, optimal, best_moves, difficulty)
+        if cert is None:
+            continue
+        optimal, best, losing = cert
+        # Require at least one genuine reading trap when the difficulty calls for
+        # traps (more reading gadgets are placed at higher difficulty, so more
+        # tend to manifest; the complexity metric records how many actually did).
+        need_traps = 1 if want_traps >= 1 else 0
+        if _reading_trap_count(built, best, set(losing)) < need_traps:
+            continue
+        return _finish(built, optimal, best, losing, difficulty)
 
     raise RuntimeError(
         "Failed to generate a certified endgame puzzle for difficulty=%s seed=%s"
@@ -725,32 +713,33 @@ def generate_endgame_puzzle(difficulty: Difficulty, seed: int) -> EndgamePuzzle:
     )
 
 
-def _finish(
-    built: _Built,
-    optimal: int,
-    best_moves: List[int],
-    difficulty: Difficulty,
-) -> EndgamePuzzle:
+def _finish(built: _Built, optimal: int, best: List[int], losing: List[int],
+            difficulty: int) -> EndgamePuzzle:
     board = built.board
     stm = built.side_to_move
     result = optimal - KOMI
-    best_gtp = [board.loc_to_str(loc) for loc in best_moves]
+    best_gtp = sorted(board.loc_to_str(loc) for loc in best)
     stm_char = "Black" if stm == Board.BLACK else "White"
+    traps = _reading_trap_count(built, best, set(losing))
+    complexity = _complexity(built, best, losing)
     comment = (
-        "%s to play. Win the game by playing the biggest endgame move first. "
-        "Best move: %s. Optimal result with best play: %s. "
-        "Play until both pass; scored by Tromp-Taylor area, komi %s."
-        % (stm_char, ", ".join(best_gtp), result_string(result), _fmt(KOMI))
+        "%s to play. Win the game. Difficulty %d/999. "
+        "%d region(s), %d reading trap(s). Correct first move: %s. "
+        "Optimal result with best play: %s. "
+        "Play until both pass; scored by Tromp-Taylor area, komi %s. "
+        "Any suboptimal move loses."
+        % (stm_char, difficulty, len(built.gadgets), traps, ", ".join(best_gtp),
+           result_string(result), _fmt(KOMI))
     )
-    sgf = to_sgf(board, stm, comment)
     return EndgamePuzzle(
-        sgf=sgf,
+        sgf=to_sgf(board, stm, comment),
         side_to_move=stm,
         best_first_moves=best_gtp,
         optimal_score=result,
         difficulty=difficulty,
+        complexity=complexity,
     )
 
 
-def generate_endgame_sgf(difficulty: Difficulty, seed: int) -> str:
+def generate_endgame_sgf(difficulty: int, seed: int) -> str:
     return generate_endgame_puzzle(difficulty, seed).sgf
