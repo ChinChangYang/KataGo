@@ -46,7 +46,7 @@ public enum BroadcastConstants {
 /// A hypothetical stone placed on the report's base position during a
 /// choreography frame. The LAST placed stone of a frame carries the red
 /// current-move dot.
-public struct PlacedStone: Equatable {
+public struct PlacedStone: Equatable, Sendable {
     public let vertex: String
     public let color: PlayerColor
 
@@ -60,8 +60,8 @@ public struct PlacedStone: Equatable {
 /// when its anchor is satisfied. A frame uses EITHER a .pv overlay OR
 /// placedStones, never both (PV prefixes already draw their own stones) —
 /// pinned by a test invariant, not types.
-public struct BroadcastBoardFrame: Equatable {
-    public enum Anchor: Equatable {
+public struct BroadcastBoardFrame: Equatable, Sendable {
+    public enum Anchor: Equatable, Sendable {
         /// Show the moment the fact at this index starts typing.
         case fact(Int)
         /// Show after the previous frame has been visible this long.
