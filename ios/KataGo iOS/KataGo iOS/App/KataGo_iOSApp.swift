@@ -53,15 +53,26 @@ struct KataGo_iOSApp: App {
             .environment(engineLaunchStatus)
             .environment(deepLinkRouter)
             .onOpenURL { url in
-                // Capture an `open-game` deep link at the always-mounted root so
+                // Capture externally-opened content at the always-mounted root so
                 // it survives a cold launch — the model picker / loading screen
                 // have no handler for it, and `GameSplitView`'s own `.onOpenURL`
-                // is not mounted yet. `ContentView.initializationTask` (cold) and
-                // `GameSplitView`'s `.onChange` (warm) apply the pending id. SGF
-                // file-import URLs are ignored here and fall through to the
-                // existing ModelPickerView / GameSplitView import handlers.
+                // is not mounted yet. `open-game` deep links latch a game id;
+                // image file-opens latch the DECODED BYTES (read at receipt — the
+                // URL's sandbox extension may not survive until GameSplitView
+                // mounts). `ContentView.initializationTask` (cold) and
+                // `GameSplitView`'s `.onChange` handlers (warm + a mount-time
+                // `initial: true` drain) apply the pending id / image. SGF
+                // file-import URLs and the Messages `import-sgf` links are left
+                // to fall through to the ModelPickerView / GameSplitView SGF
+                // handlers.
                 if let id = GameDeepLink.gameID(from: url) {
                     deepLinkRouter.pendingGameID = id
+                } else if GameDeepLink.importSgfFileName(from: url) == nil,
+                          let data = FileOpenClassifier.imageData(at: url) {
+                    deepLinkRouter.pendingImageImport = PendingImageImport(
+                        imageData: data,
+                        suggestedName: url.deletingPathExtension().lastPathComponent)
+                    FileOpenClassifier.cleanUpInboxFile(at: url)
                 }
             }
             .task {

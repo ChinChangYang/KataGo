@@ -245,6 +245,18 @@ struct ModelPickerView: View {
             await readiness.update(forFileNames: visibleFileNames)
         }
         .onOpenURL { url in
+            if FileOpenClassifier.isImage(url) {
+                // The root `.onOpenURL` already latched the image bytes (read at
+                // receipt so they can't go stale). Selecting the built-in model
+                // launches the engine so `GameSplitView` can mount and present
+                // the recognition sheet — mirroring the SGF-import selection
+                // below. No bytes are read or cleaned up here (the root owns it).
+                if selectedModel == nil,
+                   let builtInModel = NeuralNetworkModel.builtInModel {
+                    selectedModel = builtInModel
+                }
+                return
+            }
             if let result = GameRecord.importGameRecord(from: url, in: modelContext) {
                 if result.isNew {
                     modelContext.insert(result.gameRecord)
@@ -254,6 +266,7 @@ struct ModelPickerView: View {
                    let builtInModel = NeuralNetworkModel.builtInModel {
                     selectedModel = builtInModel
                 }
+                FileOpenClassifier.cleanUpInboxFile(at: url)
             }
         }
     }

@@ -240,15 +240,17 @@ struct GameSplitView: View {
                           newWaitingForAnalysis: newWaitingForAnalysis)
         }
         .onOpenURL { url in
-            // `open-game` deep links are captured at the root (`DeepLinkRouter`)
-            // so they survive a cold launch; they are applied via the
-            // `pendingGameID` `.onChange` below. `import-sgf` links come from
-            // the Messages extension, whose game rides a spool file in the
-            // App Group (the URL only names it). Everything else is an SGF
-            // file-import URL.
+            // `open-game` deep links AND externally-opened images are captured at
+            // the root (`DeepLinkRouter`) so they survive a cold launch; the id is
+            // applied via the `pendingGameID` `.onChange` below and the image via
+            // the `pendingImageImport` drain. `import-sgf` links come from the
+            // Messages extension, whose game rides a spool file in the App Group
+            // (the URL only names it). Everything else is an SGF file-import URL.
+            // Images are excluded here so a WARM open does not present the photo
+            // sheet twice (the root already owns them).
             if let fileName = GameDeepLink.importSgfFileName(from: url) {
                 drainMessagesHandoffSpool(preferring: fileName)
-            } else if GameDeepLink.gameID(from: url) == nil {
+            } else if GameDeepLink.gameID(from: url) == nil, !FileOpenClassifier.isImage(url) {
                 importAndSelect(from: url)
             }
         }
@@ -267,6 +269,15 @@ struct GameSplitView: View {
             // stranded value even swallows later same-game taps, since an
             // equal write fires no change).
             applyPendingDeepLink()
+        }
+        .onChange(of: deepLinkRouter.pendingImageImport, initial: true) { _, _ in
+            // A board image opened WITH the app is latched at the root (its bytes
+            // read at receipt). Present the existing photo-recognition sheet here.
+            // `initial: true` also drains an image captured BEFORE this view
+            // mounted — a cold-launch open delivered while the loading / model
+            // picker screens were up would otherwise strand forever, mirroring
+            // the `pendingGameID` drain above.
+            applyPendingImageImport()
         }
         .onChange(of: scenePhase) { _, newScenePhase in
             processChange(newScenePhase: newScenePhase)
@@ -668,6 +679,16 @@ struct GameSplitView: View {
         deepLinkRouter.pendingGameID = nil
     }
 
+    /// Applies a pending externally-opened image and clears it. Single seam for
+    /// the warm `.onChange` path and the mount-time (`initial: true`) drain.
+    /// Nils the latch BEFORE presenting so a re-entrant change can't double-fire.
+    @MainActor
+    private func applyPendingImageImport() {
+        guard let pending = deepLinkRouter.pendingImageImport else { return }
+        deepLinkRouter.pendingImageImport = nil
+        presentPhotoImport(imageData: pending.imageData, name: pending.suggestedName)
+    }
+
     @MainActor
     private func selectGame(byID id: UUID) {
         // F5: fall back to the most-recent game when the deep-linked game was
@@ -727,23 +748,18 @@ struct GameSplitView: View {
         }
         if let result = GameRecord.importGameRecord(from: file, in: modelContext) {
             insertAndSelect(result: result)
+            // Drop the share-sheet / Mail Inbox copy now that the SGF is imported
+            // (safe no-op for an in-place Files URL — see FileOpenClassifier).
+            FileOpenClassifier.cleanUpInboxFile(at: file)
         }
     }
 
     /// If `file` is an image, reads and returns its bytes inside a
     /// security-scoped access (mirroring `readSgfContent`); otherwise nil.
+    /// Delegates to the shared `FileOpenClassifier` (same behavior; the
+    /// `fileImporter` path keeps calling `importAndSelect(from:)` unchanged).
     private func imageDataIfImage(at file: URL) -> Data? {
-        let contentType = (try? file.resourceValues(forKeys: [.contentTypeKey]).contentType)
-            ?? UTType(filenameExtension: file.pathExtension)
-        guard let contentType, contentType.conforms(to: .image) else { return nil }
-
-        let hasSecurityAccess = file.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityAccess {
-                file.stopAccessingSecurityScopedResource()
-            }
-        }
-        return try? Data(contentsOf: file)
+        FileOpenClassifier.imageData(at: file)
     }
 
     /// Loads the Photos-picked item's bytes and presents the photo-import sheet.

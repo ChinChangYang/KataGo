@@ -8,6 +8,18 @@
 
 import SwiftUI
 
+/// A board image opened WITH the app (Files "Open in" / share sheet / Finder
+/// "Open With"), latched at the root `.onOpenURL` so it survives a cold launch
+/// until `GameSplitView` mounts and can present the photo-recognition sheet.
+public struct PendingImageImport: Equatable {
+    public let imageData: Data
+    public let suggestedName: String
+    public init(imageData: Data, suggestedName: String) {
+        self.imageData = imageData
+        self.suggestedName = suggestedName
+    }
+}
+
 /// Holds the game id of a pending `open-game` deep link.
 ///
 /// The root `.onOpenURL` (mounted from the first frame, even while the model
@@ -19,6 +31,16 @@ import SwiftUI
 @Observable
 public class DeepLinkRouter {
     public var pendingGameID: UUID?
+
+    /// A board image opened WITH the app, latched by the root `.onOpenURL`.
+    /// The bytes are read AT RECEIPT rather than latching the URL: the URL's
+    /// sandbox (security-scoped) extension is not guaranteed to survive until
+    /// `GameSplitView` mounts on a cold launch, so a URL latch could go stale —
+    /// a `Data` latch cannot. `GameSplitView`'s
+    /// `.onChange(of:initial:)` drain routes it into the existing
+    /// photo-recognition import (recognition → confirm sheet → new game).
+    public var pendingImageImport: PendingImageImport?
+
     public init() {}
 
     /// Process-wide instance shared between the iOS app (environment-injected
