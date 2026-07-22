@@ -126,7 +126,7 @@ public class GobanState {
 
     @ObservationIgnored private var nextMoveCacheKey: (String, Int)? = nil
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
-    @ObservationIgnored private var moveNumbersCacheKey: (String, Int)? = nil
+    @ObservationIgnored private var moveNumbersCacheKey: (String, Int, Int)? = nil
     @ObservationIgnored private var moveNumbersCacheResult: MoveNumbers = .empty
 
     public func sendShowBoardCommand(messageList: MessageList) {
@@ -783,19 +783,27 @@ public class GobanState {
     }
 
     public func getMoveNumbers(gameRecord: GameRecord?) -> MoveNumbers {
-        guard moveNumberStyleChoice != .lastThreeMoves,
+        guard resolvedMoveNumberStyle != .lastThreeMoves,
               let sgf = getSgf(gameRecord: gameRecord),
               let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
             return .empty
         }
 
-        if let key = moveNumbersCacheKey, key == (sgf, currentIndex) {
+        // A branch numbers only its own stones (1..N from the divergence point,
+        // which stays frozen at gameRecord.currentIndex while the branch is
+        // active); off-branch the numbering is absolute from the root.
+        let startIndex = isBranchActive ? (gameRecord?.currentIndex ?? currentIndex) : 0
+
+        // startIndex is part of the key: after commitBranch the (sgf, index)
+        // pair equals a prior branch-active call's, but the numbering base
+        // changes from the divergence point to the root.
+        if let key = moveNumbersCacheKey, key == (sgf, currentIndex, startIndex) {
             return moveNumbersCacheResult
         }
 
-        let result = MoveNumbers.derive(sgf: sgf, currentIndex: currentIndex)
+        let result = MoveNumbers.derive(sgf: sgf, currentIndex: currentIndex, startIndex: startIndex)
 
-        moveNumbersCacheKey = (sgf, currentIndex)
+        moveNumbersCacheKey = (sgf, currentIndex, startIndex)
         moveNumbersCacheResult = result
 
         return result
@@ -1084,5 +1092,12 @@ extension GobanState {
 
     public var moveNumberStyleChoice: MoveNumberStyle {
         MoveNumberStyle(rawValue: moveNumberStyle) ?? .lastThreeMoves
+    }
+
+    /// The move-number style actually used to render the board. An active branch
+    /// always numbers its stones 1..N (allMoves, relative to the divergence),
+    /// overriding the user's global preference; off-branch it is that preference.
+    public var resolvedMoveNumberStyle: MoveNumberStyle {
+        isBranchActive ? .allMoves : moveNumberStyleChoice
     }
 }

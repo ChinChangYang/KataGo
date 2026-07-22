@@ -125,7 +125,7 @@ public struct BoardView: View {
                     BookAnalysisView(config: config, dimensions: dimensions)
                     MoveNumberView(dimensions: dimensions,
                                    verticalFlip: gobanState.verticalFlip,
-                                   style: gobanState.moveNumberStyleChoice,
+                                   style: gobanState.resolvedMoveNumberStyle,
                                    moveNumbers: gobanState.getMoveNumbers(gameRecord: gameRecord))
 
                     if let highlightedPoint {
