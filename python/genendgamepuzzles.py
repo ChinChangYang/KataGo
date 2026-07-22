@@ -21,8 +21,9 @@ import re
 import sys
 
 from katago.game.board import Board
-from katago.puzzles.endgame import (
-    DIFFICULTY_MAX, DIFFICULTY_MIN, Difficulty, generate_endgame_puzzle,
+from katago.puzzles.endgame import Difficulty  # difficulty-name aliases
+from katago.puzzles.realgame import (
+    DIFFICULTY_MAX, DIFFICULTY_MIN, generate_endgame_puzzle,
 )
 
 _DIFF_ALIASES = {
@@ -93,12 +94,13 @@ def main(argv=None):
         print(puzzle.sgf)
         if args.show:
             side = "Black" if puzzle.side_to_move == Board.BLACK else "White"
+            trap = ""
+            if puzzle.natural_cost > 0:
+                trap = "  trap=%s(-%.1f)" % (puzzle.natural_move, puzzle.natural_cost)
             sys.stderr.write(
-                "# difficulty=%d/%d seed=%d  %s to play  best=%s  result=%+.1f  "
-                "complexity=%d\n"
+                "# difficulty=%d/%d seed=%d  %s to play  best=%s  lead=%+.1f%s\n"
                 % (args.difficulty, DIFFICULTY_MAX, seed, side,
-                   ",".join(puzzle.best_first_moves), puzzle.optimal_score,
-                   puzzle.complexity)
+                   ",".join(puzzle.best_first_moves), puzzle.optimal_score, trap)
             )
             sys.stderr.write(_board_from_sgf(puzzle.sgf).to_string() + "\n\n")
 
