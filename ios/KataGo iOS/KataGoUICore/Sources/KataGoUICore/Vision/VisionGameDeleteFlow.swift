@@ -52,9 +52,17 @@ public enum VisionGameDeleteFlow {
         isSelected ? "checkmark.circle.fill" : "circle"
     }
 
-    /// The header button that enters/exits select mode.
+    /// The header button that enters/exits select mode. On the ornament the
+    /// button is icon-only (a text label wraps inside the circular hover
+    /// region); the title remains as its accessibility label.
     public static func selectToggleTitle(isSelecting: Bool) -> String {
         isSelecting ? "Done" : "Select"
+    }
+
+    /// Icon for the select-mode toggle: iOS's select symbol, filled while
+    /// selecting (the Games-toggle filled-while-active convention).
+    public static func selectToggleImage(isSelecting: Bool) -> String {
+        isSelecting ? "checkmark.circle.fill" : "checkmark.circle"
     }
 
     /// iOS bottom-bar trash label ("(N)" beside the trash symbol).

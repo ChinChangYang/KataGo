@@ -69,6 +69,8 @@ struct VisionGameDeleteFlowTests {
         #expect(VisionGameDeleteFlow.selectionImage(isSelected: false) == "circle")
         #expect(VisionGameDeleteFlow.selectToggleTitle(isSelecting: true) == "Done")
         #expect(VisionGameDeleteFlow.selectToggleTitle(isSelecting: false) == "Select")
+        #expect(VisionGameDeleteFlow.selectToggleImage(isSelecting: true) == "checkmark.circle.fill")
+        #expect(VisionGameDeleteFlow.selectToggleImage(isSelecting: false) == "checkmark.circle")
     }
 
     @Test func trashCountLabelFormatsAndDisablesAtZero() {

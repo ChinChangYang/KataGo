@@ -569,15 +569,18 @@ struct VisionGameListOrnament: View {
                 .accessibilityLabel("New Game")
             }
             if !gameRecords.isEmpty {
-                Button(VisionGameDeleteFlow.selectToggleTitle(isSelecting: isSelecting)) {
+                Button {
                     withAnimation {
                         isSelecting.toggle()
                         if !isSelecting {
                             selectedIDs.removeAll()
                         }
                     }
+                } label: {
+                    Image(systemName: VisionGameDeleteFlow.selectToggleImage(isSelecting: isSelecting))
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(VisionGameDeleteFlow.selectToggleTitle(isSelecting: isSelecting))
             }
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
