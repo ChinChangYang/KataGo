@@ -837,7 +837,14 @@ struct VisionRootView: View {
             stones: session.stones,
             all: false
         )
-        guard session.stones.isReady, !isAITurn else { return }
+        // canStepBackward gates the branch floor: this path sends the engine
+        // `undo` itself, so it must stop at the divergence (an ungated undo of a
+        // pre-branch move desyncs board vs engine). It comes BEFORE the
+        // expectStoneAnimation(.remove) derivation below — a clamped undo must
+        // not enqueue a phantom remove-intent a later unrelated diff could
+        // consume.
+        guard session.stones.isReady, !isAITurn,
+              session.gobanState.canStepBackward(gameRecord: gameRecord) else { return }
         // The tip stone flies off (nothing to animate after a pass); derive
         // it before undoIndex moves the cursor. Same derivation as the ghost
         // anchor, so the animated point always matches the mounted stone.

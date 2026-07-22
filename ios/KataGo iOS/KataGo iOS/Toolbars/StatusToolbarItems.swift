@@ -157,7 +157,11 @@ struct StatusToolbarItems: View {
             all: false
         )
 
-        if isFunctional {
+        // canStepBackward gates the branch floor: this path sends the engine
+        // `undo` itself, and at the divergence the engine still holds pre-branch
+        // moves an ungated undo would desync. (Off-branch it also stops the
+        // futile undo the engine already refuses at mainline index 0.)
+        if isFunctional, gobanState.canStepBackward(gameRecord: gameRecord) {
             gobanState.undoIndex(gameRecord: gameRecord)
             gobanState.undo(messageList: messageList, stones: stones)
             player.toggleNextColorForPlayCommand()

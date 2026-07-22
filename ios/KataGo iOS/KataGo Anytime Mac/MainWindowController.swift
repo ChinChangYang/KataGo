@@ -476,7 +476,10 @@ final class MainWindowController: NSWindowController {
     // MARK: Navigation availability
 
     /// Whether a move exists at `currentIndex - 1` (i.e. we can step/jump back).
-    /// Mirrors `backwardMoves`' loop guard (`getMove(at: currentIndex - 1)`).
+    /// Mirrors `backwardMoves`' loop guard (`getMove(at: currentIndex - 1)` AND
+    /// `currentIndex > navigationFloor`): while a branch is active the floor is
+    /// the frozen divergence, so Back/First gray out there just as they do at
+    /// mainline index 0.
     private var canGoBackward: Bool {
         guard isFunctional,
               let gameRecord = navigationContext.selectedGameRecord,
@@ -484,7 +487,8 @@ final class MainWindowController: NSWindowController {
               let currentIndex = session.gobanState.getCurrentIndex(gameRecord: gameRecord) else {
             return false
         }
-        return SgfHelper(sgf: sgf).getMove(at: currentIndex - 1) != nil
+        return currentIndex > session.gobanState.navigationFloor(gameRecord: gameRecord)
+            && SgfHelper(sgf: sgf).getMove(at: currentIndex - 1) != nil
     }
 
     /// Whether a move exists at `currentIndex` (i.e. we can step/jump forward).

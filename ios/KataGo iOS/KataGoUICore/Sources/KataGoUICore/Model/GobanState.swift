@@ -663,15 +663,35 @@ public class GobanState {
         }
     }
 
-    public func undoBranchIndex() {
-        if (branchIndex > 0) {
-            branchIndex = branchIndex - 1
+    /// The earliest index navigation may reach: the divergence while a branch is
+    /// active (gameRecord.currentIndex stays frozen there), else 0. Stepping
+    /// below it would undo pre-branch moves that belong to the saved mainline.
+    public func navigationFloor(gameRecord: GameRecord?) -> Int {
+        isBranchActive ? (gameRecord?.currentIndex ?? 0) : 0
+    }
+
+    /// Whether navigation may step one move back from the cursor: a recorded
+    /// move exists behind it AND it sits above the floor. Callers that send the
+    /// engine `undo` THEMSELVES (rather than routing through backwardMoves) must
+    /// gate on this — at the branch floor the engine still holds the pre-branch
+    /// moves it would undo, so an ungated `undo` desyncs board vs engine.
+    public func canStepBackward(gameRecord: GameRecord?) -> Bool {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
+            return false
         }
+        return currentIndex > navigationFloor(gameRecord: gameRecord)
+            && SgfOperations(sgf: sgf).getMove(at: currentIndex - 1) != nil
     }
 
     public func undoIndex(gameRecord: GameRecord?) {
         if isBranchActive {
-            undoBranchIndex()
+            // Stop at the divergence floor: the branch numbers only its own
+            // moves, and the pre-branch moves below it belong to the saved
+            // mainline (an undo past them would desync board vs engine).
+            if branchIndex > navigationFloor(gameRecord: gameRecord) {
+                branchIndex = branchIndex - 1
+            }
         } else {
             gameRecord?.undo()
         }
@@ -716,9 +736,13 @@ public class GobanState {
         }
 
         let sgfHelper = SgfOperations(sgf: sgf)
+        // Never rewind below the branch floor (the divergence); off-branch it is
+        // 0, so mainline rewind is unchanged.
+        let floor = navigationFloor(gameRecord: gameRecord)
         var movesExecuted = 0
 
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
+            currentIndex > floor,
             sgfHelper.getMove(at: currentIndex - 1) != nil {
             undoIndex(gameRecord: gameRecord)
             undo(messageList: messageList, stones: stones)
@@ -864,13 +888,20 @@ public class GobanState {
             audioModel: AudioModel?,
             stones: Stones
     ) {
-        guard let currentIndex = getCurrentIndex(gameRecord: gameRecord),
-        currentIndex != targetIndex else {
+        guard let currentIndex = getCurrentIndex(gameRecord: gameRecord) else {
             return
         }
 
-        if targetIndex < currentIndex {
-            let limit = currentIndex - targetIndex
+        // Clamp a below-floor target up to the divergence: while a branch is
+        // active navigation may reach the divergence but never earlier.
+        let clampedTarget = max(targetIndex, navigationFloor(gameRecord: gameRecord))
+
+        guard currentIndex != clampedTarget else {
+            return
+        }
+
+        if clampedTarget < currentIndex {
+            let limit = currentIndex - clampedTarget
 
             backwardMoves(
                 limit: limit,
@@ -880,7 +911,7 @@ public class GobanState {
                 stones: stones
             )
         } else {
-            let limit = targetIndex - currentIndex
+            let limit = clampedTarget - currentIndex
 
             forwardMoves(
                 limit: limit,

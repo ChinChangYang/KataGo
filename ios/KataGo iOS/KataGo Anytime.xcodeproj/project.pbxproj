@@ -313,6 +313,7 @@
 		94781886A108BB18B7BFB9C9 /* NeuralNetworkModelGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */; };
 		948CAEF78641599449997CFF /* statusor.cc in Sources */ = {isa = PBXBuildFile; fileRef = F7CDB1E48C91DD79F0008B2C /* statusor.cc */; };
 		94BDAF9907F26647CC4164CF /* match.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC52A0100425C29AA86E3502 /* match.cc */; };
+		95124FA888F0EA53781B850F /* GobanStateBranchClampTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3FC389ED7288F5E432B7D11 /* GobanStateBranchClampTests.swift */; };
 		9621D8C7B7B6D544E921F80A /* Normalizer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 284A8EE2818AC67DE9E2F300 /* Normalizer.pb.cc */; };
 		9684E8C2E0AB0218DAE402E9 /* KataGo Engine Helper in Embed Engine Helper */ = {isa = PBXBuildFile; fileRef = F527F6EBDFE5DE9A1D9DD5DB /* KataGo Engine Helper */; settings = {ATTRIBUTES = (); }; };
 		972FD859E6420EBE1D647796 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
@@ -1688,6 +1689,7 @@
 		E374E9ECD35BA1AC5FD04463 /* KataGoVisionApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoVisionApp.swift; path = "KataGo Anytime Vision/KataGoVisionApp.swift"; sourceTree = "<group>"; };
 		E3C8DC0A8F9AF1ACB13FFEC5 /* poison.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = poison.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/poison.cc"; sourceTree = SOURCE_ROOT; };
 		E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordTagger.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordTagger.pb.cc; sourceTree = SOURCE_ROOT; };
+		E3FC389ED7288F5E432B7D11 /* GobanStateBranchClampTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateBranchClampTests.swift; sourceTree = "<group>"; };
 		E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBranchFrameTests.swift; sourceTree = "<group>"; };
 		E4E2DDB1A29692B06506E9C4 /* CustomModel.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = CustomModel.pb.cc; path = ../../cpp/external/katagocoreml/generated/CustomModel.pb.cc; sourceTree = SOURCE_ROOT; };
 		E4E30C21B7870A1DBBE8434A /* commandlineflag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = commandlineflag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/commandlineflag.cc"; sourceTree = SOURCE_ROOT; };
@@ -2936,6 +2938,7 @@
 				F8AA4DE8BFD675668DF35BB6 /* BroadcastGenMoveTests.swift */,
 				D5AEACD5C8AAD349ECEB0545 /* BroadcastControllerTests.swift */,
 				FDDEEAEC0E1D668B74739AE9 /* GobanStateBranchNumberingTests.swift */,
+				E3FC389ED7288F5E432B7D11 /* GobanStateBranchClampTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4259,6 +4262,7 @@
 				A43E8F373A35747D2A46D94C /* BroadcastGenMoveTests.swift in Sources */,
 				B00DB60CFD33E4B1C6ADBADC /* BroadcastControllerTests.swift in Sources */,
 				026538E3B0685D326955286D /* GobanStateBranchNumberingTests.swift in Sources */,
+				95124FA888F0EA53781B850F /* GobanStateBranchClampTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
