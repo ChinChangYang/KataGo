@@ -34,8 +34,8 @@ struct GameSessionPostProcessAIMoveGuardTests {
         let record: GameRecord
         let captured = CapturedMove()
 
-        init() {
-            record = GameRecord.createGameRecord(name: "Demo")
+        init(sgf: String = GameRecord.defaultSgf, currentIndex: Int = 0) {
+            record = GameRecord.createGameRecord(sgf: sgf, currentIndex: currentIndex, name: "Demo")
             navigation.selectedGameRecord = record
             session.board.width = 19
             session.board.height = 19
@@ -119,6 +119,43 @@ struct GameSessionPostProcessAIMoveGuardTests {
         #expect(f.captured.value == nil)
         #expect(f.record.currentIndex == 0)
         #expect(!f.sent("play b cancelled"))
+    }
+
+    @Test("Broadcast license on a rewound editing record: overwrite auto-confirms")
+    func broadcastLicensedOverwritePlaysWithoutConfirmation() {
+        // tvOS broadcast Pause → Undo → Resume: the paused stepBack rewinds
+        // currentIndex while the demo record's SGF keeps the undone move,
+        // and the self-play record loads unlocked (isEditing). No tvOS view
+        // renders the AI-overwrite confirmation, so latching
+        // confirmingAIOverwrite would drop the one licensed reply — no turn
+        // toggle, no next cycle, broadcast parked in .awaitingMove forever.
+        // The license must auto-confirm: playAIMove's editing path truncates
+        // the stale tail exactly like the iOS "Overwrite" button.
+        let f = Fixture(sgf: "(;FF[4]GM[1]SZ[19];B[pd];W[dp];B[pq])", currentIndex: 2)
+        f.session.gobanState.isEditing = true
+        f.session.gobanState.suppressesGenMove = true
+        f.session.gobanState.broadcastGenMovePending = true
+
+        f.receivePlayReply()
+
+        #expect(!f.session.gobanState.confirmingAIOverwrite)
+        #expect(f.sent("play b Q16"))
+        #expect(f.session.player.nextColorForPlayCommand == .white)
+        #expect(!f.session.gobanState.broadcastGenMovePending)
+    }
+
+    @Test("No license on a rewound editing record: still asks for confirmation")
+    func unlicensedOverwriteStillAsksForConfirmation() {
+        // The iOS/macOS behavior the bypass must not disturb: an unlicensed
+        // gen-move reply landing mid-record asks before overwriting.
+        let f = Fixture(sgf: "(;FF[4]GM[1]SZ[19];B[pd];W[dp];B[pq])", currentIndex: 2)
+        f.session.gobanState.isEditing = true
+
+        f.receivePlayReply()
+
+        #expect(f.session.gobanState.confirmingAIOverwrite)
+        #expect(!f.sent("play b Q16"))
+        #expect(f.session.player.nextColorForPlayCommand == .black)
     }
 
     @Test("Player .unknown (mid game-switch): the play line is dropped")

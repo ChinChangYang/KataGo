@@ -459,7 +459,15 @@ public final class GameSession {
         // lifetime). The license is consumed on ANY "play " line — including
         // "play cancelled" — even when a later guard drops it: the broadcast
         // re-issues per cycle, and a stale license must never leak a future
-        // stray reply through.
+        // stray reply through. The license also auto-confirms an overwrite:
+        // a paused-interactive Undo rewinds currentIndex while the demo
+        // record's SGF keeps the undone move, so the resumed cycle's reply
+        // lands mid-record — and no tvOS view renders the confirmation
+        // dialog, so latching confirmingAIOverwrite would spend the license
+        // with no move, no turn toggle, and the broadcast parked in
+        // .awaitingMove forever. playAIMove's editing path truncates the
+        // stale tail (clearData + printsgf) — the same call the iOS
+        // "Overwrite" button makes.
         let broadcastLicensed = gobanState.broadcastGenMovePending
         gobanState.broadcastGenMovePending = false
         guard broadcastLicensed || !gobanState.suppressesGenMove,
@@ -472,7 +480,7 @@ public final class GameSession {
             let move = String(match.1)
             aiMove.wrappedValue = move
             if let gameRecord = navigationContext.selectedGameRecord {
-                if gobanState.isOverwriting(gameRecord: gameRecord) {
+                if gobanState.isOverwriting(gameRecord: gameRecord), !broadcastLicensed {
                     gobanState.confirmingAIOverwrite = true
                 } else {
                     gobanState.playAIMove(
