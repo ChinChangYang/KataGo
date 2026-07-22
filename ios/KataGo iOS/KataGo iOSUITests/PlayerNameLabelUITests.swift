@@ -12,7 +12,7 @@
 //  accessibility identifiers "blackPlayerName" / "whitePlayerName" (see
 //  StoneView.drawCapturedStones); tapping one flips that side Human<->AI.
 //  Their accessibility `label` is the displayed string. The test drives the
-//  real config screen (More ▸ Settings ▸ Game Settings ▸ AI) so it also
+//  real config screen (More ▸ This Game ▸ Game Settings ▸ AI) so it also
 //  proves the board reflects the configuration end-to-end.
 //
 //  On the iOS Simulator the backend is pinned to CoreML/NE, so launching the
@@ -149,17 +149,67 @@ final class PlayerNameLabelUITests: XCTestCase {
         newGame.tap()
         XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
                       "New game board did not appear (More button missing)")
+
+        // Quiet the board before the test drives the toolbar menu. The engine's
+        // new-game setup churns the board, which rebuilds the toolbar host and
+        // resets an open nested "This Game" submenu back to its parent level, so
+        // the "Game Settings" item flickers and can't be tapped ("Game Settings
+        // not found" / a tap that can't get a stable snapshot). Wait until
+        // analysis is established (a winrate label = the setup transient is over)
+        // and only THEN pause analysis (one tap on the sparkle: run -> pause, the
+        // only iOS writer of analysisStatus) so no further updates re-render the
+        // board. Pausing during the transient does NOT help — the setup churn
+        // continues regardless. The pause holds for the whole test; the config
+        // screens are analysis-independent and the player-name labels are
+        // config-driven.
+        let winrate = app.staticTexts.matching(identifier: "AnalysisView.winrate").firstMatch
+        _ = winrate.waitForExistence(timeout: 120)
+        let analysisToggle = app.buttons["Toggle Analysis"].firstMatch
+        if analysisToggle.waitForExistence(timeout: 10) { analysisToggle.tap() }
+        // Let the pause's "stop" ack drain and the cold engine's new-game setup
+        // finish so the toolbar host stops re-rendering (that churn is what
+        // collapses the nested submenu). openAIConfig additionally gates its tap
+        // on the item being stably present, so residual flicker is tolerated.
+        usleep(3_000_000)  // 3s settle
     }
 
-    /// More ▸ Settings ▸ Game Settings ▸ AI.
+    /// More ▸ This Game ▸ Game Settings ▸ AI.
     @MainActor
     private func openAIConfig(_ app: XCUIApplication) {
+        // Drill More ▸ This Game ▸ Game Settings. The parent popover is stable,
+        // but tapping "This Game" opens a nested submenu that a PlusMenuView
+        // re-render (cold-engine new-game setup churn) can collapse back to the
+        // parent, so the "Game Settings" item FLICKERS on/off. Resolving a
+        // flickering element (`.tap()`/`.frame`) aborts the whole test, so gate
+        // the tap: only tap "Game Settings" once it has been continuously present
+        // for a short window (several safe `.exists` polls). Otherwise step the
+        // menu forward (drill into This Game) or re-open "More" when the popover
+        // has fully closed. Success is the Game Settings SHEET appearing.
+        // (`.exists` and `waitForExistence` never abort — only element taps do —
+        // and the parent items More/This Game are stable, so tapping them is safe.)
         let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-
-        tapRow(app, "Settings")
-        tapRow(app, "Game Settings")
+        let thisGame = app.buttons["This Game"].firstMatch
+        let gameSettings = app.buttons["Game Settings"].firstMatch
+        let gameSettingsSheet = app.navigationBars["Game Settings"]
+        for _ in 0..<25 {
+            if gameSettingsSheet.exists { break }
+            if gameSettings.exists {
+                if isStablyPresent(gameSettings) {
+                    gameSettings.tap()                          // stable: open the sheet
+                    _ = gameSettingsSheet.waitForExistence(timeout: 3)
+                }
+                // else: flickering — loop and re-probe for a stable window.
+            } else if thisGame.exists {
+                thisGame.tap()                                  // parent menu open: drill in
+                _ = gameSettings.waitForExistence(timeout: 3)
+            } else {
+                XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
+                more.tap()                                      // no menu open: reopen
+                _ = thisGame.waitForExistence(timeout: 5)
+            }
+        }
+        XCTAssertTrue(gameSettingsSheet.waitForExistence(timeout: 5),
+                      "Game Settings sheet did not open from This Game")
 
         // Tap the "AI" row scoped to the Settings LIST. A board player capsule
         // behind the sheet is itself a Button labeled "AI" once that side is set
@@ -177,38 +227,34 @@ final class PlayerNameLabelUITests: XCTestCase {
                       "AI configuration screen not shown")
     }
 
-    /// Pop back to the Settings root, then swipe the sheet away.
+    /// Pop back to the Game Settings root, then swipe the sheet away.
     @MainActor
     private func dismissConfig(_ app: XCUIApplication) {
-        for navTitle in ["AI", "Game Settings"] {
-            let bar = app.navigationBars[navTitle]
-            if bar.waitForExistence(timeout: 5) {
-                bar.buttons.element(boundBy: 0).tap()  // leading = Back
-            }
+        // "AI" pushes onto the Game Settings sheet; pop it. Game Settings is now
+        // the sheet root itself, so it has no back button to tap.
+        let aiBar = app.navigationBars["AI"]
+        if aiBar.waitForExistence(timeout: 5) {
+            aiBar.buttons.element(boundBy: 0).tap()  // leading = Back
         }
-        // At the Settings root the short list isn't scrollable, so a swipe
-        // down dismisses the sheet (same approach as the screenshot test).
+        // The Game Settings list is short (not scrollable), so a swipe down
+        // dismisses the sheet (same approach as the screenshot test).
         app.swipeDown(velocity: .fast)
         XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 15),
                       "Did not return to the board after dismissing the config sheet")
     }
 
+    /// True only if `element` stays present across several rapid `.exists`
+    /// polls — used to avoid resolving (tapping) an element that flickers in and
+    /// out (which would abort the test). `.exists` never aborts.
     @MainActor
-    private func tapRow(_ app: XCUIApplication, _ label: String) {
-        // Wait BEFORE scrolling: menu-popover items (e.g. "Settings") are in the
-        // tree as soon as the menu opens, so they resolve here and never trigger
-        // a swipe — swiping while a menu is open would dismiss it. Only genuinely
-        // below-the-fold List rows fall through to the scroll path.
-        let button = app.buttons[label].firstMatch
-        if button.waitForExistence(timeout: 10) { button.tap(); return }
-        scrollUntilExists(app, button)
-        if button.exists { button.tap(); return }
-
-        let text = app.staticTexts[label].firstMatch
-        if text.waitForExistence(timeout: 5) { text.tap(); return }
-        scrollUntilExists(app, text)
-        XCTAssertTrue(text.exists, "Row '\(label)' not found")
-        text.tap()
+    private func isStablyPresent(_ element: XCUIElement,
+                                 checks: Int = 5,
+                                 gapMicros: UInt32 = 60_000) -> Bool {
+        for _ in 0..<checks {
+            if !element.exists { return false }
+            usleep(gapMicros)
+        }
+        return element.exists
     }
 
     /// Swipe up on the config sheet until `element` enters the accessibility

@@ -122,7 +122,7 @@ struct ContentView: View {
         // Surface the model name + engine version in the Configurations sheet.
         // The launch screen used to linger for a few seconds just to show
         // these; that wait is gone, so stash them where the gear button can
-        // reach them (TopUIState rides the environment into ConfigView).
+        // reach them (TopUIState rides the environment into GlobalSettingsView).
         topUIState.modelName = selectedModel?.title
         topUIState.engineVersion = version
 

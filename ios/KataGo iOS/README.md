@@ -85,8 +85,8 @@ The **More** menu (the ellipsis-circle button) in the toolbar contains:
 - **New Game**.
 - **Import** — from a **File** (SGF or image) or a **Photo** (see [photo import](#import-a-game-from-a-photo)).
 - **Select** — enter multi-select mode in the games list.
-- **This Game** — a submenu for the selected game: **Share** (export SGF), **Export GIF**, **Clone**, **Deep Report**, and **Delete**.
-- **Settings** — the settings sheet (labeled **Global Settings** when no game is selected).
+- **This Game** — a submenu for the selected game: **Game Settings**, **Share** (export SGF), **Export GIF**, **Clone**, **Deep Report**, and **Delete**.
+- **Settings** — app-wide preferences; opens **Global Settings** directly, available with or without a selected game.
 
 Tapping **Clone** asks how much of the game to copy:
 
@@ -132,7 +132,7 @@ Add the **Saved Game** widget (small through extra-large) to your Home Screen, L
 
 ## Settings
 
-The settings sheet (More → **Settings**) has four sections: **Global Settings**, **Game Settings**, **Engine**, and **Open-Source Licenses**.
+Settings are split in two: **More → Settings** opens the app-wide **Global Settings** sheet (available with or without a selected game), while per-game configuration lives under **More → This Game → Game Settings**. Global Settings groups app-wide preferences plus an **Engine** section (running model/version and **Developer Mode**) and **Open-Source Licenses**.
 
 ### Global Settings
 

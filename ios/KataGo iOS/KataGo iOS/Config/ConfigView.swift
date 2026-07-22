@@ -872,7 +872,9 @@ struct GlobalSettingsView: View {
             // (ContentView) and ride TopUIState in via the environment, so they
             // appear whenever an engine is running. Tapping either row quits the
             // engine and returns to the model picker (the old standalone toolbar
-            // Quit button).
+            // Quit button). Developer Mode (the raw GTP console) lives here too,
+            // as the last row — a power/engine tool that no longer belongs at
+            // the top level of the "More" menu.
             Section("Engine") {
                 if let modelName = topUIState.modelName {
                     LabeledContent("Model", value: modelName)
@@ -903,6 +905,13 @@ struct GlobalSettingsView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { confirmingQuit = true }
                     .accessibilityInputLabels(["Quit Engine", "Version"])
+                }
+
+                NavigationLink {
+                    CommandView()
+                        .navigationTitle("Developer Mode")
+                } label: {
+                    Label("Developer Mode", systemImage: "doc.plaintext")
                 }
             }
 
@@ -952,36 +961,5 @@ struct GameSettingsView: View {
     var body: some View {
         ConfigItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             .navigationTitle("Game Settings")
-    }
-}
-
-struct ConfigView: View {
-    var gameRecord: GameRecord
-    var maxBoardLength: Int
-
-    var body: some View {
-        List {
-            NavigationLink("Global Settings") {
-                GlobalSettingsView()
-            }
-
-            NavigationLink("Game Settings") {
-                GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
-            }
-
-            // The raw GTP console, relocated here from the game-list "More"
-            // menu — a power/engine tool that no longer belongs at the top
-            // level of the menu. (Model name, engine version, and Open-Source
-            // Licenses moved to the app-wide Global Settings screen.)
-            Section("Engine") {
-                NavigationLink {
-                    CommandView(config: gameRecord.concreteConfig)
-                        .navigationTitle("Developer Mode")
-                } label: {
-                    Label("Developer Mode", systemImage: "doc.plaintext")
-                }
-            }
-        }
-        .navigationTitle("Settings")
     }
 }

@@ -19,7 +19,7 @@ struct PlusMenuView: View {
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
-    @State private var showingConfig = false
+    @State private var showingGameSettings = false
     @State private var confirmingClone = false
     @State private var showingReport = false
     @State private var showingGlobalSettings = false
@@ -89,6 +89,14 @@ struct PlusMenuView: View {
             // so the top level stays short.
             if let gameRecord {
                 Menu {
+                    Button {
+                        showingGameSettings = true
+                    } label: {
+                        Label("Game Settings", systemImage: "gearshape")
+                    }
+
+                    Divider()
+
                     ShareLink(
                         item: TransferableSgf(
                             name: gameRecord.name,
@@ -140,32 +148,22 @@ struct PlusMenuView: View {
 
             Divider()
 
-            // A single settings entry. When a game is selected this opens the
-            // Configurations sheet (which already contains Global Settings +
-            // Game Settings), so no separate top-level Global Settings item is
-            // needed. With no game, Configurations is unavailable, so fall back
-            // to opening Global Settings directly.
-            if gameRecord != nil {
-                Button {
-                    showingConfig = true
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-            } else {
-                Button {
-                    showingGlobalSettings = true
-                } label: {
-                    Label("Global Settings", systemImage: "gearshape.2")
-                }
+            // App-wide settings only. Per-game configuration now lives under
+            // "This Game" ▸ Game Settings, so this top-level entry opens Global
+            // Settings directly whether or not a game is selected.
+            Button {
+                showingGlobalSettings = true
+            } label: {
+                Label("Settings", systemImage: "gearshape.2")
             }
         } label: {
             Label("More", systemImage: "ellipsis.circle")
                 .labelStyle(.iconOnly)
         }
-        .sheet(isPresented: $showingConfig) {
+        .sheet(isPresented: $showingGameSettings) {
             if let gameRecord {
                 NavigationStack {
-                    ConfigView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
+                    GameSettingsView(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
                 }
                 #if os(macOS)
                 .frame(minWidth: 500, minHeight: 600)

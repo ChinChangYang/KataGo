@@ -89,20 +89,23 @@ final class KataGo_iOSUITests: XCTestCase {
         sleep(3)
         snap("GobanView")
 
-        // Settings screen (the menu item formerly labeled "Configurations").
+        // Settings screen — "Settings" now opens Global Settings directly.
         openMore()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found")
         settings.tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15)
-                      || app.staticTexts["Global Settings"].waitForExistence(timeout: 5),
-                      "Settings screen not shown")
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
+                      "Global Settings screen not shown")
         sleep(2)
-        snap("ConfigView")
+        snap("GlobalSettingsView")
 
-        // Developer Mode (GTP console) — now nested in Settings ▸ Engine rather
-        // than at the top level of the "More" menu.
+        // Developer Mode (GTP console) — now nested in Global Settings ▸ Engine
+        // rather than at the top level of the "More" menu. It sits below the
+        // fold of the long Global Settings list (off-screen SwiftUI List cells
+        // aren't in the a11y tree), so swipe it into view first.
         let dev = app.buttons["Developer Mode"].firstMatch
+        var swipes = 0
+        while !dev.exists && swipes < 8 { app.swipeUp(); swipes += 1 }
         XCTAssertTrue(dev.waitForExistence(timeout: 10), "Developer Mode row not found")
         dev.tap()
         let gtpField = app.textFields["Enter your GTP command (list_commands)"]

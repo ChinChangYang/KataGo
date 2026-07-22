@@ -2,9 +2,9 @@
 //  GlobalSettingsMenuUITests.swift
 //  KataGo AnytimeUITests
 //
-//  The dots ("More") menu must offer "Global Settings" even when no game is
-//  selected. Regression test for the gap where Global Settings was only
-//  reachable via the game-gated Settings sheet.
+//  The dots ("More") menu must offer "Settings" (which opens Global Settings)
+//  even when no game is selected. Regression test for the gap where Global
+//  Settings was only reachable via the game-gated Settings sheet.
 //
 
 import XCTest
@@ -49,14 +49,15 @@ final class GlobalSettingsMenuUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
                       "Game list did not appear")
 
-        // The dots menu must contain Global Settings with no game selected.
+        // The dots menu must contain Settings with no game selected; it opens
+        // Global Settings directly.
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
         more.tap()
-        let globalSettings = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found")
-        globalSettings.tap()
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10),
+                      "Settings menu item not found")
+        settings.tap()
 
         // The Global Settings sheet opens directly.
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),

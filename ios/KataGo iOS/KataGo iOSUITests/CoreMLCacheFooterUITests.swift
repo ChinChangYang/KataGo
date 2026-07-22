@@ -193,7 +193,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
                       "Goban (Lock button) did not appear after launching the built-in engine")
 
-        // Open the "More" menu → "Settings" to present ConfigView.
+        // Open the "More" menu → "Settings"; it opens Global Settings directly.
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
         moreButton.tap()
@@ -204,9 +204,8 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         settings.tap()
 
         // ----- Global Settings now hosts the relocated display preferences -----
-        let globalSettings = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10), "Global Settings row not found")
-        globalSettings.tap()
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
+                      "Global Settings sheet not shown")
 
         // Every display toggle that used to be under the per-game "View" tab.
         let showCoordinate = app.switches["Show coordinate"].firstMatch
@@ -235,11 +234,20 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                        "'Show coordinate' did not toggle from \(before ?? "nil")")
         showCoordinate.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()   // restore default
 
-        // ----- The per-game "View" tab is gone; the others remain -----
-        let backButton = app.navigationBars.buttons.firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Back button not found")
-        backButton.tap()
+        // ----- The per-game "View" tab is gone; the others remain. Game
+        // Settings now lives under This Game, so dismiss the Global Settings
+        // sheet (swipe down ON THE NAV BAR — the list is scrollable, so a bare
+        // list swipeDown would scroll instead of dismiss) and reopen it via
+        // More ▸ This Game ▸ Game Settings. -----
+        app.navigationBars["Global Settings"].swipeDown(velocity: .fast)
 
+        let moreAgain = app.buttons["More"].firstMatch
+        XCTAssertTrue(moreAgain.waitForExistence(timeout: 15),
+                      "More menu button not found after dismissing Global Settings")
+        moreAgain.tap()
+        let thisGame = app.buttons["This Game"].firstMatch
+        XCTAssertTrue(thisGame.waitForExistence(timeout: 10), "This Game submenu not found")
+        thisGame.tap()
         let gameSettings = app.buttons["Game Settings"].firstMatch
         XCTAssertTrue(gameSettings.waitForExistence(timeout: 10), "Game Settings row not found")
         gameSettings.tap()
@@ -275,11 +283,10 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "Settings menu item not found")
         settings.tap()
 
-        // Licenses now live under Global Settings ▸ About.
-        let globalSettings = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
-                      "Global Settings row not found in Settings")
-        globalSettings.tap()
+        // Licenses now live under Global Settings ▸ About, which Settings opens
+        // directly.
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
+                      "Global Settings sheet not shown")
 
         // The About section sits at the bottom of the (now longer) Global
         // Settings list, so scroll it into view first — off-screen SwiftUI List
@@ -376,8 +383,8 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     /// Global Settings ▸ Engine: tapping the Model row raises a confirmation
     /// dialog whose destructive "Quit" tears down the engine — commit f9c85d85
     /// removed the old sidebar-toolbar Quit button. Reach it via the board
-    /// "More" menu (the same path the passing display-preferences / licenses
-    /// tests use).
+    /// "More" ▸ "Settings" menu, which opens Global Settings directly (the same
+    /// path the passing display-preferences / licenses tests use).
     @MainActor
     private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
         // Wait for the goban detail. The "Lock" toolbar button is the most
@@ -386,17 +393,15 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
                       "Goban (Lock button) did not appear after launching \(label) engine")
 
-        // Board "More" → "Settings" → "Global Settings".
+        // Board "More" → "Settings" (opens Global Settings directly).
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")
         more.tap()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found (\(label))")
         settings.tap()
-        let globalSettings = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
-                      "Global Settings row not found (\(label))")
-        globalSettings.tap()
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
+                      "Global Settings sheet not shown (\(label))")
 
         // Engine ▸ Model row raises the quit confirmation. It sits near the
         // bottom of the (long) Global Settings list, so scroll it into view.

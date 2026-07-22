@@ -11,8 +11,6 @@ import KataGoUICore
 struct CommandView: View {
     @Environment(MessageList.self) var messageList
     @State private var command = ""
-    var config: Config
-    @Environment(Turn.self) var player
 
     var body: some View {
         VStack {
