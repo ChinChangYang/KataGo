@@ -19,6 +19,16 @@ struct MoveNumbersTests {
     // Move 2 (W) is a pass.
     static let passSgf = "(;FF[4]GM[1]SZ[5];B[aa];W[];B[cc])"
 
+    // 5x5 board, five moves. Used for the branch-relative (`startIndex`) walk:
+    // a branch that diverges after move 2 numbers moves 3..5 as 1..3.
+    static let fiveMoveSgf = "(;FF[4]GM[1]SZ[5];B[aa];W[bb];B[cc];W[dd];B[ba])"
+
+    // As fiveMoveSgf but move 4 (index 3) is a pass — inside the branch region.
+    static let branchPassMiddleSgf = "(;FF[4]GM[1]SZ[5];B[aa];W[bb];B[cc];W[];B[ba])"
+
+    // As fiveMoveSgf but the final branch move (index 4) is a pass.
+    static let branchPassEndSgf = "(;FF[4]GM[1]SZ[5];B[aa];W[bb];B[cc];W[dd];B[])"
+
     // Build expected points through the same Location->BoardPoint converter
     // the implementation uses, so tests don't re-encode the y-flip convention.
     private func point(_ x: Int, _ y: Int) -> BoardPoint {
@@ -85,6 +95,50 @@ struct MoveNumbersTests {
     @Test func negativeIndexYieldsEmptyResult() {
         let result = MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: -1)
         #expect(result == .empty)
+    }
+
+    @Test func branchRelativeNumbersFromStartIndex() {
+        // Divergence after move 2 (startIndex 2): only moves 3..5 are numbered,
+        // renumbered 1..3, and the pre-branch stones are absent.
+        let result = MoveNumbers.derive(sgf: Self.fiveMoveSgf, currentIndex: 5, startIndex: 2)
+        #expect(result.numbers == [point(2, 2): 1, point(3, 3): 2, point(1, 0): 3])
+        #expect(result.lastPoint == point(1, 0))
+        #expect(result.lastNumber == 3)
+    }
+
+    @Test func startIndexZeroMatchesDefault() {
+        // startIndex 0 must equal the no-argument call — this pins the Vision
+        // stone-fly paths, which derive without the parameter.
+        #expect(MoveNumbers.derive(sgf: Self.fiveMoveSgf, currentIndex: 5, startIndex: 0)
+                == MoveNumbers.derive(sgf: Self.fiveMoveSgf, currentIndex: 5))
+        #expect(MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: 2, startIndex: 0)
+                == MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: 2))
+    }
+
+    @Test func startIndexAtOrPastCurrentIndexIsEmpty() {
+        #expect(MoveNumbers.derive(sgf: Self.fiveMoveSgf, currentIndex: 3, startIndex: 3) == .empty)
+        #expect(MoveNumbers.derive(sgf: Self.fiveMoveSgf, currentIndex: 3, startIndex: 4) == .empty)
+    }
+
+    @Test func passInsideBranchConsumesARelativeNumber() {
+        // Move 4 (index 3) is a pass: skipped from `numbers` but it still
+        // advances the relative count, so the next stone is number 3.
+        let result = MoveNumbers.derive(sgf: Self.branchPassMiddleSgf, currentIndex: 5, startIndex: 2)
+        #expect(result.numbers == [point(2, 2): 1, point(1, 0): 3])
+        #expect(result.lastPoint == point(1, 0))
+        #expect(result.lastNumber == 3)
+    }
+
+    @Test func branchEndingInPassClearsLastPoint() {
+        let result = MoveNumbers.derive(sgf: Self.branchPassEndSgf, currentIndex: 5, startIndex: 2)
+        #expect(result.numbers == [point(2, 2): 1, point(3, 3): 2])
+        #expect(result.lastPoint == nil)
+        #expect(result.lastNumber == nil)
+    }
+
+    @Test func negativeStartIndexTreatedAsZero() {
+        #expect(MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: 3, startIndex: -5)
+                == MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: 3))
     }
 
     @Test func styleStringsMatchEnumOrder() {
