@@ -193,6 +193,22 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
                       "Goban (Lock button) did not appear after launching the built-in engine")
 
+        // Quiet the board before opening the sheet and toggling a switch. Analysis
+        // runs continuously after launch and keeps the app non-idle, so a
+        // synthesized tap on the Global Settings toggle can land during a board
+        // re-render and be dropped — the run-1/3/4 forensics showed taps landing
+        // geometrically ON the switch control that still never flipped its value,
+        // while an otherwise identical run that happened to tap between re-renders
+        // passed. Wait until analysis is established (a winrate label), then pause
+        // it (one tap on Toggle Analysis) so the board stops churning — the same
+        // guard PlayerNameLabelUITests uses before driving its menus. Pausing is
+        // irrelevant to what this test checks (the relocated display preferences).
+        let winrate = app.staticTexts.matching(identifier: "AnalysisView.winrate").firstMatch
+        _ = winrate.waitForExistence(timeout: 120)
+        let analysisToggle = app.buttons["Toggle Analysis"].firstMatch
+        if analysisToggle.waitForExistence(timeout: 10) { analysisToggle.tap() }
+        usleep(3_000_000)  // 3s settle: let the stop ack drain and re-renders cease
+
         // Open the "More" menu → "Settings"; it opens Global Settings directly.
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
@@ -223,16 +239,29 @@ final class CoreMLCacheFooterUITests: XCTestCase {
                       "'Stone style' picker missing from Global Settings")
 
         // The toggle is interactive and flips state (proves the GobanState wiring).
-        // Tap the trailing edge where the switch control lives (a center tap can
-        // land on the row label), then poll for the value to settle.
+        //
+        // The old single dx:0.92 tap + 3s poll was flaky here (it was fine before
+        // Task 3, when tapping a "Global Settings" hub row and waiting through its
+        // push animation left the sheet settled and the board's churn had subsided).
+        // Two effects combined:
+        //   1. Dropped tap under board churn — the PRIMARY cause. The forensics
+        //      showed taps landing geometrically ON the switch control that still
+        //      never flipped the value, while a lucky run that tapped between
+        //      re-renders passed; the quieting step above (pause analysis) removes
+        //      this by stopping the re-renders.
+        //   2. Moving frame — the Global Settings sheet presents with animation and
+        //      `waitForExistence` returns mid-presentation, so an early tap can fire
+        //      against a still-moving frame.
+        // `flipSwitch` is the belt-and-suspenders: it settles the frame before each
+        // tap, targets the toggle by a fixed inset from the row's right edge, and
+        // re-taps until the value actually flips (recovering any tap still dropped).
         let before = showCoordinate.value as? String
-        showCoordinate.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
-        let flipped = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value != %@", before ?? "1"),
-            object: showCoordinate)
-        XCTAssertEqual(XCTWaiter().wait(for: [flipped], timeout: 3), .completed,
-                       "'Show coordinate' did not toggle from \(before ?? "nil")")
-        showCoordinate.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()   // restore default
+        XCTAssertTrue(flipSwitch(showCoordinate, awayFrom: before ?? "1"),
+                      "'Show coordinate' did not toggle from \(before ?? "nil")")
+        // Restore the default by flipping it back (idempotent reruns). Same
+        // self-healing re-tap on an already-settled screen; a stray miss here is
+        // only cosmetic since the next run re-captures `before`.
+        _ = flipSwitch(showCoordinate, awayFrom: showCoordinate.value as? String ?? "1")
 
         // ----- The per-game "View" tab is gone; the others remain. Game
         // Settings now lives under This Game, so dismiss the Global Settings
@@ -319,6 +348,70 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Blocks until `element` is hittable AND its frame has stopped moving —
+    /// unchanged across `stableChecks` consecutive polls. A presenting sheet
+    /// animates its contents, and `waitForExistence` returns mid-animation, so a
+    /// coordinate tap computed against a still-moving frame misses its target.
+    /// Mirrors PlayerNameLabelUITests' `isStablyPresent` stability-polling idea,
+    /// extended from bare `.exists` to frame + hittability. Returns early once
+    /// settled; falls through after `timeout` so a genuinely stuck frame still
+    /// lets the caller's own assertion report the failure.
+    @MainActor
+    private func waitUntilSettled(_ element: XCUIElement,
+                                  stableChecks: Int = 4,
+                                  gapMicros: UInt32 = 100_000,
+                                  timeout: TimeInterval = 5) {
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous = element.frame
+        var streak = 0
+        while Date() < deadline && streak < stableChecks {
+            usleep(gapMicros)
+            let current = element.frame
+            if element.isHittable && current == previous {
+                streak += 1
+            } else {
+                streak = 0
+            }
+            previous = current
+        }
+    }
+
+    /// Taps a Switch's trailing toggle control and confirms its value moves away
+    /// from `current`, re-tapping up to `attempts` times. A single tap can be
+    /// dropped (delivered during a board re-render) or fired against a still-moving
+    /// frame, and a one-shot tap + poll cannot recover it; each attempt settles the
+    /// frame first, then re-taps only while the value is still `current`. The
+    /// per-attempt poll is generous (a registered tap flips via Observation in well
+    /// under a second), so only a genuinely dropped tap — not a slow one — triggers
+    /// a re-tap, avoiding a double-toggle race. Returns true once the value leaves
+    /// `current`. (The board is also quieted before calling this, which removes the
+    /// dominant dropped-tap cause; the retry loop is defensive insurance.)
+    @MainActor
+    private func flipSwitch(_ sw: XCUIElement,
+                            awayFrom current: String,
+                            attempts: Int = 5,
+                            perAttempt: TimeInterval = 4) -> Bool {
+        for _ in 0..<attempts {
+            waitUntilSettled(sw)
+            // Aim at the trailing toggle control by a fixed inset from the row's
+            // RIGHT EDGE. The switch's a11y frame spans the whole row (a center tap
+            // lands on the label and does not flip a SwiftUI Toggle), and the
+            // forensics measured the control at ~40pt in from the row's right edge;
+            // a right-edge-anchored offset hits it regardless of row width, unlike a
+            // normalized dx:0.92 that drifts with the inset.
+            sw.coordinate(withNormalizedOffset: CGVector(dx: 1.0, dy: 0.5))
+              .withOffset(CGVector(dx: -40, dy: 0))
+              .tap()
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value != %@", current),
+                object: sw)
+            if XCTWaiter().wait(for: [changed], timeout: perAttempt) == .completed {
+                return true
+            }
+        }
+        return false
+    }
 
     /// Swipe until `element` is present, up to `maxSwipes` (off-screen SwiftUI
     /// List/Form cells aren't in the a11y tree).
