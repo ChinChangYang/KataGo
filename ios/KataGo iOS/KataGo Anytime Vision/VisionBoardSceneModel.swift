@@ -11,7 +11,7 @@
 //    └── boardRoot
 //        ├── board model       (go_board_NxN.usdz, feet on y=0)
 //        ├── stonesRoot        (one clone per placed stone)
-//        ├── ghostRoot         (semi-transparent aiming stone)
+//        ├── ghostRoot         (aiming ghost stone / occupied-point focus ring)
 //        └── analysisRoot      (candidate markers + labels)
 //
 
@@ -203,7 +203,7 @@ final class VisionBoardSceneModel {
         // The rebuilt board's first stone batch is a remount, not a move.
         isInitialStoneSync = true
         stoneSyncEpoch += 1
-        setGhost(point: nil, color: .unknown)
+        setGhost(.hidden)
         analysisRoot.children.forEach { $0.removeFromParent() }
         // The caches must empty with the entity tree, or the next sync
         // "updates" detached entities that never re-mount.
@@ -487,9 +487,9 @@ final class VisionBoardSceneModel {
 
     /// Marker attachment entities keyed by vertex (the attachment id).
     private var markerEntities: [String: Entity] = [:]
-    /// Above the ownership quads (+0.0002), below the stones and ghost —
-    /// the 2D overlay's draw order.
-    private static let markerLift: Float = 0.0008
+    /// Above the ownership quads and focus ring, below the stones and
+    /// ghost — the 2D overlay's draw order (VisionOverlayLift z-ladder).
+    private static let markerLift = VisionOverlayLift.markerAttachment
 
     /// How many candidate-move markers the analysis overlay shows.
     static let candidateMoveLimit = 10
@@ -534,14 +534,15 @@ final class VisionBoardSceneModel {
     private var ownershipMesh: MeshResource?
     /// Whiteness/opacity arrive digitized (5ths), so this stays tiny.
     private var ownershipMaterials: [Int: UnlitMaterial] = [:]
-    /// Above the board top (+0.0002), below the marker attachments
-    /// (+0.0008). The quads never share a point with a candidate circle:
+    /// Above the board top, below the focus ring and marker attachments
+    /// (VisionOverlayLift z-ladder).
+    /// The quads never share a point with a candidate circle:
     /// RealityKit cannot sort scene transparents behind attachment planar
     /// UI (`ModelSortGroup.planarUIAlwaysBehind` and a shared explicit
     /// sort group were both no-ops against attachments, visionOS 26.5),
     /// so candidate points are filtered out of the quad list and their
     /// ownership renders inside the attachment (VisionCandidateMarkerView).
-    private static let ownershipLift: Float = 0.0002
+    private static let ownershipLift = VisionOverlayLift.ownershipQuad
 
     /// Diffs the full-board ownership units into flat gray quads hugging the
     /// board — the 3D mirror of AnalysisView.ownerships. Parented under
@@ -632,18 +633,41 @@ final class VisionBoardSceneModel {
 
     // MARK: - Ghost
 
-    /// Shows the aiming ghost stone at `point` in the to-move color, or hides
-    /// it when `point` is nil.
-    func setGhost(point: BoardPoint?, color: PlayerColor) {
-        guard let point, let geometry, let position = geometry.position(of: point) else {
-            ghostEntity?.removeFromParent()
-            ghostEntity = nil
-            ghostColor = .unknown
-            return
+    private var focusRingEntity: ModelEntity?
+    private var focusRingOccupant: PlayerColor = .unknown
+    private var focusRingMesh: MeshResource?
+    private var focusRingMaterials: [PlayerColor: UnlitMaterial] = [:]
+
+    /// Renders the controller cursor: the aiming ghost stone on an empty
+    /// point, the flat focus ring hugging the occupant on an occupied point
+    /// (a translucent stone coinciding with a concrete one reads as a
+    /// glitch), or nothing. Ghost and ring are mutually exclusive by
+    /// construction of VisionGhostAppearance.
+    func setGhost(_ appearance: VisionGhostAppearance) {
+        switch appearance {
+        case .ghost(let color, let point):
+            if let position = geometry?.position(of: point) {
+                removeFocusRing()
+                mountGhostStone(color: color, at: position)
+                return
+            }
+        case .focusRing(let occupant, let point):
+            if let position = geometry?.position(of: point) {
+                removeGhostStone()
+                mountFocusRing(occupant: occupant, at: position)
+                return
+            }
+        case .hidden:
+            break
         }
+        removeGhostStone()
+        removeFocusRing()
+    }
+
+    private func mountGhostStone(color: PlayerColor, at position: SIMD3<Float>) {
         if ghostEntity == nil || ghostColor != color {
             ghostEntity?.removeFromParent()
-            guard let prototype = stonePrototypes[color == .white ? .white : .black] else { return }
+            guard let prototype = stonePrototypes[color] else { return }
             let ghost = prototype.clone(recursive: true)
             // The prototypes carry the placed-stone grounding shadow; a
             // semi-transparent aiming cursor must not cast one.
@@ -654,5 +678,58 @@ final class VisionBoardSceneModel {
             ghostColor = color
         }
         ghostEntity?.position = position
+    }
+
+    private func removeGhostStone() {
+        ghostEntity?.removeFromParent()
+        ghostEntity = nil
+        ghostColor = .unknown
+    }
+
+    private func mountFocusRing(occupant: PlayerColor, at position: SIMD3<Float>) {
+        if focusRingEntity == nil || focusRingOccupant != occupant {
+            removeFocusRing()
+            guard let mesh = focusRingMeshResource() else { return }
+            let ring = ModelEntity(mesh: mesh,
+                                   materials: [focusRingMaterial(for: occupant)])
+            ghostRoot.addChild(ring)
+            focusRingEntity = ring
+            focusRingOccupant = occupant
+        }
+        focusRingEntity?.position = position
+            + SIMD3<Float>(0, VisionFocusRing.lift, 0)
+    }
+
+    private func removeFocusRing() {
+        focusRingEntity?.removeFromParent()
+        focusRingEntity = nil
+        focusRingOccupant = .unknown
+    }
+
+    /// Built once and reused: the ring is sized by physical constants
+    /// (pitch and stone radius), not by board dimensions.
+    private func focusRingMeshResource() -> MeshResource? {
+        if let focusRingMesh { return focusRingMesh }
+        let geometry = VisionFocusRing.makeGeometry()
+        var descriptor = MeshDescriptor(name: "ghostFocusRing")
+        descriptor.positions = MeshBuffers.Positions(geometry.positions)
+        descriptor.normals = MeshBuffers.Normals(
+            Array(repeating: SIMD3<Float>(0, 1, 0),
+                  count: geometry.positions.count))
+        descriptor.primitives = .triangles(geometry.triangleIndices)
+        let mesh = try? MeshResource.generate(from: [descriptor])
+        focusRingMesh = mesh
+        return mesh
+    }
+
+    /// Opaque on purpose — see VisionFocusRing's header.
+    private func focusRingMaterial(for occupant: PlayerColor) -> UnlitMaterial {
+        if let cached = focusRingMaterials[occupant] { return cached }
+        var material = UnlitMaterial(
+            color: UIColor(white: CGFloat(VisionFocusRing.whiteness(occupant: occupant)),
+                           alpha: 1))
+        material.faceCulling = .none
+        focusRingMaterials[occupant] = material
+        return material
     }
 }

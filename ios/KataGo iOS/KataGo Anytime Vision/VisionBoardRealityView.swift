@@ -183,7 +183,10 @@ struct VisionBoardRealityView: View {
     private func applyDynamicState(_ snapshot: SceneSnapshot) {
         sceneModel.setOrientation(standing: snapshot.isBoardStanding, animated: true)
         sceneModel.applyStones(black: snapshot.black, white: snapshot.white)
-        sceneModel.setGhost(point: snapshot.ghostPoint, color: snapshot.nextColor)
+        sceneModel.setGhost(VisionGhostAppearance.resolve(cursor: snapshot.ghostPoint,
+                                                          black: snapshot.black,
+                                                          white: snapshot.white,
+                                                          nextColor: snapshot.nextColor))
         sceneModel.analysisRoot.isEnabled = snapshot.analysisVisible
         sceneModel.applyOwnership(snapshot.ownership)
         sceneModel.setBranchFrame(active: snapshot.isBranchActive)

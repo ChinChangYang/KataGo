@@ -81,6 +81,7 @@
 		2593AFF0249DB1D081BCCD34 /* zero_copy_stream_impl_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = A44E8E22CE4E5A8FDE17A8B0 /* zero_copy_stream_impl_lite.cc */; };
 		25D2E7192E786A192AE70232 /* GobanRecogKit in Frameworks */ = {isa = PBXBuildFile; productRef = C10478A9FA419EE22FAA8363 /* GobanRecogKit */; };
 		25E9CB6E9506E72BCA4DA657 /* failure_signal_handler.cc in Sources */ = {isa = PBXBuildFile; fileRef = C253BE842822B3F43B08DFEB /* failure_signal_handler.cc */; };
+		268B47AE4F414A937EF29E4B /* VisionGhostAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */; };
 		2717C92260FDD88E888D09E3 /* VisionGamePickerItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9B3B7247EE0BC34930C01F /* VisionGamePickerItemTests.swift */; };
 		27873E208A570258C4053732 /* img_00009.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 76D12F727823A07FCF85CFDC /* img_00009.jpg */; };
 		28047B110419251A5427D7F1 /* marshalling.cc in Sources */ = {isa = PBXBuildFile; fileRef = D53357C0B8CA23F49DBCC01E /* marshalling.cc */; };
@@ -189,6 +190,7 @@
 		58588878BFF4FE0A09BD0352 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 07EE140D5EE71D5EF16E0E27 /* Foundation.framework */; };
 		585A135BE268886E031FA9A2 /* time_zone_fixed.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */; };
 		586E19A271956325BE8212F2 /* BoardTopTextureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC19951736E383CCB25292A /* BoardTopTextureTests.swift */; };
+		58DE63DECA653CFD6667C26B /* VisionFocusRingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630EF85B2FFDFBC125339FB4 /* VisionFocusRingTests.swift */; };
 		59957A85C884C1E8B577B507 /* SavedGameWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3769E551EAA2A9E3729CFA14 /* SavedGameWidgetView.swift */; };
 		5AD1A5BA9300BBAABC9954F8 /* demangle.cc in Sources */ = {isa = PBXBuildFile; fileRef = FDB0EF5683E83342322E62D3 /* demangle.cc */; };
 		5B6694CD33E651795A0C7B28 /* GhostCursorModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26F1D6C1ED3EB7615BCE57B /* GhostCursorModelTests.swift */; };
@@ -1186,6 +1188,7 @@
 		600FF4D6555CDCE2390DAD5C /* NeuralNetwork.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = NeuralNetwork.pb.cc; path = ../../cpp/external/katagocoreml/generated/NeuralNetwork.pb.cc; sourceTree = SOURCE_ROOT; };
 		60CA0A3D8E5E961B5623F5E4 /* flag.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = flag.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/flag.cc"; sourceTree = SOURCE_ROOT; };
 		60E6EEEF11176A47A8CB6554 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = KataGoAnytimeMessages/Assets.xcassets; sourceTree = "<group>"; };
+		630EF85B2FFDFBC125339FB4 /* VisionFocusRingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionFocusRingTests.swift; sourceTree = "<group>"; };
 		63451C3EC52A31C93708C06A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		644ED7C199FE381B2216711F /* StoneAnimationPlannerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StoneAnimationPlannerTests.swift; sourceTree = "<group>"; };
 		653962734D16C68890A2E6FD /* parse_context.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = parse_context.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/parse_context.cc"; sourceTree = SOURCE_ROOT; };
@@ -1708,6 +1711,7 @@
 		E7776E5E187A8BB25B0B7CE5 /* WatchSessionRelay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchSessionRelay.swift; path = "KataGo iOS/Watch/WatchSessionRelay.swift"; sourceTree = "<group>"; };
 		E8E383171269D317AA11DF7F /* BoardAccessibilityElementsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardAccessibilityElementsTests.swift; sourceTree = "<group>"; };
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
+		EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionGhostAppearanceTests.swift; sourceTree = "<group>"; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
 		EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		EC487969D102B8B2B1690658 /* VisionBoardSizeSettingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBoardSizeSettingTests.swift; sourceTree = "<group>"; };
@@ -2942,6 +2946,8 @@
 				FDDEEAEC0E1D668B74739AE9 /* GobanStateBranchNumberingTests.swift */,
 				E3FC389ED7288F5E432B7D11 /* GobanStateBranchClampTests.swift */,
 				AB7ACEB4432676C73712CA5A /* FileOpenClassifierTests.swift */,
+				EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */,
+				630EF85B2FFDFBC125339FB4 /* VisionFocusRingTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4267,6 +4273,8 @@
 				026538E3B0685D326955286D /* GobanStateBranchNumberingTests.swift in Sources */,
 				95124FA888F0EA53781B850F /* GobanStateBranchClampTests.swift in Sources */,
 				C2136E36D8FE7CEC9C287806 /* FileOpenClassifierTests.swift in Sources */,
+				268B47AE4F414A937EF29E4B /* VisionGhostAppearanceTests.swift in Sources */,
+				58DE63DECA653CFD6667C26B /* VisionFocusRingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
