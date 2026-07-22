@@ -75,19 +75,19 @@ Board sizes: 2x2 to 37x37.
         .init(
             title: "Official KataGo Network",
             description: """
-This is the strongest confidently-rated network in KataGo's distributed training. It runs on Apple devices through the Neural Engine (CoreML) or the GPU (MLX). As a 40-block network it is the most accurate option, but it is a large (~824 MB) download and runs slower and uses more power than smaller networks — best suited to capable devices.
+This is the strongest confidently-rated network in KataGo's distributed training. It runs on Apple devices through the Neural Engine (CoreML) or the GPU (MLX). As a 40-block network it is the most accurate option, but it is a large (~823 MB) download and runs slower and uses more power than smaller networks — best suited to capable devices.
 
 This app will irregularly update the URL for the strongest confidently-rated network. If a new network becomes available, you can keep using your current one or manually switch by deleting it and downloading the latest version.
 
-Name: kata1-zhizi-b40c768nbt-fdx6d.
-Uploaded at: 2026-05-02 17:09:37 UTC.
-Elo Rating: 14501.5 ± 21.6 - (4,296 games).
+Name: kata1-zhizi-b40c768nbt-s11272M-d5935M.
+Uploaded at: 2026-06-06 22:20:26 UTC.
+Elo Rating: 14549.0 ± 25.1 - (3,513 games).
 
 Board sizes: 2x2 to 37x37.
 """,
-            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-zhizi-b40c768nbt-fdx6d.bin.gz",
+            url: "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-zhizi-b40c768nbt-s11272M-d5935M.bin.gz",
             fileName: "official.bin.gz",
-            fileSize: 863_846_339
+            fileSize: 863_210_287
         ),
         .init(
             title: "FD3 Network",
