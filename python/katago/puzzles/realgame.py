@@ -21,13 +21,13 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from katago.game.board import Board
-from katago.puzzles.endgame import KOMI, _fmt, result_string, to_sgf
+from katago.puzzles.endgame import _fmt, to_sgf
 
 DIFFICULTY_MIN = 1
 DIFFICULTY_MAX = 999
 _COLS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 _PUZZLES_PATH = os.path.join(os.path.dirname(__file__), "games", "puzzles.json")
-_WINDOW = 24  # how many nearest-difficulty puzzles a seed selects among
+_WINDOW = 10  # how many nearest-difficulty puzzles a seed selects among
 
 _CACHE: Optional[List[dict]] = None
 
@@ -84,27 +84,23 @@ def generate_endgame_puzzle(difficulty: int, seed: int) -> EndgamePuzzle:
     rng = random.Random("realgame|%d|%d" % (difficulty, int(seed)))
     entry = puzzles[rng.choice(window)]
 
-    stm = Board.BLACK if entry["to_move"] == "B" else Board.WHITE
+    # Every puzzle is Black to play; the per-puzzle komi is set so that best play
+    # wins by exactly 0.5, while the natural (tempting) move loses.
     board = _board_from(entry)
-    black_lead = entry["best_black_lead"]            # black-minus-white incl. komi
-    result = result_string(black_lead)
-    stm_char = "Black" if stm == Board.BLACK else "White"
-    trap = ""
-    if entry.get("natural_cost", 0) > 0:
-        trap = (" The natural move %s loses about %.1f point(s)."
-                % (entry["natural_move"], entry["natural_cost"]))
+    komi = entry["komi"]
     comment = (
-        "%s to play (real KataGo game endgame). Difficulty %d/999. "
-        "Find the best move and play to two passes; scored by area, komi %s. "
-        "KataGo's move: %s; expected result with best play: %s.%s"
-        % (stm_char, difficulty, _fmt(KOMI), entry["best_move"], result, trap)
+        "Black to play and win by 0.5 (real KataGo game endgame). Difficulty %d/999. "
+        "Komi %s. Play to two passes; scored by area. KataGo's move: %s wins by 0.5; "
+        "the natural move %s loses about %.1f point(s)."
+        % (difficulty, _fmt(komi), entry["best_move"],
+           entry["natural_move"], entry["natural_cost"])
     )
-    sgf = to_sgf(board, stm, comment)
+    sgf = to_sgf(board, Board.BLACK, comment, komi=komi)
     return EndgamePuzzle(
         sgf=sgf,
-        side_to_move=stm,
+        side_to_move=Board.BLACK,
         best_first_moves=[entry["best_move"]],
-        optimal_score=black_lead,
+        optimal_score=0.5,               # Black wins by exactly 0.5 with best play
         difficulty=difficulty,
         natural_move=entry.get("natural_move", ""),
         natural_cost=entry.get("natural_cost", 0.0),

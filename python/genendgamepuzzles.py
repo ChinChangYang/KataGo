@@ -93,14 +93,13 @@ def main(argv=None):
         puzzle = generate_endgame_puzzle(args.difficulty, seed)
         print(puzzle.sgf)
         if args.show:
-            side = "Black" if puzzle.side_to_move == Board.BLACK else "White"
-            trap = ""
-            if puzzle.natural_cost > 0:
-                trap = "  trap=%s(-%.1f)" % (puzzle.natural_move, puzzle.natural_cost)
+            komi = re.search(r"KM\[([-0-9.]+)\]", puzzle.sgf).group(1)
             sys.stderr.write(
-                "# difficulty=%d/%d seed=%d  %s to play  best=%s  lead=%+.1f%s\n"
-                % (args.difficulty, DIFFICULTY_MAX, seed, side,
-                   ",".join(puzzle.best_first_moves), puzzle.optimal_score, trap)
+                "# difficulty=%d/%d seed=%d  Black to play, win by 0.5  komi=%s  "
+                "best=%s  natural=%s loses %.1f\n"
+                % (args.difficulty, DIFFICULTY_MAX, seed, komi,
+                   ",".join(puzzle.best_first_moves), puzzle.natural_move,
+                   puzzle.natural_cost)
             )
             sys.stderr.write(_board_from_sgf(puzzle.sgf).to_string() + "\n\n")
 

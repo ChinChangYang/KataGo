@@ -37,10 +37,11 @@ python -m katago.puzzles.tools.gen_games \
 
 ## 3. Extract + calibrate puzzles
 
-Selects endgame positions (mostly-settled board, a genuine decision), scores each
-by how non-obvious KataGo's best move is (low policy prior), whether the natural
-move is a costly trap, and board complexity, then maps the scores to difficulty
-`1..999` by percentile.
+Selects endgame positions (mostly-settled board, a genuine decision where the
+natural move is a costly trap), makes each **Black to play** (colour-flipping if
+needed) with a **per-puzzle komi** so best play wins by exactly Black+0.5, scores
+difficulty by how non-obvious KataGo's best move is (low policy prior), the trap's
+temptation/cost, and board complexity, then maps to `1..999` by percentile.
 
 ```bash
 python -m katago.puzzles.tools.build_corpus \
@@ -52,6 +53,7 @@ stronger net / higher visits) to grow variety and refine the difficulty scale.
 
 ## Grading in the app
 
-Each puzzle records KataGo's best move and the expected result with best play. The
-app plays the position out to two passes and grades it with its own KataGo
-("score by AI"): the player is correct if their side achieves the expected result.
+Each puzzle is Black to play with a komi tuned so best play wins by exactly 0.5.
+The app plays the position out to two passes and grades it with its own KataGo
+("score by AI"): the player is correct only if Black still wins by 0.5 — the
+tempting natural move loses.

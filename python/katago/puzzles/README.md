@@ -4,15 +4,21 @@
 text**, deterministically from an integer `(difficulty, seed)`. Built for the
 **KataGo Anytime** iOS app.
 
-## Real-game puzzles (current generator)
+## Real-game "win by 0.5" puzzles (current generator)
 
 Each puzzle is a **mostly-settled position from a real 9×9 KataGo self-play game**
-— a random / high-temperature opening for variety, then strong play into a rich
-real endgame. The "answer" is **KataGo's best move and its expected result**; the
-app plays the position out to two passes and grades it with KataGo ("score by AI").
-Because the puzzles come from real games, they are genuine, varied yose — including
-tesuji and tricky moves where the *natural* move is a trap — at a difficulty a
-constructed generator can't reach.
+(random / high-temperature opening for variety, then strong play into a rich real
+endgame), served as a sharp quiz:
+
+> **Black to play and win by exactly 0.5 — but only if you find the right move.**
+
+Every puzzle is **Black to play**. Each has a **per-puzzle komi** set so that best
+play wins by exactly **Black+0.5**, while the **natural (most tempting) move loses**.
+The exact best-play margin is the game's own settled final area score; the amount
+the natural move loses is KataGo's per-move estimate. The app plays the position out
+to two passes and grades it with KataGo ("score by AI"). Because the positions come
+from real games, they are genuine, varied yose — including tesuji where the natural
+move is a trap.
 
 ```python
 from katago.puzzles import generate_endgame_puzzle, generate_endgame_sgf
@@ -20,13 +26,13 @@ from katago.puzzles import generate_endgame_puzzle, generate_endgame_sgf
 sgf = generate_endgame_sgf(difficulty=500, seed=42)   # difficulty is an int 1..999
 
 p = generate_endgame_puzzle(difficulty=999, seed=7)
-p.sgf               # SGF-formatted text (SZ[9] KM[7.5] RU[TrompTaylor] PL[..] AB/AW + comment)
-p.side_to_move      # Board.BLACK / Board.WHITE (the human)
-p.best_first_moves  # KataGo's best move, e.g. ["C7"]
-p.optimal_score     # KataGo expected black-area − white-area incl. komi
+p.sgf               # SGF text (SZ[9] KM[<per-puzzle>] RU[TrompTaylor] PL[B] AB/AW + comment)
+p.side_to_move      # always Board.BLACK
+p.best_first_moves  # KataGo's winning move, e.g. ["C7"]
+p.optimal_score     # 0.5  (Black wins by exactly 0.5 with best play)
 p.difficulty        # 1..999
-p.natural_move      # the tempting move (highest policy prior), if any
-p.natural_cost      # points the natural move loses vs best
+p.natural_move      # the tempting move that loses
+p.natural_cost      # points the natural move loses (>= 1)
 ```
 
 `difficulty` is an **integer in `[1, 999]`** (1 easiest, 999 hardest), clamped. Same
@@ -60,10 +66,10 @@ python genendgamepuzzles.py -d hard -s 0 --count 5       # names also map to int
 ## SGF format
 
 Single line, KataGo-compatible:
-`(;FF[4]GM[1]SZ[9]PB[Black]PW[White]HA[0]KM[7.5]RU[TrompTaylor]PL[B]AB[…]AW[…]C[…])`
-— `AB`/`AW` setup stones (SGF letters, top-origin), explicit `PL` for the side to
-move, and a comment with KataGo's best move, the expected result, and any trap. No
-`RE` (the game is not yet played).
+`(;FF[4]GM[1]SZ[9]PB[Black]PW[White]HA[0]KM[<per-puzzle>]RU[TrompTaylor]PL[B]AB[…]AW[…]C[…])`
+— `AB`/`AW` setup stones (SGF letters, top-origin), `PL[B]` (always Black to move),
+a **per-puzzle `KM`** (half-integer, tuned so best play wins by 0.5), and a comment
+with KataGo's winning move and the losing natural move. No `RE` (not yet played).
 
 ## Also included: a self-contained constructed generator
 
