@@ -40,7 +40,7 @@ public struct StoneAnimationPlanner {
     /// sees), not commit-driven like GobanState's GTP-time sound.
     public enum SoundCue: Equatable, Sendable {
         case none
-        /// Play now: a lift-off, or a batch update's single click.
+        /// Play now: a batch update's single click.
         case playImmediately
         /// Play when the flying stone lands (flyInDuration after the
         /// animation starts).
@@ -48,11 +48,11 @@ public struct StoneAnimationPlanner {
     }
 
     /// Decides the sound cue for a resolved diff. A fly-in sounds at
-    /// landing; a fly-away sounds at lift-off; a non-empty diff with
-    /// nothing animating is a batch update (L2/R2 jump) and clicks once —
-    /// unless it is the first sync after boot, a board rebuild, or a game
-    /// switch (`isInitialSync`), which must stay silent: loading a game is
-    /// not a move.
+    /// landing; a fly-away is silent — a stone leaving the board is not a
+    /// stone hitting it; a non-empty diff with nothing animating is a batch
+    /// update (L2/R2 jump) and clicks once — unless it is the first sync
+    /// after boot, a board rebuild, or a game switch (`isInitialSync`),
+    /// which must stay silent: loading a game is not a move.
     public static func soundCue(effect: Effect,
                                 additions: Int,
                                 removals: Int,
@@ -61,7 +61,7 @@ public struct StoneAnimationPlanner {
         case .flyIn:
             return .playAfterFlyIn
         case .flyAway:
-            return .playImmediately
+            return .none
         case .none:
             guard additions > 0 || removals > 0, !isInitialSync else { return .none }
             return .playImmediately

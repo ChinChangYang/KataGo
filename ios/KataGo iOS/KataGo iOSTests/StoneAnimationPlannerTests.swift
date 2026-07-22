@@ -167,11 +167,13 @@ struct StoneAnimationPlannerTests {
                                                isInitialSync: true) == .playAfterFlyIn)
     }
 
-    @Test func flyAwayCuesImmediateSound() {
+    @Test func flyAwayIsSilent() {
+        // A stone leaving the board is not a stone hitting it (user
+        // feedback: the undo fly-off should make no sound).
         #expect(StoneAnimationPlanner.soundCue(effect: .flyAway(p),
                                                additions: 0,
                                                removals: 1,
-                                               isInitialSync: false) == .playImmediately)
+                                               isInitialSync: false) == .none)
     }
 
     @Test func batchDiffCuesOneImmediateSound() {

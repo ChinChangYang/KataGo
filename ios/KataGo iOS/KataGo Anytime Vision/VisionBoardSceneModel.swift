@@ -58,8 +58,8 @@ final class VisionBoardSceneModel {
     /// re-mounting there can replace the in-flight entity.
     private var flyingAway: [BoardPoint: Entity] = [:]
     /// Plays the stone placement click; the root wires it to the AudioModel.
-    /// Sound is scene-driven on this platform (it fires at the landing or
-    /// lift-off the cue picks), replacing GobanState's commit-time sound.
+    /// Sound is scene-driven on this platform (it fires when the cue says a
+    /// stone lands), replacing GobanState's commit-time sound.
     var playStoneSound: (() -> Void)?
     /// True until the first non-empty stone diff after boot, a board
     /// rebuild, or a game switch — that remount batch must stay silent.
@@ -350,8 +350,9 @@ final class VisionBoardSceneModel {
                                                  additions: addedPoints.count,
                                                  removals: removedPoints.count,
                                                  isInitialSync: isInitialStoneSync)
-        // A lift-off or batch click plays now; the fly-in landing click is
-        // scheduled at the mount site below, where the entity is in hand.
+        // A batch click plays now (fly-aways are silent); the fly-in landing
+        // click is scheduled at the mount site below, where the entity is in
+        // hand.
         if cue == .playImmediately {
             playStoneSound?()
         }

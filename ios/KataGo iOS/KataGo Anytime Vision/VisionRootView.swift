@@ -42,10 +42,10 @@ struct VisionRootView: View {
     private var gameRecords: [GameRecord]
 
     var body: some View {
-        // Two independently type-checked halves — the combined ~380-line
+        // Independently type-checked pieces — the combined ~380-line
         // modifier chain blew the compiler's expression budget once the
         // stone-animation hooks landed.
-        engineEventHooks(bootChrome)
+        captureSoundHooks(engineEventHooks(bootChrome))
     }
 
     /// The volumetric content, every ornament, and the boot/run-loop
@@ -472,6 +472,26 @@ struct VisionRootView: View {
         .onChange(of: deepLinkRouter.pendingGameID) { _, newValue in
             guard newValue != nil else { return }
             applyPendingDeepLink()
+        }
+    }
+
+    /// Capture rattle (BoardView's capture-count observers, which never
+    /// mount on Vision) — a capturing move plays this on top of the scene's
+    /// landing click, iOS-style. Count-driven, so R2 jumps over captures
+    /// rattle too, and it fires at showboard-parse time, slightly before
+    /// the landing click. `soundEffect: true` because gobanState.soundEffect
+    /// deliberately stays false here (same as playStoneSound).
+    private func captureSoundHooks(_ content: some View) -> some View {
+        content
+        .onChange(of: session.stones.blackStonesCaptured) { oldValue, newValue in
+            if oldValue < newValue {
+                audioModel.playCaptureSound(soundEffect: true)
+            }
+        }
+        .onChange(of: session.stones.whiteStonesCaptured) { oldValue, newValue in
+            if oldValue < newValue {
+                audioModel.playCaptureSound(soundEffect: true)
+            }
         }
     }
 
