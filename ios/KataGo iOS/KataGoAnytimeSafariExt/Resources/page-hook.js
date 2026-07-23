@@ -224,11 +224,14 @@
     };
 
     // Ownership heatmap: ONE custom object painting the whole grid in a
-    // single canvas pass; stones get a dimmed ring instead of a full square
-    // so the position stays readable. White-positive values (engine order:
-    // top-left, row-major).
+    // single canvas pass. White-positive values (engine order: top-left,
+    // row-major). Custom handlers MUST be layer-keyed — WGo's redraw does
+    // `for (d in handler) handler[d].draw.call(board[d].getContext(...))`,
+    // so a flat {draw} makes board["draw"].getContext throw (swallowed by
+    // WGo's try/catch) and nothing paints.
     const ownershipHandler = {
-        draw(args, board) {
+        stone: {
+            draw(args, board) {
             if (!args || !Array.isArray(args.values)) { return; }
             const w = args.width, h = args.height;
             if (!Number.isFinite(w) || !Number.isFinite(h)) { return; }
@@ -251,6 +254,7 @@
                     this.fillRect(cx - fw / 2, cy - fh / 2, fw, fh);
                 }
             }
+            },
         },
     };
 })();
