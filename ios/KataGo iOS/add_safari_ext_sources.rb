@@ -19,6 +19,17 @@ NEW_SOURCES.each do |f|
   puts "added #{f}"
 end
 
+# Register any unregistered top-level web-bundle entries (files land at the
+# appex Resources root where Safari expects manifest.json; dirs keep paths).
+res_dir = File.join(__dir__, EXT, 'Resources')
+Dir.children(res_dir).sort.each do |entry|
+  next if entry == '.DS_Store'
+  next if ext.resources_build_phase.files.any? { |bf| bf.file_ref&.path&.end_with?("Resources/#{entry}") }
+  ref = group.new_reference("#{EXT}/Resources/#{entry}")
+  ext.resources_build_phase.add_file_reference(ref)
+  puts "added resource #{entry}"
+end
+
 unless ext.package_product_dependencies.any? { |d| d.product_name == 'KataGoAnalysisKit' }
   pkg = project.root_object.package_references.find do |r|
     r.respond_to?(:relative_path) && r.relative_path == 'KataGoUICore'

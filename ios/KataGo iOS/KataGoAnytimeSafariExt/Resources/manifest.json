@@ -9,6 +9,27 @@
         "persistent": false
     },
 
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["page-hook.js"],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": ["<all_urls>"],
+            "js": ["chart.js", "content.js"],
+            "run_at": "document_start"
+        }
+    ],
+
+    "web_accessible_resources": [
+        {
+            "resources": ["page-hook.js"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+
     "action": {
         "default_title": "KataGo Anytime"
     },
