@@ -1,0 +1,17 @@
+{
+    "manifest_version": 3,
+    "name": "KataGo Anytime for Safari",
+    "version": "1.0",
+    "description": "Blends KataGo analysis into WGo.js game viewers.",
+
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+
+    "action": {
+        "default_title": "KataGo Anytime"
+    },
+
+    "permissions": ["nativeMessaging", "storage"]
+}

@@ -119,6 +119,7 @@
 		399AE7C43D9013FB14F3A670 /* SoundAnalysisPreprocessing.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 025B5C9B251E56A5347903A9 /* SoundAnalysisPreprocessing.pb.cc */; };
 		399D0D0800A176514CDD7F63 /* format.cc in Sources */ = {isa = PBXBuildFile; fileRef = B55A917374F587FC1DBCF8EA /* format.cc */; };
 		3B8E414B10C94A95DE5FE031 /* GoRulesKitDifferentialTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822673B4EEF44EB6FD7AE33D /* GoRulesKitDifferentialTests.swift */; };
+		3B8F732010F03A8BAFE5D004 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2BD71A6F8B7C39DEAE8AC40 /* Cocoa.framework */; };
 		3CC3BF9290601362CD39A70F /* memutil.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7277C8329AF7F301DC2BFAD2 /* memutil.cc */; };
 		3D306E9EEE8BCDF3BF9945E0 /* CategoricalMapping.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 87E1439C0CFA7198419527B7 /* CategoricalMapping.pb.cc */; };
 		3D8E36B373094D9A65DB37ED /* create_thread_identity.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4D6E52745365E94504045919 /* create_thread_identity.cc */; };
@@ -226,6 +227,7 @@
 		6A614E05BB66D9E3D3E72910 /* CoreMLCacheFooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA9459098591F8CFCA2EF39 /* CoreMLCacheFooterView.swift */; };
 		6B5D3467F4A0A533D9DEB083 /* img0811.jpg in Resources */ = {isa = PBXBuildFile; fileRef = CF7C0984E748B1EB654DDB89 /* img0811.jpg */; };
 		6C3C4578D360047862599751 /* Operations.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9214156EA4D6514A86F1A8E6 /* Operations.cpp */; };
+		6CA581B47480F89098AB62D1 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E42196B71F8266DDD0E4FAC /* SafariWebExtensionHandler.swift */; };
 		6CCF5979558E293AF9F03C87 /* CoreMLCacheKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9303CC325F736AFF2EA3AE69 /* CoreMLCacheKit */; };
 		6CDEDAB7B8E68A682F024BB0 /* TVStoreReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA3F6789C0DB0E0296968D1 /* TVStoreReset.swift */; };
 		6D7F0C23CCCD0B050E1CC27A /* GameScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B1350A7A2579A5FB5E1CE9 /* GameScreenView.swift */; };
@@ -257,6 +259,7 @@
 		7A43A80CA476432883E1E82F /* Model.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2F5D1E35537739536323FC2B /* Model.pb.cc */; };
 		7B0589FD3D239038D3CFBB38 /* status.cc in Sources */ = {isa = PBXBuildFile; fileRef = B797CDE40306D2B33B324106 /* status.cc */; };
 		7B7A8A5EBC705F062329CC27 /* CameraGuidanceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C276ADB6F25F433978EE27AB /* CameraGuidanceLogicTests.swift */; };
+		7BC60EBA64481273183D9284 /* KataGoEngineIPC in Frameworks */ = {isa = PBXBuildFile; productRef = 5EB65B8D4E0E88C2400D7DDE /* KataGoEngineIPC */; };
 		7BC7F57D5EEC16F72B408AE0 /* GameDeepLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7023D041CA26D8703A89B7E8 /* GameDeepLinkTests.swift */; };
 		7BE7508A1A325ECFBB95B008 /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		7C5092DB71E45CB5DB9D92FA /* KataGoAnytimeWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8C5F426AC374D3E6189EB0A /* KataGoAnytimeWidgetBundle.swift */; };
@@ -293,6 +296,7 @@
 		8A6D501465C1CAA682321FC1 /* cord_rep_consume.cc in Sources */ = {isa = PBXBuildFile; fileRef = 20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */; };
 		8B5C821F39BAB8C356EF381F /* WordTagger.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3E43595BDCD7D445A13635F /* WordTagger.pb.cc */; };
 		8BC1ECD0881AAE40EBD51E9F /* entropy_pool.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1F0BA6B9BFF12E6C4D710DFA /* entropy_pool.cc */; };
+		8C8A7577C2922F3EF05D10EF /* KataGoAnytimeSafariExt.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D7AC7A386F0F1AD7B2364A7 /* KataGoAnytimeSafariExt.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8DCF5089D9460D2EE30FE445 /* WatchBoardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856DE13BF70384D14C92FA0B /* WatchBoardPage.swift */; };
 		8DD03C8206F47BF0AA019717 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
 		8E2FAFF53D1751FC110D9612 /* GamePickerPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE513B9F0282786C59038F8 /* GamePickerPerformanceTests.swift */; };
@@ -468,6 +472,7 @@
 		DAFEAFEE11D7CC1D6F57E5B9 /* escaping.cc in Sources */ = {isa = PBXBuildFile; fileRef = D1CBE5B8CC729712593159CF /* escaping.cc */; };
 		DB71C9CC1F94AC22E78C18F5 /* cord_rep_btree_navigator.cc in Sources */ = {isa = PBXBuildFile; fileRef = 1E1094C011D3FB807C589B00 /* cord_rep_btree_navigator.cc */; };
 		DBC1AFC0053EB14FB17F9A7C /* crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = 735B5C87C4CA780F3E97EBA4 /* crc.cc */; };
+		DC63E78EB613FDB4D38C9A86 /* KataGoGameStore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A5EECD8663192A191D939D4 /* KataGoGameStore */; };
 		DD2995ADAC6DF33E2A0675C8 /* SgfOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8F496C46C725561F7C5FE5 /* SgfOperationsTests.swift */; };
 		DD2A02CBBD4C336E9FA48A60 /* private_handle_accessor.cc in Sources */ = {isa = PBXBuildFile; fileRef = 22D8D0DC676FBF50F1B5ABDB /* private_handle_accessor.cc */; };
 		DD9B8DC9B74721FCA5B5C001 /* img0811.bgr.raw in Resources */ = {isa = PBXBuildFile; fileRef = 6FB9A83B815280DFE56CEDB6 /* img0811.bgr.raw */; };
@@ -722,6 +727,7 @@
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E316F37DF64A96CFB010EC7B /* BoardAssets in Resources */ = {isa = PBXBuildFile; fileRef = 679F57E31260E5DA9F83608A /* BoardAssets */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
+		E3F78E4252234948099BEDC7 /* background.js in Resources */ = {isa = PBXBuildFile; fileRef = D6AA7C3F62D5275D95848989 /* background.js */; };
 		E42506649736E1E099C8508F /* VisionOrnamentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162FD90AC29C875EBEC571F8 /* VisionOrnamentViews.swift */; };
 		E5137D84D308B565E7F4CCE7 /* pow10_helper.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CA99DECEC565A8514335 /* pow10_helper.cc */; };
 		E520E06A88E0C6F0F7708443 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -766,6 +772,7 @@
 		FB32590892D4D77692B06440 /* proto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 5421AC611426CA58B63851AA /* proto.cc */; };
 		FB7896588E7AD07358BB0F87 /* low_level_alloc.cc in Sources */ = {isa = PBXBuildFile; fileRef = F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */; };
 		FB837966B539CDE805A6F7E7 /* mlxbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AA91BA746BA0FCE55DA6F2 /* mlxbackend.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
+		FBCB2F4FAAA80A45743C5393 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 2F23BABCEF3EAE5AFD3CB23C /* manifest.json */; };
 		FC4F55556A9D31C8558FA2BE /* GobanStateContinuousAnalysisIntervalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 876A25DE1BBD86CDB55DB02F /* GobanStateContinuousAnalysisIntervalTests.swift */; };
 		FD119B162197599E55BBC0E2 /* pthread_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3C39B0A142771516A0722DE4 /* pthread_waiter.cc */; };
 		FDA37BB958B02DBE4E86F1EC /* leak_check.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2B43A2B22F763467E4437FEE /* leak_check.cc */; };
@@ -780,6 +787,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = E118EE8F2B081C3200637D44;
 			remoteInfo = katago;
+		};
+		41ED10D4A8527D10BE2BE9C0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 15C971C45E9D041CE7D63332;
+			remoteInfo = KataGoAnytimeSafariExt;
 		};
 		45E17778ADF719EF9379250B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -974,6 +988,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				0E2F0EC5BBB28E8747AC6A46 /* KataGoAnytimeWidget.appex in Embed Foundation Extensions */,
+				8C8A7577C2922F3EF05D10EF /* KataGoAnytimeSafariExt.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1106,6 +1121,7 @@
 		2B43A2B22F763467E4437FEE /* leak_check.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = leak_check.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/leak_check.cc"; sourceTree = SOURCE_ROOT; };
 		2E3892CA59B0D5D89BE6327A /* VisionEngineController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionEngineController.swift; path = "KataGo Anytime Vision/VisionEngineController.swift"; sourceTree = "<group>"; };
 		2E68FA51F431F3FDCF3DA465 /* randen_hwaes.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_hwaes.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_hwaes.cc"; sourceTree = SOURCE_ROOT; };
+		2F23BABCEF3EAE5AFD3CB23C /* manifest.json */ = {isa = PBXFileReference; includeInIndex = 1; name = manifest.json; path = KataGoAnytimeSafariExt/Resources/manifest.json; sourceTree = "<group>"; };
 		2F23D1C2FC87B93A4D059F1B /* randen_detect.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = randen_detect.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/randen_detect.cc"; sourceTree = SOURCE_ROOT; };
 		2F5D1E35537739536323FC2B /* Model.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Model.pb.cc; path = ../../cpp/external/katagocoreml/generated/Model.pb.cc; sourceTree = SOURCE_ROOT; };
 		2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KataGoAnytimeWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1131,6 +1147,7 @@
 		4041DD0A93E44FC303CE8A5C /* SavedGameBackgroundTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameBackgroundTests.swift; sourceTree = "<group>"; };
 		40A265B1DCFCFBEE2F70C0A7 /* cordz_handle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_handle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_handle.cc"; sourceTree = SOURCE_ROOT; };
 		41A69C74A59A561EBAC47B36 /* nanobenchmark.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nanobenchmark.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/nanobenchmark.cc"; sourceTree = SOURCE_ROOT; };
+		42385F0B74576452C7F1E237 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeSafariExt/Info.plist; sourceTree = "<group>"; };
 		42760A66F532E2E8D114E32A /* time_zone_libc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_libc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_libc.cc"; sourceTree = SOURCE_ROOT; };
 		42798C28CF4A273F0A2ECE56 /* cordz_info.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_info.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_info.cc"; sourceTree = SOURCE_ROOT; };
 		433D009D933AB313A1441C93 /* status_payload_printer.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status_payload_printer.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status_payload_printer.cc"; sourceTree = SOURCE_ROOT; };
@@ -1179,6 +1196,7 @@
 		5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameProviderTests.swift; sourceTree = "<group>"; };
 		5C4E95A95BD9FCFF980A2DE4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeMessages/Info.plist; sourceTree = "<group>"; };
 		5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_material.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/seed_material.cc"; sourceTree = SOURCE_ROOT; };
+		5DEB80FD375524597006B528 /* KataGoAnytimeSafariExt.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = KataGoAnytimeSafariExt.entitlements; path = KataGoAnytimeSafariExt/KataGoAnytimeSafariExt.entitlements; sourceTree = "<group>"; };
 		5E1405189D7D3837B2A46C2C /* log_sink.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_sink.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_sink.cc"; sourceTree = SOURCE_ROOT; };
 		5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		5E6A38E6EFA35EA8E7902554 /* KataGo Anytime Vision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime Vision.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1244,6 +1262,7 @@
 		7D5F183562E888ACF1F14799 /* inlined_string_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = inlined_string_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/inlined_string_field.cc"; sourceTree = SOURCE_ROOT; };
 		7D9B3B7247EE0BC34930C01F /* VisionGamePickerItemTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionGamePickerItemTests.swift; sourceTree = "<group>"; };
 		7E0359992D4550BD5E766B73 /* SavedGameProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SavedGameProvider.swift; path = KataGoAnytimeWidget/SavedGameProvider.swift; sourceTree = "<group>"; };
+		7E42196B71F8266DDD0E4FAC /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SafariWebExtensionHandler.swift; path = KataGoAnytimeSafariExt/SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
 		7EA0CA579F5BF1AD84A44275 /* hashtablez_sampler_force_weak_definition.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler_force_weak_definition.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler_force_weak_definition.cc"; sourceTree = SOURCE_ROOT; };
 		7EA310C8A88375295404D59A /* GlobalSettingsKeysTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalSettingsKeysTests.swift; sourceTree = "<group>"; };
 		7F38048379046ED6C891F907 /* KataGo TV.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "KataGo TV.entitlements"; sourceTree = "<group>"; };
@@ -1277,6 +1296,7 @@
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8BC634571F9784AC9B25213E /* OpenGame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenGame.swift; sourceTree = "<group>"; };
 		8C18C12B3B71E721A31AAF40 /* CaptureQualityAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureQualityAnalyzerTests.swift; sourceTree = "<group>"; };
+		8D7AC7A386F0F1AD7B2364A7 /* KataGoAnytimeSafariExt.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KataGoAnytimeSafariExt.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MLXTuneExperimentView.swift; sourceTree = "<group>"; };
 		8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConfigEditingSupport.swift; sourceTree = "<group>"; };
 		8DE9BEBFBBE6A427CA92E372 /* ascii.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ascii.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/ascii.cc"; sourceTree = SOURCE_ROOT; };
@@ -1424,6 +1444,7 @@
 		D567C3AB127FDCD977020697 /* usage.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/usage.cc"; sourceTree = SOURCE_ROOT; };
 		D5AEACD5C8AAD349ECEB0545 /* BroadcastControllerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BroadcastControllerTests.swift; sourceTree = "<group>"; };
 		D6874F1F3C7B520AD9FEE05A /* ClassConfidenceThresholding.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ClassConfidenceThresholding.pb.cc; path = ../../cpp/external/katagocoreml/generated/ClassConfidenceThresholding.pb.cc; sourceTree = SOURCE_ROOT; };
+		D6AA7C3F62D5275D95848989 /* background.js */ = {isa = PBXFileReference; includeInIndex = 1; name = background.js; path = KataGoAnytimeSafariExt/Resources/background.js; sourceTree = "<group>"; };
 		D702E277C8397612E300DEC9 /* MacBoardHostView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacBoardHostView.swift; sourceTree = "<group>"; };
 		D7A16EC2F498FDCFE013273A /* demangle_rust.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle_rust.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle_rust.cc"; sourceTree = SOURCE_ROOT; };
 		D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTextParserTests.swift; sourceTree = "<group>"; };
@@ -1786,6 +1807,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		336A77F9B05C7D8602D897F6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B8F732010F03A8BAFE5D004 /* Cocoa.framework in Frameworks */,
+				7BC60EBA64481273183D9284 /* KataGoEngineIPC in Frameworks */,
+				DC63E78EB613FDB4D38C9A86 /* KataGoGameStore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3B74AA709ABA90E0E4A02CDF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -1929,6 +1960,18 @@
 			);
 			name = KataGoEngineHelper;
 			sourceTree = "<group>";
+		};
+		101A884A396687F4D804A5E0 /* KataGoAnytimeSafariExt */ = {
+			isa = PBXGroup;
+			children = (
+				7E42196B71F8266DDD0E4FAC /* SafariWebExtensionHandler.swift */,
+				42385F0B74576452C7F1E237 /* Info.plist */,
+				5DEB80FD375524597006B528 /* KataGoAnytimeSafariExt.entitlements */,
+				D6AA7C3F62D5275D95848989 /* background.js */,
+				2F23BABCEF3EAE5AFD3CB23C /* manifest.json */,
+			);
+			name = KataGoAnytimeSafariExt;
+			sourceTree = SOURCE_ROOT;
 		};
 		23307B682B2772DF57823B68 /* proto_generated */ = {
 			isa = PBXGroup;
@@ -2771,6 +2814,7 @@
 				EE864D582DE9C87A78638018 /* CameraGuidanceCoordinator.swift */,
 				48D10726EC28D7322FD4B5F6 /* KataGo Anytime Vision */,
 				DF3D996EFBF54C72D2BCC062 /* KataGoAnytimeMessages */,
+				101A884A396687F4D804A5E0 /* KataGoAnytimeSafariExt */,
 			);
 			sourceTree = "<group>";
 		};
@@ -2790,6 +2834,7 @@
 				8785A1BDBADA9F7BEFF2911C /* KataGoAnytimeWatchWidget.appex */,
 				5E6A38E6EFA35EA8E7902554 /* KataGo Anytime Vision.app */,
 				805EC188B8350CF6F0525805 /* KataGoAnytimeMessages.appex */,
+				8D7AC7A386F0F1AD7B2364A7 /* KataGoAnytimeSafariExt.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -3192,6 +3237,7 @@
 				F94C46C9F70DBE70D5765886 /* PBXTargetDependency */,
 				5C4B9BBE0E8FA345F7EAA049 /* PBXTargetDependency */,
 				72AD55B881E15B799D3184EB /* PBXTargetDependency */,
+				F181A427E2E4F57A977B2C76 /* PBXTargetDependency */,
 			);
 			name = "KataGo Anytime Mac";
 			packageProductDependencies = (
@@ -3202,6 +3248,27 @@
 			productName = "KataGo Anytime Mac";
 			productReference = C609E9D63CD15FAF86CFCE71 /* KataGoAnytimeMac.app */;
 			productType = "com.apple.product-type.application";
+		};
+		15C971C45E9D041CE7D63332 /* KataGoAnytimeSafariExt */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9CEEF1C8AC9779D676F7AB5F /* Build configuration list for PBXNativeTarget "KataGoAnytimeSafariExt" */;
+			buildPhases = (
+				0D623AFE34706BAAF7472A6B /* Sources */,
+				336A77F9B05C7D8602D897F6 /* Frameworks */,
+				6C3655BB76E45B679D2E3C1A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KataGoAnytimeSafariExt;
+			packageProductDependencies = (
+				5EB65B8D4E0E88C2400D7DDE /* KataGoEngineIPC */,
+				0A5EECD8663192A191D939D4 /* KataGoGameStore */,
+			);
+			productName = KataGoAnytimeSafariExt;
+			productReference = 8D7AC7A386F0F1AD7B2364A7 /* KataGoAnytimeSafariExt.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		178DBF3E133790C87F491FAF /* KataGoAnytimeWatchWidget */ = {
 			isa = PBXNativeTarget;
@@ -3496,6 +3563,7 @@
 				178DBF3E133790C87F491FAF /* KataGoAnytimeWatchWidget */,
 				86DE6A2F4F1BBD637DD33C52 /* KataGo Anytime Vision */,
 				4F100876436FCE2101A4AC3F /* KataGoAnytimeMessages */,
+				15C971C45E9D041CE7D63332 /* KataGoAnytimeSafariExt */,
 			);
 		};
 /* End PBXProject section */
@@ -3512,6 +3580,15 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6C3655BB76E45B679D2E3C1A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E3F78E4252234948099BEDC7 /* background.js in Resources */,
+				FBCB2F4FAAA80A45743C5393 /* manifest.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3614,6 +3691,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0D623AFE34706BAAF7472A6B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6CA581B47480F89098AB62D1 /* SafariWebExtensionHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		384FAD76324EC47CA5B6ADCC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -4418,6 +4503,12 @@
 			target = E11887E02B0830C900637D44 /* KataGoSwift */;
 			targetProxy = D49D0C58DE442B5A43B6C5E3 /* PBXContainerItemProxy */;
 		};
+		F181A427E2E4F57A977B2C76 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KataGoAnytimeSafariExt;
+			target = 15C971C45E9D041CE7D63332 /* KataGoAnytimeSafariExt */;
+			targetProxy = 41ED10D4A8527D10BE2BE9C0 /* PBXContainerItemProxy */;
+		};
 		F94C46C9F70DBE70D5765886 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = KataGoSwift;
@@ -4656,6 +4747,31 @@
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
+		};
+		8B183F66FEEA2E05F2CCE978 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeSafariExt/KataGoAnytimeSafariExt.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 307;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KataGoAnytimeSafariExt/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.safari";
+				PRODUCT_NAME = KataGoAnytimeSafariExt;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
 		};
 		8E46FBE0704C82F05150AB94 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -5509,6 +5625,31 @@
 			};
 			name = Debug;
 		};
+		F46D688D44B2828E57254FFD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KataGoAnytimeSafariExt/KataGoAnytimeSafariExt.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 307;
+				DEVELOPMENT_TEAM = 6F82AZ9Z52;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KataGoAnytimeSafariExt/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 7.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "chinchangyang.KataGo-iOS.tw.safari";
+				PRODUCT_NAME = KataGoAnytimeSafariExt;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		F874154ECAF89A7EC1680AE1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5589,6 +5730,15 @@
 			buildConfigurations = (
 				30D3F033A1C56B54A9720035 /* Release */,
 				D5E88DDED4CD33E038A3E2BE /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9CEEF1C8AC9779D676F7AB5F /* Build configuration list for PBXNativeTarget "KataGoAnytimeSafariExt" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F46D688D44B2828E57254FFD /* Release */,
+				8B183F66FEEA2E05F2CCE978 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -5692,6 +5842,11 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0A5EECD8663192A191D939D4 /* KataGoGameStore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = KataGoGameStore;
+		};
 		0B31F2BDF3BEB3E68351D459 /* KataGoUICore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
@@ -5716,6 +5871,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
 			productName = GoRulesKit;
+		};
+		5EB65B8D4E0E88C2400D7DDE /* KataGoEngineIPC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 485059796EB799F1AF3F7CF0 /* XCLocalSwiftPackageReference "KataGoEngineIPC" */;
+			productName = KataGoEngineIPC;
 		};
 		7691E5766817B94BE53F1B1E /* KataGoUICore */ = {
 			isa = XCSwiftPackageProductDependency;
