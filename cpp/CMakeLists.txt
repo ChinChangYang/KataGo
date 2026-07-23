@@ -455,6 +455,19 @@ elseif(USE_BACKEND STREQUAL "TENSORRT")
   # there is no ABI contact between the two (the handoff is serialized bytes).
   find_package(Protobuf REQUIRED)
   message(STATUS "Found Protobuf version: ${Protobuf_VERSION}")
+  # Protobuf >= 22 (a.k.a. the 4.x/5.x/... "libprotobuf" versioning, e.g. 7.35.0) depends on
+  # Abseil: its generated code and runtime headers expand ABSL_CHECK/ABSL_DCHECK into symbols
+  # such as absl::log_internal::MakeCheckOpString, which live in libabsl_log_internal_check_op.so.
+  # The legacy ${Protobuf_LIBRARIES} variable is just the bare -lprotobuf path and does NOT carry
+  # protobuf's transitive Abseil link dependencies, so under a --as-needed linker the build fails
+  # with "undefined reference ... DSO missing from command line" against Abseil. The imported
+  # target protobuf::libprotobuf propagates those transitive deps via INTERFACE_LINK_LIBRARIES,
+  # so prefer it and fall back to the variable only on ancient toolchains that lack the target.
+  if(TARGET protobuf::libprotobuf)
+    set(KATAGO_PROTOBUF_LIBRARIES protobuf::libprotobuf)
+  else()
+    set(KATAGO_PROTOBUF_LIBRARIES ${Protobuf_LIBRARIES})
+  endif()
   set(ONNX_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/onnx")
   protobuf_generate_cpp(ONNX_PROTO_SRCS ONNX_PROTO_HDRS "${ONNX_PROTO_DIR}/onnx.proto")
   # protoc-generated code is not ours to lint; silence its warnings to keep build output readable.
@@ -471,7 +484,7 @@ elseif(USE_BACKEND STREQUAL "TENSORRT")
   if(NOT TENSORRT_ONNXPARSER_LIBRARY)
     message(FATAL_ERROR "${ColorBoldRed} libnvonnxparser was NOT found in the TensorRT lib dir. ${ColorReset}")
   endif()
-  target_link_libraries(katago ${TENSORRT_ONNXPARSER_LIBRARY} ${Protobuf_LIBRARIES})
+  target_link_libraries(katago ${TENSORRT_ONNXPARSER_LIBRARY} ${KATAGO_PROTOBUF_LIBRARIES})
 elseif(USE_BACKEND STREQUAL "METAL")
   target_compile_definitions(katago PRIVATE USE_METAL_BACKEND)
   target_link_libraries(katago KataGoSwift katagocoreml
