@@ -19,8 +19,9 @@ browser.runtime.onMessage.addListener((message) => {
 
 async function runSpike(force) {
     try {
-        const { spikeDone } = await browser.storage.local.get("spikeDone");
-        if (spikeDone && !force) { return; }
+        const { spikeResult } = await browser.storage.local.get("spikeResult");
+        const passed = spikeResult && String(spikeResult.verdict || "").startsWith("PASS");
+        if (passed && !force) { return; }   // re-run automatically until it passes
         const echo = await browser.runtime.sendNativeMessage("application.id",
             { cmd: "echo", payload: "hello-from-background" });
         console.log("[kga] echo reply:", echo);
