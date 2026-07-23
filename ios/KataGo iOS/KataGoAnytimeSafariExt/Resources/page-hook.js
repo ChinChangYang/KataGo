@@ -232,8 +232,12 @@
             if (!args || !Array.isArray(args.values)) { return; }
             const w = args.width, h = args.height;
             if (!Number.isFinite(w) || !Number.isFinite(h)) { return; }
-            const fw = board.fieldWidth * 0.92;
-            const fh = board.fieldHeight * 0.92;
+            // Cell size from coordinate deltas — board.fieldWidth is not
+            // present on every WGo build (NaN would silently draw nothing).
+            const cell = w > 1 ? Math.abs(board.getX(1) - board.getX(0))
+                               : board.stoneRadius * 2;
+            const fw = cell * 0.92;
+            const fh = cell * 0.92;
             for (let gy = 0; gy < h; gy += 1) {
                 for (let gx = 0; gx < w; gx += 1) {
                     const v = args.values[gy * w + gx];

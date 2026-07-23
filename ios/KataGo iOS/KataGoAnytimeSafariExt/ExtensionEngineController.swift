@@ -77,7 +77,7 @@ final class ExtensionEngineController {
             return false
         }
 
-        let arguments = KataGoEngineArguments.gtp(
+        var arguments = KataGoEngineArguments.gtp(
             modelPath: paths.model.path,
             humanModelPath: paths.humanModel.path,
             configPath: paths.config.path,
@@ -89,6 +89,11 @@ final class ExtensionEngineController {
             homeDataDir: "",                 // appex container $HOME/.katago
             tunerFull: false,
             reTune: false)
+        // The shipped cfg runs humanSLProfile=rank_9d for the app's human-like
+        // play modes. It biases the side to move, which turns a whole-game
+        // sweep into a per-move sawtooth (verified against ground truth on
+        // rating game 2037735) — neutral analysis needs the profile OFF.
+        arguments.append("-override-config humanSLProfile=")
 
         let engine = KataGoEngineProcess(executableURL: paths.helper, arguments: arguments)
         if let supportDirectory {

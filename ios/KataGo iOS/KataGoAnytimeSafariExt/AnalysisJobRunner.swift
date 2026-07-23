@@ -406,8 +406,12 @@ final class AnalysisJobRunner: @unchecked Sendable {
         return directory
     }
 
+    /// Bump when analysis semantics change so stale results never resurface
+    /// (v2: humanSLProfile disabled for neutral evaluations).
+    private let cacheVersion = 2
+
     private func cacheURL(sgfHash: String) -> URL? {
-        supportDirectory()?.appending(path: "\(sgfHash.prefix(64)).json")
+        supportDirectory()?.appending(path: "\(sgfHash.prefix(64))-v\(cacheVersion).json")
     }
 
     private func loadCache(sgfHash: String) -> CachePayload? {
