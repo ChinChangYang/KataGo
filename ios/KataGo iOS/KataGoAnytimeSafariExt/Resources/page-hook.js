@@ -73,7 +73,53 @@
                 });
             });
         } catch (e) { /* older forks without addEventListener: chart-only mode */ }
+        // Post-hoc attach (declarative players): the kifu is already loaded
+        // and the viewer may sit mid-game (data-wgo-move) — synthesize the
+        // events the live listeners just missed.
+        try {
+            if (player.kifu) {
+                post("kifuLoaded", {
+                    playerId: id,
+                    size: player.kifu.size,
+                    moveCount: countMainline(player.kifu),
+                });
+                const path = player.kifuReader && player.kifuReader.path;
+                if (path) {
+                    post("playerUpdate", { playerId: id, path: sanitizePath(path) });
+                }
+            }
+        } catch (e) { /* state snapshot is best-effort */ }
     }
+
+    // WGo's declarative path (`<div data-wgo=…>`) constructs BasicPlayer via a
+    // closure-local reference the property trap never sees, but it stamps the
+    // instance on `element._wgo_player` — scan for those after load. The
+    // data-wgo attribute holds either inline SGF ("(…") or an SGF URL.
+    function attachDeclarativePlayers() {
+        let found = false;
+        for (const elem of document.querySelectorAll("[data-wgo]")) {
+            const player = elem._wgo_player;
+            if (!player || registry.some((entry) => entry.player === player)) { continue; }
+            const raw = (elem.getAttribute("data-wgo") || "").trim();
+            const config = Object.assign(
+                raw.startsWith("(") ? { sgf: raw } : (raw ? { sgfFile: raw } : {}),
+                player.config || {});
+            registerPlayer(player, elem, config);
+            found = true;
+        }
+        return found;
+    }
+
+    function scheduleDeclarativeScan() {
+        // Load-time plus two retries covers static pages and slow inits;
+        // constructor-trapped sites never reach here with work to do.
+        const scan = () => { try { attachDeclarativePlayers(); } catch (e) {} };
+        if (document.readyState === "complete") { scan(); }
+        else { window.addEventListener("load", () => setTimeout(scan, 0), { once: true }); }
+        setTimeout(scan, 1500);
+        setTimeout(scan, 5000);
+    }
+    scheduleDeclarativeScan();
 
     function sanitizePath(path) {
         if (!path || typeof path !== "object") { return { m: 0, onMainline: true }; }
