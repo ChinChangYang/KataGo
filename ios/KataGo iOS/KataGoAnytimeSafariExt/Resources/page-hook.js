@@ -52,8 +52,12 @@
 
     function registerPlayer(player, elem, config) {
         const id = "kga-p" + registry.length;
+        // One custom object carries BOTH analysis layers so z-order matches
+        // the app's AnalysisView (ownership under candidates) — WGo draws
+        // obj_arr marks before obj_list customs, so split layers would stack
+        // wrong. `analysisState` is mutated in place; redraw() re-renders it.
         const entry = { id, player, config, element: (player && player.element) || elem,
-                        overlays: { candidates: [], ownershipHandler: null, ownershipArgs: null } };
+                        analysisState: { ownership: null, candidates: null, registered: false } };
         registry.push(entry);
         post("playerFound", describe(entry));
         try {
@@ -144,116 +148,85 @@
                 if (Number.isFinite(move)) { entry.player.goTo(move); }
                 return;
             }
-            case "drawCandidates": {
-                if (!board || typeof board.addObject !== "function") { return; }
-                clearCandidates(entry, board);
-                const marks = Array.isArray(payload.marks) ? payload.marks.slice(0, 12) : [];
-                for (const mark of marks) {
-                    const obj = {
-                        x: Number(mark.x), y: Number(mark.y),
-                        type: candidateHandler,
-                        kgaLabel: String(mark.label || ""),
-                        kgaRank: Number(mark.rank) || 0,
-                        kgaStrength: Math.max(0, Math.min(1, Number(mark.strength) || 0)),
-                    };
-                    if (!Number.isFinite(obj.x) || !Number.isFinite(obj.y)) { continue; }
-                    board.addObject(obj);
-                    entry.overlays.candidates.push(obj);
-                }
-                return;
-            }
-            case "drawOwnership": {
+            case "drawAnalysis": {
                 if (!board || typeof board.addCustomObject !== "function") { return; }
-                clearOwnership(entry, board);
-                const values = Array.isArray(payload.values) ? payload.values.map(Number) : [];
-                const args = { values, width: Number(payload.width), height: Number(payload.height) };
-                board.addCustomObject(ownershipHandler, args);
-                entry.overlays.ownershipHandler = ownershipHandler;
-                entry.overlays.ownershipArgs = args;
+                const state = entry.analysisState;
+                state.ownership = Array.isArray(payload.ownership) ? payload.ownership : null;
+                state.candidates = Array.isArray(payload.candidates) ? payload.candidates.slice(0, 50) : null;
+                if (!state.registered) {
+                    board.addCustomObject(analysisHandler, state);
+                    state.registered = true;
+                } else {
+                    try { board.redraw(); } catch (e) {}
+                }
                 return;
             }
             case "clearOverlays": {
                 if (!board) { return; }
-                clearCandidates(entry, board);
-                clearOwnership(entry, board);
+                entry.analysisState.ownership = null;
+                entry.analysisState.candidates = null;
+                try { board.redraw(); } catch (e) {}
                 return;
             }
         }
     }
 
-    function clearCandidates(entry, board) {
-        for (const obj of entry.overlays.candidates) {
-            try { board.removeObject(obj); } catch (e) {}
-        }
-        entry.overlays.candidates = [];
-    }
-
-    function clearOwnership(entry, board) {
-        if (entry.overlays.ownershipHandler && typeof board.removeCustomObject === "function") {
-            try { board.removeCustomObject(entry.overlays.ownershipHandler, entry.overlays.ownershipArgs); } catch (e) {}
-        }
-        entry.overlays.ownershipHandler = null;
-        entry.overlays.ownershipArgs = null;
-        try { board.redraw(); } catch (e) {}
-    }
-
-    // Candidate badge: filled disc scaled by strength, best move accented,
-    // top ranks carry a small winrate label. Draw handlers run with the 2D
-    // context as `this` (WGo convention) and are auto-redrawn on resize.
-    const candidateHandler = {
-        stone: {
-            draw(args, board) {
-                const x = board.getX(args.x);
-                const y = board.getY(args.y);
-                const r = board.stoneRadius * (0.55 + 0.35 * args.kgaStrength);
-                this.beginPath();
-                this.arc(x, y, r, 0, 2 * Math.PI);
-                this.fillStyle = args.kgaRank === 0
-                    ? "rgba(10,132,255,0.85)"
-                    : "rgba(10,132,255," + (0.25 + 0.35 * args.kgaStrength) + ")";
-                this.fill();
-                if (args.kgaLabel && args.kgaRank < 3) {
-                    this.fillStyle = args.kgaRank === 0 ? "#ffffff" : "rgba(0,0,0,0.75)";
-                    this.font = Math.round(board.stoneRadius * 0.78) + "px -apple-system, sans-serif";
-                    this.textAlign = "center";
-                    this.textBaseline = "middle";
-                    this.fillText(args.kgaLabel, x, y);
-                }
-            },
-        },
-    };
-
-    // Ownership heatmap: ONE custom object painting the whole grid in a
-    // single canvas pass. White-positive values (engine order: top-left,
-    // row-major). Custom handlers MUST be layer-keyed — WGo's redraw does
+    // Both analysis layers in ONE custom object, drawn in AnalysisView's
+    // z-order: ownership squares first, candidate circles on top. Custom
+    // handlers MUST be layer-keyed — WGo's redraw does
     // `for (d in handler) handler[d].draw.call(board[d].getContext(...))`,
     // so a flat {draw} makes board["draw"].getContext throw (swallowed by
-    // WGo's try/catch) and nothing paints.
-    const ownershipHandler = {
+    // WGo's try/catch) and nothing paints. Visual constants mirror
+    // AnalysisView: full-cell circles at 0.8 alpha (0.2 dimmed), a
+    // cell/16-wide systemBlue ring on the best candidate, black bold
+    // monospaced text, grayscale ownership squares sized by `scale`.
+    const analysisHandler = {
         stone: {
-            draw(args, board) {
-            if (!args || !Array.isArray(args.values)) { return; }
-            const w = args.width, h = args.height;
-            if (!Number.isFinite(w) || !Number.isFinite(h)) { return; }
-            // Cell size from coordinate deltas — board.fieldWidth is not
-            // present on every WGo build (NaN would silently draw nothing).
-            const cell = w > 1 ? Math.abs(board.getX(1) - board.getX(0))
-                               : board.stoneRadius * 2;
-            const fw = cell * 0.92;
-            const fh = cell * 0.92;
-            for (let gy = 0; gy < h; gy += 1) {
-                for (let gx = 0; gx < w; gx += 1) {
-                    const v = args.values[gy * w + gx];
-                    if (!Number.isFinite(v) || Math.abs(v) < 0.1) { continue; }
-                    const alpha = Math.min(0.55, Math.abs(v) * 0.55);
-                    this.fillStyle = v > 0
-                        ? "rgba(255,255,255," + alpha + ")"
-                        : "rgba(0,0,0," + alpha + ")";
-                    const cx = board.getX(gx);
-                    const cy = board.getY(gy);
-                    this.fillRect(cx - fw / 2, cy - fh / 2, fw, fh);
+            draw(state, board) {
+                // Cell size from coordinate deltas — board.fieldWidth is not
+                // present on every WGo build (NaN would draw nothing).
+                const cell = board.size > 1
+                    ? Math.abs(board.getX(1) - board.getX(0))
+                    : board.stoneRadius * 2;
+
+                for (const own of state.ownership || []) {
+                    const side = cell * own.scale;
+                    if (!(side > 0)) { continue; }
+                    const v = Math.round(255 * Math.min(1, Math.max(0, own.whiteness)));
+                    this.fillStyle = `rgba(${v},${v},${v},${own.opacity})`;
+                    const cx = board.getX(own.x);
+                    const cy = board.getY(own.y);
+                    this.fillRect(cx - side / 2, cy - side / 2, side, side);
                 }
-            }
+
+                for (const mark of state.candidates || []) {
+                    const x = board.getX(mark.x);
+                    const y = board.getY(mark.y);
+                    const r = cell / 2;
+                    this.beginPath();
+                    this.arc(x, y, r, 0, 2 * Math.PI);
+                    // HSB(h,1,1) == HSL(h,100%,50%): the app's exact ramp.
+                    this.fillStyle = `hsla(${Math.round(mark.hue * 360)},100%,50%,${mark.dimmed ? 0.2 : 0.8})`;
+                    this.fill();
+                    if (mark.isBest) {
+                        this.beginPath();
+                        this.arc(x, y, r - cell / 32, 0, 2 * Math.PI);
+                        this.strokeStyle = "#007aff";
+                        this.lineWidth = cell / 16;
+                        this.stroke();
+                    }
+                    const lines = mark.dimmed ? [] : (mark.lines || []);
+                    if (lines.length) {
+                        this.fillStyle = "#000000";
+                        this.textAlign = "center";
+                        this.textBaseline = "middle";
+                        const size = lines.length > 1 ? cell * 0.26 : cell * 0.4;
+                        this.font = "700 " + size.toFixed(1) + "px ui-monospace, Menlo, monospace";
+                        const step = cell * 0.27;
+                        const y0 = y - step * (lines.length - 1) / 2;
+                        lines.forEach((line, i) => this.fillText(line, x, y0 + i * step));
+                    }
+                }
             },
         },
     };

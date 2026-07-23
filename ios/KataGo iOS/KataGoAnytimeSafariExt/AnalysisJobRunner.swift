@@ -344,8 +344,10 @@ final class AnalysisJobRunner: @unchecked Sendable {
         let targetVisits = job.phase == .deepen
             ? job.budget.deepenVisits : job.budget.sweepVisits
         let wallCap = job.phase == .deepen ? deepenWallCap : sweepWallCap
+        // maxMoves matches the app's Config.defaultMaxAnalysisMoves so the
+        // board carries the same candidate set AnalysisView would show.
         guard let infoLine = controller.analyze(
-            command: AnalysisCommand.analyze(interval: 20, maxMoves: 12),
+            command: AnalysisCommand.analyze(interval: 20, maxMoves: 50),
             targetVisits: targetVisits,
             wallCap: wallCap) else { return nil }
 
@@ -355,10 +357,11 @@ final class AnalysisJobRunner: @unchecked Sendable {
         let parsed = parser.parse(message: infoLine)
         guard let root = parsed.rootInfo else { return nil }
 
-        // Parser output is side-to-move perspective; the wire is Black's.
+        // Parser output is side-to-move perspective; the wire is Black's
+        // (except utilityLcb — see the Candidate doc).
         let candidates = parsed.info
             .sorted { $0.value.visits > $1.value.visits }
-            .prefix(12)
+            .prefix(50)
             .enumerated()
             .map { order, entry in
                 Candidate(
@@ -366,9 +369,22 @@ final class AnalysisJobRunner: @unchecked Sendable {
                     visits: entry.value.visits,
                     winrateB: AnalysisMath.blackWinrate(entry.value.winrate, toMove: toMove),
                     scoreLeadB: AnalysisMath.blackScoreLead(entry.value.scoreLead, toMove: toMove),
+                    utilityLcb: entry.value.utilityLcb,
                     order: order,
                     pv: entry.value.pv)
             }
+
+        // Ship the parser's digitized units verbatim (the exact values
+        // AnalysisView renders), converting BoardPoint's bottom-origin y to
+        // WGo's top-origin and dropping invisible cells.
+        let ownership = parsed.ownershipUnits.compactMap { unit -> OwnershipCell? in
+            guard unit.opacity >= 0.01 else { return nil }
+            return OwnershipCell(x: unit.point.x,
+                                 y: job.scan.boardHeight - 1 - unit.point.y,
+                                 whiteness: unit.whiteness,
+                                 scale: unit.scale,
+                                 opacity: unit.opacity)
+        }
 
         return MoveAnalysis(
             moveIndex: job.index,
@@ -378,7 +394,7 @@ final class AnalysisJobRunner: @unchecked Sendable {
             winrateB: AnalysisMath.blackWinrate(root.winrate, toMove: toMove),
             scoreLeadB: AnalysisMath.blackScoreLead(root.scoreLead, toMove: toMove),
             candidates: Array(candidates),
-            ownershipW: parsed.rawOwnership.isEmpty ? nil : parsed.rawOwnership)
+            ownership: ownership.isEmpty ? nil : ownership)
     }
 
     /// GTP vertex for a parser board point ("Q16"; "I" skipped; "pass").
@@ -407,8 +423,9 @@ final class AnalysisJobRunner: @unchecked Sendable {
     }
 
     /// Bump when analysis semantics change so stale results never resurface
-    /// (v2: humanSLProfile disabled for neutral evaluations).
-    private let cacheVersion = 2
+    /// (v2: humanSLProfile disabled; v3: Mac-parity payload — utilityLcb,
+    /// 50 candidates, digitized ownership cells).
+    private let cacheVersion = 3
 
     private func cacheURL(sgfHash: String) -> URL? {
         supportDirectory()?.appending(path: "\(sgfHash.prefix(64))-v\(cacheVersion).json")

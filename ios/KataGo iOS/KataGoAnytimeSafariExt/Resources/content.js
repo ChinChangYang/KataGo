@@ -82,6 +82,28 @@
         return { x: column, y: size - row };
     }
 
+    // 1:1 port of the app's AnalysisColor.analysisBaseHue: discretized hue
+    // 0 (red, rare) … 0.5 (cyan, most visited) from the visits ratio.
+    function analysisBaseHue(visits, maxVisits) {
+        const ratio = Math.min(1, Math.max(0.01, visits) / Math.max(0.01, maxVisits));
+        const fraction = 2 / (Math.pow((1 / ratio) - 1, 0.9) + 1);
+        const hue = fraction < 1 ? Math.cbrt(fraction * fraction) / 2
+                                 : 1 - (Math.sqrt(2 - fraction) / 2);
+        return Math.round(hue * 10) / 10 / 2;
+    }
+
+    // Matches the app's SI-formatted visits text (convertToSIUnits).
+    function siVisits(visits) {
+        if (visits >= 1e9) { return (visits / 1e9).toFixed(1).replace(/\.0$/, "") + "G"; }
+        if (visits >= 1e6) { return (visits / 1e6).toFixed(1).replace(/\.0$/, "") + "M"; }
+        if (visits >= 1e3) { return (visits / 1e3).toFixed(1).replace(/\.0$/, "") + "k"; }
+        return String(visits);
+    }
+
+    // App parity: hiddenAnalysisVisitRatio (candidates below this fraction of
+    // max visits dim to 0.2 alpha and lose their text).
+    const HIDDEN_VISIT_RATIO = 0.03125;
+
     // ---- one panel + native session per detected player ------------------
 
     class PanelSession {
@@ -102,8 +124,16 @@
             this.state = "idle";          // idle|starting|sweeping|done|error
             this.pollTimer = null;
             this.showCandidates = true;
-            this.showOwnership = false;
+            this.showOwnership = true;    // app parity: defaultShowOwnership
+            this.mode = "all";            // app parity: defaultAnalysisInformation = All
             this.buildPanel();
+            browser.storage.local.get("kgaMode").then(({ kgaMode }) => {
+                if (["winrate", "score", "all"].includes(kgaMode)) {
+                    this.mode = kgaMode;
+                    this.el.mode.value = kgaMode;
+                    this.pushOverlays();
+                }
+            }).catch(() => {});
             window.addEventListener("pagehide", () => this.teardown());
         }
 
@@ -149,7 +179,9 @@
 .kga-controls { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
 .kga-toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--kga-ink-muted); cursor: pointer; }
 .kga-toggle input { accent-color: var(--kga-accent); }
-.kga-budget { font: inherit; }
+.kga-budget, .kga-mode { font: inherit; }
+.kga-pass { display: inline-flex; align-items: center; gap: 4px; color: var(--kga-ink-muted); font-variant-numeric: tabular-nums; }
+.kga-pass-dot { width: 12px; height: 12px; border-radius: 6px; display: inline-block; }
 .kga-progress { color: var(--kga-ink-muted); font-variant-numeric: tabular-nums; }
 .kga-chart-wrap { position: relative; margin-top: 10px; }
 .kga-chart-wrap[hidden] { display: none; }
@@ -171,7 +203,13 @@
     <span class="kga-progress" hidden></span>
     <div class="kga-controls">
       <label class="kga-toggle"><input type="checkbox" class="kga-cands" checked>Candidates</label>
-      <label class="kga-toggle"><input type="checkbox" class="kga-own">Ownership</label>
+      <label class="kga-toggle"><input type="checkbox" class="kga-own" checked>Ownership</label>
+      <select class="kga-mode">
+        <option value="winrate">Winrate</option>
+        <option value="score">Score</option>
+        <option value="all" selected>All</option>
+      </select>
+      <span class="kga-pass" hidden></span>
       <select class="kga-budget">
         <option value="fast">Fast</option>
         <option value="normal" selected>Normal</option>
@@ -192,6 +230,8 @@
                 progress: root.querySelector(".kga-progress"),
                 candsToggle: root.querySelector(".kga-cands"),
                 ownToggle: root.querySelector(".kga-own"),
+                mode: root.querySelector(".kga-mode"),
+                pass: root.querySelector(".kga-pass"),
                 budget: root.querySelector(".kga-budget"),
                 open: root.querySelector(".kga-open"),
                 chartWrap: root.querySelector(".kga-chart-wrap"),
@@ -217,6 +257,11 @@
             });
             this.el.ownToggle.addEventListener("change", () => {
                 this.showOwnership = this.el.ownToggle.checked;
+                this.pushOverlays();
+            });
+            this.el.mode.addEventListener("change", () => {
+                this.mode = this.el.mode.value;
+                browser.storage.local.set({ kgaMode: this.mode }).catch(() => {});
                 this.pushOverlays();
             });
         }
@@ -373,36 +418,56 @@
             return badges;
         }
 
+        // Candidate text exactly as AnalysisView shows it (side-to-move
+        // perspective, app formats): "57%", "+3", or all three stacked.
+        candidateLines(candidate, toMove) {
+            const wr = toMove === "w" ? 1 - candidate.winrateB : candidate.winrateB;
+            const score = toMove === "w" ? -candidate.scoreLeadB : candidate.scoreLeadB;
+            const wrText = Math.round(wr * 100) + "%";
+            const scoreText = (score >= 0 ? "+" : "-") + Math.abs(Math.round(score));
+            if (this.mode === "winrate") { return [wrText]; }
+            if (this.mode === "score") { return [scoreText]; }
+            return [wrText, siVisits(candidate.visits), scoreText];
+        }
+
         pushOverlays() {
             const current = this.results.get(this.onMainline ? this.currentIndex : -1);
+            const payload = { playerId: this.playerId, candidates: null, ownership: null };
+            let passMark = null;
+
             if (this.showCandidates && current && current.candidates.length) {
-                const best = current.candidates[0];
-                const marks = current.candidates
-                    .map((candidate, rank) => {
-                        const point = vertexToBoard(candidate.move, this.boardSize);
-                        if (!point) { return null; }
-                        const toMoveWr = current.toMove === "w"
-                            ? 1 - candidate.winrateB : candidate.winrateB;
-                        return {
-                            x: point.x, y: point.y, rank,
-                            strength: best.visits ? candidate.visits / best.visits : 0,
-                            label: Math.round(toMoveWr * 100) + "",
-                        };
-                    })
-                    .filter(Boolean);
-                postToPage("drawCandidates", { playerId: this.playerId, marks });
-            } else {
-                postToPage("drawCandidates", { playerId: this.playerId, marks: [] });
+                const maxVisits = Math.max(...current.candidates.map((c) => c.visits));
+                const maxLcb = Math.max(...current.candidates.map((c) => c.utilityLcb));
+                payload.candidates = [];
+                for (const candidate of current.candidates) {
+                    const dimmed = candidate.visits < HIDDEN_VISIT_RATIO * maxVisits;
+                    const mark = {
+                        hue: analysisBaseHue(candidate.visits, maxVisits),
+                        dimmed,
+                        isBest: candidate.utilityLcb === maxLcb,
+                        lines: dimmed ? [] : this.candidateLines(candidate, current.toMove),
+                    };
+                    const point = vertexToBoard(candidate.move, this.boardSize);
+                    if (point) {
+                        payload.candidates.push({ ...mark, x: point.x, y: point.y });
+                    } else if (candidate.move.toLowerCase() === "pass" && !dimmed) {
+                        passMark = mark;   // the board has no pass point — panel chip
+                    }
+                }
             }
-            if (this.showOwnership && current && current.ownershipW) {
-                postToPage("drawOwnership", {
-                    playerId: this.playerId,
-                    values: current.ownershipW,
-                    width: this.boardSize, height: this.boardSize,
-                });
-            } else {
-                postToPage("drawOwnership", { playerId: this.playerId, values: [],
-                                              width: this.boardSize, height: this.boardSize });
+            if (this.showOwnership && current && current.ownership) {
+                payload.ownership = current.ownership;
+            }
+            postToPage("drawAnalysis", payload);
+
+            this.el.pass.hidden = !passMark;
+            if (passMark) {
+                this.el.pass.innerHTML = "";
+                const dot = document.createElement("span");
+                dot.className = "kga-pass-dot";
+                dot.style.background = `hsla(${Math.round(passMark.hue * 360)},100%,50%,0.8)`;
+                if (passMark.isBest) { dot.style.boxShadow = "0 0 0 2px #007aff inset"; }
+                this.el.pass.append(dot, "pass " + passMark.lines.join(" · "));
             }
         }
 

@@ -63,12 +63,12 @@ public struct MoveAnalysis: Codable, Sendable, Equatable {
     public var winrateB: Float
     public var scoreLeadB: Float
     public var candidates: [Candidate]
-    public var ownershipW: [Float]?
+    public var ownership: [OwnershipCell]?
     public var played: PlayedAssessment?
 
     public init(seq: Int = 0, moveIndex: Int, phase: Phase, toMove: String,
                 visits: Int, winrateB: Float, scoreLeadB: Float,
-                candidates: [Candidate], ownershipW: [Float]? = nil,
+                candidates: [Candidate], ownership: [OwnershipCell]? = nil,
                 played: PlayedAssessment? = nil) {
         self.seq = seq
         self.moveIndex = moveIndex
@@ -78,26 +78,53 @@ public struct MoveAnalysis: Codable, Sendable, Equatable {
         self.winrateB = winrateB
         self.scoreLeadB = scoreLeadB
         self.candidates = candidates
-        self.ownershipW = ownershipW
+        self.ownership = ownership
         self.played = played
     }
 }
 
+/// One pre-digitized ownership square, exactly as AnalysisView renders it
+/// (5-step whiteness, definiteness/stdev-driven scale, sigmoid opacity —
+/// computed by AnalysisLineParser). Coordinates are WGo-oriented: x from the
+/// left, y from the TOP. Cells whose opacity rounds to invisible are dropped
+/// native-side.
+public struct OwnershipCell: Codable, Sendable, Equatable {
+    public var x: Int
+    public var y: Int
+    public var whiteness: Float
+    public var scale: Float
+    public var opacity: Float
+
+    public init(x: Int, y: Int, whiteness: Float, scale: Float, opacity: Float) {
+        self.x = x
+        self.y = y
+        self.whiteness = whiteness
+        self.scale = scale
+        self.opacity = opacity
+    }
+}
+
 /// One engine candidate move for a position, GTP vertex coordinates.
+/// `utilityLcb` is deliberately SIDE-TO-MOVE perspective (unlike winrateB/
+/// scoreLeadB): its only consumer is the best-move ring, an argmax within one
+/// position from the mover's point of view — a Black-perspective flip would
+/// invert the argmax for White-to-move positions.
 public struct Candidate: Codable, Sendable, Equatable {
     public var move: String
     public var visits: Int
     public var winrateB: Float
     public var scoreLeadB: Float
+    public var utilityLcb: Float
     public var order: Int
     public var pv: [String]
 
     public init(move: String, visits: Int, winrateB: Float, scoreLeadB: Float,
-                order: Int, pv: [String]) {
+                utilityLcb: Float, order: Int, pv: [String]) {
         self.move = move
         self.visits = visits
         self.winrateB = winrateB
         self.scoreLeadB = scoreLeadB
+        self.utilityLcb = utilityLcb
         self.order = order
         self.pv = pv
     }

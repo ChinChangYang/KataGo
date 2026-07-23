@@ -77,7 +77,8 @@ struct AnalysisWireResponseTests {
             moveIndex: 57, phase: .sweep, toMove: "b", visits: 152,
             winrateB: 0.483, scoreLeadB: -1.2,
             candidates: [Candidate(move: "Q16", visits: 90, winrateB: 0.49,
-                                   scoreLeadB: -0.8, order: 0, pv: ["Q16", "D4"])],
+                                   scoreLeadB: -0.8, utilityLcb: 0.31,
+                                   order: 0, pv: ["Q16", "D4"])],
             played: PlayedAssessment(move: "R14", winrateDrop: 0.06))
         let dictionary = try AnalysisWireCoding.dictionary(
             from: .results(gameId: "g", nextSeq: 131, sweepDone: 118,
@@ -90,7 +91,27 @@ struct AnalysisWireResponseTests {
         #expect(moves.count == 1)
         #expect(moves[0]["moveIndex"] as? Int == 57)
         // Absent optionals must be omitted, not null (JS truthiness checks).
-        #expect(moves[0]["ownershipW"] == nil)
+        #expect(moves[0]["ownership"] == nil)
+    }
+
+    @Test func ownershipCellsRoundTripInsideResults() throws {
+        let move = MoveAnalysis(
+            moveIndex: 3, phase: .deepen, toMove: "w", visits: 800,
+            winrateB: 0.5, scoreLeadB: 0, candidates: [],
+            ownership: [OwnershipCell(x: 2, y: 16, whiteness: 0.8,
+                                      scale: 0.39, opacity: 0.72)])
+        let dictionary = try AnalysisWireCoding.dictionary(
+            from: .results(gameId: "g", nextSeq: 1, sweepDone: 1,
+                           sweepTotal: 4, moves: [move]))
+        let data = try JSONSerialization.data(withJSONObject: dictionary)
+        let decoded = try JSONDecoder().decode(AnalysisResponse.self, from: data)
+        guard case let .results(_, _, _, _, moves) = decoded else {
+            Issue.record("expected results")
+            return
+        }
+        #expect(moves[0].ownership?.count == 1)
+        #expect(moves[0].ownership?[0].y == 16)
+        #expect(moves[0].ownership?[0].whiteness == 0.8)
     }
 
     @Test func errorRoundTrips() throws {
