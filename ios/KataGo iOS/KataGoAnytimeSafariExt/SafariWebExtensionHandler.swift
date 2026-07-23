@@ -12,6 +12,7 @@
 
 import Foundation
 import SafariServices
+import KataGoAnalysisKit
 import KataGoEngineIPC
 import os.log
 
@@ -45,7 +46,21 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 self.reply(box, report)
             }
         default:
-            reply(box, ["error": "unknown cmd '\(cmd)'"])
+            // Everything else is the analysis wire schema.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let response: AnalysisResponse
+                if let message, let request = try? AnalysisWireCoding.request(fromDictionary: message) {
+                    response = AnalysisJobRunner.shared.handle(request)
+                } else {
+                    response = .error(code: .badRequest,
+                                      message: "unrecognized message shape (cmd '\(cmd)')",
+                                      retryable: false)
+                }
+                let payload = (try? AnalysisWireCoding.dictionary(from: response))
+                    ?? ["type": "error", "code": "badRequest",
+                        "message": "response encoding failed", "retryable": false]
+                self.reply(box, payload)
+            }
         }
     }
 
