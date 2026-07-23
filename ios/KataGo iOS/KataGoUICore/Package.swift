@@ -155,6 +155,13 @@ let package = Package(
             name: "GoRulesKitTests",
             dependencies: ["GoRulesKit"]
         ),
+        // Standalone tests for the Safari-extension analysis tier (wire
+        // schema, sweep scheduling, outbox, perspective math). Engine-free:
+        // `swift test --filter KataGoAnalysisKitTests`.
+        .testTarget(
+            name: "KataGoAnalysisKitTests",
+            dependencies: ["KataGoAnalysisKit"]
+        ),
         .target(
             name: "KataGoUICore",
             dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit"],
