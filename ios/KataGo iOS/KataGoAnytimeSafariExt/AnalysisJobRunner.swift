@@ -226,9 +226,20 @@ final class AnalysisJobRunner: @unchecked Sendable {
                           retryable: true)
         }
         let url = GameDeepLink.importSgfURL(fileName: fileName)
+        // Open the deep link AT the containing app explicitly. Plain
+        // scheme-based open lets LaunchServices pick ANY registered handler —
+        // on a machine with an older install (TestFlight copy, stale archive)
+        // the link lands in an app without the spool drain and the hand-off
+        // silently dies. The appex always knows its own app: PlugIns/x.appex
+        // → Contents → app root.
+        let containingApp = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         var opened = false
         let done = DispatchSemaphore(value: 0)
-        NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+        NSWorkspace.shared.open([url], withApplicationAt: containingApp,
+                                configuration: NSWorkspace.OpenConfiguration()) { _, error in
             opened = error == nil
             done.signal()
         }

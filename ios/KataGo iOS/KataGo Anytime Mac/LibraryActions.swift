@@ -247,6 +247,45 @@ extension MainWindowController: LibraryActionsDelegate {
         }
     }
 
+    /// Safari-extension hand-off consumer: import every SGF spooled into the
+    /// App Group (oldest first), select the one the `import-sgf` deep link
+    /// names (or the last imported), then delete the spool files. Mirrors the
+    /// iOS drain in GameSplitView; on macOS the only spool writer is the
+    /// Safari web extension's "Open in KataGo Anytime".
+    func drainHandoffSpool(preferring fileName: String?) {
+        guard let directory = GameDeepLink.messagesHandoffDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                  at: directory, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let spooled = files
+            .filter { $0.pathExtension == "sgf" }
+            .sorted { a, b in
+                let dateA = (try? a.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                let dateB = (try? b.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                return dateA < dateB
+            }
+        var selected: GameRecord?
+        for file in spooled {
+            if let sgf = try? String(contentsOf: file, encoding: .utf8),
+               let result = GameRecord.importGameRecord(sgf: sgf, name: "Web Game",
+                                                        in: modelContext) {
+                if result.isNew {
+                    modelContext.insert(result.gameRecord)
+                }
+                if selected == nil || fileName == nil || file.lastPathComponent == fileName {
+                    selected = result.gameRecord
+                }
+            }
+            try? FileManager.default.removeItem(at: file)
+        }
+        if let selected {
+            selectGame(selected)
+            libraryStore.refetch()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
     /// Confirm seam for the photo-import sheet: creates (or de-dups to) a game
     /// from the recognized SGF and selects it, reusing the exact same
     /// insert/refetch/select/widget-reload sequence as the file path.

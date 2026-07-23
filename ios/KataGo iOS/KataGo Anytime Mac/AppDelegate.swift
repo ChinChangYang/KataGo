@@ -108,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for url in urls {
             if let id = GameDeepLink.gameID(from: url) {
                 windowController?.selectGame(byID: id)
+            } else if let fileName = GameDeepLink.importSgfFileName(from: url) {
+                // Safari-extension hand-off: the SGF is in the App Group
+                // spool, not in the URL — a custom-scheme URL must never fall
+                // through to the file-import path (it is not a readable file).
+                windowController?.drainHandoffSpool(preferring: fileName)
             } else {
                 remaining.append(url)
             }
