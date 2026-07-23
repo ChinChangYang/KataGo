@@ -47,8 +47,9 @@ public enum GtpCommandBuilder {
     /// re-arm silently inherits a prior human-profile gen-move's sticky
     /// maxVisits=400 — app targets must use the bundles below, which embed the
     /// reset structurally instead of leaving it as a per-call-site convention.
+    /// Delegates to the bridge-free tier so the literal exists exactly once.
     static func analyzeCommand(interval: Int, maxMoves: Int) -> String {
-        return "kata-analyze interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"
+        return AnalysisCommand.analyze(interval: interval, maxMoves: maxMoves)
     }
 
     static func fastAnalyzeCommand(maxMoves: Int) -> String {
@@ -77,7 +78,7 @@ public enum GtpCommandBuilder {
     }
 
     public static func boardSizeCommand(width: Int, height: Int) -> String {
-        return "rectangular_boardsize \(width) \(height)"
+        return AnalysisCommand.boardSize(width: width, height: height)
     }
 
     public static func komiCommand(_ komi: Float) -> String {

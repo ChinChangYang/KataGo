@@ -39,36 +39,7 @@ public enum CommentTone: Int {
     case poetic = 4
 }
 
-public enum PlayerColor: Sendable {
-    case black
-    case white
-    case unknown
-
-    public var symbol: String? {
-        if self == .black {
-            return "b"
-        } else if self == .white {
-            return "w"
-        } else {
-            return nil
-        }
-    }
-
-    public var name: String {
-        if self == .black {
-            "Black"
-        } else if self == .white {
-            "White"
-        } else {
-            "Unknown"
-        }
-    }
-
-    public var other: PlayerColor {
-        switch self {
-        case .black: .white
-        case .white: .black
-        case .unknown: .unknown
-        }
-    }
-}
+// PlayerColor moved to KataGoAnalysisKit (PlayerColor.swift) so the
+// Foundation-only analysis tier can express the parser's perspective flip;
+// it stays visible to every `import KataGoGameStore` consumer via this
+// target's @_exported import KataGoAnalysisKit (AnalysisKitReexport.swift).

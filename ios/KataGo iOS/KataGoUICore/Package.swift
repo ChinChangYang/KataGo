@@ -80,6 +80,13 @@ let package = Package(
         // engine-linked test target can differential-test it against the
         // C++ board via -bundle_loader.
         .library(name: "GoRulesKit", type: .static, targets: ["GoRulesKit"]),
+        // Foundation-only kata-analyze tier: the analysis-line parser, its
+        // value types (BoardPoint/Coordinate/AnalysisInfo/OwnershipUnit/
+        // PlayerColor), and Config-free analyze command builders. Exists for
+        // processes that must parse engine analysis without linking the C++
+        // bridge (the Safari extension); never depends on CKataGoBridge / MLX /
+        // SwiftUI / SwiftData.
+        .library(name: "KataGoAnalysisKit", type: .static, targets: ["KataGoAnalysisKit"]),
     ],
     dependencies: [
         // Vendored OpenCV 5.0.0 (local SwiftPM package). Consumed ONLY by the
@@ -119,9 +126,18 @@ let package = Package(
         .target(
             name: "CoreMLCacheKit"
         ),
-        // Pure-Swift, bridge-free SwiftData layer. No Cxx interop.
+        // Foundation-only analysis tier (see the product note above). The
+        // bottom of the bridge-free dependency stack: KataGoGameStore and
+        // KataGoUICore both depend on it and re-export it.
         .target(
-            name: "KataGoGameStore"
+            name: "KataGoAnalysisKit"
+        ),
+        // Pure-Swift, bridge-free SwiftData layer. No Cxx interop. Depends on
+        // KataGoAnalysisKit ONLY for PlayerColor (re-exported so the widget /
+        // watch / Messages consumers keep seeing it unchanged).
+        .target(
+            name: "KataGoGameStore",
+            dependencies: ["KataGoAnalysisKit"]
         ),
         // Pure-Swift Go rules engine, ported from cpp/game/board.cpp +
         // boardhistory.cpp. Depends on KataGoGameStore ONLY for the shared
@@ -141,7 +157,7 @@ let package = Package(
         ),
         .target(
             name: "KataGoUICore",
-            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore"],
+            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit"],
             resources: [
                 .process("Resources")
             ],

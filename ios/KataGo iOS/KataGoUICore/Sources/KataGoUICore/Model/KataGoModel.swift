@@ -26,31 +26,9 @@ public class BoardSize {
     }
 }
 
-public struct BoardPoint: Hashable, Comparable, Sendable {
-    public let x: Int
-    public let y: Int
-
-    public init(x: Int, y: Int) {
-        self.x = x
-        self.y = y
-    }
-
-    public func isPass(width: Int, height: Int) -> Bool {
-        self == BoardPoint.pass(width: width, height: height)
-    }
-
-    public static func passY(height: Int) -> Int {
-        return height + 1
-    }
-
-    public static func pass(width: Int, height: Int) -> BoardPoint {
-        return BoardPoint(x: width - 1, y: passY(height: height))
-    }
-
-    public static func < (lhs: BoardPoint, rhs: BoardPoint) -> Bool {
-        return (lhs.y, lhs.x) < (rhs.y, rhs.x)
-    }
-}
+// BoardPoint's core definition lives in KataGoAnalysisKit (BoardPoint.swift)
+// and is re-exported here via KataGoUICore's @_exported import
+// KataGoAnalysisKit. The UI-facing helpers stay behind as extensions.
 
 extension BoardPoint {
     public static func getPositionY(y: Int, height: CGFloat, verticalFlip: Bool) -> CGFloat {
@@ -72,12 +50,10 @@ extension BoardPoint {
 extension BoardPoint {
     public init(location: Location, width: Int, height: Int) {
         if location.pass {
-            x = width - 1
-            y = BoardPoint.passY(height: height)
+            self.init(x: width - 1, y: BoardPoint.passY(height: height))
         } else {
-            x = location.x
             // Subtract 1 from y to make it 0-indexed
-            y = height - location.y - 1
+            self.init(x: location.x, y: height - location.y - 1)
         }
     }
 }
@@ -178,8 +154,8 @@ public class Stones: Equatable {
     }
 }
 
-// PlayerColor is defined in KataGoGameStore (GameRules.swift) and
-// re-exported here via KataGoUICore's @_exported import KataGoGameStore.
+// PlayerColor is defined in KataGoAnalysisKit (PlayerColor.swift) and
+// re-exported here via KataGoUICore's @_exported import KataGoAnalysisKit.
 
 @Observable
 public class Turn {
@@ -203,67 +179,9 @@ extension Turn {
     }
 }
 
-public struct AnalysisInfo {
-    public let visits: Int
-    public let winrate: Float
-    public let scoreLead: Float
-    public let utilityLcb: Float
-    /// Principal variation as GTP vertex strings ("Q16", "pass"). Depth is
-    /// capped by the cfg's `analysisPVLen`. Empty when not present in the line.
-    public let pv: [String]
-    /// Per-candidate ownership grid from this move's search subtree (same
-    /// emission order and perspective as the root grid). Only present when the
-    /// analyze command requested `movesOwnership true`; nil otherwise.
-    public let movesOwnership: [Float]?
-
-    public init(visits: Int, winrate: Float, scoreLead: Float, utilityLcb: Float,
-                pv: [String] = [], movesOwnership: [Float]? = nil) {
-        self.visits = visits
-        self.winrate = winrate
-        self.scoreLead = scoreLead
-        self.utilityLcb = utilityLcb
-        self.pv = pv
-        self.movesOwnership = movesOwnership
-    }
-}
-
-public struct OwnershipUnit: Identifiable {
-    public let point: BoardPoint
-    public let whiteness: Float
-    public let scale: Float
-    public let opacity: Float
-
-    public init(point: BoardPoint, whiteness: Float, scale: Float, opacity: Float) {
-        self.point = point
-        self.whiteness = whiteness
-        self.scale = scale
-        self.opacity = opacity
-    }
-
-    public var id: Int {
-        point.hashValue
-    }
-
-    public var isBlack: Bool {
-        whiteness < 0.1
-    }
-
-    public var isWhite: Bool {
-        whiteness > 0.9
-    }
-
-    public var isSchrodinger: Bool {
-        (abs(whiteness - 0.5) < 0.2) && scale > 0.4
-    }
-
-    public var nearBlack: Bool {
-        whiteness < 0.3
-    }
-
-    public var nearWhite: Bool {
-        whiteness > 0.7
-    }
-}
+// AnalysisInfo and OwnershipUnit live in KataGoAnalysisKit
+// (AnalysisInfo.swift), re-exported here via KataGoUICore's @_exported import
+// KataGoAnalysisKit.
 
 public func convertToSIUnits(_ number: Int) -> String {
     let prefixes: [(prefix: String, value: Int)] = [
@@ -695,86 +613,12 @@ public class Score {
     }
 }
 
-public struct Coordinate {
-    public let x: Int
-    public let y: Int
-    public let width: Int
-    public let height: Int
+// Coordinate's core definition (labels, GTP-vertex mapping, xMap/xLabelMap)
+// lives in KataGoAnalysisKit (Coordinate.swift), re-exported here via
+// KataGoUICore's @_exported import KataGoAnalysisKit. The Dimensions-based
+// screen-point mapping below stays behind as an extension.
 
-    public var xLabel: String? {
-        return Coordinate.xLabelMap[x]
-    }
-
-    public var yLabel: String {
-        return String(y)
-    }
-
-    public var move: String? {
-        if let point, point.isPass(width: width, height: height) {
-            return "pass"
-        } else if let xLabel {
-            return "\(xLabel)\(yLabel)"
-        } else {
-            return nil
-        }
-    }
-
-    public var point: BoardPoint? {
-        BoardPoint(x: x, y: y - 1)
-    }
-
-    public var index: Int {
-        x + ((y - 1) * width)
-    }
-
-    // Mapping letters A-AZ (without I) to numbers 0-49
-    public static let xMap: [String: Int] = [
-        "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,
-        "F": 5, "G": 6, "H": 7, "J": 8, "K": 9,
-        "L": 10, "M": 11, "N": 12, "O": 13, "P": 14,
-        "Q": 15, "R": 16, "S": 17, "T": 18, "U": 19,
-        "V": 20, "W": 21, "X": 22, "Y": 23, "Z": 24,
-        "AA": 25, "AB": 26, "AC": 27, "AD": 28, "AE": 29,
-        "AF": 30, "AG": 31, "AH": 32, "AJ": 33, "AK": 34,
-        "AL": 35, "AM": 36, "AN": 37, "AO": 38, "AP": 39,
-        "AQ": 40, "AR": 41, "AS": 42, "AT": 43, "AU": 44,
-        "AV": 45, "AW": 46, "AX": 47, "AY": 48, "AZ": 49
-    ]
-
-    public static let xLabelMap: [Int: String] = [
-        0: "A", 1: "B", 2: "C", 3: "D", 4: "E",
-        5: "F", 6: "G", 7: "H", 8: "J", 9: "K",
-        10: "L", 11: "M", 12: "N", 13: "O", 14: "P",
-        15: "Q", 16: "R", 17: "S", 18: "T", 19: "U",
-        20: "V", 21: "W", 22: "X", 23: "Y", 24: "Z",
-        25: "AA", 26: "AB", 27: "AC", 28: "AD", 29: "AE",
-        30: "AF", 31: "AG", 32: "AH", 33: "AJ", 34: "AK",
-        35: "AL", 36: "AM", 37: "AN", 38: "AO", 39: "AP",
-        40: "AQ", 41: "AR", 42: "AS", 43: "AT", 44: "AU",
-        45: "AV", 46: "AW", 47: "AX", 48: "AY", 49: "AZ"
-    ]
-
-    public init?(x: Int, y: Int, width: Int, height: Int) {
-        guard ((1...height).contains(y) && (0..<width).contains(x)) || BoardPoint(x: x, y: y - 1).isPass(width: width, height: height) else { return nil }
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-    }
-
-    public init?(xLabel: String, yLabel: String) {
-        self.init(xLabel: xLabel, yLabel: yLabel, width: 19, height: 19)
-    }
-
-    public init?(xLabel: String, yLabel: String, width: Int, height: Int) {
-        if let x = Coordinate.xMap[xLabel.uppercased()],
-           let y = Int(yLabel) {
-            self.init(x: x, y: y, width: width, height: height)
-        } else {
-            return nil
-        }
-    }
-
+extension Coordinate {
     /// Maps a point in the board's `Dimensions` coordinate space to a board
     /// `Coordinate` (nil when the point falls outside the board / pass area, via
     /// the failable `init`). Extracted verbatim from `BoardView.locationToCoordinate`
