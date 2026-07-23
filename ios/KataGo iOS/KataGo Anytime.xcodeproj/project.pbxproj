@@ -315,6 +315,7 @@
 		91F43CB41EF60FFB7DE17527 /* port.cc in Sources */ = {isa = PBXBuildFile; fileRef = 719D1943C021CFA501FF9CF3 /* port.cc */; };
 		923919A38F96C31748E774F2 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		927E03B4C0107D731E9907E4 /* GifPreviewTimingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B634BA3BD420241BA41CD1 /* GifPreviewTimingTests.swift */; };
+		92E40930E647F7379EFB2F11 /* images in Resources */ = {isa = PBXBuildFile; fileRef = 4FDA012FE5D787E41C92FF99 /* images */; };
 		92E4D615B82FE93C35320828 /* vlog_config.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4D052BCCBD2D036B1E839690 /* vlog_config.cc */; };
 		93145670B0CC5A2216810181 /* Scaler.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 940B44D2B6653C3A368C2CCE /* Scaler.pb.cc */; };
 		93220D07CE100955A981A6BF /* VisionAnalysisLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3712A5C7191AA84DBBDA0BF /* VisionAnalysisLabelTests.swift */; };
@@ -1183,6 +1184,7 @@
 		4DA3F6789C0DB0E0296968D1 /* TVStoreReset.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVStoreReset.swift; sourceTree = "<group>"; };
 		4F5EA80624694CAFA79E2738 /* GobanStateForcedBranchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateForcedBranchTests.swift; sourceTree = "<group>"; };
 		4FA4F0662AABA7D774C87B46 /* conditions.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = conditions.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/conditions.cc"; sourceTree = SOURCE_ROOT; };
+		4FDA012FE5D787E41C92FF99 /* images */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = images; path = KataGoAnytimeSafariExt/Resources/images; sourceTree = "<group>"; };
 		504520B5B1920A5B9DA52B7E /* PhotoImportCropUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoImportCropUITests.swift; sourceTree = "<group>"; };
 		5109844DEF28BA649802F94C /* TVMemoryOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVMemoryOverlay.swift; sourceTree = "<group>"; };
 		5290ED5C9410AF244A700A43 /* str_split.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_split.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_split.cc"; sourceTree = SOURCE_ROOT; };
@@ -1988,6 +1990,7 @@
 				06CA4C1F8125C6717766A98A /* chart.js */,
 				17E3BF48CB16AAB616C8B248 /* content.js */,
 				DEACEA1C54828A291201F009 /* page-hook.js */,
+				4FDA012FE5D787E41C92FF99 /* images */,
 			);
 			name = KataGoAnytimeSafariExt;
 			sourceTree = SOURCE_ROOT;
@@ -3613,6 +3616,7 @@
 				B1C57B3AED6E2672EEDCCFCE /* chart.js in Resources */,
 				1497289E7603DE4A550DB834 /* content.js in Resources */,
 				8E08E1ACAD8C81E891B51484 /* page-hook.js in Resources */,
+				92E40930E647F7379EFB2F11 /* images in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
