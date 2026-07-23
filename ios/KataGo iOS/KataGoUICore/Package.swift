@@ -137,7 +137,10 @@ let package = Package(
         // watch / Messages consumers keep seeing it unchanged).
         .target(
             name: "KataGoGameStore",
-            dependencies: ["KataGoAnalysisKit"]
+            dependencies: ["KataGoAnalysisKit"],
+            resources: [
+                .process("Resources")
+            ]
         ),
         // Pure-Swift Go rules engine, ported from cpp/game/board.cpp +
         // boardhistory.cpp. Depends on KataGoGameStore ONLY for the shared

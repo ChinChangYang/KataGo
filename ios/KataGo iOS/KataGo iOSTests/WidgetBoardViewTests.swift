@@ -1,8 +1,34 @@
 import Testing
 import SwiftUI
+import UIKit
+import KataGoGameStore
 import KataGoUICore
 
 struct WidgetBoardViewTests {
+    /// The app-parity wood asset moved down into KataGoGameStore so the appex
+    /// can draw the SAME wood.png as the in-app board. Regression guard for
+    /// the asset move: it must resolve from the package bundle.
+    @Test func woodAsset_resolvesFromKataGoGameStoreBundle() {
+        #expect(UIImage(named: "Wood", in: .kataGoGameStore, with: nil) != nil)
+    }
+
+    /// The iOS/macOS widget board style (appGoban: wood.png, black grid, bold
+    /// black app-style labels) renders at both widget-family extremes, in card
+    /// and full-bleed modes, without collapsing or faulting.
+    @MainActor @Test(arguments: [CGFloat(120), CGFloat(360)])
+    func widgetBoardView_appGobanRendersToImage(side: CGFloat) {
+        let card = WidgetBoardView(width: 19, height: 19,
+                                   blackVertices: ["Q16", "D4"], whiteVertices: ["Q4"],
+                                   showCoordinates: true,
+                                   style: .appGoban(drawsOwnWood: true))
+        #expect(ImageRenderer(content: card.frame(width: side, height: side)).uiImage != nil)
+
+        let fullBleed = WidgetBoardView(width: 9, height: 9,
+                                        blackVertices: ["C3"], whiteVertices: ["G7"],
+                                        showCoordinates: true,
+                                        style: .appGoban(drawsOwnWood: false))
+        #expect(ImageRenderer(content: fullBleed.frame(width: side, height: side)).uiImage != nil)
+    }
     @Test func parseVertex_handlesGTPCoordinates() {
         // 19x19: "A1" is bottom-left → grid (0, 18); "T19" top-right → (18, 0).
         #expect(parseVertex("A1", width: 19, height: 19)! == (0, 18))

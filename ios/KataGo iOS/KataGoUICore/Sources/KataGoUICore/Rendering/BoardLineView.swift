@@ -78,7 +78,9 @@ public struct BoardLineView: View {
 
     private func drawBoardBackground(dimensions: Dimensions) -> some View {
         Group {
-            Image("Wood", bundle: .module)
+            // The wood asset lives in KataGoGameStore (bottom of the bridge-free
+            // stack) so the widget appex draws the SAME texture as this board.
+            Image("Wood", bundle: .kataGoGameStore)
                 .resizable()
                 .frame(width: dimensions.gobanWidth,
                        height: dimensions.gobanHeight)
@@ -111,7 +113,7 @@ public struct BoardLineView: View {
                 y: dimensions.boardLineStartY + CGFloat(passPoint.y) * dimensions.squareLength)
             #endif
 
-            Image("Wood", bundle: .module)
+            Image("Wood", bundle: .kataGoGameStore)
                 .resizable()
                 .frame(width: dimensions.squareLength,
                        height: dimensions.squareLength)

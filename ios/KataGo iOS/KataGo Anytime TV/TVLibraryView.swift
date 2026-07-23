@@ -261,7 +261,8 @@ struct TVGameCard: View {
             WidgetBoardView(width: game.width ?? 19,
                             height: game.height ?? 19,
                             blackVertices: vertices.black,
-                            whiteVertices: vertices.white)
+                            whiteVertices: vertices.white,
+                            style: .appGoban(drawsOwnWood: true))
                 .aspectRatio(1, contentMode: .fit)
                 .padding([.top, .horizontal], 20)
 

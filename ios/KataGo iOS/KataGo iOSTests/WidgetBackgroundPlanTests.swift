@@ -6,15 +6,19 @@ struct WidgetBackgroundPlanTests {
         // Tint wins: while the system renders the widget accented, the user's
         // background choice is set aside entirely — neutral backplate, the
         // two-tone accent board, no full-bleed wood, bright (non-ink) text.
+        // The app-board-style flag is irrelevant here by design.
         for background in SavedGameBackground.allCases {
-            let plan = WidgetBackgroundPlan.resolve(background: background,
-                                                    isAccented: true,
-                                                    glassPrefersDarkScheme: false)
-            #expect(plan.backplate == .neutralAccent)
-            #expect(plan.colorSchemePin == nil)
-            #expect(!plan.boardDrawsOwnWood)
-            #expect(!plan.textIsInk)
-            #expect(plan.boardStyle == .accented)
+            for appStyle in [false, true] {
+                let plan = WidgetBackgroundPlan.resolve(background: background,
+                                                        isAccented: true,
+                                                        glassPrefersDarkScheme: false,
+                                                        usesAppBoardStyle: appStyle)
+                #expect(plan.backplate == .neutralAccent)
+                #expect(plan.colorSchemePin == nil)
+                #expect(!plan.boardDrawsOwnWood)
+                #expect(!plan.textIsInk)
+                #expect(plan.boardStyle == .accented)
+            }
         }
     }
 
@@ -24,7 +28,8 @@ struct WidgetBackgroundPlanTests {
         for background in SavedGameBackground.allCases {
             let plan = WidgetBackgroundPlan.resolve(background: background,
                                                     isAccented: true,
-                                                    glassPrefersDarkScheme: true)
+                                                    glassPrefersDarkScheme: true,
+                                                    usesAppBoardStyle: false)
             #expect(plan.backplate == .neutralAccent)
             #expect(plan.colorSchemePin == .dark)
             #expect(plan.boardStyle == .accented)
@@ -38,7 +43,8 @@ struct WidgetBackgroundPlanTests {
         for glassDark in [false, true] {
             let plan = WidgetBackgroundPlan.resolve(background: .wood,
                                                     isAccented: false,
-                                                    glassPrefersDarkScheme: glassDark)
+                                                    glassPrefersDarkScheme: glassDark,
+                                                    usesAppBoardStyle: false)
             #expect(plan.backplate == .wood)
             #expect(plan.colorSchemePin == .light)
             #expect(!plan.boardDrawsOwnWood)
@@ -65,7 +71,8 @@ struct WidgetBackgroundPlanTests {
             for (background, material, pin) in expectations {
                 let plan = WidgetBackgroundPlan.resolve(background: background,
                                                         isAccented: false,
-                                                        glassPrefersDarkScheme: glassDark)
+                                                        glassPrefersDarkScheme: glassDark,
+                                                        usesAppBoardStyle: false)
                 #expect(plan.backplate == .material(material))
                 #expect(plan.colorSchemePin == pin)
                 #expect(plan.boardDrawsOwnWood)
@@ -81,7 +88,8 @@ struct WidgetBackgroundPlanTests {
         for glassDark in [false, true] {
             let light = WidgetBackgroundPlan.resolve(background: .light,
                                                      isAccented: false,
-                                                     glassPrefersDarkScheme: glassDark)
+                                                     glassPrefersDarkScheme: glassDark,
+                                                     usesAppBoardStyle: false)
             #expect(light.backplate == .light)
             #expect(light.colorSchemePin == .light)
             #expect(light.boardDrawsOwnWood)
@@ -90,12 +98,38 @@ struct WidgetBackgroundPlanTests {
 
             let dark = WidgetBackgroundPlan.resolve(background: .dark,
                                                     isAccented: false,
-                                                    glassPrefersDarkScheme: glassDark)
+                                                    glassPrefersDarkScheme: glassDark,
+                                                    usesAppBoardStyle: false)
             #expect(dark.backplate == .dark)
             #expect(dark.colorSchemePin == .dark)
             #expect(dark.boardDrawsOwnWood)
             #expect(!dark.textIsInk)
             #expect(dark.boardStyle == .goban(drawsOwnWood: true))
+        }
+    }
+
+    @Test func appBoardStyle_swapsEveryGobanForAppGoban() {
+        // iOS/macOS (and tvOS in-app) pass usesAppBoardStyle: true; each
+        // non-accented plan must keep its backplate/pin/text decisions
+        // byte-identical and swap ONLY the board style, preserving the
+        // drawsOwnWood wiring (the no-seam rule rides on it).
+        for background in SavedGameBackground.allCases {
+            for glassDark in [false, true] {
+                let base = WidgetBackgroundPlan.resolve(background: background,
+                                                        isAccented: false,
+                                                        glassPrefersDarkScheme: glassDark,
+                                                        usesAppBoardStyle: false)
+                let app = WidgetBackgroundPlan.resolve(background: background,
+                                                       isAccented: false,
+                                                       glassPrefersDarkScheme: glassDark,
+                                                       usesAppBoardStyle: true)
+                #expect(app.backplate == base.backplate)
+                #expect(app.colorSchemePin == base.colorSchemePin)
+                #expect(app.boardDrawsOwnWood == base.boardDrawsOwnWood)
+                #expect(app.textIsInk == base.textIsInk)
+                #expect(base.boardStyle == .goban(drawsOwnWood: base.boardDrawsOwnWood))
+                #expect(app.boardStyle == .appGoban(drawsOwnWood: base.boardDrawsOwnWood))
+            }
         }
     }
 }

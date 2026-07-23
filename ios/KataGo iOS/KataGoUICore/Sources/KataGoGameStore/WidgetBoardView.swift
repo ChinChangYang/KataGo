@@ -140,6 +140,34 @@ public struct WidgetBoardView: View {
         BoardStarPoints.points(width: width, height: height).map { ($0.x, $0.y) }
     }
 
+    /// One coordinate label. appGoban uses the in-app board's exact idiom
+    /// (`BoardLineView.drawCoordinate`): bold black size-500 text shrunk to
+    /// fit a cell-sized frame, so widget and app coordinates render alike.
+    /// The other styles keep the historical fixed sizing (5 pt floor) and
+    /// per-style colors, with accented additionally bolding for legibility.
+    @ViewBuilder private func coordinateLabel(_ text: String, cell: CGFloat) -> some View {
+        if style.usesAppCoordinateLabels {
+            Text(text)
+                .foregroundStyle(.black)
+                .font(.system(size: 500))
+                .minimumScaleFactor(0.01)
+                .bold()
+                .frame(width: cell, height: cell)
+        } else {
+            let labelColor = style.isGoban
+                ? Color(red: WidgetBoardStyle.gobanInk.red,
+                        green: WidgetBoardStyle.gobanInk.green,
+                        blue: WidgetBoardStyle.gobanInk.blue).opacity(0.9)
+                : style.isAccented
+                    ? Color.white.opacity(0.75)
+                    : Color.black.opacity(0.75)
+            Text(text)
+                .font(.system(size: max(cell * 0.42, 5)))
+                .bold(style.coordinateLabelsAreBold)
+                .foregroundStyle(labelColor)
+        }
+    }
+
     public var body: some View {
         GeometryReader { geo in
             // Coordinates need a band outside the outermost lines. Reserving it
@@ -155,11 +183,12 @@ public struct WidgetBoardView: View {
             let originX = (geo.size.width - cell * CGFloat(width - 1)) / 2
             let originY = (geo.size.height - cell * CGFloat(height - 1)) / 2
 
-            // Goban: the texture generator's opaque dark-brown ink. Accented
-            // (tinted) mode: the wood would render as one flat tinted slab, so
-            // it is dropped; lines and labels become dim NEUTRAL
-            // (non-accentable) marks, and the stones carry the position in two
-            // distinguishable accent treatments — black solid, white outlined.
+            // Goban: the texture generator's opaque dark-brown ink. appGoban:
+            // the app board's plain black lines. Accented (tinted) mode: the
+            // wood would render as one flat tinted slab, so it is dropped;
+            // lines and labels become dim NEUTRAL (non-accentable) marks, and
+            // the stones carry the position in two distinguishable accent
+            // treatments — black solid, white outlined.
             let gridColor = style.isGoban
                 ? Color(red: WidgetBoardStyle.gobanInk.red,
                         green: WidgetBoardStyle.gobanInk.green,
@@ -171,7 +200,15 @@ public struct WidgetBoardView: View {
 
             ZStack {
                 if style.showsWoodBackground {
-                    if style.usesWoodImage, let woodImage {
+                    if style.usesBundledWoodAsset {
+                        // The app board's own texture (`BoardLineView` draws
+                        // this same asset) — exact widget/app parity.
+                        Image(decorative: "Wood", bundle: .module)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                    } else if style.usesWoodImage, let woodImage {
                         // The real grain, cropped to fill — same image the
                         // Wood backplate uses, so card and full-bleed agree.
                         Image(decorative: woodImage, scale: 1)
@@ -269,31 +306,23 @@ public struct WidgetBoardView: View {
                     .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
                 }
                 if showsLabels {
-                    let fontSize = max(cell * 0.42, 5)
                     let offset = cell * 0.62
-                    let labelColor = style.isGoban
-                        ? Color(red: WidgetBoardStyle.gobanInk.red,
-                                green: WidgetBoardStyle.gobanInk.green,
-                                blue: WidgetBoardStyle.gobanInk.blue).opacity(0.9)
-                        : style.isAccented
-                            ? Color.white.opacity(0.75)
-                            : Color.black.opacity(0.75)
                     // Column letters (A–T, skipping I) above and below the grid.
                     ForEach(0..<width, id: \.self) { x in
                         let cx = originX + CGFloat(x) * cell
                         let label = WidgetBoardView.columnLabel(x)
-                        Text(label).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                        coordinateLabel(label, cell: cell)
                             .position(x: cx, y: originY - offset)
-                        Text(label).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                        coordinateLabel(label, cell: cell)
                             .position(x: cx, y: originY + CGFloat(height - 1) * cell + offset)
                     }
                     // Row numbers (1 at the bottom, increasing upward) on both sides.
                     ForEach(0..<height, id: \.self) { yy in
                         let cy = originY + CGFloat(yy) * cell
                         let number = "\(height - yy)"
-                        Text(number).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                        coordinateLabel(number, cell: cell)
                             .position(x: originX - offset, y: cy)
-                        Text(number).font(.system(size: fontSize)).foregroundStyle(labelColor)
+                        coordinateLabel(number, cell: cell)
                             .position(x: originX + CGFloat(width - 1) * cell + offset, y: cy)
                     }
                 }

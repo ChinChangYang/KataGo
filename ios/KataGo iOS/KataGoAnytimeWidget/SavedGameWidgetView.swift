@@ -39,13 +39,26 @@ struct SavedGameWidgetView: View {
         #endif
     }
 
+    /// iOS/macOS widgets render the app-parity board (the bundled wood.png,
+    /// black grid, the app's bold coordinate labels); visionOS keeps the
+    /// goban-palette look that matches its 3D goban. Injected into the
+    /// resolver so the mapping is testable, like `glassPrefersDarkScheme`.
+    private var usesAppBoardStyle: Bool {
+        #if os(visionOS)
+        false
+        #else
+        true
+        #endif
+    }
+
     /// One authority for backplate, scheme pin, board style, and whether the
     /// board draws its own wood card — tint (accented mode) wins over the
     /// user's background choice.
     private var backgroundPlan: WidgetBackgroundPlan.Plan {
         WidgetBackgroundPlan.resolve(background: entry.background,
                                      isAccented: renderingMode == .accented,
-                                     glassPrefersDarkScheme: glassPrefersDarkScheme)
+                                     glassPrefersDarkScheme: glassPrefersDarkScheme,
+                                     usesAppBoardStyle: usesAppBoardStyle)
     }
 
     // Always render the crisp VECTOR board, never a stored bitmap. The persisted
@@ -56,13 +69,17 @@ struct SavedGameWidgetView: View {
     // family size, and keeps a heavy Data blob out of the memory-constrained appex.
     private var board: some View {
         let plan = backgroundPlan
+        // Only the procedural-wood style (visionOS goban) needs the generated
+        // CGImage; the appGoban board draws the bundled asset, so the
+        // iOS/macOS appex never pays for the texture cache.
         return WidgetBoardView(width: entry.snapshot.boardWidth,
                         height: entry.snapshot.boardHeight,
                         blackVertices: entry.snapshot.lastBlackStones,
                         whiteVertices: entry.snapshot.lastWhiteStones,
                         showCoordinates: true,
                         style: plan.boardStyle,
-                        woodImage: WidgetWoodTexture.sharedSquareImage())
+                        woodImage: plan.boardStyle.usesWoodImage
+                            ? WidgetWoodTexture.sharedSquareImage() : nil)
             // Keep the goban square. WidgetBoardView is a greedy GeometryReader with
             // no intrinsic size, so in the non-square medium/large layouts it would
             // otherwise paint the wooden background across the whole rectangle with a
@@ -81,7 +98,13 @@ struct SavedGameWidgetView: View {
     @ViewBuilder private var backplate: some View {
         switch backgroundPlan.backplate {
         case .wood:
-            if let wood = WidgetWoodTexture.sharedSquareImage() {
+            if usesAppBoardStyle {
+                // The same bundled wood.png the appGoban board (and the in-app
+                // board) draws — one wood everywhere, no grain mismatch.
+                Image(decorative: "Wood", bundle: .kataGoGameStore)
+                    .resizable()
+                    .scaledToFill()
+            } else if let wood = WidgetWoodTexture.sharedSquareImage() {
                 Image(decorative: wood, scale: 1)
                     .resizable()
                     .scaledToFill()

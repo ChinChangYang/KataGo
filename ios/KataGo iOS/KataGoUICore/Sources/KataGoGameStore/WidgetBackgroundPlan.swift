@@ -41,9 +41,16 @@ public enum WidgetBackgroundPlan {
         public let boardStyle: WidgetBoardStyle
     }
 
+    /// `usesAppBoardStyle` is the injected platform variance (like
+    /// `glassPrefersDarkScheme`): true on iOS/macOS, where every non-accented
+    /// plan swaps its `.goban` board for the app-parity `.appGoban` — same
+    /// `drawsOwnWood` wiring, so the no-seam rule is untouched. visionOS
+    /// passes false and keeps the goban-palette look. The accented plan
+    /// ignores the flag: tint wins.
     public static func resolve(background: SavedGameBackground,
                                isAccented: Bool,
-                               glassPrefersDarkScheme: Bool) -> Plan {
+                               glassPrefersDarkScheme: Bool,
+                               usesAppBoardStyle: Bool) -> Plan {
         if isAccented {
             return Plan(backplate: .neutralAccent,
                         colorSchemePin: glassPrefersDarkScheme ? .dark : nil,
@@ -51,33 +58,38 @@ public enum WidgetBackgroundPlan {
                         textIsInk: false,
                         boardStyle: .accented)
         }
+        func boardStyle(drawsOwnWood: Bool) -> WidgetBoardStyle {
+            usesAppBoardStyle
+                ? .appGoban(drawsOwnWood: drawsOwnWood)
+                : .goban(drawsOwnWood: drawsOwnWood)
+        }
         switch background {
         case .wood:
             return Plan(backplate: .wood,
                         colorSchemePin: .light,
                         boardDrawsOwnWood: false,
                         textIsInk: true,
-                        boardStyle: .goban(drawsOwnWood: false))
+                        boardStyle: boardStyle(drawsOwnWood: false))
         case .grass:
-            return materialPlan(.grass, pin: .dark)
+            return materialPlan(.grass, pin: .dark, boardStyle: boardStyle(drawsOwnWood: true))
         case .tatami:
-            return materialPlan(.tatami, pin: .light)
+            return materialPlan(.tatami, pin: .light, boardStyle: boardStyle(drawsOwnWood: true))
         case .slate:
-            return materialPlan(.slate, pin: .dark)
+            return materialPlan(.slate, pin: .dark, boardStyle: boardStyle(drawsOwnWood: true))
         case .sky:
-            return materialPlan(.sky, pin: .light)
+            return materialPlan(.sky, pin: .light, boardStyle: boardStyle(drawsOwnWood: true))
         case .light:
             return Plan(backplate: .light,
                         colorSchemePin: .light,
                         boardDrawsOwnWood: true,
                         textIsInk: true,
-                        boardStyle: .goban(drawsOwnWood: true))
+                        boardStyle: boardStyle(drawsOwnWood: true))
         case .dark:
             return Plan(backplate: .dark,
                         colorSchemePin: .dark,
                         boardDrawsOwnWood: true,
                         textIsInk: false,
-                        boardStyle: .goban(drawsOwnWood: true))
+                        boardStyle: boardStyle(drawsOwnWood: true))
         }
     }
 
@@ -85,11 +97,12 @@ public enum WidgetBackgroundPlan {
     /// board as its own wood card, and the scheme pinned for legibility over
     /// that material — ink text over the pale ones, bright over the dark.
     private static func materialPlan(_ material: WidgetBackplateMaterial,
-                                     pin: SchemePin) -> Plan {
+                                     pin: SchemePin,
+                                     boardStyle: WidgetBoardStyle) -> Plan {
         Plan(backplate: .material(material),
              colorSchemePin: pin,
              boardDrawsOwnWood: true,
              textIsInk: pin == .light,
-             boardStyle: .goban(drawsOwnWood: true))
+             boardStyle: boardStyle)
     }
 }

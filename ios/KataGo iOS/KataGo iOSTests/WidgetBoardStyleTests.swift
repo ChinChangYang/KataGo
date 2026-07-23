@@ -108,6 +108,61 @@ struct WidgetBoardStyleTests {
         }
     }
 
+    @Test func appGobanStyle_matchesTheAppBoard() {
+        // The iOS/macOS widget board is a miniature of the in-app 2D goban:
+        // the bundled wood.png (not the procedural grain), opaque black grid,
+        // the app's quarter-cell star points, and the app's bold shrink-to-fit
+        // coordinate labels. Stones and candidate semantics stay as on goban.
+        let style = WidgetBoardStyle.appGoban(drawsOwnWood: true)
+        #expect(!style.isAccented)
+        #expect(!style.isGoban)
+        #expect(style.showsWoodBackground)
+        #expect(style.usesBundledWoodAsset)
+        #expect(!style.usesWoodImage)
+        #expect(style.gridOpacity == 1)
+        #expect(style.stonesAreSpherical)
+        #expect(style.usesAppCoordinateLabels)
+        #expect(style.coordinateLabelsAreBold)
+        #expect(style.usesRankHueDots)
+        #expect(!style.blackStoneIsAccentFill)
+        #expect(!style.whiteStoneIsAccentOutline)
+        for rank in 0...3 {
+            #expect(style.candidateDotOpacity(rank: rank) == 1)
+        }
+    }
+
+    @Test func appGobanFullBleed_drawsNoWoodOfItsOwn() {
+        // Full-bleed Wood backplate: the board draws nothing behind the grid,
+        // exactly like the goban variant, so no grain seam can appear.
+        let style = WidgetBoardStyle.appGoban(drawsOwnWood: false)
+        #expect(!style.showsWoodBackground)
+        #expect(style.usesBundledWoodAsset)
+        #expect(style.stonesAreSpherical)
+    }
+
+    @Test func appGobanMetrics_matchTheAppRatios() {
+        // Grid keeps the goban's millimeter-scaled line (the app's fixed 1 pt
+        // doesn't scale down to widget cells); hoshi adopts the app's
+        // squareLengthDiv4 ratio, with the 2 pt legibility floor.
+        let style = WidgetBoardStyle.appGoban(drawsOwnWood: true)
+        #expect(abs(style.gridLineWidth(cellSize: 22) - 0.8) < 1e-9)
+        #expect(style.gridLineWidth(cellSize: 4) == 0.5)
+        #expect(abs(style.hoshiDiameter(cellSize: 22) - 5.5) < 1e-9)
+        #expect(style.hoshiDiameter(cellSize: 5) == 2)
+    }
+
+    @Test func coordinateLabelPlan_isAppGobanAndAccentedOnly() {
+        // The app-label idiom (size-500 shrink-to-fit, bold, black) belongs to
+        // appGoban alone; accented keeps its adaptive color but gains bold;
+        // goban and standard are frozen (visionOS/watch/Messages unchanged).
+        #expect(!WidgetBoardStyle.standard.usesAppCoordinateLabels)
+        #expect(!WidgetBoardStyle.standard.coordinateLabelsAreBold)
+        #expect(!WidgetBoardStyle.goban(drawsOwnWood: true).usesAppCoordinateLabels)
+        #expect(!WidgetBoardStyle.goban(drawsOwnWood: true).coordinateLabelsAreBold)
+        #expect(!WidgetBoardStyle.accented.usesAppCoordinateLabels)
+        #expect(WidgetBoardStyle.accented.coordinateLabelsAreBold)
+    }
+
     @Test func gobanPalette_matchesTheTextureGenerator() {
         // BoardTopTexture composites ink RGB(95, 65, 25) over wood around
         // RGB(216, 185, 92); the vector grid must use the same ink and the

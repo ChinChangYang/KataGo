@@ -755,7 +755,8 @@ struct TVSelfPlayCard: View {
             WidgetBoardView(width: 19,
                             height: 19,
                             blackVertices: Self.blackStones,
-                            whiteVertices: Self.whiteStones)
+                            whiteVertices: Self.whiteStones,
+                            style: .appGoban(drawsOwnWood: true))
                 .aspectRatio(1, contentMode: .fit)
                 .padding([.top, .horizontal], 20)
 

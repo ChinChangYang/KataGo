@@ -2,6 +2,7 @@ import AppKit
 import OSLog
 import SwiftUI
 import SwiftData
+import WidgetKit
 import KataGoUICore
 import KataGoEngineIPC
 
@@ -104,6 +105,12 @@ final class MainWindowController: NSWindowController {
     /// `installAutoPlayObserver()`.
     private var lastIsAutoPlaying = false
     private var lastStonesReady = false
+
+    /// One-shot "reload widgets when the switched game's stones land" latch —
+    /// same mechanism as iOS `GameSplitView`. Armed in `selectGame(_:)`,
+    /// consumed at the end of `handleStonesReadyChange()`. The Mac previously
+    /// never reloaded on a plain sidebar switch at all.
+    private var widgetReloadLatch = WidgetReloadLatch()
     /// Detects the `true -> false` transition of `gobanState.isEditing` that iOS
     /// reacts to (`onChange(of: isEditing)` -> `processIsEditingChange`): leaving
     /// edit mode must cancel any in-flight auto-play.
@@ -530,6 +537,18 @@ final class MainWindowController: NSWindowController {
         // Update the selection synchronously so the sidebar, the board pane, and
         // `ensureSelectedGameRecord` all track it immediately.
         navigationContext.selectedGameRecord = game
+
+        // Arm BEFORE the selection gate: a deferred selection (engine not
+        // ready / report active) still loads via `applyPendingSelection` →
+        // `load`, and its stones-ready edge must fire the reload too.
+        // Deselection has nothing to await — fire immediately.
+        switch widgetReloadLatch.gameSwitched(hasNewGame: game != nil) {
+        case .fireNow:
+            try? modelContainer.mainContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        case .armed:
+            break
+        }
 
         // F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
         // finished its handshake. On a cold launch a selection can arrive
@@ -1580,6 +1599,14 @@ final class MainWindowController: NSWindowController {
 
         // Sync book state after undo/forward/backward (mirrors iOS line 291).
         syncBookState()
+
+        // A game switch armed the latch; the switched game's state is now
+        // written above, so flush the App Group store and reload the widgets.
+        // Per-move edges find the latch unarmed — no reload (mirrors iOS).
+        if widgetReloadLatch.consumeDataLanded() {
+            try? modelContainer.mainContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     // MARK: - Opening-book state sync (P6-T5)

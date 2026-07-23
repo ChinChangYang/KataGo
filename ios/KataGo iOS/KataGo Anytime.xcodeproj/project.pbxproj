@@ -78,6 +78,7 @@
 		23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */; };
 		23BD041DE508CFC8BD3B27AC /* VisionModelBootResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD79CC9919790FED10D4219 /* VisionModelBootResolverTests.swift */; };
 		2461BA3862388B00DD5F8871 /* GobanStateResumeAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB49693C31982E897CF6E60A /* GobanStateResumeAnalysisTests.swift */; };
+		24B7A30C3731F1FDA52E3A9F /* WidgetReloadLatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCB40B1DDC99591F4CC41BE /* WidgetReloadLatchTests.swift */; };
 		252B76EFF78748D34F9F17F0 /* TVSelectPressCatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2748CAC217C4C431516072 /* TVSelectPressCatcher.swift */; };
 		2593AFF0249DB1D081BCCD34 /* zero_copy_stream_impl_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = A44E8E22CE4E5A8FDE17A8B0 /* zero_copy_stream_impl_lite.cc */; };
 		25D2E7192E786A192AE70232 /* GobanRecogKit in Frameworks */ = {isa = PBXBuildFile; productRef = C10478A9FA419EE22FAA8363 /* GobanRecogKit */; };
@@ -1744,6 +1745,7 @@
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionGhostAppearanceTests.swift; sourceTree = "<group>"; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
+		EBCB40B1DDC99591F4CC41BE /* WidgetReloadLatchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetReloadLatchTests.swift; sourceTree = "<group>"; };
 		EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		EC487969D102B8B2B1690658 /* VisionBoardSizeSettingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBoardSizeSettingTests.swift; sourceTree = "<group>"; };
 		ECCA6568D9B66C6D316CC834 /* VisionOwnershipMarkTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionOwnershipMarkTests.swift; sourceTree = "<group>"; };
@@ -3010,6 +3012,7 @@
 				AB7ACEB4432676C73712CA5A /* FileOpenClassifierTests.swift */,
 				EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */,
 				630EF85B2FFDFBC125339FB4 /* VisionFocusRingTests.swift */,
+				EBCB40B1DDC99591F4CC41BE /* WidgetReloadLatchTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4383,6 +4386,7 @@
 				C2136E36D8FE7CEC9C287806 /* FileOpenClassifierTests.swift in Sources */,
 				268B47AE4F414A937EF29E4B /* VisionGhostAppearanceTests.swift in Sources */,
 				58DE63DECA653CFD6667C26B /* VisionFocusRingTests.swift in Sources */,
+				24B7A30C3731F1FDA52E3A9F /* WidgetReloadLatchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

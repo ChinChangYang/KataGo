@@ -1042,6 +1042,15 @@ public class GobanState {
             let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
             newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
 
+            // Guarantee a stones-ready false→true edge for EVERY switch. This
+            // load always ends with `showboard`, whose reply sets
+            // `isReady = true` — but without this reset a switch to a game
+            // saved at its tip (no undos, same board size) leaves `isReady`
+            // true throughout, the equal-value write fires no observation, and
+            // the stones-ready handlers (persist + widget reload) never run.
+            // A `? ` error reply restores it via `resetPendingStatesOnError`.
+            stones.isReady = false
+
             maybeLoadSgf(
                 gameRecord: newGameRecord,
                 messageList: messageList

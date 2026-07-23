@@ -21,6 +21,7 @@ struct GameSplitView: View {
 
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var isEditorPresented = false
+    @State private var widgetReloadLatch = WidgetReloadLatch()
     @State var isGameListViewAppeared = false
     @State private var photoPickerItem: PhotosPickerItem?
 
@@ -232,7 +233,17 @@ struct GameSplitView: View {
         .modifier(GlobalPreferenceSync(gobanState: gobanState))
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)
-            WidgetCenter.shared.reloadAllTimelines()
+            // Reloading here raced ahead of the engine: the switched game's
+            // sgf/stones land with the showboard reply, so arm the latch and
+            // reload from `processStonesReadyChange` instead. Deselection has
+            // nothing to await — fire immediately (the historical behavior).
+            switch widgetReloadLatch.gameSwitched(hasNewGame: newGameRecord != nil) {
+            case .fireNow:
+                try? modelContext.save()
+                WidgetCenter.shared.reloadAllTimelines()
+            case .armed:
+                break
+            }
             processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
         }
         .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
@@ -473,6 +484,14 @@ struct GameSplitView: View {
 
             // Sync book state after undo/forward/backward
             syncBookState()
+
+            // A game switch armed the latch; the switched game's state is now
+            // written above, so flush the App Group store and reload the
+            // widgets. Per-move edges find the latch unarmed — no reload.
+            if widgetReloadLatch.consumeDataLanded() {
+                try? modelContext.save()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         }
     }
 

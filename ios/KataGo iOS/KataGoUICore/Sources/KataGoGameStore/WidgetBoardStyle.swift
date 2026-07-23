@@ -17,6 +17,11 @@ public struct WidgetBoardStyle: Equatable, Sendable {
         /// wood (full-bleed Wood background) — one wood surface at a time,
         /// so the board and its margins can never show a grain seam.
         case goban(drawsOwnWood: Bool)
+        /// The iOS/macOS (and tvOS in-app) miniature of the in-app 2D goban:
+        /// the bundled "Wood" asset instead of the procedural grain, opaque
+        /// black grid/hoshi, and the app's bold shrink-to-fit coordinate
+        /// labels. `.goban` stays byte-identical for visionOS.
+        case appGoban(drawsOwnWood: Bool)
         case accented
     }
 
@@ -27,6 +32,9 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public static func goban(drawsOwnWood: Bool) -> WidgetBoardStyle {
         WidgetBoardStyle(variant: .goban(drawsOwnWood: drawsOwnWood))
     }
+    public static func appGoban(drawsOwnWood: Bool) -> WidgetBoardStyle {
+        WidgetBoardStyle(variant: .appGoban(drawsOwnWood: drawsOwnWood))
+    }
 
     public var isAccented: Bool { variant == .accented }
 
@@ -34,6 +42,15 @@ public struct WidgetBoardStyle: Equatable, Sendable {
         if case .goban = variant { return true }
         return false
     }
+
+    public var isAppGoban: Bool {
+        if case .appGoban = variant { return true }
+        return false
+    }
+
+    /// The two faux-3D goban renderings (spherical stones, millimeter-scaled
+    /// grid) — everything they share hangs off this.
+    public var isGobanFamily: Bool { isGoban || isAppGoban }
 
     /// The exact palette of `BoardTopTexture`: grid/hoshi ink RGB(95, 65, 25)
     /// composited over wood around RGB(216, 185, 92). The vector grid uses the
@@ -67,42 +84,61 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public var showsWoodBackground: Bool {
         switch variant {
         case .standard: return true
-        case .goban(let drawsOwnWood): return drawsOwnWood
+        case .goban(let drawsOwnWood), .appGoban(let drawsOwnWood): return drawsOwnWood
         case .accented: return false
         }
     }
 
     /// Goban wood is the real grain image, not the legacy flat tan color.
+    /// (Procedural CGImage — appGoban draws the bundled asset instead.)
     public var usesWoodImage: Bool { isGoban }
 
+    /// appGoban wood is the app's bundled "Wood" asset — the exact texture
+    /// `BoardLineView` draws — so the widget board matches the in-app board.
+    public var usesBundledWoodAsset: Bool { isAppGoban }
+
     /// Grid + hoshi opacity. Accented mode dims the lines further so the
-    /// two-tone stones carry the position; the goban's ink lines are opaque,
-    /// exactly like the texture generator's.
+    /// two-tone stones carry the position; the goban family's lines are
+    /// opaque — ink like the texture generator's, or the app's plain black.
     public var gridOpacity: Double {
         switch variant {
         case .standard: return 0.55
-        case .goban: return 1
+        case .goban, .appGoban: return 1
         case .accented: return 0.35
         }
     }
 
-    /// Goban stones render with a radial highlight and drop shadow that read
-    /// as the 3D stones; the other variants keep flat discs.
-    public var stonesAreSpherical: Bool { isGoban }
+    /// Goban-family stones render with a radial highlight and drop shadow that
+    /// read as the 3D stones; the other variants keep flat discs.
+    public var stonesAreSpherical: Bool { isGobanFamily }
 
-    /// Grid stroke width for a cell size. The goban scales the texture's
-    /// 0.8 mm line on its 22 mm grid; the flat consumers keep the historical
+    /// Grid stroke width for a cell size. The goban family scales the
+    /// texture's 0.8 mm line on its 22 mm grid (the app's fixed 1 pt doesn't
+    /// scale down to widget cells); the flat consumers keep the historical
     /// 0.5 pt hairline.
     public func gridLineWidth(cellSize: Double) -> Double {
-        isGoban ? max(cellSize * 0.8 / 22, 0.5) : 0.5
+        isGobanFamily ? max(cellSize * 0.8 / 22, 0.5) : 0.5
     }
 
     /// Hoshi dot diameter for a cell size. The goban scales the texture's
-    /// 2 mm-radius star point; the flat consumers keep the historical
-    /// 0.16-of-a-cell dot. Both keep a legibility floor.
+    /// 2 mm-radius star point; appGoban adopts the app board's quarter-cell
+    /// dot (`squareLengthDiv4`); the flat consumers keep the historical
+    /// 0.16-of-a-cell dot. All keep a legibility floor.
     public func hoshiDiameter(cellSize: Double) -> Double {
-        isGoban ? max(cellSize * 4.0 / 22, 2) : max(cellSize * 0.16, 2)
+        switch variant {
+        case .goban: return max(cellSize * 4.0 / 22, 2)
+        case .appGoban: return max(cellSize * 0.25, 2)
+        case .standard, .accented: return max(cellSize * 0.16, 2)
+        }
     }
+
+    /// appGoban coordinate labels use the app board's exact idiom: bold black
+    /// size-500 text shrunk to fit a cell-sized frame (`BoardLineView`).
+    public var usesAppCoordinateLabels: Bool { isAppGoban }
+
+    /// Bold labels: appGoban for app parity; accented also bolds (same weight
+    /// treatment) while keeping its adaptive light color.
+    public var coordinateLabelsAreBold: Bool { isAppGoban || isAccented }
 
     /// Accented mode renders black stones as SOLID accent-colored discs
     /// (a full-luminance fill handed to the system tint via widgetAccentable).
