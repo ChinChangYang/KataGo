@@ -123,6 +123,32 @@ HUMAN_MODEL_RES="../Resources/b18c384nbt-humanv0.bin.gz"
 curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_URL"
 cp -f "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_RES"
 
+# Download the small 24-block net the iOS Safari extension bundles. The appex
+# runs the engine in-process with only ~25 MB of headroom, so it ships this
+# 4.8 MB net rather than the 98 MB default (KataGoAnytimeSafariExtIOS Resources
+# phase; loaded by name in IOSEngineController.swift). Like the two above it is
+# covered by .gitignore's `Resources/*.bin.gz`, so a fresh CI clone has to fetch
+# it or the iOS archive dies at Copy Bundle Resources.
+SAFARI_MODEL_GZ="lionffen_b24c64_3x3_v3_12300.bin.gz"
+SAFARI_MODEL_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/lionffen_b24c64_3x3_v3_12300.bin.gz"
+SAFARI_MODEL_RES="../Resources/lionffen_b24c64_3x3_v3_12300.bin.gz"
+SAFARI_MODEL_SIZE=4842138
+
+curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$SAFARI_MODEL_GZ" "$SAFARI_MODEL_URL"
+
+# Mirrored to this fork's own release rather than fetched from
+# media.katagotraining.org (where the in-app model picker gets it), so all
+# three nets come from GitHub and CI has one host to be down instead of two.
+# A truncated body would only surface much later as an unreadable model inside
+# the appex, so assert the size — the same constant the picker checks
+# (NeuralNetworkModel.swift).
+ACTUAL_SIZE=$(wc -c < "$SAFARI_MODEL_GZ" | tr -d ' ')
+if [ "$ACTUAL_SIZE" != "$SAFARI_MODEL_SIZE" ]; then
+    echo "ERROR: $SAFARI_MODEL_GZ is $ACTUAL_SIZE bytes, expected $SAFARI_MODEL_SIZE"
+    exit 1
+fi
+cp -f "$SAFARI_MODEL_GZ" "$SAFARI_MODEL_RES"
+
 # Opening books are NOT bundled. Each board size's compact .kbook.gz is
 # downloaded on demand in-app (see OpeningBook.swift / OpeningBookPickerView),
 # so there is no book to fetch here.

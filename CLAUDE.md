@@ -57,7 +57,10 @@ xcodebuild test -project "ios/KataGo iOS/KataGo Anytime.xcodeproj" -scheme "Kata
 The app loads its networks from `ios/KataGo iOS/Resources/`. The `.bin.gz` networks are gitignored and must be supplied before building:
 - `default_model.bin.gz` - built-in KataGo network (18-block `b18c384nbt`)
 - `b18c384nbt-humanv0.bin.gz` - human-style (human SL) network for human-like profiles
+- `lionffen_b24c64_3x3_v3_12300.bin.gz` - the 4.8 MB net bundled by the **iOS Safari extension** appex, which runs the engine in-process on a tight memory budget. Missing it fails the iOS build (and only the iOS build) at Copy Bundle Resources.
 - `default_gtp.cfg` - GTP configuration (committed)
+
+`ci_scripts/ci_post_clone.sh` downloads all three networks; it is the authoritative list, so a new bundled net has to be added there or Xcode Cloud breaks on the next fresh clone.
 
 There is **no** `.mlpackage` to download: the CoreML model is generated on the fly at runtime by converting the `.bin.gz` network, then compiled and cached. Additional networks (e.g. the 40-block "Official KataGo Network") are downloaded in-app via the model picker.
 

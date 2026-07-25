@@ -82,6 +82,9 @@ DerivedData/
 # For KataGo-iOS
 ios/KataGo\ iOS/Resources/*.bin.gz
 ios/KataGo\ iOS/Resources/*.mlpackage
+# ci_post_clone.sh curls each net into its own directory before copying it into
+# Resources/, so running it outside CI leaves the downloads here too.
+ios/KataGo\ iOS/ci_scripts/*.bin.gz
 ios/KataGo\ iOS/KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz
 ios/KataGo\ iOS/Libraries/
 ios/KataGo\ iOS/.derived-data-log-*

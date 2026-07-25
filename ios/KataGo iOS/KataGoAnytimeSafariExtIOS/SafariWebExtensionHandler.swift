@@ -16,7 +16,11 @@ import KataGoAnalysisKit
 private let handlerLog = Logger(subsystem: "chinchangyang.KataGo-iOS.tw.safariweb",
                                 category: "handler")
 
-final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
+/// `Sendable` because the reply is assembled on a background queue and so
+/// captures `self`. This is a checked conformance, not `@unchecked`: the
+/// handler holds no stored properties, so adding state later fails the build
+/// here rather than silently racing.
+final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling, Sendable {
     /// NSExtensionContext is not Sendable; box it for the queue hop.
     private final class ContextBox: @unchecked Sendable {
         let context: NSExtensionContext
