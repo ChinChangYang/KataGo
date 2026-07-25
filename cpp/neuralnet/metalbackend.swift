@@ -48,7 +48,46 @@ public func createMetalComputeContext(
 }
 
 /// Handle that wraps the loaded MLModel for inference
+/// What to do when a Core ML prediction throws mid-inference (the Neural
+/// Engine can raise a translation fault under load — see the tvOS benchmark
+/// incident). Hosts that can afford to die loudly keep `.fatal`; a host where
+/// a crash is user-visible damage rather than a useful signal opts into
+/// `.degrade`.
+public enum CoreMLInferenceFailurePolicy: Sendable {
+    /// Crash immediately. The default everywhere, so a real backend bug still
+    /// surfaces as a crash report instead of silently wrong analysis.
+    case fatal
+    /// Log, flag the failure, and let the caller carry on. Used by the iOS
+    /// Safari extension: taking Safari's extension process down mid-page is a
+    /// far worse outcome than one unavailable analysis, and the flag lets the
+    /// service report "analysis unavailable" honestly instead of showing a
+    /// number derived from a failed prediction.
+    case degrade
+}
+
 public final class CoreMLComputeHandle: @unchecked Sendable {
+    /// Failure policy for `apply`. Set once at process start, before any
+    /// inference runs.
+    nonisolated(unsafe) public static var inferenceFailurePolicy: CoreMLInferenceFailurePolicy = .fatal
+
+    nonisolated(unsafe) private static var inferenceFailed = false
+    private static let failureLock = NSLock()
+
+    /// Whether a prediction has failed since the last check, clearing the flag.
+    /// Callers running under `.degrade` use this to discard the affected
+    /// evaluation rather than report it as real analysis.
+    public static func consumeInferenceFailure() -> Bool {
+        failureLock.lock()
+        defer { inferenceFailed = false; failureLock.unlock() }
+        return inferenceFailed
+    }
+
+    fileprivate static func recordInferenceFailure() {
+        failureLock.lock()
+        inferenceFailed = true
+        failureLock.unlock()
+    }
+
     let model: MLModel
     let nnXLen: Int32
     let nnYLen: Int32
@@ -176,7 +215,18 @@ public final class CoreMLComputeHandle: @unchecked Sendable {
                                     ownership: buffers.ownership
                                 )
                             } catch {
-                                fatalError("Metal backend: CoreML inference error: \(error)")
+                                switch Self.inferenceFailurePolicy {
+                                case .fatal:
+                                    fatalError("Metal backend: CoreML inference error: \(error)")
+                                case .degrade:
+                                    // Leave this batch element's outputs as the
+                                    // caller supplied them; the flag tells the
+                                    // host to throw the evaluation away.
+                                    Self.recordInferenceFailure()
+                                    var stderrStream = StandardError()
+                                    print("Metal backend: CoreML inference error (degraded): \(error)",
+                                          to: &stderrStream)
+                                }
                             }
                         }
                     }

@@ -14,8 +14,13 @@ public enum AnalysisCommand {
     /// with a maxVisits reset when a human-profile gen-move may have run (see
     /// GtpCommandBuilder.continuousAnalyzeCommands for the sticky-maxVisits
     /// rationale); bridge-free consumers that never gen-move can use it bare.
-    public static func analyze(interval: Int, maxMoves: Int) -> String {
-        return "kata-analyze interval \(interval) maxmoves \(maxMoves) ownership true ownershipStdev true rootInfo true"
+    /// `ownership: false` drops the ownership grid from the reports — for
+    /// consumers that render winrate only (the iOS Safari extension), where the
+    /// grid is dead weight in both the message and the cached payload.
+    public static func analyze(interval: Int, maxMoves: Int, ownership: Bool = true) -> String {
+        let ownershipFlags = ownership ? "ownership true ownershipStdev true"
+                                       : "ownership false"
+        return "kata-analyze interval \(interval) maxmoves \(maxMoves) \(ownershipFlags) rootInfo true"
     }
 
     public static func boardSize(width: Int, height: Int) -> String {

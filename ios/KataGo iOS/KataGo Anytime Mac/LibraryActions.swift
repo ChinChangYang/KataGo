@@ -267,9 +267,14 @@ extension MainWindowController: LibraryActionsDelegate {
             }
         var selected: GameRecord?
         for file in spooled {
+            // Prefer the game's own identity — the Safari extension writes the
+            // page title into GN before spooling, so a hand-off arrives named
+            // rather than as another indistinguishable "Web Game" row.
             if let sgf = try? String(contentsOf: file, encoding: .utf8),
-               let result = GameRecord.importGameRecord(sgf: sgf, name: "Web Game",
-                                                        in: modelContext) {
+               let result = GameRecord.importGameRecord(
+                   sgf: sgf,
+                   name: SgfGameName.derive(fromSgf: sgf) ?? "Web Game",
+                   in: modelContext) {
                 if result.isNew {
                     modelContext.insert(result.gameRecord)
                 }

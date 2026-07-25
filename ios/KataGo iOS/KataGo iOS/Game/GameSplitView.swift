@@ -738,9 +738,17 @@ struct GameSplitView: View {
             }
         var selected: (gameRecord: GameRecord, isNew: Bool)?
         for file in spooled {
+            // Two writers share this spool: the Messages extension and the
+            // Safari web extension. Prefer a name derived from the SGF itself
+            // (the Safari extensions write the page title into GN, so web
+            // hand-offs get the game's real name); fall back to a per-source
+            // literal, told apart by that same GN marker.
             if let sgf = try? String(contentsOf: file, encoding: .utf8),
-               let result = GameRecord.importGameRecord(sgf: sgf, name: "iMessage Game",
-                                                        in: modelContext) {
+               let result = GameRecord.importGameRecord(
+                   sgf: sgf,
+                   name: SgfGameName.derive(fromSgf: sgf)
+                       ?? (SgfGameName.hasGameName(inSgf: sgf) ? "Web Game" : "iMessage Game"),
+                   in: modelContext) {
                 if result.isNew {
                     modelContext.insert(result.gameRecord)
                 }

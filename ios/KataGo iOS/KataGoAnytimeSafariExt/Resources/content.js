@@ -82,6 +82,39 @@
         return { x: column, y: size - row };
     }
 
+    // Stamp the page title into the SGF's GN (Game Name) property so the app
+    // can name the imported game after the game you were looking at, instead
+    // of a generic literal. GN is the SGF property for exactly this, so the
+    // saved/exported file stays valid and other Go tools show the same name.
+    // An SGF that already carries a GN keeps it — the site knows better.
+    function withGameName(sgf, title) {
+        // Truncate by CODE POINTS: slicing UTF-16 units can split a surrogate
+        // pair and leave a lone surrogate that makes the native message
+        // undecodable.
+        const clean = Array.from(String(title || "")
+            .replace(/[\u0000-\u001f\u007f]/g, " ")   // control characters
+            .replace(/\s+/g, " ")
+            .trim()).slice(0, 120).join("");
+        // Always stamp SOMETHING: the drain uses GN's presence to tell a Safari
+        // hand-off from an iMessage one, so a titleless page must still be
+        // marked. Fall back to the site's hostname.
+        const name = clean || (location && location.hostname) || "";
+        if (!name) { return sgf; }
+        // SGF property values escape "]" and "\\" with a backslash.
+        const escaped = name.replace(/([\]\\])/g, "\\$1");
+        const existing = sgf.match(/(^|[^A-Z])GN\[([^\]]*)\]/);
+        if (existing) {
+            // A node may not carry the same property twice, so fill an empty
+            // GN[] in place rather than injecting a duplicate; a GN that
+            // already has a value wins (the site knows its own game).
+            if (existing[2].trim()) { return sgf; }
+            return sgf.replace(/(^|[^A-Z])GN\[\]/, `$1GN[${escaped}]`);
+        }
+        const root = sgf.indexOf(";");
+        if (root < 0) { return sgf; }
+        return sgf.slice(0, root + 1) + `GN[${escaped}]` + sgf.slice(root + 1);
+    }
+
     // 1:1 port of the app's AnalysisColor.analysisBaseHue: discretized hue
     // 0 (red, rare) … 0.5 (cyan, most visited) from the visits ratio.
     function analysisBaseHue(visits, maxVisits) {
@@ -484,7 +517,9 @@
         async openInApp() {
             try {
                 const sgf = await this.obtainSgf();
-                const reply = await native({ cmd: "openInApp", sgf });
+                const reply = await native({
+                    cmd: "openInApp", sgf: withGameName(sgf, document.title),
+                });
                 if (reply.type === "error") { return this.onWireError(reply); }
                 this.message("Opened in KataGo Anytime.");
             } catch (error) {

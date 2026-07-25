@@ -39,15 +39,19 @@ public class KataGoHelper {
     public class func runGtp(modelPath: String? = nil,
                              deviceAssignments: [Int] = EngineDeviceAssignments.platformMux,
                              numSearchThreads: Int = mlxNumSearchThreads,
+                             nnMaxBatchSize: Int = mlxNnMaxBatchSize,
                              maxBoardSizeForNNBuffer: Int = 37,
                              requireExactNNLen: Bool = false,
+                             includeHumanNet: Bool = true,
                              tunerFull: Bool = false,
                              reTune: Bool = false) {
         runGtpImpl(modelPath: modelPath,
                    deviceAssignments: deviceAssignments,
                    numSearchThreads: numSearchThreads,
+                   nnMaxBatchSize: nnMaxBatchSize,
                    maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
                    requireExactNNLen: requireExactNNLen,
+                   includeHumanNet: includeHumanNet,
                    tunerFull: tunerFull,
                    reTune: reTune)
     }
@@ -55,8 +59,10 @@ public class KataGoHelper {
     private class func runGtpImpl(modelPath: String?,
                                   deviceAssignments: [Int],
                                   numSearchThreads: Int,
+                                  nnMaxBatchSize: Int,
                                   maxBoardSizeForNNBuffer: Int,
                                   requireExactNNLen: Bool,
+                                  includeHumanNet: Bool,
                                   tunerFull: Bool,
                                   reTune: Bool) {
         let mainBundle = Bundle.main
@@ -71,23 +77,30 @@ public class KataGoHelper {
         let mainModelPath = modelPath ?? mainBundle.path(forResource: modelName,
                                                          ofType: modelExt)
 
+        // Whether to load the human-SL net. Apple TV never does (skips it as the
+        // single biggest memory lever, ~half the NN footprint). Elsewhere it is
+        // on by default, but callers running an analysis-only, memory-constrained
+        // engine (e.g. an app-extension appex) pass includeHumanNet:false to drop
+        // it — matching the tvOS shape: an empty humanModelArg so the engine's
+        // `humanModelFile != ""` gate is false, plus a config with the `humanSL*`
+        // params stripped (else Setup::loadParams throws "Provided parameter
+        // humanSL… but no human model was specified" and aborts the process).
         #if os(tvOS)
-        // Apple TV: skip the human-SL net entirely — the single biggest memory
-        // lever (~half the NN footprint). Pass "" (non-nil) so the engine's
-        // `humanModelFile != ""` gate is false. A nil here would fall through to
-        // the `?? "Contents/Resources/…"` fallback below and make C++ try to load
-        // a net that isn't bundled on tvOS. Human-style profiles are a play-time
-        // feature, out of scope for review/spectate (which uses the best net).
-        let humanModelArg = ""
+        let skipHumanNet = true
         #else
-        let humanModelName = "b18c384nbt-humanv0"
-        let humanModelExt = "bin.gz"
-
-        let humanModelPath = mainBundle.path(forResource: humanModelName,
-                                             ofType: humanModelExt)
-
-        let humanModelArg = humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"
+        let skipHumanNet = !includeHumanNet
         #endif
+
+        let humanModelArg: String
+        if skipHumanNet {
+            humanModelArg = ""
+        } else {
+            let humanModelName = "b18c384nbt-humanv0"
+            let humanModelExt = "bin.gz"
+            let humanModelPath = mainBundle.path(forResource: humanModelName,
+                                                 ofType: humanModelExt)
+            humanModelArg = humanModelPath ?? "Contents/Resources/b18c384nbt-humanv0.bin.gz"
+        }
 
         let configName = "default_gtp"
         let configExt = "cfg"
@@ -95,17 +108,13 @@ public class KataGoHelper {
         let configPath = mainBundle.path(forResource: configName,
                                          ofType: configExt)
 
-        #if os(tvOS)
-        // Apple TV skips the human-SL net (above), so the config's `humanSL*`
-        // params must go too: the engine throws ("Provided parameter humanSL…
-        // but no human model was specified") in Setup::loadParams when they're
-        // present without a human model, aborting the whole process. Derive a
-        // stripped config from the canonical bundled one so the two never drift.
-        let configArg = strippedHumanSLConfig(from: configPath)
-            ?? (configPath ?? "Contents/Resources/default_gtp.cfg")
-        #else
-        let configArg = configPath ?? "Contents/Resources/default_gtp.cfg"
-        #endif
+        let configArg: String
+        if skipHumanNet {
+            configArg = strippedHumanSLConfig(from: configPath)
+                ?? (configPath ?? "Contents/Resources/default_gtp.cfg")
+        } else {
+            configArg = configPath ?? "Contents/Resources/default_gtp.cfg"
+        }
 
         // The cache-aware CoreML bridge (Task 19) is registered at app launch
         // via `registerCoreMLBridge()` in KataGo_iOSApp.init(). It lives in the
@@ -127,7 +136,7 @@ public class KataGoHelper {
                          buf.baseAddress,
                          Int32(buf.count),
                          Int32(numSearchThreads),
-                         Int32(mlxNnMaxBatchSize),
+                         Int32(nnMaxBatchSize),
                          Int32(maxBoardSizeForNNBuffer),
                          requireExactNNLen,
                          std.string(homeDataDir()),
@@ -165,10 +174,10 @@ public class KataGoHelper {
         #endif
     }
 
-    #if os(tvOS)
     /// Write a copy of the bundled GTP config with every `humanSL*` parameter line
-    /// removed, returning its path. Apple TV runs without the human-SL net, and
-    /// the engine aborts (`Setup::loadParams` → `throwHumanParsingError`) if those
+    /// removed, returning its path. Callers that run without the human-SL net
+    /// (Apple TV always; any `includeHumanNet:false` caller) need this because the
+    /// engine aborts (`Setup::loadParams` → `throwHumanParsingError`) if those
     /// params are present with no human model. Derived from the canonical config
     /// each launch, so the two never drift (TMPDIR is purgeable but regenerated).
     private class func strippedHumanSLConfig(from path: String?) -> String? {
@@ -187,7 +196,6 @@ public class KataGoHelper {
             return nil
         }
     }
-    #endif
 
     public class func getMessageLine() -> String {
         let cppLine = KataGoGetMessageLine()
