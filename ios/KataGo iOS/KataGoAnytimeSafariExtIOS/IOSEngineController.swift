@@ -71,6 +71,24 @@ final class IOSEngineController: @unchecked Sendable {
         case silent
     }
 
+    /// What one analysis pass may spend.
+    ///
+    /// Both bounds are enforced HERE, by when this file stops reading and sends
+    /// `stop` — the engine can enforce neither. `kata-set-param maxVisits` is
+    /// inert for an analysis search (see the file header), and `kata-analyze`
+    /// has no time argument at all: it accepts only interval/maxmoves/ownership/
+    /// rootInfo/minmoves/pvVisits, and the config's `maxTime` governs genmove.
+    enum SearchBudget {
+        /// Fixed depth. Used for the whole-game survey, where every point must
+        /// be comparable to its neighbours or the chart's blunder badges become
+        /// search noise.
+        case visits(Int)
+        /// Fixed wall-clock time. Used for the position the reader settled on,
+        /// where a predictable WAIT matters more than a predictable depth — a
+        /// slower device returns fewer visits instead of taking longer.
+        case seconds(Double)
+    }
+
     /// Per-position visit budget. Small on purpose: the panel analyzes the one
     /// position the reader is looking at, and a scrub should feel instant.
     static let defaultVisits = 32
@@ -115,26 +133,37 @@ final class IOSEngineController: @unchecked Sendable {
         return version
     }
 
-    /// Bumped by `cancelAnalysis()`. A pass whose snapshot no longer matches
-    /// abandons its search and reports nothing.
-    private var analysisGeneration = 0
+    /// Bumped by `cancelAnalysis(gameId:)`. A pass whose snapshot no longer
+    /// matches abandons its search and reports nothing.
+    ///
+    /// Kept PER GAME, not process-wide. One appex process serves every panel on
+    /// a page (the content script allows four) and every tab, so a single
+    /// counter meant one reader scrubbing away could abandon a different
+    /// reader's search — which surfaces to them as "analysis unavailable" and,
+    /// mid-scan, blacklists that position for good. No amount of ordering
+    /// discipline in one page's JavaScript can prevent that, because the two
+    /// pages know nothing about each other.
+    private var generationByGame: [String: Int] = [:]
 
-    private var currentGeneration: Int {
+    private func currentGeneration(forGame gameId: String) -> Int {
         lock.lock(); defer { lock.unlock() }
-        return analysisGeneration
+        return generationByGame[gameId, default: 0]
     }
 
-    /// Abandon any analysis that is running or queued.
+    /// Abandon the analysis running or queued for one game.
     ///
-    /// Takes only `lock`, never `engineLock` — the whole point is to interrupt
-    /// a pass that currently holds the engine. Because it invalidates every
-    /// generation, not one specific request, callers must not overlap a cancel
-    /// with a request they want to keep. The panel guarantees this: it issues at
-    /// most one analysis at a time and only sends the next one after the
-    /// abandoned one has replied.
-    func cancelAnalysis() {
+    /// Takes only `lock`, never `engineLock` — the whole point is to interrupt a
+    /// pass that currently holds the engine.
+    ///
+    /// Scoping by game removes the cross-panel and cross-tab collisions. What it
+    /// cannot resolve on its own is a stop for THIS game arriving after the next
+    /// pass for the same game has already started, since nothing on the wire
+    /// says which pass was meant: the panel closes that by not issuing a query
+    /// while its own stop is outstanding. Two panels showing the byte-identical
+    /// SGF remain theoretically racy and are not worth a wire field.
+    func cancelAnalysis(gameId: String) {
         lock.lock()
-        analysisGeneration &+= 1
+        generationByGame[gameId, default: 0] &+= 1
         lock.unlock()
     }
 
@@ -238,15 +267,16 @@ final class IOSEngineController: @unchecked Sendable {
     func analyze(sgfPath: String,
                  moveIndex: Int,
                  scan: SgfHeaderScan,
-                 visits: Int) -> (parsed: ParsedAnalysis, toMove: PlayerColor)? {
+                 budget: SearchBudget,
+                 gameId: String) -> (parsed: ParsedAnalysis, toMove: PlayerColor)? {
         // Snapshot BEFORE queuing on the engine, so a cancel that arrives while
         // this request waits its turn abandons it without running a search.
-        let generation = currentGeneration
+        let generation = currentGeneration(forGame: gameId)
 
         engineLock.lock()
         defer { engineLock.unlock() }
 
-        guard generation == currentGeneration else { return nil }
+        guard generation == currentGeneration(forGame: gameId) else { return nil }
 
         // GTP splits its command line on whitespace and takes the filename
         // verbatim, so there is no quoting to be had — a path with a space
@@ -259,6 +289,15 @@ final class IOSEngineController: @unchecked Sendable {
             return nil
         }
 
+        // Start from a clean fault flag. `CoreMLComputeHandle`'s is process-
+        // global and sticky, cleared only by consuming it — and cancellation is
+        // a NORMAL exit here, taken before the consume below. Without this, a
+        // fault raised during a pass the reader scrubbed away from is inherited
+        // by the NEXT position, whose perfectly good result is then discarded;
+        // mid-scan that also blacklists the position for the whole session and
+        // leaves a permanent hole in the chart.
+        _ = CoreMLComputeHandle.consumeInferenceFailure()
+
         // `loadsgf <file> N` yields the position BEFORE move N, i.e. with N-1
         // moves played — so the position after `moveIndex` moves is N = index+1.
         guard case .ok = driveUntilResponse("loadsgf \(sgfPath) \(moveIndex + 1)",
@@ -270,10 +309,13 @@ final class IOSEngineController: @unchecked Sendable {
         }
 
         // Cosmetic against the engine (see the file header: it does not bound an
-        // analysis search) but kept because it costs nothing and keeps the
-        // engine's own reported cap consistent with what we intend to spend.
-        _ = driveUntilResponse("kata-set-param maxVisits \(visits)",
-                               wallSeconds: Self.commandWallSeconds)
+        // analysis search) but kept for a depth budget because it costs nothing
+        // and keeps the engine's own reported cap consistent with what we intend
+        // to spend. A time budget has no visit target to report.
+        if case let .visits(target) = budget {
+            _ = driveUntilResponse("kata-set-param maxVisits \(target)",
+                                   wallSeconds: Self.commandWallSeconds)
+        }
 
         let toMove = colorToMove(at: moveIndex, scan: scan)
         let parser = AnalysisLineParser(boardWidth: scan.boardWidth,
@@ -282,16 +324,28 @@ final class IOSEngineController: @unchecked Sendable {
 
         // Ownership off: the iOS overlay is winrate-only, and skipping the grid
         // keeps both the message size and the cached payload small.
-        KataGoHelper.sendCommand(AnalysisCommand.analyze(interval: 20,
+        //
+        // interval 10 (= 100 ms) rather than the engine's lazier default: the
+        // report cadence is the granularity of BOTH the time budget and
+        // cancellation, since neither can act between reports.
+        KataGoHelper.sendCommand(AnalysisCommand.analyze(interval: 10,
                                                          maxMoves: 12,
                                                          ownership: false))
+
+        // A depth budget still needs a wall, because nothing else bounds it if
+        // the engine stalls. A time budget IS its own wall.
+        let wallSeconds: Double
+        switch budget {
+        case .visits: wallSeconds = Self.analyzeWallSeconds
+        case let .seconds(seconds): wallSeconds = seconds
+        }
 
         var latest: String?
         var cancelled = false
         let deadline = DispatchTime.now().uptimeNanoseconds
-            &+ UInt64(Self.analyzeWallSeconds * 1_000_000_000)
+            &+ UInt64(wallSeconds * 1_000_000_000)
         while DispatchTime.now().uptimeNanoseconds < deadline {
-            if generation != currentGeneration { cancelled = true; break }
+            if generation != currentGeneration(forGame: gameId) { cancelled = true; break }
             // Bounded: an engine that stops emitting must not wedge this loop.
             // The unbounded read would never return, and the deadline above is
             // only tested BETWEEN lines.
@@ -299,9 +353,12 @@ final class IOSEngineController: @unchecked Sendable {
             guard !line.isEmpty else { continue }
             if line.hasPrefix("info ") {
                 latest = line
-                // One report that already reached the visit cap is all we need.
-                if let root = parser.parse(message: line).rootInfo,
-                   root.visits >= visits {
+                // A depth budget stops as soon as it is met. A time budget keeps
+                // reading — the deadline above ends it, and the last report read
+                // is the deepest one available.
+                if case let .visits(target) = budget,
+                   let root = parser.parse(message: line).rootInfo,
+                   root.visits >= target {
                     break
                 }
             } else if line.hasPrefix("?") {

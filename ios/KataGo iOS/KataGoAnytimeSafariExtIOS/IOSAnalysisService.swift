@@ -55,12 +55,13 @@ final class IOSAnalysisService: @unchecked Sendable {
             return .pong(engineState: IOSEngineController.shared.currentState.rawValue)
         case let .openInApp(sgf):
             return openInApp(sgf: sgf)
-        case .stop:
-            // Abandon whatever is searching. The page sends this on teardown,
-            // and (once the panel deepens on dwell) whenever the reader moves
-            // on from the position being deepened — a 3 s search that nobody is
-            // looking at any more only delays the one they are.
-            IOSEngineController.shared.cancelAnalysis()
+        case let .stop(gameId):
+            // Abandon what is searching FOR THIS GAME. The page sends this on
+            // teardown, and whenever the reader moves on from the position being
+            // deepened — a 3 s search that nobody is looking at any more only
+            // delays the one they are. Scoped by game because this one process
+            // serves every panel and every tab.
+            IOSEngineController.shared.cancelAnalysis(gameId: gameId)
             return .pong(engineState: IOSEngineController.shared.currentState.rawValue)
         case .poll, .navigate:
             // Sweep-era commands: iOS has no background sweep, so the page
@@ -128,10 +129,16 @@ final class IOSAnalysisService: @unchecked Sendable {
         }
 
         // Cache first — a revisited position must not re-run the engine.
+        // Keyed BY TIER: a survey result must not satisfy a request for a deeper
+        // look, or a scanned position could never be deepened. (The old single
+        // key meant anything already cached was frozen at whatever depth it
+        // happened to be analyzed at first.)
+        let key = Self.cacheKey(moveIndex: moveIndex, budget: budget)
         var cache = loadCache(sgfHash: gameId)
-        if let hit = cache[String(moveIndex)] {
+        if let hit = cache[key] {
             return .results(gameId: gameId, nextSeq: hit.seq,
-                            sweepDone: cache.count, sweepTotal: scan.moveCount + 1,
+                            sweepDone: Self.surveyCount(cache),
+                            sweepTotal: scan.moveCount + 1,
                             moves: [hit])
         }
 
@@ -150,7 +157,8 @@ final class IOSAnalysisService: @unchecked Sendable {
         guard let (parsed, toMove) = engine.analyze(sgfPath: path,
                                                     moveIndex: moveIndex,
                                                     scan: scan,
-                                                    visits: visits(for: budget)),
+                                                    budget: searchBudget(for: budget),
+                                                    gameId: gameId),
               let root = parsed.rootInfo else {
             // A CoreML prediction fault or a stalled search lands here rather
             // than crashing the extension.
@@ -159,22 +167,47 @@ final class IOSAnalysisService: @unchecked Sendable {
 
         let analysis = makeMoveAnalysis(parsed: parsed, root: root,
                                         toMove: toMove, scan: scan, moveIndex: moveIndex)
-        cache[String(moveIndex)] = analysis
+        cache[key] = analysis
         saveCache(cache, sgfHash: gameId)
 
         return .results(gameId: gameId, nextSeq: analysis.seq,
-                        sweepDone: cache.count, sweepTotal: scan.moveCount + 1,
+                        sweepDone: Self.surveyCount(cache),
+                        sweepTotal: scan.moveCount + 1,
                         moves: [analysis])
     }
 
-    private func visits(for budget: AnalysisBudget) -> Int {
-        // Deliberately far below the macOS sweep budgets: this engine runs
-        // under an 80 MB cap and a scrub should feel immediate.
+    /// Two different instruments, on purpose.
+    ///
+    /// The survey is bounded by DEPTH so its points stay comparable — the
+    /// chart's blunder badges compare neighbours, and neighbours searched to
+    /// different depths differ by more than many real mistakes. The cursor pass
+    /// is bounded by TIME so the wait is the same on every device: a slower
+    /// phone returns fewer visits rather than making the reader wait longer.
+    /// Measured on an M3 Max the engine runs ~180 ms of overhead then
+    /// ~108 visits/s, so three seconds is ~300 visits there, 120-200 on a phone.
+    ///
+    /// This mapping is appex-local. `AnalysisBudget.sweepVisits`/`deepenVisits`
+    /// belong to the macOS extension, which reads them itself and is unaffected
+    /// by anything here — `.deep` meaning "time" rather than "more visits" does
+    /// not travel.
+    private func searchBudget(for budget: AnalysisBudget) -> IOSEngineController.SearchBudget {
         switch budget {
-        case .fast: 16
-        case .normal: IOSEngineController.defaultVisits   // 32
-        case .deep: 64
+        case .fast: .visits(16)
+        case .normal: .visits(IOSEngineController.defaultVisits)   // 32
+        case .deep: .seconds(3)
         }
+    }
+
+    /// Cache keys are tiered so the two budgets cannot satisfy each other.
+    /// Survey entries keep the bare integer key the cache has always used.
+    private static func cacheKey(moveIndex: Int, budget: AnalysisBudget) -> String {
+        budget == .deep ? "\(moveIndex)@deep" : "\(moveIndex)"
+    }
+
+    /// Sweep progress counts the survey only. The deep tier is a handful of
+    /// positions the reader lingered on, not coverage of the game.
+    private static func surveyCount(_ cache: [String: MoveAnalysis]) -> Int {
+        cache.keys.filter { !$0.contains("@") }.count
     }
 
     /// Build the wire payload. Winrate-only by design: b24c64 has no reliable
@@ -279,7 +312,9 @@ final class IOSAnalysisService: @unchecked Sendable {
             forSecurityApplicationGroupIdentifier: SharedModelContainer.appGroupID) else { return nil }
         let directory = base.appending(path: "Library/Caches/SafariAnalysisCacheIOS")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appending(path: "\(sgfHash)-v1.json")
+        // -v2: keys became tiered. A v1 file's bare integer keys were written at
+        // the old 32-visit default, which is not what the bare key means now.
+        return directory.appending(path: "\(sgfHash)-v2.json")
     }
 
     private func loadCache(sgfHash: String) -> [String: MoveAnalysis] {

@@ -156,6 +156,18 @@
     // max visits dim to 0.2 alpha and lose their text).
     const HIDDEN_VISIT_RATIO = 0.03125;
 
+    // Depth tiers, which double as the wire's budget names:
+    //   "fast" → a fixed 16 visits    (the survey — uniform depth, comparable)
+    //   "deep" → a fixed ~3 s search  (the cursor — predictable wait, any device)
+    //
+    // Fixed DEPTH for the sweep is what keeps the blunder badges honest. Fixed
+    // TIME for the position you are looking at is what keeps the wait from
+    // depending on how fast your phone is: a slower device returns fewer visits
+    // in the same three seconds rather than making you wait longer. Measured on
+    // an M3 Max the engine runs ~180 ms of fixed overhead then ~108 visits/s, so
+    // three seconds buys roughly 300 visits there and 120–200 on a phone.
+    const DWELL_MS = 400;   // stillness required before the deep pass starts
+
     // ---- one panel + native session per detected player ------------------
 
     class PanelSession {
@@ -170,11 +182,31 @@
             this.moveCount = 0;
             this.currentIndex = 0;
             this.onMainline = true;
-            this.results = new Map();     // moveIndex → result
+            // TWO TIERS, kept apart deliberately.
+            //
+            // `survey` is the uniform 16-visit sweep: every point was searched
+            // to the same depth, which is the whole reason the blunder badges
+            // mean anything — they compare adjacent positions, so mixing depths
+            // would manufacture "mistakes" that are just search noise.
+            //
+            // `deep` is the ~3 s pass on whichever position the reader settled
+            // on. Its depth varies with the device, the position and thermals,
+            // so it is the better number to LOOK at and a useless one to
+            // COMPARE. It overrides the survey for display and never feeds the
+            // badge arithmetic.
+            this.survey = new Map();      // moveIndex → 16-visit result
+            this.deep = new Map();        // moveIndex → time-budgeted result
             // Positions whose analysis failed retryably. Kept so a scan steps
             // PAST them instead of re-requesting the same index forever — the
-            // scan advances on `results`, which a failed position never enters.
+            // scan advances on `survey`, which a failed position never enters.
             this.failedIndexes = new Set();
+            this.dwellTimer = null;
+            this.deepPending = false;     // a deep pass is in flight
+            this.pending = null;          // { index, tier } parked during a request
+            this.stopInFlight = null;     // outstanding cancel; blocks new analyses
+            // Bumped whenever a pass is abandoned, so its eventual reply can be
+            // told apart from a genuine failure and discarded quietly.
+            this.cancelGeneration = 0;
             // Lifecycle only. Whether analysis is ON and whether a scan is
             // running are ORTHOGONAL to it (and to each other): the Analyze
             // toggle governs per-scrub analysis + board marks, while Scan game
@@ -183,7 +215,6 @@
             this.analysisEnabled = false;
             this.scanning = false;
             this.inFlight = false;        // one native analyze at a time
-            this.pendingIndex = null;     // latest scrub while a request is out
             this.scanIndex = 0;
             this.showCandidates = true;
             // Engine identity, learned from replies. Version stays null until an
@@ -243,7 +274,7 @@
 .kga-details dd { margin: 0; font-variant-numeric: tabular-nums; }
 .kga-winrate-readout { font-variant-numeric: tabular-nums; color: var(--kga-ink-muted); }
 /* Touch targets: 32px min height, and controls wrap instead of overflowing. */
-.kga-bar button, .kga-bar select {
+.kga-bar button {
   font: inherit; min-height: 32px; border-radius: 7px;
 }
 .kga-bar button {
@@ -285,11 +316,6 @@
     <div class="kga-controls">
       <label class="kga-toggle"><input type="checkbox" class="kga-cands" checked>Marks</label>
       <span class="kga-pass" hidden></span>
-      <select class="kga-budget">
-        <option value="fast">Fast</option>
-        <option value="normal" selected>Normal</option>
-        <option value="deep">Deep</option>
-      </select>
       <button class="kga-scan">Scan game</button>
       <button class="kga-open">Open in app</button>
     </div>
@@ -315,7 +341,6 @@
                 progress: root.querySelector(".kga-progress"),
                 candsToggle: root.querySelector(".kga-cands"),
                 pass: root.querySelector(".kga-pass"),
-                budget: root.querySelector(".kga-budget"),
                 scan: root.querySelector(".kga-scan"),
                 open: root.querySelector(".kga-open"),
                 chartWrap: root.querySelector(".kga-chart-wrap"),
@@ -385,8 +410,9 @@
         }
 
         showTip(index) {
-            if (index === null || !this.results.has(index)) { this.el.tip.hidden = true; return; }
-            const r = this.results.get(index);
+            const r = index === null ? null
+                                     : (this.deep.get(index) || this.survey.get(index));
+            if (!r) { this.el.tip.hidden = true; return; }
             this.el.tip.textContent =
                 `Move ${index} · Black ${(r.winrateB * 100).toFixed(1)}% · ${r.visits} visits`;
             this.el.tip.hidden = false;
@@ -406,13 +432,74 @@
             this.onMainline = path.onMainline;
             this.chart.setCursor(path.m, path.onMainline);
             this.message(this.onMainline ? "" : "Viewing a variation — analysis follows the main line.");
+            // Whatever was being deepened is no longer what the reader is
+            // looking at. Abandon it — a three-second search nobody is waiting
+            // on only delays the one they are.
+            this.cancelDeepen();
             this.pushOverlays();
             // Lazy fill: the position the reader just moved to is the one we
             // analyze, and plotting it is what grows the chart over time. With
             // analysis off this is skipped entirely — no engine work, no marks.
             if (this.state === "ready" && this.onMainline && this.analysisEnabled) {
-                this.requestPosition(path.m);
+                this.requestPosition(path.m, "fast");
             }
+        }
+
+        /// Abandon any deep pass, pending or in flight.
+        ///
+        /// Bumping the generation is what lets the eventual reply be recognised
+        /// as ours-and-unwanted instead of reported to the reader as a failure —
+        /// an abandoned search comes back as a retryable error, which would
+        /// otherwise flash "analysis unavailable" on every scrub.
+        cancelDeepen() {
+            if (this.dwellTimer !== null) {
+                clearTimeout(this.dwellTimer);
+                this.dwellTimer = null;
+            }
+            // A deep pass PARKED behind an in-flight request never reached the
+            // line that sets `deepPending` — it exists only in `pending`, so
+            // clearing the timer is not enough: the drain would still issue a
+            // full 3 s search for a position the reader has left. Only the deep
+            // entry is dropped; a parked "fast" belongs to the scan or the
+            // current scrub and must survive. No `stop` for this case — nothing
+            // of ours is searching yet.
+            if (this.pending && this.pending.tier === "deep") { this.pending = null; }
+            if (!this.deepPending) { return; }
+            this.deepPending = false;
+            this.cancelGeneration += 1;
+            this.sendStop();
+        }
+
+        /// Send the native cancel and hold its promise so no analysis starts
+        /// while it is outstanding.
+        ///
+        /// `stop` never takes the native engine lock, so it reaches the running
+        /// search rather than queuing behind it. The native side scopes the
+        /// cancel to this game — that is what keeps one panel or tab from
+        /// abandoning another's search — but WITHIN a game nothing on the wire
+        /// says which pass was meant, so the ordering has to be real rather than
+        /// assumed: a stop delivered late would otherwise abandon the request
+        /// issued after it.
+        sendStop() {
+            if (!this.sgfHash) { return; }
+            const stop = native({ cmd: "stop", gameId: this.sgfHash }).catch(() => {});
+            this.stopInFlight = stop;
+            stop.finally(() => {
+                if (this.stopInFlight === stop) { this.stopInFlight = null; }
+            });
+        }
+
+        /// Start the dwell clock for `index`; the deep pass fires only if the
+        /// reader is still on that position when it expires.
+        scheduleDeepen(index) {
+            if (!this.analysisEnabled || this.deep.has(index)) { return; }
+            if (this.dwellTimer !== null) { clearTimeout(this.dwellTimer); }
+            this.dwellTimer = setTimeout(() => {
+                this.dwellTimer = null;
+                if (this.analysisEnabled && this.onMainline && this.currentIndex === index) {
+                    this.requestPosition(index, "deep");
+                }
+            }, DWELL_MS);
         }
 
         // ---- SGF acquisition ---------------------------------------------
@@ -444,12 +531,13 @@
             this.analysisEnabled = true;
             this.el.analyze.textContent = "Analyzing";
             this.message("");
-            this.requestPosition(this.onMainline ? this.currentIndex : 0);
+            this.requestPosition(this.onMainline ? this.currentIndex : 0, "fast");
         }
 
         disableAnalysis() {
             this.analysisEnabled = false;
-            this.pendingIndex = null;
+            this.pending = null;
+            this.cancelDeepen();
             this.el.analyze.textContent = "Analyze";
             this.message("");
             this.pushOverlays();   // clears the board marks
@@ -479,13 +567,12 @@
                 const accepted = await native({
                     cmd: "start", sgf, sgfHash: this.sgfHash,
                     currentMoveIndex: this.onMainline ? this.currentIndex : 0,
-                    budget: this.el.budget.value,
                 });
                 this.noteEngineInfo(accepted);
                 if (accepted.type === "error") { this.onWireError(accepted); return false; }
                 this.moveCount = accepted.moveCount;
                 this.boardSize = accepted.boardWidth;
-                if (!this.results.size) { this.chart.setGame(accepted.moveCount); }
+                if (!this.survey.size) { this.chart.setGame(accepted.moveCount); }
                 this.el.axisMax.textContent = String(accepted.moveCount);
                 this.el.chartWrap.hidden = false;
                 this.chart.setCursor(this.currentIndex, this.onMainline);
@@ -506,26 +593,77 @@
         /// Analyze one position. Serialized: a scrub during a request is
         /// remembered and issued when the current one lands, so fast scrubbing
         /// collapses to "analyze wherever the reader ended up".
-        async requestPosition(index) {
+        async requestPosition(index, tier, afterStaleStop) {
             if (this.state !== "ready") { return; }
             // Engine work happens only for an enabled toggle or a running scan.
             if (!this.analysisEnabled && !this.scanning) { return; }
-            // Already known: render locally, never spend an appex round-trip.
-            if (this.results.has(index)) {
+            const store = tier === "deep" ? this.deep : this.survey;
+            // Already known AT THIS TIER: render locally, never spend an appex
+            // round-trip. Tier matters — a position covered by the survey is
+            // still worth deepening, which the old single-store check made
+            // impossible (anything cached could never be re-analyzed deeper).
+            if (store.has(index)) {
                 this.pushOverlays();
+                if (tier === "fast" && index === this.currentIndex) {
+                    this.scheduleDeepen(index);
+                }
                 // Keep a scan moving if this call came from a scrub; when a
                 // request is already out its own drain advances the scan.
                 if (this.scanning && !this.inFlight) { this.scanStep(); }
                 return;
             }
-            if (this.inFlight) { this.pendingIndex = index; return; }
+            if (this.inFlight) { this.pending = { index, tier }; return; }
 
             this.inFlight = true;
+            if (tier === "deep") { this.deepPending = true; }
+            const generation = this.cancelGeneration;
             let deferred = false;   // a retry owns inFlight; skip the drain
+            let staleStopRisk = false;   // a cancel we could not wait out
             try {
+                // Never start an analysis while a cancel is still in flight.
+                // The native cancel is global — it abandons whatever is
+                // searching when it arrives — and messages are dispatched
+                // concurrently, so a `stop` delivered late (or re-sent by
+                // native()'s own retry after Safari resolves with undefined)
+                // would abandon THIS request instead of the one it was meant
+                // for. That surfaced as "analysis unavailable" on an ordinary
+                // scrub, and during a scan it blacklisted the index for good.
+                // Waiting costs one round trip and makes the ordering real.
+                if (this.stopInFlight) {
+                    // Bounded. The `.catch(() => {})` guarantees the promise
+                    // never REJECTS — not that it ever settles. Nothing in the
+                    // sendNativeMessage chain has a timeout, so a channel severed
+                    // mid-call (frozen into bfcache, or the appex jetsammed with
+                    // the connection half-open) leaves it pending forever. This
+                    // await sits AFTER `inFlight = true`, so the finally would
+                    // never run: every later request parks silently and both
+                    // buttons go dead with no user-reachable reset. A stale stop
+                    // landing late is recoverable; a wedged panel is not.
+                    const outstanding = this.stopInFlight;
+                    const TIMED_OUT = "kga-stop-timeout";
+                    const winner = await Promise.race([
+                        outstanding.then(() => "settled"),
+                        new Promise((resolve) => setTimeout(() => resolve(TIMED_OUT), 1000)),
+                    ]);
+                    if (winner === TIMED_OUT) {
+                        // We gave up waiting, so that stop may still land on the
+                        // query below. Remember it, and drop the slot — a promise
+                        // that never settles would otherwise make EVERY later
+                        // request in this session pay the full second.
+                        staleStopRisk = true;
+                        if (this.stopInFlight === outstanding) { this.stopInFlight = null; }
+                    }
+                }
+                // Re-check abandonment after the wait, exactly as the restart
+                // path below does. Without it, a scrub that lands while we are
+                // parked here is cancelled by cancelDeepen — which clears
+                // `deepPending`, so no later cancel can reach us — and this pass
+                // then runs its full 3 s for the position the reader just left,
+                // holding the board empty until it finishes.
+                if (this.abandoned(generation)) { return; }
                 const reply = await native({
                     cmd: "query", gameId: this.sgfHash, moveIndex: index,
-                    want: ["candidates"], budget: this.el.budget.value,
+                    want: ["candidates"], budget: tier,
                 });
                 this.noteEngineInfo(reply);
                 if (reply.type === "error") {
@@ -539,7 +677,11 @@
                         this.message("Starting the analysis engine…");
                         setTimeout(() => {
                             this.inFlight = false;
-                            this.resume(index);
+                            if (this.abandoned(generation)) {
+                                this.drainPending();
+                                return;
+                            }
+                            this.resume(index, tier);
                         }, 1000);
                         return;
                     }
@@ -549,15 +691,66 @@
                         this.state = "idle";
                         deferred = true;
                         this.inFlight = false;
-                        if (await this.ensureStarted()) { this.resume(index); }
+                        // Restart unconditionally — the session is unusable
+                        // until it is registered again, and every later request
+                        // would park on the not-ready guard.
+                        const restarted = await this.ensureStarted();
+                        // Re-check abandonment AFTER the await, not only before
+                        // it. A restart re-fetches the SGF and can boot the
+                        // engine, so seconds pass; a reader who scrubs away in
+                        // that window would otherwise get a full 3 s search for
+                        // the position they left — and it would carry a FRESH
+                        // generation, so it could no longer be abandoned at all.
+                        if (!restarted || this.abandoned(generation)) {
+                            // Release the flag on the exits that neither retry
+                            // nor reach the finally drain: a stale deepPending
+                            // makes the next cancel send a `stop` for nothing.
+                            this.deepPending = false;
+                            // The reader's own scrub was dropped while the
+                            // session was restarting (onPlayerUpdate requires
+                            // state "ready"), so nothing is parked for it and
+                            // the board would simply never update.
+                            if (!this.pending && restarted
+                                && this.analysisEnabled && this.onMainline) {
+                                this.pending = { index: this.currentIndex, tier: "fast" };
+                            }
+                            this.drainPending();
+                            return;
+                        }
+                        this.resume(index, tier);
                         return;
                     }
+                    // A deep pass WE abandoned comes back as a retryable error.
+                    // That is the expected outcome of scrubbing away, not a
+                    // fault — reporting it would flash "analysis unavailable"
+                    // every time the reader moves.
+                    if (this.abandoned(generation)) { return; }
                     // The wire distinguishes a failure of THIS request from a
                     // failure of the session, and until now nothing read that
                     // flag: one transient engine hiccup killed a whole scan and
                     // switched analysis off. Honor it — skip the position, keep
                     // the session alive.
                     if (reply.retryable) {
+                        // A stop we could not wait out may have killed this
+                        // query rather than the pass it was meant for — the
+                        // native cancel had already bumped its counter before it
+                        // was sent, so `abandoned()` cannot see it. Retry once
+                        // instead of reporting a fault that never happened, and
+                        // never blacklist on this path: a scan would skip the
+                        // position for the rest of the session and leave a
+                        // permanent hole in the chart.
+                        if (staleStopRisk && !afterStaleStop) {
+                            deferred = true;
+                            this.inFlight = false;
+                            this.message("");
+                            if (this.analysisEnabled || this.scanning) {
+                                this.requestPosition(index, tier, true);
+                            } else {
+                                if (tier === "deep") { this.deepPending = false; }
+                                this.drainPending();
+                            }
+                            return;
+                        }
                         if (this.scanning) { this.failedIndexes.add(index); }
                         this.message(this.friendlyError(reply), true);
                         return;
@@ -568,8 +761,15 @@
                 this.message("");
                 // Merge unconditionally — the result is pure data that was
                 // already computed and cached natively, and pushOverlays()
-                // declines to draw marks while analysis is off.
-                this.mergeResults(reply.moves);
+                // declines to draw marks while analysis is off. (A deep result
+                // that landed just as the reader moved on is still valid data
+                // for its own position, so it is kept.)
+                this.mergeResults(reply.moves, tier);
+                // Survey marks for the position under the cursor are on screen
+                // now; start the clock that sharpens them if the reader stays.
+                if (tier === "fast" && index === this.currentIndex) {
+                    this.scheduleDeepen(index);
+                }
             } catch (error) {
                 // A transport failure on a scan would otherwise retry the same
                 // index forever; stop the scan and let the user restart it.
@@ -579,23 +779,38 @@
             } finally {
                 if (!deferred) {
                     this.inFlight = false;
-                    // ALWAYS drain: a parked index is a position request, not
-                    // analysis-toggle state. Gating this on a generation token
-                    // stalled any running scan (and left the button reading
-                    // "Analyzing" with nothing running) whenever the toggle moved.
-                    const next = this.pendingIndex;
-                    this.pendingIndex = null;
-                    if (next !== null) { this.resume(next); }
-                    else if (this.scanning) { this.scanStep(); }
+                    if (tier === "deep") { this.deepPending = false; }
+                    this.drainPending();
                 }
             }
+        }
+
+        /// True when this reply belongs to a pass WE cancelled.
+        ///
+        /// Tier-agnostic on purpose. Teardown cancels whatever is in flight,
+        /// which is often a fast pass, and reporting that as a fault leaves a red
+        /// error on a page the reader merely navigated away from — and, mid-scan,
+        /// blacklists that position for the life of the session.
+        abandoned(generation) {
+            return generation !== this.cancelGeneration;
+        }
+
+        /// ALWAYS drain: a parked request is a position request, not
+        /// analysis-toggle state. Gating this on a generation token stalled any
+        /// running scan (and left the button reading "Analyzing" with nothing
+        /// running) whenever the toggle moved.
+        drainPending() {
+            const next = this.pending;
+            this.pending = null;
+            if (next) { this.resume(next.index, next.tier); }
+            else if (this.scanning) { this.scanStep(); }
         }
 
         /// Re-enter requestPosition only if the session still wants work.
         /// requestPosition's own guards would reject it anyway; this keeps the
         /// intent explicit at every deferred/scheduled re-entry point.
-        resume(index) {
-            if (this.analysisEnabled || this.scanning) { this.requestPosition(index); }
+        resume(index, tier) {
+            if (this.analysisEnabled || this.scanning) { this.requestPosition(index, tier); }
         }
 
         // ---- optional whole-game scan --------------------------------------
@@ -625,18 +840,27 @@
         scanStep() {
             if (!this.scanning) { return; }
             while (this.scanIndex <= this.moveCount
-                   && (this.results.has(this.scanIndex)
+                   && (this.survey.has(this.scanIndex)
                        || this.failedIndexes.has(this.scanIndex))) {
                 this.scanIndex += 1;
             }
-            this.el.progress.textContent = `${this.results.size} / ${this.moveCount + 1}`;
+            this.el.progress.textContent = `${this.survey.size} / ${this.moveCount + 1}`;
             if (this.scanIndex > this.moveCount) { return this.stopScan(); }
-            this.requestPosition(this.scanIndex);
+            this.requestPosition(this.scanIndex, "fast");
         }
 
-        mergeResults(moves) {
-            for (const move of moves || []) { this.results.set(move.moveIndex, move); }
-            this.chart.merge(Array.from(this.results.values()), this.computeBadges());
+        /// Deepest result available per position: the deep pass overrides the
+        /// survey wherever one has been run. Display only — never badges.
+        displayResults() {
+            const merged = new Map(this.survey);
+            for (const [index, result] of this.deep) { merged.set(index, result); }
+            return merged;
+        }
+
+        mergeResults(moves, tier) {
+            const store = tier === "deep" ? this.deep : this.survey;
+            for (const move of moves || []) { store.set(move.moveIndex, move); }
+            this.chart.merge(Array.from(this.displayResults().values()), this.computeBadges());
             this.pushOverlays();
         }
 
@@ -644,9 +868,16 @@
             // Winrate drop from the MOVER's perspective, derived from adjacent
             // analyzed positions. With lazy fill most neighbours are missing,
             // so a badge only appears once both sides of a move are analyzed.
+            //
+            // Computed from the SURVEY tier ALONE, deliberately. A badge is a
+            // comparison between neighbours, and a 16-visit point sitting next
+            // to a 300-visit one can differ by more than many genuine mistakes —
+            // mixing the tiers would invent blunders that are only search noise.
+            // The curve still shows the deeper number; only this arithmetic is
+            // held to one depth.
             const badges = [];
-            for (const [index, r] of this.results) {
-                const before = this.results.get(index - 1);
+            for (const [index, r] of this.survey) {
+                const before = this.survey.get(index - 1);
                 if (!before) { continue; }
                 const mover = before.toMove;   // side that played move `index`
                 const drop = mover === "w" ? (r.winrateB - before.winrateB)
@@ -658,7 +889,8 @@
         }
 
         pushOverlays() {
-            const current = this.results.get(this.onMainline ? this.currentIndex : -1);
+            const index = this.onMainline ? this.currentIndex : -1;
+            const current = this.deep.get(index) || this.survey.get(index);
             const payload = { playerId: this.playerId, candidates: null, ownership: null };
             let passMark = null;
 
@@ -757,9 +989,23 @@
         }
 
         teardown() {
-            if (this.sgfHash) {
-                native({ cmd: "stop", gameId: this.sgfHash }).catch(() => {});
+            if (this.dwellTimer !== null) {
+                clearTimeout(this.dwellTimer);
+                this.dwellTimer = null;
             }
+            if (this.pending && this.pending.tier === "deep") { this.pending = null; }
+            this.deepPending = false;
+            // Bump regardless of which tier is in flight, and route the stop
+            // through the same slot as any other cancel.
+            //
+            // On iOS a `pagehide` is usually a bfcache freeze, not a death: the
+            // SAME PanelSession comes back on the way in, because the content
+            // script is not re-injected (`__kgaContent` guards that). So a pass
+            // killed by this stop returns to a live panel, and without the bump
+            // it reads as a genuine fault — a red "analysis unavailable" nobody
+            // caused, and mid-scan that position skipped for the whole session.
+            this.cancelGeneration += 1;
+            this.sendStop();
         }
     }
 })();
