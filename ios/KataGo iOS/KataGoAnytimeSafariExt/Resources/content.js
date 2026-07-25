@@ -137,6 +137,137 @@
     // max visits dim to 0.2 alpha and lose their text).
     const HIDDEN_VISIT_RATIO = 0.03125;
 
+    // ---- surface-matched theming -----------------------------------------
+    //
+    // The panel is injected INTO someone else's page, so its palette has to
+    // agree with the PAGE, not with the OS. `prefers-color-scheme` reports the
+    // OS preference, and a light-only site stays white through it: katagotraining
+    // is Bulma (`html{background-color:#fff}`, `body` transparent) declaring no
+    // `color-scheme` at all, so Safari paints it white even on a dark-mode
+    // Mac. Keying off the OS therefore dropped a near-black panel onto a white
+    // page. Sample the surface the panel actually sits on instead.
+
+    const LIGHT_BG = { r: 255, g: 255, b: 255 };   // --kga-bg, light palette
+    const DARK_BG = { r: 28, g: 28, b: 30 };       // --kga-bg, dark palette
+
+    function parseColor(value) {
+        const m = /^rgba?\(([^)]+)\)$/.exec((value || "").trim());
+        if (!m) { return null; }
+        // Covers both `rgb(1, 2, 3)` and the modern `rgb(1 2 3 / 0.5)` syntax.
+        const parts = m[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+        if (parts.length < 3 || parts.slice(0, 3).some(Number.isNaN)) { return null; }
+        const a = parts.length > 3 && !Number.isNaN(parts[3]) ? parts[3] : 1;
+        return { r: parts[0], g: parts[1], b: parts[2], a };
+    }
+
+    function compositeOver(front, back) {
+        const a = front.a + back.a * (1 - front.a);
+        if (a === 0) { return { r: 0, g: 0, b: 0, a: 0 }; }
+        const mix = (f, b) => (f * front.a + b * back.a * (1 - front.a)) / a;
+        return {
+            r: mix(front.r, back.r), g: mix(front.g, back.g), b: mix(front.b, back.b), a,
+        };
+    }
+
+    // CIE L*, so "which palette is closer" is a perceptual question rather than
+    // a linear-luminance one — mid tones land where the eye puts them.
+    function lightness(c) {
+        const channel = (v) => {
+            v /= 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        };
+        const y = 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+        return y <= 216 / 24389 ? y * 24389 / 27 : 116 * Math.cbrt(y) - 16;
+    }
+
+    // Walk outward from the panel, compositing each ancestor's background behind
+    // what we have until it is effectively opaque. Pages usually paint the
+    // surface on `html` or `body` rather than near the player, so the walk
+    // normally runs to the top: on katagotraining `body` is transparent and
+    // `html` is #fff.
+    function sampleSurface(start) {
+        let acc = { r: 0, g: 0, b: 0, a: 0 };
+        for (let el = start; el; el = el.parentElement) {
+            const style = getComputedStyle(el);
+            const layer = parseColor(style.backgroundColor);
+            if (layer && layer.a > 0) {
+                acc = compositeOver(acc, layer);
+                if (acc.a >= 0.95) { return acc; }
+            }
+            // A background IMAGE hides whatever is behind it, and its luminance
+            // is unknowable from computed style. Stop: what we already have is
+            // the best answer, and continuing would composite onto a surface
+            // that is not actually visible.
+            if (style.backgroundImage && style.backgroundImage !== "none") { break; }
+        }
+        return acc;
+    }
+
+    // Safari paints a dark canvas only for a page that OPTS IN via
+    // `color-scheme`. A page declaring nothing is white even in dark mode —
+    // precisely the case this whole mechanism exists for.
+    function pageOptedIntoDark() {
+        let declared = "";
+        try {
+            declared = getComputedStyle(document.documentElement).colorScheme || "";
+        } catch (e) { /* no <html> yet, or a hostile page */ }
+        return /dark/.test(declared) &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+
+    function themeFor(host) {
+        const surface = sampleSurface(host);
+        // Nothing opaque anywhere up the chain: fall back to what the page says
+        // about itself, and to light when it says nothing.
+        if (surface.a < 0.5) { return pageOptedIntoDark() ? "dark" : "light"; }
+        // Pick whichever palette's own background is nearer in perceived
+        // lightness. Deriving the boundary from the palettes beats a hand-picked
+        // threshold: it stays correct if either palette is ever retuned.
+        const l = lightness(surface);
+        return Math.abs(l - lightness(DARK_BG)) < Math.abs(l - lightness(LIGHT_BG))
+            ? "dark" : "light";
+    }
+
+    // One watcher per page, fanned out to every panel: up to four sessions can
+    // exist, and N observers would cost N times the same events.
+    const themeListeners = new Set();
+
+    function notifyThemeChange() {
+        for (const listener of themeListeners) {
+            try { listener(); } catch (e) { /* one bad panel must not stop the rest */ }
+        }
+    }
+
+    (function watchPageTheme() {
+        // Sites implement a dark-mode toggle by flipping an attribute on <html>
+        // or <body>. Nothing else needs watching, so no subtree — this stays
+        // cheap even while a sweep is rewriting the board.
+        const observeAttributes = (node) => {
+            if (!node) { return; }
+            new MutationObserver(notifyThemeChange).observe(node, {
+                attributes: true,
+                subtree: false,
+                attributeFilter: ["class", "style", "data-theme", "data-bs-theme",
+                                  "data-color-scheme"],
+            });
+        };
+        const start = () => {
+            observeAttributes(document.documentElement);
+            observeAttributes(document.body);
+        };
+        // This script runs at document_start, so <body> may not exist yet.
+        if (document.body) { start(); }
+        else { document.addEventListener("DOMContentLoaded", start, { once: true }); }
+
+        window.matchMedia("(prefers-color-scheme: dark)")
+            .addEventListener("change", notifyThemeChange);
+        // `load`: the constructor-trap path can mount a panel before stylesheets
+        // have settled. `pageshow`: a bfcache restore can return to a page whose
+        // theme changed while we were frozen.
+        window.addEventListener("load", notifyThemeChange);
+        window.addEventListener("pageshow", notifyThemeChange);
+    })();
+
     // ---- one panel + native session per detected player ------------------
 
     class PanelSession {
@@ -159,6 +290,7 @@
             this.showCandidates = true;
             this.showOwnership = true;    // app parity: defaultShowOwnership
             this.mode = "all";            // app parity: defaultAnalysisInformation = All
+            this.theme = null;            // "light"|"dark", from the page's surface
             this.buildPanel();
             browser.storage.local.get("kgaMode").then(({ kgaMode }) => {
                 if (["winrate", "score", "all"].includes(kgaMode)) {
@@ -194,12 +326,13 @@
   border: 1px solid var(--kga-grid); border-radius: 10px;
   padding: 10px 12px; max-width: 640px;
 }
-@media (prefers-color-scheme: dark) {
-  .kga-root {
-    --kga-bg: #1c1c1e; --kga-ink: #f2f2f7; --kga-ink-muted: #98989d;
-    --kga-grid: #3a3a3c; --kga-winrate: #409cff; --kga-score: #da8fff;
-    --kga-cursor: #f2f2f7; --kga-hatch: rgba(152,152,157,0.14);
-  }
+/* Applied by applyTheme() from the surface behind the panel — NOT from
+   prefers-color-scheme, which reports the OS and left this panel near-black
+   on light-only sites like katagotraining. See themeFor(). */
+.kga-root.kga-dark {
+  --kga-bg: #1c1c1e; --kga-ink: #f2f2f7; --kga-ink-muted: #98989d;
+  --kga-grid: #3a3a3c; --kga-winrate: #409cff; --kga-score: #da8fff;
+  --kga-cursor: #f2f2f7; --kga-hatch: rgba(152,152,157,0.14);
 }
 .kga-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kga-logo { font-weight: 600; }
@@ -259,6 +392,7 @@
   <div class="kga-msg" hidden></div>
 </div>`;
             this.el = {
+                rootEl: root.querySelector(".kga-root"),
                 analyze: root.querySelector(".kga-analyze"),
                 progress: root.querySelector(".kga-progress"),
                 candsToggle: root.querySelector(".kga-cands"),
@@ -278,6 +412,8 @@
                 onHover: (index) => this.showTip(index),
             });
             new ResizeObserver(() => this.chart.draw()).observe(this.el.canvas);
+            this.applyTheme();
+            themeListeners.add(() => this.applyTheme());
 
             this.el.analyze.addEventListener("click", () => {
                 if (this.state === "sweeping" || this.state === "starting") { this.stop(); }
@@ -297,6 +433,22 @@
                 browser.storage.local.set({ kgaMode: this.mode }).catch(() => {});
                 this.pushOverlays();
             });
+        }
+
+        /// Re-point the palette at whatever the panel is currently sitting on.
+        /// Cheap and idempotent, so every theme signal can just call it.
+        applyTheme() {
+            const theme = themeFor(this.host);
+            if (theme === this.theme) { return; }
+            this.theme = theme;
+            this.el.rootEl.classList.toggle("kga-dark", theme === "dark");
+            // Match the UA widget scheme too, or the checkboxes and the mode
+            // <select> keep rendering against the OS preference the panel no
+            // longer follows.
+            this.host.style.colorScheme = theme;
+            // KGAChart re-reads the --kga-* vars on every draw, but only when
+            // something asks it to draw.
+            this.chart.draw();
         }
 
         message(text, isError) {
