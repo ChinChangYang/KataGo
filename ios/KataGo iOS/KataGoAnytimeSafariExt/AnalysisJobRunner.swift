@@ -67,7 +67,9 @@ final class AnalysisJobRunner: @unchecked Sendable {
         case let .navigate(gameId, moveIndex):
             return requestDeepen(gameId: gameId, moveIndex: moveIndex,
                                  budgetOverride: nil, recenter: true)
-        case let .query(gameId, moveIndex, _, budget):
+        // macOS analyzes the main line only: its sweep is a single linear
+        // 0...moveCount domain, so an explicit `line` has nothing to index.
+        case let .query(gameId, moveIndex, _, budget, _, _):
             return requestDeepen(gameId: gameId, moveIndex: moveIndex,
                                  budgetOverride: budget, recenter: false)
         case let .stop(gameId):

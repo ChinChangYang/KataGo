@@ -109,6 +109,23 @@
         return { x: column, y: size - row };
     }
 
+    // SGF coordinate alphabet: index 0 is "a".
+    const SGF_COORD = "abcdefghijklmnopqrstuvwxyz";
+
+    // WGo board coords → GTP vertex. Inverse of vertexToBoard.
+    function boardToVertex(x, y, size) {
+        return COLUMNS[x] + String(size - y);
+    }
+
+    /// The line the reader is on, as GTP move strings ("b q16", "w pass").
+    /// Colors come from the node, never from alternation — handicap and PL[]
+    /// break that — and a pass carries no coordinates.
+    function lineToGtp(line, size) {
+        return (line && line.moves || []).map((m) => m.pass
+            ? `${m.color} pass`
+            : `${m.color} ${boardToVertex(m.x, m.y, size)}`);
+    }
+
     // Stamp the page title into the SGF's GN (Game Name) property so the app
     // can name the imported game after the game you were looking at, instead
     // of a generic literal. GN is the SGF property for exactly this, so the
@@ -196,6 +213,16 @@
             // badge arithmetic.
             this.survey = new Map();      // moveIndex → 16-visit result
             this.deep = new Map();        // moveIndex → time-budgeted result
+            // Positions inside a variation, keyed by the line itself rather than
+            // a move number — two different branches share move numbers, and the
+            // main line shares them with both. Kept OUT of survey/deep so a
+            // branch result can never reach the chart or the badge arithmetic:
+            // a branch winrate stamped at index N would be bridged into the
+            // main-line curve by contiguousRuns and render as a smooth, entirely
+            // wrong game.
+            this.branch = new Map();      // "<line>|<tier>" → result
+            this.currentLine = null;      // last line payload from the page
+            this.currentNodeDepth = 0;    // WGo node depth, for seeking back
             // Positions whose analysis failed retryably. Kept so a scan steps
             // PAST them instead of re-requesting the same index forever — the
             // scan advances on `survey`, which a failed position never enters.
@@ -351,7 +378,14 @@
             };
             this.chart = new KGAChart(this.el.canvas, {
                 showScore: false,           // winrate-only on iOS
-                onSeek: (index) => postToPage("goTo", { playerId: this.playerId, moveIndex: index }),
+                // The chart plots the MAIN LINE, so seeking from it must land
+                // there. A plain move-number seek would not: WGo clones the
+                // current path, branch keys included, and follows _last_selected
+                // at unkeyed forks — so from inside a variation you come back to
+                // the variation.
+                onSeek: (index) => postToPage("goTo", {
+                    playerId: this.playerId, moveIndex: index, mainline: true,
+                }),
                 onHover: (index) => this.showTip(index),
             });
             new ResizeObserver(() => this.chart.draw()).observe(this.el.canvas);
@@ -428,10 +462,16 @@
 
         onPlayerUpdate(payload) {
             const path = payload.path || { m: 0, onMainline: true };
-            this.currentIndex = path.m;
-            this.onMainline = path.onMainline;
-            this.chart.setCursor(path.m, path.onMainline);
-            this.message(this.onMainline ? "" : "Viewing a variation — analysis follows the main line.");
+            const line = payload.line || null;
+            // Index by MOVE COUNT, not WGo's node depth: a setup-only node
+            // inflates the depth and would shift every cached position by one.
+            // Depth is kept only for talking back to WGo.
+            this.currentIndex = line ? line.moveCount : path.m;
+            this.currentNodeDepth = line ? line.nodeDepth : path.m;
+            this.onMainline = line ? line.onMainline : path.onMainline;
+            this.currentLine = line;
+            this.chart.setCursor(this.currentIndex, this.onMainline);
+            this.message("");
             // Whatever was being deepened is no longer what the reader is
             // looking at. Abandon it — a three-second search nobody is waiting
             // on only delays the one they are.
@@ -440,9 +480,27 @@
             // Lazy fill: the position the reader just moved to is the one we
             // analyze, and plotting it is what grows the chart over time. With
             // analysis off this is skipped entirely — no engine work, no marks.
-            if (this.state === "ready" && this.onMainline && this.analysisEnabled) {
-                this.requestPosition(path.m, "fast");
+            if (this.state === "ready" && this.analysisEnabled) {
+                this.requestPosition(this.currentIndex, "fast", this.lineOpts());
             }
+        }
+
+        /// The explicit line for the position on screen, main line included.
+        ///
+        /// The moves are always shipped, because addressing a position by move
+        /// number is not reliable even on the main line: `loadsgf <file> <n>`
+        /// resolves n against KataGo's idea of the main line, which takes the
+        /// DEEPEST child at every fork, while the page takes the FIRST. On a
+        /// file whose variation outruns the main line those are different games,
+        /// and the wrong one would be charted with nothing looking amiss.
+        ///
+        /// `lineKey` identifies a VARIATION and is null on the main line, whose
+        /// results stay in survey/deep under bare move numbers — the chart, the
+        /// badges and the persisted cache are all keyed that way.
+        lineOpts() {
+            if (!this.currentLine) { return undefined; }
+            const moves = lineToGtp(this.currentLine, this.boardSize);
+            return { moves, lineKey: this.onMainline ? null : moves.join(",") };
         }
 
         /// Abandon any deep pass, pending or in flight.
@@ -491,13 +549,29 @@
 
         /// Start the dwell clock for `index`; the deep pass fires only if the
         /// reader is still on that position when it expires.
-        scheduleDeepen(index) {
-            if (!this.analysisEnabled || this.deep.has(index)) { return; }
+        scheduleDeepen(index, opts) {
+            const lineKey = (opts && opts.lineKey) || null;   // null == main line
+            // Only the position ON SCREEN owns the single dwell slot. A scan
+            // reply for the same move number in a different line shares that
+            // index by design, so an index match is not an identity match —
+            // clearing the timer here would destroy the live position's dwell
+            // and nothing would re-arm it.
+            const onScreen = this.lineOpts();
+            if (this.currentIndex !== index
+                || ((onScreen && onScreen.lineKey) || null) !== lineKey) { return; }
+            const store = lineKey ? this.branch : this.deep;
+            const key = lineKey ? `${lineKey}|deep` : index;
+            if (!this.analysisEnabled || store.has(key)) { return; }
             if (this.dwellTimer !== null) { clearTimeout(this.dwellTimer); }
             this.dwellTimer = setTimeout(() => {
                 this.dwellTimer = null;
-                if (this.analysisEnabled && this.onMainline && this.currentIndex === index) {
-                    this.requestPosition(index, "deep");
+                // Fire only if the reader is still on the SAME position — same
+                // move number AND same line, since a variation and the main line
+                // share move numbers.
+                const now = this.lineOpts();
+                const nowKey = (now && now.lineKey) || null;
+                if (this.analysisEnabled && this.currentIndex === index && nowKey === lineKey) {
+                    this.requestPosition(index, "deep", opts);
                 }
             }, DWELL_MS);
         }
@@ -531,7 +605,7 @@
             this.analysisEnabled = true;
             this.el.analyze.textContent = "Analyzing";
             this.message("");
-            this.requestPosition(this.onMainline ? this.currentIndex : 0, "fast");
+            this.requestPosition(this.currentIndex, "fast", this.lineOpts());
         }
 
         disableAnalysis() {
@@ -593,26 +667,33 @@
         /// Analyze one position. Serialized: a scrub during a request is
         /// remembered and issued when the current one lands, so fast scrubbing
         /// collapses to "analyze wherever the reader ended up".
-        async requestPosition(index, tier, afterStaleStop) {
+        async requestPosition(index, tier, opts) {
             if (this.state !== "ready") { return; }
             // Engine work happens only for an enabled toggle or a running scan.
             if (!this.analysisEnabled && !this.scanning) { return; }
-            const store = tier === "deep" ? this.deep : this.survey;
+            const moves = (opts && opts.moves) || null;      // set only in a variation
+            const lineKey = (opts && opts.lineKey) || null;
+            const afterStaleStop = !!(opts && opts.afterStaleStop);
+            // Keyed off lineKey, NOT off "did a line come with it" — the main
+            // line sends one too now.
+            const store = lineKey ? this.branch
+                                  : (tier === "deep" ? this.deep : this.survey);
+            const key = lineKey ? `${lineKey}|${tier}` : index;
             // Already known AT THIS TIER: render locally, never spend an appex
             // round-trip. Tier matters — a position covered by the survey is
             // still worth deepening, which the old single-store check made
             // impossible (anything cached could never be re-analyzed deeper).
-            if (store.has(index)) {
+            if (store.has(key)) {
                 this.pushOverlays();
                 if (tier === "fast" && index === this.currentIndex) {
-                    this.scheduleDeepen(index);
+                    this.scheduleDeepen(index, opts);
                 }
                 // Keep a scan moving if this call came from a scrub; when a
                 // request is already out its own drain advances the scan.
                 if (this.scanning && !this.inFlight) { this.scanStep(); }
                 return;
             }
-            if (this.inFlight) { this.pending = { index, tier }; return; }
+            if (this.inFlight) { this.pending = { index, tier, opts }; return; }
 
             this.inFlight = true;
             if (tier === "deep") { this.deepPending = true; }
@@ -664,6 +745,8 @@
                 const reply = await native({
                     cmd: "query", gameId: this.sgfHash, moveIndex: index,
                     want: ["candidates"], budget: tier,
+                    // The engine replays this rather than seeking by number.
+                    ...(moves ? { line: moves, mainline: !lineKey } : {}),
                 });
                 this.noteEngineInfo(reply);
                 if (reply.type === "error") {
@@ -681,7 +764,7 @@
                                 this.drainPending();
                                 return;
                             }
-                            this.resume(index, tier);
+                            this.resume(index, tier, opts);
                         }, 1000);
                         return;
                     }
@@ -710,14 +793,14 @@
                             // session was restarting (onPlayerUpdate requires
                             // state "ready"), so nothing is parked for it and
                             // the board would simply never update.
-                            if (!this.pending && restarted
-                                && this.analysisEnabled && this.onMainline) {
-                                this.pending = { index: this.currentIndex, tier: "fast" };
+                            if (!this.pending && restarted && this.analysisEnabled) {
+                                this.pending = { index: this.currentIndex, tier: "fast",
+                                                 opts: this.lineOpts() };
                             }
                             this.drainPending();
                             return;
                         }
-                        this.resume(index, tier);
+                        this.resume(index, tier, opts);
                         return;
                     }
                     // A deep pass WE abandoned comes back as a retryable error.
@@ -744,14 +827,21 @@
                             this.inFlight = false;
                             this.message("");
                             if (this.analysisEnabled || this.scanning) {
-                                this.requestPosition(index, tier, true);
+                                this.requestPosition(index, tier,
+                                    Object.assign({}, opts, { afterStaleStop: true }));
                             } else {
                                 if (tier === "deep") { this.deepPending = false; }
                                 this.drainPending();
                             }
                             return;
                         }
-                        if (this.scanning) { this.failedIndexes.add(index); }
+                        // Main line only. `failedIndexes` holds MAIN-LINE move
+                        // numbers and is consulted by scanStep, while a
+                        // variation's `index` is its own move count —
+                        // blacklisting that would skip an unrelated main-line
+                        // position for the rest of the session, leaving a
+                        // permanent hole in the chart.
+                        if (this.scanning && !lineKey) { this.failedIndexes.add(index); }
                         this.message(this.friendlyError(reply), true);
                         return;
                     }
@@ -764,11 +854,11 @@
                 // declines to draw marks while analysis is off. (A deep result
                 // that landed just as the reader moved on is still valid data
                 // for its own position, so it is kept.)
-                this.mergeResults(reply.moves, tier);
+                this.mergeResults(reply.moves, tier, lineKey);
                 // Survey marks for the position under the cursor are on screen
                 // now; start the clock that sharpens them if the reader stays.
                 if (tier === "fast" && index === this.currentIndex) {
-                    this.scheduleDeepen(index);
+                    this.scheduleDeepen(index, opts);
                 }
             } catch (error) {
                 // A transport failure on a scan would otherwise retry the same
@@ -802,15 +892,17 @@
         drainPending() {
             const next = this.pending;
             this.pending = null;
-            if (next) { this.resume(next.index, next.tier); }
+            if (next) { this.resume(next.index, next.tier, next.opts); }
             else if (this.scanning) { this.scanStep(); }
         }
 
         /// Re-enter requestPosition only if the session still wants work.
         /// requestPosition's own guards would reject it anyway; this keeps the
         /// intent explicit at every deferred/scheduled re-entry point.
-        resume(index, tier) {
-            if (this.analysisEnabled || this.scanning) { this.requestPosition(index, tier); }
+        resume(index, tier, opts) {
+            if (this.analysisEnabled || this.scanning) {
+                this.requestPosition(index, tier, opts);
+            }
         }
 
         // ---- optional whole-game scan --------------------------------------
@@ -857,7 +949,18 @@
             return merged;
         }
 
-        mergeResults(moves, tier) {
+        mergeResults(moves, tier, lineKey) {
+            if (lineKey) {
+                // A branch result stops here. Stamped into the chart at its bare
+                // move number it would be bridged into the main-line curve by
+                // contiguousRuns and render as a smooth, entirely wrong game —
+                // and it would flip badge signs against unrelated neighbours.
+                for (const move of moves || []) {
+                    this.branch.set(`${lineKey}|${tier}`, move);
+                }
+                this.pushOverlays();
+                return;
+            }
             const store = tier === "deep" ? this.deep : this.survey;
             for (const move of moves || []) { store.set(move.moveIndex, move); }
             this.chart.merge(Array.from(this.displayResults().values()), this.computeBadges());
@@ -889,8 +992,18 @@
         }
 
         pushOverlays() {
-            const index = this.onMainline ? this.currentIndex : -1;
-            const current = this.deep.get(index) || this.survey.get(index);
+            let current;
+            if (this.onMainline) {
+                current = this.deep.get(this.currentIndex)
+                    || this.survey.get(this.currentIndex);
+            } else {
+                // Inside a variation the position is identified by its line, not
+                // by a move number two different branches would share.
+                const opts = this.lineOpts();
+                current = opts ? (this.branch.get(`${opts.lineKey}|deep`)
+                                  || this.branch.get(`${opts.lineKey}|fast`))
+                               : undefined;
+            }
             const payload = { playerId: this.playerId, candidates: null, ownership: null };
             let passMark = null;
 
@@ -943,7 +1056,9 @@
             try {
                 const sgf = await this.obtainSgf();
                 const reply = await native({
-                    cmd: "openInApp", sgf: withGameName(sgf, document.title),
+                    cmd: "openInApp",
+                    sgf: withGameName(this.onMainline ? sgf : this.linearizedSgf(sgf),
+                                      document.title),
                 });
                 // Hand-off failures are their own surface: they must not stop
                 // analysis or clear the board the way a wire error does.
@@ -978,6 +1093,48 @@
         /// Session-fatal errors only. Per-position failures that the wire marks
         /// retryable are handled at the call site and must NOT come here — this
         /// tears the whole session down.
+        /// The line on screen as its own SGF: the original's root node — SZ,
+        /// KM, RU, handicap stones, everything the position depends on —
+        /// followed by the moves actually being displayed.
+        ///
+        /// A variation may not exist in the file at all: moves played on the
+        /// board in WGo's edit mode live only in the page, so handing over the
+        /// downloaded file would silently drop exactly what the reader wanted a
+        /// deeper look at.
+        linearizedSgf(sgf) {
+            const line = this.currentLine;
+            if (!line || !line.moves.length) { return sgf; }
+            const open = sgf.indexOf("(");
+            const rootStart = sgf.indexOf(";", open < 0 ? 0 : open);
+            if (rootStart < 0) { return sgf; }
+            // The root node runs until the next node or subtree begins. Property
+            // values are skipped wholesale, since "]" and "\\" are escaped
+            // inside them and a stray ";" or "(" in a comment is otherwise
+            // indistinguishable from structure.
+            let end = rootStart + 1;
+            while (end < sgf.length) {
+                const ch = sgf[end];
+                if (ch === "[") {
+                    end += 1;
+                    while (end < sgf.length && sgf[end] !== "]") {
+                        if (sgf[end] === "\\") { end += 1; }
+                        end += 1;
+                    }
+                } else if (ch === ";" || ch === "(" || ch === ")") {
+                    break;
+                }
+                end += 1;
+            }
+            const root = sgf.slice(rootStart, end);
+            const body = line.moves.map((m) => {
+                const tag = m.color === "b" ? "B" : "W";
+                // A pass is the empty value.
+                return m.pass ? `;${tag}[]`
+                              : `;${tag}[${SGF_COORD[m.x]}${SGF_COORD[m.y]}]`;
+            }).join("");
+            return `(${root}${body})`;
+        }
+
         onWireError(reply) {
             this.state = "error";
             this.analysisEnabled = false;

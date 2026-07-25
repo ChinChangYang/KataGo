@@ -19,6 +19,7 @@
 //
 
 import Foundation
+import CryptoKit
 import os
 import KataGoAnalysisKit
 import KataGoGameStore
@@ -45,8 +46,9 @@ final class IOSAnalysisService: @unchecked Sendable {
         switch request {
         case let .start(sgf, sgfHash, _, _):
             return start(sgf: sgf, sgfHash: sgfHash)
-        case let .query(gameId, moveIndex, _, budget):
-            return query(gameId: gameId, moveIndex: moveIndex, budget: budget)
+        case let .query(gameId, moveIndex, _, budget, line, mainline):
+            return query(gameId: gameId, moveIndex: moveIndex, budget: budget,
+                         line: line, mainline: mainline)
         case .ping:
             // A pure status read: it must NOT start the engine. The panel pings
             // when its engine-details disclosure is opened without a known
@@ -112,7 +114,8 @@ final class IOSAnalysisService: @unchecked Sendable {
 
     // MARK: - query (the single-position workhorse)
 
-    private func query(gameId: String, moveIndex: Int, budget: AnalysisBudget) -> AnalysisResponse {
+    private func query(gameId: String, moveIndex: Int, budget: AnalysisBudget,
+                       line: [String], mainline: Bool) -> AnalysisResponse {
         lock.lock()
         let hash = activeHash
         let path = activeSgfPath
@@ -124,8 +127,24 @@ final class IOSAnalysisService: @unchecked Sendable {
             // the page re-sends `start` (served from cache) and retries.
             return .error(code: .unknownGame, message: "send start first", retryable: true)
         }
-        guard moveIndex >= 0, moveIndex <= scan.moveCount else {
-            return .error(code: .badRequest, message: "move index out of range", retryable: false)
+        if line.isEmpty {
+            guard moveIndex >= 0, moveIndex <= scan.moveCount else {
+                return .error(code: .badRequest, message: "move index out of range",
+                              retryable: false)
+            }
+        } else {
+            // A variation can run past the end of the main line, so its length
+            // is bounded on its own terms rather than by the scan's count.
+            //
+            // Every element is validated before it can be interpolated into a
+            // GTP command. These strings arrive from a page `postMessage`, which
+            // ANY script on the page can forge, and the GTP stream is shared by
+            // the whole process — an embedded newline would inject a command of
+            // the sender's choosing into it.
+            guard moveIndex == line.count, line.count <= Self.maxLineMoves,
+                  line.allSatisfy({ Self.isReplayableMove($0, scan: scan) }) else {
+                return .error(code: .badRequest, message: "malformed line", retryable: false)
+            }
         }
 
         // Cache first — a revisited position must not re-run the engine.
@@ -133,7 +152,8 @@ final class IOSAnalysisService: @unchecked Sendable {
         // look, or a scanned position could never be deepened. (The old single
         // key meant anything already cached was frozen at whatever depth it
         // happened to be analyzed at first.)
-        let key = Self.cacheKey(moveIndex: moveIndex, budget: budget)
+        let key = Self.cacheKey(moveIndex: moveIndex, budget: budget,
+                                line: line, mainline: mainline)
         var cache = loadCache(sgfHash: gameId)
         if let hit = cache[key] {
             return .results(gameId: gameId, nextSeq: hit.seq,
@@ -158,7 +178,9 @@ final class IOSAnalysisService: @unchecked Sendable {
                                                     moveIndex: moveIndex,
                                                     scan: scan,
                                                     budget: searchBudget(for: budget),
-                                                    gameId: gameId),
+                                                    gameId: gameId,
+                                                    line: line,
+                                                    mainline: mainline),
               let root = parsed.rootInfo else {
             // A CoreML prediction fault or a stalled search lands here rather
             // than crashing the extension.
@@ -168,7 +190,7 @@ final class IOSAnalysisService: @unchecked Sendable {
         let analysis = makeMoveAnalysis(parsed: parsed, root: root,
                                         toMove: toMove, scan: scan, moveIndex: moveIndex)
         cache[key] = analysis
-        saveCache(cache, sgfHash: gameId)
+        saveCache(Self.pruned(cache, keeping: key), sgfHash: gameId)
 
         return .results(gameId: gameId, nextSeq: analysis.seq,
                         sweepDone: Self.surveyCount(cache),
@@ -198,16 +220,88 @@ final class IOSAnalysisService: @unchecked Sendable {
         }
     }
 
-    /// Cache keys are tiered so the two budgets cannot satisfy each other.
-    /// Survey entries keep the bare integer key the cache has always used.
-    private static func cacheKey(moveIndex: Int, budget: AnalysisBudget) -> String {
-        budget == .deep ? "\(moveIndex)@deep" : "\(moveIndex)"
+    /// Longest line we will replay, so a hostile page cannot make the engine
+    /// walk an unbounded move list.
+    private static let maxLineMoves = 1000
+
+    /// Cache keys are tiered so the two budgets cannot satisfy each other, and
+    /// carry the line for a variation — two branches share move numbers with
+    /// each other and with the main line, so a bare index would serve one
+    /// branch's numbers for another's position, permanently and across launches.
+    /// Main-line entries keep the bare integer key they have always used, which
+    /// is also what `surveyCount` counts, so the digest is keyed off
+    /// main-line-ness rather than off "did a line come with it" — the main line
+    /// now sends one too.
+    private static func cacheKey(moveIndex: Int, budget: AnalysisBudget,
+                                 line: [String], mainline: Bool) -> String {
+        var key = "\(moveIndex)"
+        if !mainline, !line.isEmpty { key += "#" + lineDigest(line) }
+        if budget == .deep { key += "@deep" }
+        return key
     }
 
-    /// Sweep progress counts the survey only. The deep tier is a handful of
-    /// positions the reader lingered on, not coverage of the game.
+    /// One replayable GTP move: a color token and either `pass` or an on-board
+    /// vertex. Rejects anything else, notably embedded whitespace — see the
+    /// call site for why this is a security boundary and not a sanity check.
+    private static func isReplayableMove(_ move: String, scan: SgfHeaderScan) -> Bool {
+        let parts = move.split(separator: " ", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0] == "b" || parts[0] == "w" else { return false }
+        let vertex = parts[1]
+        if vertex == "pass" { return true }
+        let columns = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+        guard let first = vertex.first,
+              let column = columns.firstIndex(of: Character(first.uppercased())) else {
+            return false
+        }
+        guard columns.distance(from: columns.startIndex, to: column) < scan.boardWidth,
+              let row = Int(vertex.dropFirst()), row >= 1, row <= scan.boardHeight else {
+            return false
+        }
+        return true
+    }
+
+    /// Drop the oldest-looking variation entries once there are too many.
+    ///
+    /// Main-line entries are never evicted: they are bounded by the length of
+    /// the game and they are what the chart is made of. Variation entries are
+    /// bounded by nothing — one per move PREFIX per tier, and playing moves on
+    /// the board mints fresh prefixes forever — and this file is decoded in
+    /// FULL on every native message, inside a process with roughly 25 MB of
+    /// headroom. Eviction order is arbitrary (nothing records recency); the
+    /// entry just written is always kept so the reply and the cache agree.
+    private static func pruned(_ cache: [String: MoveAnalysis],
+                               keeping key: String) -> [String: MoveAnalysis] {
+        let branchKeys = cache.keys.filter { $0.contains("#") }
+        guard branchKeys.count > maxBranchEntries else { return cache }
+        var trimmed = cache
+        for victim in branchKeys.sorted().prefix(branchKeys.count - maxBranchEntries)
+        where victim != key {
+            trimmed.removeValue(forKey: victim)
+        }
+        return trimmed
+    }
+
+    /// Most variation entries kept per game.
+    private static let maxBranchEntries = 128
+
+    /// Byte ceiling for the persisted cache, checked BEFORE decoding — the
+    /// decode IS the cost, so checking afterwards would be too late, and a file
+    /// that somehow grew past this stays recoverable instead of wedging every
+    /// future request.
+    private static let maxCacheBytes = 2 << 20
+
+    /// Short, stable digest of a line. Stable matters: this key is persisted,
+    /// so Swift's per-launch-seeded `hashValue` would silently miss on reload.
+    private static func lineDigest(_ line: [String]) -> String {
+        let bytes = SHA256.hash(data: Data(line.joined(separator: ",").utf8))
+        return bytes.prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Sweep progress counts main-line survey entries only — not the deep tier
+    /// (a handful of positions the reader lingered on) and not variations
+    /// (not part of the game's coverage at all).
     private static func surveyCount(_ cache: [String: MoveAnalysis]) -> Int {
-        cache.keys.filter { !$0.contains("@") }.count
+        cache.keys.filter { Int($0) != nil }.count
     }
 
     /// Build the wire payload. Winrate-only by design: b24c64 has no reliable
@@ -318,8 +412,16 @@ final class IOSAnalysisService: @unchecked Sendable {
     }
 
     private func loadCache(sgfHash: String) -> [String: MoveAnalysis] {
-        guard let url = cacheURL(sgfHash: sgfHash),
-              let data = try? Data(contentsOf: url),
+        guard let url = cacheURL(sgfHash: sgfHash) else { return [:] }
+        // Size first, without reading the file: decoding a large cache costs
+        // several times its size in footprint and happens on EVERY message.
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if size > Self.maxCacheBytes {
+            log.error("dropping an oversized analysis cache (\(size, privacy: .public) bytes)")
+            try? FileManager.default.removeItem(at: url)
+            return [:]
+        }
+        guard let data = try? Data(contentsOf: url),
               let payload = try? JSONDecoder().decode([String: MoveAnalysis].self, from: data)
         else { return [:] }
         return payload

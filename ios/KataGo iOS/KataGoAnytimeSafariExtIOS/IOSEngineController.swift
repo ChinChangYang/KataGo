@@ -268,7 +268,9 @@ final class IOSEngineController: @unchecked Sendable {
                  moveIndex: Int,
                  scan: SgfHeaderScan,
                  budget: SearchBudget,
-                 gameId: String) -> (parsed: ParsedAnalysis, toMove: PlayerColor)? {
+                 gameId: String,
+                 line: [String] = [],
+                 mainline: Bool = true) -> (parsed: ParsedAnalysis, toMove: PlayerColor)? {
         // Snapshot BEFORE queuing on the engine, so a cancel that arrives while
         // this request waits its turn abandons it without running a search.
         let generation = currentGeneration(forGame: gameId)
@@ -300,12 +302,39 @@ final class IOSEngineController: @unchecked Sendable {
 
         // `loadsgf <file> N` yields the position BEFORE move N, i.e. with N-1
         // moves played — so the position after `moveIndex` moves is N = index+1.
-        guard case .ok = driveUntilResponse("loadsgf \(sgfPath) \(moveIndex + 1)",
+        // Whenever the page sends a line — which is now ALWAYS, main line
+        // included — N = 1: the initial position, carrying the SGF's handicap
+        // stones, komi and rules but no moves. That is the one position whose
+        // meaning does not depend on which line the loader follows, and the
+        // moves are then replayed explicitly.
+        //
+        // This matters beyond variations. `loadsgf <file> N` resolves N against
+        // KataGo's own idea of the main line, and `Sgf::getMovesHelper` takes the
+        // DEEPEST child at every fork ("Gets the longest child if the sgf has
+        // branches"), while WGo — and SgfHeaderScan — take the FIRST. On a file
+        // whose variation outruns the main line, addressing by number replays a
+        // different game from the one on screen, silently: every move is legal,
+        // the colors still alternate, and the wrong winrate lands on the chart.
+        let loadIndex = line.isEmpty ? moveIndex + 1 : 1
+        guard case .ok = driveUntilResponse("loadsgf \(sgfPath) \(loadIndex)",
                                             wallSeconds: Self.commandWallSeconds) else {
             // Analyzing anyway would search whatever position the engine still
             // holds and report it under the requested index.
             log.error("loadsgf rejected for move index \(moveIndex, privacy: .public)")
             return nil
+        }
+
+        // Replay the line. Colors are the page's, taken from the SGF nodes
+        // themselves — never inferred by alternation, which handicap, passes and
+        // PL[] all break. (KataGo tolerates an out-of-turn play but silently
+        // clears move history when it happens, costing the net its recent-move
+        // planes; correct colors keep that from firing.)
+        for move in line {
+            guard case .ok = driveUntilResponse("play \(move)",
+                                                wallSeconds: Self.commandWallSeconds) else {
+                log.error("engine rejected a replayed move")
+                return nil
+            }
         }
 
         // Cosmetic against the engine (see the file header: it does not bound an
@@ -317,7 +346,18 @@ final class IOSEngineController: @unchecked Sendable {
                                    wallSeconds: Self.commandWallSeconds)
         }
 
-        let toMove = colorToMove(at: moveIndex, scan: scan)
+        // Inside a variation the side to move follows from the line itself;
+        // `scan.moveColors` only knows the main line and would be wrong from the
+        // fork onward. Getting this wrong is quiet and nasty: winrateB is
+        // flip-invariant so the chart still looks right, but utilityLcb is not,
+        // so the best-move ring lands on the WORST candidate.
+        // On the main line the scan is authoritative — it knows the color of
+        // the NEXT move, which handles an SGF that plays two of a color in a
+        // row. Inside a variation it knows nothing past the fork, so the side to
+        // move follows from the line itself.
+        let toMove = mainline
+            ? colorToMove(at: moveIndex, scan: scan)
+            : (line.last?.hasPrefix("b") == true ? .white : .black)
         let parser = AnalysisLineParser(boardWidth: scan.boardWidth,
                                         boardHeight: scan.boardHeight,
                                         nextColor: toMove)

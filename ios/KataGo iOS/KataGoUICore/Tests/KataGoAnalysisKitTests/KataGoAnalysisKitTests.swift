@@ -36,11 +36,11 @@ struct AnalysisWireRequestTests {
         let with = try decodeRequest(
             #"{"cmd":"query","gameId":"g","moveIndex":7,"want":["candidates","ownership"]}"#)
         #expect(with == .query(gameId: "g", moveIndex: 7,
-                               wantOwnership: true, budget: .normal))
+                               wantOwnership: true, budget: .normal, line: [], mainline: true))
         let without = try decodeRequest(
             #"{"cmd":"query","gameId":"g","moveIndex":7,"want":["candidates"]}"#)
         #expect(without == .query(gameId: "g", moveIndex: 7,
-                                  wantOwnership: false, budget: .normal))
+                                  wantOwnership: false, budget: .normal, line: [], mainline: true))
     }
 
     @Test(arguments: [
@@ -64,10 +64,32 @@ struct AnalysisWireRequestTests {
 
     @Test func requestRoundTripsThroughEncoder() throws {
         let original = AnalysisRequest.query(gameId: "g", moveIndex: 3,
-                                             wantOwnership: true, budget: .fast)
+                                             wantOwnership: true, budget: .fast, line: [],
+                                             mainline: true)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(AnalysisRequest.self, from: data)
         #expect(decoded == original)
+    }
+
+    /// A variation is addressed by its move list, not by a move number two
+    /// different branches would share.
+    @Test func queryCarriesAnExplicitLine() throws {
+        let decoded = try decodeRequest(
+            #"{"cmd":"query","gameId":"g","moveIndex":2,"want":["candidates"],"line":["b q16","w pass"],"mainline":false}"#)
+        #expect(decoded == .query(gameId: "g", moveIndex: 2, wantOwnership: false,
+                                  budget: .normal, line: ["b q16", "w pass"], mainline: false))
+        let data = try JSONEncoder().encode(decoded)
+        #expect(try JSONDecoder().decode(AnalysisRequest.self, from: data) == decoded)
+    }
+
+    /// An absent `line` must stay absent on the wire, so a main-line request
+    /// encodes exactly as it did before branches existed.
+    @Test func mainLineQueryOmitsTheLineKey() throws {
+        let data = try JSONEncoder().encode(
+            AnalysisRequest.query(gameId: "g", moveIndex: 3, wantOwnership: false,
+                                  budget: .fast, line: [], mainline: true))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["line"] == nil)
     }
 }
 

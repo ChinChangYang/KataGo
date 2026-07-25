@@ -75,7 +75,10 @@ class KGAChart {
     }
 
     setCursor(moveIndex, onMainline) {
-        this.cursor = moveIndex;
+        // Clamped: a variation can run past the end of the main line, and the
+        // x-domain is the main line's, so an unclamped cursor would be drawn
+        // off the canvas entirely.
+        this.cursor = Math.max(0, Math.min(this.moveCount, moveIndex));
         this.cursorOnMainline = onMainline !== false;
         this.draw();
     }

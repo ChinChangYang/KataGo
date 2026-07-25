@@ -149,7 +149,14 @@ public enum AnalysisRequest: Sendable, Equatable {
     case start(sgf: String, sgfHash: String, currentMoveIndex: Int, budget: AnalysisBudget)
     case poll(gameId: String, sinceSeq: Int)
     case navigate(gameId: String, moveIndex: Int)
-    case query(gameId: String, moveIndex: Int, wantOwnership: Bool, budget: AnalysisBudget)
+    /// `line` carries the explicit sequence of GTP moves from the empty board
+    /// to the position being asked about ("b q16", "w pass"), for positions the
+    /// engine cannot reach by move number — anything inside a variation, since
+    /// `loadsgf <file> <n>` follows one line through the file and cannot express
+    /// "the third child at move 40". Empty means the main line, addressed by
+    /// `moveIndex` exactly as before, so nothing that does not send it changes.
+    case query(gameId: String, moveIndex: Int, wantOwnership: Bool,
+               budget: AnalysisBudget, line: [String], mainline: Bool)
     case stop(gameId: String)
     case ping
     case openInApp(sgf: String)
@@ -158,7 +165,7 @@ public enum AnalysisRequest: Sendable, Equatable {
 extension AnalysisRequest: Codable {
     private enum CodingKeys: String, CodingKey {
         case cmd, sgf, sgfHash, currentMoveIndex, budget, gameId, sinceSeq
-        case moveIndex, want
+        case moveIndex, want, line, mainline
     }
 
     public init(from decoder: Decoder) throws {
@@ -185,7 +192,13 @@ extension AnalysisRequest: Codable {
                 gameId: try c.decode(String.self, forKey: .gameId),
                 moveIndex: try c.decode(Int.self, forKey: .moveIndex),
                 wantOwnership: want.contains("ownership"),
-                budget: try c.decodeIfPresent(AnalysisBudget.self, forKey: .budget) ?? .normal)
+                budget: try c.decodeIfPresent(AnalysisBudget.self, forKey: .budget) ?? .normal,
+                line: try c.decodeIfPresent([String].self, forKey: .line) ?? [],
+                // A line is now sent for the MAIN LINE too, so the position can
+                // stop being addressed by a move number the engine resolves
+                // against a different line. This flag is what still tells the
+                // two apart for cache keying and side-to-move.
+                mainline: try c.decodeIfPresent(Bool.self, forKey: .mainline) ?? true)
         case "stop":
             self = .stop(gameId: try c.decode(String.self, forKey: .gameId))
         case "ping":
@@ -215,13 +228,17 @@ extension AnalysisRequest: Codable {
             try c.encode("navigate", forKey: .cmd)
             try c.encode(gameId, forKey: .gameId)
             try c.encode(moveIndex, forKey: .moveIndex)
-        case let .query(gameId, moveIndex, wantOwnership, budget):
+        case let .query(gameId, moveIndex, wantOwnership, budget, line, mainline):
             try c.encode("query", forKey: .cmd)
             try c.encode(gameId, forKey: .gameId)
             try c.encode(moveIndex, forKey: .moveIndex)
             try c.encode(wantOwnership ? ["candidates", "ownership"] : ["candidates"],
                          forKey: .want)
             try c.encode(budget, forKey: .budget)
+            // Omitted when empty so an unchanged main-line request encodes
+            // byte-for-byte as it always did.
+            if !line.isEmpty { try c.encode(line, forKey: .line) }
+            if !mainline { try c.encode(false, forKey: .mainline) }
         case let .stop(gameId):
             try c.encode("stop", forKey: .cmd)
             try c.encode(gameId, forKey: .gameId)

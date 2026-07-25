@@ -62,7 +62,12 @@
         post("playerFound", describe(entry));
         try {
             player.addEventListener("update", (ev) => {
-                post("playerUpdate", { playerId: id, path: sanitizePath(ev && ev.path) });
+                const line = readLine(player, ev && ev.node);
+                post("playerUpdate", {
+                    playerId: id,
+                    path: sanitizePath(line, ev && ev.path),
+                    line,
+                });
             });
             player.addEventListener("kifuLoaded", (ev) => {
                 const kifu = ev && ev.kifu;
@@ -85,7 +90,12 @@
                 });
                 const path = player.kifuReader && player.kifuReader.path;
                 if (path) {
-                    post("playerUpdate", { playerId: id, path: sanitizePath(path) });
+                    const line = readLine(player);
+                    post("playerUpdate", {
+                        playerId: id,
+                        path: sanitizePath(line, path),
+                        line,
+                    });
                 }
             }
         } catch (e) { /* state snapshot is best-effort */ }
@@ -121,13 +131,116 @@
     }
     scheduleDeclarativeScan();
 
-    function sanitizePath(path) {
+    // Read the ACTUAL line from the root to the node on screen.
+    //
+    // Replaces a truthiness test over WGo's `path` object, which could not
+    // address a variation and got `onMainline` wrong in two reachable cases:
+    // a move played in edit mode at a LEAF gets child index 0 and writes no
+    // path key at all (`children.length` was never > 1), so an invented
+    // position reported itself as the main line — and the extension then
+    // analyzed a DIFFERENT position and drew the result on the reader's board.
+    //
+    // Walking up is also the only correct approach in edit mode: WGo swaps
+    // `player.kifuReader` for a new reader over `player.kifu.clone()`, while
+    // `player.kifu` still points at the original tree.
+    function readLine(player, evNode) {
+        const reader = player && player.kifuReader;   // never cache: edit mode swaps it
+        const node = evNode || (reader && reader.node);
+        if (!node) { return null; }
+        const BLACK = (window.WGo && window.WGo.B) || 1;
+
+        const chain = [];
+        for (let n = node; n; n = n.parent) { chain.push(n); }
+        chain.reverse();
+
+        // Where each node sits in its parent's children array; index 0 is the
+        // main line, because the parser appends in file order.
+        const childIndices = [];
+        for (let i = 1; i < chain.length; i += 1) {
+            childIndices.push(chain[i].parent.children.indexOf(chain[i]));
+        }
+
+        // Leading run of child-0 steps = the main-line prefix. `_edited` marks
+        // nodes WGo's edit mode invented; the index alone would call those
+        // main line.
+        let prefixNodes = 0;
+        for (let k = 0; k < childIndices.length; k += 1) {
+            if (childIndices[k] !== 0 || chain[k + 1]._edited) { break; }
+            prefixNodes += 1;
+        }
+
+        const moves = [];
+        let edited = false;
+        let prefixMoves = 0;
+        for (let j = 0; j < chain.length; j += 1) {
+            const nd = chain[j];
+            if (nd._edited) { edited = true; }
+            if (nd.move) {
+                // Color is ALWAYS explicit on the node. Never infer it by
+                // alternation — handicap, passes and PL[] all break that.
+                moves.push({
+                    color: nd.move.c === BLACK ? "b" : "w",
+                    // A pass is {pass:true, c} with NO x/y — not (-1,-1).
+                    pass: !!nd.move.pass,
+                    x: nd.move.pass ? null : nd.move.x,   // 0 = left column
+                    y: nd.move.pass ? null : nd.move.y,   // 0 = TOP row
+                });
+                if (j <= prefixNodes) { prefixMoves = moves.length; }
+            }
+        }
+
+        return {
+            size: (reader && reader.kifu && reader.kifu.size) || 19,
+            // Node depth, which is what WGo's own path.m counts and what goTo
+            // expects. NOT the move count: a setup-only node inflates it.
+            nodeDepth: chain.length - 1,
+            moveCount: moves.length,
+            onMainline: prefixNodes === childIndices.length && !edited,
+            mainlinePrefixMoves: prefixMoves,
+            edited,
+            // Authoritative side to move; already accounts for HA > 1 and PL[].
+            turn: reader && reader.game ? (reader.game.turn === BLACK ? "b" : "w") : null,
+            moves,
+        };
+    }
+
+    // Legacy shape, still posted alongside the line so the macOS content script
+    // (which shares this file byte-for-byte) keeps working unchanged. Derived
+    // from the walk above, so it inherits the corrected `onMainline`.
+    function sanitizePath(line, path) {
+        if (line) { return { m: line.nodeDepth, onMainline: line.onMainline }; }
         if (!path || typeof path !== "object") { return { m: 0, onMainline: true }; }
         let onMainline = true;
         for (const key of Object.keys(path)) {
             if (key !== "m" && Number(path[key])) { onMainline = false; break; }
         }
         return { m: Number(path.m) || 0, onMainline };
+    }
+
+    // Force the TRUE main line at MOVE number n.
+    //
+    // player.goTo(n) will NOT do this: it clones the current path — branch keys
+    // included — and `rememberPath` (default true) makes unkeyed forks follow
+    // `_last_selected`. Sitting at {m:5, 4:1}, goTo(3) then goTo(5) lands back
+    // in the variation. There is no move-number seek that reaches the main line.
+    function mainlinePath(player, n) {
+        const kifu = player && player.kifuReader && player.kifuReader.kifu;
+        const path = { m: 0 };
+        let node = kifu && kifu.root;
+        let depth = 0;
+        let moves = 0;
+        // `n` is a MOVE count — what the chart plots and what the analysis is
+        // indexed by — while WGo's path.m counts NODES. A move-less main-line
+        // node (a standalone comment or a setup node) makes the two diverge, so
+        // count moves on the way down and hand goTo the node depth reached.
+        while (node && moves < n && node.children.length) {
+            if (node.children.length > 1) { path[depth + 1] = 0; }
+            node = node.children[0];
+            depth += 1;
+            if (node.move) { moves += 1; }
+        }
+        path.m = depth;
+        return path;
     }
 
     function countMainline(kifu) {
@@ -191,7 +304,12 @@
             case "goTo": {
                 if (entry.player.frozen) { return; }
                 const move = Number(payload.moveIndex);
-                if (Number.isFinite(move)) { entry.player.goTo(move); }
+                if (!Number.isFinite(move)) { return; }
+                // `mainline` means "move n OF THE GAME", which player.goTo(n)
+                // cannot do from inside a variation — see mainlinePath.
+                entry.player.goTo(payload.mainline
+                    ? mainlinePath(entry.player, move)
+                    : move);
                 return;
             }
             case "drawAnalysis": {
