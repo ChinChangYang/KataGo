@@ -60,7 +60,9 @@ private func houghFromSegments(_ segs: [Int32]) -> (quad: [Double]?, reason: Str
             }
         }
     }
-    return (ok != 0 ? out : nil, String(cString: reason))
+    // Pointer form: String(cString:) on an *array* is deprecated in Swift 6.
+    let reasonText = reason.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+    return (ok != 0 ? out : nil, reasonText)
 }
 
 private func expectQuad(_ a: [Double], _ b: [Double], tol: Double = 0.0, _ what: String) {

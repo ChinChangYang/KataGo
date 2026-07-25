@@ -24,11 +24,17 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     func beginRequest(with context: NSExtensionContext) {
         let message = (context.inputItems.first as? NSExtensionItem)?
             .userInfo?[SFExtensionMessageKey] as? [String: Any]
+        // Decode before the hop: AnalysisRequest is Sendable, the raw
+        // [String: Any] is not, so only the decoded value crosses. The decode
+        // is JSONSerialization + JSONDecoder on a small payload — no I/O and no
+        // locks. (The runner's lock, the reason for the hop, is still taken
+        // off this thread.)
+        let request = message.flatMap { try? AnalysisWireCoding.request(fromDictionary: $0) }
         let box = ContextBox(context: context)
 
         DispatchQueue.global(qos: .userInitiated).async {
             let response: AnalysisResponse
-            if let message, let request = try? AnalysisWireCoding.request(fromDictionary: message) {
+            if let request {
                 response = AnalysisJobRunner.shared.handle(request)
             } else {
                 response = .error(code: .badRequest,

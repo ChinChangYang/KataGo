@@ -186,11 +186,15 @@ final class ExtensionEngineController {
         let filled = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids,
                                    Int32(pids.count * MemoryLayout<pid_t>.size))
         guard filled > 0 else { return }
-        var pathBuffer = [CChar](repeating: 0, count: 4 * 1024)
+        // proc_pidpath returns strlen(path) on success (0 on failure), so the
+        // written bytes decode directly — no NUL scan, and no stale bytes from
+        // a previous pid can leak in.
+        var pathBuffer = [UInt8](repeating: 0, count: 4 * 1024)
         for pid in pids where pid > 0 {
-            pathBuffer[0] = 0
-            guard proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count)) > 0,
-                  String(cString: pathBuffer) == helperPath else { continue }
+            let pathLength = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
+            guard pathLength > 0,
+                  String(decoding: pathBuffer[..<Int(pathLength)], as: UTF8.self) == helperPath
+            else { continue }
             var info = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size,

@@ -238,7 +238,11 @@ final class AnalysisJobRunner: @unchecked Sendable {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        var opened = false
+        // The `open` completion handler is @Sendable and fires on a concurrent
+        // queue; the 10 s DispatchSemaphore below supplies the happens-before
+        // edge the compiler cannot see (house pattern: ResultBox in
+        // CoreMLComputeHandleLoader.swift / EngineCoreMLBridge.swift).
+        nonisolated(unsafe) var opened = false
         let done = DispatchSemaphore(value: 0)
         NSWorkspace.shared.open([url], withApplicationAt: containingApp,
                                 configuration: NSWorkspace.OpenConfiguration()) { _, error in

@@ -173,14 +173,17 @@ struct VisionControlOrnament: View {
 
         // One interpolated Text so the SF Symbol shares the label's baseline:
         // sibling Image + Text views center-align in the HStack, which reads
-        // as vertical misalignment on device. The captured count concatenates
-        // in so it stays on that same baseline.
+        // as vertical misalignment on device. The captured count interpolates
+        // into that same Text (Text + Text is deprecated as of 26) so it stays
+        // on that baseline while keeping its own monospaced-digit font and
+        // secondary foreground style.
         var chipText = Text("\(Image(systemName: isAI ? "cpu" : "person.fill")) \(isAI ? "AI" : "Human")")
             .font(.caption)
         if captured > 0 {
-            chipText = chipText + Text(" ×\(captured)")
+            let capturedText = Text(" ×\(captured)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            chipText = Text("\(chipText)\(capturedText)")
         }
 
         return Button {
