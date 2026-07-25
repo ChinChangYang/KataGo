@@ -23,12 +23,26 @@
 //    • The appex bundles its OWN default_gtp.cfg with nnCacheSizePowerOfTwo=9
 //      and nnMutexPoolSizePowerOfTwo=8. The GTP defaults (2^20 / 2^16) cost
 //      20 MB of table at boot plus ~23 MB of accumulated entries at runtime.
-//    • Every kata-analyze is preceded by a maxVisits cap. A bare kata-analyze
-//      searches unbounded and its tree + cache grow until jetsam kills us.
+//    • The search is bounded by THIS FILE'S read loop and nothing else. GTP's
+//      `kata-set-param maxVisits` does NOT bound a kata-analyze: gtp.cpp hands
+//      the analysis search `searchFactor = 1e40`, which saturates the visit cap
+//      at 2^62 (measured: 651 root visits reached under a cap of 16). So the
+//      client-side break below is load-bearing for the 80 MB budget, not a
+//      convenience — an unbounded kata-analyze grows its tree until jetsam
+//      kills the process, which is exactly how the first spike died.
 //
 //  Boot costs a few seconds (CoreML converts the net on a cold container), so
 //  it runs on a dedicated thread and requests return `.warmingUp` until ready
 //  rather than blocking a native message past Safari's patience.
+//
+//  CONCURRENCY. `SafariWebExtensionHandler` dispatches every native message
+//  onto a concurrent queue, so two requests can land at once. The GTP stream is
+//  process-global and gtp.cpp aborts a running analysis on ANY input line, so
+//  two overlapping conversations would interleave: one call's `loadsgf` silently
+//  kills the other's search and the survivor's numbers get attributed to the
+//  wrong position. Every conversation therefore runs under `engineLock`.
+//  Cancellation deliberately does NOT take that lock — it only bumps a counter,
+//  so it can abandon a search that is currently holding it.
 //
 
 import Foundation
@@ -47,6 +61,16 @@ final class IOSEngineController: @unchecked Sendable {
         case failed
     }
 
+    /// Outcome of one GTP command. `loadsgf` answers `=` with an EMPTY payload
+    /// on success, so "no payload" and "rejected" must not collapse into one
+    /// `nil` — a rejected position followed by a successful-looking analysis
+    /// silently caches the PREVIOUS position's numbers under the requested key.
+    private enum GtpReply {
+        case ok(String?)
+        case rejected(String?)
+        case silent
+    }
+
     /// Per-position visit budget. Small on purpose: the panel analyzes the one
     /// position the reader is looking at, and a scrub should feel instant.
     static let defaultVisits = 32
@@ -55,7 +79,23 @@ final class IOSEngineController: @unchecked Sendable {
     /// native message open indefinitely.
     private static let analyzeWallSeconds: Double = 6
 
+    /// Wall for a command that performs no search (loadsgf, kata-set-param,
+    /// the post-stop drain). Generous: these are board operations, not evals.
+    private static let commandWallSeconds: Double = 10
+
+    /// Wall for the boot handshake. A cold container pays a CoreML convert and
+    /// compile here (~3.5 s measured, but a first-ever launch can be far
+    /// slower), so this is deliberately long — it exists to turn an engine that
+    /// never answers into `.failed` rather than a thread parked forever.
+    private static let bootWallSeconds: Double = 180
+
+    /// How long one read waits before the enclosing loop re-checks its own
+    /// deadline and its cancellation. Below the 200 ms analysis report interval,
+    /// so a cancel is honored within roughly one report.
+    private static let readSliceSeconds: Double = 0.1
+
     private let lock = NSLock()
+    private let engineLock = NSLock()
     private var state: State = .cold
     private let log = Logger(subsystem: "chinchangyang.KataGo-iOS.tw.safariweb",
                              category: "engine")
@@ -73,6 +113,29 @@ final class IOSEngineController: @unchecked Sendable {
     var engineVersion: String? {
         lock.lock(); defer { lock.unlock() }
         return version
+    }
+
+    /// Bumped by `cancelAnalysis()`. A pass whose snapshot no longer matches
+    /// abandons its search and reports nothing.
+    private var analysisGeneration = 0
+
+    private var currentGeneration: Int {
+        lock.lock(); defer { lock.unlock() }
+        return analysisGeneration
+    }
+
+    /// Abandon any analysis that is running or queued.
+    ///
+    /// Takes only `lock`, never `engineLock` — the whole point is to interrupt
+    /// a pass that currently holds the engine. Because it invalidates every
+    /// generation, not one specific request, callers must not overlap a cancel
+    /// with a request they want to keep. The panel guarantees this: it issues at
+    /// most one analysis at a time and only sends the next one after the
+    /// abandoned one has replied.
+    func cancelAnalysis() {
+        lock.lock()
+        analysisGeneration &+= 1
+        lock.unlock()
     }
 
     /// Display name for the bundled net. Deliberately STABLE: it is known
@@ -139,14 +202,29 @@ final class IOSEngineController: @unchecked Sendable {
         // also pays the CoreML convert+compile. The reply is the engine's own
         // identity string (e.g. "1.16.3+b24c64-s8526915840") — the panel shows
         // it verbatim, so capture it rather than discarding it.
+        //
+        // Held under engineLock so an analysis that arrives mid-boot queues
+        // behind the handshake instead of interleaving with it. (Requests are
+        // normally turned away with `.warmingUp` before reaching the engine;
+        // this closes the window where state flips to .ready in between.)
+        engineLock.lock()
         let start = DispatchTime.now()
-        let reportedVersion = driveUntilResponse("version")
+        let reply = driveUntilResponse("version", wallSeconds: Self.bootWallSeconds)
         let bootMillis = Double(DispatchTime.now().uptimeNanoseconds
                                 &- start.uptimeNanoseconds) / 1_000_000
-        lock.lock(); version = reportedVersion; lock.unlock()
+        engineLock.unlock()
 
-        lock.lock(); state = .ready; lock.unlock()
-        log.log("engine ready in \(Int(bootMillis), privacy: .public) ms")
+        switch reply {
+        case let .ok(payload):
+            lock.lock(); version = payload; state = .ready; lock.unlock()
+            log.log("engine ready in \(Int(bootMillis), privacy: .public) ms")
+        case .rejected, .silent:
+            // An engine that cannot answer `version` cannot analyze either.
+            // Failing here surfaces as "the engine failed to start" instead of
+            // leaving every later request to time out one at a time.
+            lock.lock(); state = .failed; lock.unlock()
+            log.error("engine did not answer version within \(Int(Self.bootWallSeconds), privacy: .public) s")
+        }
     }
 
     private static let modelResource = "lionffen_b24c64_3x3_v3_12300"
@@ -156,17 +234,46 @@ final class IOSEngineController: @unchecked Sendable {
 
     /// Analyze one position of an SGF already written to `sgfPath`.
     /// `moveIndex` counts moves played from the empty board.
-    /// Returns nil if the engine produced no analysis before the wall.
+    /// Returns nil if the engine produced no usable analysis.
     func analyze(sgfPath: String,
                  moveIndex: Int,
                  scan: SgfHeaderScan,
                  visits: Int) -> (parsed: ParsedAnalysis, toMove: PlayerColor)? {
+        // Snapshot BEFORE queuing on the engine, so a cancel that arrives while
+        // this request waits its turn abandons it without running a search.
+        let generation = currentGeneration
+
+        engineLock.lock()
+        defer { engineLock.unlock() }
+
+        guard generation == currentGeneration else { return nil }
+
+        // GTP splits its command line on whitespace and takes the filename
+        // verbatim, so there is no quoting to be had — a path with a space
+        // cannot be expressed at all. (The previous code quoted it, which made
+        // the quotes part of the filename.) Our spool lives under the appex's
+        // temporary directory, whose components are UUIDs and a hex hash, so
+        // this is a guard against future callers rather than a live case.
+        guard !sgfPath.contains(" ") else {
+            log.error("SGF path contains a space; GTP cannot address it")
+            return nil
+        }
+
         // `loadsgf <file> N` yields the position BEFORE move N, i.e. with N-1
         // moves played — so the position after `moveIndex` moves is N = index+1.
-        driveUntilResponse("loadsgf \(quoted(sgfPath)) \(moveIndex + 1)")
+        guard case .ok = driveUntilResponse("loadsgf \(sgfPath) \(moveIndex + 1)",
+                                            wallSeconds: Self.commandWallSeconds) else {
+            // Analyzing anyway would search whatever position the engine still
+            // holds and report it under the requested index.
+            log.error("loadsgf rejected for move index \(moveIndex, privacy: .public)")
+            return nil
+        }
 
-        // MANDATORY cap — see the file header.
-        driveUntilResponse("kata-set-param maxVisits \(visits)")
+        // Cosmetic against the engine (see the file header: it does not bound an
+        // analysis search) but kept because it costs nothing and keeps the
+        // engine's own reported cap consistent with what we intend to spend.
+        _ = driveUntilResponse("kata-set-param maxVisits \(visits)",
+                               wallSeconds: Self.commandWallSeconds)
 
         let toMove = colorToMove(at: moveIndex, scan: scan)
         let parser = AnalysisLineParser(boardWidth: scan.boardWidth,
@@ -180,10 +287,15 @@ final class IOSEngineController: @unchecked Sendable {
                                                          ownership: false))
 
         var latest: String?
+        var cancelled = false
         let deadline = DispatchTime.now().uptimeNanoseconds
             &+ UInt64(Self.analyzeWallSeconds * 1_000_000_000)
         while DispatchTime.now().uptimeNanoseconds < deadline {
-            let line = KataGoHelper.getMessageLine()
+            if generation != currentGeneration { cancelled = true; break }
+            // Bounded: an engine that stops emitting must not wedge this loop.
+            // The unbounded read would never return, and the deadline above is
+            // only tested BETWEEN lines.
+            let line = KataGoHelper.getMessageLine(timeoutSeconds: Self.readSliceSeconds)
             guard !line.isEmpty else { continue }
             if line.hasPrefix("info ") {
                 latest = line
@@ -198,7 +310,12 @@ final class IOSEngineController: @unchecked Sendable {
         }
 
         KataGoHelper.sendCommand(AnalysisCommand.stop)
-        drainUntilTerminator()
+        _ = drainUntilTerminator(wallSeconds: Self.commandWallSeconds)
+
+        // An abandoned pass has no result to report: whatever it reached is
+        // shallower than asked for, and caching it would make the position look
+        // analyzed at a depth it never reached.
+        if cancelled { return nil }
 
         // A prediction that faulted mid-search leaves the tree holding values
         // derived from an unwritten buffer — report nothing rather than a
@@ -226,30 +343,35 @@ final class IOSEngineController: @unchecked Sendable {
 
     // MARK: - GTP plumbing
 
-    private func quoted(_ path: String) -> String {
-        // GTP splits on whitespace; app-group container paths can contain
-        // spaces, so hand the engine a quoted path.
-        return path.contains(" ") ? "\"\(path)\"" : path
-    }
-
-    /// Send a command and return its GTP payload — the text after the leading
-    /// "=" — or nil when the engine answered with an error ("?").
+    /// Send a command and return what the engine answered.
     @discardableResult
-    private func driveUntilResponse(_ command: String) -> String? {
+    private func driveUntilResponse(_ command: String, wallSeconds: Double) -> GtpReply {
         KataGoHelper.sendCommand(command)
-        return drainUntilTerminator()
+        return drainUntilTerminator(wallSeconds: wallSeconds)
     }
 
+    /// Read until the engine's response terminator, or until `wallSeconds`
+    /// passes with no terminator in sight.
     @discardableResult
-    private func drainUntilTerminator() -> String? {
-        while true {
-            let line = KataGoHelper.getMessageLine()
-            if line.hasPrefix("?") { return nil }
+    private func drainUntilTerminator(wallSeconds: Double) -> GtpReply {
+        let deadline = DispatchTime.now().uptimeNanoseconds
+            &+ UInt64(wallSeconds * 1_000_000_000)
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            let line = KataGoHelper.getMessageLine(timeoutSeconds: Self.readSliceSeconds)
+            if line.isEmpty { continue }   // blank line, or nothing arrived yet
+            if line.hasPrefix("?") {
+                return .rejected(Self.payload(of: line))
+            }
             if line.hasPrefix("=") {
-                let payload = line.dropFirst()
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                return payload.isEmpty ? nil : payload
+                return .ok(Self.payload(of: line))
             }
         }
+        return .silent
+    }
+
+    /// The text after a GTP status character, or nil when there is none.
+    private static func payload(of line: String) -> String? {
+        let text = line.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 }

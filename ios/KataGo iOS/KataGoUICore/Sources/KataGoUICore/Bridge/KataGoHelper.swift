@@ -203,6 +203,22 @@ public class KataGoHelper {
         return String(cppLine)
     }
 
+    /// Bounded `getMessageLine`: returns "" if no complete line arrives within
+    /// `timeoutSeconds` instead of blocking indefinitely.
+    ///
+    /// The unbounded read is right for the app, which drives a live engine from
+    /// a dedicated loop. It is wrong anywhere a stalled engine must not wedge
+    /// the caller — notably an app extension, where one blocked read leaves the
+    /// request permanently in flight with no recovery. A timeout is reported as
+    /// "" rather than as a distinct value because callers already treat a blank
+    /// line as "nothing yet, keep going"; the caller's own deadline, not this
+    /// return, decides when to give up.
+    public class func getMessageLine(timeoutSeconds: Double) -> String {
+        let cppLine = KataGoGetMessageLineTimed(timeoutSeconds)
+
+        return String(cppLine)
+    }
+
     public class func sendCommand(_ command: String) {
         KataGoSendCommand(std.string(command))
     }

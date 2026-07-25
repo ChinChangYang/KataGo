@@ -7,6 +7,8 @@
 
 #include "KataGoCpp.hpp"
 
+#include <chrono>
+
 // Resolved via the `cpp/` header search path injected in Package.swift
 // (cxxSettings -I). Was a `../../../cpp/main.h` relative include when these
 // sources lived in the KataGoInterface framework target.
@@ -54,6 +56,38 @@ public:
     void setDone() {
         done = true;
         cv.notify_all();
+    }
+
+    // Read one '\n'-terminated line, waiting at most `timeoutSeconds` for one to
+    // arrive. Returns false — leaving any partial text buffered for the next
+    // call — when the deadline passes with no complete line available.
+    //
+    // uflow()/underflow() above wait on `cv` with NO deadline, and setDone() is
+    // never called on the in-process bridge (it never reaches EOF), so a caller
+    // blocked in getline() when the engine goes silent stays blocked forever.
+    // That is fine for the app, which drives a live engine from a dedicated
+    // read loop, but fatal in an app extension: one wedged read leaves the
+    // Safari panel permanently mid-request with no way to recover. Callers that
+    // must honor their own deadline read through here instead.
+    //
+    // Reads the buffer directly rather than through the istream. Safe because
+    // this streambuf never calls setg(), so there is no get area to keep in
+    // sync — uflow() is the only other reader, and no caller mixes the two.
+    bool readLine(std::string& out, double timeoutSeconds) {
+        std::unique_lock<std::mutex> lock(m);
+        const auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(timeoutSeconds));
+        cv.wait_until(lock, deadline, [&]{
+            return done || buffer.find('\n') != std::string::npos;
+        });
+        const auto newline = buffer.find('\n');
+        if (newline == std::string::npos) {
+            return false;
+        }
+        out.assign(buffer, 0, newline);
+        buffer.erase(0, newline + 1);
+        return true;
     }
 
     // Drop any buffered, not-yet-read bytes. Used to discard stale output left
@@ -145,6 +179,22 @@ string KataGoGetMessageLine() {
     // Get a line from the input stream from KataGo
     string cppLine;
     getline(inFromKataGo, cppLine);
+
+    return cppLine;
+}
+
+string KataGoGetMessageLineTimed(double timeoutSeconds) {
+    // Bounded counterpart to KataGoGetMessageLine, for callers that must stay
+    // responsive when the engine produces nothing (see readLine).
+    //
+    // A timeout yields "" — deliberately indistinguishable from a genuine blank
+    // line, because every caller treats both the same way: keep reading until
+    // your OWN deadline. GTP emits a blank line after each response, so blank
+    // lines are ordinary traffic, not a signal.
+    string cppLine;
+    if (!tsbFromKataGo.readLine(cppLine, timeoutSeconds)) {
+        return string();
+    }
 
     return cppLine;
 }

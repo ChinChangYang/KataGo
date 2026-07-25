@@ -26,6 +26,7 @@ void KataGoRunGtp(string modelPath,
                   bool reTune);
 
 string KataGoGetMessageLine();
+string KataGoGetMessageLineTimed(double timeoutSeconds);
 void KataGoSendCommand(string command);
 void KataGoSendMessage(string message);
 void KataGoClearMessages();

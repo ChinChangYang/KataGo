@@ -75,12 +75,21 @@
         // background page was torn down between calls; one retry absorbs it.
         try {
             const reply = await browser.runtime.sendMessage({ kgaNative: message });
-            if (reply && reply.kgaError) { throw new Error(reply.kgaError); }
+            // Safari RESOLVES this promise with `undefined` rather than
+            // rejecting it when the non-persistent background page is unloaded
+            // mid-call (WebKit fires the completion handler with default
+            // arguments as it tears down). Converting that to a throw is what
+            // lets the retry below cover it; left alone, `undefined` flows on as
+            // a successful reply and the session dies on the first property
+            // access — the failure mode looks like a permanent engine error.
+            if (reply == null) { throw new Error("the extension did not reply"); }
+            if (reply.kgaError) { throw new Error(reply.kgaError); }
             return reply;
         } catch (first) {
             await new Promise((resolve) => setTimeout(resolve, 300));
             const reply = await browser.runtime.sendMessage({ kgaNative: message });
-            if (reply && reply.kgaError) { throw new Error(reply.kgaError); }
+            if (reply == null) { throw new Error("the extension did not reply"); }
+            if (reply.kgaError) { throw new Error(reply.kgaError); }
             return reply;
         }
     }
@@ -162,6 +171,10 @@
             this.currentIndex = 0;
             this.onMainline = true;
             this.results = new Map();     // moveIndex → result
+            // Positions whose analysis failed retryably. Kept so a scan steps
+            // PAST them instead of re-requesting the same index forever — the
+            // scan advances on `results`, which a failed position never enters.
+            this.failedIndexes = new Set();
             // Lifecycle only. Whether analysis is ON and whether a scan is
             // running are ORTHOGONAL to it (and to each other): the Analyze
             // toggle governs per-scrub analysis + board marks, while Scan game
@@ -539,6 +552,16 @@
                         if (await this.ensureStarted()) { this.resume(index); }
                         return;
                     }
+                    // The wire distinguishes a failure of THIS request from a
+                    // failure of the session, and until now nothing read that
+                    // flag: one transient engine hiccup killed a whole scan and
+                    // switched analysis off. Honor it — skip the position, keep
+                    // the session alive.
+                    if (reply.retryable) {
+                        if (this.scanning) { this.failedIndexes.add(index); }
+                        this.message(this.friendlyError(reply), true);
+                        return;
+                    }
                     this.onWireError(reply);
                     return;
                 }
@@ -601,7 +624,9 @@
 
         scanStep() {
             if (!this.scanning) { return; }
-            while (this.scanIndex <= this.moveCount && this.results.has(this.scanIndex)) {
+            while (this.scanIndex <= this.moveCount
+                   && (this.results.has(this.scanIndex)
+                       || this.failedIndexes.has(this.scanIndex))) {
                 this.scanIndex += 1;
             }
             this.el.progress.textContent = `${this.results.size} / ${this.moveCount + 1}`;
@@ -707,13 +732,7 @@
             }
         }
 
-        onWireError(reply) {
-            this.state = "error";
-            this.analysisEnabled = false;
-            this.scanning = false;
-            this.el.analyze.textContent = "Analyze";
-            this.el.scan.textContent = "Scan game";
-            this.el.progress.hidden = true;
+        friendlyError(reply) {
             const friendly = {
                 boardTooLarge: "Boards larger than 19×19 aren't supported in Safari.",
                 warmingUp: "Starting the analysis engine…",
@@ -721,8 +740,20 @@
                 engineDown: "Analysis is unavailable — tap Analyze to retry.",
                 unknownGame: "Restarting analysis…",
             };
-            this.message(friendly[reply.code] || reply.message || "Analysis failed.",
-                         reply.code !== "warmingUp");
+            return friendly[reply.code] || reply.message || "Analysis failed.";
+        }
+
+        /// Session-fatal errors only. Per-position failures that the wire marks
+        /// retryable are handled at the call site and must NOT come here — this
+        /// tears the whole session down.
+        onWireError(reply) {
+            this.state = "error";
+            this.analysisEnabled = false;
+            this.scanning = false;
+            this.el.analyze.textContent = "Analyze";
+            this.el.scan.textContent = "Scan game";
+            this.el.progress.hidden = true;
+            this.message(this.friendlyError(reply), reply.code !== "warmingUp");
         }
 
         teardown() {

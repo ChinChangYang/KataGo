@@ -56,6 +56,11 @@ final class IOSAnalysisService: @unchecked Sendable {
         case let .openInApp(sgf):
             return openInApp(sgf: sgf)
         case .stop:
+            // Abandon whatever is searching. The page sends this on teardown,
+            // and (once the panel deepens on dwell) whenever the reader moves
+            // on from the position being deepened — a 3 s search that nobody is
+            // looking at any more only delays the one they are.
+            IOSEngineController.shared.cancelAnalysis()
             return .pong(engineState: IOSEngineController.shared.currentState.rawValue)
         case .poll, .navigate:
             // Sweep-era commands: iOS has no background sweep, so the page
