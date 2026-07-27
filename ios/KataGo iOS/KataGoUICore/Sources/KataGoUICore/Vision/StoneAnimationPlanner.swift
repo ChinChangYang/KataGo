@@ -47,6 +47,23 @@ public struct StoneAnimationPlanner {
         case playAfterFlyIn
     }
 
+    /// When the capture rattle should play for one resolved stone diff.
+    /// Captures ride the placement click's clock rather than showboard's:
+    /// the engine reports the new capture count in the same block as the
+    /// stone lists, so a rattle fired the moment the counter moves is heard
+    /// a whole flight before the capturing stone touches the board.
+    ///
+    /// There is deliberately no silent case, unlike `SoundCue`: the user
+    /// decided (2026-07-22, reaffirmed 2026-07-27) that a boot/switch remount
+    /// into a game whose capture count rises DOES rattle. Only the timing was
+    /// ever wrong.
+    public enum CaptureCue: Equatable, Sendable {
+        /// Play now: this diff mounted instantly, so nothing is in the air.
+        case immediately
+        /// Play with the landing click of the stone flying in.
+        case atLanding
+    }
+
     /// Decides the sound cue for a resolved diff. A fly-in sounds at
     /// landing; a fly-away is silent — a stone leaving the board is not a
     /// stone hitting it; a non-empty diff with nothing animating is a batch
@@ -65,6 +82,32 @@ public struct StoneAnimationPlanner {
         case .none:
             guard additions > 0 || removals > 0, !isInitialSync else { return .none }
             return .playImmediately
+        }
+    }
+
+    /// Decides how a capture reported against this diff should sound, or nil
+    /// when the diff is empty and the previous diff's cue still stands.
+    ///
+    /// The nil case is the whole reason this is separate from `soundCue`:
+    /// showboard writes the stone lists (its "Next player" line) BEFORE its
+    /// "B/W stones captured" lines, so the capture counter can be observed
+    /// on a later, empty sync of the same block. That empty sync must not
+    /// overwrite the cue the capturing move's diff just set.
+    ///
+    /// Only a fly-in has a landing to wait for. A batch diff (L2/R2 jump, a
+    /// boot/switch remount) mounts instantly, so its rattle is already in
+    /// step with what the eye sees. A fly-away can never raise a capture
+    /// count — an undo restores stones, it does not take them — so its
+    /// `.immediately` is only a floor.
+    public static func captureCue(effect: Effect,
+                                  additions: Int,
+                                  removals: Int) -> CaptureCue? {
+        guard additions > 0 || removals > 0 else { return nil }
+        switch effect {
+        case .flyIn:
+            return .atLanding
+        case .flyAway, .none:
+            return .immediately
         }
     }
 

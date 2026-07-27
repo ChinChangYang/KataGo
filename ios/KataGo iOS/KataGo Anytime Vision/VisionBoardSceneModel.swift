@@ -61,9 +61,22 @@ final class VisionBoardSceneModel {
     /// Sound is scene-driven on this platform (it fires when the cue says a
     /// stone lands), replacing GobanState's commit-time sound.
     var playStoneSound: (() -> Void)?
+    /// Plays the capture rattle; the root wires it to the AudioModel. Cued
+    /// here for the same reason as playStoneSound: showboard reports the new
+    /// capture count while the capturing stone is still in the air, so a
+    /// rattle fired when the counter moves is heard a whole flight before
+    /// the stone that caused it lands.
+    var playCaptureSound: (() -> Void)?
     /// True until the first non-empty stone diff after boot, a board
     /// rebuild, or a game switch — that remount batch must stay silent.
     private var isInitialStoneSync = true
+    /// How the next reported capture should sound, set by the last non-empty
+    /// stone diff. Nothing is in the air before the first diff, so a rattle
+    /// arriving that early is due at once.
+    private var captureCue: StoneAnimationPlanner.CaptureCue = .immediately
+    /// When the stone currently flying in touches down — the instant its
+    /// landing click fires. A capture reported mid-flight rides it.
+    private var landingDeadline: ContinuousClock.Instant?
     /// Bumped by every switch/rebuild so an already-scheduled landing click
     /// (a 0.25 s Task) can tell its stone's world was torn down and stay
     /// quiet.
@@ -321,6 +334,38 @@ final class VisionBoardSceneModel {
         planner.clear()
         isInitialStoneSync = true
         stoneSyncEpoch += 1
+        // The remount batch mounts instantly, so the rattle the new game's
+        // showboard triggers has no landing to wait for. (That the remount
+        // rattles at all is the user's standing decision, not an oversight.)
+        captureCue = .immediately
+        landingDeadline = nil
+    }
+
+    /// The engine just reported a capture (a showboard capture counter rose).
+    /// The rattle is deferred by one main-actor turn so it reads the cue that
+    /// THIS update pass's stone diff set: the counter observer and the diff
+    /// run in the same SwiftUI pass, in an order SwiftUI does not define, and
+    /// showboard can also deliver the counter on a later, empty sync of the
+    /// same block. One turn's wait is imperceptible and settles both.
+    func noteCapture() {
+        let epoch = stoneSyncEpoch
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            switch self.captureCue {
+            case .immediately:
+                break
+            case .atLanding:
+                // No deadline means the flight already finished (its click
+                // has played), so the rattle is due now rather than never.
+                if let deadline = self.landingDeadline {
+                    try? await Task.sleep(until: deadline, clock: .continuous)
+                }
+            }
+            // A game switch or board rebuild during the flight tore down the
+            // world the capture belonged to — same guard as the landing click.
+            guard self.stoneSyncEpoch == epoch else { return }
+            self.playCaptureSound?()
+        }
     }
 
     /// Withdraws an intent whose command the engine rejected (illegal move)
@@ -350,6 +395,14 @@ final class VisionBoardSceneModel {
                                                  additions: addedPoints.count,
                                                  removals: removedPoints.count,
                                                  isInitialSync: isInitialStoneSync)
+        // Only a non-empty diff re-cues the rattle: showboard writes the
+        // stone lists before its capture counters, so the counter can land on
+        // a later, empty sync that must not overwrite this diff's cue.
+        if let capture = StoneAnimationPlanner.captureCue(effect: effect,
+                                                          additions: addedPoints.count,
+                                                          removals: removedPoints.count) {
+            captureCue = capture
+        }
         // A batch click plays now (fly-aways are silent); the fly-in landing
         // click is scheduled at the mount site below, where the entity is in
         // hand.
@@ -392,10 +445,15 @@ final class VisionBoardSceneModel {
                 // rebuild can tear its world down — a stone that never
                 // seated must not click.
                 let epoch = stoneSyncEpoch
+                // Published so a capture reported while this stone is still
+                // in the air rattles at touchdown instead of at parse time.
+                let deadline = ContinuousClock.now.advanced(by: .seconds(Self.flyInDuration))
+                landingDeadline = deadline
                 Task { @MainActor [weak self] in
-                    try? await Task.sleep(for: .seconds(Self.flyInDuration))
-                    guard let self, self.stoneSyncEpoch == epoch,
-                          self.placed[point]?.entity === stone else { return }
+                    try? await Task.sleep(until: deadline, clock: .continuous)
+                    guard let self, self.stoneSyncEpoch == epoch else { return }
+                    if self.landingDeadline == deadline { self.landingDeadline = nil }
+                    guard self.placed[point]?.entity === stone else { return }
                     self.playStoneSound?()
                 }
             } else {

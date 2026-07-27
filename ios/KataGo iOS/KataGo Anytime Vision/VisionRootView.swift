@@ -290,8 +290,10 @@ struct VisionRootView: View {
             Task { await cacheReadiness.start() }
             controllerInput.onEvent = { handleControllerEvent($0) }
             // Scene-driven sound (gobanState.soundEffect stays false here):
-            // the scene model cues the click at the stone's landing.
+            // the scene model cues both the click and the capture rattle at
+            // the stone's landing.
             sceneModel.playStoneSound = { audioModel.playPlaySound(soundEffect: true) }
+            sceneModel.playCaptureSound = { audioModel.playCaptureSound(soundEffect: true) }
         }
         // The GTP read loop — parses board/analysis lines into the models.
         // Must not run concurrently with the handshake (the bridge's sole
@@ -477,20 +479,21 @@ struct VisionRootView: View {
 
     /// Capture rattle (BoardView's capture-count observers, which never
     /// mount on Vision) — a capturing move plays this on top of the scene's
-    /// landing click, iOS-style. Count-driven, so R2 jumps over captures
-    /// rattle too, and it fires at showboard-parse time, slightly before
-    /// the landing click. `soundEffect: true` because gobanState.soundEffect
-    /// deliberately stays false here (same as playStoneSound).
+    /// landing click, iOS-style. Detection stays count-driven, so R2 jumps
+    /// over captures rattle too, but the TIMING is handed to the scene: these
+    /// counters move at showboard-parse time, a whole flight before the
+    /// capturing stone touches the board, so playing here would rattle before
+    /// the stone was placed. `noteCapture` holds it until the landing.
     private func captureSoundHooks(_ content: some View) -> some View {
         content
         .onChange(of: session.stones.blackStonesCaptured) { oldValue, newValue in
             if oldValue < newValue {
-                audioModel.playCaptureSound(soundEffect: true)
+                sceneModel.noteCapture()
             }
         }
         .onChange(of: session.stones.whiteStonesCaptured) { oldValue, newValue in
             if oldValue < newValue {
-                audioModel.playCaptureSound(soundEffect: true)
+                sceneModel.noteCapture()
             }
         }
     }

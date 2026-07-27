@@ -209,4 +209,51 @@ struct StoneAnimationPlannerTests {
                                                removals: 0,
                                                isInitialSync: true) == .none)
     }
+
+    // MARK: - Capture cues
+
+    @Test func capturingMoveRattlesAtLanding() {
+        // The reported bug: a played capture must rattle when the stone
+        // seats, not when showboard's counter moves a flight earlier.
+        #expect(StoneAnimationPlanner.captureCue(effect: .flyIn(p),
+                                                 additions: 1,
+                                                 removals: 3) == .atLanding)
+    }
+
+    @Test func batchDiffRattlesImmediately() {
+        // R2 jump across a capturing move: nothing is in the air, so there
+        // is no landing to wait for.
+        #expect(StoneAnimationPlanner.captureCue(effect: .none,
+                                                 additions: 7,
+                                                 removals: 2) == .immediately)
+    }
+
+    @Test func remountRattlesImmediatelyRatherThanStayingSilent() {
+        // Unlike the click, a boot/switch remount into a game whose capture
+        // count rises DOES rattle — a standing user decision, not an
+        // oversight. Only its timing ever needed fixing.
+        #expect(StoneAnimationPlanner.captureCue(effect: .none,
+                                                 additions: 42,
+                                                 removals: 0) == .immediately)
+    }
+
+    @Test func flyAwayDiffRattlesImmediately() {
+        // An undo lowers the counters, so this cue is only a floor — it
+        // must never be .atLanding, whose deadline belongs to a fly-in.
+        #expect(StoneAnimationPlanner.captureCue(effect: .flyAway(p),
+                                                 additions: 0,
+                                                 removals: 1) == .immediately)
+    }
+
+    @Test func emptyDiffLeavesThePreviousCaptureCueStanding() {
+        // showboard writes the stone lists before its "B/W stones captured"
+        // lines, so the counter can be observed on a later, empty sync of
+        // the same block. nil = keep the capturing diff's cue.
+        #expect(StoneAnimationPlanner.captureCue(effect: .none,
+                                                 additions: 0,
+                                                 removals: 0) == nil)
+        #expect(StoneAnimationPlanner.captureCue(effect: .flyIn(p),
+                                                 additions: 0,
+                                                 removals: 0) == nil)
+    }
 }
