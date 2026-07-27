@@ -471,13 +471,18 @@ final class ModelsViewController: NSViewController {
                 // task-isolated and handing it to a @MainActor closure is a
                 // race; the sheet controller is @MainActor and therefore
                 // Sendable, so it crosses cleanly.
-                _ = try await CustomModelImporter.importModel(from: url) { fraction in
+                let record = try await CustomModelImporter.importModel(from: url) { fraction in
                     Task { @MainActor in progress.update(fraction: fraction) }
                 }
                 guard let self else { return }
                 self.rebuildRows()
                 self.recomputeAvailability()
                 self.reloadVisibleRows()
+                // Reveal what was just added: the catalog is long enough that
+                // the reloaded table lands back at the top with the new row
+                // well below the fold, which reads as nothing having happened.
+                self.selectRow(forFileName: record.fileName)
+                self.rebuildDetailPane()
                 self.updateAddRemoveEnablement()
             } catch is CancellationError {
                 // The partial file is already gone; nothing was recorded.
@@ -562,7 +567,25 @@ final class ModelsViewController: NSViewController {
         store.rename(id: record.id, to: newName)
         rebuildRows()
         reloadVisibleRows()
+        // Keep the renamed network selected. `reloadData()` drops the
+        // selection, which would empty the detail pane the user is editing in
+        // and leave the remove button enabled with nothing selected.
+        selectRow(forFileName: model.fileName)
         rebuildDetailPane()
+        updateAddRemoveEnablement()
+    }
+
+    /// Re-selects the row for `fileName` and scrolls it into view. Needed after
+    /// any `reloadData()`, which clears selection, and after an import, where
+    /// the table otherwise returns to the top with the new row out of sight.
+    private func selectRow(forFileName fileName: String) {
+        let index = rows.firstIndex { row in
+            if case .model(let model) = row { return model.fileName == fileName }
+            return false
+        }
+        guard let index else { return }
+        tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        tableView.scrollRowToVisible(index)
     }
 
     // MARK: - Detail pane (P5-T8)
