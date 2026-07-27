@@ -44,6 +44,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         // launching another model would just evict+replace. Clear it first so the
         // increment is observable (mirrors the file-header note about starting
         // from a clean cache). "Clear Cache" is only present when non-empty.
+        revealClearCacheButton(in: app)
         let initialClear = app.buttons["Clear Cache"]
         if initialClear.waitForExistence(timeout: 10) {
             initialClear.tap()
@@ -102,6 +103,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         waitForPicker(in: app, title: builtInTitle)
 
         // Verify the Clear Cache button exists (totalCount > 0).
+        revealClearCacheButton(in: app)
         let clearButton = app.buttons["Clear Cache"]
         XCTAssertTrue(clearButton.waitForExistence(timeout: 15),
                       "Clear Cache button should be visible when cache has entries")
@@ -123,6 +125,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         let zeroCount = "0 of 4"
 
         // Footer must now read "Main: 0 of 4" after Clear.
+        revealCacheFooter(in: app)
         let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(mainStats.waitForExistence(timeout: 30),
                       "CoreMLCache.footerMainStats not found after Clear")
@@ -413,6 +416,27 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         return false
     }
 
+    /// Scrolls the picker until the Core ML cache footer is realized.
+    ///
+    /// The footer is the picker's LAST section — below the model catalog, the
+    /// Custom Networks section and the Opening Books row — so it sits well off
+    /// screen on an iPhone at launch. SwiftUI's List is lazy, so a row that far
+    /// down is not in the accessibility tree at all and `waitForExistence`
+    /// finds nothing however long it waits. These tests used to pass only
+    /// because the footer happened to fall inside the realized window; adding a
+    /// section above it pushed it out. Scroll for it explicitly instead of
+    /// depending on where it lands.
+    @MainActor
+    private func revealCacheFooter(in app: XCUIApplication) {
+        reveal(app, app.staticTexts["CoreMLCache.footerMainStats"], by: { app.swipeUp() })
+    }
+
+    /// Same, for the Clear Cache button, which lives in that footer.
+    @MainActor
+    private func revealClearCacheButton(in app: XCUIApplication) {
+        reveal(app, app.buttons["Clear Cache"], by: { app.swipeUp() })
+    }
+
     /// Swipe until `element` is present, up to `maxSwipes` (off-screen SwiftUI
     /// List/Form cells aren't in the a11y tree).
     @MainActor
@@ -442,6 +466,15 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     @MainActor
     private func tapModelRow(in app: XCUIApplication, title: String) {
         let row = app.staticTexts[title]
+        // Usually the picker is already at the top and this resolves at once.
+        // If it does not, the list may be scrolled away from the top —
+        // revealing the cache footer leaves it at the bottom, and when the
+        // cache is already empty there is no Clear Cache button to stop that
+        // scroll early. Only then scroll back up, so the common path keeps its
+        // original settle-and-wait behaviour untouched.
+        if !row.waitForExistence(timeout: 15) {
+            reveal(app, row, by: { app.swipeDown() })
+        }
         XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(title)")
         row.tap()
     }
@@ -530,6 +563,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
 
     @MainActor
     private func readMainStats(in app: XCUIApplication) -> String {
+        revealCacheFooter(in: app)
         let footer = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(footer.waitForExistence(timeout: 15),
                       "CoreMLCache.footerMainStats not found")
