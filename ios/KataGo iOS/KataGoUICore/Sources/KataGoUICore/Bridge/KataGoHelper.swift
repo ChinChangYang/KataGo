@@ -234,4 +234,31 @@ public class KataGoHelper {
     public class func clearOutputBuffer() {
         KataGoClearMessages()
     }
+
+    /// The reason the last engine launch ended in an uncaught C++ exception, or
+    /// nil if it exited cleanly. Reading it CLEARS it, so one failure is
+    /// reported once.
+    ///
+    /// `runGtp` returns normally on this path (the bridge catches at the seam),
+    /// so the launch site cannot tell a failed load from an ordinary shutdown
+    /// without asking. Check it wherever `runGtp` returns. A jetsam/OOM death
+    /// is not an exception and never lands here — the `pendingLoadModelTitle`
+    /// crash sentinel still owns that case.
+    public class func takeLastFatalError() -> String? {
+        let message = String(KataGoTakeLastFatalError())
+        return message.isEmpty ? nil : message
+    }
+
+    /// Pre-flight check that `path` looks like a KataGo network this engine can
+    /// load. Returns nil when it does, otherwise a user-facing reason.
+    ///
+    /// Reads only the file's decompressed head, so an 800 MB network costs a
+    /// couple of hundred kilobytes of I/O — but it is still file I/O plus an
+    /// inflate, so call it off the main actor. Not exhaustive: truncated
+    /// weights and non-finite parameters only surface at load, which is what
+    /// `takeLastFatalError` covers.
+    public class func validateModelFile(atPath path: String) -> String? {
+        let reason = String(KataGoValidateModelFile(std.string(path)))
+        return reason.isEmpty ? nil : reason
+    }
 }

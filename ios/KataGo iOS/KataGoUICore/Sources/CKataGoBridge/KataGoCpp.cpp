@@ -8,11 +8,18 @@
 #include "KataGoCpp.hpp"
 
 #include <chrono>
+#include <fstream>
+#include <mutex>
+#include <sstream>
+
+#include <zlib.h>
 
 // Resolved via the `cpp/` header search path injected in Package.swift
 // (cxxSettings -I). Was a `../../../cpp/main.h` relative include when these
 // sources lived in the KataGoInterface framework target.
 #include "main.h"
+#include "core/global.h"
+#include "neuralnet/modelversion.h"
 
 using namespace std;
 
@@ -112,6 +119,153 @@ ThreadSafeStreamBuf tsbToKataGo;
 // Output stream to KataGo
 ostream outToKataGo(&tsbToKataGo);
 
+// ---- Fatal-error channel ---------------------------------------------------
+//
+// Written by KataGoRunGtp's catch, drained by KataGoTakeLastFatalError. A plain
+// mutex-guarded string rather than the message stream: the engine's output
+// buffer is drained by a read loop that has already stopped by the time a
+// launch fails, so anything written there would be lost.
+
+namespace {
+
+std::mutex fatalErrorMutex;
+std::string lastFatalError;
+
+void setLastFatalError(const std::string& message) {
+    std::lock_guard<std::mutex> lock(fatalErrorMutex);
+    lastFatalError = message;
+}
+
+}  // namespace
+
+string KataGoTakeLastFatalError() {
+    std::lock_guard<std::mutex> lock(fatalErrorMutex);
+    string out = lastFatalError;
+    lastFatalError.clear();
+    return out;
+}
+
+// ---- Model-file validation -------------------------------------------------
+
+namespace {
+
+// Fills `out` with up to `maxOut` bytes of the model file's DECOMPRESSED head,
+// inflating gzip input with zlib's gzip-aware window (15 + 32 — the same one
+// FileUtils uses). Deliberately feeds inflate a truncated slice of the archive
+// and stops as soon as the head is full: the caller only needs the leading
+// header tokens, and reading an 800 MB network whole to check its version would
+// defeat the point.
+bool readModelHead(const string& path, bool gzipped, size_t maxOut, string& out) {
+    std::ifstream in(path, std::ios::binary);
+    if(!in)
+        return false;
+
+    if(!gzipped) {
+        out.resize(maxOut);
+        in.read(&out[0], (std::streamsize)maxOut);
+        out.resize((size_t)in.gcount());
+        return !out.empty();
+    }
+
+    // 256 KB of compressed input inflates to far more than `maxOut` for this
+    // data (the head is text, and the weight block that follows it is dense).
+    string compressed;
+    compressed.resize(1 << 18);
+    in.read(&compressed[0], (std::streamsize)compressed.size());
+    compressed.resize((size_t)in.gcount());
+    if(compressed.empty())
+        return false;
+
+    z_stream zs;
+    zs.zalloc = Z_NULL;
+    zs.zfree = Z_NULL;
+    zs.opaque = Z_NULL;
+    zs.avail_in = 0;
+    zs.next_in = Z_NULL;
+    if(inflateInit2(&zs, 15 + 32) != Z_OK) {
+        (void)inflateEnd(&zs);
+        return false;
+    }
+
+    out.resize(maxOut);
+    zs.next_in = (Bytef*)compressed.data();
+    zs.avail_in = (uInt)compressed.size();
+    zs.next_out = (Bytef*)&out[0];
+    zs.avail_out = (uInt)maxOut;
+    const int zret = inflate(&zs, Z_NO_FLUSH);
+    const size_t produced = maxOut - zs.avail_out;
+    (void)inflateEnd(&zs);
+
+    // Z_OK (output filled), Z_BUF_ERROR (input ran out) and Z_STREAM_END (a
+    // small file that fit entirely) are all expected here — only a genuine
+    // format error that produced nothing means "this is not a gzip archive".
+    if(produced == 0 || zret == Z_DATA_ERROR || zret == Z_MEM_ERROR || zret == Z_NEED_DICT)
+        return false;
+    out.resize(produced);
+    return true;
+}
+
+}  // namespace
+
+string KataGoValidateModelFile(string path) {
+    const string lower = Global::toLower(path);
+    const bool isGz = Global::isSuffix(lower, ".gz");
+    const bool isPlain = Global::isSuffix(lower, ".txt") || Global::isSuffix(lower, ".bin");
+    if(!isGz && !isPlain)
+        return "A network file must end with .bin.gz, .txt.gz, .bin or .txt. "
+               "This does not look like a KataGo network.";
+
+    string head;
+    if(!readModelHead(path, isGz, 1 << 13, head))
+        return isGz ? "This file could not be read as a gzip archive. "
+                      "It is probably not a KataGo network."
+                    : "This file could not be read.";
+
+    // The header is whitespace-delimited text in every model format, ahead of
+    // any binary weight block, so an istringstream over the head reads it the
+    // same way ModelDesc's constructor does.
+    std::istringstream in(head);
+    string name;
+    int modelVersion = -1;
+    in >> name;
+    in >> modelVersion;
+    if(in.fail())
+        return "No network name and version could be read from this file. "
+               "It is probably not a KataGo network.";
+
+    // ModelDesc's own name rules — the name is embedded in cache filenames.
+    if(name.size() > 96)
+        return "This file's network name is too long to be a KataGo network.";
+    for(char c : name) {
+        const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                        (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if(!ok)
+            return "This file does not start with a valid KataGo network name.";
+    }
+
+    // Version bounds read from NNModelVersion so they track the engine.
+    if(modelVersion < 0)
+        return "This file reports an invalid network version. "
+               "It is probably not a KataGo network.";
+    if(modelVersion < NNModelVersion::oldestModelVersionImplemented)
+        return "This network is from an extremely old version of KataGo and is "
+               "no longer supported (version " + Global::intToString(modelVersion) + ").";
+    if(modelVersion > NNModelVersion::latestModelVersionImplemented)
+        return "This network needs a newer version of KataGo than this app "
+               "includes (version " + Global::intToString(modelVersion) + ").";
+
+    // Two more header fields, purely as corroboration that we really are inside
+    // a model header rather than a text file that happens to start plausibly.
+    int numInputChannels = 0;
+    int numInputGlobalChannels = 0;
+    in >> numInputChannels;
+    in >> numInputGlobalChannels;
+    if(in.fail() || numInputChannels <= 0 || numInputGlobalChannels <= 0)
+        return "This file's network header is incomplete or malformed.";
+
+    return "";
+}
+
 void KataGoRunGtp(string modelPath,
                   string humanModelPath,
                   string configPath,
@@ -172,7 +326,30 @@ void KataGoRunGtp(string modelPath,
     // ANE/CoreML path ignores them.
     subArgs.push_back(string("-override-config mlxTunerFull=") + (tunerFull ? "true" : "false"));
     subArgs.push_back(string("-override-config mlxReTune=") + (reTune ? "true" : "false"));
-    MainCmds::gtp(subArgs);
+
+    // Every throwing path out of the engine ends here. The model file is read
+    // by NNEvaluator's CONSTRUCTOR (nneval.cpp: `loadedModel =
+    // NeuralNet::loadModelFile(...)`), which runs on THIS thread via
+    // Setup::initializeNNEvaluator — so a malformed, truncated or
+    // wrong-version network throws right here rather than on an NN server
+    // thread, and this catch genuinely sees it. Without it the exception
+    // unwinds into the Swift `Thread` closure that called us and reaches
+    // std::terminate: nneval.cpp carries no try/catch by design, and main.cpp's
+    // catch-all is `#if defined(OS_IS_WINDOWS)`.
+    //
+    // Returning normally instead lets the Swift launch seam unwind its state
+    // and fall back to the model picker, with KataGoTakeLastFatalError
+    // supplying the reason. Jetsam/OOM is NOT an exception and is unaffected —
+    // the crash sentinel still owns that case.
+    try {
+        MainCmds::gtp(subArgs);
+    }
+    catch(const std::exception& e) {
+        setLastFatalError(e.what());
+    }
+    catch(...) {
+        setLastFatalError("The engine stopped with an unknown error.");
+    }
 }
 
 string KataGoGetMessageLine() {
