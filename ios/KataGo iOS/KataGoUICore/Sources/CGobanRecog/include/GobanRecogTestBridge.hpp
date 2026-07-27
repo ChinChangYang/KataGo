@@ -241,6 +241,16 @@ std::string sgf_board_to_sgf(int size, const char* rowsNL);
 // (board_size = 0 when absent; sgf = "" unless status == "ok"; an SGF never
 // contains a tab/newline). DEFINED in gr_run.cpp.
 std::string recognize_status_line(const unsigned char* bgr, int width, int height);
+// Same line, but with the board's four outer grid-line intersections supplied
+// instead of searched for (the app's manual-grid path). `quadXY` is 8 doubles —
+// x,y for TL,TR,BR,BL in image pixels — and `boardSize` is 9/13/19, or 0 to let
+// the size be chosen. Exists so the manual path is regressable from the CLI and
+// from the native tests, the same way the automatic path is. This calls the
+// SAME recognize_image with a user quad, so the confidence floor is lifted here
+// too: a status of "ok" says a lattice was fitted, not that it is trustworthy —
+// read the confidence field. DEFINED in gr_run.cpp.
+std::string recognize_status_line_with_quad(const unsigned char* bgr, int width, int height,
+                                            const double* quadXY, int boardSize);
 // recognize_image full debug JSON for gobanrecog-cli --debug-json + Task-10
 // drill-down: {stage, status, board_size, quad_source, confidence, corners,
 // H_grid, rows, size_scores, sgf}. Python-flavored JSON (NaN/Infinity ok).

@@ -46,9 +46,15 @@ namespace {
 int usage() {
     std::fprintf(stderr,
                  "usage: gobanrecog-cli <bgr.raw> <width> <height> [-o out.sgf] [--debug-json]\n"
+                 "                       [--quad x0,y0,x1,y1,x2,y2,x3,y3] [--size N]\n"
                  "  <bgr.raw>: row-major uint8 BGR HxWx3 (cv2.imread(path).tofile(raw))\n"
                  "  -o <path>: write the SGF to <path> instead of stdout\n"
-                 "  --debug-json: dump the full recognize debug JSON to stdout\n");
+                 "  --debug-json: dump the full recognize debug JSON to stdout\n"
+                 "  --quad: the board's four OUTER GRID-LINE INTERSECTIONS in image\n"
+                 "          pixels, TL,TR,BR,BL — the app's manual-grid path. Skips the\n"
+                 "          quad proposers and lifts the confidence floor, so check the\n"
+                 "          reported confidence rather than trusting \"ok\".\n"
+                 "  --size: board size to force (9/13/19); only with --quad\n");
     return 2;
 }
 
@@ -71,6 +77,23 @@ std::vector<unsigned char> readFile(const char* path) {
     return data;
 }
 
+// Parses "x0,y0,x1,y1,x2,y2,x3,y3" into eight doubles. Returns false unless
+// exactly eight numbers were present.
+bool parseQuad(const char* text, double* out8) {
+    int count = 0;
+    const char* cursor = text;
+    while (count < 8) {
+        char* end = nullptr;
+        const double value = std::strtod(cursor, &end);
+        if (end == cursor) return false;
+        out8[count++] = value;
+        cursor = end;
+        if (*cursor == ',') ++cursor;
+        else break;
+    }
+    return count == 8 && *cursor == '\0';
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -87,6 +110,9 @@ int main(int argc, char** argv) {
     const int height = std::atoi(argv[3]);
     const char* outPath = nullptr;
     bool debugJson = false;
+    double quad[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    bool haveQuad = false;
+    int forcedSize = 0;
 
     for (int i = 4; i < argc; ++i) {
         if (std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--output") == 0) {
@@ -95,12 +121,33 @@ int main(int argc, char** argv) {
             ++i;
         } else if (std::strcmp(argv[i], "--debug-json") == 0) {
             debugJson = true;
+        } else if (std::strcmp(argv[i], "--quad") == 0) {
+            if (i + 1 >= argc) return usage();
+            if (!parseQuad(argv[i + 1], quad)) {
+                std::fprintf(stderr, "gobanrecog-cli: --quad needs 8 comma-separated numbers\n");
+                return 2;
+            }
+            haveQuad = true;
+            ++i;
+        } else if (std::strcmp(argv[i], "--size") == 0) {
+            if (i + 1 >= argc) return usage();
+            forcedSize = std::atoi(argv[i + 1]);
+            ++i;
         } else {
             return usage();
         }
     }
 
     if (width <= 0 || height <= 0) return usage();
+    if (forcedSize != 0 && !haveQuad) {
+        std::fprintf(stderr, "gobanrecog-cli: --size requires --quad\n");
+        return 2;
+    }
+    if (debugJson && haveQuad) {
+        // The debug JSON seam has no quad variant; the status line does.
+        std::fprintf(stderr, "gobanrecog-cli: --debug-json and --quad are exclusive\n");
+        return 2;
+    }
 
     const std::vector<unsigned char> img = readFile(rawPath);
     if (static_cast<long long>(img.size()) != 3LL * width * height) {
@@ -121,7 +168,10 @@ int main(int argc, char** argv) {
 
     // Normal mode: TAB line "<status>\t<size>\t<conf>\t<quad_source>\t<sgf>".
     const std::string line =
-        gobanrecog::testbridge::recognize_status_line(img.data(), width, height);
+        haveQuad
+            ? gobanrecog::testbridge::recognize_status_line_with_quad(img.data(), width, height,
+                                                                      quad, forcedSize)
+            : gobanrecog::testbridge::recognize_status_line(img.data(), width, height);
 
     // Split on the first four tabs; the fifth field (sgf) may be empty and
     // never contains a tab.

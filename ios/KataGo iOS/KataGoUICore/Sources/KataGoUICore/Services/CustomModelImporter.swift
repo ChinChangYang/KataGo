@@ -148,7 +148,13 @@ public enum CustomModelImporter {
     /// system will actually let an app consume — the raw free-byte count
     /// overstates it. A 5% head-room margin keeps a copy that would exactly
     /// fill the volume from succeeding into an unusable device.
+    ///
+    /// tvOS has no such key at all (and no import UI to reach this from), so
+    /// there the check is simply absent rather than approximated with the raw
+    /// free-byte count, which would refuse imports the system would have
+    /// allowed.
     private static func checkFreeSpace(needed: Int64) throws {
+        #if !os(tvOS)
         let values = try? CustomModelStore.directoryURL.resourceValues(
             forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         // No answer from the volume means no basis to refuse; let the copy try.
@@ -157,6 +163,7 @@ public enum CustomModelImporter {
         if available < required {
             throw CustomModelImportError.notEnoughSpace(needed: required, available: available)
         }
+        #endif
     }
 
     /// Chunked stream copy so progress is real and cancellation is prompt.

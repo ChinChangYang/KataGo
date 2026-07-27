@@ -611,7 +611,7 @@ std::pair<cv::Mat, cv::Mat> line_profiles(const cv::Mat& rect, int pad, int span
 }
 
 // ports grid.py::choose_size.
-SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
+SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes, int forcedSize) {
     const std::pair<cv::Mat, cv::Mat> profs = line_profiles(rect);
     const cv::Mat& prof_x = profs.first;
     const cv::Mat& prof_y = profs.second;
@@ -696,9 +696,23 @@ SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes) {
                      [](const std::pair<int, Best>& a, const std::pair<int, Best>& b) {
                          return nanLastDescending(a.second.total, b.second.total);
                      });
-    const int n_best = ranked.at(0).first;
-    const Best& bb = ranked.at(0).second;
-    const double second = ranked.at(1).second.total;  // IndexError if < 2 sizes
+    // Python always takes ranked[0]. `forcedSize` (app-only extension, 0 on the
+    // ported path) instead takes the entry for the size the user stated; the
+    // "second" it is measured against is then the best OTHER size, so the margin
+    // keeps meaning "how much better than its nearest rival". With forcedSize 0
+    // this is exactly ranked[0] vs ranked[1], bit-identical to Python.
+    size_t bestIndex = 0;
+    if (forcedSize > 0) {
+        for (size_t i = 0; i < ranked.size(); ++i) {
+            if (ranked[i].first == forcedSize) {
+                bestIndex = i;
+                break;
+            }
+        }
+    }
+    const int n_best = ranked.at(bestIndex).first;
+    const Best& bb = ranked.at(bestIndex).second;
+    const double second = ranked.at(bestIndex == 0 ? 1 : 0).second.total;  // IndexError if < 2 sizes
     // a lattice that continues past the comb ends means we are looking at a
     // sub-window of a larger board — collapse the margin so this candidate
     // loses arbitration (or fails loudly) instead of reporting a wrong size

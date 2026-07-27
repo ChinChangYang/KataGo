@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,7 +30,9 @@
 namespace gobanrecog {
 
 // ports run.py::recognize_image.
-RecognitionResult recognize_image(const cv::Mat& img_bgr) {
+RecognitionResult recognize_image(const cv::Mat& img_bgr,
+                                  const cv::Mat* userQuad,
+                                  int forcedSize) {
     // Run every cv:: op single-threaded (parallel_for_ executes the body
     // inline on this thread). The vendored HAVE_PTHREADS_PF worker pool
     // (core/parallel_impl.cpp) has an upstream-acknowledged completion race
@@ -57,7 +60,12 @@ RecognitionResult recognize_image(const cv::Mat& img_bgr) {
 
     BoardDetection det;
     try {
-        det = detect_board(img_bgr);
+        // A user-placed quad also relaxes the size-ambiguity gate: it guards
+        // against the DETECTOR guessing between board sizes, which is not the
+        // situation when the size came from a picker.
+        const double min_size_margin =
+            userQuad != nullptr ? -std::numeric_limits<double>::infinity() : 2.0;
+        det = detect_board(img_bgr, min_size_margin, userQuad, forcedSize);
     } catch (const DetectionError& e) {
         // run.py: `except DetectionError as e: return RecognitionResult(
         //          status=f"failed:{e}")`. Only DetectionError is caught here
@@ -77,8 +85,9 @@ RecognitionResult recognize_image(const cv::Mat& img_bgr) {
     // reuses the same reason string — eval_cpp compares status strings
     // verbatim between the Python reference and this port.
     const bool accepted =
-        cls.confidence >= CONF_FLOOR &&
-        (cls.confidence_legacy >= CONF_FLOOR || cls.confidence >= CONF_FLOOR_RESCUE);
+        userQuad != nullptr ||
+        (cls.confidence >= CONF_FLOOR &&
+         (cls.confidence_legacy >= CONF_FLOOR || cls.confidence >= CONF_FLOOR_RESCUE));
     if (!accepted) {
         result.status = "failed:low_confidence";
         result.confidence = cls.confidence;
@@ -104,7 +113,12 @@ RecognitionResult recognize_image(const cv::Mat& img_bgr) {
 // Translates the internal RecognitionResult to the value-semantic
 // GobanRecogResult. No cv:: types cross this boundary; no named-local
 // swift::Optional is ever returned (project interop landmine).
-GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_t bytesPerRow) {
+namespace {
+
+// Shared tail of both public seams: wrap the caller's buffer (no copy), run the
+// pipeline, and flatten the internal result into the value-semantic one.
+GobanRecogResult runAndTranslate(const uint8_t* bgr, int width, int height, size_t bytesPerRow,
+                                 const cv::Mat* userQuad, int forcedSize) {
     GobanRecogResult out;
 
     if (bgr == nullptr || width <= 0 || height <= 0) {
@@ -118,7 +132,8 @@ GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_
     const cv::Mat input(height, width, CV_8UC3, const_cast<uint8_t*>(bgr),
                         bytesPerRow == 0 ? cv::Mat::AUTO_STEP : bytesPerRow);
 
-    const gobanrecog::RecognitionResult r = gobanrecog::recognize_image(input);
+    const gobanrecog::RecognitionResult r =
+        gobanrecog::recognize_image(input, userQuad, forcedSize);
 
     out.status = r.status;
     out.confidence = r.confidence;
@@ -129,7 +144,38 @@ GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_
     if (r.board.has_value()) {
         out.rows = r.board->rows;  // value copy of the row strings
     }
+    if (!r.corners.empty()) {
+        out.corners.reserve(8);
+        for (int k = 0; k < 4; ++k) {
+            out.corners.push_back(r.corners.at<double>(k, 0));
+            out.corners.push_back(r.corners.at<double>(k, 1));
+        }
+    }
     return out;
+}
+
+}  // namespace
+
+GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_t bytesPerRow) {
+    return runAndTranslate(bgr, width, height, bytesPerRow, nullptr, 0);
+}
+
+GobanRecogResult recognizeGobanWithQuad(const uint8_t* bgr, int width, int height,
+                                        size_t bytesPerRow,
+                                        const double* quadXY, int boardSize) {
+    if (quadXY == nullptr) {
+        // Without a quad this would silently become the automatic path, which
+        // is not what a caller of THIS function asked for.
+        GobanRecogResult out;
+        out.status = "failed:missing quad";
+        return out;
+    }
+    cv::Mat quad(4, 2, CV_64F);
+    for (int k = 0; k < 4; ++k) {
+        quad.at<double>(k, 0) = quadXY[2 * k];
+        quad.at<double>(k, 1) = quadXY[2 * k + 1];
+    }
+    return runAndTranslate(bgr, width, height, bytesPerRow, &quad, boardSize);
 }
 
 // ---- test / CLI bridge (cv-free seam; see GobanRecogTestBridge.hpp) ---------
@@ -163,9 +209,22 @@ void append_json_string(std::string& out, const std::string& s) {
 // board_size = 0 when absent; sgf = "" unless status == "ok". Only the final
 // field (sgf) may follow tabs, and an SGF never contains a tab or newline, so a
 // split on the first four tabs is unambiguous.
-std::string recognize_status_line(const unsigned char* bgr, int width, int height) {
+namespace {
+
+// The shared body of the two status-line entry points.
+std::string status_line(const unsigned char* bgr, int width, int height,
+                        const double* quadXY, int boardSize) {
     const cv::Mat input(height, width, CV_8UC3, const_cast<unsigned char*>(bgr));
-    const RecognitionResult r = recognize_image(input);
+    cv::Mat quad;
+    if (quadXY != nullptr) {
+        quad.create(4, 2, CV_64F);
+        for (int k = 0; k < 4; ++k) {
+            quad.at<double>(k, 0) = quadXY[2 * k];
+            quad.at<double>(k, 1) = quadXY[2 * k + 1];
+        }
+    }
+    const RecognitionResult r =
+        recognize_image(input, quadXY != nullptr ? &quad : nullptr, boardSize);
 
     std::string sgf;
     if (r.status == "ok" && r.board.has_value()) {
@@ -184,6 +243,17 @@ std::string recognize_status_line(const unsigned char* bgr, int width, int heigh
     out += '\t';
     out += sgf;
     return out;
+}
+
+}  // namespace
+
+std::string recognize_status_line(const unsigned char* bgr, int width, int height) {
+    return status_line(bgr, width, height, nullptr, 0);
+}
+
+std::string recognize_status_line_with_quad(const unsigned char* bgr, int width, int height,
+                                            const double* quadXY, int boardSize) {
+    return status_line(bgr, width, height, quadXY, boardSize);
 }
 
 // Full recognize debug JSON for the CLI --debug-json + Task-10 drill-down. On

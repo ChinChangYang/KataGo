@@ -61,7 +61,18 @@ std::pair<cv::Mat, cv::Mat> line_profiles(const cv::Mat& rect, int pad = RECT_PA
 
 // ports grid.py::choose_size. `rect` is the rectified frame from rectify_quad
 // (uint8). Requires at least two hypothesized sizes (Python indexes ranked[1]).
-SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes = {9, 13, 19});
+//
+// `forcedSize` is an app-only extension with NO Python counterpart (see
+// port-conventions.md). 0 — the default, and the only value the ported auto
+// path ever passes — leaves behaviour bit-identical to Python. A non-zero value
+// present in `sizes` selects that hypothesis instead of the top-scoring one,
+// for the manual-grid path where the user has stated the board size outright.
+// Every size is still scored, so `scores` and `margin` remain meaningful; the
+// margin then measures the stated size against its best rival, and may be
+// negative when the user contradicts the image evidence. A `forcedSize` absent
+// from `sizes` falls back to the automatic choice.
+SizeResult choose_size(const cv::Mat& rect, const std::vector<int>& sizes = {9, 13, 19},
+                       int forcedSize = 0);
 
 }  // namespace gobanrecog
 

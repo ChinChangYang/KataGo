@@ -49,7 +49,26 @@ struct BoardDetection {
 // ports detect.py::detect_board. IMPLEMENTED IN TASK 8 (gr_detect.cpp) - declared
 // here so run.py's port and the module surface are stable while Task 7 lands the
 // proposer half. Throws DetectionError on every abstention path.
-BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin = 2.0);
+//
+// `userQuad` / `forcedSize` are an app-only extension with NO Python
+// counterpart (see port-conventions.md), for the manual-grid UI where the user
+// places the board's four outer grid-line intersections themselves. Both absent
+// — the default, and all the ported auto path ever passes — leaves behaviour
+// bit-identical to Python.
+//
+// With a `userQuad` (4x2 CV_64F, TL TR BR BL, image pixels) the five quad
+// proposers are SKIPPED and the candidate set is seeded from that quad alone.
+// The user is answering the question the proposers failed to answer, so letting
+// `hough` or `slab` outvote them during arbitration would defeat the point.
+// Everything downstream — the vetoes, arbitration, the refinement loop and the
+// stone-anchored refit — still runs, which is what lets a corner placed a few
+// pixels off snap onto the true lattice instead of shifting the whole grid.
+//
+// Callers on that path should also pass a permissive `min_size_margin`: the
+// ambiguity gate exists to catch the detector guessing between board sizes, and
+// has nothing to say when the user has stated the size outright.
+BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin = 2.0,
+                            const cv::Mat* userQuad = nullptr, int forcedSize = 0);
 
 }  // namespace gobanrecog
 

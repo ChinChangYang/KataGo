@@ -13,12 +13,21 @@
 //                    empty → black → white → empty so the user can correct
 //                    mis-recognized stones (e.g. shadows) before importing;
 //                    Reset restores the recognized position.
-//    - cropping:     shown after a recognition failure (or "Adjust Crop" from
-//                    preview) so the user can drag the crop rect onto just the
-//                    board and retry; Back (from preview) restores the exact
-//                    preview, including stone edits, without re-recognizing.
+//    - adjustingGrid: shown after a recognition failure (or "Adjust Grid" from
+//                    preview) so the user can drag the board's four corner
+//                    intersections and pick the board size, then retry; Back
+//                    (from preview) restores the exact preview, including stone
+//                    edits, without re-recognizing.
 //    - failure:      terminal coaching copy, reached only for undecodable
-//                    image data (nothing to crop).
+//                    image data (nothing to adjust).
+//
+//  The grid phase replaced an axis-aligned crop rect. A crop could only narrow
+//  where the automatic detector looked, which does nothing for photos whose
+//  board face no proposer can find at all; the quad's corners ARE the answer,
+//  handed to the lattice fit directly. It remains a superset — a rectangle is a
+//  quad — so the old "frame just the board" gesture still works, and if the
+//  quad cannot be fitted the sheet falls back to automatic detection within its
+//  bounding box, which is exactly what cropping used to do.
 //
 //  The board is rendered engine-free with the shared `ReportBoardView` from the
 //  pure `RecognizedBoard.stoneVertices` mapping, which the
@@ -44,29 +53,39 @@ public struct PhotoImportSheet: View {
     /// recognized board in `phase` so Reset can always restore the original and
     /// the Reset button can hide itself when edits cycle back to it (Equatable).
     @State private var editedBoard: RecognizedBoard?
-    /// The last crop submitted to the recognizer (normalized, top-left
-    /// origin); nil = full frame. Prefills the crop phase and is reused by
-    /// the next Recognize.
-    @State private var cropRect: CGRect?
-    /// The rect being edited in the crop phase.
-    @State private var editingCropRect = CGRect(x: 0, y: 0, width: 1, height: 1)
-    /// Orientation-baked screen-resolution decode shown by the crop phase;
+    /// The quad last submitted to the recognizer (normalized, top-left origin);
+    /// nil = automatic detection over the whole frame.
+    @State private var submittedQuad: BoardQuad?
+    /// The quad being edited in the grid phase.
+    @State private var editingQuad = BoardQuad.inset(
+        in: CGRect(x: 0, y: 0, width: 1, height: 1), fraction: 0.1)
+    /// The board size the grid phase draws and submits. Seeded from whatever
+    /// the automatic pass detected, else 19.
+    @State private var editingBoardSize = 19
+    /// Orientation-baked screen-resolution decode shown by the grid phase;
     /// loaded once on first need.
     @State private var displayImage: CGImage?
     /// Bumped by Recognize so the attempt-keyed `.task` restarts recognition.
     @State private var recognitionAttempt = 0
 
+    /// The sizes the pipeline scores (`SUPPORTED_SIZES`). There is no "Auto"
+    /// here: the overlay has to draw a concrete lattice, and an overlay drawn
+    /// at the wrong size would be a lie in exactly the situation the user
+    /// opened this control to diagnose. It is also self-teaching — a wrong
+    /// size is instantly visible, because the lines miss the board.
+    private static let supportedSizes = [9, 13, 19]
+
     private enum Phase: Equatable {
         case recognizing
         case preview(RecognizedBoard)
-        case cropping(CropContext)
+        case adjustingGrid(GridContext)
         case failure(BoardRecognitionError)
     }
 
-    /// Why the crop phase is showing — drives the headline and the Back
+    /// Why the grid phase is showing — drives the headline and the Back
     /// button. `fromPreview` carries the recognition (and any stone edits) so
     /// Back can restore the exact preview without re-running the pipeline.
-    private enum CropContext: Equatable {
+    private enum GridContext: Equatable {
         case firstFailure
         case retryFailure
         case fromPreview(RecognizedBoard, edited: RecognizedBoard?)
@@ -108,8 +127,8 @@ public struct PhotoImportSheet: View {
                 recognizing
             case .preview(let board):
                 preview(board)
-            case .cropping(let context):
-                cropping(context)
+            case .adjustingGrid(let context):
+                adjustingGrid(context)
             case .failure(let error):
                 failure(error)
             }
@@ -175,20 +194,30 @@ public struct PhotoImportSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if isLowConfidence(board) {
+                // Only reachable on the manual-grid path, which lifts the
+                // recognizer's confidence floor: the user placed the grid, so
+                // "low confidence, try again" would tell them nothing they can
+                // act on. Showing the position with a warning keeps them in
+                // control — every intersection is tappable.
+                Label("Low confidence — check the stones before importing.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("PhotoImportSheet.lowConfidenceWarning")
+            }
+
             HStack(spacing: 12) {
                 Text("Confidence \(Int((board.confidence * 100).rounded()))%")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                Button("Adjust Crop") {
-                    if displayImage == nil {
-                        displayImage = BoardImageIngestion.displayImage(from: imageData)
-                    }
-                    guard displayImage != nil else { return }
-                    editingCropRect = cropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-                    phase = .cropping(.fromPreview(board, edited: editedBoard))
+                Button("Adjust Grid") {
+                    guard prepareGridPhase(seedFrom: board) else { return }
+                    phase = .adjustingGrid(.fromPreview(board, edited: editedBoard))
                 }
                 .font(.caption)
-                .accessibilityIdentifier("PhotoImportSheet.adjustCrop")
+                .accessibilityIdentifier("PhotoImportSheet.adjustGrid")
                 if hasEdits {
                     Button("Reset") { editedBoard = nil }
                         .font(.caption)
@@ -264,15 +293,30 @@ public struct PhotoImportSheet: View {
     }
 
     @ViewBuilder
-    private func cropping(_ context: CropContext) -> some View {
+    private func adjustingGrid(_ context: GridContext) -> some View {
         VStack(spacing: 16) {
-            Text(cropHeadline(for: context))
+            Text(gridHeadline(for: context))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
             if let displayImage {
-                BoardCropView(image: displayImage, cropRect: $editingCropRect)
+                BoardQuadView(image: displayImage,
+                              quad: $editingQuad,
+                              boardSize: editingBoardSize)
                     .frame(maxWidth: 400, maxHeight: 400)
+            }
+
+            VStack(spacing: 6) {
+                Picker("Board size", selection: $editingBoardSize) {
+                    ForEach(Self.supportedSizes, id: \.self) { size in
+                        Text("\(size)×\(size)").tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("PhotoImportSheet.boardSizePicker")
+                Text("The overlaid lines should sit on the board's lines.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack {
@@ -281,7 +325,7 @@ public struct PhotoImportSheet: View {
                         editedBoard = edited
                         phase = .preview(board)
                     }
-                    .accessibilityIdentifier("PhotoImportSheet.cropBack")
+                    .accessibilityIdentifier("PhotoImportSheet.gridBack")
                 }
                 Button("Cancel", role: .cancel, action: onCancel)
                     .accessibilityIdentifier("PhotoImportSheet.cancel")
@@ -291,7 +335,7 @@ public struct PhotoImportSheet: View {
                 }
                 Spacer()
                 Button("Recognize") {
-                    cropRect = editingCropRect
+                    submittedQuad = editingQuad
                     recognitionAttempt += 1
                     phase = .recognizing
                 }
@@ -302,14 +346,18 @@ public struct PhotoImportSheet: View {
         }
     }
 
-    private func cropHeadline(for context: CropContext) -> String {
+    private func gridHeadline(for context: GridContext) -> String {
         switch context {
+        // "Line crossings", not "the board's corners": the fit wants the outer
+        // GRID intersections, which on most boards sit well inside the wooden
+        // edge. Placing them on the wood is the single easiest way to get a
+        // grid that is subtly wrong everywhere.
         case .firstFailure:
-            return "Couldn't find the board. Drag the corners to frame just the board, then tap Recognize."
+            return "Couldn't find the board. Drag each corner onto the outermost line crossing of the board, then tap Recognize."
         case .retryFailure:
-            return "Still couldn't read the board. Tighten the crop to just the board, or retake the photo with more even lighting."
+            return "Still couldn't read the board. Check that each corner sits on the outermost line crossing — not on the wooden edge — and that the board size is right."
         case .fromPreview:
-            return "Adjust the crop, then tap Recognize."
+            return "Drag each corner onto the outermost line crossing of the board, then tap Recognize."
         }
     }
 
@@ -320,8 +368,7 @@ public struct PhotoImportSheet: View {
         // body re-appearing after a result must not re-run it.
         guard phase == .recognizing else { return }
         do {
-            let board = try await BoardRecognizer.recognize(imageData: imageData,
-                                                            cropNormalized: cropRect)
+            let board = try await recognizeOnce()
             // Each successful recognition replaces the position wholesale:
             // stone edits belong to the old board, and the picker default
             // re-derives (the user can still override it afterwards).
@@ -335,17 +382,80 @@ public struct PhotoImportSheet: View {
         }
     }
 
-    /// A failed recognition opens the crop phase — the user can point at the
-    /// board — unless the data is undecodable (nothing to crop) or, in a
+    /// One recognition attempt: automatic over the whole frame, or the user's
+    /// quad when they have placed one.
+    ///
+    /// A user quad that cannot be fitted falls back to automatic detection
+    /// inside its bounding box. That preserves exactly what the old crop phase
+    /// did — "look only here, and work it out yourself" — for a user who drew a
+    /// rough box around the board rather than placing corners precisely.
+    private func recognizeOnce() async throws -> RecognizedBoard {
+        guard let quad = submittedQuad else {
+            return try await BoardRecognizer.recognize(imageData: imageData)
+        }
+        do {
+            return try await BoardRecognizer.recognize(imageData: imageData,
+                                                       quadNormalized: quad,
+                                                       boardSize: editingBoardSize)
+        } catch let error as BoardRecognitionError {
+            guard case .recognitionFailed = error else { throw error }
+            return try await BoardRecognizer.recognize(
+                imageData: imageData,
+                cropNormalized: QuadGeometry.boundingRect(of: quad))
+        }
+    }
+
+    /// A failed recognition opens the grid phase — the user can point at the
+    /// board — unless the data is undecodable (nothing to adjust) or, in a
     /// belt-and-suspenders corner, the display decode fails after ingestion
     /// succeeded; both fall back to the terminal failure state.
     private func phaseAfterFailure(_ error: BoardRecognitionError) -> Phase {
         guard case .recognitionFailed = error else { return .failure(error) }
+        guard prepareGridPhase(seedFrom: nil) else { return .failure(error) }
+        return .adjustingGrid(submittedQuad == nil ? .firstFailure : .retryFailure)
+    }
+
+    /// Readies the grid phase: decodes the photo if needed and seeds the quad
+    /// and board size.
+    ///
+    /// Seeding from a successful detection is what makes this "correct what the
+    /// app found" rather than "start from nothing" — usually only one or two
+    /// corners are actually wrong. With no detection to seed from, the quad
+    /// keeps whatever the user last submitted, else an inset rectangle.
+    ///
+    /// Returns false when the photo cannot be decoded for display, in which
+    /// case there is nothing to drag corners on.
+    private func prepareGridPhase(seedFrom board: RecognizedBoard?) -> Bool {
         if displayImage == nil {
             displayImage = BoardImageIngestion.displayImage(from: imageData)
         }
-        guard displayImage != nil else { return .failure(error) }
-        editingCropRect = cropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-        return .cropping(cropRect == nil ? .firstFailure : .retryFailure)
+        guard displayImage != nil else { return false }
+
+        if let detected = board?.detectedQuad {
+            editingQuad = detected
+        } else if let submittedQuad {
+            editingQuad = submittedQuad
+        } else {
+            editingQuad = BoardQuad.inset(in: CGRect(x: 0, y: 0, width: 1, height: 1),
+                                          fraction: 0.1)
+        }
+        if let size = board?.size, Self.supportedSizes.contains(size) {
+            editingBoardSize = size
+        }
+        return true
+    }
+
+    /// Whether to warn about this position: only for a board the manual-grid
+    /// path produced, and only below the tier the automatic path would have
+    /// demanded of it.
+    ///
+    /// Keyed on `quadSource`, not on "did the user submit a quad". A user quad
+    /// that fails to fit falls back to automatic detection in its bounding box,
+    /// and a board from THAT path already cleared the recognizer's own floor —
+    /// warning about it would be inconsistent with the identical board reached
+    /// without ever opening the grid editor. `hasPrefix` because the
+    /// stone-anchored refit appends a suffix ("user+a").
+    private func isLowConfidence(_ board: RecognizedBoard) -> Bool {
+        board.quadSource.hasPrefix("user") && board.confidence < 0.45
     }
 }

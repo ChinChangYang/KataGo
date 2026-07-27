@@ -47,7 +47,21 @@ struct RecognitionResult {
 };
 
 // ports run.py::recognize_image. img_bgr: uint8 BGR HxWx3.
-RecognitionResult recognize_image(const cv::Mat& img_bgr);
+//
+// `userQuad` / `forcedSize` are the app-only manual-grid extension threaded
+// through to detect_board (see gr_detect.h and port-conventions.md); both
+// absent — the default, and everything the ported path passes — leaves this
+// bit-identical to Python.
+//
+// With a `userQuad` the confidence floor is also lifted. The two-tier
+// acceptance exists so the DETECTOR abstains rather than presenting a position
+// it does not trust; once the user has placed the grid themselves, answering
+// "low confidence, try again" tells them nothing they can act on and dead-ends
+// the flow. The caller instead gets the board plus its confidence and can warn.
+// `confidence` and `confidence_legacy` are reported unchanged either way.
+RecognitionResult recognize_image(const cv::Mat& img_bgr,
+                                  const cv::Mat* userQuad = nullptr,
+                                  int forcedSize = 0);
 
 }  // namespace gobanrecog
 

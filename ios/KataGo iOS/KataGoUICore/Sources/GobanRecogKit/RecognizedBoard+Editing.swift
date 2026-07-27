@@ -28,8 +28,11 @@ extension RecognizedBoard {
         }
         var newRows = rows
         newRows[row] = String(chars)
+        // The quad rides along: a stone edit does not move the grid, and losing
+        // it here would drop the seed for a later "Adjust Grid".
         return RecognizedBoard(size: size, rows: newRows,
-                               confidence: confidence, quadSource: quadSource)
+                               confidence: confidence, quadSource: quadSource,
+                               detectedQuad: detectedQuad)
     }
 
     /// Pure rows → GTP-vertex mapping (row-major), the preview's render input.

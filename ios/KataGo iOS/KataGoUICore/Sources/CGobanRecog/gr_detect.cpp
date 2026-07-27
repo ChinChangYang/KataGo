@@ -201,7 +201,7 @@ std::pair<int, int> _extension_counts(const cv::Mat& prof, double o, double s, i
 }
 
 // forward decl (mutual use: _try_extension needs H_rect, produced by _fit_lattice)
-FitResult _fit_lattice(const cv::Mat& gray, const cv::Mat& quad);
+FitResult _fit_lattice(const cv::Mat& gray, const cv::Mat& quad, int forcedSize = 0);
 
 // ports detect.py::_try_extension. Returns the extended quad (4x2 CV_64F, image
 // coords) or nullopt when the lattice does not continue onto a larger legal size.
@@ -238,11 +238,11 @@ std::optional<cv::Mat> _try_extension(const cv::Mat& rect, const SizeResult& siz
 // ports detect.py::_fit_lattice. Rectify on `quad`, run choose_size, fit H_grid
 // to the detected lattice. Throws DetectionError("homography fit failed") like
 // Python's `if H_grid is None`.
-FitResult _fit_lattice(const cv::Mat& gray, const cv::Mat& quad) {
+FitResult _fit_lattice(const cv::Mat& gray, const cv::Mat& quad, int forcedSize) {
     const std::pair<cv::Mat, cv::Mat> rq = rectify_quad(gray, quad);
     const cv::Mat& rect = rq.first;
     const cv::Mat& H_rect = rq.second;
-    const SizeResult size_res = choose_size(rect);
+    const SizeResult size_res = choose_size(rect, {9, 13, 19}, forcedSize);
     const int n = size_res.board_size;
 
     // grid_pts = [[c,r] for r in range(n) for c in range(n)]; canon_pts =
@@ -1215,7 +1215,8 @@ std::vector<cv::Mat> _stone_lattice_candidate_quads(const cv::Mat& gray,
 // detect_board (detect.py:859) — orchestration
 // ============================================================================
 
-BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
+BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin,
+                            const cv::Mat* userQuad, int forcedSize) {
     cv::Mat gray;
     cv::cvtColor(img_bgr, gray, cv::COLOR_BGR2GRAY);
     const int hgt = gray.rows, wid = gray.cols;
@@ -1247,6 +1248,23 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
         return st;
     };
 
+    if (userQuad != nullptr) {
+        // App-only manual-grid path. The user's quad IS the answer to what the
+        // proposers are for, so it is the sole seed — no hull/hough/texture/slab
+        // candidate can outvote it during arbitration. The extension hypothesis
+        // is skipped too: it proposes a LARGER board than the quad encloses,
+        // which contradicts a user who has drawn the boundary deliberately.
+        try {
+            const FitResult fr = _fit_lattice(gray, *userQuad, forcedSize);
+            add_candidate(fr.size_res, fr.H_grid, fr.corners, fr.rect, "user");
+        } catch (const DetectionError& e) {
+            errors.push_back(std::string("user: ") + e.what());
+        } catch (const cv::Exception& e) {
+            errors.push_back(std::string("user: ") + e.what());
+        } catch (const LinAlgError& e) {
+            errors.push_back(std::string("user: ") + e.what());
+        }
+    } else {
     // proposers = (("hull", hull2), ("hough", hough), ("hull1", hull1),
     //              ("texture", texture), ("slab", slab(bgr)))
     struct Proposer { const char* name; std::function<cv::Mat()> fn; };
@@ -1277,6 +1295,7 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
             errors.push_back(std::string(pr.name) + ": " + e.what());
         }
     }
+    }
 
     // rescue: anchor-refit the best-margin stone-INCONSISTENT candidate.
     std::vector<size_t> rescuable;
@@ -1295,7 +1314,10 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
         try {
             const std::optional<cv::Mat> H_a = stone_anchor_refit(gray, H_r, size_r);
             if (!H_a) continue;
-            const FitResult fa = _fit_lattice(gray, _corners_of(toMatx33(*H_a), size_r));
+            // forcedSize keeps a stated board size through the refit; it is 0
+            // on the ported auto path, leaving that call unchanged.
+            const FitResult fa =
+                _fit_lattice(gray, _corners_of(toMatx33(*H_a), size_r), forcedSize);
             const size_t n_before = candidates.size();
             const std::optional<StoneStats> st_a =
                 add_candidate(fa.size_res, fa.H_grid, fa.corners, fa.rect, src_r + "+a");
@@ -1308,11 +1330,15 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
         }
     }
 
-    // stone-lattice proposer: only when no candidate is stone-verified.
+    // stone-lattice proposer: only when no candidate is stone-verified — and
+    // never on the manual-grid path, where it is a PROPOSER like the five
+    // skipped above. Its quads are derived from stone positions rather than
+    // from the user's corners, so letting them into arbitration could hand the
+    // win to a grid the user did not draw.
     bool anyVerified = false;
     for (const Candidate& c : candidates)
         if (_verified(c.stone_stats, c.size_res.board_size)) { anyVerified = true; break; }
-    if (!candidates.empty() && !anyVerified) {
+    if (userQuad == nullptr && !candidates.empty() && !anyVerified) {
         cv::setRNGSeed(1234);  // RANSAC determinism (detect.py:929; the ONLY seed)
         std::vector<cv::Mat> sl_quads;
         try {
@@ -1422,7 +1448,7 @@ BoardDetection detect_board(const cv::Mat& img_bgr, double min_size_margin) {
                 q.at<double>(k, 0) = p.x;
                 q.at<double>(k, 1) = p.y;
             }
-            fr2 = _fit_lattice(gray, q);
+            fr2 = _fit_lattice(gray, q, forcedSize);
         } catch (const DetectionError&) {
             break;
         } catch (const cv::Exception&) {

@@ -31,13 +31,12 @@ private let img0811ExpectedSgf =
     "[oj][pj][qj][rj][ik][nk][pk][ll][nl][rl][lm][mm][qm][cn][ln][pn][rn][io][jo][ko][dp]" +
     "[qq][sq][rr])"
 
-private func recognizeStatusLine(_ bgr: [UInt8], width: Int, height: Int)
-    -> (status: String, boardSize: Int, confidence: Double, quadSource: String, sgf: String) {
-    let line = bgr.withUnsafeBufferPointer {
-        String(gobanrecog.testbridge.recognize_status_line($0.baseAddress, Int32(width), Int32(height)))
-    }
-    // "<status>\t<board_size>\t<confidence>\t<quad_source>\t<sgf>" — split on the
-    // first four tabs (sgf is last and never contains a tab).
+private typealias StatusLine =
+    (status: String, boardSize: Int, confidence: Double, quadSource: String, sgf: String)
+
+/// "<status>\t<board_size>\t<confidence>\t<quad_source>\t<sgf>" — split on the
+/// first four tabs (sgf is last and never contains a tab).
+private func parseStatusLine(_ line: String) -> StatusLine {
     let parts = line.split(separator: "\t", maxSplits: 4, omittingEmptySubsequences: false)
     return (
         status: String(parts[0]),
@@ -46,6 +45,25 @@ private func recognizeStatusLine(_ bgr: [UInt8], width: Int, height: Int)
         quadSource: String(parts[3]),
         sgf: parts.count > 4 ? String(parts[4]) : ""
     )
+}
+
+private func recognizeStatusLine(_ bgr: [UInt8], width: Int, height: Int) -> StatusLine {
+    parseStatusLine(bgr.withUnsafeBufferPointer {
+        String(gobanrecog.testbridge.recognize_status_line($0.baseAddress, Int32(width), Int32(height)))
+    })
+}
+
+/// The manual-grid counterpart: `quad` is 8 values (x,y × TL,TR,BR,BL) in this
+/// buffer's pixel space, `boardSize` 9/13/19 (0 = let the size be chosen).
+private func recognizeStatusLineWithQuad(_ bgr: [UInt8], width: Int, height: Int,
+                                         quad: [Double], boardSize: Int) -> StatusLine {
+    parseStatusLine(bgr.withUnsafeBufferPointer { image in
+        quad.withUnsafeBufferPointer { corners in
+            String(gobanrecog.testbridge.recognize_status_line_with_quad(
+                image.baseAddress, Int32(width), Int32(height),
+                corners.baseAddress, Int32(boardSize)))
+        }
+    })
 }
 
 @Test
@@ -158,8 +176,71 @@ func recognizeImageOnImg0820EmptyBoardAbstainsNotWrong() throws {
     let r = recognizeStatusLine(bgr, width: img082xWidth, height: img082xHeight)
     if r.status == "ok" {
         #expect(r.boardSize == 9)
-        #expect(r.sgf == "(;GM[1]FF[4]CA[UTF-8]AP[GobanRecog:0.1]SZ[9])")
+        #expect(r.sgf == img0820ExpectedSgf)
     } else {
         #expect(r.status == "failed:low_confidence")
+    }
+}
+
+// The Python reference SGF (tests/fixtures/img0820_expected.sgf): an empty 9x9.
+private let img0820ExpectedSgf = "(;GM[1]FF[4]CA[UTF-8]AP[GobanRecog:0.1]SZ[9])"
+
+/// The board's four OUTER GRID-LINE INTERSECTIONS in img0820, TL TR BR BL, in
+/// the fixture's 960x1280 pixel space. Measured by hand off the photo — the
+/// same act the manual-grid UI asks of a user, at roughly the accuracy a
+/// fingertip achieves.
+private let img0820UserQuad: [Double] = [222, 354, 750, 356, 775, 895, 155, 890]
+
+@Test
+func recognizeImageOnImg0820WithUserQuadIsExact() throws {
+    // The acceptance test for the manual-grid path, on the case that motivated
+    // it. img0820 is a DETECTION-stage gap: no quad proposer finds the board
+    // face against a same-tone wood floor, and the 2026-07-17 macOS QA round
+    // found it does not recover even from a tight board-face crop — narrowing
+    // where the detector looks cannot help when the detector is what failed.
+    //
+    // Supplying the corners answers that question directly, and the result is
+    // exact: an empty 9x9 matching the committed Python ground truth, from an
+    // image the automatic path abstains on.
+    //
+    // The quad is hand-measured, not derived from a successful detection, so
+    // this also exercises the tolerance that matters in the UI: corners a few
+    // pixels off must still fit, which is what the refinement stages after the
+    // seeding are for.
+    let url = try #require(Bundle.module.url(forResource: "img0820.bgr.raw", withExtension: nil,
+                                             subdirectory: "Resources"))
+    let data = try Data(contentsOf: url)
+    let bgr = [UInt8](data)
+
+    // Baseline: the automatic path still abstains, unchanged.
+    let auto = recognizeStatusLine(bgr, width: img082xWidth, height: img082xHeight)
+    #expect(auto.status == "failed:low_confidence")
+
+    let r = recognizeStatusLineWithQuad(bgr, width: img082xWidth, height: img082xHeight,
+                                        quad: img0820UserQuad, boardSize: 9)
+    #expect(r.status == "ok")
+    #expect(r.boardSize == 9)
+    #expect(r.sgf == img0820ExpectedSgf)
+    #expect(r.quadSource == "user")
+    // Below CONF_FLOOR_RESCUE: an empty board offers the classifier almost no
+    // evidence, which is exactly why this path lifts the floor and warns
+    // instead of abstaining. The board is still exactly right.
+    #expect(r.confidence < 0.45)
+}
+
+@Test
+func aUserQuadOverridesTheDetectorsOwnSizeChoice() throws {
+    // The size picker must be authoritative on this path: choose_size still
+    // scores every hypothesis, but a stated size wins. Asking for 13 on a 9x9
+    // board must yield a 13x13 result — wrong, but the user's answer, and
+    // visibly wrong in the overlay, which is how they discover the mistake.
+    let url = try #require(Bundle.module.url(forResource: "img0820.bgr.raw", withExtension: nil,
+                                             subdirectory: "Resources"))
+    let bgr = [UInt8](try Data(contentsOf: url))
+
+    let r = recognizeStatusLineWithQuad(bgr, width: img082xWidth, height: img082xHeight,
+                                        quad: img0820UserQuad, boardSize: 13)
+    if r.status == "ok" {
+        #expect(r.boardSize == 13)
     }
 }

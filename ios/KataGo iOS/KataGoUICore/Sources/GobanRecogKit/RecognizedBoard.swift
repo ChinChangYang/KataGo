@@ -24,12 +24,26 @@ public struct RecognizedBoard: Equatable, Sendable {
     public let rows: [String]
     public let confidence: Double
     public let quadSource: String
+    /// Where the recognizer decided the board's four OUTER GRID-LINE
+    /// INTERSECTIONS are — not the wooden edge — in normalized [0,1]²
+    /// top-left-origin coordinates of the upright image. nil when no detection
+    /// produced corners.
+    ///
+    /// Carried so the manual-grid editor can open on what the app found instead
+    /// of a blank rectangle, which turns the interaction from "place the four
+    /// corners" into "correct the two that are wrong".
+    public let detectedQuad: BoardQuad?
 
-    public init(size: Int, rows: [String], confidence: Double, quadSource: String) {
+    public init(size: Int,
+                rows: [String],
+                confidence: Double,
+                quadSource: String,
+                detectedQuad: BoardQuad? = nil) {
         self.size = size
         self.rows = rows
         self.confidence = confidence
         self.quadSource = quadSource
+        self.detectedQuad = detectedQuad
     }
 
     /// Number of black stones on the board.

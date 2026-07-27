@@ -30,6 +30,13 @@ struct GobanRecogResult {
     vector<string> rows;    // rows[row][col]; row 0 = topmost image row; '.', 'B', 'W'
     double confidence = 0.0;
     string quadSource;
+    /// The board's four OUTER GRID-LINE INTERSECTIONS in image pixels, as
+    /// x0,y0,x1,y1,x2,y2,x3,y3 (TL, TR, BR, BL) — 8 values, or empty when no
+    /// detection was reached. Note these sit on the grid, not on the wooden
+    /// edge. Exposed so the manual-grid UI can start from what the app found
+    /// rather than from scratch, which turns "place the corners" into "correct
+    /// the corners".
+    vector<double> corners;
 };
 
 /// Recognize the board in a BGR uint8 image (HxWx3, `bytesPerRow` stride;
@@ -44,5 +51,27 @@ struct GobanRecogResult {
 /// invocations race. Callers must serialize (the app presents one import sheet
 /// at a time); a future batch caller must run recognitions sequentially.
 GobanRecogResult recognizeGoban(const uint8_t* bgr, int width, int height, size_t bytesPerRow);
+
+/// Recognize with the board's four outer grid-line intersections supplied by
+/// the user, instead of searching for them.
+///
+/// `quadXY` is 8 doubles — x0,y0,x1,y1,x2,y2,x3,y3 for TL,TR,BR,BL in image
+/// pixels — and must describe a convex quadrilateral. `boardSize` is 9, 13 or
+/// 19; any other value falls back to automatic size choice.
+///
+/// This skips the five quad proposers entirely: the caller is answering the
+/// question those proposers exist to answer, so nothing may outvote them. It
+/// also lifts the confidence floor, because "low confidence, try again" gives a
+/// user who has just placed the grid by hand nothing to act on — inspect
+/// `confidence` and warn instead. Everything else (the vetoes, arbitration, the
+/// refinement loop, the stone-anchored refit, stone classification) is the same
+/// code the automatic path runs, so a corner placed a few pixels off still
+/// snaps onto the true lattice.
+///
+/// Same concurrency contract as recognizeGoban: NOT safe for concurrent calls.
+/// Defined in gr_run.cpp.
+GobanRecogResult recognizeGobanWithQuad(const uint8_t* bgr, int width, int height,
+                                        size_t bytesPerRow,
+                                        const double* quadXY, int boardSize);
 
 #endif /* GobanRecogCpp_hpp */
