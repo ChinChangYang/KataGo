@@ -76,7 +76,7 @@ func makeProjectionResolver() -> ProjectionResolver {
                 maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
         }
 
-        guard let model = NeuralNetworkModel.allCases.first(where: { $0.fileName == fileName })
+        guard let model = NeuralNetworkModel.allAvailable.first(where: { $0.fileName == fileName })
         else { return nil }
 
         let sourcePath: String

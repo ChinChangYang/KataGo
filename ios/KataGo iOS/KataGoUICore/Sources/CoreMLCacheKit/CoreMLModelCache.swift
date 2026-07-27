@@ -391,6 +391,25 @@ extension CoreMLModelCache {
         }
     }
 
+    /// Drops every cached compilation produced from `sourceFileName`, and
+    /// returns how many entries went. Safe while an engine is running: each
+    /// removal goes through `invalidate`, which tombstones a pinned epoch
+    /// instead of pulling its directory out from under the reader.
+    ///
+    /// Exists for deleting a network the user imported. Eviction is LRU by
+    /// COUNT (`evictionCap` entries), not by size, so an abandoned entry can
+    /// hold hundreds of megabytes until eight newer networks displace it —
+    /// which for most users never happens. Removing the network's file without
+    /// this leaves that disk stranded indefinitely.
+    @discardableResult
+    public func invalidateAll(sourceFileName: String) -> Int {
+        let doomed = entries.values.filter { $0.sourceFileName == sourceFileName }
+        for entry in doomed {
+            invalidate(digest: entry.digest, epoch: entry.epoch)
+        }
+        return doomed.count
+    }
+
     fileprivate func directorySize(_ url: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }

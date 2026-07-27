@@ -8,7 +8,7 @@
 import Foundation
 
 public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
-    public let id = UUID()
+    public let id: UUID
     public let title: String
     public let description: String
     public let url: String
@@ -16,9 +16,21 @@ public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
     public let fileSize: Int
     public let builtIn: Bool
     public let nnLen: Int
+    /// Subdirectory of Documents holding the file, or nil for Documents' root.
+    /// Only user-imported networks use one (`CustomModelStore.subdirectoryName`).
+    public let subdirectory: String?
+    /// True for a network the user imported from the file system rather than
+    /// one from the built-in catalog. Drives the manage affordances (rename,
+    /// delete-with-cleanup) that a catalog entry must not offer.
+    public let isCustom: Bool
 
     public var downloadedURL: URL? {
-        return URL.documentsDirectory.appendingPathComponent(fileName)
+        guard let subdirectory else {
+            return URL.documentsDirectory.appendingPathComponent(fileName)
+        }
+        return URL.documentsDirectory
+            .appending(path: subdirectory)
+            .appendingPathComponent(fileName)
     }
 
     public var visible: Bool {
@@ -27,6 +39,11 @@ public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
 
     /// Initialize the neural network model
     /// - Parameters:
+    ///   - id: stable identity. Defaults to a fresh UUID, which is right for the
+    ///     `allCases` catalog (evaluated once). Custom networks MUST pass their
+    ///     record's id: the synthesized `==` includes this field, so a list
+    ///     rebuilt with fresh ids would compare unequal to itself and break
+    ///     every equality check and `onChange` downstream.
     ///   - title: the title of the model
     ///   - description: the description of the model
     ///   - url: the URL of the model
@@ -34,14 +51,20 @@ public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
     ///   - fileSize: the file size of the model
     ///   - builtIn: a flag to indicate that the model is built-in or not
     ///   - nnLen: neural network board length, default value should be equal to `COMPILE_MAX_BOARD_LEN`
-    public init(title: String,
+    ///   - subdirectory: subdirectory of Documents holding the file, if any
+    ///   - isCustom: whether this is a user-imported network
+    public init(id: UUID = UUID(),
+         title: String,
          description: String,
          url: String,
          fileName: String,
          fileSize: Int,
          builtIn: Bool = false,
-         nnLen: Int = 37) {
+         nnLen: Int = 37,
+         subdirectory: String? = nil,
+         isCustom: Bool = false) {
 
+        self.id = id
         self.title = title
         self.description = description
         self.url = url
@@ -49,10 +72,23 @@ public struct NeuralNetworkModel: Identifiable, Equatable, Sendable {
         self.fileSize = fileSize
         self.builtIn = builtIn
         self.nnLen = nnLen
+        self.subdirectory = subdirectory
+        self.isCustom = isCustom
     }
 
     public static var builtInModel: NeuralNetworkModel? {
         allCases.first { $0.builtIn }
+    }
+
+    /// Every network the user can pick: the built-in catalog followed by the
+    /// networks they imported themselves.
+    ///
+    /// This — not `allCases` — is what any code resolving a persisted selection
+    /// must walk. `allCases` is the fixed catalog; a custom net that the user
+    /// selected would be invisible to it, and the boot path would silently fall
+    /// back to a different network.
+    public static var allAvailable: [NeuralNetworkModel] {
+        allCases + CustomModelStore().models
     }
 
     public static let allCases: [NeuralNetworkModel] = [

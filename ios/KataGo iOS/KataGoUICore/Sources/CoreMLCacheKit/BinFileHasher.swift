@@ -9,6 +9,14 @@ public final class BinFileHasher: @unchecked Sendable {
     private let defaults: UserDefaults
     public init(defaults: UserDefaults) { self.defaults = defaults }
 
+    /// The memo keys this type derives from a file's `lastPathComponent`.
+    /// Deleting a user-imported network sweeps these; the uuid filename is
+    /// never reused, so they are otherwise orphaned for good. Keep in step
+    /// with the key construction in `identityForDownloadedFile`.
+    public static func memoKeys(forFileName fileName: String) -> [String] {
+        ["binFileSha256_\(fileName)", "binFileSize_\(fileName)", "binFileMtime_\(fileName)"]
+    }
+
     /// Returns `"sha256:<hex>"`. Reuses memo iff `(size, mtime)` match.
     public func identityForDownloadedFile(_ url: URL) async throws -> String {
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)

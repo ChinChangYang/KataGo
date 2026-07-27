@@ -20,7 +20,7 @@ public struct VisionModelListItem: Equatable, Sendable, Identifiable {
 
     public var id: String { title }
 
-    public static func makeAll(models: [NeuralNetworkModel] = NeuralNetworkModel.allCases,
+    public static func makeAll(models: [NeuralNetworkModel] = NeuralNetworkModel.allAvailable,
                                activeTitle: String,
                                readyFileNames: Set<String>) -> [VisionModelListItem] {
         models

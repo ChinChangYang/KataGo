@@ -74,7 +74,7 @@ public final class ModelSelectionStore {
     /// the rest of the app already assumes its presence.
     public var currentModel: NeuralNetworkModel {
         if !selectedModelTitle.isEmpty,
-           let match = NeuralNetworkModel.allCases.first(where: { $0.title == selectedModelTitle }) {
+           let match = NeuralNetworkModel.allAvailable.first(where: { $0.title == selectedModelTitle }) {
             return match
         }
         return NeuralNetworkModel.builtInModel!

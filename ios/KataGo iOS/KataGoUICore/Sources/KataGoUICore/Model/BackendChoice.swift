@@ -109,6 +109,22 @@ public struct BackendSettings {
     private var tunerFullKey: String { "mlxTunerFull_\(model.fileName)" }
     private var reTuneKey: String { "mlxReTune_\(model.fileName)" }
 
+    /// Every UserDefaults key this type derives from a model's `fileName`.
+    ///
+    /// Deleting a user-imported network sweeps these. They would otherwise be
+    /// orphaned permanently: a re-import of the very same file is given a fresh
+    /// uuid filename, so nothing can ever reclaim or reuse them. Keep this list
+    /// in step with the key properties above.
+    public static func persistedKeys(forFileName fileName: String) -> [String] {
+        [
+            "backend_\(fileName)",
+            "numSearchThreads_\(fileName)",
+            "mlxBoardSize_\(fileName)",
+            "mlxTunerFull_\(fileName)",
+            "mlxReTune_\(fileName)",
+        ]
+    }
+
     /// The user-selected inference backend for this model. Defaults to single
     /// CoreML/ANE — the best power/throughput point measured on an iPad A17 Pro
     /// run; the user can opt into MLX/GPU or the GPU+ANE mux. Persisted per

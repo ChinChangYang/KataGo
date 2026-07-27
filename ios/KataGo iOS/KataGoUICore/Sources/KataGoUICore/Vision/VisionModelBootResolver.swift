@@ -43,7 +43,7 @@ public enum VisionModelBootResolver {
             }
             return .boot(builtIn)
         case .autoRestore(let title):
-            guard let match = NeuralNetworkModel.allCases.first(where: { $0.title == title })
+            guard let match = NeuralNetworkModel.allAvailable.first(where: { $0.title == title })
             else {
                 return .boot(builtIn)
             }

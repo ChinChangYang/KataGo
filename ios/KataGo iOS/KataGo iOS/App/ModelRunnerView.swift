@@ -55,7 +55,7 @@ struct ModelRunnerView: View {
                 isDebug: isDebug
             ) {
             case .autoRestore(let title):
-                selectedModel = NeuralNetworkModel.allCases.first { $0.title == title }
+                selectedModel = NeuralNetworkModel.allAvailable.first { $0.title == title }
             case .showPicker:
                 // An incomplete prior load (orphaned sentinel) lands here too:
                 // we force the picker rather than auto-restoring, so the user

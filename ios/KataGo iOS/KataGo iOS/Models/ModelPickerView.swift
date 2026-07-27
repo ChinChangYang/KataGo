@@ -7,6 +7,7 @@
 
 import SwiftUI
 import KataGoUICore
+import UniformTypeIdentifiers
 import WidgetKit
 
 extension Int {
@@ -189,6 +190,16 @@ struct ModelPickerView: View {
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
 
+    /// The user's imported networks. Held in state rather than read inline so
+    /// the list is stable across the view's redraws, and refreshed explicitly
+    /// after an add, rename or delete.
+    @State private var customRecords: [CustomModelRecord] = []
+    @State private var isPresentingImporter = false
+    @State private var isCopying = false
+    @State private var copyProgress: Double = 0
+    @State private var importTask: Task<Void, Never>?
+    @State private var importErrorMessage: String?
+
     /// Filenames of the picker's visible model rows. Seeds the
     /// readiness object once on appear. Un-downloaded models are
     /// passed through; the projection silently excludes them by
@@ -199,7 +210,7 @@ struct ModelPickerView: View {
         NeuralNetworkModel.allCases.compactMap { model in
             guard model.visible else { return nil }
             return model.fileName
-        }
+        } + customRecords.map(\.fileName)
     }
 
     var body: some View {
@@ -227,6 +238,35 @@ struct ModelPickerView: View {
                 }
 
                 Section {
+                    ForEach(customRecords) { record in
+                        NavigationLink {
+                            CustomModelDetailView(
+                                record: record,
+                                selectedModel: $selectedModel,
+                                onStoreChanged: reloadCustomRecords
+                            )
+                        } label: {
+                            CustomModelRow(
+                                record: record,
+                                isCacheReady: readiness.readyFileNames.contains(record.fileName)
+                            )
+                        }
+                    }
+                    .onDelete(perform: deleteCustomRecords)
+
+                    Button {
+                        isPresentingImporter = true
+                    } label: {
+                        Label("Add Custom Network…", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("ModelPickerView.addCustomModel")
+                } header: {
+                    Text("Custom Networks")
+                } footer: {
+                    Text("Add a KataGo network file (.bin.gz) from this device. Custom networks stay on this device.")
+                }
+
+                Section {
                     NavigationLink {
                         OpeningBookPickerView()
                     } label: {
@@ -242,7 +282,37 @@ struct ModelPickerView: View {
             .navigationTitle("Select a Model")
         }
         .task {
+            reloadCustomRecords()
             await readiness.update(forFileNames: visibleFileNames)
+        }
+        .fileImporter(
+            isPresented: $isPresentingImporter,
+            // Permissive on purpose. A KataGo network is `.gz` by convention
+            // but may be a plain `.bin`/`.txt`, and third-party providers type
+            // files inconsistently — a strict filter greys out files that
+            // would have worked. The header check in the importer is what
+            // actually decides, and it gives a specific reason when it says no.
+            allowedContentTypes: [.gzip, .data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                startImport(from: url)
+            case .failure(let error):
+                importErrorMessage = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: $isCopying) {
+            CustomModelImportProgressView(progress: copyProgress, onCancel: cancelImport)
+                .interactiveDismissDisabled()
+        }
+        .alert("Couldn't Add Network",
+               isPresented: Binding(get: { importErrorMessage != nil },
+                                    set: { if !$0 { importErrorMessage = nil } })) {
+            Button("OK", role: .cancel) { importErrorMessage = nil }
+        } message: {
+            Text(importErrorMessage ?? "")
         }
         .onOpenURL { url in
             if FileOpenClassifier.isImage(url) {
@@ -280,6 +350,55 @@ struct ModelPickerView: View {
         }
     }
 
+    // MARK: - Custom networks
+
+    private func reloadCustomRecords() {
+        customRecords = CustomModelStore().records
+    }
+
+    /// Copies the picked file in on a background task, then refreshes the list.
+    /// The sheet is raised before the copy starts so a large file never looks
+    /// like a dropped tap.
+    private func startImport(from url: URL) {
+        copyProgress = 0
+        isCopying = true
+        importTask = Task {
+            defer { isCopying = false }
+            do {
+                // `importModel` is a nonisolated async function, so the copy
+                // runs off the main actor even though this Task inherits it.
+                _ = try await CustomModelImporter.importModel(from: url) { fraction in
+                    Task { @MainActor in copyProgress = fraction }
+                }
+                reloadCustomRecords()
+                await readiness.update(forFileNames: visibleFileNames)
+            } catch is CancellationError {
+                // The partial file is already gone; nothing was recorded.
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func cancelImport() {
+        importTask?.cancel()
+        importTask = nil
+        isCopying = false
+    }
+
+    /// Swipe-to-delete. The rows go immediately so the list feels responsive;
+    /// the file, settings and Core ML cleanup follow on a background task, and
+    /// the list is re-read from the store afterwards as the source of truth.
+    private func deleteCustomRecords(at offsets: IndexSet) {
+        let doomed = offsets.map { customRecords[$0] }
+        customRecords.remove(atOffsets: offsets)
+        Task {
+            for record in doomed {
+                await CustomModelImporter.delete(record)
+            }
+            reloadCustomRecords()
+        }
+    }
 }
 
 #Preview("Model Picker") {
