@@ -301,15 +301,23 @@ final class ModelBackendPaneView: NSView {
 
     private let model: NeuralNetworkModel
     private var settings: BackendSettings
+    /// Set only for a user-imported network, whose name the user owns. Called
+    /// with the edited text when the field commits (Return, Tab or focus loss).
+    private let onRename: ((String) -> Void)?
 
-    init(model: NeuralNetworkModel) {
+    init(model: NeuralNetworkModel, onRename: ((String) -> Void)? = nil) {
         self.model = model
         self.settings = BackendSettings(model: model)
+        self.onRename = onRename
         super.init(frame: .zero)
         build()
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    @objc private func nameCommitted(_ sender: NSTextField) {
+        onRename?(sender.stringValue)
+    }
 
     private func build() {
         let stack = NSStackView()
@@ -319,11 +327,26 @@ final class ModelBackendPaneView: NSView {
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
 
-        // Model title header.
-        let header = NSTextField(labelWithString: model.title)
-        header.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        header.lineBreakMode = .byTruncatingTail
-        stack.addArrangedSubview(header)
+        // Model title header. A catalog entry's title is fixed; a user-imported
+        // network's is theirs to edit, so it becomes a live field. NSTextField
+        // sends its action on Return, Tab and focus loss, which covers every way
+        // a user finishes typing a name.
+        if model.isCustom, onRename != nil {
+            let nameField = NSTextField(string: model.title)
+            nameField.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
+            nameField.translatesAutoresizingMaskIntoConstraints = false
+            nameField.target = self
+            nameField.action = #selector(nameCommitted(_:))
+            nameField.setAccessibilityLabel("Network name")
+            stack.addArrangedSubview(nameField)
+            nameField.widthAnchor.constraint(equalTo: stack.widthAnchor,
+                                             constant: -28).isActive = true
+        } else {
+            let header = NSTextField(labelWithString: model.title)
+            header.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
+            header.lineBreakMode = .byTruncatingTail
+            stack.addArrangedSubview(header)
+        }
 
         // Full model description — parity with the iOS `ModelDetailView`, which
         // shows the complete text (the table row only shows a one/two-line

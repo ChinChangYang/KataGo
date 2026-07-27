@@ -302,6 +302,7 @@
 		8556F9D19F31DF658150AC30 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8576C911462316E43AEC314B /* VisionLockSlotModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */; };
 		858F8565771AF705AFD936CA /* usage.cc in Sources */ = {isa = PBXBuildFile; fileRef = D567C3AB127FDCD977020697 /* usage.cc */; };
+		859F96E24453B05F915DA565 /* CustomModelStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77627D8BC330129AADF1FD59 /* CustomModelStoreTests.swift */; };
 		85B66099A32069E08E277B43 /* inlined_string_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7D5F183562E888ACF1F14799 /* inlined_string_field.cc */; };
 		85C8570C668A4704F2899EEB /* message_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = 83CB0B5B98E841B031CC4355 /* message_lite.cc */; };
 		85DA171F6B5F1ACB858E8C62 /* EngineCoreMLBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042C978BB6C7792853C12AC3 /* EngineCoreMLBridge.swift */; };
@@ -1294,6 +1295,7 @@
 		75F6297E4EA23B50787BA5F9 /* BroadcastScriptTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BroadcastScriptTests.swift; sourceTree = "<group>"; };
 		76C12DF1A21E5CD49FA583E4 /* IOSEngineController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IOSEngineController.swift; path = KataGoAnytimeSafariExtIOS/IOSEngineController.swift; sourceTree = "<group>"; };
 		76D12F727823A07FCF85CFDC /* img_00009.jpg */ = {isa = PBXFileReference; includeInIndex = 1; name = img_00009.jpg; path = Fixtures/img_00009.jpg; sourceTree = "<group>"; };
+		77627D8BC330129AADF1FD59 /* CustomModelStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomModelStoreTests.swift; sourceTree = "<group>"; };
 		7787C9AF15E3ED8811688D3D /* ModelsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelsWindowController.swift; sourceTree = "<group>"; };
 		7796CFED474942C453ABC091 /* Gazetteer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Gazetteer.pb.cc; path = ../../cpp/external/katagocoreml/generated/Gazetteer.pb.cc; sourceTree = SOURCE_ROOT; };
 		78B634BA3BD420241BA41CD1 /* GifPreviewTimingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GifPreviewTimingTests.swift; sourceTree = "<group>"; };
@@ -3099,6 +3101,7 @@
 				630EF85B2FFDFBC125339FB4 /* VisionFocusRingTests.swift */,
 				EBCB40B1DDC99591F4CC41BE /* WidgetReloadLatchTests.swift */,
 				9D588BEA7973B063DB690956 /* SgfGameNameTests.swift */,
+				77627D8BC330129AADF1FD59 /* CustomModelStoreTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4525,6 +4528,7 @@
 				58DE63DECA653CFD6667C26B /* VisionFocusRingTests.swift in Sources */,
 				24B7A30C3731F1FDA52E3A9F /* WidgetReloadLatchTests.swift in Sources */,
 				0FBFC2468058803F71D9D2AB /* SgfGameNameTests.swift in Sources */,
+				859F96E24453B05F915DA565 /* CustomModelStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
