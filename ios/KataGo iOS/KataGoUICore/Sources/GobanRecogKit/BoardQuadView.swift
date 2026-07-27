@@ -193,30 +193,45 @@ public struct BoardQuadView: View {
         let center = CGPoint(x: min(max(point.x, diameter / 2), size.width - diameter / 2),
                              y: above ? point.y - gap : point.y + gap)
 
-        return ZStack {
-            // Magnify about `point`: the image's own centre lands at the
-            // loupe's centre by default, so shifting it by (centre − point)
-            // in magnified units brings the dragged corner there instead.
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: frame.width * zoom, height: frame.height * zoom)
-                .offset(x: (frame.midX - point.x) * zoom,
-                        y: (frame.midY - point.y) * zoom)
-            Path { path in
-                let mid = diameter / 2
-                path.move(to: CGPoint(x: mid - 12, y: mid))
-                path.addLine(to: CGPoint(x: mid + 12, y: mid))
-                path.move(to: CGPoint(x: mid, y: mid - 12))
-                path.addLine(to: CGPoint(x: mid, y: mid + 12))
-            }
-            .stroke(.white, lineWidth: 1)
+        // Magnify about `point`: the image's own centre lands at the loupe's
+        // centre by default, so shifting it by (centre − point) in magnified
+        // units brings the dragged corner there instead.
+        return Image(decorative: image, scale: 1)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: frame.width * zoom, height: frame.height * zoom)
+            .offset(x: (frame.midX - point.x) * zoom,
+                    y: (frame.midY - point.y) * zoom)
+            .frame(width: diameter, height: diameter)
+            .clipShape(Circle())
+            // The crosshair goes in an OVERLAY on the clipped circle, not in a
+            // ZStack with the magnified image: that stack's layout size is the
+            // image's (many times the loupe's), so a shape drawn at absolute
+            // coordinates inside it lands outside the visible circle entirely.
+            // Here the overlay's frame is unambiguously the loupe, and the
+            // marks centre themselves — no absolute coordinates to get wrong.
+            .overlay { crosshair }
+            .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+            .shadow(radius: 4)
+            .position(center)
+            .allowsHitTesting(false)
+    }
+
+    /// Centre marks for the loupe. Dark casing under white so they stay legible
+    /// on pale wood as well as on a dark background — a plain white hairline
+    /// vanishes against the board, which is most of what the loupe shows.
+    private var crosshair: some View {
+        ZStack {
+            Rectangle().frame(width: 27, height: 3)
+            Rectangle().frame(width: 3, height: 27)
         }
-        .frame(width: diameter, height: diameter)
-        .clipShape(Circle())
-        .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-        .shadow(radius: 4)
-        .position(center)
-        .allowsHitTesting(false)
+        .foregroundStyle(.black.opacity(0.55))
+        .overlay {
+            ZStack {
+                Rectangle().frame(width: 25, height: 1)
+                Rectangle().frame(width: 1, height: 25)
+            }
+            .foregroundStyle(.white)
+        }
     }
 }
