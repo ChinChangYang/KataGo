@@ -14,7 +14,10 @@
 //  reach the CloudKit store. Two passes end a game; a result interstitial
 //  shows briefly, then a fresh record starts the next game (endless loop).
 //  Entered manually (library cards) or by the idle attract mode, which exits
-//  on any remote press. Thermal pressure ends the demo in either mode.
+//  on any remote press. A third entry — Auto-Play's hand-off at the end of an
+//  unfinished recorded game — seeds the position instead of an empty board and
+//  pops back to the review screen when the game ends, rather than looping.
+//  Thermal pressure ends the demo in every mode.
 //
 
 import SwiftUI
@@ -537,6 +540,9 @@ struct TVSelfPlayScreen: View {
         // nonzero, which would veto the first gen-move. A SEEDED game must not
         // be zeroed blindly either: its position may legitimately carry one
         // trailing pass, and the engine's loaded history has it.
+        // Depends on the seed sitting at its SGF's tip (SelfPlaySeed.moveCount
+        // == moveSize, which that type documents): only then are the SGF's
+        // trailing passes the passes actually on the board.
         gobanState.passCount = route.seed.map {
             SelfPlayGame.trailingPassCount(inSgf: $0.sgf)
         } ?? 0
@@ -585,6 +591,12 @@ struct TVSelfPlayScreen: View {
             // game: show the result, then hand the user back to review. Only
             // the demo loops into a fresh game.
             if route.seed != nil {
+                // Restore BEFORE the pop, not in tearDown: SwiftUI runs the
+                // destination's entry normalization before the source's
+                // onDisappear, so TVReviewScreen.loadIfNeeded would otherwise
+                // read the still-`.clear` broadcast status as user-OFF and
+                // come back with analysis off.
+                restoreAnalysisForExit()
                 dismiss()
             } else {
                 restart()
@@ -647,18 +659,9 @@ struct TVSelfPlayScreen: View {
         navigationContext.selectedGameRecord = nil
         UIApplication.shared.isIdleTimerDisabled = false
 
-        if analysisWasUserOff {
-            // Restore the user's OFF: .clear is observed at the root, which
-            // sends the GTP "stop".
-            gobanState.analysisStatus = .clear
-            gobanState.eyeStatus = .closed
-        } else if gobanState.analysisStatus == .clear {
-            // Lift the broadcast's protocol-.clear so other screens read it
-            // as system-paused (resumable on entry normalization), not
-            // user-OFF. A paused-interactive exit leaves .run for BoardView's
-            // onDisappear machinery, which this branch then skips.
-            gobanState.analysisStatus = .pause
-        }
+        // A seeded route already ran this immediately before its dismiss();
+        // this second call is a no-op (see the method's idempotency note).
+        restoreAnalysisForExit()
         // Otherwise BoardView's onDisappear → maybePauseAnalysis plus the
         // root's pause observer stop the engine stream.
 
@@ -678,6 +681,30 @@ struct TVSelfPlayScreen: View {
             TVSampleGameStore.discard(game)
         }
         game = nil
+    }
+
+    /// Lift the broadcast's protocol-`.clear` back to a state the NEXT screen
+    /// reads correctly: a user OFF stays OFF, a protocol `.clear` becomes
+    /// `.pause` (system-paused, resumable). Called from `tearDown` AND, for a
+    /// seeded route, immediately before `dismiss()` — the pop returns to
+    /// TVReviewScreen, which re-runs its own entry normalization and would
+    /// otherwise read a still-`.clear` status as user-OFF and come back with
+    /// the eye shut. Idempotent: a second call either re-asserts the identical
+    /// user OFF or finds the status already lifted off `.clear`, so it writes
+    /// no new value and the root's `.onChange` stop observer never re-fires.
+    private func restoreAnalysisForExit() {
+        if analysisWasUserOff {
+            // Restore the user's OFF: .clear is observed at the root, which
+            // sends the GTP "stop".
+            gobanState.analysisStatus = .clear
+            gobanState.eyeStatus = .closed
+        } else if gobanState.analysisStatus == .clear {
+            // Lift the broadcast's protocol-.clear so other screens read it
+            // as system-paused (resumable on entry normalization), not
+            // user-OFF. A paused-interactive exit leaves .run for BoardView's
+            // onDisappear machinery, which this branch then skips.
+            gobanState.analysisStatus = .pause
+        }
     }
 
     /// Pause = cancel the broadcast cycle (probes cancel → restore) and hand

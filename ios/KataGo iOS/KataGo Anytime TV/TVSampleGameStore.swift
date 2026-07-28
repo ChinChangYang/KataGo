@@ -68,8 +68,9 @@ enum TVSampleGameStore {
         return record
     }
 
-    /// Deletes a finished (or abandoned) demo record so endless attract-mode
-    /// looping doesn't accumulate per-game analysis data in memory.
+    /// Deletes a finished (or abandoned) demo or seeded-continuation record so
+    /// endless attract-mode looping doesn't accumulate per-game analysis data
+    /// in memory.
     static func discard(_ record: GameRecord) {
         container?.mainContext.delete(record)
     }
