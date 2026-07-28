@@ -885,7 +885,9 @@ EOF
 - Consumes: `TVAutoPlaySpeed.interval` (Task 1), `SelfPlayGame.recordedGameIsFinished(sgf:)` (Task 2), `TVAutoPlayPolicy.tick(...)` / `TVAutoPlayTick` (Task 3), `GobanState.getNextMove(gameRecord:)`, `GobanState.forwardMoves(limit:gameRecord:board:messageList:player:audioModel:stones:)`.
 - Produces: `private func toggleAutoPlay()`, `private func stopAutoPlay()`, `private func advanceOneMove()`, and `private func finishAutoPlay(continuesLive:)` — the last is completed by the handoff in Task 10.
 
-> **Layout risk, measured.** One `TVToggleButton` renders **92 pt** tall at `.title3` on tvOS 26.5. Stacking a second costs ~102 pt with the panel VStack's 10 pt spacing, inside a `.frame(width: 500, height: 1020)` whose own comments describe the analysis-on stack as already clipping. **Step 9 is a hard gate.** If it clips, apply the Step 10 fallbacks in order and re-verify; if it still clips after both, STOP and report — the remaining options change decisions the user already made.
+> **Layout, settled by measurement.** A first attempt STACKED a second full-width `TVToggleButton` above Analysis. It does not fit: on tvOS 26.5 the "Analysis On" pill ran **16 pt off the bottom of the screen**, and **46 pt** would have had to come out of the panel to sit inside its designed content area. Two fallbacks were tried and recovered only 7.5 pt. The decisive finding: **tvOS 26.5's `.bordered` / `.borderedProminent` style floors a pill at 66 pt regardless of `minHeight`**, so shrinking `minHeight` gains nothing — a height fix must change the button style or the font, not the frame.
+>
+> The remedy keeps the panel at 500 pt and keeps ONE control row: the Auto-Play control becomes a compact **icon-only** button placed BESIDE the Analysis toggle. One row means zero added height, so the overflow disappears rather than being shaved. The symbol carries the state (`play.fill` → `pause.fill`), so there is no "On/Off" text to shrink, and at ~96 pt wide it leaves the Analysis pill ~388 pt against a 379.5 pt intrinsic width — no truncation. **Step 9 is still a hard gate:** verify it on the simulator, and if it clips, STOP and report rather than shaving further.
 
 - [ ] **Step 1: Add the state**
 
@@ -905,35 +907,77 @@ In `TVReviewScreen.swift`, after `@State private var highlightedPoint: BoardPoin
     @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
 ```
 
-- [ ] **Step 2: Add the toggle**
+- [ ] **Step 2: Add the compact icon button type**
+
+Beside the existing `TVToggleButton` definition near the bottom of the file:
+
+```swift
+/// The Auto-Play transport. Icon-only, and NOT greedy, so it fits beside the
+/// Analysis toggle in the panel's single control row — two full-width toggles
+/// stacked overflow the 1020 pt panel by 46 pt (measured on tvOS 26.5), and
+/// `minHeight` cannot fix that because the bordered style floors a pill at
+/// 66 pt. One row costs zero extra height.
+///
+/// The SYMBOL carries the state (play → pause), so there is no "On/Off" label
+/// to shrink; `accessibilityLabel` is what names the control for VoiceOver.
+/// Styling otherwise mirrors TVToggleButton so the two pills read as a set.
+private struct TVIconToggleButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let content = Image(systemName: systemName)
+            .font(.title3)
+            .frame(width: 36, minHeight: 56)
+
+        if isOn {
+            // Dark glyph on the wood fill unfocused; the focused white lift
+            // also takes a dark glyph, so forcing black is safe in both states.
+            Button(action: action) { content.foregroundStyle(.black) }
+                .buttonStyle(.borderedProminent)
+                .tint(.tvWoodAccent)
+                .accessibilityLabel(accessibilityLabel)
+        } else {
+            Button(action: action) { content }
+                .buttonStyle(.bordered)
+                .accessibilityLabel(accessibilityLabel)
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Add the Auto-Play control and put it in the existing row**
 
 Directly above the existing `analysisToggle` property:
 
 ```swift
     /// Auto-Play: step the recorded moves on a timer. Disabled while a
     /// variation is active — the mainline is what replays — which is also why
-    /// `$toggleFocused` stays on the Analysis button below: it is the
-    /// timeline's programmatic down-hop target and must never be unfocusable.
+    /// `$toggleFocused` stays on the Analysis button: it is the timeline's
+    /// programmatic down-hop target and must never be unfocusable.
     private var autoPlayToggle: some View {
-        TVToggleButton(systemName: "play.fill", title: "Auto-Play",
-                       isOn: isAutoPlaying) {
+        TVIconToggleButton(systemName: isAutoPlaying ? "pause.fill" : "play.fill",
+                           accessibilityLabel: "Auto-Play",
+                           isOn: isAutoPlaying) {
             toggleAutoPlay()
         }
         .disabled(gobanState.isBranchActive)
     }
 ```
 
-- [ ] **Step 3: Stack the control row**
-
-Replace panel lines 326-330:
+Then replace panel lines 326-330 — ONE row, so the panel's vertical budget is unchanged:
 
 ```swift
             Spacer()
 
-            autoPlayToggle
+            HStack(spacing: 16) {
+                autoPlayToggle
 
-            analysisToggle
-                .focused($toggleFocused)
+                analysisToggle
+                    .focused($toggleFocused)
+            }
         }
 ```
 
@@ -1129,30 +1173,14 @@ xcrun simctl launch <APPLE_TV_UDID> <BUNDLE_ID> -qaAutoPlay
 ```bash
 xcrun simctl io <APPLE_TV_UDID> screenshot /tmp/tv-review-panel.png
 ```
-4. Read the screenshot. **Both toggle labels must be fully legible and untruncated, both pills fully on screen, and the board still a 1080 pt square.** Capture it twice — once with analysis ON (the tallest layout, 3 Top Moves rows) and once after playing a variation move so the Exit Variation row is present and Auto-Play is disabled.
+4. Read the screenshot. **The Analysis label must be fully legible and untruncated, BOTH pills fully on screen with the row entirely inside the panel, and the board still a 1080 pt square.** The Auto-Play pill is icon-only, so check its glyph is centred and not clipped. Capture it twice — once with analysis ON (the tallest layout, 3 Top Moves rows) and once after playing a variation move so the Exit Variation row is present and Auto-Play is disabled (dimmed).
 5. REVERT the temporary route push.
 
 Record the observation explicitly in the commit body.
 
-- [ ] **Step 10: If (and only if) it clips, apply these in order and re-verify**
+- [ ] **Step 10: If it clips, STOP**
 
-Fallback A — trim both toggles' height (keeps the font, saves ~24 pt). In `TVToggleButton`, add a defaulted parameter and pass 44 from both call sites:
-
-```swift
-private struct TVToggleButton: View {
-    let systemName: String
-    let title: String
-    let isOn: Bool
-    /// The two-up transport stack needs a shorter pill than the original solo
-    /// toggle to stay inside the panel's 1020 pt budget.
-    var minHeight: CGFloat = 56
-    let action: () -> Void
-```
-and `.frame(maxWidth: .infinity, minHeight: minHeight)`.
-
-Fallback B — tighten the panel VStack from `spacing: 10` to `spacing: 8` (line 235), saving ~12 pt across the six gaps.
-
-If both are applied and the panel still clips, STOP and report to the user: the remaining options (widening the panel to 752 pt, or a compact `.body`-font row like `exitVariationRow`) change decisions the user already made.
+Do NOT shave further. The two obvious fallbacks were already tried on the stacked design and recovered 7.5 pt against a 46 pt deficit, and `minHeight` is inert because the bordered style floors a pill at 66 pt. If the single row still clips, or the Analysis label truncates, report BLOCKED with the screenshot path and what you measured — the remaining options (widening the panel, restyling both pills away from the system button style) reverse decisions the user has already made and are not yours to take.
 
 - [ ] **Step 11: Simulator smoke test of the replay itself**
 
@@ -1169,11 +1197,12 @@ asks the pure policy what to do each tick: advance, hold while the board
 refresh is in flight, or stop. Every manual navigation stops it; so does
 thermal pressure. The Analysis setting is never touched.
 
-The toggle is stacked above Analysis rather than beside it: two toggles in a
-500 pt row truncate both labels (measured 0.46 / 0.31 required scale against
-minimumScaleFactor(0.7)). $toggleFocused stays on Analysis — it is the
-timeline's down-hop target and Auto-Play is disabled during a variation.
-Panel verified un-clipped on the simulator in both layouts.
+The control is an icon-only pill beside the Analysis toggle, not a second
+full-width row: stacking overflowed the 1020 pt panel by 46 pt, and minHeight
+cannot fix that because tvOS floors a bordered pill at 66 pt. One row costs no
+height, and the symbol carries the state so there is no label to truncate.
+$toggleFocused stays on Analysis — it is the timeline's down-hop target, and
+Auto-Play is disabled during a variation. Panel verified on the simulator.
 
 Ends at the last recorded move — the live handoff lands in a later commit.
 
