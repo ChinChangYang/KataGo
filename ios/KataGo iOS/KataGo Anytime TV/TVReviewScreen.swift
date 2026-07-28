@@ -80,8 +80,7 @@ struct TVReviewScreen: View {
     @State private var isAutoPlaying = false
     /// The running tick loop, cancelled by every stop path.
     @State private var autoPlayTask: Task<Void, Never>?
-    /// Auto-Play cadence, re-read every tick so a change in Settings applies on
-    /// return without restarting the driver.
+    /// Auto-Play cadence. Read fresh every tick, so it is always current.
     @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
 
     private var config: Config { game.concreteConfig }
@@ -567,6 +566,13 @@ struct TVReviewScreen: View {
     /// ungated pick could play a stale vertex. (The cursor needs no such
     /// gate — kata-check-move validates against the engine's own position.)
     private func pick(_ candidate: Analysis.CandidateMove) {
+        // Must precede the guard below: Auto-Play re-arms waitingForAnalysis
+        // on every tick (advanceOneMove() → reanalyze() → requestAnalysis),
+        // so gating the stop behind that guard would leave a window after
+        // every auto-advanced move where a Select here both does nothing AND
+        // fails to stop the replay — a dead-looking remote with stones still
+        // appearing.
+        stopAutoPlay()
         guard !gobanState.waitingForAnalysis else { return }
         submit(vertex: candidate.vertex)
     }
@@ -705,6 +711,13 @@ struct TVReviewScreen: View {
     /// Start replaying the recorded moves. Already parked at the last move is
     /// not an error: there is nothing to replay, so this reports the end
     /// immediately (Task 10 turns that into the live handoff).
+    ///
+    /// The tick loop's FIRST statement must stay the sleep: `autoPlayTask` is
+    /// assigned only after the closure below is built, so a first tick that
+    /// ran any synchronous work before the sleep could call `stopAutoPlay()`
+    /// before the assignment lands, leaving a non-nil handle to an
+    /// already-finished task. A future "advance immediately on press" change
+    /// must not move the sleep off the top.
     private func startAutoPlay() {
         guard !gobanState.isBranchActive, !isAutoPlaying else { return }
         guard gobanState.getNextMove(gameRecord: game) != nil else {
@@ -715,6 +728,10 @@ struct TVReviewScreen: View {
         // Lean-back viewing with no remote input: keep the system screensaver
         // from covering the replay (the TVSelfPlayScreen precedent).
         UIApplication.shared.isIdleTimerDisabled = true
+        // Invariant for the whole replay (game.sgf is never written here, and a
+        // branch stops the loop), and a full C++ parse — hoisted out of the tick
+        // per this file's "never per body eval" rule.
+        let recordedIsFinished = SelfPlayGame.recordedGameIsFinished(sgf: game.sgf)
         autoPlayTask = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(for: autoPlaySpeed.interval)
@@ -723,7 +740,7 @@ struct TVReviewScreen: View {
                     hasNextMove: gobanState.getNextMove(gameRecord: game) != nil,
                     isBranchActive: gobanState.isBranchActive,
                     stonesReady: stones.isReady,
-                    recordedGameIsFinished: SelfPlayGame.recordedGameIsFinished(sgf: game.sgf),
+                    recordedGameIsFinished: recordedIsFinished,
                     thermalState: ProcessInfo.processInfo.thermalState
                 ) {
                 case .hold:
