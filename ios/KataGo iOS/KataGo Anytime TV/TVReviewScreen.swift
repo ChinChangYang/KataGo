@@ -26,6 +26,12 @@ struct TVReviewScreen: View {
     var previewSkipsLoad = false
     #endif
 
+    /// Supplied by the navigationDestination that created this screen, so the
+    /// handoff pushes onto the SAME stack the user is looking at. A single
+    /// root-level closure would append to the Library path even when the
+    /// visible stack is Search.
+    var onContinueLive: ((SelfPlaySeed) -> Void)? = nil
+
     @Environment(GobanState.self) private var gobanState
     @Environment(Turn.self) private var player
     @Environment(BookLookup.self) private var bookLookup

@@ -31,6 +31,14 @@ struct SelfPlayRoute: Hashable {
     }
 
     let entry: Entry
+    /// Set when Auto-Play handed off at the end of an unfinished recorded game:
+    /// the continuation starts from that position instead of an empty board,
+    /// and pops back to review when it ends instead of restarting.
+    ///
+    /// `var` with a default (not `let`): a `let` with an initial value is
+    /// dropped from the memberwise init entirely, which would break all four
+    /// existing `SelfPlayRoute(entry:)` call sites.
+    var seed: SelfPlaySeed? = nil
 }
 
 struct TVSelfPlayScreen: View {

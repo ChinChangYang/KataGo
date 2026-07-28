@@ -38,6 +38,9 @@ struct TVRootView: View {
     // NavigationPath (not [GameRecord]) so the self-play route can coexist
     // with game records in the Library tab's stack.
     @State private var libraryPath = NavigationPath()
+    /// The Search tab's own stack path. Separate from `libraryPath`: the live
+    /// handoff must push onto whichever stack the review screen was opened on.
+    @State private var searchPath = NavigationPath()
     /// Which top-level tab is showing. Always starts on Library; not persisted
     /// across launches.
     @State private var selectedTab: TVTab = .library
@@ -70,7 +73,9 @@ struct TVRootView: View {
                     NavigationStack(path: $libraryPath) {
                         TVLibraryView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                TVReviewScreen(game: game)
+                                TVReviewScreen(game: game, onContinueLive: { seed in
+                                    libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                })
                                     .toolbar(.hidden, for: .tabBar)
                             }
                             .navigationDestination(for: SelfPlayRoute.self) { route in
@@ -83,11 +88,20 @@ struct TVRootView: View {
 
                     // Search is its own tab so tvOS renders its full-screen
                     // keyboard there instead of pinning it above the Library
-                    // grid. Selecting a result pushes review inside this stack.
-                    NavigationStack {
+                    // grid. Selecting a result pushes review inside this stack —
+                    // which therefore needs the SelfPlayRoute destination too,
+                    // or the live handoff silently no-ops for a game opened
+                    // from Search.
+                    NavigationStack(path: $searchPath) {
                         TVSearchView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                TVReviewScreen(game: game)
+                                TVReviewScreen(game: game, onContinueLive: { seed in
+                                    searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                })
+                                    .toolbar(.hidden, for: .tabBar)
+                            }
+                            .navigationDestination(for: SelfPlayRoute.self) { route in
+                                TVSelfPlayScreen(route: route)
                                     .toolbar(.hidden, for: .tabBar)
                             }
                     }
