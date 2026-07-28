@@ -246,12 +246,25 @@ struct TVReviewScreen: View {
         .onDisappear {
             stopAutoPlay()
             // Silent discard (user decision): variations explored here are
-            // throwaway — the synced record was never written. Selection is
-            // cleared FIRST so a late printsgf reply finds no writer.
-            navigationContext.selectedGameRecord = nil
+            // throwaway — the synced record was never written.
+            //
+            // Identity-guarded: on a PUSH (the live handoff) SwiftUI can fire
+            // the destination's onAppear BEFORE this, and TVSelfPlayScreen's
+            // entry has already pointed the selection at its own seeded record.
+            // An unconditional nil would strand its licensed gen-move reply in
+            // postProcessAIMove's `if let gameRecord` and park the broadcast in
+            // .awaitingMove forever.
+            if navigationContext.selectedGameRecord === game {
+                navigationContext.selectedGameRecord = nil
+            }
             gobanState.deactivateBranch()
             gobanState.forcesBranchOnPlay = false
             gobanState.maybePauseAnalysis()
+            // Re-arm the entry protocol for the next appearance. Without this
+            // a pop back from the live continuation resumes with isEditing ==
+            // true and forcesBranchOnPlay == false inherited from the self-play
+            // screen — the editing path on a synced record (build-291).
+            didLoad = false
         }
     }
 
