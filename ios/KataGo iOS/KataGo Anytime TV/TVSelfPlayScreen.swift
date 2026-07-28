@@ -35,9 +35,11 @@ struct SelfPlayRoute: Hashable {
     /// the continuation starts from that position instead of an empty board,
     /// and pops back to review when it ends instead of restarting.
     ///
-    /// `var` with a default (not `let`): a `let` with an initial value is
-    /// dropped from the memberwise init entirely, which would break all four
-    /// existing `SelfPlayRoute(entry:)` call sites.
+    /// `var` with a default (not `let`): a stored property with a default is
+    /// dropped from the synthesized memberwise init ENTIRELY when declared
+    /// `let`, so the initializer would never accept a `seed:` argument and the
+    /// handoff could never construct a seeded route. (The four `entry:`-only
+    /// call sites compile either way — they never pass a seed.)
     var seed: SelfPlaySeed? = nil
 }
 
