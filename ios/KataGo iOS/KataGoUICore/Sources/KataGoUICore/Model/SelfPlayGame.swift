@@ -43,6 +43,33 @@ public enum SelfPlayGame {
         return record
     }
 
+    /// A live-continuation record seeded from a reviewed game's final position.
+    ///
+    /// Built on `createGameRecord` — NOT `GameRecord.clone()`, which copies the
+    /// source Config wholesale (human-SL profiles, per-side max times) and would
+    /// hand a Human-vs-9d game off as Human-vs-9d, never moving. The fresh
+    /// `Config()` inside the factory already resolves both effective human
+    /// profiles to "AI"; this only adds the per-move times, the rule index the
+    /// factory does not derive from the SGF, and `useLLM = false` (tvOS has no
+    /// FoundationModels, and `.narrating` is not a settled report stage).
+    ///
+    /// The caller owns keeping this record OUT of the CloudKit store — insert it
+    /// into an in-memory container only. Every continuation move mutates it.
+    @MainActor
+    public static func makeRecord(seed: SelfPlaySeed) -> GameRecord {
+        let record = GameRecord.createGameRecord(sgf: seed.sgf,
+                                                 currentIndex: seed.moveCount,
+                                                 name: seed.name,
+                                                 scoreLeads: seed.scoreLeads,
+                                                 winRates: seed.winRates)
+        let config = record.concreteConfig
+        config.rule = seed.rule
+        config.blackMaxTime = moveTime
+        config.whiteMaxTime = moveTime
+        config.useLLM = false
+        return record
+    }
+
     // MARK: - Result
 
     /// The parsed RE[] tag. Margins are nil for non-numeric wins (B+R/B+T),
