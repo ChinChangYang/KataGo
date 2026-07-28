@@ -88,6 +88,9 @@ struct TVReviewScreen: View {
     @State private var autoPlayTask: Task<Void, Never>?
     /// Auto-Play cadence. Read fresh every tick, so it is always current.
     @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
+    /// The "Continuing live…" beat between the last recorded move and the push.
+    @State private var isHandingOff = false
+    @State private var handoffTask: Task<Void, Never>?
 
     private var config: Config { game.concreteConfig }
 
@@ -209,6 +212,22 @@ struct TVReviewScreen: View {
         .padding(.leading, 24)
         .padding(.trailing, 40)
         .ignoresSafeArea()
+        .overlay {
+            if isHandingOff {
+                // Announce the screen change rather than jump-cutting to it.
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Continuing live…")
+                        .font(.title2.bold())
+                    Text("KataGo plays on from here.")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(48)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 32))
+            }
+        }
         // The panel held the only focusables before the board became one;
         // keep the entry landing there — the giant top-left board must not
         // steal initial focus.
@@ -251,6 +270,9 @@ struct TVReviewScreen: View {
         .onAppear(perform: loadIfNeeded)
         .onDisappear {
             stopAutoPlay()
+            handoffTask?.cancel()
+            handoffTask = nil
+            isHandingOff = false
             // Silent discard (user decision): variations explored here are
             // throwaway — the synced record was never written.
             //
@@ -790,10 +812,39 @@ struct TVReviewScreen: View {
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
-    /// Reached the end of the recorded moves. Task 10 adds the live handoff for
-    /// an unfinished game; a finished game stops here for good.
+    /// Reached the end of the recorded moves. An unfinished game hands off to a
+    /// live AI continuation after a short announced beat; a game that already
+    /// ended just stops on its final position (continuing it would seed the
+    /// engine with a position it answers by passing twice).
     private func finishAutoPlay(continuesLive: Bool) {
         stopAutoPlay()
+        guard continuesLive,
+              let onContinueLive,
+              let seed = makeSeed() else { return }
+        isHandingOff = true
+        handoffTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(TVAutoPlayPolicy.handoffBeatSeconds))
+            guard !Task.isCancelled else { return }
+            isHandingOff = false
+            // Cleared BEFORE the push, not left to onDisappear: SwiftUI fires
+            // the destination's onAppear first, and TVSelfPlayScreen's entry
+            // points the selection at its own seeded record.
+            navigationContext.selectedGameRecord = nil
+            onContinueLive(seed)
+        }
+    }
+
+    /// The value the continuation starts from. Nil while a variation is active
+    /// — a branch means the synced record is already selected and the printsgf
+    /// routing depends on flags the self-play entry clears.
+    private func makeSeed() -> SelfPlaySeed? {
+        guard !gobanState.isBranchActive else { return nil }
+        return SelfPlaySeed(sgf: game.sgf,
+                            moveCount: totalMoves,
+                            rule: config.rule,
+                            name: game.name.isEmpty ? SelfPlayGame.demoName : game.name,
+                            scoreLeads: game.scoreLeads ?? [:],
+                            winRates: game.winRates ?? [:])
     }
 
     /// One recorded move forward. Deliberately NOT routed through `stepBy`,
