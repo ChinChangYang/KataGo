@@ -1273,9 +1273,9 @@ fix(tv): re-run the review screen's entry protocol on every appearance
 didLoad is @State and survives a push, so returning from a pushed screen
 resumed review with isEditing == true and forcesBranchOnPlay == false —
 routing the next pick through the editing path on a CloudKit-synced record
-(the build-291 corruption class). Reset the latch on disappear, guard the
+(the build-291 corruption class). Reset the latch on disappear, and guard the
 selection clear by identity so a push cannot strand the destination's own
-selection, and resync passCount from the SGF.
+selection.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01An63LYQDTk7aX8jjtmxVrF
