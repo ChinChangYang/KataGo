@@ -52,6 +52,22 @@ enum TVSampleGameStore {
         return record
     }
 
+    /// A live-continuation game seeded from a reviewed position, inserted into
+    /// the SAME private in-memory container as the demo — so a continuation of
+    /// a CloudKit-synced game can never itself reach iCloud.
+    ///
+    /// Deliberately no `maxBoardLength` clamp: `createGameRecord` only swaps in
+    /// a smaller default board when the SGF IS `defaultSgf`, and a seeded SGF
+    /// never is. The reviewed board already passed `TVReviewScreen`'s
+    /// `boardFits` gate, which is what keeps an oversized board away from the
+    /// engine.
+    static func newSelfPlayGame(seed: SelfPlaySeed) -> GameRecord? {
+        guard let container else { return nil }
+        let record = SelfPlayGame.makeRecord(seed: seed)
+        container.mainContext.insert(record)
+        return record
+    }
+
     /// Deletes a finished (or abandoned) demo record so endless attract-mode
     /// looping doesn't accumulate per-game analysis data in memory.
     static func discard(_ record: GameRecord) {

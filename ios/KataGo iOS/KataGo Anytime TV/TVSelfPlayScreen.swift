@@ -326,7 +326,7 @@ struct TVSelfPlayScreen: View {
         // bottom items clip inside the panel.
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
-                Text(SelfPlayGame.demoName)
+                Text(game.name.isEmpty ? SelfPlayGame.demoName : game.name)
                     .font(.title2.bold())
                     .lineLimit(1)
                     // Shrinks a touch so the full name fits beside the badge
@@ -478,7 +478,7 @@ struct TVSelfPlayScreen: View {
                 .foregroundStyle(.secondary)
             Text(resultText(for: game))
                 .font(.system(size: 44, weight: .bold, design: .rounded))
-            Text("Next game starting…")
+            Text(route.seed == nil ? "Next game starting…" : "Returning to review…")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -511,7 +511,9 @@ struct TVSelfPlayScreen: View {
             return
         }
 
-        guard let newGame = TVSampleGameStore.newSelfPlayGame(maxBoardLength: engine.maxBoardLength) else {
+        let created = route.seed.map { TVSampleGameStore.newSelfPlayGame(seed: $0) }
+            ?? TVSampleGameStore.newSelfPlayGame(maxBoardLength: engine.maxBoardLength)
+        guard let newGame = created else {
             dismiss()
             return
         }
@@ -532,8 +534,12 @@ struct TVSelfPlayScreen: View {
         // each move's printsgf into the in-memory record.
         navigationContext.selectedGameRecord = newGame
         // A prior review session stepping through recorded passes leaves this
-        // nonzero, which would veto the first gen-move.
-        gobanState.passCount = 0
+        // nonzero, which would veto the first gen-move. A SEEDED game must not
+        // be zeroed blindly either: its position may legitimately carry one
+        // trailing pass, and the engine's loaded history has it.
+        gobanState.passCount = route.seed.map {
+            SelfPlayGame.trailingPassCount(inSgf: $0.sgf)
+        } ?? 0
         // Analysis ON is the show; remember a user OFF to restore on exit.
         analysisWasUserOff = (gobanState.analysisStatus == .clear)
         gobanState.eyeStatus = .opened
@@ -575,7 +581,14 @@ struct TVSelfPlayScreen: View {
             try? await Task.sleep(for: .seconds(SelfPlayGame.interstitialSeconds))
             guard !Task.isCancelled else { return }
             restartTask = nil
-            restart()
+            // A seeded continuation is a finite excursion from one reviewed
+            // game: show the result, then hand the user back to review. Only
+            // the demo loops into a fresh game.
+            if route.seed != nil {
+                dismiss()
+            } else {
+                restart()
+            }
         }
     }
 
@@ -648,6 +661,18 @@ struct TVSelfPlayScreen: View {
         }
         // Otherwise BoardView's onDisappear → maybePauseAnalysis plus the
         // root's pause observer stop the engine stream.
+
+        // Seeded exits return to TVReviewScreen, whose spectator protections
+        // this screen switched off. Restore them here so EVERY exit path (the
+        // result pop, Menu, a thermal dismiss) is covered, not just the happy
+        // one. The review screen re-asserts them too, in loadIfNeeded — this is
+        // belt and braces, and it is what keeps the window between the pop and
+        // the reload safe.
+        if route.seed != nil {
+            gobanState.passCount = 0
+            gobanState.isEditing = false
+            gobanState.forcesBranchOnPlay = true
+        }
 
         if let game {
             TVSampleGameStore.discard(game)
