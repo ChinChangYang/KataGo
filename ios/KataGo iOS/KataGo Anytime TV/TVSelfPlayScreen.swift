@@ -741,6 +741,14 @@ struct TVSelfPlayScreen: View {
     /// L1/R1 mean "move things along" on both. Inert while aiming.
     private func handleControllerEvent(_ event: TVControllerEvent) {
         guard !isAiming else { return }
+        // Attract is a screensaver: ANY press exits, which is the contract the
+        // root's move/play-pause/Select handlers already implement. Without
+        // this, gamepad X would call togglePause() and freeze the demo behind
+        // a "Paused" badge whose resume button is only rendered in manual mode.
+        guard route.entry == .manual else {
+            dismiss()
+            return
+        }
         switch event {
         case .buttonX:
             togglePause()
@@ -751,8 +759,12 @@ struct TVSelfPlayScreen: View {
             // `pendingMoveTurn == nil` (see stepBack below) but NOT on
             // isPaused — Undo is a paused-interactive action, so the gate
             // belongs here rather than inside stepBack, whose existing callers
-            // are already paused-only.
-            guard isPaused else { return }
+            // are already paused-only. Also mirror the Undo button's own
+            // disable (game.currentIndex == 0): stepBack() still runs
+            // backwardMoves at index 0 (zero undos) but unconditionally calls
+            // sendPostExecutionCommands — a redundant showboard plus an
+            // analysis re-arm on a fanless box.
+            guard isPaused, game?.currentIndex != 0 else { return }
             stepBack()
         case .buttonY, .leftTrigger, .rightTrigger:
             break
