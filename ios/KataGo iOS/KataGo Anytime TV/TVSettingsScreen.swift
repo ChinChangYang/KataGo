@@ -19,6 +19,10 @@ struct TVSettingsScreen: View {
 
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
     @AppStorage("TVSettings.showMemoryOverlay") private var showMemoryOverlay = false
+    /// Auto-Play cadence on the review screen. A plain @AppStorage (unlike
+    /// `boardSize`, whose key is derived from a model file name at runtime and
+    /// therefore needs the @State + BackendSettings round-trip).
+    @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
     @State private var confirmingReset = false
     @State private var resetArmed = false
     @State private var benchmark = TVCoreMLBenchmark()
@@ -42,6 +46,7 @@ struct TVSettingsScreen: View {
             VStack(alignment: .leading, spacing: 36) {
                 recoverySection
                 boardSizeSection
+                playbackSection
                 soundSection
                 aboutSection
                 diagnosticsFooter
@@ -147,6 +152,27 @@ struct TVSettingsScreen: View {
             }
 
             Text("Sets the largest board the engine can play. Bigger games show a message until you raise it. Changing this restarts the engine.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Playback
+
+    private var playbackSection: some View {
+        section("Playback") {
+            Picker("Auto-Play Speed", selection: $autoPlaySpeed) {
+                ForEach(TVAutoPlaySpeed.allCases) { speed in
+                    Text(speed.label).tag(speed)
+                }
+            }
+            .pickerStyle(.segmented)
+            // Deliberately NO .disabled(engine.phase…) and NO .onChange:
+            // unlike Max Board Size, a speed change must never restart the
+            // engine, and the review screen re-reads the key every tick.
+
+            Text("How fast Auto-Play steps through a saved game's recorded moves. Start and stop Auto-Play with the Play/Pause button while reviewing a game.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
