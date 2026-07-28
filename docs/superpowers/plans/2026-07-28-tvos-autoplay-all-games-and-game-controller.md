@@ -930,7 +930,9 @@ private struct TVIconToggleButton: View {
     var body: some View {
         let content = Image(systemName: systemName)
             .font(.title3)
-            .frame(width: 36, minHeight: 56)
+            // No `.frame(width:minHeight:)` overload exists — pin the width
+            // with matching min/max so the pill stays narrow beside Analysis.
+            .frame(minWidth: 36, maxWidth: 36, minHeight: 56)
 
         if isOn {
             // Dark glyph on the wood fill unfocused; the focused white lift
