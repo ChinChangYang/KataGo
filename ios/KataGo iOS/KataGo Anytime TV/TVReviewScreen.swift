@@ -6,8 +6,9 @@
 //  (the shared BoardView with the captured-stone strip, pass row, and winrate bar
 //  hidden so the goban fills the screen) plus a legible 10-foot side panel —
 //  player labels, captures, win rate, score, and a move/komi/rules info row —
-//  with a focusable transport row. The Siri-Remote D-pad steps moves. There is
-//  no auto-play (nothing advances it on tvOS). Focusing the board itself arms
+//  with a focusable transport row. The Siri-Remote D-pad steps moves; the
+//  Auto-Play toggle (or the remote's Play/Pause) replays the recorded moves on
+//  a timer, and any manual navigation stops it. Focusing the board itself arms
 //  the play cursor: the D-pad aims a ghost stone at any intersection, Select
 //  plays it as a variation, Menu returns to the panel.
 //
@@ -71,6 +72,17 @@ struct TVReviewScreen: View {
     @State private var totalMoves = 0
     /// The Top Moves row under remote focus, ringed on the board.
     @State private var highlightedPoint: BoardPoint?
+    /// Auto-Play: the recorded moves advancing on a timer. Plain state, NOT
+    /// `GobanState.isAutoPlaying` — that flag is the iOS wand's, is consulted
+    /// by ~10 live guards (AnalysisView, BoardView, the asymmetric human-SL
+    /// sends), is force-cleared by loadGame, and the only code that restores
+    /// what it suppresses lives in the iOS target and is not compiled for tvOS.
+    @State private var isAutoPlaying = false
+    /// The running tick loop, cancelled by every stop path.
+    @State private var autoPlayTask: Task<Void, Never>?
+    /// Auto-Play cadence, re-read every tick so a change in Settings applies on
+    /// return without restarting the driver.
+    @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
 
     private var config: Config { game.concreteConfig }
 
@@ -157,6 +169,8 @@ struct TVReviewScreen: View {
                 .onChange(of: boardFocused) { _, focused in
                     isAiming = focused
                     if focused {
+                        // Aiming the play cursor is taking over.
+                        stopAutoPlay()
                         ghost.activate(width: Int(board.width),
                                        height: Int(board.height))
                     } else {
@@ -194,11 +208,27 @@ struct TVReviewScreen: View {
         // keep the entry landing there — the giant top-left board must not
         // steal initial focus.
         .defaultFocus($timelineFocused, true)
+        // The transport button. Attached here — above the panel's
+        // `.disabled(isAiming)` subtree and inside the boardFits gate, so the
+        // too-large branch stays engine-free. Ignored while aiming: the board
+        // cursor owns the screen then, and board focus is itself a stop.
+        .onPlayPauseCommand {
+            guard !isAiming else { return }
+            toggleAutoPlay()
+        }
+        .onReceive(NotificationCenter.default
+            .publisher(for: ProcessInfo.thermalStateDidChangeNotification)
+            .receive(on: RunLoop.main)) { _ in
+                if SelfPlayAttract.shouldStop(thermalState: ProcessInfo.processInfo.thermalState) {
+                    stopAutoPlay()
+                }
+            }
         // A focused board consumes every D-pad press (edges clamp, Select
         // plays), so Menu is the one way out of cursor mode. Attaching an
         // onExitCommand replaces the default NavigationStack pop; reproduce
         // it in the unfocused branch (the TVSelfPlayScreen pattern).
         .onExitCommand {
+            stopAutoPlay()
             if boardFocused {
                 // Order matters: isAiming is plain state, so flipping it
                 // makes the timeline focusable in THIS transaction and the
@@ -215,6 +245,7 @@ struct TVReviewScreen: View {
         }
         .onAppear(perform: loadIfNeeded)
         .onDisappear {
+            stopAutoPlay()
             // Silent discard (user decision): variations explored here are
             // throwaway — the synced record was never written. Selection is
             // cleared FIRST so a late printsgf reply finds no writer.
@@ -325,8 +356,12 @@ struct TVReviewScreen: View {
 
             Spacer()
 
-            analysisToggle
-                .focused($toggleFocused)
+            HStack(spacing: 16) {
+                autoPlayToggle
+
+                analysisToggle
+                    .focused($toggleFocused)
+            }
         }
     }
 
@@ -435,6 +470,19 @@ struct TVReviewScreen: View {
             .frame(maxWidth: .infinity, minHeight: 38)
         }
         .buttonStyle(.bordered)
+    }
+
+    /// Auto-Play: step the recorded moves on a timer. Disabled while a
+    /// variation is active — the mainline is what replays — which is also why
+    /// `$toggleFocused` stays on the Analysis button: it is the timeline's
+    /// programmatic down-hop target and must never be unfocusable.
+    private var autoPlayToggle: some View {
+        TVIconToggleButton(systemName: isAutoPlaying ? "pause.fill" : "play.fill",
+                           accessibilityLabel: "Auto-Play",
+                           isOn: isAutoPlaying) {
+            toggleAutoPlay()
+        }
+        .disabled(gobanState.isBranchActive)
     }
 
     /// The one control: analysis ON = the engine runs and everything it
@@ -554,6 +602,8 @@ struct TVReviewScreen: View {
     /// cursor path it silently swallowed Select during the warmup after
     /// every move, reading as "double-press required".
     private func submit(vertex: String) {
+        // Playing a variation takes over from the replay.
+        stopAutoPlay()
         guard stones.isReady,
               gobanState.pendingMoveTurn == nil,  // one play in flight at a time
               let turn = player.nextColorSymbolForPlayCommand else { return }
@@ -622,6 +672,9 @@ struct TVReviewScreen: View {
     }
 
     private func stepBy(_ delta: Int) {
+        // Any manual step is the user taking over. The Auto-Play tick calls
+        // advanceOneMove() directly, so this can never cancel its own timer.
+        stopAutoPlay()
         // Drop ticks while a previous batch's board refresh is in flight
         // (the visionOS undo/forward precedent) — a 10-move jump keeps the
         // engine busy longer than a single step, and ungated flurries would
@@ -636,6 +689,83 @@ struct TVReviewScreen: View {
                                     messageList: messageList, player: player,
                                     audioModel: audioModel, stones: stones)
         }
+        reanalyze()
+    }
+
+    // MARK: - Auto-Play
+
+    private func toggleAutoPlay() {
+        if isAutoPlaying {
+            stopAutoPlay()
+        } else {
+            startAutoPlay()
+        }
+    }
+
+    /// Start replaying the recorded moves. Already parked at the last move is
+    /// not an error: there is nothing to replay, so this reports the end
+    /// immediately (Task 10 turns that into the live handoff).
+    private func startAutoPlay() {
+        guard !gobanState.isBranchActive, !isAutoPlaying else { return }
+        guard gobanState.getNextMove(gameRecord: game) != nil else {
+            finishAutoPlay(continuesLive: !SelfPlayGame.recordedGameIsFinished(sgf: game.sgf))
+            return
+        }
+        isAutoPlaying = true
+        // Lean-back viewing with no remote input: keep the system screensaver
+        // from covering the replay (the TVSelfPlayScreen precedent).
+        UIApplication.shared.isIdleTimerDisabled = true
+        autoPlayTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: autoPlaySpeed.interval)
+                guard !Task.isCancelled else { return }
+                switch TVAutoPlayPolicy.tick(
+                    hasNextMove: gobanState.getNextMove(gameRecord: game) != nil,
+                    isBranchActive: gobanState.isBranchActive,
+                    stonesReady: stones.isReady,
+                    recordedGameIsFinished: SelfPlayGame.recordedGameIsFinished(sgf: game.sgf),
+                    thermalState: ProcessInfo.processInfo.thermalState
+                ) {
+                case .hold:
+                    continue
+                case .advance:
+                    advanceOneMove()
+                case .finish(let continuesLive):
+                    finishAutoPlay(continuesLive: continuesLive)
+                    return
+                case .stop:
+                    // The reason is the policy's testable output, not
+                    // something this screen acts on differently.
+                    stopAutoPlay()
+                    return
+                }
+            }
+        }
+    }
+
+    /// Every stop path funnels here. Safe to call from inside the tick loop:
+    /// cancelling the task that is running is fine because the caller returns
+    /// immediately afterwards.
+    private func stopAutoPlay() {
+        guard isAutoPlaying || autoPlayTask != nil else { return }
+        isAutoPlaying = false
+        autoPlayTask?.cancel()
+        autoPlayTask = nil
+        UIApplication.shared.isIdleTimerDisabled = false
+    }
+
+    /// Reached the end of the recorded moves. Task 10 adds the live handoff for
+    /// an unfinished game; a finished game stops here for good.
+    private func finishAutoPlay(continuesLive: Bool) {
+        stopAutoPlay()
+    }
+
+    /// One recorded move forward. Deliberately NOT routed through `stepBy`,
+    /// which stops Auto-Play — a tick calling it would cancel its own timer.
+    private func advanceOneMove() {
+        gobanState.forwardMoves(limit: 1, gameRecord: game, board: board,
+                                messageList: messageList, player: player,
+                                audioModel: audioModel, stones: stones)
         reanalyze()
     }
 
@@ -674,6 +804,44 @@ private struct TVToggleButton: View {
         } else {
             Button(action: action) { content }
                 .buttonStyle(.bordered)
+        }
+    }
+}
+
+/// The Auto-Play transport. Icon-only, and NOT greedy, so it fits beside the
+/// Analysis toggle in the panel's single control row — two full-width toggles
+/// stacked overflow the 1020 pt panel by 46 pt (measured on tvOS 26.5), and
+/// `minHeight` cannot fix that because the bordered style floors a pill at
+/// 66 pt. One row costs zero extra height.
+///
+/// The SYMBOL carries the state (play → pause), so there is no "On/Off" label
+/// to shrink; `accessibilityLabel` is what names the control for VoiceOver.
+/// Styling otherwise mirrors TVToggleButton so the two pills read as a set.
+private struct TVIconToggleButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let content = Image(systemName: systemName)
+            .font(.title3)
+            // A fixed 36 pt width (min == max) is what makes this one NOT
+            // greedy, unlike TVToggleButton's `maxWidth: .infinity`; the
+            // height stays a minimum so the glyph is never squeezed.
+            .frame(minWidth: 36, maxWidth: 36, minHeight: 56)
+
+        if isOn {
+            // Dark glyph on the wood fill unfocused; the focused white lift
+            // also takes a dark glyph, so forcing black is safe in both states.
+            Button(action: action) { content.foregroundStyle(.black) }
+                .buttonStyle(.borderedProminent)
+                .tint(.tvWoodAccent)
+                .accessibilityLabel(accessibilityLabel)
+        } else {
+            Button(action: action) { content }
+                .buttonStyle(.bordered)
+                .accessibilityLabel(accessibilityLabel)
         }
     }
 }
