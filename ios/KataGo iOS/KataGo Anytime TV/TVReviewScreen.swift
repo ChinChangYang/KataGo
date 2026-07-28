@@ -249,6 +249,12 @@ struct TVReviewScreen: View {
             .receive(on: RunLoop.main)) { _ in
                 if SelfPlayAttract.shouldStop(thermalState: ProcessInfo.processInfo.thermalState) {
                     stopAutoPlay()
+                    // A device that goes hot DURING the 2 s beat would still
+                    // complete the push otherwise — stopAutoPlay() knows
+                    // nothing about the handoff. Mirrors onDisappear's cancel.
+                    handoffTask?.cancel()
+                    handoffTask = nil
+                    isHandingOff = false
                 }
             }
         // A focused board consumes every D-pad press (edges clamp, Select
@@ -881,6 +887,15 @@ struct TVReviewScreen: View {
         // CURRENT handle, so the orphaned task still fires ~2 s later and
         // pushes onContinueLive from a screen the user has already left.
         guard !isHandingOff else { return }
+        // The tick policy's thermal stop cannot cover this path: it refuses to
+        // ADVANCE under .serious/.critical, so a running replay never reaches
+        // the end while hot — but Play/Pause pressed while already parked at
+        // the last recorded move lands here directly, and a live broadcast is
+        // the heaviest workload the box runs. Refuse instead of pushing it.
+        guard !SelfPlayAttract.shouldStop(thermalState: ProcessInfo.processInfo.thermalState) else {
+            stopAutoPlay()
+            return
+        }
         stopAutoPlay()
         guard continuesLive,
               let onContinueLive,

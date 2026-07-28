@@ -19,11 +19,11 @@ the next one needs. Tick items as you go and note the build number you tested.
 * **Item 16** is a data-loss regression check. It guards the build-291 class of
   bug where a live continuation writes into the *recorded* game. If it fails,
   a user's iCloud-synced game is silently corrupted — stop testing and report.
-* **Item 27** is a question nothing in the code answers yet: does an extended
+* **Item 31** is a question nothing in the code answers yet: does an extended
   gamepad's **X** also arrive as a `UIPress.PressType.playPause`? If it does,
   `.onPlayPauseCommand` and the X binding both fire — the two toggles cancel out
   on the review screen and double-toggle pause on the live screen. There is no
-  guard against this today, so item 27 decides whether one is needed.
+  guard against this today, so item 31 decides whether one is needed.
 
 ---
 
@@ -39,7 +39,7 @@ the next one needs. Tick items as you go and note the build number you tested.
 3. Pair an extended gamepad (Settings ▸ Remotes and Devices ▸ Bluetooth):
    DualSense, DualShock 4, Xbox Wireless, or an MFi pad. Keep the Siri Remote
    in reach — sections A and B are remote-only.
-4. Sit ~10 feet from the TV for the legibility items (9 and 43).
+4. Sit ~10 feet from the TV for the legibility items (9 and 47).
 5. Note the room/device temperature. Auto-Play stops itself when the device
    reports a serious thermal state; that is by design, not a bug.
 
@@ -55,7 +55,7 @@ the next one needs. Tick items as you go and note the build number you tested.
    Then repeat the press with focus in each place it can be: the timeline, the
    Analysis button, the Auto-Play pill, and a Top Moves row. Play/Pause must
    start and stop the replay from **every** one of them (the only deliberate
-   exception is the board in aiming mode, item 31). This is a responder-chain
+   exception is the board in aiming mode, item 35). This is a responder-chain
    assumption that has never been checked from more than one focus location.
 2. **Settings section order.** Open Settings on the Apple TV. Top to bottom the
    sections read Recovery, Board Size, **Playback**, Sound, Game Controller
@@ -151,80 +151,102 @@ the next one needs. Tick items as you go and note the build number you tested.
     Play/Pause repeatedly and also try to pick a Top Move. Exactly **one** live
     screen may be pushed, no variation may be recorded, and after it ends,
     re-run item 16's check on the recorded game.
+26. **Menu-exit mid-continuation.** Run item 14's handoff again, then — a stone
+    or two into the live continuation — press **Menu** instead of letting the
+    game end. Three things must hold back on the review screen: Analysis is in
+    the **same** state it was in before the handoff (item 17, but for a Menu
+    exit rather than the natural return), the recorded game is unchanged
+    (re-run item 16's check), and **X** on the gamepad still toggles Auto-Play
+    (the handler stack has to pop on a non-natural exit too — item 41 exercises
+    only the natural one). Items 15-18 and 24 cover the natural return and the
+    cancelled beat; nothing covered this exit.
+27. **Tab switch during the beat.** Start the handoff and, while "Continuing
+    live…" is on screen, switch to the **Search** or **Settings** tab. No live
+    screen may appear afterwards, on any tab, not even seconds later.
+28. **Backgrounding during the beat.** Start the handoff and press the **TV**
+    button mid-beat, then reopen the app. At most **one** live screen may be
+    pushed, and only onto the review screen — never on top of the library,
+    another tab, or a second copy of itself.
+29. **Parked at the end on a hot device.** With the device already reporting a
+    serious thermal state (Setup step 5; a long replay at Fast on the oldest
+    model you have is the easiest way there), park on Game U's last recorded
+    move and press **Play/Pause**. The handoff must **refuse**: the pill returns
+    to the play glyph, there is no "Continuing live…" overlay and no push. Item
+    22 is the same press on a cool device, where it does hand off.
 
 ## C. Game controller
 
-26. **Detection.** With the pad paired, Settings shows a **Game Controller**
+30. **Detection.** With the pad paired, Settings shows a **Game Controller**
     section naming your pad, with all six rows (X, Y, L1, R1, L2, R2) and the
     "The D-pad, A and B navigate the interface as usual." footnote. Unpair or
     power off the pad: the section disappears. *(Section rendering was seen in
     Simulator; the disappear half was not.)*
-27. **⚠️ Does X double-fire?** On the review screen, with Auto-Play **stopped**,
+31. **⚠️ Does X double-fire?** On the review screen, with Auto-Play **stopped**,
     press **X** once. Expected: Auto-Play starts (one toggle). If instead
     nothing happens, X is also arriving as a Play/Pause press and the two
     handlers are cancelling out. Then check the live screen: press **X** once
     while running — it must end up **paused**, not paused-and-resumed. Report
     either symptom; the fix would be to suppress one of the two paths.
-28. **Navigation parity.** The D-pad moves focus, **A** selects, **B** goes
+32. **Navigation parity.** The D-pad moves focus, **A** selects, **B** goes
     back — exactly as the Siri Remote does, on the library, the review screen
     and Settings.
-29. **Review bindings.** On the review screen: **X** toggles Auto-Play (pill
+33. **Review bindings.** On the review screen: **X** toggles Auto-Play (pill
     glyph flips), **Y** toggles Analysis (label flips between "Analysis On" and
     "Analysis Off"), **L1**/**R1** step exactly one move back/forward, and
     **holding** L1 or R1 auto-repeats (first repeat after ~0.4 s, then ~8 per
     second). **L2** jumps to the start (move 0), **R2** jumps to the end.
-30. **L1 at move 0.** Press and hold **L1** while already at move 0: nothing
+34. **L1 at move 0.** Press and hold **L1** while already at move 0: nothing
     happens at all — no flicker, no re-analysis.
-31. **Aiming makes them inert.** Focus the board (aiming/ghost-cursor mode):
+35. **Aiming makes them inert.** Focus the board (aiming/ghost-cursor mode):
     X, Y, L1, R1, L2 and R2 all do **nothing**, and the D-pad steps the ghost
     cursor one intersection per press. The thumbstick does **not** aim — that is
     deliberate, the D-pad is the only aiming input. Press Menu to leave aiming;
     the six buttons work again.
-32. **Live-screen bindings.** On the live broadcast: **X** pauses and resumes,
+36. **Live-screen bindings.** On the live broadcast: **X** pauses and resumes,
     **R1** skips the current slide, **L1** undoes **while paused**.
-33. **L1 held on the live screen.** Hold **L1** on the paused live screen. The
+37. **L1 held on the live screen.** Hold **L1** on the paused live screen. The
     binding auto-repeats there too, though the Settings legend describes L1 as
     "Undo (while paused)" with no "(hold to repeat)". Confirm the undo does not
     run away, and note which should change — the legend text or the binding.
-34. **Attract mode ignores the mapping.** Leave the app idle until the
+38. **Attract mode ignores the mapping.** Leave the app idle until the
     screensaver self-play demo starts, then press **X** (and each of Y, L1, R1,
     L2, R2). Every one of them must **exit** the demo, exactly as the remote
     does. None may pause it or leave a "Paused" badge with no way out.
-35. **Mid-hold disconnect.** While **holding L1** on the review screen, power
+39. **Mid-hold disconnect.** While **holding L1** on the review screen, power
     the controller off. The auto-repeat stops immediately; the timeline does not
     keep running backwards.
-36. **Reconnect re-arms.** Turn the pad back on (or unpair and re-pair) while
+40. **Reconnect re-arms.** Turn the pad back on (or unpair and re-pair) while
     sitting on the review screen: the six buttons work again without leaving the
     screen, and Settings shows the section again.
-37. **⚠️ The handler stack (LIFO).** Review → let the handoff push the live
+41. **⚠️ The handler stack (LIFO).** Review → let the handoff push the live
     screen → confirm **X** there pauses/resumes (the review action must **not**
     fire) → let it end and pop back → press **X** on the review screen: it still
     toggles Auto-Play. This whole push/pop contract has never been exercised.
-38. **No stray handler.** Press X, Y, L1, R1, L2 and R2 on the **library** and
+42. **No stray handler.** Press X, Y, L1, R1, L2 and R2 on the **library** and
     **Settings** screens: nothing happens (no hidden Auto-Play on a screen you
     left). Then push a review screen, switch tabs away, press X on the other
     tab: still nothing.
-39. **Two pads.** Pair a second controller. Settings must name the pad you are
+43. **Two pads.** Pair a second controller. Settings must name the pad you are
     actually pressing, and pressing X on either pad must drive the screen you
     are on.
-40. **Siri Remote after the pad.** Use the Siri Remote for a few presses (this
+44. **Siri Remote after the pad.** Use the Siri Remote for a few presses (this
     makes it the "current" controller), then press **X** on the gamepad without
     touching anything else: the binding must still fire — this is the fallback
     that keeps the pad bound after the remote is used.
-41. **System button remapping.** In tvOS Settings ▸ Remotes and Devices ▸ your
+45. **System button remapping.** In tvOS Settings ▸ Remotes and Devices ▸ your
     controller, swap two of the mapped buttons (X and Y are the easiest to see),
     then return to the review screen: the app must follow the system remapping —
-    the button now reported as X toggles Auto-Play. This is the only user-facing
+    the button now reported as X toggles Auto-Play. This is the only in-app
     effect of the `GCSupportsControllerUserInteraction` declaration added on this
     branch. Undo the remapping afterwards.
 
 ## D. Accessibility
 
-42. **VoiceOver.** Turn VoiceOver on and focus the icon-only Auto-Play pill: it
+46. **VoiceOver.** Turn VoiceOver on and focus the icon-only Auto-Play pill: it
     must be announced with a meaningful name (it has no visible text, so the
     announcement comes entirely from its accessibility label), and its
     play-versus-pause state must be distinguishable by ear.
-43. **Legibility of the Settings legend.** At 10 feet, the Game Controller
+47. **Legibility of the Settings legend.** At 10 feet, the Game Controller
     legend's three columns (button, Reviewing, Live) are readable and nothing is
     truncated.
 
@@ -261,7 +283,7 @@ arrow keys:
 * A timeline step during replay stops Auto-Play on the first press and advances
   exactly one move (item 4).
 * The Settings **Game Controller** section renders with the connected pad's name
-  and all six legend rows (item 26, first half).
+  and all six legend rows (item 30, first half).
 
 Not provable here, and therefore untested until this checklist is run:
 
@@ -272,7 +294,7 @@ Not provable here, and therefore untested until this checklist is run:
   to set a `GCController` element's value from outside the device; and building
   a synthetic HID gamepad on the host is refused without root (the virtual-HID
   create call returns NULL, and this machine has no passwordless sudo). So
-  items 27-41 are entirely unexercised — button bindings, the LIFO handler
+  items 31-45 are entirely unexercised — button bindings, the LIFO handler
   stack, the hold-repeat loop, the disconnect path, the current-controller
   fallback and the remapping declaration are all code-reading only.
 * Everything in section B beyond what an earlier end-to-end Simulator run

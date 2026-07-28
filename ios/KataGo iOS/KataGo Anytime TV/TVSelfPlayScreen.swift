@@ -296,6 +296,20 @@ struct TVSelfPlayScreen: View {
                 isAiming = false
                 pauseFocused = true
             } else {
+                // A seeded route pops back to TVReviewScreen, whose didLoad was
+                // reset — so its loadIfNeeded() re-runs, and SwiftUI runs that
+                // destination normalization BEFORE this screen's onDisappear
+                // (the same ordering scheduleRestart's result-pop documents).
+                // Left to tearDown, the lift would arrive too late and
+                // loadIfNeeded would read the still-`.clear` broadcast status
+                // as "the user turned analysis OFF", so Menu-ing out of a
+                // continuation would come back to review with the eye shut.
+                // tearDown's later call is then a no-op (see the method's
+                // idempotency note). Gated on the seed so the demo/attract
+                // paths keep exactly today's behavior: they pop to the
+                // library, which reads no analysis state on entry, so
+                // tearDown's single call stays their only restore.
+                if route.seed != nil { restoreAnalysisForExit() }
                 dismiss()
             }
         }
@@ -305,6 +319,9 @@ struct TVSelfPlayScreen: View {
                 // Read the state fresh from ProcessInfo — the Notification
                 // itself is non-Sendable and stays out of the handler.
                 if SelfPlayAttract.shouldStop(thermalState: ProcessInfo.processInfo.thermalState) {
+                    // Restore before the pop for the same pop-ordering reason
+                    // as the Menu exit above.
+                    if route.seed != nil { restoreAnalysisForExit() }
                     dismiss()
                 }
             }
@@ -672,8 +689,9 @@ struct TVSelfPlayScreen: View {
         navigationContext.selectedGameRecord = nil
         UIApplication.shared.isIdleTimerDisabled = false
 
-        // A seeded route already ran this immediately before its dismiss();
-        // this second call is a no-op (see the method's idempotency note).
+        // A seeded route already ran this immediately before EVERY dismiss()
+        // (the result pop, Menu, the thermal dismissal); this second call is a
+        // no-op (see the method's idempotency note).
         restoreAnalysisForExit()
         // Otherwise BoardView's onDisappear → maybePauseAnalysis plus the
         // root's pause observer stop the engine stream.
