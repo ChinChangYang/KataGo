@@ -16,6 +16,7 @@ import KataGoUICore
 struct TVSettingsScreen: View {
     @Environment(TVEngineController.self) private var engine
     @Environment(GobanState.self) private var gobanState
+    @Environment(TVControllerInput.self) private var controllerInput
 
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
     @AppStorage("TVSettings.showMemoryOverlay") private var showMemoryOverlay = false
@@ -48,6 +49,9 @@ struct TVSettingsScreen: View {
                 boardSizeSection
                 playbackSection
                 soundSection
+                if controllerInput.isConnected {
+                    gameControllerSection
+                }
                 aboutSection
                 diagnosticsFooter
             }
@@ -187,6 +191,35 @@ struct TVSettingsScreen: View {
                 .onChange(of: soundEffects) { _, newValue in
                     gobanState.soundEffect = newValue
                 }
+        }
+    }
+
+    // MARK: - Game Controller
+
+    private var gameControllerSection: some View {
+        section("Game Controller") {
+            Text(controllerInput.vendorName ?? "Controller connected")
+                .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 10) {
+                GridRow {
+                    Text("").gridCellUnsizedAxes(.horizontal)
+                    Text("Reviewing").font(.callout).foregroundStyle(.secondary)
+                    Text("Live").font(.callout).foregroundStyle(.secondary)
+                }
+                ForEach(TVControllerLegend.rows) { row in
+                    GridRow {
+                        Label(row.name, systemImage: row.symbol)
+                        Text(row.review)
+                        Text(row.live)
+                    }
+                }
+            }
+
+            Text("The D-pad, A and B navigate the interface as usual.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -418,5 +451,6 @@ private struct BenchmarkResultsTable: View {
     .environment(engine)
     .environment(session)
     .environment(session.gobanState)
+    .environment(TVControllerInput())
 }
 #endif
