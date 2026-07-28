@@ -16,9 +16,11 @@ struct TVControllerLegendTests {
                                                .rightShoulder, .leftTrigger, .rightTrigger])
     }
 
-    @Test func everyBoundButtonHasALegendRow() {
-        let covered = Set(TVControllerLegend.rows.map(\.event))
-        #expect(covered == Set(TVControllerEvent.allCases))
+    /// Ordered, not a Set: a Set comparison would pass with a DUPLICATE row,
+    /// and `id` is `event.rawValue`, so duplicates give SwiftUI's ForEach
+    /// duplicate Identifiable ids.
+    @Test func everyBoundButtonHasExactlyOneLegendRowInOrder() {
+        #expect(TVControllerLegend.rows.map(\.event) == TVControllerEvent.allCases)
     }
 
     @Test func legendRowsDescribeBothScreens() {

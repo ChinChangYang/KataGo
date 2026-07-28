@@ -79,18 +79,20 @@ final class TVControllerInput {
 
     // MARK: - Pad
 
-    /// GCController.current on tvOS is "the most recently used controller",
-    /// which is frequently the Siri Remote (extendedGamepad nil) — the fallback
-    /// is what keeps the bindings alive after the user touches the remote.
-    private var currentPad: GCExtendedGamepad? {
-        GCController.current?.extendedGamepad
-            ?? GCController.controllers().compactMap(\.extendedGamepad).first
+    /// The controller whose buttons are bound. GCController.current on tvOS is
+    /// "the most recently used controller", which is frequently the Siri
+    /// Remote (extendedGamepad nil) — the fallback is what keeps the bindings
+    /// alive after the user touches the remote.
+    private var currentController: GCController? {
+        if let current = GCController.current, current.extendedGamepad != nil { return current }
+        return GCController.controllers().first { $0.extendedGamepad != nil }
     }
 
+    private var currentPad: GCExtendedGamepad? { currentController?.extendedGamepad }
+
     private func refreshConnection() {
-        let pads = GCController.controllers().filter { $0.extendedGamepad != nil }
-        isConnected = !pads.isEmpty
-        vendorName = pads.first?.vendorName
+        isConnected = GCController.controllers().contains { $0.extendedGamepad != nil }
+        vendorName = currentController?.vendorName
         bindButtons()
     }
 
