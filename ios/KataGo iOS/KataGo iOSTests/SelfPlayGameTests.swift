@@ -125,4 +125,42 @@ struct SelfPlayGameTests {
         let full = SelfPlayGame.makeRecord(maxBoardLength: 19)
         #expect(GobanState.editingAfterLoad(sgf: full.sgf, unlockRequested: false))
     }
+
+    // MARK: - recordedGameIsFinished
+
+    /// A 9x9 SGF with an RU tag (mandatory — a missing RU aborts the process
+    /// inside the C++ parser) and the given move body.
+    private static func sgf(moves: String) -> String {
+        "(;FF[4]GM[1]SZ[9]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN]\(moves))"
+    }
+
+    @Test func trailingPassCountCountsOnlyTrailingPassesAndClampsAtTwo() {
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: ";B[cc];W[dd]")) == 0)
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: ";B[cc];W[]")) == 1)
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: ";B[];W[]")) == 2)
+        // A pass in the middle is not a trailing pass.
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: ";B[];W[dd]")) == 0)
+        // Clamped: never reports more than 2.
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: ";B[];W[];B[]")) == 2)
+    }
+
+    @Test func trailingPassCountIsZeroForAnEmptyGame() {
+        #expect(SelfPlayGame.trailingPassCount(inSgf: Self.sgf(moves: "")) == 0)
+    }
+
+    /// The handoff gate: a game that already ended must NOT push a live
+    /// continuation (the engine would simply pass again).
+    @Test func recordedGameIsFinishedForTwoTrailingPasses() {
+        #expect(SelfPlayGame.recordedGameIsFinished(sgf: Self.sgf(moves: ";B[];W[]")))
+    }
+
+    @Test func recordedGameIsFinishedForAResultTag() {
+        let resigned = "(;FF[4]GM[1]SZ[9]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN]RE[W+R];B[cc])"
+        #expect(SelfPlayGame.recordedGameIsFinished(sgf: resigned))
+    }
+
+    @Test func anUnfinishedGameIsNotFinished() {
+        #expect(!SelfPlayGame.recordedGameIsFinished(sgf: Self.sgf(moves: ";B[cc];W[dd]")))
+        #expect(!SelfPlayGame.recordedGameIsFinished(sgf: Self.sgf(moves: ";B[cc];W[]")))
+    }
 }

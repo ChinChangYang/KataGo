@@ -96,6 +96,38 @@ public enum SelfPlayGame {
     private static func marginText(_ margin: Float) -> String {
         String(format: "%g", margin)
     }
+
+    // MARK: - Recorded-game completion
+
+    /// How many of the SGF's LAST moves are passes, clamped at 2. Used to tell
+    /// a game that ended from one that was merely abandoned mid-board.
+    ///
+    /// Not derived from `GobanState.passCount`: that is a running counter
+    /// mutated only by `play`/`undo` and is never seeded from an SGF, so it
+    /// says nothing about a game the user just opened.
+    public static func trailingPassCount(inSgf sgf: String) -> Int {
+        let operations = SgfOperations(sgf: sgf)
+        guard let moveSize = operations.moveSize, moveSize > 0 else { return 0 }
+        var count = 0
+        var index = moveSize - 1
+        while index >= 0, count < 2, let move = operations.getMove(at: index), move.location.pass {
+            count += 1
+            index -= 1
+        }
+        return count
+    }
+
+    /// True when the recorded game already ended — two trailing passes, or a
+    /// parsed `RE[]` tag (a resignation has no passes at all).
+    ///
+    /// This is the Auto-Play handoff gate: continuing a finished game would
+    /// seed the engine with a position it answers by passing twice, so the
+    /// "continuation" would be a flash of the result card. Auto-Play stops on
+    /// such a game instead of pushing.
+    public static func recordedGameIsFinished(sgf: String) -> Bool {
+        if result(fromSgf: sgf) != .unknown { return true }
+        return trailingPassCount(inSgf: sgf) >= 2
+    }
 }
 
 /// Pure attract-mode decisions, separated from the tvOS controller so the
