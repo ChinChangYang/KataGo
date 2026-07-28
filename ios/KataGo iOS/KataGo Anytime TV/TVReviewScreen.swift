@@ -44,7 +44,11 @@ struct TVReviewScreen: View {
     @Environment(NavigationContext.self) private var navigationContext
     @Environment(Analysis.self) private var analysis
     @Environment(TVEngineController.self) private var engine
+    @Environment(TVControllerInput.self) private var controllerInput
     @Environment(\.dismiss) private var dismiss
+
+    /// This screen's slot in the controller's LIFO handler stack.
+    @State private var controllerToken = UUID()
 
     @FocusState private var commentFocused: Bool
     /// The chart-timeline scrubber (the one element with an onMoveCommand).
@@ -267,9 +271,15 @@ struct TVReviewScreen: View {
                 dismiss()
             }
         }
-        .onAppear(perform: loadIfNeeded)
+        .onAppear {
+            loadIfNeeded()
+            controllerInput.pushHandler(controllerToken) { event in
+                handleControllerEvent(event)
+            }
+        }
         .onDisappear {
             stopAutoPlay()
+            controllerInput.popHandler(controllerToken)
             handoffTask?.cancel()
             handoffTask = nil
             isHandingOff = false
@@ -530,22 +540,26 @@ struct TVReviewScreen: View {
     /// flavored stays on screen. The merged states kill the two traps a
     /// separate Overlay toggle allowed — a stale board overlay with the
     /// engine stopped, and an invisible engine heating the fanless box.
+    private func toggleAnalysis() {
+        if gobanState.analysisStatus == .run {
+            // .clear is observed at the TVRootView, which sends GTP "stop";
+            // closing the eye hides the board overlay and switches the
+            // panel's winrate/score to the persisted per-move values. The
+            // chart and the panel layout stay put — persisted data never
+            // goes stale, and the board/panel must not reflow on toggle.
+            gobanState.analysisStatus = .clear
+            gobanState.eyeStatus = .closed
+        } else {
+            gobanState.eyeStatus = .opened
+            gobanState.analysisStatus = .run
+            reanalyze()
+        }
+    }
+
     private var analysisToggle: some View {
         TVToggleButton(systemName: "sparkles", title: "Analysis",
                        isOn: gobanState.analysisStatus == .run) {
-            if gobanState.analysisStatus == .run {
-                // .clear is observed at the TVRootView, which sends GTP "stop";
-                // closing the eye hides the board overlay and switches the
-                // panel's winrate/score to the persisted per-move values. The
-                // chart and the panel layout stay put — persisted data never
-                // goes stale, and the board/panel must not reflow on toggle.
-                gobanState.analysisStatus = .clear
-                gobanState.eyeStatus = .closed
-            } else {
-                gobanState.eyeStatus = .opened
-                gobanState.analysisStatus = .run
-                reanalyze()
-            }
+            toggleAnalysis()
         }
     }
 
@@ -745,6 +759,38 @@ struct TVReviewScreen: View {
                                     audioModel: audioModel, stones: stones)
         }
         reanalyze()
+    }
+
+    // MARK: - Controller
+
+    /// Focus-safe controller buttons. Inert while aiming: the board cursor owns
+    /// the screen then, exactly as the D-pad does.
+    private func handleControllerEvent(_ event: TVControllerEvent) {
+        guard !isAiming else { return }
+        switch event {
+        case .buttonX:
+            toggleAutoPlay()
+        case .buttonY:
+            toggleAnalysis()
+        case .leftShoulder:
+            stepBy(-1)
+        case .rightShoulder:
+            stepBy(1)
+        case .leftTrigger:
+            stopAutoPlay()
+            guard stones.isReady else { return }
+            gobanState.backwardMoves(limit: nil, gameRecord: game,
+                                     messageList: messageList,
+                                     player: player, stones: stones)
+            reanalyze()
+        case .rightTrigger:
+            stopAutoPlay()
+            guard stones.isReady else { return }
+            gobanState.forwardMoves(limit: nil, gameRecord: game, board: board,
+                                    messageList: messageList, player: player,
+                                    audioModel: audioModel, stones: stones)
+            reanalyze()
+        }
     }
 
     // MARK: - Auto-Play
@@ -1043,6 +1089,9 @@ private struct TVReviewPreviewHost: View {
             // Default maxBoardLength is 37, so every preview fixture (≤19×19)
             // takes the normal board branch, not the too-large gate.
             .environment(TVEngineController())
+            // Required since the screen subscribes to it — a preview without
+            // it traps at runtime resolving the @Environment.
+            .environment(TVControllerInput())
     }
 }
 

@@ -31,6 +31,9 @@ struct TVRootView: View {
     @State private var navigationContext = NavigationContext()
     @State private var syncMonitor = CloudKitSyncMonitor()
     @State private var attractMode = TVAttractModeController()
+    /// ONE owner for the whole app: pressedChangedHandler is a single slot per
+    /// button, and the review and self-play screens coexist on one stack.
+    @State private var controllerInput = TVControllerInput()
     @Environment(\.scenePhase) private var scenePhase
     @State private var aiMove: String? = nil
     @State private var isReady = false
@@ -138,6 +141,7 @@ struct TVRootView: View {
                 .environment(syncMonitor)
                 .environment(attractMode)
                 .environment(engineController)
+                .environment(controllerInput)
                 // The session itself (not just its sub-models): shared board /
                 // analysis views resolve it via @Environment.
                 .environment(session)

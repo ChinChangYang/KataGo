@@ -74,7 +74,12 @@ struct TVSelfPlayScreen: View {
     @Environment(NavigationContext.self) private var navigationContext
     @Environment(Analysis.self) private var analysis
     @Environment(TVEngineController.self) private var engine
+    @Environment(TVControllerInput.self) private var controllerInput
     @Environment(\.dismiss) private var dismiss
+
+    /// This screen's slot in the controller's LIFO handler stack. Pushed over
+    /// the review screen's, which resurfaces when this one pops.
+    @State private var controllerToken = UUID()
 
     @FocusState private var commentFocused: Bool
     /// The board itself, when the play cursor is aiming (manual mode only —
@@ -303,8 +308,16 @@ struct TVSelfPlayScreen: View {
                     dismiss()
                 }
             }
-        .onAppear(perform: startIfNeeded)
-        .onDisappear(perform: tearDown)
+        .onAppear {
+            startIfNeeded()
+            controllerInput.pushHandler(controllerToken) { event in
+                handleControllerEvent(event)
+            }
+        }
+        .onDisappear {
+            tearDown()
+            controllerInput.popHandler(controllerToken)
+        }
         .onChange(of: gobanState.passCount) { _, newCount in
             if newCount >= 2 {
                 scheduleRestart()
@@ -722,6 +735,30 @@ struct TVSelfPlayScreen: View {
         }
     }
 
+    // MARK: - Controller
+
+    /// Focus-safe controller buttons. X is the transport on BOTH game screens;
+    /// L1/R1 mean "move things along" on both. Inert while aiming.
+    private func handleControllerEvent(_ event: TVControllerEvent) {
+        guard !isAiming else { return }
+        switch event {
+        case .buttonX:
+            togglePause()
+        case .rightShoulder:
+            broadcast?.skipSlide()
+        case .leftShoulder:
+            // stepBack() guards on `game`, `!isGameOver`, `stones.isReady` and
+            // `pendingMoveTurn == nil` (see stepBack below) but NOT on
+            // isPaused — Undo is a paused-interactive action, so the gate
+            // belongs here rather than inside stepBack, whose existing callers
+            // are already paused-only.
+            guard isPaused else { return }
+            stepBack()
+        case .buttonY, .leftTrigger, .rightTrigger:
+            break
+        }
+    }
+
     /// Play a Top Moves candidate — same submit path as the cursor.
     private func pick(_ candidate: Analysis.CandidateMove) {
         submit(vertex: candidate.vertex)
@@ -873,6 +910,9 @@ private struct TVSelfPlayPreviewHost: View {
             .environment(AudioModel())
             .environment(NavigationContext())
             .environment(TVEngineController())
+            // Required since the screen subscribes to it — a preview without
+            // it traps at runtime resolving the @Environment.
+            .environment(TVControllerInput())
     }
 }
 
