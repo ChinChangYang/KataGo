@@ -649,6 +649,14 @@ struct TVReviewScreen: View {
     /// cursor path it silently swallowed Select during the warmup after
     /// every move, reading as "double-press required".
     private func submit(vertex: String) {
+        // During the handoff beat the destination screen's entry is about to
+        // re-arm a WRITABLE selection (isEditing == true, forcesBranchOnPlay
+        // == false), unlike every other exit from this screen, which leaves
+        // the selection nil. A kata-check-move reply that lands after the
+        // push would therefore play this variation into — and let its
+        // printsgf overwrite — the fresh continuation record instead of
+        // discarding harmlessly.
+        guard !isHandingOff else { return }
         // Playing a variation takes over from the replay.
         stopAutoPlay()
         guard stones.isReady,
@@ -751,7 +759,8 @@ struct TVReviewScreen: View {
 
     /// Start replaying the recorded moves. Already parked at the last move is
     /// not an error: there is nothing to replay, so this reports the end
-    /// immediately (Task 10 turns that into the live handoff).
+    /// immediately, which finishAutoPlay turns into the live handoff for an
+    /// unfinished game.
     ///
     /// The tick loop's FIRST statement must stay the sleep: `autoPlayTask` is
     /// assigned only after the closure below is built, so a first tick that
@@ -817,6 +826,15 @@ struct TVReviewScreen: View {
     /// ended just stops on its final position (continuing it would seed the
     /// engine with a position it answers by passing twice).
     private func finishAutoPlay(continuesLive: Bool) {
+        // Re-entrancy guard, FIRST statement: both the panel's Auto-Play
+        // toggle and the remote's Play/Pause stay live during the beat, and
+        // either one calls toggleAutoPlay() → startAutoPlay(), which sees
+        // isAutoPlaying == false and no next move and lands right back here.
+        // Without this guard a second call reassigns handoffTask to a new
+        // task and orphans the first one — onDisappear can only cancel the
+        // CURRENT handle, so the orphaned task still fires ~2 s later and
+        // pushes onContinueLive from a screen the user has already left.
+        guard !isHandingOff else { return }
         stopAutoPlay()
         guard continuesLive,
               let onContinueLive,
@@ -831,6 +849,8 @@ struct TVReviewScreen: View {
             // points the selection at its own seeded record.
             navigationContext.selectedGameRecord = nil
             onContinueLive(seed)
+            // The handle must not outlive its task now that the push landed.
+            handoffTask = nil
         }
     }
 
