@@ -233,7 +233,18 @@ public struct GameGifExportView: View {
         let frame = frames.isEmpty
             ? GifFrame(blackStones: [], whiteStones: [], lastMove: nil)
             : frames[clamped]
-        // Same view the renderer rasterizes, so the preview matches the GIF.
+        // Same view the renderer rasterizes, so the preview matches the GIF —
+        // including its GEOMETRY. A board wide enough that its "A"+letter
+        // column labels would truncate makes the export raise its raster
+        // (`effectivePixelSize`), so the preview has to render at that same
+        // size and scale down into the fixed box; framing straight to
+        // `previewSide` would show clipped labels the exported GIF won't have.
+        // Deliberately NOT tied to the quality picker: every board that already
+        // fits previews exactly as before, at scale 1.
+        let side = showCoordinates
+            ? max(Self.previewSide,
+                  GifExportOptions.minimumPixelSize(width: boardWidth, height: boardHeight))
+            : Self.previewSide
         return ReportBoardView(
             width: boardWidth,
             height: boardHeight,
@@ -245,8 +256,13 @@ public struct GameGifExportView: View {
             showCoordinate: showCoordinates,
             verticalFlip: verticalFlip
         )
-        .frame(width: 320, height: 320)
+        .frame(width: side, height: side)
+        .scaleEffect(Self.previewSide / side)
+        .frame(width: Self.previewSide, height: Self.previewSide)
     }
+
+    /// On-screen size of the preview board, independent of the export raster.
+    private static let previewSide: CGFloat = 320
 
     @ViewBuilder private var actionRow: some View {
         if let url = exportedURL {

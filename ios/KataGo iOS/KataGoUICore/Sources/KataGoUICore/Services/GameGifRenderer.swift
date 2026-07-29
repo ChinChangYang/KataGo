@@ -7,6 +7,7 @@
 
 import CoreGraphics
 import Foundation
+import KataGoGameStore
 import SwiftUI
 
 /// User-tunable knobs for a game GIF export.
@@ -42,6 +43,33 @@ public struct GifExportOptions: Equatable, Sendable {
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
     }
+
+    /// The smallest square raster that still renders every coordinate label
+    /// intact for a `width` x `height` board.
+    ///
+    /// `ReportBoardView` builds its `Dimensions` with `showPass: false` and
+    /// `isDrawingCapturedStones: false`, so on a square frame the cell pitch is
+    /// exactly `pixelSize / (max(width, height) + 2)` — the board, one
+    /// coordinate band per side, and a half-square margin per side. The board's
+    /// labels are clipped to a cell-sized frame, so below
+    /// `WidgetCoordinateMetrics.requiredCell` they truncate: a 37x37 exported at
+    /// the Low quality's 320 px rendered its last column as "…" instead of "AM",
+    /// with "AA"…"AL" collapsed into one unreadable run.
+    public static func minimumPixelSize(width: Int, height: Int) -> CGFloat {
+        let span = CGFloat(max(width, height) + 2)
+        let pitch = WidgetCoordinateMetrics.requiredCell(width: width, height: height)
+        return (pitch * span).rounded(.up)
+    }
+
+    /// `pixelSize`, raised when coordinates are on to the smallest raster that
+    /// keeps every label intact. The user ticked "Show coordinates" in the
+    /// export sheet, so the GIF grows a little rather than silently dropping
+    /// them — the opposite of the widget, where nobody asked for them and
+    /// hiding is the right answer.
+    public func effectivePixelSize(width: Int, height: Int) -> CGFloat {
+        guard showCoordinates else { return pixelSize }
+        return max(pixelSize, Self.minimumPixelSize(width: width, height: height))
+    }
 }
 
 /// Renders a game's main line to an animated GIF — one frame per move, the
@@ -69,6 +97,9 @@ public enum GameGifRenderer {
 
         let width = max(helper.xSize, 1)
         let height = max(helper.ySize, 1)
+        // Wide boards need a bigger raster before their "A"+letter column
+        // labels stop truncating; every board that already fits is untouched.
+        let side = options.effectivePixelSize(width: width, height: height)
 
         let url = temporaryFileURL(for: gameName)
         let encoder = try AnimatedGifEncoder(url: url, frameCount: frames.count, loops: options.loops)
@@ -89,7 +120,7 @@ public enum GameGifRenderer {
                 showCoordinate: options.showCoordinates,
                 verticalFlip: options.verticalFlip
             )
-            .frame(width: options.pixelSize, height: options.pixelSize)
+            .frame(width: side, height: side)
 
             let renderer = ImageRenderer(content: content)
             renderer.scale = 1  // frame points == GIF pixels
