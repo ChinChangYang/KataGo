@@ -8,6 +8,7 @@
 import Testing
 import CoreGraphics
 import Foundation
+import KataGoGameStore
 @testable import KataGo_Anytime
 @testable import KataGoUICore
 
@@ -841,5 +842,65 @@ struct KataGoModelTests {
             let vertex = try #require(point.gtpVertex(width: 19, height: 19))
             #expect(BoardPoint(move: vertex, width: 19, height: 19) == point)
         }
+    }
+}
+
+/// The LIVE board shares `BoardLineView`'s cell-clipped coordinate labels with
+/// the Saved Game widget and the GIF exporter, so it inherits the same
+/// truncation floor: once the cell pitch drops under
+/// `WidgetCoordinateMetrics.requiredCell`, a wide board's "A"+letter column
+/// labels clip to "…".
+///
+/// The widget hides its labels and the GIF raises its raster, but the live
+/// board can do neither — its pitch is set by the LAYOUT. So what this pins is
+/// the CONTAINER the board must be handed. On iOS `Dimensions` divides a
+/// container by (with coordinates, the pass row, and the captured-stone strip
+/// all on):
+///
+///     squareLength = min(W / (n + 2), (H - 20) / (n + 3.5))
+///
+/// KNOWN, ACCEPTED LIMITATION: a 37x37 needs ~356 x 390 pt. iPhone portrait
+/// clears it (386 pt wide, measured off the live board's accessibility
+/// elements); iPhone LANDSCAPE cannot — the entire app is 402 pt tall there,
+/// before the nav bar, player row, and control row — so a 37x37 truncates its
+/// column labels in landscape. Left as-is on purpose: see `drawCoordinate` in
+/// `BoardLineView`. These tests guard the sizes people actually play.
+struct BoardCoordinateFitTests {
+    private func pitch(_ size: CGSize, n: Int) -> CGFloat {
+        Dimensions(size: size, width: CGFloat(n), height: CGFloat(n),
+                   showCoordinate: true, showPass: true,
+                   isDrawingCapturedStones: true).squareLength
+    }
+
+    /// The MEASURED iPhone 17 portrait board container. The live board's pitch
+    /// was 18.37 pt for a 19x19 — read off the accessibility elements ("A 1" to
+    /// "T 19") and confirmed independently against the rendered grid — and
+    /// WIDTH is the binding constraint there, so the container is
+    /// 21 x 18.37 = 386 pt wide. The height is only known to be large enough
+    /// that width binds (>= 434 pt), so this uses that lower bound: if the
+    /// worst container consistent with the measurement clears the floor, the
+    /// real one does too.
+    @Test func measuredIPhonePortraitContainer_fitsEvenTheWidestBoard() {
+        let container = CGSize(width: 386, height: 434)
+        for n in [9, 19, 37] {
+            #expect(pitch(container, n: n)
+                    >= WidgetCoordinateMetrics.requiredCell(width: n, height: n))
+        }
+    }
+
+    /// The threshold itself, so a future layout change that shrinks the board
+    /// pane has something to fail against. A 37x37 needs roughly 356 x 390 pt
+    /// of container; one point less in either axis stops clearing the floor.
+    @Test func widestBoardNeedsAKnownMinimumContainer() {
+        let need = WidgetCoordinateMetrics.requiredCell(width: 37, height: 37)
+        let minWidth = need * 39
+        let minHeight = need * 40.5 + 20
+        #expect(minWidth < 356 && minWidth > 355)     // ~355.5 pt
+        #expect(minHeight < 390 && minHeight > 389)   // ~389.2 pt
+
+        let exact = CGSize(width: minWidth, height: minHeight)
+        #expect(pitch(exact, n: 37) >= need)
+        #expect(pitch(CGSize(width: minWidth - 1, height: minHeight), n: 37) < need)
+        #expect(pitch(CGSize(width: minWidth, height: minHeight - 1), n: 37) < need)
     }
 }

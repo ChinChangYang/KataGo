@@ -36,6 +36,22 @@ public struct BoardLineView: View {
         }
     }
 
+    /// Coordinate labels are clipped to a square-sized frame and their font
+    /// floors at `WidgetCoordinateMetrics.fontFloor`, so below that pitch they
+    /// TRUNCATE — a wide board's "A"+letter columns collapse to "…". The two
+    /// engine-free renderers that share this idiom handle it: the Saved Game
+    /// widget hides its labels (`WidgetBoardView.coordinateLabelsFit`) and the
+    /// GIF exporter raises its raster (`GifExportOptions.effectivePixelSize`).
+    ///
+    /// The LIVE board can do neither — its pitch is set by the layout — so it
+    /// carries a known, accepted limitation: a 37x37 with coordinates needs a
+    /// container of roughly 356 x 390 pt, which iPhone PORTRAIT clears (386 pt
+    /// wide, measured) but iPhone LANDSCAPE cannot, the whole app being 402 pt
+    /// tall there. Deliberately not "fixed": shrinking past the floor makes
+    /// every board's labels tinier, and hiding labels the user switched on in
+    /// Settings is a worse surprise than a clipped one on the rarest board
+    /// size. `BoardCoordinateFitTests` pins the threshold so a layout change
+    /// that pushes the COMMON sizes over the line fails loudly.
     private func drawCoordinate(dimensions: Dimensions) -> some View {
         Group {
             ForEach(0..<Int(dimensions.width), id: \.self) { i in
