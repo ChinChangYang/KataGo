@@ -41,6 +41,13 @@ or clipped label is a failure**, and so is a `…`.
 
 1. **19×19, small** — no labels at all; board fills the card. *(This is the
    originally reported bug. Look for dots down the left and right edges.)*
+   — **CONFIRMED FIXED 2026-07-30** by the reporter, on the TestFlight build
+   from `2ef3010c` (Xcode Cloud archive green on all four platforms). Reported
+   as "small-family widgets look good now". Note the scope of that observation:
+   it covers the small family at whatever board sizes were in the library, so
+   it settles row 1 and **not** rows 4–5, which assert the opposite behaviour
+   (small-family 9×9 and 13×13 must KEEP their labels). Those still need a
+   direct look, and they are the rows that would catch over-hiding.
 2. **19×19, medium** — no labels. *(Was also broken; never reported.)*
 3. **19×19, large** — all labels present: `A`–`T` and `1`–`19`, none clipped.
 4. **9×9, small** — labels **present** and intact. *(Guards over-hiding: this
