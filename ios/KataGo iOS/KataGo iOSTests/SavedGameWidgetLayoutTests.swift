@@ -51,6 +51,21 @@ struct SavedGameWidgetLayoutTests {
         }
     }
 
+    @Test func coordinates_areWantedNearbyAndDroppedAtDistance() {
+        // Nearby: every family ASKS for coordinates; WidgetBoardView's cell-pitch
+        // gate is what actually withholds them on a board too small to draw them
+        // without truncating, so the plan must not second-guess it per family.
+        for family in allFamilies {
+            let nearby = SavedGameWidgetLayout.plan(
+                family: family, isSimplified: false, hasComment: false, moveCount: 0)
+            #expect(nearby.showsCoordinates)
+            // Across the room a 5-10 pt label is noise on a board-plus-name view.
+            let distant = SavedGameWidgetLayout.plan(
+                family: family, isSimplified: true, hasComment: false, moveCount: 0)
+            #expect(!distant.showsCoordinates)
+        }
+    }
+
     @Test func defaultPlans_neverMarkNameProminent() {
         // Prominent (large-type) naming is exclusively the simplified threshold's
         // treatment; nearby layouts keep their per-family fonts.

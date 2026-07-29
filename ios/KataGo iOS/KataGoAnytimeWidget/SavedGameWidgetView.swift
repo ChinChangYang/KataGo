@@ -67,7 +67,7 @@ struct SavedGameWidgetView: View {
     // `WidgetBoardView` redraws the SAME position (the snapshot already carries
     // `lastBlackStones`/`lastWhiteStones` + board size) as sharp vectors at any
     // family size, and keeps a heavy Data blob out of the memory-constrained appex.
-    private var board: some View {
+    private func board(showsCoordinates: Bool) -> some View {
         let plan = backgroundPlan
         // Only the procedural-wood style (visionOS goban) needs the generated
         // CGImage; the appGoban board draws the bundled asset, so the
@@ -76,7 +76,11 @@ struct SavedGameWidgetView: View {
                         height: entry.snapshot.boardHeight,
                         blackVertices: entry.snapshot.lastBlackStones,
                         whiteVertices: entry.snapshot.lastWhiteStones,
-                        showCoordinates: true,
+                        // Layout says whether coordinates are WANTED here (the
+                        // visionOS distance view doesn't); WidgetBoardView still
+                        // gates on cell pitch, so a board too small to draw them
+                        // without truncating drops them regardless.
+                        showCoordinates: showsCoordinates,
                         style: plan.boardStyle,
                         woodImage: plan.boardStyle.usesWoodImage
                             ? WidgetWoodTexture.sharedSquareImage() : nil)
@@ -147,7 +151,7 @@ struct SavedGameWidgetView: View {
                 // continuity element across the LOD transition) plus the game
                 // name in large type — glanceable from across the room.
                 VStack(spacing: 6) {
-                    board
+                    board(showsCoordinates: plan.showsCoordinates)
                     Text(snap.name)
                         .font(.title2).bold()
                         .minimumScaleFactor(0.5)
@@ -158,7 +162,7 @@ struct SavedGameWidgetView: View {
                 switch layoutFamily {
                 case .small:
                     VStack(spacing: 4) {
-                        board
+                        board(showsCoordinates: plan.showsCoordinates)
                         Text(snap.name).font(.caption).bold().lineLimit(1)
                             .widgetAccentable()
                     }
@@ -166,7 +170,8 @@ struct SavedGameWidgetView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(snap.name).font(.headline).lineLimit(1)
                             .widgetAccentable()
-                        board.frame(maxHeight: .infinity)
+                        board(showsCoordinates: plan.showsCoordinates)
+                            .frame(maxHeight: .infinity)
                         // The displayed move often has no comment; drop the Text entirely
                         // rather than let an empty line eat the VStack spacing.
                         if plan.showsComment {
@@ -178,7 +183,8 @@ struct SavedGameWidgetView: View {
                     // a big square board on the leading side (height-bounded, then sized to
                     // a square by the 1:1 aspect) and a roomy info column trailing.
                     HStack(spacing: 16) {
-                        board.frame(maxHeight: .infinity)
+                        board(showsCoordinates: plan.showsCoordinates)
+                            .frame(maxHeight: .infinity)
                         VStack(alignment: .leading, spacing: 8) {
                             Text(snap.name).font(.title2).bold().lineLimit(2)
                                 .widgetAccentable()
@@ -196,7 +202,7 @@ struct SavedGameWidgetView: View {
                     }
                 case .medium:
                     HStack(spacing: 10) {
-                        board
+                        board(showsCoordinates: plan.showsCoordinates)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(snap.name).font(.headline).lineLimit(1)
                                 .widgetAccentable()

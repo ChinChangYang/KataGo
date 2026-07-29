@@ -18,6 +18,12 @@ public enum SavedGameWidgetLayout {
         public let showsMoveCount: Bool
         /// Large-type name treatment, exclusive to the simplified threshold.
         public let nameIsProminent: Bool
+        /// Coordinate labels around the board. The distance threshold drops
+        /// them: from across the room a 5–10 pt label is noise on a view whose
+        /// whole point is the stones and the name. `WidgetBoardView` applies
+        /// its own cell-pitch gate on top of this, so a nearby board that is
+        /// simply too small still hides them.
+        public let showsCoordinates: Bool
     }
 
     /// `isSimplified` is injected (true when `\.levelOfDetail == .simplified`
@@ -26,21 +32,25 @@ public enum SavedGameWidgetLayout {
                             hasComment: Bool, moveCount: Int) -> Plan {
         if isSimplified {
             return Plan(isSimplified: true, showsComment: false,
-                        showsMoveCount: false, nameIsProminent: true)
+                        showsMoveCount: false, nameIsProminent: true,
+                        showsCoordinates: false)
         }
         switch family {
         case .small:
             // Board + caption name only.
             return Plan(isSimplified: false, showsComment: false,
-                        showsMoveCount: false, nameIsProminent: false)
+                        showsMoveCount: false, nameIsProminent: false,
+                        showsCoordinates: true)
         case .medium, .large:
             // Comment shown iff the displayed move has one; no move count.
             return Plan(isSimplified: false, showsComment: hasComment,
-                        showsMoveCount: false, nameIsProminent: false)
+                        showsMoveCount: false, nameIsProminent: false,
+                        showsCoordinates: true)
         case .extraLarge:
             // Comment iff non-empty, "Move N" iff any move is displayed.
             return Plan(isSimplified: false, showsComment: hasComment,
-                        showsMoveCount: moveCount > 0, nameIsProminent: false)
+                        showsMoveCount: moveCount > 0, nameIsProminent: false,
+                        showsCoordinates: true)
         }
     }
 }

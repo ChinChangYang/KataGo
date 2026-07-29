@@ -197,18 +197,115 @@ struct WidgetBoardViewTests {
         #expect(ImageRenderer(content: fullBleed.frame(width: side, height: side)).uiImage != nil)
     }
 
-    /// Labels smear once the cell pitch drops under the 5 pt font floor's
-    /// glyph height, so the view falls back to the unlabeled layout: a 19x19
-    /// keeps its coordinates even in the small families, while a 37x37 only
-    /// gets them at large-family sizes.
+    /// The appGoban label is clipped to a cell-sized frame, so it TRUNCATES —
+    /// not merely smears — once the cell pitch falls under the widest label's
+    /// width at the 5 pt font floor. The old gate let everything down to 4 pt
+    /// through, which is why a 19x19 in the small widget families drew a bare
+    /// "…" — not even a leading digit — for every row number 10-19.
     @Test func coordinateLabelsFit_gatesOnCellPitch() {
+        // Small-family board square: a 19x19 lands at cell ≈ 5.1 pt and needs
+        // 7.34 pt for "NN", so it now drops its labels; a 9x9 (cell ≈ 10.8 pt,
+        // single-digit rows, needing only the 5.97 pt line height) keeps them.
         let small = CGSize(width: 110, height: 110)
-        #expect(WidgetBoardView.coordinateLabelsFit(size: small, width: 19, height: 19))
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 19, height: 19))
+        #expect(WidgetBoardView.coordinateLabelsFit(size: small, width: 9, height: 9))
         #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 37, height: 37))
+
+        // A 19x19 needs a board square of ~158 pt; large/extraLarge clear that
+        // easily. A 37x37 needs ~383 pt because "AM" is the widest label there,
+        // so 320 pt is NOT enough for it (the old gate wrongly allowed it).
         let large = CGSize(width: 320, height: 320)
-        #expect(WidgetBoardView.coordinateLabelsFit(size: large, width: 37, height: 37))
+        #expect(WidgetBoardView.coordinateLabelsFit(size: large, width: 19, height: 19))
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: large, width: 37, height: 37))
+        #expect(WidgetBoardView.coordinateLabelsFit(size: CGSize(width: 400, height: 400),
+                                                    width: 37, height: 37))
+
         // Rectangular boards gate on their LONG side (the colliding one).
         #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 37, height: 2))
+    }
+
+    /// The real per-family geometry, MEASURED off widgets actually placed on an
+    /// iPhone 17 Home Screen (board card ≈ 109 pt small, ≈ 117 pt medium,
+    /// ≈ 263 pt large). Pins the device reality behind the reported bug so a
+    /// future layout change — a different margin fraction, a taller caption, a
+    /// new stack spacing — that pushes a 19x19 back over the line fails here
+    /// instead of shipping truncated labels again.
+    @Test func measuredFamilyGeometry_matchesTheShippedBehavior() {
+        let small = CGSize(width: 109, height: 109)
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: small, width: 19, height: 19))
+        #expect(WidgetBoardView.coordinateLabelsFit(size: small, width: 9, height: 9))
+        #expect(WidgetBoardView.coordinateLabelsFit(size: small, width: 13, height: 13))
+
+        // Medium's board is height-bounded and barely larger, so a 19x19 was
+        // truncating there too even though only the small family was reported.
+        let medium = CGSize(width: 117, height: 117)
+        #expect(!WidgetBoardView.coordinateLabelsFit(size: medium, width: 19, height: 19))
+
+        // Large is where a 19x19 earns its coordinates back.
+        let large = CGSize(width: 263, height: 263)
+        #expect(WidgetBoardView.coordinateLabelsFit(size: large, width: 19, height: 19))
+    }
+
+    /// The requirement collapses to three cases: single-digit boards are bound
+    /// by the label's LINE HEIGHT (a width-only rule would stack 5.89 pt labels
+    /// 3.7 pt apart), taller boards by their two-digit row numbers, and boards
+    /// past 25 columns by their "A"+letter column labels.
+    @Test func requiredCell_bindsOnTheWidestLabelTheBoardDraws() {
+        let floor = WidgetCoordinateMetrics.fontFloor
+        let lineHeight = floor * WidgetCoordinateMetrics.lineHeightEm
+        let twoDigits = floor * 2 * WidgetCoordinateMetrics.maxDigitAdvanceEm
+        let twoLetters = floor * (WidgetCoordinateMetrics.capitalAAdvanceEm
+                                  + WidgetCoordinateMetrics.maxLetterAdvanceEm)
+
+        #expect(WidgetCoordinateMetrics.requiredCell(width: 9, height: 9) == lineHeight)
+        #expect(WidgetCoordinateMetrics.requiredCell(width: 19, height: 19) == twoDigits)
+        #expect(WidgetCoordinateMetrics.requiredCell(width: 37, height: 37) == twoLetters)
+        // Wide but short: the columns still need the two-letter width.
+        #expect(WidgetCoordinateMetrics.requiredCell(width: 37, height: 9) == twoLetters)
+        // Tall but narrow: rows drive it.
+        #expect(WidgetCoordinateMetrics.requiredCell(width: 9, height: 19) == twoDigits)
+        // Strictly increasing across the three classes.
+        #expect(lineHeight < twoDigits)
+        #expect(twoDigits < twoLetters)
+    }
+
+    /// The drift guard for the hardcoded em constants. They are worst-case SF
+    /// Bold advances measured at the font floor; if a future SF revision grows
+    /// a glyph past them the gate would start passing boards whose labels
+    /// truncate again, so re-measure against the REAL system font here.
+    @Test func coordinateMetrics_boundRealSystemFontAdvances() {
+        let floor = WidgetCoordinateMetrics.fontFloor
+        let font = UIFont.boldSystemFont(ofSize: floor)
+        func advance(_ s: String) -> CGFloat {
+            (s as NSString).size(withAttributes: [.font: font]).width
+        }
+        let widestDigit = (0...9).map { advance(String($0)) }.max() ?? .infinity
+        let widestLetter = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+            .map { advance(String($0)) }.max() ?? .infinity
+
+        #expect(widestDigit <= floor * WidgetCoordinateMetrics.maxDigitAdvanceEm)
+        #expect(widestLetter <= floor * WidgetCoordinateMetrics.maxLetterAdvanceEm)
+        #expect(advance("A") <= floor * WidgetCoordinateMetrics.capitalAAdvanceEm)
+        #expect(font.lineHeight <= floor * WidgetCoordinateMetrics.lineHeightEm)
+    }
+
+    /// The end-to-end promise: at exactly the required cell pitch, EVERY label
+    /// the board actually draws fits inside its own cell-sized frame at the
+    /// font floor — i.e. nothing truncates. Builds the real label set from
+    /// `columnLabel` and the row numbers rather than trusting the em algebra.
+    @Test(arguments: [(9, 9), (13, 13), (19, 19), (37, 37), (19, 13), (26, 26)])
+    func requiredCell_fitsEveryLabelTheBoardDraws(board: (width: Int, height: Int)) {
+        let floor = WidgetCoordinateMetrics.fontFloor
+        let font = UIFont.boldSystemFont(ofSize: floor)
+        let labels = (0..<board.width).map { WidgetBoardView.columnLabel($0) }
+            + (1...board.height).map { String($0) }
+        let widest = labels
+            .map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+            .max() ?? .infinity
+        let required = WidgetCoordinateMetrics.requiredCell(width: board.width,
+                                                            height: board.height)
+        #expect(widest <= required)
+        #expect(font.lineHeight <= required)
     }
 
     /// Reserving the coordinate margin shrinks the GRID, never the card: the

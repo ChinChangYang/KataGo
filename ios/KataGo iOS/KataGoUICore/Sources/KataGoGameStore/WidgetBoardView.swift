@@ -56,6 +56,64 @@ private func gtpColumnIndex(_ label: String) -> Int? {
     }
 }
 
+/// Worst-case glyph metrics for the coordinate labels, in ems of the label
+/// font floor. Both label idioms bottom out at the SAME size — the appGoban
+/// label is `.font(.system(size: 500)).minimumScaleFactor(0.01)` and the
+/// goban/standard label is `max(cell * 0.42, floor)` — so one set of numbers
+/// bounds every style. The advances are the widest glyph in each class of SF
+/// **Bold** (appGoban bolds, and bold is the wider weight, so these bound the
+/// unbolded styles too), measured at the floor:
+///
+///     digits  "8"  3.669 pt      letters  "W"  5.247 pt
+///     "A"          3.862 pt      line height   5.967 pt
+///
+/// The line height is `UIFont.lineHeight`, which is NOT the CoreText
+/// ascent + descent + leading (5.890 pt) — UIKit rounds it up, and the taller
+/// of the two is the one that governs layout.
+///
+/// `WidgetBoardViewTests` re-measures them against the real system font and
+/// fails if SF ever outgrows them, so a font-metrics change surfaces as a red
+/// test rather than as silently truncated labels.
+public enum WidgetCoordinateMetrics: Sendable {
+    /// The nominal size the appGoban label shrinks FROM. Paired with
+    /// `minimumScaleFactor` below so the 5 pt floor is spelled out in the code
+    /// instead of hidden in a `0.01` literal.
+    public static let appLabelNominalFontSize: CGFloat = 500
+
+    /// The size both label idioms floor at. Below it the appGoban label can
+    /// only truncate (it is clipped to a cell-sized frame) and the unclipped
+    /// styles can only overlap their neighbours.
+    public static let fontFloor: CGFloat = 5
+
+    /// `minimumScaleFactor` that lands the nominal size exactly on the floor.
+    public static var appLabelMinimumScaleFactor: CGFloat {
+        fontFloor / appLabelNominalFontSize
+    }
+
+    public static let maxDigitAdvanceEm: CGFloat = 0.734   // "8"
+    public static let capitalAAdvanceEm: CGFloat = 0.773   // "A"
+    public static let maxLetterAdvanceEm: CGFloat = 1.050  // "W"
+    public static let lineHeightEm: CGFloat = 1.194  // UIFont.lineHeight
+
+    /// The smallest cell pitch at which every label a `width` x `height` board
+    /// draws still fits its own cell-sized box at the font floor. Rows are the
+    /// numbers 1...height, so they take two digits once the board is 10 or
+    /// taller; columns are single letters up to 25 wide and "A"+letter beyond
+    /// that (`WidgetBoardView.columnLabel`).
+    ///
+    /// The line height is folded in because a label is nearly as tall as it is
+    /// wide: on a 9x9 the widest label is a single digit (3.67 pt), and a
+    /// width-only rule would happily stack 5.97 pt-tall labels 3.7 pt apart.
+    public static func requiredCell(width: Int, height: Int) -> CGFloat {
+        let rowDigits: CGFloat = height >= 10 ? 2 : 1
+        let rowWidth = fontFloor * rowDigits * maxDigitAdvanceEm
+        let columnWidth = width > 25
+            ? fontFloor * (capitalAAdvanceEm + maxLetterAdvanceEm)
+            : fontFloor * maxLetterAdvanceEm
+        return max(rowWidth, columnWidth, fontFloor * lineHeightEm)
+    }
+}
+
 /// Minimal, dependency-free Go board: wooden background, grid lines, filled
 /// stones. No Metal, no engine, no GobanState — safe for a widget extension.
 public struct WidgetBoardView: View {
@@ -91,8 +149,10 @@ public struct WidgetBoardView: View {
 
     /// GTP column label for a 0-based column index, skipping 'I' and using the
     /// "A"+letter form for columns 25…49 — the inverse of `gtpColumnIndex`, kept
-    /// in sync with it so coordinate labels match `parseVertex`.
-    nonisolated static func columnLabel(_ x: Int) -> String {
+    /// in sync with it so coordinate labels match `parseVertex`. Public so the
+    /// tests can build the exact label set a board draws and measure it against
+    /// `WidgetCoordinateMetrics.requiredCell`.
+    nonisolated public static func columnLabel(_ x: Int) -> String {
         if x < gtpColumnLetters.count {
             return String(gtpColumnLetters[x])
         }
@@ -116,17 +176,25 @@ public struct WidgetBoardView: View {
         return (dots, last)
     }
 
-    /// Whether coordinate labels stay legible for a `width` x `height` board
-    /// rendered into `size`: the label font floors at 5 pt (glyphs ~3.6 pt
-    /// tall), so once the cell pitch drops below ~4 pt adjacent labels merge
-    /// into a smear — a 25x25+ board in the small widget families. Below the
-    /// floor the board renders as if coordinates were off, margin included,
-    /// so the stones get the space back. Mirrors `body`'s margin/cell math.
+    /// Whether coordinate labels render INTACT for a `width` x `height` board
+    /// drawn into `size`. The appGoban label is clipped to a cell-sized frame,
+    /// so once the cell pitch falls under the widest label's width at the font
+    /// floor the text truncates — and at these sizes it does not even keep a
+    /// leading digit: a 19x19 in the small widget families drew a bare "…" in
+    /// place of every row number 10-19, i.e. two columns of dots down the sides
+    /// of the board. The unclipped styles smear into their neighbours over the
+    /// same range. Below the threshold the board
+    /// renders as if coordinates were off, margin included, so the stones get
+    /// the space back. Mirrors `body`'s margin/cell math.
+    ///
+    /// Deliberately style-blind: it applies the strictest style's metrics
+    /// (bold, clipped) everywhere, which costs ~8% against the unbolded styles
+    /// and keeps iOS, macOS, and visionOS hiding coordinates in the same cases.
     nonisolated public static func coordinateLabelsFit(size: CGSize, width: Int, height: Int) -> Bool {
         let margin = min(size.width, size.height) * 0.06
         let cell = min((size.width - 2 * margin) / CGFloat(width),
                        (size.height - 2 * margin) / CGFloat(height))
-        return cell >= 4
+        return cell >= WidgetCoordinateMetrics.requiredCell(width: width, height: height)
     }
 
     /// 0-based grid coordinates of the star points (hoshi), from the shared
@@ -143,14 +211,16 @@ public struct WidgetBoardView: View {
     /// One coordinate label. appGoban uses the in-app board's exact idiom
     /// (`BoardLineView.drawCoordinate`): bold black size-500 text shrunk to
     /// fit a cell-sized frame, so widget and app coordinates render alike.
-    /// The other styles keep the historical fixed sizing (5 pt floor) and
-    /// per-style colors, with accented additionally bolding for legibility.
+    /// The other styles keep the historical fixed sizing and per-style colors,
+    /// with accented additionally bolding for legibility. Both floor at
+    /// `WidgetCoordinateMetrics.fontFloor` — the size `coordinateLabelsFit`
+    /// sizes its glyphs at, so the renderer and the gate cannot drift apart.
     @ViewBuilder private func coordinateLabel(_ text: String, cell: CGFloat) -> some View {
         if style.usesAppCoordinateLabels {
             Text(text)
                 .foregroundStyle(.black)
-                .font(.system(size: 500))
-                .minimumScaleFactor(0.01)
+                .font(.system(size: WidgetCoordinateMetrics.appLabelNominalFontSize))
+                .minimumScaleFactor(WidgetCoordinateMetrics.appLabelMinimumScaleFactor)
                 .bold()
                 .frame(width: cell, height: cell)
         } else {
@@ -162,7 +232,7 @@ public struct WidgetBoardView: View {
                     ? Color.white.opacity(0.75)
                     : Color.black.opacity(0.75)
             Text(text)
-                .font(.system(size: max(cell * 0.42, 5)))
+                .font(.system(size: max(cell * 0.42, WidgetCoordinateMetrics.fontFloor)))
                 .bold(style.coordinateLabelsAreBold)
                 .foregroundStyle(labelColor)
         }
