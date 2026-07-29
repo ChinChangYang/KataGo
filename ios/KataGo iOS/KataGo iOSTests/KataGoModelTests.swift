@@ -903,4 +903,92 @@ struct BoardCoordinateFitTests {
         #expect(pitch(CGSize(width: minWidth - 1, height: minHeight), n: 37) < need)
         #expect(pitch(CGSize(width: minWidth, height: minHeight - 1), n: 37) < need)
     }
+
+    /// tvOS is the one platform whose board container is fixed in source rather
+    /// than negotiated with a window, so this test IS the check — no Apple TV
+    /// required. `TVReviewScreen` and `TVSelfPlayScreen` both pin `BoardView`
+    /// to `.frame(width: 1080, height: 1080)`; `TVBroadcastSlideView` pins
+    /// `ReportBoardView` to 900 x 900. Nothing about the device can move those
+    /// numbers, and `Dimensions` compiles its non-macOS branch here, which is
+    /// the branch tvOS takes.
+    @Test func tvOSFixedBoardContainers_fitEveryBoardSize() {
+        // Review + self-play: the full BoardView (pass row, captured strip).
+        let hero = CGSize(width: 1080, height: 1080)
+        for n in [9, 13, 19, 37] {
+            #expect(pitch(hero, n: n)
+                    >= WidgetCoordinateMetrics.requiredCell(width: n, height: n))
+        }
+        // The tightest case still clears the floor by ~2.9x, so tvOS has no
+        // coordinate-legibility exposure at all.
+        #expect(pitch(hero, n: 37) > 26)
+
+        // Broadcast slides use ReportBoardView: no pass row, no captured strip.
+        let slide = CGSize(width: 900, height: 900)
+        for n in [9, 13, 19, 37] {
+            let dims = Dimensions(size: slide, width: CGFloat(n), height: CGFloat(n),
+                                  showCoordinate: true, showPass: false,
+                                  isDrawingCapturedStones: false)
+            #expect(dims.squareLength
+                    >= WidgetCoordinateMetrics.requiredCell(width: n, height: n))
+        }
+    }
+
+    /// The field check, so future QA never has to build a 37x37 to answer
+    /// "do coordinates fit here?".
+    ///
+    /// Measuring a 37x37 in situ means raising Max Board Size and restarting the
+    /// engine; measuring the DEFAULT 19x19 costs nothing. Knowing only that a
+    /// 19x19 renders at pitch `s` pins the container from below — `W >= 21s` and
+    /// `H - 20 >= 22.5s` — so
+    ///
+    ///     pitch(37) >= min(21s/39, 22.5s/40.5) = (7/13) * s
+    ///
+    /// and a 19x19 at **16.93 pt or better guarantees a 37x37 keeps its
+    /// labels** in the same container. One-directional on purpose: below that a
+    /// 37x37 may still fit, and the exact container has to be worked out.
+    @Test func aNineteenPitchOfSeventeenPointsGuaranteesTheWidestBoardFits() {
+        let need = WidgetCoordinateMetrics.requiredCell(width: 37, height: 37)
+        let safe19Pitch = need * 13 / 7
+        #expect(safe19Pitch < 16.93 && safe19Pitch > 16.92)
+
+        // The bound holds for every container shape, not just the square ones:
+        // sweep wide, tall, and square and check the ratio never dips below
+        // 7/13. The epsilon is there because the bound is EXACTLY tight whenever
+        // width binds both boards (W/39 and (W/21) * 7/13 are the same number),
+        // so the two sides differ only by floating-point rounding.
+        let epsilon: CGFloat = 1e-9
+        for w in stride(from: CGFloat(360), through: 1200, by: 40) {
+            for h in stride(from: CGFloat(400), through: 1200, by: 40) {
+                let size = CGSize(width: w, height: h)
+                let s19 = pitch(size, n: 19)
+                #expect(pitch(size, n: 37) >= s19 * 7 / 13 - epsilon)
+                if s19 >= safe19Pitch {
+                    #expect(pitch(size, n: 37) >= need)
+                }
+            }
+        }
+    }
+
+    /// macOS reserves its pass area to the RIGHT of the board instead of below
+    /// it (`Dimensions`' `#if os(macOS)` branch), which transposes the demand:
+    ///
+    ///     squareLength = min(W / (n + 5), (H - 20) / (n + 2))
+    ///
+    /// so a 37x37 needs **383 pt of width** but only **376 pt of height** — the
+    /// mirror image of every other platform. This test runs on iOS, so it
+    /// models that branch rather than executing it; the numbers are what the
+    /// macOS measurement below is checked against.
+    @Test func macOSTransposesTheDemandOntoWidth() {
+        let need = WidgetCoordinateMetrics.requiredCell(width: 37, height: 37)
+        let macMinWidth = need * 42          // n + 5 = 42
+        let macMinHeight = need * 39 + 20    // n + 2 = 39, plus the captured strip
+        #expect(macMinWidth < 383 && macMinWidth > 382)    // ~382.8 pt
+        #expect(macMinHeight < 376 && macMinHeight > 375)  // ~375.5 pt
+
+        // `MainSplitViewController` floors the board pane at 480 pt
+        // (`boardItem.minimumThickness`), which is the only reason the width
+        // side is safe. If that floor is ever lowered past ~383, macOS starts
+        // truncating 37x37 column labels at every window size.
+        #expect(480 > macMinWidth)
+    }
 }

@@ -44,14 +44,28 @@ public struct BoardLineView: View {
     /// GIF exporter raises its raster (`GifExportOptions.effectivePixelSize`).
     ///
     /// The LIVE board can do neither — its pitch is set by the layout — so it
-    /// carries a known, accepted limitation: a 37x37 with coordinates needs a
-    /// container of roughly 356 x 390 pt, which iPhone PORTRAIT clears (386 pt
-    /// wide, measured) but iPhone LANDSCAPE cannot, the whole app being 402 pt
-    /// tall there. Deliberately not "fixed": shrinking past the floor makes
-    /// every board's labels tinier, and hiding labels the user switched on in
-    /// Settings is a worse surprise than a clipped one on the rarest board
-    /// size. `BoardCoordinateFitTests` pins the threshold so a layout change
-    /// that pushes the COMMON sizes over the line fails loudly.
+    /// carries a known, accepted limitation on the widest boards in SHORT
+    /// windows. A 37x37 with coordinates needs a container of roughly
+    /// 356 x 390 pt (on macOS, which puts the pass tile to the right instead of
+    /// below, transpose it: 383 x 376). Measured containers:
+    ///
+    /// | surface | container | widest intact board |
+    /// |---|---|---|
+    /// | iPhone portrait | 386 x >=434 pt | 37x37 |
+    /// | iPhone landscape | 402 pt tall in total | truncates (never observed; derived) |
+    /// | iPad mini portrait | 436 x >=488 pt | 37x37 |
+    /// | iPad mini landscape | ~806 x 354 pt | ~32x32 |
+    /// | macOS | width floored at 480 pt | width can never truncate |
+    /// | tvOS | fixed 1080 x 1080 pt | 37x37, 2.9x margin |
+    ///
+    /// Deliberately not "fixed": shrinking past the floor makes every board's
+    /// labels tinier, and hiding labels the user switched on in Settings is a
+    /// worse surprise than a clipped one on the rarest board size. Every board
+    /// the stock engine can open (up to 19x19) is intact everywhere.
+    /// `BoardCoordinateFitTests` pins the thresholds and
+    /// `BoardAccessibilityUITests.testCoordinatePitchClearsTheWidestBoardsFloor`
+    /// re-measures the live container, so a layout change that pushes the
+    /// COMMON sizes over the line fails loudly.
     private func drawCoordinate(dimensions: Dimensions) -> some View {
         Group {
             ForEach(0..<Int(dimensions.width), id: \.self) { i in
