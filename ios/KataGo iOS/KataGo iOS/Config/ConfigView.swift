@@ -699,6 +699,12 @@ struct ConfigItems: View {
 }
 
 struct GlobalSettingsView: View {
+    /// The board in front of the user, passed through to `VoiceControlHelpView`
+    /// so its spoken examples name points that actually exist on it. Defaults
+    /// cover the no-game-selected case (this screen is reachable from the game
+    /// list with nothing open).
+    var boardWidth: Int = Config.defaultBoardWidth
+    var boardHeight: Int = Config.defaultBoardHeight
     @State private var soundEffect: Bool = false
     @State private var hapticFeedback: Bool = false
     @State private var showVisitsPerSecond: Bool = false
@@ -847,6 +853,21 @@ struct GlobalSettingsView: View {
                     .onChange(of: showVisitsPerSecond) {
                         gobanState.showVisitsPerSecond = showVisitsPerSecond
                     }
+            }
+
+            // Feedback 2026-07-30: with Voice Control on, "it is not clear
+            // what commands are available". Sits here rather than under About
+            // (described below as rarely-visited reference content) because the
+            // complaint is discoverability — a Voice Control user has to be
+            // able to find this, and "Tap Voice Control" has to reach it.
+            Section("Accessibility") {
+                NavigationLink {
+                    VoiceControlHelpView(boardWidth: boardWidth,
+                                         boardHeight: boardHeight)
+                } label: {
+                    Label("Voice Control", systemImage: "mic")
+                }
+                .accessibilityInputLabels(["Voice Control", "Voice Commands", "Voice Control Help"])
             }
 
             Section("Game List") {

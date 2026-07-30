@@ -5,8 +5,10 @@
 //  P5-T11: the native macOS Settings (⌘,) content — an `NSTabViewController`
 //  with `.toolbar` style (the standard macOS prefs look) over the app-wide
 //  display/behavior settings. It is the AppKit analogue of the iOS
-//  `GlobalSettingsView` (`KataGo iOS/ConfigView.swift` lines 648-796), split
-//  across four tabs: General · Board · Analysis · Sound & Feedback.
+//  `GlobalSettingsView` (`KataGo iOS/ConfigView.swift`), split across six tabs:
+//  General · Board · Analysis · Sound & Feedback · Voice Control · Licenses.
+//  The last two host shared SwiftUI screens from KataGoUICore rather than
+//  AppKit rows.
 //
 //  SINGLE WRITER. The shared `GobanState` is the only thing these controls
 //  read/write — never `UserDefaults` directly. `MacGlobalPreferenceSync`
@@ -40,6 +42,10 @@ import KataGoUICore
 @MainActor
 final class SettingsViewController: NSTabViewController {
     private let gobanState: GobanState
+    /// Live board size, read by the Voice Control pane so its spoken examples
+    /// name intersections that exist on the board currently open. `@Observable`,
+    /// so the pane follows a game switch made while Settings is up.
+    private let board: BoardSize
 
     // Each pane is retained so the live observer can reload its controls.
     private let generalPane: SettingsPaneViewController
@@ -54,6 +60,7 @@ final class SettingsViewController: NSTabViewController {
 
     init(session: GameSession) {
         self.gobanState = session.gobanState
+        self.board = session.board
 
         generalPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.generalRows)
         boardPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.boardRows)
@@ -74,7 +81,20 @@ final class SettingsViewController: NSTabViewController {
         addTab(boardPane, label: "Board", symbol: "squareshape.split.3x3")
         addTab(analysisPane, label: "Analysis", symbol: "chart.xyaxis.line")
         addTab(soundPane, label: "Sound & Feedback", symbol: "speaker.wave.2")
+        addTab(makeVoiceControlPane(), label: "Voice Control", symbol: "mic")
         addTab(makeLicensesPane(), label: "Licenses", symbol: "doc.text")
+    }
+
+    /// Feedback 2026-07-30: with Voice Control on, "it is not clear what
+    /// commands are available". Same hosting recipe as the Licenses tab below —
+    /// the shared SwiftUI screen, which picks up the Mac phrasing ("Click",
+    /// "Show commands") from `VoiceControlPhrasebook.current`.
+    private func makeVoiceControlPane() -> NSViewController {
+        let hosting = NSHostingController(rootView: NavigationStack {
+            MacVoiceControlPane(board: board)
+        })
+        hosting.preferredContentSize = NSSize(width: 640, height: 560)
+        return hosting
     }
 
     /// The TestFlight EULA points users at "Settings > Open-Source
@@ -351,5 +371,18 @@ final class SettingsPaneViewController: NSViewController {
         for binding in checkboxBindings {
             binding.row.reload(isOn: binding.get(gobanState))
         }
+    }
+}
+
+/// Thin SwiftUI wrapper that keeps the shared Voice Control help screen in step
+/// with the live board: `BoardSize` is `@Observable`, so switching games while
+/// the Settings window is open re-derives the spoken examples (a 37x37 names its
+/// two-letter columns, a 9x9 names its own corners).
+private struct MacVoiceControlPane: View {
+    let board: BoardSize
+
+    var body: some View {
+        VoiceControlHelpView(boardWidth: Int(board.width),
+                             boardHeight: Int(board.height))
     }
 }

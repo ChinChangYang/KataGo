@@ -172,7 +172,15 @@ struct PlusMenuView: View {
         }
         .sheet(isPresented: $showingGlobalSettings) {
             NavigationStack {
-                GlobalSettingsView()
+                // Board size rides along for the Voice Control help screen's
+                // spoken examples; nil record (nothing selected) falls back to
+                // GlobalSettingsView's 19x19 defaults.
+                if let config = gameRecord?.concreteConfig {
+                    GlobalSettingsView(boardWidth: config.boardWidth,
+                                       boardHeight: config.boardHeight)
+                } else {
+                    GlobalSettingsView()
+                }
             }
         }
         .sheet(isPresented: $showingReport, onDismiss: {

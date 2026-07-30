@@ -62,5 +62,44 @@ final class GlobalSettingsMenuUITests: XCTestCase {
         // The Global Settings sheet opens directly.
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings sheet not shown")
+
+        // Accessibility ▸ Voice Control must be reachable from here: the whole
+        // point of the screen is that a user who does not know what to say can
+        // find out, so a broken link is the one failure mode that matters.
+        // The section sits below Sound & Haptics, and List rows are lazy, so
+        // scroll until it materializes.
+        let voiceControl = app.buttons["Voice Control"].firstMatch
+        for _ in 0..<6 where !voiceControl.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(voiceControl.waitForExistence(timeout: 10),
+                      "Accessibility ▸ Voice Control row not found in Global Settings")
+        voiceControl.tap()
+        XCTAssertTrue(app.navigationBars["Voice Control"].waitForExistence(timeout: 10),
+                      "Voice Control help screen did not open")
+
+        // The wording must be the running platform's, and the board example must
+        // name a real point — Mac phrasing here would tell an iPhone user to say
+        // something that does nothing. Rows are combined accessibility elements,
+        // so match any descendant whose label contains the phrase.
+        assertVisible(in: app, containing: "Show me what to say",
+                      "Help screen does not name the phrase that lists the available commands")
+        assertVisible(in: app, containing: "Tap K 10",
+                      "Help screen does not show the iOS phrasing for a real intersection")
+    }
+
+    /// Scrolls the current screen until some element's label contains `phrase`.
+    @MainActor private func assertVisible(in app: XCUIApplication,
+                                         containing phrase: String,
+                                         _ message: String,
+                                         file: StaticString = #filePath,
+                                         line: UInt = #line) {
+        let match = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", phrase))
+            .firstMatch
+        for _ in 0..<6 where !match.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(match.waitForExistence(timeout: 10), message, file: file, line: line)
     }
 }
