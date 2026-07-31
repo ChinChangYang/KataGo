@@ -215,6 +215,15 @@ final class MainWindowController: NSWindowController {
                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
                          backing: .buffered, defer: false)
         w.title = "KataGo Anytime"
+        // Floor the window at the tallest sheet it presents. `.resizable` +
+        // `setFrameAutosaveName` (below) persist the user's chosen size across
+        // launches, and without a minimum a shrunk-and-saved frame lets a sheet
+        // overhang the window's edge. 700 matches the photo-import sheet's
+        // `minHeight` in `LibraryActions.swift`; the deep-report and GIF-export
+        // sheets are only 640 tall, so the same floor covers them too. A user
+        // whose saved frame is smaller than this will see the window grow back
+        // to it on next launch — an accepted trade-off.
+        w.contentMinSize = NSSize(width: 560, height: 700)
         super.init(window: w)
 
         // Stop the GTP message loop when the window closes (the katago thread
