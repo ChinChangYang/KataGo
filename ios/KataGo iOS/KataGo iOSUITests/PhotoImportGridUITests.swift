@@ -63,13 +63,25 @@ final class PhotoImportGridUITests: XCTestCase {
                        "Retake/retry must not appear for a file-sourced import")
         // The size picker is part of the phase — the overlay needs a concrete
         // board size to draw, so there is no "Auto".
-        XCTAssertTrue(app.segmentedControls["PhotoImportSheet.boardSizePicker"].exists,
+        let sizePicker = app.segmentedControls["PhotoImportSheet.boardSizePicker"]
+        XCTAssertTrue(sizePicker.exists,
                       "Board size picker not found in the grid phase")
 
         // Bring the quad in to ~[0.22,0.78]² around the central board. The quad
         // starts inset at 0.1/0.9, so the drags begin there.
         let gridArea = app.descendants(matching: .any)["BoardQuadView.gridArea"].firstMatch
         XCTAssertTrue(gridArea.waitForExistence(timeout: 10), "Grid area not found")
+
+        // The photo must bleed past the chrome's margins: the picker sits in
+        // the padded lane, the photo reaches the sheet's edges, so the photo is
+        // ~48 pt (2 × 24) wider. Comparing the two elements rather than the
+        // window keeps this device- and orientation-independent.
+        //
+        // This holds only because the composed test image is 4:3 landscape, so
+        // WIDTH is what binds the aspect fit. A portrait fixture would be
+        // height-bound and this assertion would not apply.
+        XCTAssertGreaterThan(gridArea.frame.width, sizePicker.frame.width + 40,
+                             "The grid photo is not using the full sheet width — a maxWidth/maxHeight cap on BoardQuadView has come back")
         drag(gridArea, from: CGVector(dx: 0.10, dy: 0.10), to: CGVector(dx: 0.22, dy: 0.22))
         drag(gridArea, from: CGVector(dx: 0.90, dy: 0.90), to: CGVector(dx: 0.78, dy: 0.78))
         drag(gridArea, from: CGVector(dx: 0.90, dy: 0.10), to: CGVector(dx: 0.78, dy: 0.22))
