@@ -349,3 +349,62 @@ struct QuadGeometryTests {
         #expect(abs(rect.width - 0.5) < epsilon)
     }
 }
+
+// MARK: - Fitted frame
+
+/// `CropGeometry.fittedFrame` decides where the photo actually lands inside
+/// `BoardQuadView`. It was an identity function while the view's own
+/// `.aspectRatio` guaranteed a container of the image's ratio; once the view
+/// is allowed to fill a greedy frame it does real letterboxing, and every
+/// coordinate the grid editor speaks is measured from the rect it returns.
+@Suite("Fitted frame")
+struct FittedFrameTests {
+
+    @Test func fillsAContainerOfTheSameRatio() {
+        let frame = CropGeometry.fittedFrame(imageSize: CGSize(width: 1200, height: 1600),
+                                             in: CGSize(width: 300, height: 400))
+        expectClose(frame.origin, CGPoint(x: 0, y: 0))
+        #expect(abs(frame.width - 300) <= epsilon)
+        #expect(abs(frame.height - 400) <= epsilon)
+    }
+
+    @Test func letterboxesAWideContainerWithHorizontalBars() {
+        // A 3:4 photo in a 4:3 container: height binds, bars left and right.
+        let frame = CropGeometry.fittedFrame(imageSize: CGSize(width: 300, height: 400),
+                                             in: CGSize(width: 400, height: 300))
+        #expect(abs(frame.height - 300) <= epsilon)
+        #expect(abs(frame.width - 225) <= epsilon)
+        #expect(abs(frame.minX - 87.5) <= epsilon)
+        #expect(abs(frame.minY - 0) <= epsilon)
+    }
+
+    @Test func letterboxesATallContainerWithVerticalBars() {
+        // A 4:3 photo in a 3:4 container: width binds, bars top and bottom.
+        let frame = CropGeometry.fittedFrame(imageSize: CGSize(width: 400, height: 300),
+                                             in: CGSize(width: 300, height: 400))
+        #expect(abs(frame.width - 300) <= epsilon)
+        #expect(abs(frame.height - 225) <= epsilon)
+        #expect(abs(frame.minX - 0) <= epsilon)
+        #expect(abs(frame.minY - 87.5) <= epsilon)
+    }
+
+    /// The guard the grid editor's degenerate-frame protection keys on: a
+    /// zero-sized container must produce an empty rect, never a rect that
+    /// coordinates could be divided by.
+    @Test(arguments: [
+        CGSize(width: 0, height: 400),
+        CGSize(width: 300, height: 0),
+        CGSize(width: 0, height: 0),
+    ])
+    func degenerateContainerIsEmpty(container: CGSize) {
+        let frame = CropGeometry.fittedFrame(imageSize: CGSize(width: 1200, height: 1600),
+                                             in: container)
+        #expect(frame.isEmpty)
+    }
+
+    @Test func degenerateImageIsEmpty() {
+        let frame = CropGeometry.fittedFrame(imageSize: CGSize(width: 0, height: 0),
+                                             in: CGSize(width: 300, height: 400))
+        #expect(frame.isEmpty)
+    }
+}
