@@ -229,9 +229,11 @@ extension MainWindowController: LibraryActionsDelegate {
             },
             onCancel: { dismissSheet() }
         )
-        // 600, not 560: the tap-to-correct hint and Reset rows add ~40 pt and
-        // must not compress the 320 pt board.
-        .frame(minWidth: 420, minHeight: 600)
+        // Sized for the grid phase, where the photo is the content: at the old
+        // 420x600 it rendered about 233x310. 700 rather than more keeps the
+        // sheet inside the 1100x720 default main window. The preview phase
+        // caps its own width, so it is unaffected.
+        .frame(minWidth: 560, minHeight: 700)
         let hosting = NSHostingController(rootView: root)
         dismissSheet = { [weak hosting] in
             guard let hosting else { return }

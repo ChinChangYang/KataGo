@@ -211,6 +211,11 @@ struct GameSplitView: View {
                 retryButtonTitle: retryButtonTitle
             )
         }
+        // The grid phase's photo is sized by its container, and on iPad the
+        // default form sheet (~540x620) is that limit — the layout inside is
+        // already maximal. No effect in compact width, where the sheet is
+        // full height already.
+        .presentationSizing(.page)
     }
 
     private var splitView: some View {

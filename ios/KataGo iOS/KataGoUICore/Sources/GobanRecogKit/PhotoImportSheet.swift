@@ -88,9 +88,12 @@ public struct PhotoImportSheet: View {
     private static let contentMaxWidth: CGFloat = 480
     /// The sheet's lane. Wider than `contentMaxWidth` because the photo is the
     /// entire point of the grid phase. Applied for EVERY phase, not just that
-    /// one: on macOS an NSHostingController sheet resizes its window to the
-    /// SwiftUI root's fitting width, so a phase-dependent cap would make the
-    /// sheet window jump on "Adjust Grid".
+    /// one: an NSHostingController sheet sizes its window to the SwiftUI
+    /// root's ideal (fitting) width, which is phase-dependent regardless of
+    /// this cap — the constant alone would not stop the window jumping on
+    /// "Adjust Grid". What actually pins it is `LibraryActions.swift`'s
+    /// `minWidth` floor, set to this same 560: floor and cap coincide, so
+    /// every phase is pinned to 560 on macOS and there is no jump.
     private static let sheetMaxWidth: CGFloat = 560
 
     /// Whether the grid editor is showing. Drives the phase-aware chrome: this
