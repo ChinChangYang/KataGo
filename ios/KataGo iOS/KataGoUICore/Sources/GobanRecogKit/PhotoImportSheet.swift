@@ -258,9 +258,13 @@ public struct PhotoImportSheet: View {
                 }
             }
 
-            // Segmented style drops the Picker's label, so render the caption
-            // explicitly — without it the control is two bare Black/White
-            // buttons whose purpose the user can't guess.
+            // Segmented style drops the Picker's label on iOS, so render the
+            // caption explicitly — without it the control is two bare
+            // Black/White buttons whose purpose the user can't guess. macOS
+            // keeps the label instead of dropping it, so `.labelsHidden()`
+            // below is what stops it rendering a second, redundant caption
+            // there (VoiceOver still sees the label; only the visible text
+            // is hidden).
             VStack(spacing: 8) {
                 Text("Next to play")
                     .font(.subheadline)
@@ -270,6 +274,7 @@ public struct PhotoImportSheet: View {
                     Text("White").tag(PlayerColor.white)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             HStack {
