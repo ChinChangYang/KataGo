@@ -200,11 +200,12 @@ final class IOSAnalysisService: @unchecked Sendable {
 
     /// Two different instruments, on purpose.
     ///
-    /// The survey is bounded by DEPTH so its points stay comparable — the
-    /// chart's blunder badges compare neighbours, and neighbours searched to
-    /// different depths differ by more than many real mistakes. The cursor pass
-    /// is bounded by TIME so the wait is the same on every device: a slower
-    /// phone returns fewer visits rather than making the reader wait longer.
+    /// The survey is bounded by DEPTH because that break is the only thing
+    /// bounding a sweep position at all (so it holds the scan inside the memory
+    /// cap), and because points searched to different depths differ by more
+    /// than many real swings — a kink in the curve that no move caused. The
+    /// cursor pass is bounded by TIME so the wait is the same on every device:
+    /// a slower phone returns fewer visits rather than making the reader wait.
     /// Measured on an M3 Max the engine runs ~180 ms of overhead then
     /// ~108 visits/s, so three seconds is ~300 visits there, 120-200 on a phone.
     ///

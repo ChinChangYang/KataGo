@@ -308,8 +308,14 @@
     //   "fast" → a fixed 16 visits    (the survey — uniform depth, comparable)
     //   "deep" → a fixed ~3 s search  (the cursor — predictable wait, any device)
     //
-    // Fixed DEPTH for the sweep is what keeps the blunder badges honest. Fixed
-    // TIME for the position you are looking at is what keeps the wait from
+    // Fixed DEPTH for the sweep is load-bearing twice over. It is the only
+    // thing bounding a sweep position's search at all — `kata-set-param
+    // maxVisits` is inert for kata-analyze, so the appex's read loop breaks on
+    // visits, and that break is what holds the process inside its 80 MB jetsam
+    // cap across a whole-game scan. It also keeps the curve honest: adjacent
+    // points searched to wildly different depths differ by more than many real
+    // swings, which reads as a kink in the line that no move actually caused.
+    // Fixed TIME for the position you are looking at is what keeps the wait from
     // depending on how fast your phone is: a slower device returns fewer visits
     // in the same three seconds rather than making you wait longer. Measured on
     // an M3 Max the engine runs ~180 ms of fixed overhead then ~108 visits/s, so
@@ -333,24 +339,21 @@
             // TWO TIERS, kept apart deliberately.
             //
             // `survey` is the uniform 16-visit sweep: every point was searched
-            // to the same depth, which is the whole reason the blunder badges
-            // mean anything — they compare adjacent positions, so mixing depths
-            // would manufacture "mistakes" that are just search noise.
+            // to the same depth, and that visit bound is what keeps a full-game
+            // scan inside the appex's memory cap.
             //
             // `deep` is the ~3 s pass on whichever position the reader settled
             // on. Its depth varies with the device, the position and thermals,
             // so it is the better number to LOOK at and a useless one to
-            // COMPARE. It overrides the survey for display and never feeds the
-            // badge arithmetic.
+            // COMPARE. It overrides the survey for display.
             this.survey = new Map();      // moveIndex → 16-visit result
             this.deep = new Map();        // moveIndex → time-budgeted result
             // Positions inside a variation, keyed by the line itself rather than
             // a move number — two different branches share move numbers, and the
             // main line shares them with both. Kept OUT of survey/deep so a
-            // branch result can never reach the chart or the badge arithmetic:
-            // a branch winrate stamped at index N would be bridged into the
-            // main-line curve by contiguousRuns and render as a smooth, entirely
-            // wrong game.
+            // branch result can never reach the chart: a branch winrate stamped
+            // at index N would be bridged into the main-line curve by
+            // contiguousRuns and render as a smooth, entirely wrong game.
             this.branch = new Map();      // "<line>|<tier>" → result
             this.currentLine = null;      // last line payload from the page
             this.currentNodeDepth = 0;    // WGo node depth, for seeking back
@@ -646,8 +649,8 @@
         /// and the wrong one would be charted with nothing looking amiss.
         ///
         /// `lineKey` identifies a VARIATION and is null on the main line, whose
-        /// results stay in survey/deep under bare move numbers — the chart, the
-        /// badges and the persisted cache are all keyed that way.
+        /// results stay in survey/deep under bare move numbers — the chart and
+        /// the persisted cache are both keyed that way.
         lineOpts() {
             if (!this.currentLine) { return undefined; }
             const moves = lineToGtp(this.currentLine, this.boardSize);
@@ -1093,7 +1096,9 @@
         }
 
         /// Deepest result available per position: the deep pass overrides the
-        /// survey wherever one has been run. Display only — never badges.
+        /// survey wherever one has been run. The merge is DISPLAY ONLY and
+        /// never writes back, so `survey` stays the uniform-depth record that
+        /// scan progress counts.
         displayResults() {
             const merged = new Map(this.survey);
             for (const [index, result] of this.deep) { merged.set(index, result); }
@@ -1104,8 +1109,7 @@
             if (lineKey) {
                 // A branch result stops here. Stamped into the chart at its bare
                 // move number it would be bridged into the main-line curve by
-                // contiguousRuns and render as a smooth, entirely wrong game —
-                // and it would flip badge signs against unrelated neighbours.
+                // contiguousRuns and render as a smooth, entirely wrong game.
                 for (const move of moves || []) {
                     this.branch.set(`${lineKey}|${tier}`, move);
                 }
@@ -1114,32 +1118,8 @@
             }
             const store = tier === "deep" ? this.deep : this.survey;
             for (const move of moves || []) { store.set(move.moveIndex, move); }
-            this.chart.merge(Array.from(this.displayResults().values()), this.computeBadges());
+            this.chart.merge(Array.from(this.displayResults().values()));
             this.pushOverlays();
-        }
-
-        computeBadges() {
-            // Winrate drop from the MOVER's perspective, derived from adjacent
-            // analyzed positions. With lazy fill most neighbours are missing,
-            // so a badge only appears once both sides of a move are analyzed.
-            //
-            // Computed from the SURVEY tier ALONE, deliberately. A badge is a
-            // comparison between neighbours, and a 16-visit point sitting next
-            // to a 300-visit one can differ by more than many genuine mistakes —
-            // mixing the tiers would invent blunders that are only search noise.
-            // The curve still shows the deeper number; only this arithmetic is
-            // held to one depth.
-            const badges = [];
-            for (const [index, r] of this.survey) {
-                const before = this.survey.get(index - 1);
-                if (!before) { continue; }
-                const mover = before.toMove;   // side that played move `index`
-                const drop = mover === "w" ? (r.winrateB - before.winrateB)
-                                           : (before.winrateB - r.winrateB);
-                if (drop >= 0.12) { badges.push({ moveIndex: index, severity: "major" }); }
-                else if (drop >= 0.06) { badges.push({ moveIndex: index, severity: "minor" }); }
-            }
-            return badges;
         }
 
         pushOverlays() {

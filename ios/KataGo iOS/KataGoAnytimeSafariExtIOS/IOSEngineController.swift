@@ -79,9 +79,10 @@ final class IOSEngineController: @unchecked Sendable {
     /// has no time argument at all: it accepts only interval/maxmoves/ownership/
     /// rootInfo/minmoves/pvVisits, and the config's `maxTime` governs genmove.
     enum SearchBudget {
-        /// Fixed depth. Used for the whole-game survey, where every point must
-        /// be comparable to its neighbours or the chart's blunder badges become
-        /// search noise.
+        /// Fixed depth. Used for the whole-game survey: the visit break is the
+        /// only bound on a sweep position's search, so it is what keeps a scan
+        /// inside the memory cap, and uniform depth keeps neighbouring chart
+        /// points comparable rather than kinked by search noise.
         case visits(Int)
         /// Fixed wall-clock time. Used for the position the reader settled on,
         /// where a predictable WAIT matters more than a predictable depth — a

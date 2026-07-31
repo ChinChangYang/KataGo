@@ -17,7 +17,6 @@ class KGAChart {
         this.moveCount = 0;         // x-domain = 0..moveCount
         this.winrates = [];         // sparse: winrates[i] = Black winrate 0..1
         this.scores = [];           // sparse: scores[i] = Black score lead
-        this.badges = [];           // [{ moveIndex, severity: "major"|"minor" }]
         this.cursor = 0;
         this.cursorOnMainline = true;
         this.hoverIndex = null;
@@ -47,7 +46,6 @@ class KGAChart {
             ink: styles.getPropertyValue("--kga-ink-muted").trim() || "#6e6e73",
             winrate: styles.getPropertyValue("--kga-winrate").trim() || "#0a84ff",
             score: styles.getPropertyValue("--kga-score").trim() || "#bf5af2",
-            badge: styles.getPropertyValue("--kga-badge").trim() || "#ff453a",
             pendingHatch: styles.getPropertyValue("--kga-hatch").trim() || "rgba(110,110,115,0.12)",
             cursor: styles.getPropertyValue("--kga-cursor").trim() || "#1d1d1f",
         };
@@ -57,17 +55,15 @@ class KGAChart {
         this.moveCount = Math.max(0, moveCount);
         this.winrates = [];
         this.scores = [];
-        this.badges = [];
         this.cursor = 0;
         this.draw();
     }
 
-    merge(results, badges) {
+    merge(results) {
         for (const r of results) {
             this.winrates[r.moveIndex] = r.winrateB;
             this.scores[r.moveIndex] = r.scoreLeadB;
         }
-        if (badges) { this.badges = badges; }
         this.draw();
     }
 
@@ -127,7 +123,6 @@ class KGAChart {
         this.drawPending(ctx, l);
         this.drawWinrate(ctx, l);
         this.drawScore(ctx, l);
-        this.drawBadges(ctx, l);
         this.drawCursor(ctx, l);
     }
 
@@ -228,27 +223,6 @@ class KGAChart {
             ctx.strokeStyle = this.theme.score;
             ctx.lineWidth = 2;
             ctx.stroke();
-        }
-    }
-
-    drawBadges(ctx, l) {
-        for (const badge of this.badges) {
-            const wr = this.winrates[badge.moveIndex];
-            if (typeof wr !== "number") { continue; }
-            const x = this.xFor(badge.moveIndex, l);
-            const y = l.win.top + l.win.height * (1 - wr);
-            ctx.fillStyle = this.theme.badge;
-            ctx.beginPath();
-            ctx.arc(x, y, badge.severity === "major" ? 4 : 3, 0, 2 * Math.PI);
-            ctx.fill();
-            if (badge.severity === "major") {
-                // Symbol so severity is never color-alone.
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "600 6px -apple-system, sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("!", x, y + 0.5);
-            }
         }
     }
 

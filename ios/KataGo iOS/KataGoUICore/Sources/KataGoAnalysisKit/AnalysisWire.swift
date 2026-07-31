@@ -14,8 +14,9 @@
 //  grids stay White-positive exactly as the engine emits them (the JS overlay
 //  flips for display). `PlayedAssessment.winrateDrop` is the exception by
 //  design: it is the drop from the MOVER's perspective (positive = the played
-//  move lost winrate for the player who made it), which is what blunder
-//  badges need.
+//  move lost winrate for the player who made it). Nothing emits or reads it
+//  today — it outlived the chart's blunder badges, which were removed as
+//  visual noise and had computed their own drops JS-side anyway.
 //
 
 import Foundation

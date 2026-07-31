@@ -582,25 +582,8 @@
                 this.results.set(move.moveIndex, move);
             }
             const flat = Array.from(this.results.values());
-            this.chart.merge(flat, this.computeBadges());
+            this.chart.merge(flat);
             this.pushOverlays();
-        }
-
-        computeBadges() {
-            // Winrate drop from the MOVER's perspective, derived from adjacent
-            // analyzed positions; recomputed from the store every merge so
-            // out-of-order delivery stays consistent.
-            const badges = [];
-            for (const [index, r] of this.results) {
-                const before = this.results.get(index - 1);
-                if (!before) { continue; }
-                const mover = before.toMove;   // side that played move `index`
-                const drop = mover === "w" ? (r.winrateB - before.winrateB)
-                                           : (before.winrateB - r.winrateB);
-                if (drop >= 0.12) { badges.push({ moveIndex: index, severity: "major" }); }
-                else if (drop >= 0.06) { badges.push({ moveIndex: index, severity: "minor" }); }
-            }
-            return badges;
         }
 
         // Candidate text exactly as AnalysisView shows it (side-to-move
