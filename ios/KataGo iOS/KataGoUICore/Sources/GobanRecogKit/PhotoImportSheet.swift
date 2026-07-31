@@ -338,26 +338,22 @@ public struct PhotoImportSheet: View {
                 BoardQuadView(image: displayImage,
                               quad: $editingQuad,
                               boardSize: editingBoardSize)
-                    // The photo takes every point the chrome does not need,
+                    // The photo takes the space the chrome does not need,
                     // and bleeds past the sheet's margins — width is what
                     // binds the aspect fit on every device this ships to, so
-                    // those 48 points are the single biggest win available.
+                    // those 48 points are the biggest single win available.
                     //
-                    // The negative layout priority is what makes this safe:
-                    // the photo is proposed space only after the headline,
-                    // picker, and buttons take their ideal size, so IT yields
-                    // first. That doesn't guarantee the chrome itself fits —
-                    // at Accessibility XXXL on a small device the chrome's own
-                    // ideal height can exceed the sheet, and the photo is then
-                    // proposed zero height and disappears. That is a safe
-                    // degradation (no crash, no quad corruption, thanks to
-                    // guards added earlier); under the old layout the photo
-                    // was already the most flexible child and shrank first
-                    // too, so the negative priority mainly makes that
-                    // yielding order explicit and guaranteed rather than
-                    // incidental.
+                    // Do NOT add `.layoutPriority(-1)` here. It was tried and
+                    // measured actively harmful: it forces the photo to
+                    // yield first and completely, and at Accessibility XXXL
+                    // on an iPhone 17 that shrank the photo to 54.67x41 pt
+                    // (~14% of normal) and made the corner-drag editor
+                    // unusable, vs. 288x216 pt without it. At default text
+                    // size it made no difference (402x301 either way), and
+                    // the chrome was never clipped in any measured case — so
+                    // the priority bought nothing and nearly broke the
+                    // accessibility case.
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .layoutPriority(-1)
             }
 
             VStack(spacing: 6) {
