@@ -135,6 +135,51 @@ final class PhotoImportGridUITests: XCTestCase {
                       "Preview did not return after Back from the grid phase")
     }
 
+    /// Regression guard for the grid photo collapsing at large accessibility
+    /// text sizes. `BoardQuadView`'s `.frame(maxWidth: .infinity, maxHeight:
+    /// .infinity)` in `adjustingGrid` once carried a `.layoutPriority(-1)`
+    /// that looked harmless at default text size but, at Accessibility XXXL
+    /// on an iPhone 17, made the photo yield first and completely: measured
+    /// 54.67x41 pt (vs. 288x216 pt without it) — the corner-drag editor was
+    /// unusable. That regression passed 8 task reviews, a whole-branch
+    /// review, 1317 unit tests, and 3 UI suites; only hand-measurement caught
+    /// it. This test pins the height so a reappearing `.layoutPriority(-1)`
+    /// (or an equivalent regression) fails automatically.
+    ///
+    /// Reaches the grid phase via the fast `.fromPreview` route (like
+    /// `testAdjustGridFromPreviewAndBackPreservesPreview`), not the slow
+    /// full-frame-failure route, so it costs seconds, not ~100 s.
+    @MainActor
+    func testGridPhotoStaysReadableAtAccessibilityXXXL() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uitest-camera-import", // recognizable board → preview
+                                "-UIPreferredContentSizeCategoryName",
+                                "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        launchBuiltInEngine(app)
+
+        let board = app.descendants(matching: .any)["PhotoImportSheet.board"].firstMatch
+        XCTAssertTrue(board.waitForExistence(timeout: 360), "Preview board never appeared")
+
+        let adjust = app.buttons["PhotoImportSheet.adjustGrid"].firstMatch
+        XCTAssertTrue(adjust.waitForExistence(timeout: 10), "'Adjust Grid' button not found in preview")
+        adjust.tap()
+
+        let gridArea = app.descendants(matching: .any)["BoardQuadView.gridArea"].firstMatch
+        XCTAssertTrue(gridArea.waitForExistence(timeout: 10), "Grid area not found")
+
+        // Healthy (HEAD, no .layoutPriority(-1)): measured 288.0x216.0 pt on
+        // this route, at this text size, on an iPhone 17. 150 pt is ~69% of
+        // that 216 pt height — far above the regressed 41 pt (measured with
+        // .layoutPriority(-1) restored) and comfortably below the healthy
+        // value, so it catches the regression without flaking on small
+        // layout drift.
+        XCTAssertGreaterThan(gridArea.frame.height, 150,
+                             "Grid photo height \(gridArea.frame.height) pt is at/near the regressed " +
+                             "54.67x41 pt collapse — check for a reintroduced .layoutPriority(-1) on " +
+                             "BoardQuadView in PhotoImportSheet.adjustingGrid")
+    }
+
     // MARK: - Helpers
 
     /// DEBUG forces the model picker — launch the built-in network. Once the
