@@ -78,8 +78,13 @@ public struct PhotoImportSheet: View {
     /// photo can reach the sheet's edges, and re-adds it to that phase's text,
     /// picker, and buttons.
     private static let contentPadding: CGFloat = 24
-    /// The lane the non-grid phases use — unchanged from before the grid phase
-    /// widened the sheet.
+    /// The lane the non-grid phases use, applied INSIDE `contentPadding` (so
+    /// the card itself is `contentMaxWidth + 2 * contentPadding` wide). Before
+    /// the grid phase this cap sat OUTSIDE the padding instead, making 480 the
+    /// card's own width and the content lane a narrower 432; that made the
+    /// non-grid phases ~48 pt narrower on iPad than they are now. Cosmetic and
+    /// iPad-only — iPhone is device-width-bound and macOS floors on
+    /// `minWidth` regardless — and accepted as harmless rather than undone.
     private static let contentMaxWidth: CGFloat = 480
     /// The sheet's lane. Wider than `contentMaxWidth` because the photo is the
     /// entire point of the grid phase. Applied for EVERY phase, not just that
@@ -335,10 +340,16 @@ public struct PhotoImportSheet: View {
                     // binds the aspect fit on every device this ships to, so
                     // those 48 points are the single biggest win available.
                     //
-                    // The negative layout priority is what makes it safe:
-                    // headline, picker, and buttons get their ideal size
-                    // first, so they can never be pushed off a sheet that has
-                    // no ScrollView. The photo absorbs the shrinkage instead.
+                    // The negative layout priority is what makes this safe:
+                    // the photo is proposed space only after the headline,
+                    // picker, and buttons take their ideal size, so IT yields
+                    // first. That doesn't guarantee the chrome itself fits —
+                    // at Accessibility XXXL on a small device the chrome's own
+                    // ideal height can exceed the sheet, and the photo is then
+                    // proposed zero height and disappears. That is a safe
+                    // degradation (no crash, no quad corruption, thanks to
+                    // guards added earlier) and strictly better than the old
+                    // behavior, which clipped the chrome instead.
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(-1)
             }
@@ -391,12 +402,17 @@ public struct PhotoImportSheet: View {
         // GRID intersections, which on most boards sit well inside the wooden
         // edge. Placing them on the wood is the single easiest way to get a
         // grid that is subtly wrong everywhere.
+        //
+        // Two lines each at the sheet's width (three for the retry, where the
+        // extra coaching earns its space). Every line here is a line the photo
+        // does not get, and "then tap Recognize" says nothing the prominent
+        // default-action button two rows below does not.
         case .firstFailure:
-            return "Couldn't find the board. Drag each corner onto the outermost line crossing of the board, then tap Recognize."
+            return "Couldn't find the board. Drag each corner onto the outermost line crossing."
         case .retryFailure:
-            return "Still couldn't read the board. Check that each corner sits on the outermost line crossing — not on the wooden edge — and that the board size is right."
+            return "Still no luck. Corners go on the outermost line crossing, not the wooden edge — and check the size."
         case .fromPreview:
-            return "Drag each corner onto the outermost line crossing of the board, then tap Recognize."
+            return "Drag each corner onto the outermost line crossing."
         }
     }
 
