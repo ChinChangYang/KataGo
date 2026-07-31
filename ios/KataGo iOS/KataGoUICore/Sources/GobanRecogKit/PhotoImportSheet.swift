@@ -3,9 +3,8 @@
 //  GobanRecogKit
 //
 //  Shared preview-and-confirm sheet for importing a game from a board photo.
-//  Used by iOS/visionOS and macOS; the platform entry points (PhotosPicker,
-//  fileImporter, NSOpenPanel) supply the picked image `Data` and wire the
-//  completion in later tasks. Four states:
+//  Used by iOS and macOS — the two targets that link GobanRecogKit; there is
+//  no photo import on visionOS, tvOS, or watchOS. Four states:
 //    - recognizing:  a spinner while the C++ pipeline runs;
 //    - preview:      the recognized position on an engine-free board, stone
 //                    counts, confidence, and a next-to-play picker, with Import
@@ -75,6 +74,27 @@ public struct PhotoImportSheet: View {
     /// size is instantly visible, because the lines miss the board.
     private static let supportedSizes = [9, 13, 19]
 
+    /// The sheet's own margin. The grid phase drops it horizontally so the
+    /// photo can reach the sheet's edges, and re-adds it to that phase's text,
+    /// picker, and buttons.
+    private static let contentPadding: CGFloat = 24
+    /// The lane the non-grid phases use — unchanged from before the grid phase
+    /// widened the sheet.
+    private static let contentMaxWidth: CGFloat = 480
+    /// The sheet's lane. Wider than `contentMaxWidth` because the photo is the
+    /// entire point of the grid phase. Applied for EVERY phase, not just that
+    /// one: on macOS an NSHostingController sheet resizes its window to the
+    /// SwiftUI root's fitting width, so a phase-dependent cap would make the
+    /// sheet window jump on "Adjust Grid".
+    private static let sheetMaxWidth: CGFloat = 560
+
+    /// Whether the grid editor is showing. Drives the phase-aware chrome: this
+    /// is the only phase whose content wants more room than words need.
+    private var isGridPhase: Bool {
+        if case .adjustingGrid = phase { return true }
+        return false
+    }
+
     private enum Phase: Equatable {
         case recognizing
         case preview(RecognizedBoard)
@@ -118,9 +138,13 @@ public struct PhotoImportSheet: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
-            Text("Import from Photo")
-                .font(.headline)
+        VStack(spacing: isGridPhase ? 0 : 20) {
+            // The grid phase supplies its own headline and needs every point
+            // it can get; on macOS the sheet window's title says this anyway.
+            if !isGridPhase {
+                Text("Import from Photo")
+                    .font(.headline)
+            }
 
             switch phase {
             case .recognizing:
@@ -133,8 +157,9 @@ public struct PhotoImportSheet: View {
                 failure(error)
             }
         }
-        .padding(24)
-        .frame(maxWidth: 480)
+        .padding(.vertical, Self.contentPadding)
+        .padding(.horizontal, isGridPhase ? 0 : Self.contentPadding)
+        .frame(maxWidth: Self.sheetMaxWidth)
         .task(id: recognitionAttempt) { await recognize() }
     }
 
@@ -151,7 +176,7 @@ public struct PhotoImportSheet: View {
             Button("Cancel", role: .cancel, action: onCancel)
                 .accessibilityIdentifier("PhotoImportSheet.cancel")
         }
-        .frame(minHeight: 240)
+        .frame(maxWidth: Self.contentMaxWidth, minHeight: 240)
     }
 
     @ViewBuilder
@@ -250,6 +275,7 @@ public struct PhotoImportSheet: View {
                 .buttonStyle(.borderedProminent)
             }
         }
+        .frame(maxWidth: Self.contentMaxWidth)
     }
 
     /// A stone-count item: a real stone glyph (explicit black/white fill with a
@@ -289,7 +315,7 @@ public struct PhotoImportSheet: View {
                 }
             }
         }
-        .frame(minHeight: 240)
+        .frame(maxWidth: Self.contentMaxWidth, minHeight: 240)
     }
 
     @ViewBuilder
@@ -298,12 +324,23 @@ public struct PhotoImportSheet: View {
             Text(gridHeadline(for: context))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, Self.contentPadding)
 
             if let displayImage {
                 BoardQuadView(image: displayImage,
                               quad: $editingQuad,
                               boardSize: editingBoardSize)
-                    .frame(maxWidth: 400, maxHeight: 400)
+                    // The photo takes every point the chrome does not need,
+                    // and bleeds past the sheet's margins — width is what
+                    // binds the aspect fit on every device this ships to, so
+                    // those 48 points are the single biggest win available.
+                    //
+                    // The negative layout priority is what makes it safe:
+                    // headline, picker, and buttons get their ideal size
+                    // first, so they can never be pushed off a sheet that has
+                    // no ScrollView. The photo absorbs the shrinkage instead.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(-1)
             }
 
             VStack(spacing: 6) {
@@ -314,10 +351,11 @@ public struct PhotoImportSheet: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("PhotoImportSheet.boardSizePicker")
-                Text("The overlaid lines should sit on the board's lines.")
+                Text("The grid should land on the board's lines.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, Self.contentPadding)
 
             HStack {
                 if case .fromPreview(let board, let edited) = context {
@@ -343,6 +381,7 @@ public struct PhotoImportSheet: View {
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("PhotoImportSheet.recognize")
             }
+            .padding(.horizontal, Self.contentPadding)
         }
     }
 
