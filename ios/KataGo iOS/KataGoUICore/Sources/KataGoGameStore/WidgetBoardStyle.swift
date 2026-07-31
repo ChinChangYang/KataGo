@@ -22,6 +22,17 @@ public struct WidgetBoardStyle: Equatable, Sendable {
         /// black grid/hoshi, and the app's bold shrink-to-fit coordinate
         /// labels. `.goban` stays byte-identical for visionOS.
         case appGoban(drawsOwnWood: Bool)
+        /// `appGoban` plus the app's **Classic** stone style: the very same
+        /// `ShaderLibrary.stone` Metal shader `StoneView` draws, so a board
+        /// here is pixel-comparable to the in-app board with Stone Style set
+        /// to Classic. The Messages extension uses this; it needs the host
+        /// target to compile `Shaders.metal` (the appex does — see
+        /// `add_shader_to_messages_target.rb`).
+        ///
+        /// ⚠️ watchOS has no `ShaderLibrary`/`colorEffect` at all, so this
+        /// variant degrades to `appGoban`'s spherical stones there rather
+        /// than failing to compile. Nothing on watchOS asks for it today.
+        case classicGoban(drawsOwnWood: Bool)
         case accented
     }
 
@@ -34,6 +45,9 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     }
     public static func appGoban(drawsOwnWood: Bool) -> WidgetBoardStyle {
         WidgetBoardStyle(variant: .appGoban(drawsOwnWood: drawsOwnWood))
+    }
+    public static func classicGoban(drawsOwnWood: Bool) -> WidgetBoardStyle {
+        WidgetBoardStyle(variant: .classicGoban(drawsOwnWood: drawsOwnWood))
     }
 
     public var isAccented: Bool { variant == .accented }
@@ -48,9 +62,38 @@ public struct WidgetBoardStyle: Equatable, Sendable {
         return false
     }
 
-    /// The two faux-3D goban renderings (spherical stones, millimeter-scaled
-    /// grid) — everything they share hangs off this.
-    public var isGobanFamily: Bool { isGoban || isAppGoban }
+    public var isClassicGoban: Bool {
+        if case .classicGoban = variant { return true }
+        return false
+    }
+
+    /// Everything `classicGoban` inherits from `appGoban` — the Wood asset,
+    /// the plain black grid, the quarter-cell hoshi, the app's coordinate
+    /// labels. Only the stones differ between the two.
+    public var usesAppBoardSurface: Bool { isAppGoban || isClassicGoban }
+
+    /// The faux-3D goban renderings (millimeter-scaled grid, non-flat stones)
+    /// — everything they share hangs off this.
+    public var isGobanFamily: Bool { isGoban || isAppGoban || isClassicGoban }
+
+    /// Whether the stones are drawn by the app's `ShaderLibrary.stone` Metal
+    /// shader. Only `classicGoban` asks for it, and only where SwiftUI has a
+    /// shader to give: watchOS ships no `ShaderLibrary`, so the variant falls
+    /// back to the spherical vector stones there instead of failing to build.
+    public var usesShaderStones: Bool {
+        #if os(watchOS)
+        return false
+        #else
+        return isClassicGoban
+        #endif
+    }
+
+    /// Stone diameter as a fraction of the cell pitch. The classic variant
+    /// uses the app board's exact 0.95 (`Dimensions.stoneLength`) because the
+    /// shader's uv constants are calibrated against it — `div4_ratio` is
+    /// literally `(1/4)/0.95` — so a 0.92 sprite would put the highlight in
+    /// the wrong place. The other variants keep the historical 0.92.
+    public var stoneDiameterRatio: Double { isClassicGoban ? 0.95 : 0.92 }
 
     /// The exact palette of `BoardTopTexture`: grid/hoshi ink RGB(95, 65, 25)
     /// composited over wood around RGB(216, 185, 92). The vector grid uses the
@@ -84,18 +127,20 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public var showsWoodBackground: Bool {
         switch variant {
         case .standard: return true
-        case .goban(let drawsOwnWood), .appGoban(let drawsOwnWood): return drawsOwnWood
+        case .goban(let drawsOwnWood), .appGoban(let drawsOwnWood),
+             .classicGoban(let drawsOwnWood): return drawsOwnWood
         case .accented: return false
         }
     }
 
     /// Goban wood is the real grain image, not the legacy flat tan color.
-    /// (Procedural CGImage — appGoban draws the bundled asset instead.)
+    /// (Procedural CGImage — the app-surface variants draw the bundled asset
+    /// instead.)
     public var usesWoodImage: Bool { isGoban }
 
-    /// appGoban wood is the app's bundled "Wood" asset — the exact texture
-    /// `BoardLineView` draws — so the widget board matches the in-app board.
-    public var usesBundledWoodAsset: Bool { isAppGoban }
+    /// The app-surface variants' wood is the app's bundled "Wood" asset — the
+    /// exact texture `BoardLineView` draws — so the board matches the app's.
+    public var usesBundledWoodAsset: Bool { usesAppBoardSurface }
 
     /// Grid + hoshi opacity. Accented mode dims the lines further so the
     /// two-tone stones carry the position; the goban family's lines are
@@ -103,14 +148,16 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public var gridOpacity: Double {
         switch variant {
         case .standard: return 0.55
-        case .goban, .appGoban: return 1
+        case .goban, .appGoban, .classicGoban: return 1
         case .accented: return 0.35
         }
     }
 
     /// Goban-family stones render with a radial highlight and drop shadow that
-    /// read as the 3D stones; the other variants keep flat discs.
-    public var stonesAreSpherical: Bool { isGobanFamily }
+    /// read as the 3D stones; the other variants keep flat discs. The classic
+    /// variant hands its stones to the Metal shader instead — except on
+    /// watchOS, where `usesShaderStones` is false and this takes over.
+    public var stonesAreSpherical: Bool { isGobanFamily && !usesShaderStones }
 
     /// Grid stroke width for a cell size. The goban family scales the
     /// texture's 0.8 mm line on its 22 mm grid (the app's fixed 1 pt doesn't
@@ -121,24 +168,35 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     }
 
     /// Hoshi dot diameter for a cell size. The goban scales the texture's
-    /// 2 mm-radius star point; appGoban adopts the app board's quarter-cell
-    /// dot (`squareLengthDiv4`); the flat consumers keep the historical
-    /// 0.16-of-a-cell dot. All keep a legibility floor.
+    /// 2 mm-radius star point; the app-surface variants adopt the app board's
+    /// quarter-cell dot (`squareLengthDiv4`); the flat consumers keep the
+    /// historical 0.16-of-a-cell dot. All keep a legibility floor.
     public func hoshiDiameter(cellSize: Double) -> Double {
         switch variant {
         case .goban: return max(cellSize * 4.0 / 22, 2)
-        case .appGoban: return max(cellSize * 0.25, 2)
+        case .appGoban, .classicGoban: return max(cellSize * 0.25, 2)
         case .standard, .accented: return max(cellSize * 0.16, 2)
         }
     }
 
-    /// appGoban coordinate labels use the app board's exact idiom: bold black
-    /// size-500 text shrunk to fit a cell-sized frame (`BoardLineView`).
-    public var usesAppCoordinateLabels: Bool { isAppGoban }
+    /// The app-surface variants' coordinate labels use the app board's exact
+    /// idiom: bold black size-500 text shrunk to fit a cell-sized frame
+    /// (`BoardLineView`).
+    public var usesAppCoordinateLabels: Bool { usesAppBoardSurface }
 
-    /// Bold labels: appGoban for app parity; accented also bolds (same weight
-    /// treatment) while keeping its adaptive light color.
-    public var coordinateLabelsAreBold: Bool { isAppGoban || isAccented }
+    /// Bold labels: the app-surface variants for app parity; accented also
+    /// bolds (same weight treatment) while keeping its adaptive light color.
+    public var coordinateLabelsAreBold: Bool { usesAppBoardSurface || isAccented }
+
+    /// The classic variant marks the last move the way the app board does
+    /// (`MoveNumberView.lastMoveMarker`): a SOLID red dot at 0.3 of the cell.
+    /// The other variants keep the historical hollow 0.6-cell ring.
+    public var lastMoveIsFilledDot: Bool { isClassicGoban }
+
+    /// Last-move marker diameter for a cell size, paired with the flag above.
+    public func lastMoveMarkerDiameter(cellSize: Double) -> Double {
+        lastMoveIsFilledDot ? cellSize * 0.3 : cellSize * 0.6
+    }
 
     /// Accented mode renders black stones as SOLID accent-colored discs
     /// (a full-luminance fill handed to the system tint via widgetAccentable).

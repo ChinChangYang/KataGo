@@ -78,18 +78,29 @@ struct SetupCardView: View {
 
     private var boardSection: some View {
         Section("Board") {
-            HStack {
-                ForEach([9, 13, 19], id: \.self) { size in
-                    Button("\(size)×\(size)") {
-                        width = size
-                        height = size
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(width == size && height == size ? .accentColor : .secondary)
-                }
+            // At accessibility text sizes three "13x13" chips no longer fit a
+            // Form row, and each one wrapped INSIDE its own label — "13" / "x1"
+            // / "3". `lineLimit(1)` stops the mid-token break and the stacked
+            // fallback gives them the room they need.
+            ViewThatFits(in: .horizontal) {
+                HStack { quickSizeButtons }
+                VStack(spacing: 8) { quickSizeButtons }
             }
+            .lineLimit(1)
             Stepper("Width: \(width)", value: $width, in: 2...37)
             Stepper("Height: \(height)", value: $height, in: 2...37)
+        }
+    }
+
+    @ViewBuilder
+    private var quickSizeButtons: some View {
+        ForEach([9, 13, 19], id: \.self) { size in
+            Button("\(size)×\(size)") {
+                width = size
+                height = size
+            }
+            .buttonStyle(.bordered)
+            .tint(width == size && height == size ? .accentColor : .secondary)
         }
     }
 

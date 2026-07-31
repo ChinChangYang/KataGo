@@ -234,6 +234,7 @@
 		64D06643D3E232A5332C28D0 /* bind.cc in Sources */ = {isa = PBXBuildFile; fileRef = 17FA6DBD4C7BA5955B8953B7 /* bind.cc */; };
 		656D460727BAA8C60139A2B7 /* AnalysisJobRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A656D73049CFE9356D93BA4E /* AnalysisJobRunner.swift */; };
 		65F757B538B657E4B78080FB /* AppHandoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA2491A6ACC0574E76F867D /* AppHandoff.swift */; };
+		669207F453AC977AE2D377D3 /* MessagesBoardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04D08DA22BA066FA12A588A /* MessagesBoardStyle.swift */; };
 		6711A05635634AE5B5C6DE5C /* randen_slow.cc in Sources */ = {isa = PBXBuildFile; fileRef = E549A394F12A2C25F11CE915 /* randen_slow.cc */; };
 		6826E0C3454E6CA27BDA74D9 /* CoalescedTriggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018AEC457BBC84F3E7FB2B1E /* CoalescedTriggerTests.swift */; };
 		687D69E61A9400DF3C586285 /* parse_context.cc in Sources */ = {isa = PBXBuildFile; fileRef = 653962734D16C68890A2E6FD /* parse_context.cc */; };
@@ -434,6 +435,7 @@
 		BDD321DAA44964C4887A5E06 /* repeated_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC5101F03317F990C4EC6BD2 /* repeated_field.cc */; };
 		BF60411C8AF4BB983A288118 /* CoreMLCacheKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC384FBBA433A17AF90C2F1F /* CoreMLCacheKeyTests.swift */; };
 		BF74CD58671D6C823D184CBE /* spinlock.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE3B9C2481C85939173A3A70 /* spinlock.cc */; };
+		C01E19D1FA413791D56D6243 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
 		C031C333DF5C116AA4A11ABB /* default_model.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F742A514B9700D335E1 /* default_model.bin.gz */; };
 		C0B2D9C643DB33E94D856AF6 /* KataGoAnytimeWatchWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD660F5C74D8EBF7E72E919F /* KataGoAnytimeWatchWidgetBundle.swift */; };
 		C0C8E44FF75179EDFED07A66 /* VisionBranchFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */; };
@@ -755,6 +757,7 @@
 		E1D7D3AE2AA897C000556DFB /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E316F37DF64A96CFB010EC7B /* BoardAssets in Resources */ = {isa = PBXBuildFile; fileRef = 679F57E31260E5DA9F83608A /* BoardAssets */; };
+		E31A39DD1252C4C693C5B85D /* WidgetBoardGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2FC922DC88C354DCE7ACFBF /* WidgetBoardGeometryTests.swift */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
 		E3F78E4252234948099BEDC7 /* background.js in Resources */ = {isa = PBXBuildFile; fileRef = D6AA7C3F62D5275D95848989 /* background.js */; };
 		E42506649736E1E099C8508F /* VisionOrnamentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162FD90AC29C875EBEC571F8 /* VisionOrnamentViews.swift */; };
@@ -1459,6 +1462,7 @@
 		BEDB7ED4403D3D0158E8535C /* content.js */ = {isa = PBXFileReference; includeInIndex = 1; name = content.js; path = KataGoAnytimeSafariExtIOS/Resources/content.js; sourceTree = "<group>"; };
 		BF92DBA045706263DE0ED7A2 /* TVRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVRootView.swift; sourceTree = "<group>"; };
 		BFAC54FBF402DA5007B56C42 /* TVAttractMode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVAttractMode.swift; sourceTree = "<group>"; };
+		C04D08DA22BA066FA12A588A /* MessagesBoardStyle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessagesBoardStyle.swift; path = KataGoAnytimeMessages/MessagesBoardStyle.swift; sourceTree = "<group>"; };
 		C07C938A94269699C0D07E21 /* strerror.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = strerror.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/strerror.cc"; sourceTree = SOURCE_ROOT; };
 		C0B1350A7A2579A5FB5E1CE9 /* GameScreenView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GameScreenView.swift; path = KataGoAnytimeMessages/GameScreenView.swift; sourceTree = "<group>"; };
 		C1F2D57889B86325ADEFAD16 /* GobanStateBranchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateBranchTests.swift; sourceTree = "<group>"; };
@@ -1470,6 +1474,7 @@
 		C276ADB6F25F433978EE27AB /* CameraGuidanceLogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraGuidanceLogicTests.swift; sourceTree = "<group>"; };
 		C295029DCB4CE496129AE703 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeWidget/Info.plist; sourceTree = "<group>"; };
 		C2CAE39DAF390823C7066E1F /* decode_rust_punycode.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = decode_rust_punycode.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/decode_rust_punycode.cc"; sourceTree = SOURCE_ROOT; };
+		C2FC922DC88C354DCE7ACFBF /* WidgetBoardGeometryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetBoardGeometryTests.swift; sourceTree = "<group>"; };
 		C33CD3DF1666BC41A52FD8A3 /* TVSampleGameStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVSampleGameStore.swift; sourceTree = "<group>"; };
 		C366AA8D257D0625756294F7 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = "KataGo Anytime Vision/Assets.xcassets"; sourceTree = "<group>"; };
 		C3F594CCF3C0704269B8DA55 /* TVAutoPlayPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVAutoPlayPolicyTests.swift; sourceTree = "<group>"; };
@@ -2569,6 +2574,7 @@
 				5C4E95A95BD9FCFF980A2DE4 /* Info.plist */,
 				EFB25C5CE4F1F86368576B5D /* KataGoAnytimeMessages.entitlements */,
 				60E6EEEF11176A47A8CB6554 /* Assets.xcassets */,
+				C04D08DA22BA066FA12A588A /* MessagesBoardStyle.swift */,
 			);
 			name = KataGoAnytimeMessages;
 			sourceTree = SOURCE_ROOT;
@@ -3116,6 +3122,7 @@
 				C3F594CCF3C0704269B8DA55 /* TVAutoPlayPolicyTests.swift */,
 				9AC3059F6D80A085AD614B5D /* SelfPlaySeedTests.swift */,
 				75718F287064D8DFEDF26A86 /* TVControllerLegendTests.swift */,
+				C2FC922DC88C354DCE7ACFBF /* WidgetBoardGeometryTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3943,6 +3950,8 @@
 				6D7F0C23CCCD0B050E1CC27A /* GameScreenView.swift in Sources */,
 				98DFC305761C0DE2F9D0CE93 /* BubbleRenderer.swift in Sources */,
 				65F757B538B657E4B78080FB /* AppHandoff.swift in Sources */,
+				C01E19D1FA413791D56D6243 /* Shaders.metal in Sources */,
+				669207F453AC977AE2D377D3 /* MessagesBoardStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4549,6 +4558,7 @@
 				CCB671213CC801CC326BC1D7 /* TVAutoPlayPolicyTests.swift in Sources */,
 				E63D16ADE2F29027D9D3BF8A /* SelfPlaySeedTests.swift in Sources */,
 				1AFFE2CF63CE71CB104A42B8 /* TVControllerLegendTests.swift in Sources */,
+				E31A39DD1252C4C693C5B85D /* WidgetBoardGeometryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

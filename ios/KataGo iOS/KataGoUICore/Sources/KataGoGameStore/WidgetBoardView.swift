@@ -177,24 +177,11 @@ public struct WidgetBoardView: View {
     }
 
     /// Whether coordinate labels render INTACT for a `width` x `height` board
-    /// drawn into `size`. The appGoban label is clipped to a cell-sized frame,
-    /// so once the cell pitch falls under the widest label's width at the font
-    /// floor the text truncates — and at these sizes it does not even keep a
-    /// leading digit: a 19x19 in the small widget families drew a bare "…" in
-    /// place of every row number 10-19, i.e. two columns of dots down the sides
-    /// of the board. The unclipped styles smear into their neighbours over the
-    /// same range. Below the threshold the board
-    /// renders as if coordinates were off, margin included, so the stones get
-    /// the space back. Mirrors `body`'s margin/cell math.
-    ///
-    /// Deliberately style-blind: it applies the strictest style's metrics
-    /// (bold, clipped) everywhere, which costs ~8% against the unbolded styles
-    /// and keeps iOS, macOS, and visionOS hiding coordinates in the same cases.
+    /// drawn into `size` — see `WidgetBoardGeometry.coordinateLabelsFit`, which
+    /// owns this rule along with the rest of the grid layout. Kept here as a
+    /// forwarding shim for existing callers.
     nonisolated public static func coordinateLabelsFit(size: CGSize, width: Int, height: Int) -> Bool {
-        let margin = min(size.width, size.height) * 0.06
-        let cell = min((size.width - 2 * margin) / CGFloat(width),
-                       (size.height - 2 * margin) / CGFloat(height))
-        return cell >= WidgetCoordinateMetrics.requiredCell(width: width, height: height)
+        WidgetBoardGeometry.coordinateLabelsFit(size: size, width: width, height: height)
     }
 
     /// 0-based grid coordinates of the star points (hoshi), from the shared
@@ -238,20 +225,83 @@ public struct WidgetBoardView: View {
         }
     }
 
+    /// The stones. The classic variant stamps the app's Metal-shader stones
+    /// through ONE `Canvas` of pre-rasterized symbols (`ClassicStoneLayer`) —
+    /// a per-stone `colorEffect` view would be the ~1000-layer, 76 ms case
+    /// `StoneView` was rewritten to escape, and boards here reach 37x37.
+    /// Every other variant keeps the original view-per-stone drawing, so the
+    /// watch, widget and TV boards are untouched.
+    @ViewBuilder
+    private func stoneLayer(cell: CGFloat, originX: CGFloat, originY: CGFloat) -> some View {
+        let diameter = cell * style.stoneDiameterRatio
+#if !os(watchOS)
+        if style.usesShaderStones {
+            ClassicStoneLayer(black: black, white: white,
+                              cell: cell, stoneLength: diameter,
+                              originX: originX, originY: originY)
+        } else {
+            flatStoneLayer(cell: cell, diameter: diameter, originX: originX, originY: originY)
+        }
+#else
+        flatStoneLayer(cell: cell, diameter: diameter, originX: originX, originY: originY)
+#endif
+    }
+
+    /// White first, then black — the historical order, kept so already-shipped
+    /// surfaces render identically.
+    @ViewBuilder
+    private func flatStoneLayer(cell: CGFloat, diameter: CGFloat,
+                                originX: CGFloat, originY: CGFloat) -> some View {
+        ForEach(Array(white.enumerated()), id: \.offset) { _, s in
+            Group {
+                if style.stonesAreSpherical {
+                    SphericalStone(isBlack: false, diameter: diameter)
+                } else if style.whiteStoneIsAccentOutline {
+                    // Accent RING over a faint neutral interior — the
+                    // counterpart to black's solid disc; the two stay
+                    // tellable apart under any single tint.
+                    ZStack {
+                        Circle().fill(.white.opacity(0.2))
+                        Circle().strokeBorder(.white, lineWidth: max(cell * 0.08, 1))
+                            .boardAccentable(true)
+                    }
+                } else {
+                    Circle().fill(.white)
+                }
+            }
+            .frame(width: diameter, height: diameter)
+            .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
+        }
+        ForEach(Array(black.enumerated()), id: \.offset) { _, s in
+            Group {
+                if style.stonesAreSpherical {
+                    SphericalStone(isBlack: true, diameter: diameter)
+                } else if style.blackStoneIsAccentFill {
+                    // Full-luminance fill; the system supplies the hue.
+                    Circle().fill(.white).boardAccentable(true)
+                } else {
+                    Circle().fill(.black)
+                }
+            }
+            .frame(width: diameter, height: diameter)
+            .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
+        }
+    }
+
     public var body: some View {
         GeometryReader { geo in
             // Coordinates need a band outside the outermost lines. Reserving it
             // shrinks the grid; with the labels off the margin is 0 and the
             // geometry is byte-identical to the widget's original layout.
-            let showsLabels = showCoordinates
-                && Self.coordinateLabelsFit(size: geo.size, width: width, height: height)
-            let coordinateMargin = showsLabels
-                ? min(geo.size.width, geo.size.height) * 0.06 : 0
-            let availableWidth = geo.size.width - 2 * coordinateMargin
-            let availableHeight = geo.size.height - 2 * coordinateMargin
-            let cell = min(availableWidth / CGFloat(width), availableHeight / CGFloat(height))
-            let originX = (geo.size.width - cell * CGFloat(width - 1)) / 2
-            let originY = (geo.size.height - cell * CGFloat(height - 1)) / 2
+            // `WidgetBoardGeometry` owns that math so an interactive host can
+            // hit-test against exactly the grid drawn here.
+            let geometry = WidgetBoardGeometry(width: width, height: height,
+                                               size: geo.size,
+                                               showCoordinates: showCoordinates)
+            let showsLabels = geometry.showsLabels
+            let cell = geometry.cell
+            let originX = geometry.originX
+            let originY = geometry.originY
 
             // Goban: the texture generator's opaque dark-brown ink. appGoban:
             // the app board's plain black lines. Accented (tinted) mode: the
@@ -315,40 +365,7 @@ public struct WidgetBoardView: View {
                         .frame(width: hoshiDiameter, height: hoshiDiameter)
                         .position(CGPoint(x: originX + CGFloat(p.0) * cell, y: originY + CGFloat(p.1) * cell))
                 }
-                ForEach(Array(white.enumerated()), id: \.offset) { _, s in
-                    Group {
-                        if style.stonesAreSpherical {
-                            SphericalStone(isBlack: false, diameter: cell * 0.92)
-                        } else if style.whiteStoneIsAccentOutline {
-                            // Accent RING over a faint neutral interior — the
-                            // counterpart to black's solid disc; the two stay
-                            // tellable apart under any single tint.
-                            ZStack {
-                                Circle().fill(.white.opacity(0.2))
-                                Circle().strokeBorder(.white, lineWidth: max(cell * 0.08, 1))
-                                    .boardAccentable(true)
-                            }
-                        } else {
-                            Circle().fill(.white)
-                        }
-                    }
-                    .frame(width: cell * 0.92, height: cell * 0.92)
-                    .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
-                }
-                ForEach(Array(black.enumerated()), id: \.offset) { _, s in
-                    Group {
-                        if style.stonesAreSpherical {
-                            SphericalStone(isBlack: true, diameter: cell * 0.92)
-                        } else if style.blackStoneIsAccentFill {
-                            // Full-luminance fill; the system supplies the hue.
-                            Circle().fill(.white).boardAccentable(true)
-                        } else {
-                            Circle().fill(.black)
-                        }
-                    }
-                    .frame(width: cell * 0.92, height: cell * 0.92)
-                    .position(CGPoint(x: originX + CGFloat(s.0) * cell, y: originY + CGFloat(s.1) * cell))
-                }
+                stoneLayer(cell: cell, originX: originX, originY: originY)
                 let rankColors: [Color] = [.green, .yellow, .orange]
                 ForEach(Array(candidateDots.enumerated()), id: \.offset) { _, d in
                     Group {
@@ -364,15 +381,20 @@ public struct WidgetBoardView: View {
                     .position(CGPoint(x: originX + CGFloat(d.x) * cell, y: originY + CGFloat(d.y) * cell))
                 }
                 if let lm = lastMovePoint {
+                    let marker = style.lastMoveMarkerDiameter(cellSize: cell)
                     Group {
-                        if style.isAccented {
+                        if style.lastMoveIsFilledDot {
+                            // The app board's marker: a small solid red dot,
+                            // legible on both stone colors.
+                            Circle().fill(Color.red)
+                        } else if style.isAccented {
                             Circle().stroke(Color.white.opacity(0.9), lineWidth: max(cell * 0.08, 1))
                                 .boardAccentable(true)
                         } else {
                             Circle().stroke(Color.red, lineWidth: max(cell * 0.08, 1))
                         }
                     }
-                    .frame(width: cell * 0.6, height: cell * 0.6)
+                    .frame(width: marker, height: marker)
                     .position(CGPoint(x: originX + CGFloat(lm.x) * cell, y: originY + CGFloat(lm.y) * cell))
                 }
                 if showsLabels {

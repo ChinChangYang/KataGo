@@ -13,29 +13,27 @@ import SwiftUI
 import GoRulesKit
 import KataGoGameStore
 
-/// Grid geometry identical to WidgetBoardView's layout math (margin 0), so
-/// taps land exactly on the rendered intersections.
+/// Taps and overlays, hit-tested against the SAME `WidgetBoardGeometry` the
+/// board renders from — including the coordinate margin, which shifts both the
+/// cell pitch and the origin. This used to recompute the layout with the
+/// margin hardcoded to 0, which was right only while coordinates were off.
 struct BoardTapGeometry {
-    let width: Int
-    let height: Int
-    let size: CGSize
+    let grid: WidgetBoardGeometry
 
-    var cell: CGFloat {
-        min(size.width / CGFloat(width), size.height / CGFloat(height))
+    init(width: Int, height: Int, size: CGSize, showCoordinates: Bool) {
+        grid = WidgetBoardGeometry(width: width, height: height,
+                                   size: size, showCoordinates: showCoordinates)
     }
-    var originX: CGFloat { (size.width - cell * CGFloat(width - 1)) / 2 }
-    var originY: CGFloat { (size.height - cell * CGFloat(height - 1)) / 2 }
+
+    var cell: CGFloat { grid.cell }
 
     func gridPoint(at location: CGPoint) -> GoPoint? {
-        guard cell > 0 else { return nil }
-        let x = Int(((location.x - originX) / cell).rounded())
-        let y = Int(((location.y - originY) / cell).rounded())
-        guard x >= 0, x < width, y >= 0, y < height else { return nil }
-        return GoPoint(x: x, y: y)
+        guard let p = grid.gridPoint(at: location) else { return nil }
+        return GoPoint(x: p.x, y: p.y)
     }
 
     func position(of p: GoPoint) -> CGPoint {
-        CGPoint(x: originX + CGFloat(p.x) * cell, y: originY + CGFloat(p.y) * cell)
+        grid.position(x: p.x, y: p.y)
     }
 }
 
@@ -55,21 +53,45 @@ struct GameScreenView: View {
     private var game: GoGame { effectiveMessage.game }
     private var interactive: Bool { isLocalTurn && !staged }
 
+    /// Board is the point of this screen, so it gets a floor: the board is the
+    /// only truly flexible child, and at accessibility text sizes the grown
+    /// header and stacked buttons ate ALL of it — a 19x19 collapsed to a few
+    /// points. Below the floor the sheet scrolls instead of squeezing.
+    private static let minimumBoardHeight: CGFloat = 160
+
     var body: some View {
-        VStack(spacing: 8) {
-            header
-            board
-                .aspectRatio(CGFloat(game.board.width) / CGFloat(game.board.height), contentMode: .fit)
-                .frame(maxWidth: .infinity)
-            footer
+        ScrollView {
+            VStack(spacing: 8) {
+                header
+                board
+                    .aspectRatio(CGFloat(game.board.width) / CGFloat(game.board.height), contentMode: .fit)
+                    .frame(maxWidth: .infinity, minHeight: Self.minimumBoardHeight)
+                footer
+            }
+            .padding()
         }
-        .padding()
+        // Nothing to scroll at ordinary text sizes: the content fits and this
+        // reads exactly as the plain VStack did.
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     // MARK: - Header
 
+    /// The board below is flexible (`aspectRatio(contentMode: .fit)`), so in
+    /// the short expanded sheet the VStack squeezes the header instead — and a
+    /// `Text` given too little height TRUNCATES rather than wrapping. At
+    /// accessibility sizes that turned the scoring prompt into "Mark dead
+    /// sto…". `fixedSize` makes it claim its wrapped height; `lineLimit(3)`
+    /// stops the claim from running away and starving the board.
     @ViewBuilder
     private var header: some View {
+        headerContent
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var headerContent: some View {
         switch game.phase {
         case .playing:
             HStack {
@@ -112,14 +134,17 @@ struct GameScreenView: View {
     private var board: some View {
         GeometryReader { geo in
             let geometry = BoardTapGeometry(
-                width: game.board.width, height: game.board.height, size: geo.size)
+                width: game.board.width, height: game.board.height, size: geo.size,
+                showCoordinates: MessagesBoardStyle.showsCoordinates)
             ZStack {
                 WidgetBoardView(
                     width: game.board.width,
                     height: game.board.height,
                     blackVertices: game.board.gtpVertices(of: .black),
                     whiteVertices: game.board.gtpVertices(of: .white),
-                    lastMoveVertex: lastMoveVertex)
+                    lastMoveVertex: lastMoveVertex,
+                    showCoordinates: MessagesBoardStyle.showsCoordinates,
+                    style: MessagesBoardStyle.board)
                 overlays(geometry: geometry)
             }
             .contentShape(Rectangle())
@@ -134,13 +159,23 @@ struct GameScreenView: View {
 
     @ViewBuilder
     private func overlays(geometry: BoardTapGeometry) -> some View {
-        // Ghost stone while aiming.
+        // Ghost stone while aiming — the app board's play cursor idiom
+        // (`BoardView`): a 0.55-opacity stone of the side to move inside a
+        // white ring at 1.15x, with a dark shadow, so it stays legible over
+        // wood, over stones, and over the scoring marks.
         if let ghost, game.phase == .playing {
+            let stone = geometry.cell * MessagesBoardStyle.board.stoneDiameterRatio
+            let center = geometry.position(of: ghost)
             Circle()
-                .fill((game.toMove == .black ? Color.black : .white).opacity(0.5))
-                .stroke(Color.accentColor, lineWidth: 2)
-                .frame(width: geometry.cell * 0.92, height: geometry.cell * 0.92)
-                .position(geometry.position(of: ghost))
+                .fill(game.toMove == .black ? Color.black : Color(white: 1.0))
+                .opacity(0.55)
+                .frame(width: stone, height: stone)
+                .position(center)
+            Circle()
+                .stroke(Color.white, lineWidth: max(3, geometry.cell / 8))
+                .frame(width: stone * 1.15, height: stone * 1.15)
+                .position(center)
+                .shadow(color: .black.opacity(0.6), radius: geometry.cell / 16)
         }
         // Dead marks and counted territory during scoring / after the game.
         if game.phase != .playing {
@@ -201,62 +236,137 @@ struct GameScreenView: View {
     private var footer: some View {
         switch game.phase {
         case .playing:
-            playingControls
+            controlRow(playingActions)
+                .confirmationDialog("Resign this game?", isPresented: $confirmingResign,
+                                    titleVisibility: .visible) {
+                    Button("Resign", role: .destructive) { sendResign() }
+                }
         case .scoring:
-            scoringControls
+            controlRow(scoringActions)
         case .finished:
-            HStack {
-                analyzeButton
-                Spacer()
+            controlRow([analyzeAction])
+        }
+    }
+
+    // MARK: - Control rows
+    //
+    // "Propose score" + "Accept" + "Resume play" + the Analyze button needs
+    // ~450 pt on one line; the widest iPhone is 440, so that row wrapped on
+    // EVERY device, and both rows wrapped one Dynamic Type step above default.
+    // `ViewThatFits` walks three tiers instead: full labels, short labels,
+    // then a vertical stack that keeps the full words — deliberately not an
+    // icon-only tier, since the widths that reach it are large accessibility
+    // text sizes, exactly where words matter most.
+    //
+    // ⚠️ The horizontal tiers must keep their NATURAL width — no `Spacer()`
+    // inside a candidate, and no `.frame(maxWidth: .infinity)` — or the
+    // candidate reports that it fits at any width and the first tier always
+    // wins. Alignment is applied outside the `ViewThatFits`.
+
+    private struct BoardAction: Identifiable {
+        let id: String
+        let long: String
+        let short: String
+        /// When set, the horizontal tiers draw this SF Symbol instead of the
+        /// text. The vertical tier always spells the action out.
+        var systemImage: String?
+        var isProminent = false
+        var isDestructive = false
+        var isEnabled = true
+        let run: () -> Void
+    }
+
+    private var playingActions: [BoardAction] {
+        let canConfirm = ghost.map { game.isLegal(.play($0)) } == true && interactive
+        return [
+            BoardAction(id: "confirm", long: "Confirm", short: "Confirm",
+                        isProminent: true, isEnabled: canConfirm) { confirmGhost() },
+            BoardAction(id: "pass", long: "Pass", short: "Pass",
+                        isEnabled: interactive) { sendPass() },
+            BoardAction(id: "resign", long: "Resign", short: "Resign",
+                        isDestructive: true, isEnabled: interactive) { confirmingResign = true },
+            analyzeAction,
+        ]
+    }
+
+    private var scoringActions: [BoardAction] {
+        [
+            BoardAction(id: "propose", long: "Propose score", short: "Propose",
+                        isProminent: true, isEnabled: interactive) {
+                actions.stage(effectiveMessage)
+            },
+            BoardAction(id: "accept", long: "Accept", short: "Accept",
+                        isEnabled: interactive) { sendAccept() },
+            BoardAction(id: "resume", long: "Resume play", short: "Resume",
+                        isEnabled: interactive) { sendDispute() },
+            analyzeAction,
+        ]
+    }
+
+    /// The sparkle is the app's analysis glyph (custom.sparkle on the iOS
+    /// board, sparkles on tvOS).
+    private var analyzeAction: BoardAction {
+        BoardAction(id: "analyze", long: "Analyze", short: "Analyze",
+                    systemImage: "sparkle") {
+            actions.openInApp(effectiveMessage)
+        }
+    }
+
+    private func controlRow(_ items: [BoardAction]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            actionRow(items, useShortLabels: false)
+            actionRow(items, useShortLabels: true)
+            actionColumn(items)
+        }
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func actionRow(_ items: [BoardAction], useShortLabels: Bool) -> some View {
+        HStack {
+            ForEach(items) { item in
+                actionButton(item, title: useShortLabels ? item.short : item.long,
+                             preferIcon: true)
             }
         }
     }
 
-    private var playingControls: some View {
-        HStack {
-            Button("Confirm") { confirmGhost() }
-                .buttonStyle(.borderedProminent)
-                .disabled(ghost.map { game.isLegal(.play($0)) } != true || !interactive)
-            Button("Pass") { sendPass() }
-                .buttonStyle(.bordered)
-                .disabled(!interactive)
-            Button("Resign", role: .destructive) { confirmingResign = true }
-                .buttonStyle(.bordered)
-                .disabled(!interactive)
-            Spacer()
-            analyzeButton
-        }
-        .confirmationDialog("Resign this game?", isPresented: $confirmingResign, titleVisibility: .visible) {
-            Button("Resign", role: .destructive) { sendResign() }
+    private func actionColumn(_ items: [BoardAction]) -> some View {
+        VStack(spacing: 8) {
+            ForEach(items) { item in
+                actionButton(item, title: item.long, preferIcon: false, fillsWidth: true)
+            }
         }
     }
 
-    private var scoringControls: some View {
-        HStack {
-            Button("Propose score") { actions.stage(effectiveMessage) }
-                .buttonStyle(.borderedProminent)
-                .disabled(!interactive)
-            Button("Accept") { sendAccept() }
-                .buttonStyle(.bordered)
-                .disabled(!interactive)
-            Button("Resume play") { sendDispute() }
-                .buttonStyle(.bordered)
-                .disabled(!interactive)
-            Spacer()
-            analyzeButton
-        }
-    }
-
-    /// Icon-only so the control row never wraps; the sparkle is the app's
-    /// analysis glyph (custom.sparkle on the iOS board, sparkles on tvOS).
-    private var analyzeButton: some View {
-        Button {
-            actions.openInApp(effectiveMessage)
+    /// `fillsWidth` widens the LABEL, not the button: a `.frame(maxWidth:)` on
+    /// an already-styled button grows its hit area but leaves the capsule
+    /// hugging the text, so the stacked tier came out ragged.
+    @ViewBuilder
+    private func actionButton(_ item: BoardAction, title: String,
+                              preferIcon: Bool, fillsWidth: Bool = false) -> some View {
+        let button = Button(role: item.isDestructive ? .destructive : nil) {
+            item.run()
         } label: {
-            Image(systemName: "sparkle")
+            Group {
+                if preferIcon, let systemImage = item.systemImage {
+                    Image(systemName: systemImage)
+                } else {
+                    Text(title)
+                }
+            }
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
         }
-        .buttonStyle(.bordered)
-        .accessibilityLabel("Analyze in KataGo Anytime")
+        .disabled(!item.isEnabled)
+        // The icon tier has no visible words, and even the text tiers may show
+        // the SHORT label — so pin a stable speakable name either way.
+        .accessibilityLabel(item.id == "analyze" ? "Analyze in KataGo Anytime" : item.long)
+
+        if item.isProminent {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
     }
 
     // MARK: - Staging

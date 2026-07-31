@@ -25,10 +25,12 @@ enum BubbleRenderer {
             height: board.height,
             blackVertices: board.gtpVertices(of: .black),
             whiteVertices: board.gtpVertices(of: .white),
-            lastMoveVertex: lastMoveVertex)
+            lastMoveVertex: lastMoveVertex,
+            showCoordinates: MessagesBoardStyle.showsCoordinates,
+            style: MessagesBoardStyle.board)
             .frame(width: 300, height: 300 * CGFloat(board.height) / CGFloat(board.width))
         let renderer = ImageRenderer(content: view)
-        renderer.scale = 3
+        renderer.scale = MessagesBoardStyle.bubbleRenderScale
         return renderer.uiImage
     }
 
