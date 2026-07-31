@@ -408,3 +408,84 @@ struct FittedFrameTests {
         #expect(frame.isEmpty)
     }
 }
+
+// MARK: - Loupe placement
+
+/// The magnifier follows the dragged corner, which sits under the fingertip,
+/// so it has to sit clear of the hand — above by preference, below near the
+/// top edge — and it must never leave the photo: `BoardQuadView` does not
+/// clip, so an unclamped loupe draws over the board-size picker and the
+/// buttons underneath.
+@Suite("Loupe placement")
+struct LoupePlacementTests {
+
+    private let diameter: CGFloat = 108
+    private let photo = CGRect(x: 0, y: 0, width: 400, height: 500)
+
+    private var gap: CGFloat { diameter * LoupePlacement.gapFraction }
+
+    @Test func sitsAboveACornerWithRoomAbove() {
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: 300),
+                                           diameter: diameter, in: photo)
+        expectClose(center, CGPoint(x: 200, y: 300 - gap))
+    }
+
+    @Test func flipsBelowACornerNearTheTopEdge() {
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: 10),
+                                           diameter: diameter, in: photo)
+        expectClose(center, CGPoint(x: 200, y: 10 + gap))
+    }
+
+    @Test func clampsHorizontallyAtTheLeftEdge() {
+        let center = LoupePlacement.center(for: CGPoint(x: 4, y: 300),
+                                           diameter: diameter, in: photo)
+        #expect(abs(center.x - diameter / 2) <= epsilon)
+    }
+
+    @Test func clampsHorizontallyAtTheRightEdge() {
+        let center = LoupePlacement.center(for: CGPoint(x: 398, y: 300),
+                                           diameter: diameter, in: photo)
+        #expect(abs(center.x - (photo.maxX - diameter / 2)) <= epsilon)
+    }
+
+    /// A corner at the very bottom flips the loupe above, but when the photo
+    /// is too short for either side the y-clamp is what keeps the circle off
+    /// the picker below.
+    @Test func neverLetsTheCircleLeaveTheBottomEdge() {
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: photo.maxY),
+                                           diameter: diameter, in: photo)
+        #expect(center.y + diameter / 2 <= photo.maxY + epsilon)
+    }
+
+    @Test func neverLetsTheCircleLeaveTheTopEdge() {
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: photo.minY),
+                                           diameter: diameter, in: photo)
+        #expect(center.y - diameter / 2 >= photo.minY - epsilon)
+    }
+
+    /// The regression that motivated extracting this: `min(max(x, r), w - r)`
+    /// inverts when the photo is narrower than the loupe and returns `w - r`,
+    /// which is off the left of the view. The midpoint is the only sane answer.
+    @Test func returnsTheMidpointWhenThePhotoIsNarrowerThanTheLoupe() {
+        let narrow = CGRect(x: 0, y: 0, width: 90, height: 500)
+        let center = LoupePlacement.center(for: CGPoint(x: 80, y: 300),
+                                           diameter: diameter, in: narrow)
+        #expect(abs(center.x - narrow.midX) <= epsilon)
+    }
+
+    @Test func returnsTheMidpointWhenThePhotoIsShorterThanTheLoupe() {
+        let short = CGRect(x: 0, y: 0, width: 400, height: 90)
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: 40),
+                                           diameter: diameter, in: short)
+        #expect(abs(center.y - short.midY) <= epsilon)
+    }
+
+    /// The photo is centred in a larger container once the frame is greedy, so
+    /// the rect the loupe is clamped into no longer starts at the origin.
+    @Test func respectsANonZeroOrigin() {
+        let offset = CGRect(x: 50, y: 120, width: 400, height: 500)
+        let center = LoupePlacement.center(for: CGPoint(x: 52, y: 420),
+                                           diameter: diameter, in: offset)
+        #expect(abs(center.x - (offset.minX + diameter / 2)) <= epsilon)
+    }
+}

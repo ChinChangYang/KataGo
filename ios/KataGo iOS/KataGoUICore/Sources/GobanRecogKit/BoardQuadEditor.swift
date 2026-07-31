@@ -362,3 +362,44 @@ public enum QuadGeometry {
                       width: max(0, maxX - minX), height: max(0, maxY - minY))
     }
 }
+
+/// Where to draw the magnifier for the corner being dragged.
+///
+/// The corner sits under the fingertip — exactly where the user needs to look
+/// — so the loupe is offset clear of the hand: above by preference, flipping
+/// below when the corner is near the top edge. Both axes are then clamped into
+/// the photo, because `BoardQuadView` does not clip: an unclamped loupe draws
+/// over the board-size picker and the button row beneath the photo.
+///
+/// Pure and separate from the view so the clamping rules are testable. They
+/// are not obvious: the naive `min(max(x, r), width - r)` inverts when the
+/// photo is narrower than the loupe and returns a point off the opposite edge.
+public enum LoupePlacement {
+
+    /// Distance between the corner and the loupe's centre, as a fraction of
+    /// the diameter. Large enough that the circle clears a fingertip.
+    public static let gapFraction: CGFloat = 0.85
+
+    public static func center(for point: CGPoint,
+                              diameter: CGFloat,
+                              in bounds: CGRect) -> CGPoint {
+        let radius = diameter / 2
+        let gap = diameter * gapFraction
+        let above = point.y - gap - radius >= bounds.minY
+        return CGPoint(x: clamped(point.x, radius: radius,
+                                  from: bounds.minX, to: bounds.maxX),
+                       y: clamped(above ? point.y - gap : point.y + gap,
+                                  radius: radius,
+                                  from: bounds.minY, to: bounds.maxY))
+    }
+
+    /// Keeps a circle of `radius` centred at `value` inside `[from, to]`.
+    /// When the span is narrower than the circle there is no such position, so
+    /// the midpoint is the answer — clamping in that case would place the
+    /// centre outside the span entirely.
+    private static func clamped(_ value: CGFloat, radius: CGFloat,
+                                from minimum: CGFloat, to maximum: CGFloat) -> CGFloat {
+        guard maximum - minimum >= 2 * radius else { return (minimum + maximum) / 2 }
+        return min(max(value, minimum + radius), maximum - radius)
+    }
+}

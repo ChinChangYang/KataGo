@@ -61,12 +61,12 @@ public struct BoardQuadView: View {
                     .interpolation(.high)
                     .frame(width: frame.width, height: frame.height)
                     .position(x: frame.midX, y: frame.midY)
-                dimming(outside: viewQuad, in: geo.size)
+                dimming(outside: viewQuad, in: frame)
                 lattice(viewQuad)
                 outline(viewQuad)
                 handles(viewQuad)
                 if let loupeTarget {
-                    loupe(at: loupeTarget, frame: frame, in: geo.size)
+                    loupe(at: loupeTarget, frame: frame)
                 }
             }
             .contentShape(Rectangle())
@@ -119,9 +119,13 @@ public struct BoardQuadView: View {
 
     /// Dims everything outside the quad (even-odd fill punch-out), so the board
     /// the user is framing is the bright part.
-    private func dimming(outside quad: BoardQuad, in size: CGSize) -> some View {
+    ///
+    /// Scoped to the fitted image rect rather than the container: once the view
+    /// is allowed to fill a greedy frame those differ, and washing the letterbox
+    /// would draw dark bars around the photo instead of clear ones.
+    private func dimming(outside quad: BoardQuad, in frame: CGRect) -> some View {
         Path { path in
-            path.addRect(CGRect(origin: .zero, size: size))
+            path.addRect(frame)
             path.addLines(quad.points)
             path.closeSubpath()
         }
@@ -182,16 +186,13 @@ public struct BoardQuadView: View {
     /// A magnified inset of the photo centred on the corner being dragged.
     ///
     /// Precision is the entire job of this control, and a dragged corner sits
-    /// under the fingertip — exactly where the user needs to look. The loupe is
-    /// placed above the corner, flipping below when the corner is near the top
-    /// edge, so it is never itself under the hand.
-    private func loupe(at point: CGPoint, frame: CGRect, in size: CGSize) -> some View {
+    /// under the fingertip — exactly where the user needs to look. Placement
+    /// (above the corner, flipping below near the top edge, clamped into the
+    /// photo on both axes) lives in the unit-tested `LoupePlacement`.
+    private func loupe(at point: CGPoint, frame: CGRect) -> some View {
         let diameter = Self.loupeDiameter
         let zoom = Self.loupeZoom
-        let gap = diameter * 0.85
-        let above = point.y - gap - diameter / 2 >= 0
-        let center = CGPoint(x: min(max(point.x, diameter / 2), size.width - diameter / 2),
-                             y: above ? point.y - gap : point.y + gap)
+        let center = LoupePlacement.center(for: point, diameter: diameter, in: frame)
 
         // Magnify about `point`: the image's own centre lands at the loupe's
         // centre by default, so shifting it by (centre − point) in magnified
