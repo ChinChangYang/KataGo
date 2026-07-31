@@ -351,8 +351,11 @@ public struct PhotoImportSheet: View {
                     // ideal height can exceed the sheet, and the photo is then
                     // proposed zero height and disappears. That is a safe
                     // degradation (no crash, no quad corruption, thanks to
-                    // guards added earlier) and strictly better than the old
-                    // behavior, which clipped the chrome instead.
+                    // guards added earlier); under the old layout the photo
+                    // was already the most flexible child and shrank first
+                    // too, so the negative priority mainly makes that
+                    // yielding order explicit and guaranteed rather than
+                    // incidental.
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(-1)
             }

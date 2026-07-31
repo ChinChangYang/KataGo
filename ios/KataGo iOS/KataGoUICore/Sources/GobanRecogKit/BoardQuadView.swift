@@ -127,9 +127,12 @@ public struct BoardQuadView: View {
     /// Dims everything outside the quad (even-odd fill punch-out), so the board
     /// the user is framing is the bright part.
     ///
-    /// Scoped to the fitted image rect rather than the container: once the view
-    /// is allowed to fill a greedy frame those differ, and washing the letterbox
-    /// would draw dark bars around the photo instead of clear ones.
+    /// Scoped to the fitted image rect rather than the container: in case the
+    /// `.aspectRatio` modifier ever moves outside this view, or a greedy frame
+    /// is ever pushed inside it, those two could diverge, and washing the
+    /// letterbox would draw dark bars around the photo instead of clear ones.
+    /// Today they coincide, so this is defensive rather than something you
+    /// can currently observe.
     private func dimming(outside quad: BoardQuad, in frame: CGRect) -> some View {
         Path { path in
             path.addRect(frame)

@@ -353,10 +353,13 @@ struct QuadGeometryTests {
 // MARK: - Fitted frame
 
 /// `CropGeometry.fittedFrame` decides where the photo actually lands inside
-/// `BoardQuadView`. It was an identity function while the view's own
-/// `.aspectRatio` guaranteed a container of the image's ratio; once the view
-/// is allowed to fill a greedy frame it does real letterboxing, and every
-/// coordinate the grid editor speaks is measured from the rect it returns.
+/// `BoardQuadView`. It is an identity function today, because the view's own
+/// `.aspectRatio` guarantees the `GeometryReader` a container of the image's
+/// ratio; these tests pin the letterboxing contract anyway, so a future
+/// change that moves the `.aspectRatio` or feeds a greedy frame straight into
+/// the reader cannot silently stop clamping and measuring correctly. Every
+/// coordinate the grid editor speaks is measured from the rect this function
+/// returns.
 @Suite("Fitted frame")
 struct FittedFrameTests {
 
