@@ -84,6 +84,13 @@ public struct BoardQuadView: View {
     private func quadGesture(editor: BoardQuadEditor, frame: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                // An empty frame makes `normalizedQuad` fall back to the whole
+                // unit square, which would silently replace the corners the
+                // user just placed. Unreachable while the photo had a fixed
+                // size; a greedy frame can be proposed zero height during
+                // presentation, rotation, or an extreme Dynamic Type pass.
+                guard !frame.isEmpty else { return }
+
                 let active: (startLocation: CGPoint, start: BoardQuad, grab: BoardQuadEditor.Grab)
                 if let drag, drag.startLocation == value.startLocation {
                     active = drag
