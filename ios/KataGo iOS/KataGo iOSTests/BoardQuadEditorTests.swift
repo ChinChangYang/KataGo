@@ -488,4 +488,29 @@ struct LoupePlacementTests {
                                            diameter: diameter, in: offset)
         #expect(abs(center.x - (offset.minX + diameter / 2)) <= epsilon)
     }
+
+    /// The clamp, not the flip, is what saves a short photo. At 500 pt tall the
+    /// flip alone already places the circle safely, so the two existing
+    /// edge tests pass even with the y clamp removed; this one does not.
+    /// Without the clamp the centre would sit at 191.8 and the circle's bottom
+    /// at 245.8 — 45.8 pt below the photo, over the board-size picker.
+    @Test func clampsTheCircleOffTheBottomOfAShortPhoto() {
+        let short = CGRect(x: 0, y: 0, width: 400, height: 200)
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: 100),
+                                           diameter: diameter, in: short)
+        expectClose(center, CGPoint(x: 200, y: short.maxY - diameter / 2))
+    }
+
+    /// The flip must be decided against the rect's own top edge, not against
+    /// zero — the fitted photo rect acquires a non-zero origin as soon as it is
+    /// centred inside a larger frame. Reading the threshold as 0 would call
+    /// this corner "above", placing the circle across y 120...228 and burying
+    /// the corner at y=200 underneath the magnifier — the exact thing the flip
+    /// exists to prevent.
+    @Test func flipsBelowRelativeToTheRectsTopEdgeNotZero() {
+        let offset = CGRect(x: 50, y: 120, width: 400, height: 500)
+        let center = LoupePlacement.center(for: CGPoint(x: 200, y: 200),
+                                           diameter: diameter, in: offset)
+        expectClose(center, CGPoint(x: 200, y: 200 + gap))
+    }
 }

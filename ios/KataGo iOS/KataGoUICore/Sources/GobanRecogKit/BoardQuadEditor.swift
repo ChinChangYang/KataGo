@@ -368,8 +368,9 @@ public enum QuadGeometry {
 /// The corner sits under the fingertip — exactly where the user needs to look
 /// — so the loupe is offset clear of the hand: above by preference, flipping
 /// below when the corner is near the top edge. Both axes are then clamped into
-/// the photo, because `BoardQuadView` does not clip: an unclamped loupe draws
-/// over the board-size picker and the button row beneath the photo.
+/// the photo, or centred when no fitting position exists, because
+/// `BoardQuadView` does not clip: an unclamped loupe draws over the
+/// board-size picker and the button row beneath the photo.
 ///
 /// Pure and separate from the view so the clamping rules are testable. They
 /// are not obvious: the naive `min(max(x, r), width - r)` inverts when the
