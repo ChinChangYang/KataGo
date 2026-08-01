@@ -2,7 +2,7 @@
 //  AppHandoff.swift
 //  KataGoAnytimeMessages
 //
-//  "Analyze in KataGo Anytime": the extension may not write the shared
+//  "Open in App": the extension may not write the shared
 //  SwiftData store (extensions are read-only by design), so it spools the
 //  game's SGF as a FILE in the App Group container and deep-links the app,
 //  which imports it through the normal GameRecord.importGameRecord path

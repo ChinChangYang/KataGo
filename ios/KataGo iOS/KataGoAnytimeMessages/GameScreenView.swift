@@ -46,6 +46,7 @@ struct GameScreenView: View {
 
     @State private var ghost: GoPoint?
     @State private var confirmingResign = false
+    @State private var confirmingOpenInApp = false
     /// Local scoring edits before proposing (nil = incoming state as-is).
     @State private var workingGame: MessageGame?
 
@@ -245,8 +246,21 @@ struct GameScreenView: View {
 
     // MARK: - Footer
 
-    @ViewBuilder
+    /// The open-in-app dialog hangs off the whole footer rather than one
+    /// phase's row, because the action is offered in all three.
     private var footer: some View {
+        footerContent
+            .confirmationDialog("Open this game in KataGo Anytime?",
+                                isPresented: $confirmingOpenInApp,
+                                titleVisibility: .visible) {
+                Button("Open") { actions.openInApp(effectiveMessage) }
+            } message: {
+                Text("The game is added to your library.")
+            }
+    }
+
+    @ViewBuilder
+    private var footerContent: some View {
         switch game.phase {
         case .playing:
             controlRow(playingActions)
@@ -257,15 +271,16 @@ struct GameScreenView: View {
         case .scoring:
             controlRow(scoringActions)
         case .finished:
-            controlRow([analyzeAction])
+            controlRow([openInAppAction])
         }
     }
 
     // MARK: - Control rows
     //
-    // "Propose score" + "Accept" + "Resume play" + the Analyze button needs
-    // ~450 pt on one line; the widest iPhone is 440, so that row wrapped on
-    // EVERY device, and both rows wrapped one Dynamic Type step above default.
+    // "Propose score" + "Accept" + "Resume play" + the open-in-app button
+    // needs ~450 pt on one line; the widest iPhone is 440, so that row wrapped
+    // on EVERY device, and both rows wrapped one Dynamic Type step above
+    // default.
     // `ViewThatFits` walks three tiers instead: full labels, short labels,
     // then a vertical stack that keeps the full words — deliberately not an
     // icon-only tier, since the widths that reach it are large accessibility
@@ -298,7 +313,7 @@ struct GameScreenView: View {
                         isEnabled: interactive) { sendPass() },
             BoardAction(id: "resign", long: "Resign", short: "Resign",
                         isDestructive: true, isEnabled: interactive) { confirmingResign = true },
-            analyzeAction,
+            openInAppAction,
         ]
     }
 
@@ -312,16 +327,21 @@ struct GameScreenView: View {
                         isEnabled: interactive) { sendAccept() },
             BoardAction(id: "resume", long: "Resume play", short: "Resume",
                         isEnabled: interactive) { sendDispute() },
-            analyzeAction,
+            openInAppAction,
         ]
     }
 
-    /// The sparkle is the app's analysis glyph (custom.sparkle on the iOS
-    /// board, sparkles on tvOS).
-    private var analyzeAction: BoardAction {
-        BoardAction(id: "analyze", long: "Analyze", short: "Analyze",
-                    systemImage: "sparkle") {
-            actions.openInApp(effectiveMessage)
+    /// Hands the game to the app. This used to be labelled "Analyze" behind
+    /// the app's sparkle, which promised something this screen cannot deliver
+    /// — the extension is engine-free and shows no analysis at all. What the
+    /// button actually does is add the game to the app's library, and it can
+    /// only do that by opening the app: an extension may not write the shared
+    /// store (see `AppHandoff`). So it says so, and confirms first, because
+    /// tapping it leaves the conversation.
+    private var openInAppAction: BoardAction {
+        BoardAction(id: "openInApp", long: "Open in App", short: "Open",
+                    systemImage: "arrow.up.forward.app") {
+            confirmingOpenInApp = true
         }
     }
 
@@ -373,7 +393,7 @@ struct GameScreenView: View {
         .disabled(!item.isEnabled)
         // The icon tier has no visible words, and even the text tiers may show
         // the SHORT label — so pin a stable speakable name either way.
-        .accessibilityLabel(item.id == "analyze" ? "Analyze in KataGo Anytime" : item.long)
+        .accessibilityLabel(item.id == "openInApp" ? "Open in KataGo Anytime" : item.long)
 
         if item.isProminent {
             button.buttonStyle(.borderedProminent)

@@ -723,7 +723,7 @@ struct GameSplitView: View {
     }
 
     /// Imports every SGF the Messages extension spooled into the App Group
-    /// (each "Analyze in KataGo Anytime" tap writes one), deletes the spool
+    /// (each "Open in App" tap writes one), deletes the spool
     /// files, and selects the named file's game (or the newest). Runs at
     /// mount for cold launches and from `.onOpenURL` when warm; the existing
     /// exact-SGF dedupe makes repeated drains harmless.
