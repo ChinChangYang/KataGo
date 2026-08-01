@@ -1,11 +1,37 @@
 # Photo Import: Maximize the Photo in the Grid Phase — Design
 
 **Date:** 2026-07-31
-**Status:** Approved (brainstorming session)
+**Status:** Shipped 2026-08-01 (`2f75bef2..bf0148f3`) — see the corrections below
 **Feature:** In `PhotoImportSheet`'s `adjustingGrid` phase, the photo becomes
 the dominant element — full container width, all leftover height — on iOS,
-iPadOS, and macOS. The four draggable corners get proportionally bigger, so
-placing them on the board's outer line crossings stops being fiddly.
+iPadOS, and macOS, so placing the four corners on the board's outer line
+crossings stops being fiddly.
+
+> **Correction (2026-08-01).** This line originally also claimed "the four
+> draggable corners get proportionally bigger". **They do not, and never did in
+> any version of this plan.** `handles` draws fixed 18 pt / 5 pt circles
+> (`BoardQuadView.swift`) and `BoardQuadEditor.grabRadius` is a fixed 32 pt;
+> neither the design body nor the implementation plan ever scheduled a change.
+> Because the photo grew, that fixed 32 pt radius now covers a *smaller*
+> fraction of the image than before. That is defensible — a fixed target is
+> correct touch ergonomics, and 32 pt exceeds the usual guidance — but it is
+> not what this sentence promised, and anyone reading the spec to learn what
+> shipped should not inherit the error.
+>
+> **Correction 2 (2026-08-01).** Risk #3 below ("`CropGeometry.fittedFrame`
+> stops being a no-op") rests on a false premise. `.aspectRatio` sits *inside*
+> `BoardQuadView` while the greedy frame is applied *outside* it, so `geo.size`
+> always carries the image ratio and `fittedFrame` still returns a zero origin.
+> Measurements confirm it: the identified element measured 402x301 and 402x536,
+> i.e. it *is* the aspect-fitted photo. The letterboxing handling that risk
+> motivated is therefore defensive, never exercised in production.
+>
+> **Correction 3 (2026-08-01).** The design's `.layoutPriority(-1)` on the photo
+> shipped and was then **removed** (`be327748`) after measurement showed it
+> crushed the photo to 54.67x41 pt at Accessibility XXXL (vs 288x216 without
+> it), making the editor unusable, with no benefit at default text size and no
+> chrome clipping in any measured condition. Guarded since by
+> `testGridPhotoStaysReadableAtAccessibilityXXXL`.
 
 ## Problem
 
