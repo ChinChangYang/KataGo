@@ -58,21 +58,29 @@ struct GameScreenView: View {
     /// header and stacked buttons ate ALL of it — a 19x19 collapsed to a few
     /// points. Below the floor the sheet scrolls instead of squeezing.
     private static let minimumBoardHeight: CGFloat = 160
+    private static let contentPadding: CGFloat = 16
+    private static let rowSpacing: CGFloat = 8
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                header
-                board
-                    .aspectRatio(CGFloat(game.board.width) / CGFloat(game.board.height), contentMode: .fit)
-                    .frame(maxWidth: .infinity, minHeight: Self.minimumBoardHeight)
-                footer
+        GeometryReader { outer in
+            ScrollView {
+                BoardScreenLayout(
+                    availableHeight: outer.size.height - Self.contentPadding * 2,
+                    boardWidth: game.board.width,
+                    boardHeight: game.board.height,
+                    spacing: Self.rowSpacing,
+                    minimumBoardHeight: Self.minimumBoardHeight
+                ) {
+                    header
+                    board
+                    footer
+                }
+                .padding(Self.contentPadding)
             }
-            .padding()
+            // Only reachable at accessibility text sizes now: the board is
+            // fitted to the sheet, so ordinary sizes have nothing to scroll.
+            .scrollBounceBehavior(.basedOnSize)
         }
-        // Nothing to scroll at ordinary text sizes: the content fits and this
-        // reads exactly as the plain VStack did.
-        .scrollBounceBehavior(.basedOnSize)
     }
 
     // MARK: - Header
@@ -148,7 +156,12 @@ struct GameScreenView: View {
                 overlays(geometry: geometry)
             }
             .contentShape(Rectangle())
-            .gesture(boardGesture(geometry: geometry))
+            // A view-only board must not swallow the scroll pan: this gesture
+            // has `minimumDistance: 0`, so while it is attached a drag that
+            // starts on the board never reaches the ScrollView. That is what
+            // made the sheet feel unscrollable when a board overflowed it.
+            .gesture(boardGesture(geometry: geometry),
+                     including: interactive ? .all : .none)
         }
     }
 
@@ -403,5 +416,83 @@ struct GameScreenView: View {
         var updated = message
         updated.game.resumePlay()
         actions.stage(updated)
+    }
+}
+
+/// Lays out the screen's three rows — header, board, action row — sizing the
+/// board to what is left of the sheet and centering the three as one block.
+///
+/// This is the only custom `Layout` in the app, and it earns that. The board's
+/// size depends on how much height the header and action row claim, which is
+/// not knowable without measuring them; and inside a `ScrollView` SwiftUI
+/// proposes an unspecified height, so the old
+/// `.aspectRatio(_:contentMode: .fit)` had nothing but the width to resolve
+/// against and sized a 9x19 to ~781 pt in a ~636 pt sheet. A `Layout` measures
+/// the chrome and places the board in the SAME pass, so there is no two-frame
+/// settle to flicker through and nothing rests on nil-proposal semantics. The
+/// arithmetic itself is `BoardSheetFit`, which is unit-tested; this type only
+/// measures and places.
+private struct BoardScreenLayout: Layout {
+    /// The sheet's height net of the screen's padding. Comes from a
+    /// `GeometryReader` OUTSIDE the ScrollView, because inside one the
+    /// proposal carries no height at all.
+    let availableHeight: CGFloat
+    let boardWidth: Int
+    let boardHeight: Int
+    let spacing: CGFloat
+    let minimumBoardHeight: CGFloat
+
+    private struct Metrics {
+        let fit: BoardSheetFit
+        let headerHeight: CGFloat
+        let footerHeight: CGFloat
+    }
+
+    /// Header and action-row heights depend only on the WIDTH and the text
+    /// size, never on the board, so measuring them here cannot feed back into
+    /// the board's size and oscillate.
+    private func metrics(_ subviews: Subviews, width: CGFloat) -> Metrics {
+        let proposal = ProposedViewSize(width: width, height: nil)
+        let headerHeight = subviews[0].sizeThatFits(proposal).height
+        let footerHeight = subviews[2].sizeThatFits(proposal).height
+        return Metrics(
+            fit: BoardSheetFit(
+                available: CGSize(width: width, height: availableHeight),
+                chromeHeight: headerHeight + footerHeight + spacing * 2,
+                boardWidth: boardWidth,
+                boardHeight: boardHeight,
+                minimumBoardHeight: minimumBoardHeight),
+            headerHeight: headerHeight,
+            footerHeight: footerHeight)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 0
+        // Claiming the full sheet height when the block is shorter is what
+        // lets the block center; claiming more is what lets the sheet scroll.
+        return CGSize(width: width, height: metrics(subviews, width: width).fit.totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
+                       subviews: Subviews, cache: inout ()) {
+        let metrics = metrics(subviews, width: bounds.width)
+        var y = bounds.minY + metrics.fit.topInset
+
+        subviews[0].place(
+            at: CGPoint(x: bounds.midX, y: y), anchor: .top,
+            proposal: ProposedViewSize(width: bounds.width, height: metrics.headerHeight))
+        y += metrics.headerHeight + spacing
+
+        // The board is placed at an EXACT size, which is also the size its
+        // GeometryReader reports to `BoardTapGeometry` — renderer and
+        // hit-testing cannot disagree.
+        subviews[1].place(
+            at: CGPoint(x: bounds.midX, y: y), anchor: .top,
+            proposal: ProposedViewSize(metrics.fit.boardSize))
+        y += metrics.fit.boardSize.height + spacing
+
+        subviews[2].place(
+            at: CGPoint(x: bounds.midX, y: y), anchor: .top,
+            proposal: ProposedViewSize(width: bounds.width, height: metrics.footerHeight))
     }
 }
