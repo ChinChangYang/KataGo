@@ -14,7 +14,7 @@
 
 - The watch target may link **only** bridge-free products: `KataGoGameStore` and (new) `GoRulesKit`. Never `KataGoUICore`, `CKataGoBridge`, `GobanRecogKit`, or MLX.
 - The `@Model` schema (`GameRecord`, `Config`) is **frozen** — CloudKit. Never add, rename, remove, or retype a stored property. Orphan fields instead of deleting them.
-- The watch is **read-only**. No code in this plan may call `modelContext.save()`, insert, or delete.
+- The watch is **read-only**. No *shipping* code in this plan may call `modelContext.save()`, insert, or delete. Test fixtures seeding an in-memory container are exempt — that is how the suites build their data.
 - All committed content is **English-only**. No CJK anywhere, including comments.
 - Test framework is **Swift Testing** (`import Testing`, `@Test`, `#expect`, `#require`) in both the iOS test target and the SwiftPM package tests. Never XCTest.
 - The SwiftPM tests under `KataGoUICore/Tests/` are compiled but **never executed** by `xcodebuild test`. `swift test` is a separate, mandatory gate.
@@ -796,7 +796,6 @@ tvOS already opens a plain (non-App-Group) CloudKit store through a never-crash 
 
 **Files:**
 - Modify: `ios/KataGo iOS/KataGoUICore/Sources/KataGoGameStore/SharedModelContainer.swift`
-- Test: `ios/KataGo iOS/KataGo iOSTests/SharedModelContainerTests.swift`
 
 **Interfaces:**
 - Consumes: `LibraryStoreMode` (`.cloudKit` / `.localOnly` / `.inMemory`) from `LibrarySyncState.swift`.
@@ -804,64 +803,10 @@ tvOS already opens a plain (non-App-Group) CloudKit store through a never-crash 
   - `SharedModelContainer.cloudOnlyStoreMode: LibraryStoreMode` (available on tvOS and watchOS).
   - `SharedModelContainer.watchStoreMode: LibraryStoreMode` (watchOS only) — used by Task 9's empty-state logic.
   - `SharedModelContainer.tvStoreMode` keeps working unchanged for the tvOS target.
-  - `public static func storeModeAfterOpen(cloudKitOpened:localOpened:) -> LibraryStoreMode` — the pure decision, testable from the iOS simulator.
 
-- [ ] **Step 1: Write the failing test**
+**No new unit test in this task, deliberately.** A store-open ladder is three branches each assigning a constant; the existing tvOS one was never unit-tested because there is nothing to test that the code does not already state outright. A pure decision function here could only ever be called with literal `true`/`false`, so it would pin nothing. This task is verified by the existing iOS suite still passing, the tvOS scheme still building, and Task 9's simulator run reaching the library instead of crashing.
 
-Append to `ios/KataGo iOS/KataGo iOSTests/SharedModelContainerTests.swift`, inside the existing `struct SharedModelContainerTests { … }`:
-
-```swift
-    // MARK: - CloudKit-only ladder (tvOS + watchOS)
-
-    @Test func cloudOnlyLadder_cloudKitOpens_isCloudKitMode() {
-        #expect(SharedModelContainer.storeModeAfterOpen(cloudKitOpened: true,
-                                                        localOpened: true) == .cloudKit)
-        // A local rung that also would have opened does not downgrade the win.
-        #expect(SharedModelContainer.storeModeAfterOpen(cloudKitOpened: true,
-                                                        localOpened: false) == .cloudKit)
-    }
-
-    @Test func cloudOnlyLadder_cloudKitFails_degradesToLocalOnly() {
-        #expect(SharedModelContainer.storeModeAfterOpen(cloudKitOpened: false,
-                                                        localOpened: true) == .localOnly)
-    }
-
-    @Test func cloudOnlyLadder_bothFail_endsInMemoryNeverCrashes() {
-        // A watch, like a TV, must degrade to a retryable "storage
-        // unavailable" state rather than fatalError.
-        #expect(SharedModelContainer.storeModeAfterOpen(cloudKitOpened: false,
-                                                        localOpened: false) == .inMemory)
-    }
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-```bash
-cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS" && \
-xcodebuild test -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" \
-  -destination 'platform=iOS Simulator,name=iPhone 17' \
-  -only-testing:"KataGo AnytimeTests/SharedModelContainerTests" \
-  2>&1 | grep -E "TEST (SUCCEEDED|FAILED)|error:"
-```
-
-Expected: compile error — `type 'SharedModelContainer' has no member 'cloudOnlyStoreMode'`.
-
-- [ ] **Step 3: Add the pure decision function**
-
-In `SharedModelContainer.swift`, insert immediately before the `#if os(tvOS)` line (currently line 94), outside any platform guard so the iOS test target can reach it:
-
-```swift
-    /// Which rung of the CloudKit-only ladder a pair of open results lands on.
-    /// Pure so the iOS-simulator test target can cover the truth table —
-    /// the tvOS and watchOS code that consumes it is unreachable from tests.
-    public static func storeModeAfterOpen(cloudKitOpened: Bool,
-                                          localOpened: Bool) -> LibraryStoreMode {
-        if cloudKitOpened { return .cloudKit }
-        return localOpened ? .localOnly : .inMemory
-    }
-```
-
-- [ ] **Step 4: Generalize the tvOS branch to cover watchOS**
+- [ ] **Step 1: Generalize the tvOS branch to cover watchOS**
 
 In `SharedModelContainer.swift`, replace the entire `#if os(tvOS) … #endif` region (currently lines 94-148) with:
 
@@ -909,18 +854,18 @@ In `SharedModelContainer.swift`, replace the entire `#if os(tvOS) … #endif` re
         do {
             let container = try ModelContainer(for: schema,
                                                configurations: cloudOnlyCloudKitConfig())
-            _cloudOnlyStoreMode = storeModeAfterOpen(cloudKitOpened: true, localOpened: true)
+            _cloudOnlyStoreMode = .cloudKit
             return container
         } catch {
             NSLog("SharedModelContainer: CloudKit store open failed, degrading local-only: \(error)")
             do {
                 let container = try ModelContainer(for: schema,
                                                    configurations: cloudOnlyLocalConfig())
-                _cloudOnlyStoreMode = storeModeAfterOpen(cloudKitOpened: false, localOpened: true)
+                _cloudOnlyStoreMode = .localOnly
                 return container
             } catch {
                 NSLog("SharedModelContainer: local store open failed, using in-memory: \(error)")
-                _cloudOnlyStoreMode = storeModeAfterOpen(cloudKitOpened: false, localOpened: false)
+                _cloudOnlyStoreMode = .inMemory
                 return makeInMemoryContainer()
             }
         }
@@ -939,7 +884,7 @@ In `SharedModelContainer.swift`, replace the entire `#if os(tvOS) … #endif` re
     #endif
 ```
 
-- [ ] **Step 5: Route the watch through the ladder**
+- [ ] **Step 2: Route the watch through the ladder**
 
 In the `shared` initializer, replace:
 
@@ -968,7 +913,9 @@ with:
         #else
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 3: Run the existing store suite for regressions**
+
+This task adds no tests; it must not break the 32 that already cover the store.
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS" && \
@@ -978,9 +925,9 @@ xcodebuild test -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" \
   2>&1 | grep -E "TEST (SUCCEEDED|FAILED)|error:"
 ```
 
-Expected: `** TEST SUCCEEDED **`, with all 32 pre-existing tests still passing.
+Expected: `** TEST SUCCEEDED **`, all 32 pre-existing tests still passing.
 
-- [ ] **Step 7: Verify the tvOS scheme still builds**
+- [ ] **Step 4: Verify the tvOS scheme still builds**
 
 ```bash
 cd "/Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS" && \
@@ -990,12 +937,11 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime TV"
 
 Expected: `** BUILD SUCCEEDED **`. `tvStoreMode` must still resolve for `TVLibraryView` and `TVSettingsScreen`.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev
-git add "ios/KataGo iOS/KataGoUICore/Sources/KataGoGameStore/SharedModelContainer.swift" \
-        "ios/KataGo iOS/KataGo iOSTests/SharedModelContainerTests.swift"
+git add "ios/KataGo iOS/KataGoUICore/Sources/KataGoGameStore/SharedModelContainer.swift"
 git commit -m "feat(store): open a CloudKit-only store on watchOS
 
 The watch links KataGoGameStore already but never opened a container, so
@@ -2187,19 +2133,33 @@ final class WatchBrowseModel {
     /// The scrub position, 0...moveCount.
     var index: Int = 0
 
-    @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private var replay: SgfReplay?
+    // The record's cached review data, read ONCE when the game opens. Scrubbing
+    // must not hit SwiftData: `frame` is recomputed on every Crown detent and
+    // every body evaluation, and a predicate fetch at that rate is what makes
+    // scrubbing feel bad on watch hardware. One game's four dictionaries are a
+    // small, bounded cost — the footprint rule that keeps them out of the
+    // library list is about a hundred rows, not one open game.
+    @ObservationIgnored private let winRates: [Int: Float]?
+    @ObservationIgnored private let scoreLeads: [Int: Float]?
+    @ObservationIgnored private let bestMoves: [Int: String]?
+    @ObservationIgnored private let comments: [Int: String]?
 
     init(row: WatchLibraryRow, container: ModelContainer) {
         self.row = row
-        self.container = container
         if let scan = SgfHeaderScan(sgf: row.sgf) {
             replay = SgfReplay(scan: scan)
         }
+
+        let record = Self.record(for: row, container: container)
+        winRates = record?.winRates
+        scoreLeads = record?.scoreLeads
+        bestMoves = record?.bestMoves
+        comments = record?.comments
+
         // Open where the game itself sits, so the watch lands on the same
         // position the phone last showed.
-        index = Self.savedIndex(for: row, container: container) ?? 0
-        index = min(max(index, 0), moveCount)
+        index = min(max(record?.currentIndex ?? 0, 0), moveCount)
     }
 
     /// False when the SGF could not be scanned at all.
@@ -2225,30 +2185,20 @@ final class WatchBrowseModel {
             comment: analysis.comment)
     }
 
-    /// The record's cached review data at the scrubbed index. Fetched fresh
-    /// each time rather than held, so a wrist-sized process is not sitting on
-    /// four per-move dictionaries for as long as the game view is open.
+    /// The review data the record cached at the scrubbed index. Pure lookup —
+    /// the dictionaries were read once in `init`.
     private func storedAnalysis() -> WatchStoredAnalysis {
-        guard let record = Self.record(for: row, container: container) else {
-            return WatchStoredAnalysis(winrateBlack: nil, scoreLeadBlack: nil,
-                                       bestMove: nil, comment: nil)
-        }
-        return WatchStoredAnalysis.at(index: index,
-                                      winRates: record.winRates,
-                                      scoreLeads: record.scoreLeads,
-                                      bestMoves: record.bestMoves,
-                                      comments: record.comments)
+        WatchStoredAnalysis.at(index: index,
+                               winRates: winRates,
+                               scoreLeads: scoreLeads,
+                               bestMoves: bestMoves,
+                               comments: comments)
     }
 
     private static func record(for row: WatchLibraryRow,
                                container: ModelContainer) -> GameRecord? {
         guard let uuid = UUID(uuidString: row.id) else { return nil }
         return try? GameRecord.fetchGameRecord(uuid: uuid, container: container)
-    }
-
-    private static func savedIndex(for row: WatchLibraryRow,
-                                   container: ModelContainer) -> Int? {
-        record(for: row, container: container)?.currentIndex
     }
 }
 ```
@@ -2265,7 +2215,7 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Wat
 
 Expected: `** BUILD SUCCEEDED **`, zero warnings.
 
-Note: `GameRecord.fetchGameRecord(uuid:container:)` restricts `propertiesToFetch`, and `winRates`/`scoreLeads`/`bestMoves` are not in that list — SwiftData faults them in on demand, which is exactly what we want here (one game, on demand) and not what we want in the list (Task 7 keeps them out).
+Note: `GameRecord.fetchGameRecord(uuid:container:)` restricts `propertiesToFetch`, and `winRates`/`scoreLeads`/`bestMoves` are not in that list — SwiftData faults them in on demand when `init` reads them. That is exactly right here (one game, once, at open) and exactly wrong in the list, which is why Task 7 bounds its own fetch instead of reusing this one.
 
 - [ ] **Step 7: Commit**
 
