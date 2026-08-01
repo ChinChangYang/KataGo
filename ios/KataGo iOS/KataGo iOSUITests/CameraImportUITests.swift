@@ -14,7 +14,7 @@
 //    * a recognizable camera board reaches the preview and shows NO retry
 //      button (retry is a failure-state affordance);
 //    * an unrecognizable camera image reaches the failure state, which offers
-//      the camera-specific "Retake Photo" button; tapping it reopens the camera
+//      the camera-specific "Retake" button; tapping it reopens the camera
 //      cover (proven by the stable `BoardCamera.cancel` element, present in both
 //      the Simulator's denied phase and its preview scaffold).
 //
@@ -55,8 +55,8 @@ final class CameraImportUITests: XCTestCase {
         // are absent.
         XCTAssertFalse(app.buttons["PhotoImportSheet.retry"].exists,
                        "Retry button must not appear in the preview state")
-        XCTAssertFalse(app.buttons["Retake Photo"].exists,
-                       "'Retake Photo' button must not appear in the preview state")
+        XCTAssertFalse(app.buttons["Retake"].exists,
+                       "'Retake' button must not appear in the preview state")
 
         let cancel = app.buttons["PhotoImportSheet.cancel"].firstMatch
         XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Preview 'Cancel' button not found")
@@ -73,7 +73,7 @@ final class CameraImportUITests: XCTestCase {
         launchBuiltInEngine(app)
 
         // The sheet appears then lands in the failure state: the non-board image
-        // cannot be recognized, so the retry button (camera title "Retake Photo",
+        // cannot be recognized, so the retry button (camera title "Retake",
         // identifier "PhotoImportSheet.retry") is shown.
         let title = app.staticTexts[sheetTitle]
         XCTAssertTrue(title.waitForExistence(timeout: 360),
@@ -82,8 +82,8 @@ final class CameraImportUITests: XCTestCase {
         let retry = app.buttons["PhotoImportSheet.retry"].firstMatch
         XCTAssertTrue(retry.waitForExistence(timeout: 120),
                       "Failure-state retry button ('PhotoImportSheet.retry') never appeared — the unrecognizable image did not reach the failure state")
-        XCTAssertEqual(retry.label, "Retake Photo",
-                       "Camera failure retry button should be titled 'Retake Photo'")
+        XCTAssertEqual(retry.label, "Retake",
+                       "Camera failure retry button should be titled 'Retake'")
 
         let failureShot = XCTAttachment(screenshot: app.screenshot())
         failureShot.name = "CameraImportFailure"
@@ -99,7 +99,7 @@ final class CameraImportUITests: XCTestCase {
 
         let cancel = app.buttons["BoardCamera.cancel"].firstMatch
         XCTAssertTrue(waitForCameraCover(app, cancel: cancel, timeout: 40),
-                      "Camera cover ('BoardCamera.cancel') did not appear after tapping Retake Photo")
+                      "Camera cover ('BoardCamera.cancel') did not appear after tapping Retake")
 
         let coverShot = XCTAttachment(screenshot: app.screenshot())
         coverShot.name = "CameraCoverReopened"

@@ -34,7 +34,7 @@ struct GameSplitView: View {
     /// sheet's `onDismiss` chaining below, waits for the dismissal to complete).
     @State private var capturedBoardPhoto: Data?
 
-    /// Set by the failure-state "Retake Photo" action; consumed by the
+    /// Set by the failure-state "Retake" action; consumed by the
     /// photo-import sheet's `onDismiss`. The camera cover must not be presented
     /// in the same transaction that dismisses the sheet (the mirror image of the
     /// `capturedBoardPhoto` race above — the cover presentation gets dropped
@@ -121,7 +121,7 @@ struct GameSplitView: View {
             }
             .sheet(item: $topUIState.pendingPhotoImport, onDismiss: {
 #if os(iOS)
-                // "Retake Photo" flagged intent to reopen the camera; present
+                // "Retake" flagged intent to reopen the camera; present
                 // the cover only now that the sheet has finished dismissing
                 // (presenting it in the same transaction gets dropped — the
                 // mirror image of the cover→sheet race handled below).
@@ -172,7 +172,7 @@ struct GameSplitView: View {
     /// the synthesized SGF is routed through the same seam the file/SGF import
     /// uses, so de-dup, selection, and widget reload all come for free.
     private func photoImportSheet(for pending: PendingPhotoImport) -> some View {
-        // A failed camera capture offers "Retake Photo", reopening the camera
+        // A failed camera capture offers "Retake", reopening the camera
         // cover. The retry only dismisses the sheet and flags intent; the cover
         // is presented from the sheet's `onDismiss` (presenting it while the
         // sheet is still dismissing gets dropped). File/library imports keep
@@ -191,7 +191,7 @@ struct GameSplitView: View {
             // import cannot occur; offer no retry if one ever does.
             onRetry = nil
 #endif
-            retryButtonTitle = "Retake Photo"
+            retryButtonTitle = "Retake"
         case .fileOrLibrary:
             onRetry = nil
             retryButtonTitle = "Try Another Image"

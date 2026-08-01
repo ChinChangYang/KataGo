@@ -79,7 +79,7 @@ struct ContentView: View {
                 // PhotosPicker. No-op unless its launch argument is present.
                 // The camera seam mirrors it for the (cameraless) Simulator,
                 // injecting a `.camera`-sourced pending import to exercise the
-                // "Retake Photo" retry path.
+                // "Retake" retry path.
                 #if DEBUG
                 PhotoImportUITestSupport.presentIfNeeded(into: topUIState)
                 CameraCaptureUITestSupport.presentIfNeeded(into: topUIState)

@@ -7,7 +7,7 @@
 //  These hooks feed `TopUIState.pendingPhotoImport` with `source: .camera`
 //  directly — the same state the real capture completion sets once the camera
 //  cover dismisses — so `PhotoImportSheet` presents and runs the real
-//  recognition path, exercising the camera-specific "Retake Photo" retry wiring.
+//  recognition path, exercising the camera-specific "Retake" retry wiring.
 //
 //  Two launch arguments:
 //    --uitest-camera-import          a recognizable board (reuses the wide-margin
@@ -16,7 +16,7 @@
 //    --uitest-camera-import-failing  a deterministic non-board image (a 64x64
 //                                    solid-gray JPEG rendered in code — no new
 //                                    embedded blob) so the sheet lands in the
-//                                    failure state, which offers "Retake Photo".
+//                                    failure state, which offers "Retake".
 //
 //  The seam NEVER constructs an AVFoundation object: it only sets pending state,
 //  keeping it Simulator-safe and away from the unconfigured-session capture
@@ -34,7 +34,7 @@ enum CameraCaptureUITestSupport {
     static let launchArg = "--uitest-camera-import"
 
     /// Auto-present the sheet (source `.camera`) with an unrecognizable image,
-    /// landing in the failure state (which offers "Retake Photo").
+    /// landing in the failure state (which offers "Retake").
     static let failingLaunchArg = "--uitest-camera-import-failing"
 
     /// Fixed name so the UI tests can identify the pending camera import.

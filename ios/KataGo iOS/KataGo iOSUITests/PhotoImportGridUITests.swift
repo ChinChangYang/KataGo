@@ -128,7 +128,7 @@ final class PhotoImportGridUITests: XCTestCase {
         let back = app.buttons["PhotoImportSheet.gridBack"].firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 10), "'Back' button not found in grid phase")
         XCTAssertTrue(app.buttons["PhotoImportSheet.retry"].exists,
-                      "Camera-sourced grid phase should offer Retake Photo")
+                      "Camera-sourced grid phase should offer Retake")
 
         back.tap()
         XCTAssertTrue(board.waitForExistence(timeout: 10),

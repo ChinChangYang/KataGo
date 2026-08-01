@@ -126,11 +126,14 @@ public struct PhotoImportSheet: View {
     ///   - onImport: called with the synthesized SGF (for the chosen next-to-play)
     ///     and the suggested name when the user confirms.
     ///   - onCancel: called when the user dismisses without importing.
-    ///   - onRetry: optional; when provided, the failure state offers a retry
-    ///     button so the host can re-present its picker (or re-open the camera).
-    ///   - retryButtonTitle: the retry button's label; defaults to "Try Another
-    ///     Image" (the file/library entry point). Camera hosts pass "Retake
-    ///     Photo". Ignored when `onRetry` is nil (no button shown).
+    ///   - onRetry: optional; when provided, the failure and grid states offer a
+    ///     retry button so the host can re-present its picker (or re-open the
+    ///     camera). Only the iOS camera path supplies one today — the
+    ///     file/library path and both macOS entry points pass nil.
+    ///   - retryButtonTitle: the retry button's label; the iOS camera host
+    ///     passes "Retake". Ignored when `onRetry` is nil (no button shown),
+    ///     which is why the "Try Another Image" default never renders today —
+    ///     it is kept as the right label for a future picker-based retry.
     public init(imageData: Data,
                 suggestedName: String,
                 onImport: @escaping (_ sgf: String, _ name: String) -> Void,
@@ -181,7 +184,12 @@ public struct PhotoImportSheet: View {
             Text("Reading the board…")
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
+            // Alone in its phase, so no `ActionRow` — but still glass: this is
+            // the first thing the sheet shows, and a bare label here followed by
+            // capsules in every later phase is the inconsistency this change set
+            // out to remove.
             Button("Cancel", role: .cancel, action: onCancel)
+                .buttonStyle(.glass)
                 .accessibilityIdentifier("PhotoImportSheet.cancel")
         }
         .frame(maxWidth: Self.contentMaxWidth, minHeight: 240)
@@ -245,18 +253,30 @@ public struct PhotoImportSheet: View {
                 Text("Confidence \(Int((board.confidence * 100).rounded()))%")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                // Glass here too, at `.small`: "Adjust Grid" and "Reset" are the
+                // same two-adjacent-borderless-labels shape as the action row
+                // below, so leaving them bare would reproduce the reported
+                // defect one row up while the sheet's other buttons are capsules.
                 Button("Adjust Grid") {
                     guard prepareGridPhase(seedFrom: board) else { return }
                     phase = .adjustingGrid(.fromPreview(board, edited: editedBoard))
                 }
                 .font(.caption)
+                .buttonStyle(.glass)
+                .controlSize(.small)
                 .accessibilityIdentifier("PhotoImportSheet.adjustGrid")
                 if hasEdits {
                     Button("Reset") { editedBoard = nil }
                         .font(.caption)
+                        .buttonStyle(.glass)
+                        .controlSize(.small)
                         .accessibilityIdentifier("PhotoImportSheet.reset")
                 }
             }
+            // Same shrink-before-truncate floor `ActionRow` applies; this row is
+            // metadata plus two small buttons, so it never needs to stack.
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
 
             // Segmented style drops the Picker's label on iOS, so render the
             // caption explicitly — without it the control is two bare
@@ -277,15 +297,26 @@ public struct PhotoImportSheet: View {
                 .labelsHidden()
             }
 
-            HStack {
+            // Liquid Glass, the app's styling elsewhere (InfoView,
+            // StatusToolbarItems, GameListView, StoneView, CommentView): every
+            // secondary action is `.glass`, the default action `.glassProminent`.
+            // Both give each button its own capsule, which is what stops two
+            // adjacent borderless labels reading as one run-on phrase — the
+            // reported defect. The pair must move together: a `.glass` secondary
+            // beside a `.borderedProminent` primary puts two materials in one row.
+            // This sheet ships on iOS and macOS only (the two targets that link
+            // GobanRecogKit), both of which have Liquid Glass, so no
+            // `#if os(visionOS) || os(tvOS)` fallback is needed here.
+            ActionRow {
                 Button("Cancel", role: .cancel, action: onCancel)
+                    .buttonStyle(.glass)
                     .accessibilityIdentifier("PhotoImportSheet.cancel")
-                Spacer()
+            } primary: {
                 Button("Import") {
                     onImport(current.synthesizedSGF(nextToPlay: nextToPlay), suggestedName)
                 }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
             }
         }
         .frame(maxWidth: Self.contentMaxWidth)
@@ -317,13 +348,16 @@ public struct PhotoImportSheet: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
-            HStack {
+            ActionRow {
                 Button("Cancel", role: .cancel, action: onCancel)
+                    .buttonStyle(.glass)
                     .accessibilityIdentifier("PhotoImportSheet.cancel")
+            } primary: {
+                // Retry is the default action here: recognition already failed,
+                // so re-shooting is the way forward, not Cancel.
                 if let onRetry {
-                    Spacer()
                     Button(retryButtonTitle, action: onRetry)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                         .accessibilityIdentifier("PhotoImportSheet.retry")
                 }
             }
@@ -375,28 +409,35 @@ public struct PhotoImportSheet: View {
             }
             .padding(.horizontal, Self.contentPadding)
 
-            HStack {
+            // The widest row in the sheet: a camera-sourced import reached
+            // through the preview shows all four buttons (Back, Cancel, Retake,
+            // Recognize), which is why it is the one that forces `ActionRow`
+            // into its stacked branch at accessibility text sizes.
+            ActionRow {
                 if case .fromPreview(let board, let edited) = context {
                     Button("Back") {
                         editedBoard = edited
                         phase = .preview(board)
                     }
+                    .buttonStyle(.glass)
                     .accessibilityIdentifier("PhotoImportSheet.gridBack")
                 }
                 Button("Cancel", role: .cancel, action: onCancel)
+                    .buttonStyle(.glass)
                     .accessibilityIdentifier("PhotoImportSheet.cancel")
                 if let onRetry {
                     Button(retryButtonTitle, action: onRetry)
+                        .buttonStyle(.glass)
                         .accessibilityIdentifier("PhotoImportSheet.retry")
                 }
-                Spacer()
+            } primary: {
                 Button("Recognize") {
                     submittedQuad = editingQuad
                     recognitionAttempt += 1
                     phase = .recognizing
                 }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .accessibilityIdentifier("PhotoImportSheet.recognize")
             }
             .padding(.horizontal, Self.contentPadding)
@@ -519,5 +560,49 @@ public struct PhotoImportSheet: View {
     /// stone-anchored refit appends a suffix ("user+a").
     private func isLowConfidence(_ board: RecognizedBoard) -> Bool {
         board.quadSource.hasPrefix("user") && board.confidence < 0.45
+    }
+}
+
+/// A sheet action row: secondary actions on the leading side, the default
+/// action trailing — stacked instead when the buttons cannot fit side by side.
+///
+/// Measured on an iPhone 17 at Accessibility XXXL, not assumed. Two separate
+/// findings drove this:
+///
+/// - The grid phase's four buttons (Back, Cancel, Retake, Recognize) overflow
+///   the ~345pt lane at that text size with or without glass — their labels
+///   alone want more than twice it. Adding `lineLimit(1)` and
+///   `minimumScaleFactor(0.6)` was tried first and was not enough: the row
+///   still rendered as "…", "C…", "R…", "R…".
+/// - The preview phase's two buttons DID fit before the glass conversion
+///   ("Cancel" rendered in full) and did not after, because each capsule adds
+///   roughly 40pt of horizontal padding. That regression is this change's own.
+///
+/// `ViewThatFits` measures the horizontal branch's ideal width — a `Spacer`
+/// contributes zero, so it is just the sum of the buttons — and takes the
+/// stacked branch only on genuine overflow, leaving every ordinary text size
+/// laid out exactly as before. Scaling is kept as a floor beneath both branches
+/// for narrow devices where even one capsule is tight.
+private struct ActionRow<Secondary: View, Primary: View>: View {
+    @ViewBuilder var secondary: Secondary
+    @ViewBuilder var primary: Primary
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                secondary
+                Spacer()
+                primary
+            }
+            // Primary first when stacked: it is the action the user most likely
+            // wants, and a stacked row reads top-down.
+            VStack(spacing: 10) {
+                primary
+                secondary
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
     }
 }
