@@ -249,6 +249,29 @@ struct ClassicGobanStyleTests {
         #expect(WidgetBoardStyle.boardShadowExtent(cellSize: 159) > 16)
     }
 
+    /// Pins the bubble raster's real cost, because the number in
+    /// `MessagesBoardStyle`'s header is the stated justification for
+    /// `bubbleRenderScale = 2` and every bubble stays in the thread forever.
+    /// ⚠️ A TALL board is the expensive one: the raster's width is fixed at
+    /// 300 pt while its height scales with the aspect, so a 9x19 costs roughly
+    /// double a 19x19. Measured 2026-08-01 at scale 2 with 3 stones:
+    /// 19x19 = 719,361 bytes, 9x19 = 1,340,935.
+    @MainActor @Test(arguments: [(19, 19, 900_000), (9, 19, 1_600_000)])
+    func bubbleRasterStaysUnderItsDocumentedCeiling(spec: (width: Int, height: Int, ceiling: Int)) {
+        let (w, h) = (spec.width, spec.height)
+        let board = WidgetBoardView(width: w, height: h,
+                                    blackVertices: ["Q16", "D4"], whiteVertices: ["Q4"],
+                                    lastMoveVertex: "Q4", showCoordinates: true,
+                                    style: .classicGoban(drawsOwnWood: true))
+            .frame(width: 300, height: 300 * CGFloat(h) / CGFloat(w))
+        let renderer = ImageRenderer(content: board)
+        renderer.scale = 2
+
+        let bytes = renderer.uiImage?.pngData()?.count ?? 0
+        #expect(bytes > 0)
+        #expect(bytes < spec.ceiling)
+    }
+
     /// An EMPTY classic board still renders: the Canvas resolves its symbols
     /// even with nothing to stamp.
     @MainActor @Test func classicEmptyBoardRenders() {

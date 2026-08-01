@@ -30,8 +30,20 @@ enum MessagesBoardStyle {
     /// Bubble snapshot raster. The wood grain makes a far denser PNG than the
     /// old flat fill did — measured on a 19x19 with 120 stones, 126 KB flat at
     /// scale 3 became 960 KB. One bubble per move in each direction stays in
-    /// the thread forever, so the snapshot renders at scale 2 (~482 KB), still
-    /// twice the 300 pt display size.
+    /// the thread forever, so the snapshot renders at scale 2, still twice the
+    /// 300 pt display size.
+    ///
+    /// Re-measured 2026-08-01 (3 stones, scale 2): a 19x19 is ~719 KB and a
+    /// **9x19 is ~1.34 MB** — a tall board is far more expensive than a square
+    /// one, because the raster's height scales with the board's aspect while
+    /// its width stays 300 pt. Treat ~1.4 MB, not the older ~482 KB figure, as
+    /// the per-bubble ceiling when weighing this scale;
+    /// `bubbleRasterStaysUnderItsDocumentedCeiling` holds both numbers.
+    ///
+    /// The board here deliberately casts NO shadow, unlike the live board on
+    /// the sheet: Messages center-crops the image to the bubble's aspect, which
+    /// removes the shadow entirely on a tall board, and at this pitch it is
+    /// about a point of blur even when it survives — all cost, no effect.
     static let bubbleRenderScale: CGFloat = 2
 
     /// The board's own wood, used only as the shadow caster's fill. It is
