@@ -154,6 +154,14 @@ struct GameScreenView: View {
                     lastMoveVertex: lastMoveVertex,
                     showCoordinates: MessagesBoardStyle.showsCoordinates,
                     style: MessagesBoardStyle.board)
+                    // The board floats on the sheet here, so it casts the app
+                    // board's shadow. `.background` keeps the caster exactly
+                    // the board's own rect and — crucially — leaves `geo.size`
+                    // alone, so `BoardTapGeometry` above still hit-tests
+                    // against the grid that is actually drawn.
+                    .background {
+                        MessagesBoardStyle.shadowCaster(cell: shadowCell(geometry.cell))
+                    }
                 overlays(geometry: geometry)
             }
             .contentShape(Rectangle())
@@ -164,6 +172,18 @@ struct GameScreenView: View {
             .gesture(boardGesture(geometry: geometry),
                      including: interactive ? .all : .none)
         }
+    }
+
+    /// The shadow scales with the cell pitch, but the sheet only reserves
+    /// `contentPadding` around the board and the ScrollView clips at its
+    /// bounds — so on a very small board the shadow would be sheared off
+    /// square. A 2x2 fills the width with a ~159 pt pitch, whose shadow reaches
+    /// ~50 pt past the slab into 16 pt of room. Capping the pitch the shadow is
+    /// derived from keeps it whole; every board from 9x9 up is already under
+    /// the cap and is unaffected.
+    private func shadowCell(_ cell: CGFloat) -> CGFloat {
+        let widest = Self.contentPadding / WidgetBoardStyle.boardShadowExtent(cellSize: 1)
+        return min(cell, widest)
     }
 
     private var lastMoveVertex: String? {

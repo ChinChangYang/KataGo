@@ -33,4 +33,28 @@ enum MessagesBoardStyle {
     /// the thread forever, so the snapshot renders at scale 2 (~482 KB), still
     /// twice the 300 pt display size.
     static let bubbleRenderScale: CGFloat = 2
+
+    /// The board's own wood, used only as the shadow caster's fill. It is
+    /// fully covered by the board drawn on top; the fill exists so no seam can
+    /// show through antialiasing at the edge.
+    static let woodColor = Color(red: WidgetBoardStyle.gobanWood.red,
+                                 green: WidgetBoardStyle.gobanWood.green,
+                                 blue: WidgetBoardStyle.gobanWood.blue)
+
+    /// The slab that casts the board's shadow, sized to the board by being
+    /// used as its `.background`.
+    ///
+    /// ⚠️ The shadow is cast by this ONE opaque rectangle, never by the board
+    /// itself. SwiftUI's `.shadow` applies per drawn leaf rather than to the
+    /// composited result, so shadowing `WidgetBoardView` would put a separate
+    /// halo under every grid line, hoshi dot, stone and coordinate label. The
+    /// app board looks right because it shadows a single `Image` — this is the
+    /// same trick.
+    static func shadowCaster(cell: CGFloat) -> some View {
+        Rectangle()
+            .fill(woodColor)
+            .shadow(radius: WidgetBoardStyle.boardShadowRadius(cellSize: cell),
+                    x: WidgetBoardStyle.boardShadowOffset(cellSize: cell),
+                    y: WidgetBoardStyle.boardShadowOffset(cellSize: cell))
+    }
 }

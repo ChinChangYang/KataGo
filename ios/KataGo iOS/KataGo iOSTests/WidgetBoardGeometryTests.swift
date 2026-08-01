@@ -209,6 +209,46 @@ struct ClassicGobanStyleTests {
         #expect(ImageRenderer(content: rectangle.frame(width: side, height: side * 9 / 13)).uiImage != nil)
     }
 
+    /// The board's drop shadow follows the app board exactly: `BoardLineView`
+    /// shadows its wood slab with `radius: squareLength / 16` offset by
+    /// `squareLength / 8`. Scaling with the cell pitch is the point — the
+    /// Messages sheet and the bubble raster draw the same board at different
+    /// sizes, and a fixed-point shadow would read as heavy on one and absent
+    /// on the other.
+    @Test func boardShadowMatchesTheAppBoardRatios() {
+        for cell in [10.0, 15.8, 19.5, 40.0] {
+            #expect(WidgetBoardStyle.boardShadowRadius(cellSize: cell) == cell / 16)
+            #expect(WidgetBoardStyle.boardShadowOffset(cellSize: cell) == cell / 8)
+        }
+    }
+
+    /// The reach has to clear the blur AND the offset, or a surface that
+    /// reserves exactly this much still gets the down-right corner shaved.
+    @Test func shadowExtentClearsBothTheBlurAndTheOffset() {
+        for cell in [10.0, 15.8, 19.5, 40.0] {
+            let extent = WidgetBoardStyle.boardShadowExtent(cellSize: cell)
+            let radius = WidgetBoardStyle.boardShadowRadius(cellSize: cell)
+            let offset = WidgetBoardStyle.boardShadowOffset(cellSize: cell)
+            #expect(extent > radius + offset)
+            #expect(extent > 0)
+        }
+    }
+
+    /// The extent scales linearly with the pitch, which is what lets a caller
+    /// invert it — the Messages sheet divides its fixed 16 pt padding by the
+    /// unit extent to find the largest pitch whose shadow still fits.
+    @Test func shadowExtentScalesLinearlyWithThePitch() {
+        let unit = WidgetBoardStyle.boardShadowExtent(cellSize: 1)
+        #expect(unit > 0)
+        for cell in [10.0, 15.8, 19.5, 40.0, 160.0] {
+            #expect(abs(WidgetBoardStyle.boardShadowExtent(cellSize: cell) - unit * cell) < 1e-9)
+        }
+        // A 19x19 on a phone sheet (~14 pt pitch) is far inside a 16 pt
+        // reserve; a 2x2 fills the width at a ~159 pt pitch and is not.
+        #expect(WidgetBoardStyle.boardShadowExtent(cellSize: 14) < 16)
+        #expect(WidgetBoardStyle.boardShadowExtent(cellSize: 159) > 16)
+    }
+
     /// An EMPTY classic board still renders: the Canvas resolves its symbols
     /// even with nothing to stamp.
     @MainActor @Test func classicEmptyBoardRenders() {

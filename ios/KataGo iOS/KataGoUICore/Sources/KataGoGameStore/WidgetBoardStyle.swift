@@ -121,6 +121,28 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public static let stoneShadowRadiusRatio = 0.11
     public static let stoneShadowYOffsetRatio = 0.08
 
+    /// The drop shadow the whole BOARD casts, as ratios of the cell pitch —
+    /// the app board's own (`BoardLineView` shadows its wood slab with
+    /// `radius: squareLength / 16` at an offset of `squareLength / 8`).
+    ///
+    /// `WidgetBoardView` deliberately does NOT apply this itself: its wood is
+    /// full-bleed on a backplate that is often already wood, so it would have
+    /// nothing to cast onto. Consumers that float the board on some other
+    /// surface — the Messages sheet and its bubble raster — cast it, and they
+    /// must cast it from a single opaque rect rather than from the board:
+    /// `.shadow` on a composite view shadows every leaf separately, which
+    /// would halo each grid line, stone and coordinate label.
+    public static func boardShadowRadius(cellSize: Double) -> Double { cellSize / 16 }
+    public static func boardShadowOffset(cellSize: Double) -> Double { cellSize / 8 }
+
+    /// How far the shadow reaches beyond the slab, so a caller can guarantee
+    /// it room. A surface that cannot reserve this much has to derive the
+    /// shadow from a smaller pitch instead, or the shadow is sheared off square
+    /// at the clipping edge.
+    public static func boardShadowExtent(cellSize: Double) -> Double {
+        boardShadowRadius(cellSize: cellSize) * 3 + boardShadowOffset(cellSize: cellSize)
+    }
+
     /// The wood slab would render as one big flat tinted rectangle in accented
     /// mode, so it is dropped and the system tint/glass shows through instead.
     /// The goban variant only draws wood when the backplate isn't already wood.
