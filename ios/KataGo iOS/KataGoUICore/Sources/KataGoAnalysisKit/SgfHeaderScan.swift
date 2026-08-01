@@ -15,15 +15,50 @@
 
 import Foundation
 
+/// A point in SGF coordinates, decoded to 0-based indices with the origin at
+/// the TOP-LEFT (x right, y down) — the same convention as GoRulesKit's
+/// GoPoint, so the two need no translation.
+public struct SgfPoint: Sendable, Equatable, Hashable {
+    public var x: Int
+    public var y: Int
+
+    public init(x: Int, y: Int) {
+        self.x = x
+        self.y = y
+    }
+}
+
+/// One mainline move. A nil `point` is a pass — either an explicit empty
+/// value (`B[]`) or a value that lands outside the board, which is how the
+/// legacy "tt" pass encodes on boards up to 19x19.
+public struct SgfMove: Sendable, Equatable {
+    public var color: PlayerColor
+    public var point: SgfPoint?
+
+    public init(color: PlayerColor, point: SgfPoint?) {
+        self.color = color
+        self.point = point
+    }
+}
+
 public struct SgfHeaderScan: Sendable, Equatable {
     public var boardWidth: Int
     public var boardHeight: Int
     public var komi: Float?
     public var rules: String?
-    /// Colors of the mainline moves in order (move 1 first). Handicap games
-    /// start with .white here because the scan reads actual B[]/W[] nodes,
-    /// not an assumed alternation.
-    public var moveColors: [PlayerColor]
+    /// The mainline moves in order (move 1 first). Handicap games start with
+    /// .white here because the scan reads actual B[]/W[] nodes, not an
+    /// assumed alternation.
+    public var moves: [SgfMove]
+    /// AB[] setup stones (handicap placement and free setup), in document
+    /// order. These are positions, not moves.
+    public var setupBlack: [SgfPoint]
+    /// AW[] setup stones, in document order.
+    public var setupWhite: [SgfPoint]
+
+    /// Colors of the mainline moves in order. Kept as the scan's original
+    /// surface so existing callers (the Safari extension) are unaffected.
+    public var moveColors: [PlayerColor] { moves.map(\.color) }
 
     public var moveCount: Int { moveColors.count }
 
@@ -56,14 +91,37 @@ public struct SgfHeaderScan: Sendable, Equatable {
         komi = text.firstMatch(of: /KM\[([-\d.]+)\]/).flatMap { Float($0.1) }
         rules = text.firstMatch(of: /RU\[([^\]]*)\]/).map { String($0.1) }
 
-        // Move nodes are ";B[...]" / ";W[...]" — the node separator prefix
-        // distinguishes them from setup AB[]/AW[]. The sanitized walk blanks
-        // long property values, so comment text can only forge a move node in
-        // the pathological ≤8-char case — acceptable for a header scan whose
-        // ground truth is loadsgf.
-        moveColors = Self.mainlineForMoveScan(text).matches(of: /;\s*([BW])\[[^\]]*\]/).map {
-            $0.1 == "B" ? PlayerColor.black : .white
+        // Walk the sanitized mainline into (identifier, values) properties.
+        // A token scan rather than a regex because SGF property identifiers
+        // are runs of uppercase letters: "AB" is ONE identifier and must never
+        // be read as a Black move. The sanitized walk blanks long property
+        // values, so comment text can only forge a node in the pathological
+        // <=8-char case — acceptable for a scan whose ground truth is loadsgf.
+        var moves: [SgfMove] = []
+        var setupBlack: [SgfPoint] = []
+        var setupWhite: [SgfPoint] = []
+        for property in Self.properties(in: Self.mainlineForMoveScan(text)) {
+            switch property.identifier {
+            case "B", "W":
+                let color: PlayerColor = property.identifier == "B" ? .black : .white
+                let raw = property.values.first ?? ""
+                moves.append(SgfMove(color: color,
+                                     point: Self.point(raw, width: width, height: height)))
+            case "AB":
+                setupBlack += property.values.compactMap {
+                    Self.point($0, width: width, height: height)
+                }
+            case "AW":
+                setupWhite += property.values.compactMap {
+                    Self.point($0, width: width, height: height)
+                }
+            default:
+                break
+            }
         }
+        self.moves = moves
+        self.setupBlack = setupBlack
+        self.setupWhite = setupWhite
     }
 
     /// Mainline text for the move regex: walk until the first ")" OUTSIDE a
@@ -102,5 +160,82 @@ public struct SgfHeaderScan: Sendable, Equatable {
             }
         }
         return out
+    }
+
+    /// One SGF property: an identifier and its bracketed values.
+    struct Property {
+        var identifier: String
+        var values: [String]
+    }
+
+    /// Splits a sanitized mainline string into properties. Values are read
+    /// verbatim between brackets, so nothing inside a value can be mistaken
+    /// for an identifier; identifiers accumulate uppercase letters until a
+    /// value block ends, so "AB" never splits into "A" and "B".
+    static func properties(in text: String) -> [Property] {
+        var result: [Property] = []
+        var identifier = ""
+        var values: [String] = []
+        var value = ""
+        var inValue = false
+
+        func flush() {
+            if !identifier.isEmpty {
+                result.append(Property(identifier: identifier, values: values))
+            }
+            identifier = ""
+            values = []
+        }
+
+        for character in text {
+            if inValue {
+                if character == "]" {
+                    inValue = false
+                    values.append(value)
+                    value = ""
+                } else {
+                    value.append(character)
+                }
+                continue
+            }
+            if character == "[" {
+                inValue = true
+            } else if character.isLetter && character.isUppercase {
+                // An uppercase letter after a completed value block starts the
+                // NEXT property; before one it extends the current identifier.
+                if !values.isEmpty { flush() }
+                identifier.append(character)
+            } else if character == ";" || character == "(" || character == ")" {
+                flush()
+            }
+        }
+        flush()
+        return result
+    }
+
+    /// Decodes an SGF point value. Returns nil for an empty value (an explicit
+    /// pass) or for any point outside the board — which is exactly how the
+    /// legacy "tt" pass decodes on boards up to 19x19.
+    static func point(_ raw: String, width: Int, height: Int) -> SgfPoint? {
+        let letters = Array(raw)
+        guard letters.count == 2,
+              let x = coordinate(letters[0]),
+              let y = coordinate(letters[1]),
+              x < width, y < height
+        else { return nil }
+        return SgfPoint(x: x, y: y)
+    }
+
+    /// SGF coordinate letter: "a"..."z" = 0...25, "A"..."Z" = 26...51.
+    static func coordinate(_ character: Character) -> Int? {
+        guard let ascii = character.asciiValue else { return nil }
+        switch ascii {
+        case UInt8(ascii: "a")...UInt8(ascii: "z"):
+            return Int(ascii - UInt8(ascii: "a"))
+        case UInt8(ascii: "A")...UInt8(ascii: "Z"):
+            return Int(ascii - UInt8(ascii: "A")) + 26
+        default:
+            return nil
+        }
     }
 }

@@ -80,4 +80,58 @@ struct SgfHeaderScanTests {
         #expect(SgfHeaderScan(sgf: "<html>Not a game</html>") == nil)
         #expect(SgfHeaderScan(sgf: "") == nil)
     }
+
+    @Test func readsMoveCoordinates() throws {
+        let scan = try #require(SgfHeaderScan(
+            sgf: "(;GM[1]FF[4]SZ[19];B[pd];W[dp];B[qp])"))
+        #expect(scan.moves == [
+            SgfMove(color: .black, point: SgfPoint(x: 15, y: 3)),
+            SgfMove(color: .white, point: SgfPoint(x: 3, y: 15)),
+            SgfMove(color: .black, point: SgfPoint(x: 16, y: 15)),
+        ])
+    }
+
+    @Test func emptyValueIsAPass() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9];B[aa];W[])"))
+        #expect(scan.moves[1].point == nil)
+        #expect(scan.moves[1].color == .white)
+    }
+
+    @Test func offBoardValueIsAPass() throws {
+        // "tt" is the legacy pass on boards up to 19x19; it decodes to (19,19),
+        // which is off a 9x9 board, so the generic off-board rule covers it.
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9];B[aa];W[tt])"))
+        #expect(scan.moves[1].point == nil)
+        #expect(scan.moveCount == 2)
+    }
+
+    @Test func readsSetupStones() throws {
+        let scan = try #require(SgfHeaderScan(
+            sgf: "(;GM[1]SZ[19]HA[2]AB[pd][dp]AW[dd];W[qq])"))
+        #expect(scan.setupBlack == [SgfPoint(x: 15, y: 3), SgfPoint(x: 3, y: 15)])
+        #expect(scan.setupWhite == [SgfPoint(x: 3, y: 3)])
+        // Setup stones are NOT moves.
+        #expect(scan.moves == [SgfMove(color: .white, point: SgfPoint(x: 16, y: 16))])
+    }
+
+    @Test func setupPropertyIsNeverMistakenForABlackMove() throws {
+        // The whole reason for a token scanner: "AB" is one property
+        // identifier, not "A" followed by a "B" move.
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[19]AB[dd][pp])"))
+        #expect(scan.moves.isEmpty)
+        #expect(scan.setupBlack.count == 2)
+    }
+
+    @Test func uppercaseCoordinateLettersDecodePastZ() throws {
+        // SGF coordinates continue "A"..."Z" = 26...51 for boards over 26.
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[37];B[aA];W[Ab])"))
+        #expect(scan.moves[0].point == SgfPoint(x: 0, y: 26))
+        #expect(scan.moves[1].point == SgfPoint(x: 26, y: 1))
+    }
+
+    @Test func moveColorsStillMirrorsTheMoveList() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9];B[aa];W[bb];B[cc])"))
+        #expect(scan.moveColors == scan.moves.map(\.color))
+        #expect(scan.moveColors == [.black, .white, .black])
+    }
 }
