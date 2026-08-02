@@ -170,14 +170,29 @@ public final class WatchLibraryStore {
     /// What to show while `rows` is empty. Delegates to the same policy the
     /// Apple TV library uses.
     public func emptyState(now: Date) -> EmptyLibraryState {
-        let recentActivity = lastRemoteChange.map {
-            now.timeIntervalSince($0) < Self.remoteActivityWindow
-        } ?? false
         return LibrarySyncPolicy.emptyLibraryState(
             storeMode: storeMode,
             accountState: accountState,
             importInFlight: false,
-            recentRemoteActivity: recentActivity,
+            recentRemoteActivity: Self.isRecentRemoteChange(lastRemoteChange, now: now),
             graceExpired: now.timeIntervalSince(openedAt) >= Self.launchGrace)
+    }
+
+    /// Whether a remote-change timestamp still counts as "recent" as of
+    /// `now`. `now.timeIntervalSince(changedAt)` can be NEGATIVE if `now` was
+    /// sampled before the change landed (a stale `now`, e.g. this view hasn't
+    /// re-rendered since); an unclamped negative interval is less than
+    /// `remoteActivityWindow` forever, which is the same "empty state never
+    /// settles" failure the launch-grace timing exists to avoid elsewhere.
+    /// `max(0, …)` would NOT fix this — it collapses to `0 < window`, still
+    /// true — so this checks non-negativity explicitly instead. `internal`
+    /// rather than `private` so the test target (`@testable import`, no
+    /// access to the private `lastRemoteChange` storage or to CloudKit
+    /// notifications on a deterministic clock) can pin the future-timestamp
+    /// case directly.
+    static func isRecentRemoteChange(_ changedAt: Date?, now: Date) -> Bool {
+        guard let changedAt else { return false }
+        let elapsed = now.timeIntervalSince(changedAt)
+        return elapsed >= 0 && elapsed < remoteActivityWindow
     }
 }

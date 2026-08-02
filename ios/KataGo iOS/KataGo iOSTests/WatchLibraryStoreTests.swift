@@ -165,4 +165,17 @@ struct WatchLibraryStoreTests {
         let after = epoch.addingTimeInterval(WatchLibraryStore.launchGrace + 1)
         #expect(store.emptyState(now: after) == .empty)
     }
+
+    @Test func recentRemoteChangeIsNotSpuriouslyTrueForAFutureStampedChange() throws {
+        // A remote change stamped LATER than `now` (a stale `now`) must read
+        // as NOT recent. `now.timeIntervalSince(changedAt)` is negative here,
+        // and an unclamped negative interval compares less-than the window
+        // forever -- the same "never settles" failure the launch grace
+        // exists to avoid elsewhere. A `max(0, ...)` clamp would NOT fix
+        // this: it collapses to `0 < window`, still true.
+        let changedAt = epoch.addingTimeInterval(10)
+        #expect(WatchLibraryStore.isRecentRemoteChange(changedAt, now: epoch) == false)
+        // Sanity check the normal, non-stale case still reads as recent.
+        #expect(WatchLibraryStore.isRecentRemoteChange(epoch, now: epoch.addingTimeInterval(1)))
+    }
 }
