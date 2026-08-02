@@ -41,11 +41,13 @@ final class WatchBrowseModel {
             // actually been replayed, so a lazy check would let the user
             // stare at a confidently-wrong board for every index BEFORE the
             // anomaly, and only flip to "can't read this game" once they
-            // scrub past it. A known-bad mainline (a compressed range this
-            // scan cannot expand, a mid-game AB/AW node the scan applies at
-            // index 0, ...) should gate the WHOLE game unreadable, not just
-            // its tail. The cost is one bounded walk of the mainline (same
-            // work `position(at: moveCount)` would do anyway), done once.
+            // scrub past it. A known-bad mainline — a mainline move
+            // `GoBoard.play` rejects (`SgfReplay.anomalyIndex` is set only
+            // there; a malformed compressed range or a hoisted mid-game
+            // AB/AW decodes silently instead and does NOT by itself trip
+            // this) — should gate the WHOLE game unreadable, not just its
+            // tail. The cost is one bounded walk of the mainline (same work
+            // `position(at: moveCount)` would do anyway), done once.
             _ = scanned.position(at: scanned.moveCount)
             replay = scanned
         }
