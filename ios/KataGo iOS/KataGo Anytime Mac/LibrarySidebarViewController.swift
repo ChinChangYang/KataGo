@@ -208,9 +208,15 @@ extension LibrarySidebarViewController {
     /// is the draft's origin. Without this, right-clicking the row you are
     /// currently editing and renaming/sharing it acts on the stored record
     /// directly — syncing to iCloud immediately, and getting silently reverted
-    /// by the next Save because `name` is a drafted field. Clone and Delete
-    /// don't need this: cloning intentionally copies the saved game, and Delete
-    /// already resolves the draft itself (`LibraryActionsDelegate.deleteGame`).
+    /// by the next Save because `name` is a drafted field.
+    ///
+    /// "Clone at Current Position" needs it for a different reason: it means
+    /// "the position on the board", and with a draft open the board IS the
+    /// draft — cloning the stored record would silently drop every move made
+    /// since it was unlocked, in exactly the state the item is enabled in.
+    /// Plain Clone and Delete don't need this: Clone intentionally duplicates
+    /// the SAVED game, and Delete already resolves the draft itself
+    /// (`LibraryActionsDelegate.deleteGame`).
     private func editingTarget(for game: GameRecord) -> GameRecord {
         guard let selected = navigationContext.selectedGameRecord,
               actionsDelegate?.resolvedStoredRecord(selected) === game
@@ -225,7 +231,7 @@ extension LibrarySidebarViewController {
 
     @objc private func cloneCurrentPositionOfClickedGame(_ sender: Any?) {
         guard let game = contextTargetGame else { return }
-        actionsDelegate?.cloneCurrentPosition(of: game)
+        actionsDelegate?.cloneCurrentPosition(of: editingTarget(for: game))
     }
 
     @objc private func renameClickedGame(_ sender: Any?) {
