@@ -19,13 +19,14 @@ public enum SharedModelContainer {
     /// strand the app's pre-App-Group library). On open failure the app degrades
     /// to a local-only store (keeps all data, sync paused) instead of crashing.
     public static let shared: ModelContainer = {
-        #if os(tvOS)
-        // Apple TV: no App Group (no widget/second process to share with), no
-        // migration ladder (no pre-App-Group store to bring forward), and it must
-        // NEVER fatalError. CloudKit is the only inbound path for games, and the
-        // local store is purgeable — so a local-only degradation on CloudKit
-        // failure is acceptable (next launch retries CloudKit).
-        return openTVOSStore()
+        #if os(tvOS) || os(watchOS)
+        // Apple TV and Apple Watch: no App-Group store (no second process that
+        // reads it), no migration ladder (no pre-App-Group store to bring
+        // forward), and neither may EVER fatalError. CloudKit is the only
+        // inbound path for games on both, and the local store is
+        // reconstructible — so a local-only degradation on CloudKit failure is
+        // acceptable (next launch retries CloudKit).
+        return openCloudOnlyStore()
         #else
         let isApp = !ProcessKind.isAppExtension
         let fm = FileManager.default
@@ -91,60 +92,76 @@ public enum SharedModelContainer {
                            cloudKitDatabase: .none)
     }
 
-    #if os(tvOS)
-    /// Which rung of the tvOS open ladder produced `shared`. Written exactly once,
-    /// inside the `shared` static-let initializer (swift_once — happens-before
-    /// every reader); `nonisolated(unsafe)` mirrors the LibraryStore write-once
-    /// observer-token pattern.
-    nonisolated(unsafe) private static var _tvStoreMode: LibraryStoreMode = .cloudKit
+    #if os(tvOS) || os(watchOS)
+    /// Which rung of the CloudKit-only open ladder produced `shared`. Written
+    /// exactly once, inside the `shared` static-let initializer (swift_once —
+    /// happens-before every reader); `nonisolated(unsafe)` mirrors the
+    /// LibraryStore write-once observer-token pattern.
+    nonisolated(unsafe) private static var _cloudOnlyStoreMode: LibraryStoreMode = .cloudKit
 
     /// The rung of the open ladder that won, for the library's empty-state UI
-    /// ("iCloud is unavailable" when sync cannot happen this launch). The getter
-    /// touches `shared` first so no caller can observe the default before the
-    /// ladder has run.
-    public static var tvStoreMode: LibraryStoreMode {
+    /// ("iCloud is unavailable" when sync cannot happen this launch). The
+    /// getter touches `shared` first so no caller can observe the default
+    /// before the ladder has run.
+    public static var cloudOnlyStoreMode: LibraryStoreMode {
         _ = shared
-        return _tvStoreMode
+        return _cloudOnlyStoreMode
     }
 
-    /// tvOS store: a PLAIN SwiftData store (no `groupContainer` — Apple TV has no
-    /// widget/second process, so the App Group is pure liability, and its
-    /// `containerURL` can be nil on tvOS which would silently disable CloudKit)
-    /// mirrored to the private CloudKit database — the sole way games reach the TV.
-    static func tvOSCloudKitConfig() -> ModelConfiguration {
+    /// A PLAIN SwiftData store (no `groupContainer`) mirrored to the private
+    /// CloudKit database. Apple TV has no second process to share with and its
+    /// group `containerURL` can be nil, which would silently disable CloudKit;
+    /// the watch's only second process is the complication, which reads
+    /// UserDefaults rather than the store. So on both, the App Group buys
+    /// nothing and carries that risk. CloudKit is the sole inbound path for
+    /// games on both devices.
+    static func cloudOnlyCloudKitConfig() -> ModelConfiguration {
         ModelConfiguration(schema: schema,
                            cloudKitDatabase: .private(cloudKitContainerID))
     }
 
-    /// tvOS degraded config: the same plain local store with CloudKit disabled.
-    /// The store is purgeable anyway, so this is an acceptable fallback that a
-    /// later launch retries against CloudKit.
-    static func tvOSLocalOnlyConfig() -> ModelConfiguration {
-        ModelConfiguration(schema: schema,
-                           cloudKitDatabase: .none)
+    /// Degraded config: the same plain local store with CloudKit disabled.
+    /// The store is reconstructible from iCloud anyway, so this is an
+    /// acceptable fallback that a later launch retries against CloudKit.
+    static func cloudOnlyLocalConfig() -> ModelConfiguration {
+        ModelConfiguration(schema: schema, cloudKitDatabase: .none)
     }
 
-    /// tvOS open path — NEVER crashes: CloudKit → local-only → in-memory. Unlike
-    /// the iOS app's `retryThenLocalOnlyThenCrash`, a memory-pressured Apple TV
-    /// must degrade to a retryable "storage unavailable" state, never `fatalError`.
-    private static func openTVOSStore() -> ModelContainer {
+    /// CloudKit-only open path — NEVER crashes: CloudKit → local-only →
+    /// in-memory. Unlike the iOS app's `retryThenLocalOnlyThenCrash`, a
+    /// memory-pressured TV or watch must degrade to a retryable "storage
+    /// unavailable" state, never `fatalError`.
+    private static func openCloudOnlyStore() -> ModelContainer {
         do {
-            let container = try ModelContainer(for: schema, configurations: tvOSCloudKitConfig())
-            _tvStoreMode = .cloudKit
+            let container = try ModelContainer(for: schema,
+                                               configurations: cloudOnlyCloudKitConfig())
+            _cloudOnlyStoreMode = .cloudKit
             return container
         } catch {
-            NSLog("SharedModelContainer(tvOS): CloudKit store open failed, degrading local-only: \(error)")
+            NSLog("SharedModelContainer: CloudKit store open failed, degrading local-only: \(error)")
             do {
-                let container = try ModelContainer(for: schema, configurations: tvOSLocalOnlyConfig())
-                _tvStoreMode = .localOnly
+                let container = try ModelContainer(for: schema,
+                                                   configurations: cloudOnlyLocalConfig())
+                _cloudOnlyStoreMode = .localOnly
                 return container
             } catch {
-                NSLog("SharedModelContainer(tvOS): local store open failed, using in-memory: \(error)")
-                _tvStoreMode = .inMemory
+                NSLog("SharedModelContainer: local store open failed, using in-memory: \(error)")
+                _cloudOnlyStoreMode = .inMemory
                 return makeInMemoryContainer()
             }
         }
     }
+    #endif
+
+    #if os(tvOS)
+    /// The tvOS name for `cloudOnlyStoreMode`, kept so the TV target's call
+    /// sites are untouched.
+    public static var tvStoreMode: LibraryStoreMode { cloudOnlyStoreMode }
+    #endif
+
+    #if os(watchOS)
+    /// The watch's rung of the open ladder, for the library's empty state.
+    public static var watchStoreMode: LibraryStoreMode { cloudOnlyStoreMode }
     #endif
 
     /// The pre-App-Group store at its original default location, mirrored to the
