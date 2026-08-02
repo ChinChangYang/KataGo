@@ -539,13 +539,34 @@ final class MainWindowController: NSWindowController {
         return SgfHelper(sgf: sgf).getMove(at: currentIndex) != nil
     }
 
-    /// Shared availability test for both the Navigate menu items and the
-    /// toolbar nav-group subitems, keyed off the action selector.
+    /// Shared availability test for the Navigate menu items, keyed off the
+    /// action selector.
+    ///
+    /// The four step/jump items are bound to BARE arrows, so they carry
+    /// `!isTextInputActive` — the same gate the bare `,` / `P` / Space items
+    /// already have. Without it a menu key equivalent fires while a text control
+    /// is editing, and pressing `←` in the sidebar search field or the comment
+    /// editor would move the BOARD instead of the caret. It also keeps them in
+    /// lockstep with `handleBoardShortcut`, which declines arrows on the same
+    /// condition, so the two dispatch paths can never disagree about who owns
+    /// the key.
+    ///
+    /// First/Last deliberately do NOT carry that gate: they are bound to
+    /// ⌥⌘← / ⌥⌘→, which is not a text-editing binding and which the local
+    /// monitor never claims (it requires no ⌘/⌥/⌃), so there is neither a caret
+    /// collision to avoid nor a dispatch path to stay in lockstep with. Gating
+    /// them would only disable a working jump whenever a field happens to hold
+    /// focus — and with the toolbar nav group gone these are the only
+    /// jump-to-either-end commands left.
     private func canPerformNavigation(_ action: Selector?) -> Bool {
         switch action {
-        case #selector(goBackward(_:)), #selector(goToStart(_:)):
+        case #selector(goBackward(_:)), #selector(goBackwardTen(_:)):
+            return canGoBackward && !isTextInputActive
+        case #selector(goForward(_:)), #selector(goForwardTen(_:)):
+            return canGoForward && !isTextInputActive
+        case #selector(goToStart(_:)):
             return canGoBackward
-        case #selector(goForward(_:)), #selector(goToEnd(_:)):
+        case #selector(goToEnd(_:)):
             return canGoForward
         default:
             return true
@@ -3062,9 +3083,10 @@ extension MainWindowController: NSMenuItemValidation {
     /// Enables/disables menu items via the responder chain, and sets the
     /// checkmark on the toggling Analysis/View items so they always reflect the
     /// LIVE `analysisStatus` / `gobanState` (AppKit calls this just before a menu
-    /// opens). Navigate items (Back/Forward/First/Last) use the same
-    /// `canGoBackward` / `canGoForward` tests as the toolbar; Rename/Delete/Share
-    /// require a selected game; everything else defaults to enabled.
+    /// opens). The six Navigate items route to `canPerformNavigation`, which adds
+    /// `!isTextInputActive` for the four bare-arrow ones (the toolbar no longer
+    /// carries any navigation items); Rename/Delete/Share require a selected
+    /// game; everything else defaults to enabled.
     /// True when the key window's first responder is a text input. On macOS,
     /// AppKit and SwiftUI text editing both run through an `NSText`/`NSTextView`
     /// field editor, so this catches the library search field, the rename field,
