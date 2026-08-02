@@ -5,32 +5,49 @@ import KataGoGameStore
 /// A saved game the watch replays itself: board page plus a review page,
 /// the same two-page shape as the live mirror.
 struct WatchStoredGameView: View {
-    @State private var model: WatchBrowseModel
-    @State private var crownIndex: Double = 0
+    let row: WatchLibraryRow
+    let container: ModelContainer
 
-    init(row: WatchLibraryRow, container: ModelContainer) {
-        _model = State(initialValue: WatchBrowseModel(row: row, container: container))
-    }
+    // Built lazily in `.task(id:)`, not eagerly in `init`: constructing
+    // WatchBrowseModel does a full mainline replay plus a SwiftData fetch,
+    // and this view is recreated by WatchRootView's `navigationDestination`
+    // closure on every coalesced CloudKit refetch while a game is open (that
+    // closure reads the @Observable library, which reassigns `rows`
+    // unconditionally on every `refresh()`). Building it eagerly via
+    // `State(initialValue:)` used to pay that cost on every one of those
+    // re-renders only to have SwiftUI discard the result after the first —
+    // `.task(id: row.id)` reruns only when `row.id` actually changes, i.e.
+    // when the user opens a different game.
+    @State private var model: WatchBrowseModel?
+    @State private var crownIndex: Double = 0
 
     var body: some View {
         Group {
-            if model.isReadable, let frame = model.frame {
-                TabView {
-                    boardPage(frame)
-                    reviewPage(frame)
+            if let model {
+                if model.isReadable, let frame = model.frame {
+                    TabView {
+                        boardPage(model, frame)
+                        reviewPage(frame)
+                    }
+                    .tabViewStyle(.verticalPage)
+                } else {
+                    ContentUnavailableView("Can't read this game",
+                                           systemImage: "doc.questionmark",
+                                           description: Text("Its record could not be parsed."))
                 }
-                .tabViewStyle(.verticalPage)
             } else {
-                ContentUnavailableView("Can't read this game",
-                                       systemImage: "doc.questionmark",
-                                       description: Text("Its record could not be parsed."))
+                ProgressView()
             }
         }
-        .navigationTitle(model.row.name)
-        .onAppear { crownIndex = Double(model.index) }
+        .navigationTitle(model?.row.name ?? row.name)
+        .task(id: row.id) {
+            let opened = WatchBrowseModel(row: row, container: container)
+            crownIndex = Double(opened.index)
+            model = opened
+        }
     }
 
-    private func boardPage(_ frame: WatchBoardFrame) -> some View {
+    private func boardPage(_ model: WatchBrowseModel, _ frame: WatchBoardFrame) -> some View {
         VStack(spacing: 2) {
             WatchFrameBoard(frame: frame)
         }
