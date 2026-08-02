@@ -701,6 +701,18 @@ final class MainWindowController: NSWindowController {
     /// report finishes (or aborts).
     @MainActor
     private func applyPendingSelection() {
+        // Every call into this function lands on an engine-ready edge (see the
+        // doc comment above), which is exactly when a crash-recovered draft
+        // mirror should be offered — so this runs via `defer`, unconditionally
+        // on every call, rather than as a plain trailing statement. A trailing
+        // statement would sit after the early-return guard below and so would
+        // be skipped on the common case (an engine-ready edge with no deferred
+        // selection, e.g. a plain launch or a post-model-switch relaunch), and
+        // it must not be nested inside `resolveDraft`'s completion either: that
+        // continuation runs asynchronously behind a Save · Discard · Cancel
+        // sheet when a draft is open, or not at all if the user cancels.
+        defer { offerDraftRestoreIfNeeded() }
+
         guard let pending = selectionGate.drainWhenReady() else { return }
         // The target may have been deleted during the pre-ready window (e.g. a
         // delete-replacement on a cold launch, or a CloudKit remote delete). Rather
@@ -720,6 +732,56 @@ final class MainWindowController: NSWindowController {
             guard let self else { return }
             self.navigationContext.selectedGameRecord = target
             self.load(game: target, previous: nil)
+        }
+    }
+
+    /// If a mirror file survived a crash or force-quit, offer to restore it.
+    ///
+    /// Restore is always a conscious choice, never automatic: a stale draft
+    /// silently reattaching itself to a saved game is exactly the class of
+    /// surprise this whole feature exists to remove.
+    ///
+    /// Called (via `defer`) from `applyPendingSelection`, i.e. on every
+    /// engine-ready edge, because Restore selects a game and that drives GTP.
+    /// Safe to call repeatedly in one session: the `draftController.draft ==
+    /// nil` guard stops a second offer while a draft is open, and both sheet
+    /// buttons clear the mirror, so a resolved offer never returns.
+    func offerDraftRestoreIfNeeded() {
+        guard draftController.draft == nil,
+              let mirror = draftController.mirrorStore.read(),
+              let window else { return }
+
+        let name = mirror.draft.game.name
+        let alert = NSAlert()
+        alert.messageText = "KataGo Anytime has unsaved changes to \"\(name)\"."
+        alert.informativeText = "These changes were never saved to iCloud. Restore them, or discard them and open the saved game."
+        alert.addButton(withTitle: "Restore")
+        alert.addButton(withTitle: "Discard")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            guard response == .alertFirstButtonReturn else {
+                self.draftController.mirrorStore.clear()
+                return
+            }
+
+            // The origin may have been deleted, or synced away, while the app
+            // was gone. This deliberately uses `fetchGameRecord`, NOT the
+            // deep-link resolver: `resolveDeepLinkTarget` falls back to the
+            // most-recently-modified game on a miss (right for a widget tap
+            // racing a delete), which here would silently reattach the
+            // restored draft to an unrelated game — exactly the surprise this
+            // feature exists to remove. A plain nil-on-miss fetch keeps the
+            // restore untitled instead, so the work survives either way.
+            let origin = mirror.draft.originUUID.flatMap {
+                try? GameRecord.fetchGameRecord(uuid: $0, container: self.modelContainer)
+            }
+            let previous = self.navigationContext.selectedGameRecord
+            let record = self.draftController.restore(from: mirror, origin: origin)
+            self.navigationContext.selectedGameRecord = record
+            self.load(game: record, previous: previous)
+            self.session.gobanState.isEditing = true
+            self.refreshDraftChrome()
         }
     }
 
