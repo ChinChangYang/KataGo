@@ -3490,8 +3490,19 @@ EOF
             switch response {
             case .alertFirstButtonReturn:
                 do {
-                    _ = try self.draftController.saveAsNewGame(into: self.modelContainer.mainContext)
+                    guard let inserted = try self.draftController.saveAsNewGame(
+                        into: self.modelContainer.mainContext) else { return }
+                    // The edits now live in `inserted`, so the draft over the
+                    // origin has done its job — close it and switch to the new
+                    // game. Closing is REQUIRED, not tidiness: saveAsNewGame
+                    // re-baselines against the (unchanged) origin, so the draft
+                    // stays dirty afterwards. Leaving it open would prompt the
+                    // user again on exit and let a later Save overwrite the very
+                    // version they just chose to protect.
+                    self.draftController.close()
+                    self.session.gobanState.isEditing = false
                     self.libraryStore.refetch()
+                    self.selectGame(inserted)
                     WidgetCenter.shared.reloadAllTimelines()
                     self.refreshDraftChrome()
                 } catch {
