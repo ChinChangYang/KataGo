@@ -7,46 +7,11 @@ struct WatchBoardPage: View {
 
     var body: some View {
         let peek = model.peek
-        let cursorMode = model.sharedCursorAvailable
-        let shown = cursorMode ? cursorFrame : peek.current
-        let previous = (!cursorMode && peek.entries.indices.contains(peek.viewIndex - 1))
-            ? peek.entries[peek.viewIndex - 1] : nil
 
         VStack(spacing: 2) {
-            if let s = shown {
-                WidgetBoardView(
-                    width: s.boardWidth, height: s.boardHeight,
-                    blackVertices: s.blackStones, whiteVertices: s.whiteStones,
-                    // Cursor mode: the host analyzes the shown position, so
-                    // candidates are always current. Ring mode keeps v0's
-                    // live-only rule.
-                    candidateVertices: (cursorMode || peek.isLive)
-                        ? s.candidates.prefix(3).map(\.vertex) : [],
-                    lastMoveVertex: cursorMode ? nil
-                        : WatchPeekBuffer.lastMoveVertex(previous: previous, current: s))
-                .aspectRatio(CGFloat(s.boardWidth) / CGFloat(s.boardHeight), contentMode: .fit)
-
-                // Two-tone winrate bar (Black share from the left) + score lead.
-                GeometryReader { geo in
-                    HStack(spacing: 0) {
-                        Rectangle().fill(.black)
-                            .frame(width: geo.size.width * CGFloat(s.rootWinrateBlack))
-                        Rectangle().fill(.white)
-                    }
-                }
-                .frame(height: 4)
-                .clipShape(Capsule())
-
-                HStack(spacing: 4) {
-                    if model.isStale {
-                        Image(systemName: "wifi.slash")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                            .accessibilityLabel(staleAccessibilityLabel)
-                    }
-                    Text(scoreText(s.rootScoreLeadBlack))
-                        .font(.system(.headline, design: .monospaced))
-                }
+            if let frame = liveFrame {
+                WatchFrameBoard(frame: frame,
+                                staleAccessibilityLabel: staleAccessibilityLabel)
             }
         }
         .overlay(alignment: .top) { statusPill }
@@ -133,8 +98,21 @@ struct WatchBoardPage: View {
         }
     }
 
-    private func scoreText(_ scoreLeadBlack: Float) -> String {
-        scoreLeadBlack >= 0 ? String(format: "B+%.1f", scoreLeadBlack)
-                            : String(format: "W+%.1f", -scoreLeadBlack)
+    /// The frame to draw: same cursor/ring selection as before, expressed once.
+    private var liveFrame: WatchBoardFrame? {
+        let peek = model.peek
+        let cursorMode = model.sharedCursorAvailable
+        guard let shown = cursorMode ? cursorFrame : peek.current else { return nil }
+        let previous = (!cursorMode && peek.entries.indices.contains(peek.viewIndex - 1))
+            ? peek.entries[peek.viewIndex - 1] : nil
+        return WatchBoardFrame.live(
+            snapshot: shown,
+            stale: model.isStale,
+            // Cursor mode: the host analyzes the shown position, so candidates
+            // are always current. Ring mode keeps v0's live-only rule.
+            showCandidates: cursorMode || peek.isLive,
+            lastMoveVertex: cursorMode ? nil
+                : WatchPeekBuffer.lastMoveVertex(previous: previous, current: shown),
+            title: nil)
     }
 }

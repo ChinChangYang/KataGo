@@ -22,6 +22,7 @@
 		05700CC069820338A0DA9EF3 /* Parameters.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 56670017B37208754039FF64 /* Parameters.pb.cc */; };
 		0600FE3E5C7473BB5AF12043 /* seed_gen_exception.cc in Sources */ = {isa = PBXBuildFile; fileRef = 3EECD0D85DD624C818E374D5 /* seed_gen_exception.cc */; };
 		077EBCD78E98B9FE30D07502 /* win32_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6C1E3C2F7427E56602D6A00E /* win32_waiter.cc */; };
+		078A8992D6E422F9A0EE5061 /* WatchBoardFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B973CEF3C35A8A5F581A7102 /* WatchBoardFrameTests.swift */; };
 		07C0D47D8A0787637AAB0707 /* GameSessionAutoPlayPlayLineGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2250F79E966F1F479E353F2 /* GameSessionAutoPlayPlayLineGuardTests.swift */; };
 		07C86C5CD6C437C4393E0F3E /* CropImportUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F78B2A5CE3FB7CCC48EC52 /* CropImportUITestSupport.swift */; };
 		08A646E94882A058626D3743 /* NewGameRulesetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C752B2350908DEF196CB3E0 /* NewGameRulesetTests.swift */; };
@@ -228,6 +229,7 @@
 		6335453FC03E1E0E180004A2 /* CoreMLSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 927EAFE81FE962D6315773FC /* CoreMLSerializer.cpp */; };
 		6407DEF129DD3557E6EDC9B0 /* KataGoTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B0AA81917804081CEED556 /* KataGoTVApp.swift */; };
 		642C6A1C725869998B65456C /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
+		64395AB4F2BEB4E6127E7655 /* WatchFrameBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757814F6B289DA9D8D73DBFF /* WatchFrameBoard.swift */; };
 		643EAA154093026087289F21 /* NewGameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC68F5D8F748C36294662826 /* NewGameViewController.swift */; };
 		6478F8C12E06A7C14341B68B /* TVMemoryOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5109844DEF28BA649802F94C /* TVMemoryOverlay.swift */; };
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
@@ -1305,6 +1307,7 @@
 		7530028A07F8E37EA6AE1044 /* DateShortenedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateShortenedTests.swift; sourceTree = "<group>"; };
 		7532F75F2E7D28AE11E46FB7 /* hashtable.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtable.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/hashtable.cc"; sourceTree = SOURCE_ROOT; };
 		75718F287064D8DFEDF26A86 /* TVControllerLegendTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVControllerLegendTests.swift; sourceTree = "<group>"; };
+		757814F6B289DA9D8D73DBFF /* WatchFrameBoard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchFrameBoard.swift; path = "KataGo Anytime Watch/WatchFrameBoard.swift"; sourceTree = "<group>"; };
 		757D4B93AD8FB611D5BE3C60 /* CoreMLModelCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLModelCacheTests.swift; path = "KataGo iOSTests/CoreMLModelCacheTests.swift"; sourceTree = SOURCE_ROOT; };
 		75F6297E4EA23B50787BA5F9 /* BroadcastScriptTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BroadcastScriptTests.swift; sourceTree = "<group>"; };
 		76C12DF1A21E5CD49FA583E4 /* IOSEngineController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IOSEngineController.swift; path = KataGoAnytimeSafariExtIOS/IOSEngineController.swift; sourceTree = "<group>"; };
@@ -1449,6 +1452,7 @@
 		B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModelGateTests.swift; sourceTree = "<group>"; };
 		B9682C506A2F86E2277A5B30 /* DeepReportCommentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportCommentTests.swift; sourceTree = "<group>"; };
 		B96A4284E69EB64814A4AB2D /* GameSessionReportModeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionReportModeTests.swift; sourceTree = "<group>"; };
+		B973CEF3C35A8A5F581A7102 /* WatchBoardFrameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBoardFrameTests.swift; sourceTree = "<group>"; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
 		B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionLockSlotModelTests.swift; sourceTree = "<group>"; };
 		B9F78B2A5CE3FB7CCC48EC52 /* CropImportUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CropImportUITestSupport.swift; sourceTree = "<group>"; };
@@ -2154,6 +2158,7 @@
 				856DE13BF70384D14C92FA0B /* WatchBoardPage.swift */,
 				F847CA5CA45B9D54788527ED /* WatchMovesPage.swift */,
 				EECD6E63398458C23FABA665 /* KataGo Anytime Watch.entitlements */,
+				757814F6B289DA9D8D73DBFF /* WatchFrameBoard.swift */,
 			);
 			name = "KataGo Anytime Watch";
 			sourceTree = SOURCE_ROOT;
@@ -3131,6 +3136,7 @@
 				C2FC922DC88C354DCE7ACFBF /* WidgetBoardGeometryTests.swift */,
 				435496E644613986A983786E /* BoardSheetFitTests.swift */,
 				5B0269EB029E1950EA4F042D /* SgfReplayDifferentialTests.swift */,
+				B973CEF3C35A8A5F581A7102 /* WatchBoardFrameTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -3906,6 +3912,7 @@
 				EF4D1DFDE5C0282657BBED4E /* WatchRootView.swift in Sources */,
 				8DCF5089D9460D2EE30FE445 /* WatchBoardPage.swift in Sources */,
 				D64178C267DF8B6FF723AF14 /* WatchMovesPage.swift in Sources */,
+				64395AB4F2BEB4E6127E7655 /* WatchFrameBoard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4570,6 +4577,7 @@
 				E31A39DD1252C4C693C5B85D /* WidgetBoardGeometryTests.swift in Sources */,
 				DE812E8FBA4F941E8C8246C9 /* BoardSheetFitTests.swift in Sources */,
 				DE608741EA19FCDD7E2D0EA4 /* SgfReplayDifferentialTests.swift in Sources */,
+				078A8992D6E422F9A0EE5061 /* WatchBoardFrameTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
