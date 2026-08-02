@@ -410,17 +410,20 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Move navigation
     //
-    // The toolbar nav group (⏮◀▶⏭) and the Navigate menu (Back/Forward/First/
-    // Last) target the first responder with the selectors implemented below.
-    // `NSWindowController` is inserted into the window's responder chain (the
-    // window owns it via `super.init(window:)`), so these `@objc` actions are
-    // reached after the content view / window decline them.
+    // The Navigate menu targets the first responder with the selectors
+    // implemented below, and the window's local key monitor calls the four
+    // arrow-bound ones directly. `NSWindowController` is inserted into the
+    // window's responder chain (the window owns it via `super.init(window:)`),
+    // so these `@objc` actions are reached after the content view / window
+    // decline them. There is no toolbar nav group: move navigation is the
+    // keyboard (↑↓ one move, ←→ ten), the Navigate menu, and the Chart tab's
+    // click-to-jump.
     //
     // Each action reuses `GobanState`'s `backwardMoves` / `forwardMoves`
     // verbatim — the exact calls the iOS `StatusToolbarItems` makes. Single
-    // step uses `limit: 1`; First/Last jump with `limit: nil`. iOS also
-    // mirrors `maybeUpdateAnalysisData` before navigating to persist analysis
-    // data while editing, so we do the same.
+    // step uses `limit: 1`, the ten-move jump `limit: 10`, and First/Last
+    // `limit: nil`. iOS also mirrors `maybeUpdateAnalysisData` before
+    // navigating to persist analysis data while editing, so we do the same.
 
     /// True while an AppKit sheet (Deep Report, config editor, GIF export) is
     /// presented over the board. The nil-target responder chain still delivers
@@ -485,16 +488,25 @@ final class MainWindowController: NSWindowController {
         )
     }
 
-    /// `← / ◀`: step back one move.
+    /// `↑`: step back one move — the stride of iOS's `backwardFrameAction`,
+    /// though reached via `backwardMoves(limit: 1)` like every action here
+    /// rather than that method's inline undo.
     @objc func goBackward(_ sender: Any?) { backward(limit: 1) }
 
-    /// `→ / ▶`: step forward one move.
+    /// `↓`: step forward one move (the stride of iOS's `forwardFrameAction`).
     @objc func goForward(_ sender: Any?) { forward(limit: 1) }
 
-    /// `⌥⌘← / ⏮`: jump to the start of the game.
+    /// `←`: jump back ten moves (iOS's `backwardAction`, and the same ten-move
+    /// stride tvOS uses for a swipe on the review timeline).
+    @objc func goBackwardTen(_ sender: Any?) { backward(limit: 10) }
+
+    /// `→`: jump forward ten moves (iOS's `forwardAction`).
+    @objc func goForwardTen(_ sender: Any?) { forward(limit: 10) }
+
+    /// `⌥⌘←`: jump to the start of the game.
     @objc func goToStart(_ sender: Any?) { backward(limit: nil) }
 
-    /// `⌥⌘→ / ⏭`: jump to the end of the game.
+    /// `⌥⌘→`: jump to the end of the game.
     @objc func goToEnd(_ sender: Any?) { forward(limit: nil) }
 
     // MARK: Navigation availability
@@ -2343,9 +2355,18 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    /// Bare-arrow characters as `charactersIgnoringModifiers` reports them —
+    /// arrows arrive as function-key unicode scalars, not printable text. The
+    /// same scalars the Navigate menu uses for its key equivalents.
+    private static let leftArrowKey = String(UnicodeScalar(NSLeftArrowFunctionKey)!)
+    private static let rightArrowKey = String(UnicodeScalar(NSRightArrowFunctionKey)!)
+    private static let upArrowKey = String(UnicodeScalar(NSUpArrowFunctionKey)!)
+    private static let downArrowKey = String(UnicodeScalar(NSDownArrowFunctionKey)!)
+
     /// Installs the local key-down monitor that actually drives the bare-key board
-    /// shortcuts. The Game/Analysis menu items carry the matching key equivalents
-    /// (Space / `,` / `P`) for discoverability and mouse use, but a bare LETTER like
+    /// shortcuts. The Game/Analysis/Navigate menu items carry the matching key
+    /// equivalents (Space / `,` / `P` / the four arrows) for discoverability and
+    /// mouse use, but a bare LETTER like
     /// `P` never reaches a menu equivalent when the sidebar `NSTableView` is first
     /// responder: the table's type-select consumes it first (it jumps to a game
     /// starting with "P"), and clicking the board does NOT move first responder off
@@ -2353,6 +2374,12 @@ final class MainWindowController: NSWindowController {
     /// key-equivalent dispatch and the responder chain, so it wins that race — while
     /// still deferring to text editing (so Space / `,` / `P` type normally in the
     /// search field, the rename field, the Config editor, and the comment editor).
+    ///
+    /// The arrows need that same head start for a stronger reason: `NSTableView`
+    /// consumes ↑/↓ as row navigation, and because board clicks leave first
+    /// responder on the table, a focus-dependent binding would keep stepping the
+    /// GAME LIST — and each row change loads a different game — long after the
+    /// user has turned their attention to the board.
     private func installBoardShortcutMonitor() {
         boardShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -2362,11 +2389,18 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    /// Handles a key-down for the LizzieYzy board shortcuts. Returns true when the
-    /// event was one of them AND was actionable (so the caller swallows it). Bare
+    /// Handles a key-down for the LizzieYzy board shortcuts and move navigation.
+    /// Returns true when the event was one of them AND was claimed (so the caller
+    /// swallows it). Bare
     /// keys only (no ⌘/⌥/⌃), only for THIS window's events, never while a text
     /// control is editing, and only with a selected game — otherwise it returns
     /// false so the key keeps its normal meaning (typing, scrolling, type-select).
+    ///
+    /// Sheets are excluded for free: `presentAsSheet` and `beginSheetModal` each
+    /// run in their OWN window, so `event.window === window` already fails and
+    /// arrows keep driving the sheet's own controls. (The Navigate menu's
+    /// equivalents are app-global rather than window-scoped, which is why
+    /// `canPerformNavigation` gates them on `isPresentingSheet` as well.)
     private func handleBoardShortcut(_ event: NSEvent) -> Bool {
         guard event.window === window,
               event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
@@ -2374,6 +2408,36 @@ final class MainWindowController: NSWindowController {
               navigationContext.selectedGameRecord != nil,
               let chars = event.charactersIgnoringModifiers, chars.count == 1
         else { return false }
+
+        // Move navigation: ← → jump ten moves, ↑ ↓ step one — the same strides
+        // the iOS bottom bar offers (backward/forward vs. backward.frame/
+        // forward.frame). Handled before the character switch because arrows are
+        // function-key scalars rather than printable characters.
+        //
+        // These are claimed UNCONDITIONALLY: `backward`/`forward` already no-op
+        // when navigation isn't currently possible (an AI move is due, auto-play
+        // is running, a `showboard` is still in flight, or we're at the end of
+        // the line), and returning false in those moments would hand the key to
+        // the sidebar table — turning a stalled ↓ into a game switch. Held keys
+        // therefore self-throttle to one jump per engine round-trip rather than
+        // queueing up. Shift is not excluded, for the same reason: shift+↓ must
+        // not leak to the table either.
+        switch chars {
+        case Self.leftArrowKey:
+            goBackwardTen(nil)
+            return true
+        case Self.rightArrowKey:
+            goForwardTen(nil)
+            return true
+        case Self.upArrowKey:
+            goBackward(nil)
+            return true
+        case Self.downArrowKey:
+            goForward(nil)
+            return true
+        default:
+            break
+        }
 
         switch chars.lowercased() {
         case " ":

@@ -396,15 +396,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func navigateMenu() -> NSMenu {
         let menu = NSMenu(title: "Navigate")
 
-        let back = menu.addItem(withTitle: "Back",
-                                action: #selector(MainWindowController.goBackward(_:)),
-                                keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
-        back.keyEquivalentModifierMask = []
+        // Bare arrows: ↑/↓ step one move, ←/→ jump ten — the same strides the
+        // iOS bottom bar offers, and the stride tvOS already uses for a swipe on
+        // the review timeline. The window's local key monitor
+        // (`MainWindowController.handleBoardShortcut`) claims all four BEFORE
+        // menu dispatch, because the sidebar `NSTableView` would otherwise eat
+        // ↑/↓ as row navigation (and each row change loads a different game).
+        // The equivalents still live here for discoverability, and
+        // `validateMenuItem` gates them on the same `!isTextInputActive` the
+        // monitor uses, so the two paths can never disagree about who owns the
+        // key. There are no toolbar nav buttons; the Chart tab's click-to-jump
+        // covers pointer-only navigation.
+        let backOne = menu.addItem(withTitle: "Back One Move",
+                                   action: #selector(MainWindowController.goBackward(_:)),
+                                   keyEquivalent: String(UnicodeScalar(NSUpArrowFunctionKey)!))
+        backOne.keyEquivalentModifierMask = []
 
-        let forward = menu.addItem(withTitle: "Forward",
-                                   action: #selector(MainWindowController.goForward(_:)),
-                                   keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
-        forward.keyEquivalentModifierMask = []
+        let forwardOne = menu.addItem(withTitle: "Forward One Move",
+                                      action: #selector(MainWindowController.goForward(_:)),
+                                      keyEquivalent: String(UnicodeScalar(NSDownArrowFunctionKey)!))
+        forwardOne.keyEquivalentModifierMask = []
+        menu.addItem(.separator())
+
+        let backTen = menu.addItem(withTitle: "Back 10 Moves",
+                                   action: #selector(MainWindowController.goBackwardTen(_:)),
+                                   keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        backTen.keyEquivalentModifierMask = []
+
+        let forwardTen = menu.addItem(withTitle: "Forward 10 Moves",
+                                      action: #selector(MainWindowController.goForwardTen(_:)),
+                                      keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        forwardTen.keyEquivalentModifierMask = []
         menu.addItem(.separator())
 
         let first = menu.addItem(withTitle: "First",
