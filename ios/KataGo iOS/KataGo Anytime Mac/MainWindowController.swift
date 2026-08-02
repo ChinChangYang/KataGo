@@ -2823,6 +2823,9 @@ final class MainWindowController: NSWindowController {
             return
         }
         closeDraftAndResyncSelection()
+        // Redundant with the assignment `closeDraftAndResyncSelection()` now
+        // makes internally — kept explicit anyway so this function reads as
+        // correct on its own, without relying on a callee's side effect.
         session.gobanState.isEditing = false
     }
 
@@ -3140,10 +3143,23 @@ final class MainWindowController: NSWindowController {
     /// selection is left on the now-detached draft clone, which breaks the
     /// `===` identity checks `deleteGame` and the lock-mode observer in
     /// `handleAutoPlayChange` rely on to find "the game on screen".
+    ///
+    /// Also lowers `isEditing`, inseparably from closing the draft. Both
+    /// callers can leave without ever reaching a load: `resolveDraft`'s Save
+    /// branch hands off to a `continuation` that may itself do nothing more
+    /// (⌘N's sheet dismissed with Cancel, a delete confirmation dismissed
+    /// with Cancel), and `performLock` sets the flag right after anyway. With
+    /// no load to re-derive the state, a resting `isEditing == true` over a
+    /// `draft == nil` selection is exactly the invariant this feature exists
+    /// to hold — the board would sit unlocked over a live stored record, with
+    /// every write path pointed straight at it again and no dirty dot to
+    /// betray it. `syncDraftToEditingState` cannot catch this afterwards: its
+    /// `.unlock` case only fires for an OPEN draft, and by then there is none.
     private func closeDraftAndResyncSelection() {
         let origin = draftController.resolvedRecord(navigationContext.selectedGameRecord)
         draftController.close()
         navigationContext.selectedGameRecord = origin
+        session.gobanState.isEditing = false
     }
 
     /// True while a dirty draft is waiting on the user.
