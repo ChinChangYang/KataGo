@@ -50,6 +50,7 @@
 		1239C5D9FB9A77110655CD65 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		1262399374AA0D0E0636E712 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0AF7723D8AE7D6B6B1FB4 /* AppDelegate.swift */; };
 		13A24D22567E8B611E762724 /* VisionBoardRealityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 830657E86B4EDC657F02AFC5 /* VisionBoardRealityView.swift */; };
+		13A6E34D08D01691C0D3E5A8 /* DraftControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304C4ADDCE30F45E1DAD9D25 /* DraftControllerTests.swift */; };
 		1497289E7603DE4A550DB834 /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = 17E3BF48CB16AAB616C8B248 /* content.js */; };
 		14DF583D2EE5FE465C89DE3A /* GameSessionReportModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96A4284E69EB64814A4AB2D /* GameSessionReportModeTests.swift */; };
 		1551A8570619E3613D6F542B /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEE508A62193A6C83CD4AB2 /* SafariWebExtensionHandler.swift */; };
@@ -295,6 +296,7 @@
 		7BC60EBA64481273183D9284 /* KataGoEngineIPC in Frameworks */ = {isa = PBXBuildFile; productRef = 5EB65B8D4E0E88C2400D7DDE /* KataGoEngineIPC */; };
 		7BC7F57D5EEC16F72B408AE0 /* GameDeepLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7023D041CA26D8703A89B7E8 /* GameDeepLinkTests.swift */; };
 		7BE7508A1A325ECFBB95B008 /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
+		7C25A8FF338EB058AB6CE7D0 /* DraftController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9334C411CAD23A609B7E8F /* DraftController.swift */; };
 		7C5092DB71E45CB5DB9D92FA /* KataGoAnytimeWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8C5F426AC374D3E6189EB0A /* KataGoAnytimeWidgetBundle.swift */; };
 		7D34ADD11221A60E7A036EF1 /* damerau_levenshtein_distance.cc in Sources */ = {isa = PBXBuildFile; fileRef = EF0CC4F8F6E31E9BBD5658E0 /* damerau_levenshtein_distance.cc */; };
 		7DADD9CBA643E87B80589AF2 /* VisionGameShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F21C36C1D309CE0FA71EB9C9 /* VisionGameShell.swift */; };
@@ -817,6 +819,7 @@
 		EAFCACEFEE7FACDCE6220B08 /* ConfigEditingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */; };
 		EB9BD1F51060CB0BD328BF2C /* GameSessionCollectSgfReviewGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9207E3CE350BEC0550A3893A /* GameSessionCollectSgfReviewGuardTests.swift */; };
 		EC75C3E01DFB8B61ADC3ECDC /* charconv_bigint.cc in Sources */ = {isa = PBXBuildFile; fileRef = 91095E97336B749B96944BD8 /* charconv_bigint.cc */; };
+		ECF62DF138F9A57FFF2893CD /* DraftController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9334C411CAD23A609B7E8F /* DraftController.swift */; };
 		ED9BFF3B9062F29F17B47178 /* WatchHostGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05EFD5C213AF330EF9E06A4C /* WatchHostGateTests.swift */; };
 		EDF6AF8ABBA3DEE37B81845F /* randen.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8E3859F17AD2C41596120DB5 /* randen.cc */; };
 		EF4D1DFDE5C0282657BBED4E /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9621FBEA3A627A558ECCFAAF /* WatchRootView.swift */; };
@@ -1216,6 +1219,7 @@
 		2F729A604C8BA5D8EFF1CB37 /* time_zone_fixed.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_fixed.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_fixed.cc"; sourceTree = SOURCE_ROOT; };
 		2F86021776EC4F7F6498285B /* hashtablez_sampler.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtablez_sampler.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/hashtablez_sampler.cc"; sourceTree = SOURCE_ROOT; };
 		2FC5147B34571D123081175B /* VisionModelListItemTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionModelListItemTests.swift; sourceTree = "<group>"; };
+		304C4ADDCE30F45E1DAD9D25 /* DraftControllerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftControllerTests.swift; sourceTree = "<group>"; };
 		309424B4F2E53DB007EACE23 /* GLMClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GLMClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/GLMClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
 		31922AAFF1C2B5B96B49810A /* WatchCommandHandlerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchCommandHandlerTests.swift; sourceTree = "<group>"; };
 		3198312DEEC29C7E79A119D6 /* program_name.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = program_name.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/program_name.cc"; sourceTree = SOURCE_ROOT; };
@@ -1590,6 +1594,7 @@
 		DC5101F03317F990C4EC6BD2 /* repeated_field.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = repeated_field.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/repeated_field.cc"; sourceTree = SOURCE_ROOT; };
 		DC52A0100425C29AA86E3502 /* match.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = match.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/match.cc"; sourceTree = SOURCE_ROOT; };
 		DC7C132EBC65528DED098F5A /* generated_message_tctable_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_message_tctable_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_message_tctable_lite.cc"; sourceTree = SOURCE_ROOT; };
+		DC9334C411CAD23A609B7E8F /* DraftController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftController.swift; sourceTree = "<group>"; };
 		DD381267CDE6755BCF9CB1BA /* generated_message_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_message_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_message_util.cc"; sourceTree = SOURCE_ROOT; };
 		DD660F5C74D8EBF7E72E919F /* KataGoAnytimeWatchWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoAnytimeWatchWidgetBundle.swift; path = KataGoAnytimeWatchWidget/KataGoAnytimeWatchWidgetBundle.swift; sourceTree = "<group>"; };
 		DE80B7E9B79A731EB1957049 /* WatchBrowseModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchBrowseModel.swift; path = "KataGo Anytime Watch/WatchBrowseModel.swift"; sourceTree = "<group>"; };
@@ -2194,6 +2199,7 @@
 				4797478D6CA0D434777903EE /* GameDraftTests.swift */,
 				7395FBB767C059BABF60FAFF /* DraftExitDecisionTests.swift */,
 				59081CBBB1938B54C4E5FEA0 /* DraftMirrorStoreTests.swift */,
+				304C4ADDCE30F45E1DAD9D25 /* DraftControllerTests.swift */,
 			);
 			name = "KataGo Anytime MacTests";
 			path = "KataGo Anytime MacTests";
@@ -2227,6 +2233,7 @@
 				45EED6DBE2F7E29398B91D66 /* GameDraft.swift */,
 				E27D89E793DFFFD0CB2C361A /* DraftExitDecision.swift */,
 				6F3FBD13E25FF5C1B582B393 /* DraftMirrorStore.swift */,
+				DC9334C411CAD23A609B7E8F /* DraftController.swift */,
 			);
 			name = Draft;
 			path = "KataGo Anytime Mac/Draft";
@@ -4030,6 +4037,8 @@
 				FFB84083A9D61A135804CD10 /* DraftExitDecisionTests.swift in Sources */,
 				F7FE6A14B724E84C0ED79316 /* DraftMirrorStoreTests.swift in Sources */,
 				84FEF1F70C0E6C701DC91562 /* DraftMirrorStore.swift in Sources */,
+				13A6E34D08D01691C0D3E5A8 /* DraftControllerTests.swift in Sources */,
+				7C25A8FF338EB058AB6CE7D0 /* DraftController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4187,6 +4196,7 @@
 				1F0B0054514A0AD575E8563A /* GameDraft.swift in Sources */,
 				48C2EE2F030D5954367CF804 /* DraftExitDecision.swift in Sources */,
 				89CCB30A2B5CC31911E2C1F0 /* DraftMirrorStore.swift in Sources */,
+				ECF62DF138F9A57FFF2893CD /* DraftController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
