@@ -37,6 +37,16 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4033A5E9F6B9612A48AB409E"
+               BuildableName = "KataGo Anytime MacTests.xctest"
+               BlueprintName = "KataGo Anytime MacTests"
+               ReferencedContainer = "container:KataGo Anytime.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
