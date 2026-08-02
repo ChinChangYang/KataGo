@@ -33,6 +33,12 @@ final class GameDraft {
         case insertedNew(GameRecord)
     }
 
+    /// How a staged save is actually written. A seam only because SwiftData
+    /// offers no supported way to make `ModelContext.save()` fail on demand,
+    /// and the rollback that failure has to trigger is the whole point of
+    /// `commitOrRollback`. Production never replaces it.
+    var writeToStore: (ModelContext) throws -> Void = { try $0.save() }
+
     /// Opens a draft over an existing saved game.
     init(origin: GameRecord) {
         self.record = origin.detachedDraftCopy()
@@ -112,8 +118,15 @@ final class GameDraft {
         record.lastModificationDate = .now
 
         if let origin, originIsLive {
+            // Captured BEFORE the write, so a failure can put the origin back
+            // field for field. `rollback()` alone is not enough: it is
+            // documented to discard the context's pending changes, not to
+            // refresh an already-materialized model's in-memory properties —
+            // and those in-memory properties are exactly what the conflict
+            // check, the window subtitle and Revert all read.
+            let priorOrigin = DraftSnapshot(record: origin, originUUID: origin.uuid)
             snapshot().apply(to: origin)
-            try context.save()
+            try commitOrRollback(context) { priorOrigin.apply(to: origin) }
             rebaseline()
             return .updatedOrigin(origin)
         }
@@ -121,7 +134,7 @@ final class GameDraft {
         let inserted = record.detachedDraftCopy()
         inserted.uuid = UUID()
         context.insert(inserted)
-        try context.save()
+        try commitOrRollback(context)
         origin = inserted
         rebaseline()
         return .insertedNew(inserted)
@@ -137,8 +150,36 @@ final class GameDraft {
         copy.name = "\(record.name) (conflicted copy)"
         copy.lastModificationDate = .now
         context.insert(copy)
-        try context.save()
+        try commitOrRollback(context)
         return copy
+    }
+
+    /// Commits the mutations the callers above have already staged, and undoes
+    /// them when the write fails.
+    ///
+    /// The undo is the point. `apply(to:)` and `insert(_:)` mutate the context
+    /// BEFORE the save, and `container.mainContext` autosaves — so without it a
+    /// transient failure leaves the draft sitting in the context, SwiftData
+    /// retries on its own cycle, and the changes reach the store and CloudKit
+    /// with the user never having saved, underneath an alert that says they are
+    /// "still here and unsaved". Two quieter consequences ride along:
+    /// `hasConflict` would then compare a mutated origin against the baseline
+    /// and read "Changed on another device" for the rest of the session, and
+    /// Revert would revert onto an origin already carrying the draft.
+    ///
+    /// `rollback()` discards every pending change in the context, not only
+    /// ours. That is the right trade here: a failed save means the context is
+    /// no longer in a state anybody reasoned about, and a discarded analysis
+    /// cache re-derives on the next move.
+    private func commitOrRollback(_ context: ModelContext,
+                                  undo: () -> Void = {}) throws {
+        do {
+            try writeToStore(context)
+        } catch {
+            undo()
+            context.rollback()
+            throw error
+        }
     }
 
     /// Re-reads the baseline from the origin after a successful save, so the

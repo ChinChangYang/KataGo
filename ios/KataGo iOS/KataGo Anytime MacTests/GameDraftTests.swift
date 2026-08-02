@@ -166,6 +166,54 @@ struct GameDraftTests {
         #expect(try ctx.fetch(FetchDescriptor<GameRecord>()).count == 1)
     }
 
+    // MARK: - Failed save
+
+    private struct StoreWriteFailure: Error {}
+
+    @Test func aFailedSaveRollsTheOriginBack() throws {
+        let ctx = context
+        let origin = try storedGame(in: ctx)
+        let draft = GameDraft(origin: origin)
+        draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        draft.writeToStore = { _ in throw StoreWriteFailure() }
+
+        #expect(throws: StoreWriteFailure.self) { try draft.save(into: ctx) }
+
+        // Without the rollback the draft's sgf would be sitting on `origin` as
+        // a pending change, which the main context's autosave would push to the
+        // store and CloudKit with the user never having saved.
+        #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd])")
+        #expect(draft.isDirty)
+        // A mutated origin would compare unequal to the baseline forever.
+        #expect(!draft.hasConflict)
+    }
+
+    @Test func aFailedSaveOfAnUntitledDraftInsertsNothing() throws {
+        let ctx = context
+        let untitled = GameRecord(config: Config())
+        untitled.sgf = "(;FF[4]GM[1]SZ[19];B[dd])"
+        let draft = GameDraft(untitled: untitled)
+        draft.writeToStore = { _ in throw StoreWriteFailure() }
+
+        #expect(throws: StoreWriteFailure.self) { try draft.save(into: ctx) }
+
+        #expect(try ctx.fetch(FetchDescriptor<GameRecord>()).isEmpty)
+        #expect(draft.origin == nil)
+    }
+
+    @Test func aFailedSaveAsNewGameInsertsNothing() throws {
+        let ctx = context
+        let origin = try storedGame(in: ctx)
+        let draft = GameDraft(origin: origin)
+        draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        draft.writeToStore = { _ in throw StoreWriteFailure() }
+
+        #expect(throws: StoreWriteFailure.self) { try draft.saveAsNewGame(into: ctx) }
+
+        #expect(try ctx.fetch(FetchDescriptor<GameRecord>()).count == 1)
+        #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd])")
+    }
+
     // MARK: - Conflict
 
     @Test func aDraftWithAnUntouchedOriginHasNoConflict() throws {
