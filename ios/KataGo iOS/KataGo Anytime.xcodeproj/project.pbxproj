@@ -371,6 +371,7 @@
 		9DF81DD8618B19CDA0081AF3 /* OwnershipBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FE417A3D400E1C82F55C71 /* OwnershipBudgetTests.swift */; };
 		9E397C1CBEBDE1D1C6F48C03 /* spinlock_wait.cc in Sources */ = {isa = PBXBuildFile; fileRef = F6CA708020D63562D4FEC662 /* spinlock_wait.cc */; };
 		9E3EE67B254945F3EE49730C /* WidgetBoardAnnotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFFAB6093C799F02577B92 /* WidgetBoardAnnotationTests.swift */; };
+		9F0BEDA924B0E705B4AACB25 /* GoRulesKit in Frameworks */ = {isa = PBXBuildFile; productRef = 91D1FB9C1DB92313D70496EB /* GoRulesKit */; };
 		9F3864F169F6B54BF4727E3B /* WordEmbedding.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = FB77AE0C1C1E08B886E39DED /* WordEmbedding.pb.cc */; };
 		9F7C8A4F92B840ADED0F0270 /* WatchCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856970973109BCFBA03D9625 /* WatchCommandTests.swift */; };
 		A04BCB9960D24CE7E3972BF0 /* nanobenchmark.cc in Sources */ = {isa = PBXBuildFile; fileRef = 41A69C74A59A561EBAC47B36 /* nanobenchmark.cc */; };
@@ -1905,6 +1906,7 @@
 			files = (
 				5C77AF1487CA8144C1AFD7A4 /* Foundation.framework in Frameworks */,
 				986EB9FD54AAF86995BF69BE /* KataGoGameStore in Frameworks */,
+				9F0BEDA924B0E705B4AACB25 /* GoRulesKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3657,6 +3659,7 @@
 			name = "KataGo Anytime Watch";
 			packageProductDependencies = (
 				2A326DA98FE24CA3549A77DB /* KataGoGameStore */,
+				91D1FB9C1DB92313D70496EB /* GoRulesKit */,
 			);
 			productName = "KataGo Anytime Watch";
 			productReference = DEA1AD8144A7D9DE42B555ED /* KataGo Anytime Watch.app */;
@@ -6169,6 +6172,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
 			productName = KataGoUICore;
+		};
+		91D1FB9C1DB92313D70496EB /* GoRulesKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = GoRulesKit;
 		};
 		9303CC325F736AFF2EA3AE69 /* CoreMLCacheKit */ = {
 			isa = XCSwiftPackageProductDependency;
