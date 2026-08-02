@@ -268,7 +268,7 @@ out of the button row and is named in the sheet body instead.
   inserting a real record as today. It then loads unlocked, opening a clean
   draft. The boot path is untouched.
 - **Origin deleted** — deleting locally routes through `resolve(then:)` first.
-  If the origin is `isDeleted` at Save time, Save falls back to the untitled
+  If the origin is gone at Save time, Save falls back to the untitled
   path and inserts a new record rather than discarding the work.
 - **Auto-play replay** — sets `isEditing = true`, so a draft opens, but it
   replays recorded moves, leaving the SGF unchanged. The comparator reports

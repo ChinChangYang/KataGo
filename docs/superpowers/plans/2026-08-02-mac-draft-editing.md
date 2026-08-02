@@ -17,6 +17,13 @@
 - **English only** in every committed file — source, comments, docs, commit messages. No CJK anywhere.
 - **Piped `xcodebuild` exit codes lie.** Always grep the output for `** BUILD SUCCEEDED **` / `** TEST SUCCEEDED **` rather than trusting `$?`.
 - **Never run two `xcodebuild` invocations concurrently** — a DerivedData lock produces spurious `TEST FAILED`.
+- **The Mac test bundle runs serially** (`parallelizable = "NO"` in the shared
+  scheme). With six-plus concurrent Swift Testing suites each building their own
+  in-memory `ModelContainer`, SwiftData tripped `assert(self.config != nil)` in
+  `GameRecord.concreteConfig`, crashing the runner mid-suite. Serial execution is
+  free here (the whole suite runs in well under a second) and makes runs
+  deterministic. If you see `Restarting after unexpected exit, crash, or test
+  timeout`, stop and report rather than re-running.
 - **No file is compiled unless it is registered.** This project has no
   file-system-synchronized groups. Use
   `ruby scripts/add_project_file.rb <path> <target>...` for every new file, and
@@ -1697,6 +1704,20 @@ final class GameDraft {
         SgfHeaderScan(sgf: record.sgf)?.moveCount ?? 0
     }
 
+    /// Whether the origin is still a live row in the store.
+    ///
+    /// NOT `!origin.isDeleted`. SwiftData sets `isDeleted` only between
+    /// `context.delete(_:)` and the following `save()`, and clears it again
+    /// afterwards — so by the time a draft comes to save, a deleted origin
+    /// reports `isDeleted == false` and would be written onto a tombstone.
+    /// `modelContext` is nil'd by that save and STAYS nil, which is the signal
+    /// that survives. (A never-inserted record also has a nil context, but
+    /// `origin` is only ever nil or a stored record, never a detached one.)
+    private var originIsLive: Bool {
+        guard let origin else { return false }
+        return origin.modelContext != nil
+    }
+
     /// True when the user has changed something worth saving.
     ///
     /// For an untitled draft there is no meaningful baseline to compare
@@ -1713,7 +1734,7 @@ final class GameDraft {
     /// True when the saved game changed under the draft — another device's
     /// CloudKit import landed after the draft opened.
     var hasConflict: Bool {
-        guard let origin, !origin.isDeleted else { return false }
+        guard let origin, originIsLive else { return false }
         return DraftComparator.differs(
             DraftSnapshot(record: origin, originUUID: origin.uuid), baseline)
     }
@@ -1726,7 +1747,7 @@ final class GameDraft {
     func save(into context: ModelContext) throws -> SaveOutcome {
         record.lastModificationDate = .now
 
-        if let origin, !origin.isDeleted {
+        if let origin, originIsLive {
             snapshot().apply(to: origin)
             try context.save()
             rebaseline()
@@ -1759,7 +1780,7 @@ final class GameDraft {
     /// Re-reads the baseline from the origin after a successful save, so the
     /// draft object can stay live and selected without churning identity.
     func rebaseline() {
-        if let origin, !origin.isDeleted {
+        if let origin, originIsLive {
             baseline = DraftSnapshot(record: origin, originUUID: origin.uuid)
         } else {
             baseline = snapshot()
