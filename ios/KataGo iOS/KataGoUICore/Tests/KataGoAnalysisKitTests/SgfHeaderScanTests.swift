@@ -144,7 +144,13 @@ struct SgfHeaderScanTests {
     }
 
     @Test func compressedRangeAcceptsEitherCornerOrientation() throws {
-        // The opposite corner order ("ff:dd") must expand to the same rectangle.
+        // The opposite corner order ("ff:dd") must expand to the same
+        // rectangle. This pins a DELIBERATE divergence from the C++ side:
+        // cpp/dataio/sgf.cpp's parseSgfLocRectangle requires x1<=x2, y1<=y2
+        // verbatim and fails the whole file (degrading it to an empty
+        // position) on "ff:dd" — see the doc comment on
+        // SgfHeaderScan.points(_:width:height:) for why this scan is more
+        // permissive. Not a parity guarantee with the engine.
         let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AB[ff:dd])"))
         let expected = Set((3...5).flatMap { y in (3...5).map { x in SgfPoint(x: x, y: y) } })
         #expect(Set(scan.setupBlack) == expected)
