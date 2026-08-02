@@ -5,6 +5,7 @@ import SwiftData
 import WidgetKit
 import KataGoUICore
 import KataGoEngineIPC
+import KataGoAnalysisKit
 
 /// Logs the launch-time crash-recovery decision (mirrors the iOS
 /// `ModelRunnerView` `recoveryLogger`, ModelRunnerView.swift lines 12-15).
@@ -256,6 +257,18 @@ final class MainWindowController: NSWindowController {
         // the draft's dirty/conflict state may have changed — including every
         // played move, not just open/close (`DraftController.noteChanged()`).
         draftController.onStateChanged = { [weak self] in
+            self?.refreshDraftChrome()
+        }
+
+        // Re-checks the conflict state after a coalesced CloudKit remote
+        // change, so a game changed on another device is caught live rather
+        // than only discovered at Save. `refreshDraftChrome` reads
+        // `draftController.hasConflict`, which re-compares `origin` (already
+        // updated in place by SwiftData's merge) against the draft's baseline
+        // — no separate conflict payload is needed.
+        libraryStore.onRemoteChange = { [weak self] in
+            // Surfaces as the window subtitle, so a conflict never ambushes
+            // the user at Save time.
             self?.refreshDraftChrome()
         }
 
@@ -2716,7 +2729,9 @@ final class MainWindowController: NSWindowController {
         refreshDraftChrome()
     }
 
-    private func presentSaveFailureAlert(_ error: Error) {
+    /// `internal`, not `private`: the conflict sheet below also reports a
+    /// failed Save as New Game through this same alert.
+    func presentSaveFailureAlert(_ error: Error) {
         let alert = NSAlert()
         alert.messageText = "Could not save this game."
         // The draft is deliberately left open and dirty: nothing is discarded
@@ -2726,10 +2741,74 @@ final class MainWindowController: NSWindowController {
         if let window { alert.beginSheetModal(for: window) }
     }
 
-    /// Replaced by the real conflict sheet in the conflict-handling task. Until
-    /// then this is the pre-existing last-writer-wins behavior, so Save is never
-    /// a no-op while the feature is half-landed.
-    func presentConflictAlert() { commitDraft() }
+    /// Save found the saved game changed underneath the draft — another
+    /// device's CloudKit import landed after the draft opened.
+    ///
+    /// Save as New Game is the default because nothing is lost either way:
+    /// the draft becomes its own record and the incoming version stays intact.
+    /// Discarding the user's own side is already File ▸ Revert to Saved, so it
+    /// is named in the body rather than given a button.
+    func presentConflictAlert() {
+        guard let window, let draft = draftController.draft, let origin = draft.origin
+        else { return }
+
+        let theirMoves = SgfHeaderScan(sgf: origin.sgf)?.moveCount ?? 0
+        let mine = draft.moveCount
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        let changedAt = origin.lastModificationDate.map { formatter.string(from: $0) }
+            ?? "another device"
+
+        let alert = NSAlert()
+        alert.messageText = "\"\(draft.record.name)\" was changed on another device."
+        alert.informativeText = """
+            The saved game now has \(theirMoves) moves; yours has \(mine). \
+            It was last changed \(changedAt).
+
+            To keep the other version instead, cancel and choose File > \
+            Revert to Saved.
+            """
+        alert.addButton(withTitle: "Save as New Game")
+        alert.addButton(withTitle: "Overwrite")
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                do {
+                    guard let inserted = try self.draftController.saveAsNewGame(
+                        into: self.modelContainer.mainContext)
+                    else { return }
+                    // `saveAsNewGame` re-baselines against the ORIGIN, which
+                    // is still the conflicting version — so leaving the draft
+                    // open here would leave it dirty (mine vs. theirs again)
+                    // and pointed at the very record this button was chosen
+                    // to protect. Closing it and selecting the new copy is
+                    // what actually keeps that version safe: left open, a
+                    // later Save could overwrite it, and exiting would prompt
+                    // the user all over again. `isEditing = false` mirrors
+                    // `discardDraftAndReload` — without it the now-live
+                    // `inserted` record would take direct moves outside any
+                    // draft, the exact write path this feature exists to close.
+                    self.draftController.close()
+                    self.session.gobanState.isEditing = false
+                    self.navigationContext.selectedGameRecord = inserted
+                    self.libraryStore.refetch()
+                    WidgetCenter.shared.reloadAllTimelines()
+                    self.refreshDraftChrome()
+                } catch {
+                    self.presentSaveFailureAlert(error)
+                }
+            case .alertSecondButtonReturn:
+                self.commitDraft()
+            default:
+                break   // Cancel: the draft stays open and dirty.
+            }
+        }
+    }
 
     // MARK: - Draft exit chokepoint
 

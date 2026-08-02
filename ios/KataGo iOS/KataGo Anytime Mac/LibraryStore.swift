@@ -10,6 +10,10 @@ import KataGoUICore
     /// Called whenever `games` changes (the sidebar reloads its table here).
     var onChange: (() -> Void)?
 
+    /// Called after a coalesced remote-change refetch, so the window controller
+    /// can re-check whether the game being edited was changed elsewhere.
+    var onRemoteChange: (() -> Void)?
+
     /// The full, unfiltered fetch (`games` is this list narrowed by `searchText`).
     /// Exposed so callers that must reason about every game — e.g. choosing a
     /// replacement after deleting the loaded game — aren't misled by an active
@@ -84,8 +88,15 @@ import KataGoUICore
     /// 150 ms window also lets SwiftData's default main-context auto-merge settle
     /// before we read, and any later notification re-arms it. Local saves and
     /// user-initiated CRUD don't pass through here — they refetch immediately.
+    ///
+    /// `onRemoteChange` fires after the refetch, once the settled data (and any
+    /// in-place merge onto an open draft's `origin`) is available for the window
+    /// controller to re-evaluate a conflict.
     private func scheduleCoalescedRefetch() {
-        remoteRefetchTrigger.schedule { [weak self] in self?.refetch() }
+        remoteRefetchTrigger.schedule { [weak self] in
+            self?.refetch()
+            self?.onRemoteChange?()
+        }
     }
 
     private func applyFilter() {
