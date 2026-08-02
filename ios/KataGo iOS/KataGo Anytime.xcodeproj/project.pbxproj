@@ -473,6 +473,7 @@
 		CC5014F793A35B4CD098469E /* exponential_biased.cc in Sources */ = {isa = PBXBuildFile; fileRef = A8F614C4BE6D7F1D25F4CEE6 /* exponential_biased.cc */; };
 		CCAAF0C1696A29041A498185 /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = D92F4C4766099217B210A9D1 /* KataGoUICore */; };
 		CCB671213CC801CC326BC1D7 /* TVAutoPlayPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F594CCF3C0704269B8DA55 /* TVAutoPlayPolicyTests.swift */; };
+		CCCA47AF5B5894C3B6003FBE /* WatchLibraryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51FCCAF099AFE873A8CFD3D7 /* WatchLibraryStoreTests.swift */; };
 		CCE00EE0A710503226FF943E /* KataGoUICore in Frameworks */ = {isa = PBXBuildFile; productRef = 7691E5766817B94BE53F1B1E /* KataGoUICore */; };
 		CD41A831A77E8319890BA0A8 /* parser.cc in Sources */ = {isa = PBXBuildFile; fileRef = CBCC04809980AB6CD49CD9D9 /* parser.cc */; };
 		CDC306346C6C01F7E21F5061 /* PlayerNameLabelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDE036A8C4A5D70A31AAEB1 /* PlayerNameLabelUITests.swift */; };
@@ -1233,6 +1234,7 @@
 		4FA4F0662AABA7D774C87B46 /* conditions.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = conditions.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/conditions.cc"; sourceTree = SOURCE_ROOT; };
 		4FDA012FE5D787E41C92FF99 /* images */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = images; path = KataGoAnytimeSafariExt/Resources/images; sourceTree = "<group>"; };
 		5109844DEF28BA649802F94C /* TVMemoryOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVMemoryOverlay.swift; sourceTree = "<group>"; };
+		51FCCAF099AFE873A8CFD3D7 /* WatchLibraryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchLibraryStoreTests.swift; sourceTree = "<group>"; };
 		5290ED5C9410AF244A700A43 /* str_split.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_split.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_split.cc"; sourceTree = SOURCE_ROOT; };
 		532FDD358510D4489F557606 /* DeepReportModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportModelTests.swift; sourceTree = "<group>"; };
 		53BD6F60BC59DC9F59A2F3F7 /* log_message.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_message.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/internal/log_message.cc"; sourceTree = SOURCE_ROOT; };
@@ -3137,6 +3139,7 @@
 				435496E644613986A983786E /* BoardSheetFitTests.swift */,
 				5B0269EB029E1950EA4F042D /* SgfReplayDifferentialTests.swift */,
 				B973CEF3C35A8A5F581A7102 /* WatchBoardFrameTests.swift */,
+				51FCCAF099AFE873A8CFD3D7 /* WatchLibraryStoreTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4578,6 +4581,7 @@
 				DE812E8FBA4F941E8C8246C9 /* BoardSheetFitTests.swift in Sources */,
 				DE608741EA19FCDD7E2D0EA4 /* SgfReplayDifferentialTests.swift in Sources */,
 				078A8992D6E422F9A0EE5061 /* WatchBoardFrameTests.swift in Sources */,
+				CCCA47AF5B5894C3B6003FBE /* WatchLibraryStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

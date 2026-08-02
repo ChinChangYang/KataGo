@@ -1,0 +1,152 @@
+//
+//  WatchLibraryStore.swift
+//  KataGoGameStore
+//
+//  The watch's read-only view of the game library. Read-only is structural,
+//  not a convention: nothing here inserts, deletes, or saves, so the watch can
+//  never conflict with the phone through CloudKit.
+//
+//  Lives here rather than in the watch target because the watch has no test
+//  bundle. Never imports CloudKit — the account signal is passed in by the
+//  view layer so this module stays appex-safe.
+//
+
+import Foundation
+import SwiftData
+import CoreData
+import Observation
+import KataGoAnalysisKit
+
+/// One game as the watch library lists it.
+public struct WatchLibraryRow: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let boardWidth: Int
+    public let boardHeight: Int
+    /// The game record, the only source the watch replays positions from.
+    public let sgf: String
+    public let lastModified: Date?
+
+    public init(id: String, name: String, boardWidth: Int, boardHeight: Int,
+                sgf: String, lastModified: Date?) {
+        self.id = id
+        self.name = name
+        self.boardWidth = boardWidth
+        self.boardHeight = boardHeight
+        self.sgf = sgf
+        self.lastModified = lastModified
+    }
+
+    /// "19x9". ASCII only — the multiplication sign is not worth the encoding
+    /// risk in a string this small.
+    public var sizeText: String { "\(boardWidth)x\(boardHeight)" }
+}
+
+@Observable
+@MainActor
+public final class WatchLibraryStore {
+    /// Newest-first cap. A wrist-sized process has no business materializing
+    /// an unbounded library, and nobody scrolls past a hundred games on a watch.
+    public static let fetchLimit = 100
+    /// How long after opening the store an empty library still reads as
+    /// "syncing" rather than "no games".
+    public static let launchGrace: TimeInterval = 10
+    /// How long a remote-change burst keeps the library reading as "syncing".
+    public static let remoteActivityWindow: TimeInterval = 5
+
+    public private(set) var rows: [WatchLibraryRow] = []
+    /// Set by the view layer, which owns the CloudKit account check.
+    public var accountState: ICloudAccountState = .unknown
+
+    @ObservationIgnored private let container: ModelContainer
+    @ObservationIgnored private let storeMode: LibraryStoreMode
+    @ObservationIgnored private let openedAt: Date
+    @ObservationIgnored private var lastRemoteChange: Date?
+    @ObservationIgnored private var observer: (any NSObjectProtocol)?
+    /// Memoized move counts. Observation-ignored on purpose: the library rows
+    /// read this during body evaluation, and mutating observed state there
+    /// would re-invalidate the view forever.
+    @ObservationIgnored private var moveCounts: [String: Int] = [:]
+
+    public init(container: ModelContainer,
+                storeMode: LibraryStoreMode,
+                openedAt: Date = Date()) {
+        self.container = container
+        self.storeMode = storeMode
+        self.openedAt = openedAt
+    }
+
+    // No deinit: the store is owned by the App scene and lives as long as the
+    // process, and a nonisolated deinit cannot touch this @MainActor state in
+    // Swift 6 anyway.
+
+    /// Newest-first, property-bounded fetch. `propertiesToFetch` keeps a
+    /// game's heavy per-move dictionaries (ownership, win rates, best moves,
+    /// board snapshots) out of the watch's memory; SwiftData faults anything
+    /// unlisted in on demand, so this is a footprint bound, never a
+    /// correctness change.
+    public func refresh() {
+        var descriptor = FetchDescriptor<GameRecord>(
+            sortBy: [.init(\.lastModificationDate, order: .reverse)])
+        descriptor.fetchLimit = Self.fetchLimit
+        descriptor.propertiesToFetch = [
+            \.uuid, \.name, \.width, \.height, \.sgf, \.lastModificationDate
+        ]
+        let fetched = (try? container.mainContext.fetch(descriptor)) ?? []
+        rows = fetched.compactMap { record in
+            guard let uuid = record.uuid else { return nil }
+            return WatchLibraryRow(id: uuid.uuidString,
+                                   name: record.name,
+                                   boardWidth: record.width ?? 19,
+                                   boardHeight: record.height ?? 19,
+                                   sgf: record.sgf,
+                                   lastModified: record.lastModificationDate)
+        }
+        // A game may have been edited on another device; drop stale counts.
+        moveCounts = moveCounts.filter { key, _ in rows.contains { $0.id == key } }
+    }
+
+    /// Refetch whenever CloudKit lands an import, so games appear without a
+    /// relaunch. Same pattern as the Mac's iCloud list.
+    public func startObservingRemoteChanges() {
+        guard observer == nil else { return }
+        observer = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.lastRemoteChange = Date()
+                self.refresh()
+            }
+        }
+    }
+
+    /// The game's mainline length, scanned on demand and memoized so opening
+    /// the library never scans a hundred SGFs up front.
+    public func moveCount(for row: WatchLibraryRow) -> Int {
+        if let cached = moveCounts[row.id] { return cached }
+        let count = SgfHeaderScan(sgf: row.sgf)?.moveCount ?? 0
+        moveCounts[row.id] = count
+        return count
+    }
+
+    public func row(id: String) -> WatchLibraryRow? {
+        rows.first { $0.id == id }
+    }
+
+    /// What to show while `rows` is empty. Delegates to the same policy the
+    /// Apple TV library uses.
+    public func emptyState(now: Date) -> EmptyLibraryState {
+        let recentActivity = lastRemoteChange.map {
+            now.timeIntervalSince($0) < Self.remoteActivityWindow
+        } ?? false
+        return LibrarySyncPolicy.emptyLibraryState(
+            storeMode: storeMode,
+            accountState: accountState,
+            importInFlight: false,
+            recentRemoteActivity: recentActivity,
+            graceExpired: now.timeIntervalSince(openedAt) >= Self.launchGrace)
+    }
+}
