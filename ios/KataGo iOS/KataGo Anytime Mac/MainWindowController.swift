@@ -761,8 +761,12 @@ final class MainWindowController: NSWindowController {
     /// Called (via `defer`) from `applyPendingSelection`, i.e. on every
     /// engine-ready edge, because Restore selects a game and that drives GTP.
     /// Safe to call repeatedly in one session: the `draftController.draft ==
-    /// nil` guard stops a second offer while a draft is open, and both sheet
-    /// buttons clear the mirror, so a resolved offer never returns.
+    /// nil` guard alone is what stops a second offer while a draft is open.
+    /// Discard clears the mirror immediately; Restore does not (it opens a
+    /// draft over the recovered content instead, and that draft's own edits
+    /// reschedule the mirror write, same as any other draft) — but either way
+    /// `draftController.draft` is non-nil afterward, so the guard above already
+    /// covers both buttons and a resolved offer never returns.
     func offerDraftRestoreIfNeeded() {
         guard draftController.draft == nil,
               let mirror = draftController.mirrorStore.read(),

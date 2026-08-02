@@ -170,6 +170,14 @@ The Mac app is native AppKit with a three-pane window:
 
 Everything is reachable from the menu bar: File (New Game, Import, Share, Export GIF, **Re-sync from iCloud**), Game (Allow Editing ⌘E, Play Best Move, Pass, Deactivate Branch, Deep Analysis Report), Analysis (toggle/pause/clear, ownership), Navigate, and Window (**Manage Models**, **Manage Opening Books**). Move navigation is keyboard-driven: **↑ / ↓** step one move back/forward, **← / →** jump ten, and **⌥⌘← / ⌥⌘→** go to the start/end of the game. LizzieYzy-style bare-key hotkeys work whenever you're not typing: **Space** toggles analysis, **,** plays the engine's best move, and **P** passes. Hovering the score chart previews a position; clicking commits the board to it.
 
+- **Save** ⌘S — commit the game you are editing to iCloud. While a game is
+  unlocked its changes are unsaved: they live in memory and in a local
+  recovery file, and never reach iCloud until you save.
+- **Revert to Saved** — throw away unsaved changes and reload the saved game.
+
+A new game (⌘N) has no library row until you save it. Switching games,
+closing the window or quitting with unsaved changes asks first.
+
 Under the hood the Mac app runs the engine in the sandboxed `katago-engine` subprocess described in [Inference Backends](#inference-backends), so an engine crash never takes the app down.
 
 ## KataGo Anytime on Apple TV
