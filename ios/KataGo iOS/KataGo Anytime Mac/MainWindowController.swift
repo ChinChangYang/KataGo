@@ -2563,14 +2563,32 @@ final class MainWindowController: NSWindowController {
     /// `gobanState.analysisStatus`. Called after the item is built (initial
     /// state), at the end of T1's `handleAnalysisLifecycleChange()` (so any path
     /// that changes `analysisStatus` refreshes the button), and defensively from
-    /// `validateToolbarItem`. Uses the SF Symbol `wand.and.stars` throughout —
-    /// the iOS `custom.sparkle` asset is not guaranteed in the Mac catalog.
+    /// `validateToolbarItem`.
+    ///
+    /// Uses the iOS `custom.sparkle` / `custom.sparkle.slash` symbols (copied
+    /// into the Mac catalog) so the button matches `StatusToolbarItems`, which
+    /// likewise swaps to the slashed variant when analysis is off.
+    ///
+    /// `.pause` deliberately keeps a dimmed tint rather than copying iOS
+    /// exactly: iOS separates run from pause ONLY via
+    /// `.symbolEffect(.variableColor.iterative.reversing)`, and neither
+    /// symbolset declares a `variable-N` layer, so that effect renders nothing
+    /// — dropping the tint would leave the two states indistinguishable here.
+    /// The item's `label` carries the accessible name (the toolbar runs
+    /// `displayMode = .iconOnly`, so `label` is VoiceOver-only and `toolTip` is
+    /// what a pointer user reads); the catalog image is used unmutated so the
+    /// shared cached instance never picks up one state's tint.
     private func refreshAnalyzeToolbarItem() {
         guard let item = analyzeToolbarItem else { return }
-        let base = NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Analyze")
-        switch session.gobanState.analysisStatus {
+        let status = session.gobanState.analysisStatus
+        let symbolName = (status == .clear) ? "custom.sparkle.slash" : "custom.sparkle"
+        // Fall back to the stock wand if the catalog lookup ever fails, so the
+        // item can never render as an empty slot.
+        let base = NSImage(named: symbolName)
+            ?? NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Analyze")
+        switch status {
         case .clear:
-            // Analysis OFF: red tint signals "tap to start", toolTip says so.
+            // Analysis OFF: red slashed sparkle signals "click to start".
             item.image = base?.withSymbolConfiguration(
                 .init(paletteColors: [.systemRed]))
             item.toolTip = "Start Analysis"
@@ -3147,6 +3165,9 @@ extension MainWindowController: NSToolbarDelegate {
                             symbol: "square.and.arrow.down",
                             action: #selector(importSGF(_:)))
         case .analyze:
+            // The symbol here is only the seed; `refreshAnalyzeToolbarItem()`
+            // immediately replaces it with the catalog sparkle for the live
+            // status, so the stock wand is never actually drawn.
             let item = makeItem(itemIdentifier,
                                 label: "Analyze",
                                 symbol: "wand.and.stars",
