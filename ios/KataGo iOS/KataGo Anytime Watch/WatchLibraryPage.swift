@@ -41,9 +41,15 @@ struct WatchLibraryPage: View {
         .task {
             library.refresh()
             library.startObservingRemoteChanges()
-            library.accountState = await Self.accountState()
-            // Re-evaluate the empty state as the launch grace expires.
-            try? await Task.sleep(for: .seconds(WatchLibraryStore.launchGrace))
+            // Concurrent, not serialized: CKContainer.accountStatus() has no
+            // timeout, so awaiting it before starting the grace timer could
+            // pin the empty state on "Syncing from iCloud" for as long as
+            // that call hangs, since `now` would never get re-evaluated.
+            async let accountState = Self.accountState()
+            async let graceExpired: Void = Self.waitForLaunchGrace()
+            library.accountState = await accountState
+            await graceExpired
+            // Re-evaluate the empty state now that the launch grace expired.
             now = Date()
         }
     }
@@ -116,6 +122,12 @@ struct WatchLibraryPage: View {
         } else {
             path.append(.stored(row.id))
         }
+    }
+
+    /// The launch-grace timer, split out so it can run concurrently with
+    /// `accountState()` in one `.task` (see there for why).
+    private static func waitForLaunchGrace() async {
+        try? await Task.sleep(for: .seconds(WatchLibraryStore.launchGrace))
     }
 
     /// The account signal the empty-state policy needs. Kept in the view so
