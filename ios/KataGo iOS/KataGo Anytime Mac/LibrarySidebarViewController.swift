@@ -97,7 +97,10 @@ final class LibrarySidebarViewController: NSViewController {
         // because there is no clicked row during a key press.
         tableView.onReturnKey = { [weak self] in
             guard let self, let game = self.contextTargetGame else { return }
-            self.actionsDelegate?.renameGame(game)
+            // Route through the same draft-aware resolution as the context menu's
+            // Rename, so bare-Return on the draft's origin row edits the draft
+            // instead of writing straight to the stored record.
+            self.actionsDelegate?.renameGame(self.editingTarget(for: game))
         }
         tableView.onDeleteKey = { [weak self] in
             guard let self, let game = self.contextTargetGame else { return }
