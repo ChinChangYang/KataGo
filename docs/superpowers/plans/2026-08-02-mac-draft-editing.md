@@ -1404,8 +1404,17 @@ import SwiftData
 @MainActor
 struct GameDraftTests {
 
-    private func container() throws -> ModelContainer {
-        try ModelContainer(
+    // The container MUST be a stored property, never returned from a helper and
+    // discarded. `try container().mainContext` releases the container at the end
+    // of that expression, leaving the ModelContext outliving its own store — that
+    // crashes the test runner, which then restarts and re-runs forever. Swift
+    // Testing builds a fresh struct per test, so a stored property still gives
+    // every test its own isolated in-memory store.
+    private let container: ModelContainer
+    private var context: ModelContext { container.mainContext }
+
+    init() throws {
+        container = try ModelContainer(
             for: GameRecord.self, Config.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
@@ -1425,20 +1434,17 @@ struct GameDraftTests {
     // MARK: - Dirty
 
     @Test func aFreshDraftIsClean() throws {
-        let context = try container().mainContext
         let draft = GameDraft(origin: try storedGame(in: context))
         #expect(!draft.isDirty)
     }
 
     @Test func playingAMoveMakesTheDraftDirty() throws {
-        let context = try container().mainContext
         let draft = GameDraft(origin: try storedGame(in: context))
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
         #expect(draft.isDirty)
     }
 
     @Test func analysisDataDoesNotMakeTheDraftDirty() throws {
-        let context = try container().mainContext
         let draft = GameDraft(origin: try storedGame(in: context))
         draft.record.winRates = [1: 0.6]
         draft.record.currentIndex = 0
@@ -1470,7 +1476,7 @@ struct GameDraftTests {
     // MARK: - Isolation
 
     @Test func editingTheDraftDoesNotTouchTheStore() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let draft = GameDraft(origin: origin)
 
@@ -1486,7 +1492,7 @@ struct GameDraftTests {
     // MARK: - Save
 
     @Test func saveAppliesTheDraftOntoTheOrigin() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let draft = GameDraft(origin: origin)
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
@@ -1503,7 +1509,7 @@ struct GameDraftTests {
     }
 
     @Test func saveClearsDirtyAndStampsTheModificationDate() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         origin.lastModificationDate = Date(timeIntervalSince1970: 0)
         let draft = GameDraft(origin: origin)
@@ -1516,7 +1522,7 @@ struct GameDraftTests {
     }
 
     @Test func savingAnUntitledDraftInsertsANewRecord() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let untitled = GameRecord(config: Config())
         untitled.sgf = "(;FF[4]GM[1]SZ[19];B[dd])"
         untitled.name = "Brand New"
@@ -1536,7 +1542,7 @@ struct GameDraftTests {
     }
 
     @Test func savingAnOriginThatWasDeletedInsertsInstead() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let draft = GameDraft(origin: origin)
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
@@ -1556,14 +1562,14 @@ struct GameDraftTests {
     // MARK: - Conflict
 
     @Test func aDraftWithAnUntouchedOriginHasNoConflict() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let draft = GameDraft(origin: try storedGame(in: ctx))
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
         #expect(!draft.hasConflict)
     }
 
     @Test func anOriginChangedUnderneathIsAConflict() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let draft = GameDraft(origin: origin)
 
@@ -1580,7 +1586,7 @@ struct GameDraftTests {
     }
 
     @Test func saveAsNewGameLeavesTheOriginIntact() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let draft = GameDraft(origin: origin)
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
@@ -1597,7 +1603,7 @@ struct GameDraftTests {
     // MARK: - Move count
 
     @Test func moveCountReadsTheDraftSgf() throws {
-        let ctx = try container().mainContext
+        let ctx = context
         let draft = GameDraft(origin: try storedGame(in: ctx))
         #expect(draft.moveCount == 1)
         draft.record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp];B[cc])"
@@ -2278,10 +2284,19 @@ struct DraftControllerTests {
         return DraftMirrorStore(directory: url)
     }
 
-    private func context() throws -> ModelContext {
-        try ModelContainer(
+    // The container MUST be a stored property, never returned from a helper and
+    // discarded. `try container().mainContext` releases the container at the end
+    // of that expression, leaving the ModelContext outliving its own store — that
+    // crashes the test runner, which then restarts and re-runs forever. Swift
+    // Testing builds a fresh struct per test, so a stored property still gives
+    // every test its own isolated in-memory store.
+    private let container: ModelContainer
+    private var context: ModelContext { container.mainContext }
+
+    init() throws {
+        container = try ModelContainer(
             for: GameRecord.self, Config.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)).mainContext
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
     private func storedGame(in context: ModelContext, name: String = "Saved") throws -> GameRecord {
@@ -2296,7 +2311,7 @@ struct DraftControllerTests {
     // MARK: - resolvedRecord: the seam the sidebar depends on
 
     @Test func resolvedRecordMapsTheDraftBackToItsOrigin() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let controller = DraftController(mirrorStore: try tempMirrorStore())
 
@@ -2307,7 +2322,7 @@ struct DraftControllerTests {
     }
 
     @Test func resolvedRecordPassesThroughAnUnrelatedRecord() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let other = try storedGame(in: ctx, name: "Other")
         let controller = DraftController(mirrorStore: try tempMirrorStore())
@@ -2325,7 +2340,7 @@ struct DraftControllerTests {
     }
 
     @Test func resolvedRecordPassesThroughWhenNoDraftIsOpen() throws {
-        let ctx = try context()
+        let ctx = context
         let game = try storedGame(in: ctx)
         let controller = DraftController(mirrorStore: try tempMirrorStore())
 
@@ -2334,7 +2349,7 @@ struct DraftControllerTests {
     }
 
     @Test func isDraftRecordDistinguishesTheDraftFromStoredGames() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let controller = DraftController(mirrorStore: try tempMirrorStore())
         let draftRecord = controller.open(origin: origin)
@@ -2347,7 +2362,7 @@ struct DraftControllerTests {
     // MARK: - Lifecycle
 
     @Test func openingAndClosingTracksState() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let controller = DraftController(mirrorStore: try tempMirrorStore())
 
@@ -2373,7 +2388,7 @@ struct DraftControllerTests {
     }
 
     @Test func closeRemovesTheMirrorFile() throws {
-        let ctx = try context()
+        let ctx = context
         let store = try tempMirrorStore()
         let controller = DraftController(mirrorStore: store)
         let origin = try storedGame(in: ctx)
@@ -2391,7 +2406,7 @@ struct DraftControllerTests {
     // MARK: - Save
 
     @Test func saveWritesThroughAndClearsTheMirror() throws {
-        let ctx = try context()
+        let ctx = context
         let store = try tempMirrorStore()
         let controller = DraftController(mirrorStore: store)
         let origin = try storedGame(in: ctx)
@@ -2413,13 +2428,13 @@ struct DraftControllerTests {
     }
 
     @Test func saveWithNoDraftReturnsNil() throws {
-        let ctx = try context()
+        let ctx = context
         let controller = DraftController(mirrorStore: try tempMirrorStore())
         #expect(try controller.save(into: ctx) == nil)
     }
 
     @Test func saveAsNewGameLeavesTheOriginIntact() throws {
-        let ctx = try context()
+        let ctx = context
         let controller = DraftController(mirrorStore: try tempMirrorStore())
         let origin = try storedGame(in: ctx)
         let record = controller.open(origin: origin)
@@ -2435,7 +2450,7 @@ struct DraftControllerTests {
     // MARK: - Exit decisions
 
     @Test func decisionPromptsOnlyWhenDirty() throws {
-        let ctx = try context()
+        let ctx = context
         let controller = DraftController(mirrorStore: try tempMirrorStore())
         #expect(controller.decision(for: .quit) == .proceed)
 
@@ -2450,7 +2465,7 @@ struct DraftControllerTests {
     // MARK: - Restore
 
     @Test func restoreRebuildsTheDraftFromAMirror() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
 
         let edited = origin.detachedDraftCopy()
@@ -2469,7 +2484,7 @@ struct DraftControllerTests {
     }
 
     @Test func restoreWithoutAnOriginComesBackUntitled() throws {
-        let ctx = try context()
+        let ctx = context
         let origin = try storedGame(in: ctx)
         let edited = origin.detachedDraftCopy()
         edited.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
