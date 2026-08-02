@@ -90,9 +90,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// ⌘Q with unsaved changes: defer termination until the sheet is answered.
     /// `.terminateLater` keeps the app alive; the reply resumes or aborts it.
-    /// A Cancel answer replies `false` from inside `resolveDraft` itself (its
-    /// `continuation` here is never invoked on Cancel, by design), so this
-    /// never leaves the app stuck mid-quit waiting for a reply that isn't coming.
+    /// Every way `resolveDraft` can finish without calling this `continuation`
+    /// — Cancel, or a failed Save — replies `false` itself via
+    /// `abortDraftExit`, so this never leaves the app stuck mid-quit waiting
+    /// for a reply that isn't coming.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let wc = windowController, wc.hasUnresolvedDraft else { return .terminateNow }
         wc.resolveDraft(for: .quit) {

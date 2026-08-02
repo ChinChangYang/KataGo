@@ -2764,7 +2764,13 @@ final class MainWindowController: NSWindowController {
                 // A failed save (disk/CloudKit error) must not let the exit
                 // proceed — that would silently discard the very changes
                 // `presentSaveFailureAlert` just told the user are still here.
-                guard self.commitDraft() else { return }
+                // It's an abort like Cancel below, so it owes `.quit` the same
+                // reply — routed through `abortDraftExit` rather than repeated
+                // here, so this branch cannot forget it the way it did before.
+                guard self.commitDraft() else {
+                    self.abortDraftExit(for: trigger)
+                    return
+                }
                 self.closeDraftAndResyncSelection()
                 continuation()
             case .alertSecondButtonReturn:
@@ -2775,17 +2781,32 @@ final class MainWindowController: NSWindowController {
                 self.discardDraftAndReload()
                 continuation()
             default:
-                // Cancel: the continuation is abandoned. `.quit` is the one
-                // trigger that already returned `.terminateLater` before this
-                // sheet appeared (`AppDelegate.applicationShouldTerminate`);
-                // with no reply here the app would sit stuck "terminating"
-                // forever, so this is the one case Cancel still has to act on
-                // `NSApp` rather than simply doing nothing.
-                if trigger == .quit {
-                    NSApp.reply(toApplicationShouldTerminate: false)
-                }
+                // Cancel: the continuation is abandoned, so it goes through
+                // the same abort path as a failed Save above.
+                self.abortDraftExit(for: trigger)
             }
         }
+    }
+
+    /// Every abort out of the exit sheet (Cancel, or a failed Save) lands
+    /// here instead of calling `continuation()`. `.quit` is the one trigger
+    /// that already returned `.terminateLater` before this sheet appeared
+    /// (`AppDelegate.applicationShouldTerminate`); with no reply on an abort
+    /// the app would sit stuck "terminating" forever, so this is the one case
+    /// an abort still has to act on `NSApp` rather than simply doing nothing.
+    /// Routing both abort branches through one helper — instead of each
+    /// remembering to reply for itself — is what caught the failed-Save path
+    /// missing this the first time, and keeps a future third abort branch
+    /// from missing it too.
+    ///
+    /// Never fires alongside `continuation()`: `resolveDraft`'s callback is a
+    /// single `switch` over the alert response, and each case either takes
+    /// this abort branch or the success branch that calls `continuation()`,
+    /// never both — so `NSApp.reply(toApplicationShouldTerminate:)` still
+    /// only ever fires once per sheet answer.
+    private func abortDraftExit(for trigger: DraftExitTrigger) {
+        guard trigger == .quit else { return }
+        NSApp.reply(toApplicationShouldTerminate: false)
     }
 
     /// Closes the draft after a successful Save and points the selection back
