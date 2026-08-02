@@ -270,18 +270,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Game menu (iOS spec order: File / Edit / Game / …). Hosts branch-exit and
     /// edit-mode actions. All items carry `target = nil`, so AppKit routes them
     /// through the responder chain to `MainWindowController`; `validateMenuItem`
-    /// owns their enable state (and the Lock-Editing checkmark) from the LIVE
+    /// owns their enable state (and the "Allow Editing" checkmark) from the LIVE
     /// `gobanState`.
     private func gameMenu() -> NSMenu {
         let menu = NSMenu(title: "Game")
 
         // Toggles edit mode (`gobanState.isEditing`) — the same flag the iOS Chart
-        // wand / edit affordances drive. `validateMenuItem` sets the checkmark from
-        // the live state. ⌘E (E for Edit) — not used by any other global item.
-        let lockEditing = menu.addItem(withTitle: "Lock Editing",
-                                       action: #selector(MainWindowController.toggleEditing(_:)),
-                                       keyEquivalent: "e")
-        lockEditing.keyEquivalentModifierMask = [.command]
+        // wand / edit affordances drive, and the same one the toolbar's lock slot
+        // flips. `validateMenuItem` sets the checkmark from the live state.
+        // ⌘E (E for Edit) — not used by any other global item.
+        //
+        // Titled "Allow Editing", NOT "Lock Editing": `isEditing == true` means
+        // UNLOCKED (edits land straight in the saved record; locked routes
+        // off-mainline moves into a branch instead), so a checkmark driven by
+        // `isEditing` reads backwards against a "Lock…" title — it would appear
+        // ticked precisely when editing is unlocked.
+        let allowEditing = menu.addItem(withTitle: "Allow Editing",
+                                        action: #selector(MainWindowController.toggleEditing(_:)),
+                                        keyEquivalent: "e")
+        allowEditing.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
 
         // Board-move shortcuts mirroring LizzieYzy: `,` plays the engine's current

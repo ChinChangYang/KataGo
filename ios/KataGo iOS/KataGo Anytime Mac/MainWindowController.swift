@@ -2564,7 +2564,8 @@ final class MainWindowController: NSWindowController {
     // the auto-play observer's `isEditing` branch (it cancels any in-flight
     // auto-play), so this action just flips the flag.
 
-    /// Game-menu "Lock Editing": toggles edit mode. `validateMenuItem` shows the
+    /// Game-menu "Allow Editing" and the toolbar's lock slot: toggles edit mode
+    /// (`isEditing == true` means UNLOCKED). `validateMenuItem` shows the
     /// checkmark from the live `gobanState.isEditing`.
     @objc func toggleEditing(_ sender: Any?) {
         session.gobanState.isEditing.toggle()
@@ -3117,8 +3118,8 @@ extension MainWindowController: NSMenuItemValidation {
             return gobanState.isBranchActive
                 && !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
 
-        // Game menu "Lock Editing": checkmark reflects the live `isEditing`,
-        // enabled when a game is selected.
+        // Game menu "Allow Editing": checkmark reflects the live `isEditing`
+        // (true == unlocked), enabled when a game is selected.
         case #selector(toggleEditing(_:)):
             menuItem.state = gobanState.isEditing ? .on : .off
             return hasGame
