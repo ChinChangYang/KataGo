@@ -87,6 +87,50 @@ struct DraftSnapshot: Codable, Equatable {
         var optionalUseLLM: Bool?
         var optionalTemperature: Float?
         var optionalTone: Int?
+
+        /// Reads the whole config in one place, so anything that has to know
+        /// which config fields are drafted — the snapshot below, and the
+        /// observation tracking in `DraftComparator` — reaches them through
+        /// this and cannot drift from the list above.
+        @MainActor
+        init(config c: Config) {
+            self.boardWidth = c.boardWidth
+            self.boardHeight = c.boardHeight
+            self.rule = c.rule
+            self.komi = c.komi
+            self.playoutDoublingAdvantage = c.playoutDoublingAdvantage
+            self.analysisWideRootNoise = c.analysisWideRootNoise
+            self.maxAnalysisMoves = c.maxAnalysisMoves
+            self.analysisInterval = c.analysisInterval
+            self.analysisInformation = c.analysisInformation
+            self.hiddenAnalysisVisitRatio = c.hiddenAnalysisVisitRatio
+            self.stoneStyle = c.stoneStyle
+            self.showCoordinate = c.showCoordinate
+            self.humanSLRootExploreProbWeightful = c.humanSLRootExploreProbWeightful
+            self.humanSLProfile = c.humanSLProfile
+            self.optionalAnalysisForWhom = c.optionalAnalysisForWhom
+            self.optionalShowOwnership = c.optionalShowOwnership
+            self.optionalHumanRatioForWhite = c.optionalHumanRatioForWhite
+            self.optionalHumanProfileForWhite = c.optionalHumanProfileForWhite
+            self.optionalSoundEffect = c.optionalSoundEffect
+            self.optionalShowComments = c.optionalShowComments
+            self.optionalShowPass = c.optionalShowPass
+            self.optionalVerticalFlip = c.optionalVerticalFlip
+            self.optionalBlackMaxTime = c.optionalBlackMaxTime
+            self.optionalWhiteMaxTime = c.optionalWhiteMaxTime
+            self.optionalKoRule = c.optionalKoRule
+            self.optionalScoringRule = c.optionalScoringRule
+            self.optionalTaxRule = c.optionalTaxRule
+            self.optionalMultiStoneSuicideLegal = c.optionalMultiStoneSuicideLegal
+            self.optionalHasButton = c.optionalHasButton
+            self.optionalWhiteHandicapBonusRule = c.optionalWhiteHandicapBonusRule
+            self.optionalShowWinrateBar = c.optionalShowWinrateBar
+            self.optionalAnalysisStyle = c.optionalAnalysisStyle
+            self.optionalShowCharts = c.optionalShowCharts
+            self.optionalUseLLM = c.optionalUseLLM
+            self.optionalTemperature = c.optionalTemperature
+            self.optionalTone = c.optionalTone
+        }
     }
 
     @MainActor
@@ -117,45 +161,7 @@ struct DraftSnapshot: Codable, Equatable {
             height: record.height
         )
 
-        let c = record.concreteConfig
-        self.config = ConfigFields(
-            boardWidth: c.boardWidth,
-            boardHeight: c.boardHeight,
-            rule: c.rule,
-            komi: c.komi,
-            playoutDoublingAdvantage: c.playoutDoublingAdvantage,
-            analysisWideRootNoise: c.analysisWideRootNoise,
-            maxAnalysisMoves: c.maxAnalysisMoves,
-            analysisInterval: c.analysisInterval,
-            analysisInformation: c.analysisInformation,
-            hiddenAnalysisVisitRatio: c.hiddenAnalysisVisitRatio,
-            stoneStyle: c.stoneStyle,
-            showCoordinate: c.showCoordinate,
-            humanSLRootExploreProbWeightful: c.humanSLRootExploreProbWeightful,
-            humanSLProfile: c.humanSLProfile,
-            optionalAnalysisForWhom: c.optionalAnalysisForWhom,
-            optionalShowOwnership: c.optionalShowOwnership,
-            optionalHumanRatioForWhite: c.optionalHumanRatioForWhite,
-            optionalHumanProfileForWhite: c.optionalHumanProfileForWhite,
-            optionalSoundEffect: c.optionalSoundEffect,
-            optionalShowComments: c.optionalShowComments,
-            optionalShowPass: c.optionalShowPass,
-            optionalVerticalFlip: c.optionalVerticalFlip,
-            optionalBlackMaxTime: c.optionalBlackMaxTime,
-            optionalWhiteMaxTime: c.optionalWhiteMaxTime,
-            optionalKoRule: c.optionalKoRule,
-            optionalScoringRule: c.optionalScoringRule,
-            optionalTaxRule: c.optionalTaxRule,
-            optionalMultiStoneSuicideLegal: c.optionalMultiStoneSuicideLegal,
-            optionalHasButton: c.optionalHasButton,
-            optionalWhiteHandicapBonusRule: c.optionalWhiteHandicapBonusRule,
-            optionalShowWinrateBar: c.optionalShowWinrateBar,
-            optionalAnalysisStyle: c.optionalAnalysisStyle,
-            optionalShowCharts: c.optionalShowCharts,
-            optionalUseLLM: c.optionalUseLLM,
-            optionalTemperature: c.optionalTemperature,
-            optionalTone: c.optionalTone
-        )
+        self.config = ConfigFields(config: record.concreteConfig)
     }
 
     /// Copies every drafted field onto `record`. Never touches `uuid` or the

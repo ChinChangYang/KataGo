@@ -137,6 +137,115 @@ struct DraftControllerTests {
         #expect(store.read() == nil)
     }
 
+    // MARK: - Change tracking
+    //
+    // `noteChanged()` had exactly one call site — the board's stones-ready
+    // handler — so moves and undo scheduled the crash mirror but the comment
+    // editor, the config editors and Rename did not: their edits showed no
+    // dirty dot and were never mirrored, while File > Save stayed enabled.
+    // The controller watches the compared fields itself now, so no writer has
+    // to know a draft exists.
+
+    /// A box, because the observation callback is an escaping closure.
+    @MainActor private final class Counter { var value = 0 }
+
+    /// The observation callback fires from `willSet` and hops to the next
+    /// main-actor turn, so every assertion about it has to let that turn run.
+    private func settle() async throws {
+        try await Task.sleep(for: .milliseconds(100))
+    }
+
+    @Test func aCommentEditIsNoticedWithNoExplicitNotify() async throws {
+        let ctx = context
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let record = controller.open(origin: try storedGame(in: ctx))
+        let changes = Counter()
+        controller.onStateChanged = { changes.value += 1 }
+
+        record.comments = [0: "typed into the Comments tab"]
+        try await settle()
+
+        #expect(changes.value > 0)
+        #expect(controller.isDirty)
+    }
+
+    @Test func aRenameIsNoticedWithNoExplicitNotify() async throws {
+        let ctx = context
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let record = controller.open(origin: try storedGame(in: ctx))
+        let changes = Counter()
+        controller.onStateChanged = { changes.value += 1 }
+
+        record.name = "Renamed"
+        try await settle()
+
+        #expect(changes.value > 0)
+        #expect(controller.isDirty)
+    }
+
+    @Test func aConfigEditIsNoticedWithNoExplicitNotify() async throws {
+        let ctx = context
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let record = controller.open(origin: try storedGame(in: ctx))
+        let changes = Counter()
+        controller.onStateChanged = { changes.value += 1 }
+
+        record.concreteConfig.komi = 5.5
+        try await settle()
+
+        #expect(changes.value > 0)
+        #expect(controller.isDirty)
+    }
+
+    /// The other half of the rule: analysis data is rewritten every few hundred
+    /// milliseconds while analysis runs, and waking on it would re-arm the
+    /// mirror's debounce forever — the mirror would then never be written at
+    /// all.
+    @Test func analysisDataDoesNotWakeTheTracker() async throws {
+        let ctx = context
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let record = controller.open(origin: try storedGame(in: ctx))
+        let changes = Counter()
+        controller.onStateChanged = { changes.value += 1 }
+
+        record.winRates = [1: 0.7]
+        record.ownershipWhiteness = [1: [0.5, 0.5]]
+        record.currentIndex = 0
+        try await settle()
+
+        #expect(changes.value == 0)
+    }
+
+    @Test func aCommentEditReachesTheCrashMirror() async throws {
+        let ctx = context
+        let store = try tempMirrorStore()
+        let controller = DraftController(mirrorStore: store)
+        let record = controller.open(origin: try storedGame(in: ctx))
+
+        record.comments = [0: "lost on kill -9 before this was tracked"]
+        // Past the one-second mirror debounce.
+        try await Task.sleep(for: .milliseconds(1500))
+
+        #expect(store.read()?.draft.game.comments == [0: "lost on kill -9 before this was tracked"])
+    }
+
+    /// With no draft open a mirror on disk belongs to a PREVIOUS run and is
+    /// waiting to be offered for restore, so a stray notify must not delete it.
+    @Test func notifyingWithNoDraftLeavesAPreviousRunsMirrorAlone() throws {
+        let ctx = context
+        let store = try tempMirrorStore()
+        let origin = try storedGame(in: ctx)
+        let edited = origin.detachedDraftCopy()
+        edited.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        store.write(DraftMirror(draft: DraftSnapshot(record: edited, originUUID: origin.uuid),
+                                baseline: DraftSnapshot(record: origin, originUUID: origin.uuid)))
+
+        let controller = DraftController(mirrorStore: store)
+        controller.noteChanged()
+
+        #expect(store.read() != nil)
+    }
+
     // MARK: - Save
 
     @Test func saveWritesThroughAndClearsTheMirror() throws {

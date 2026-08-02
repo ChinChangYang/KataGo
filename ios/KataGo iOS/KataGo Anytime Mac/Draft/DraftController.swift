@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Observation
 import SwiftData
 import KataGoGameStore
 
@@ -27,6 +28,11 @@ final class DraftController {
     private var mirrorWriteTask: Task<Void, Never>?
     private static let mirrorDebounce = Duration.seconds(1)
 
+    /// Bumped every time the open draft is replaced or dropped, so a content
+    /// observation still in flight from a previous draft cannot re-arm itself
+    /// over the current one.
+    private var draftGeneration = 0
+
     init(mirrorStore: DraftMirrorStore = DraftMirrorStore()) {
         self.mirrorStore = mirrorStore
     }
@@ -46,10 +52,8 @@ final class DraftController {
     /// changes.
     @discardableResult
     func open(origin: GameRecord) -> GameRecord {
-        let draft = GameDraft(origin: origin)
-        self.draft = draft
-        onStateChanged?()
-        return draft.record
+        adopt(GameDraft(origin: origin))
+        return draft!.record
     }
 
     /// Opens a draft over a brand-new detached record that is not in the
@@ -57,10 +61,8 @@ final class DraftController {
     /// because the game really is different.
     @discardableResult
     func openUntitled(_ record: GameRecord) -> GameRecord {
-        let draft = GameDraft(untitled: record)
-        self.draft = draft
-        onStateChanged?()
-        return draft.record
+        adopt(GameDraft(untitled: record))
+        return draft!.record
     }
 
     /// Restores a draft recovered from the mirror after a crash.
@@ -74,9 +76,7 @@ final class DraftController {
         }
         mirror.draft.apply(to: record)
 
-        let draft = GameDraft(record: record, origin: origin, baseline: mirror.baseline)
-        self.draft = draft
-        onStateChanged?()
+        adopt(GameDraft(record: record, origin: origin, baseline: mirror.baseline))
         return record
     }
 
@@ -84,8 +84,19 @@ final class DraftController {
     func close() {
         mirrorWriteTask?.cancel()
         mirrorWriteTask = nil
+        draftGeneration += 1
         draft = nil
         mirrorStore.clear()
+        onStateChanged?()
+    }
+
+    /// The single seam every open goes through, so no entry point can install
+    /// a draft without also arming the content observation that keeps the
+    /// dirty dot and the crash mirror honest.
+    private func adopt(_ draft: GameDraft) {
+        draftGeneration += 1
+        self.draft = draft
+        trackDraftContent()
         onStateChanged?()
     }
 
@@ -118,9 +129,42 @@ final class DraftController {
         scheduleMirrorWrite()
     }
 
+    /// Watches the draft's content so a change reaches `noteChanged()` without
+    /// the writer having to know a draft exists.
+    ///
+    /// `noteChanged()` used to be reached from exactly one place — the board's
+    /// stones-ready handler — which covered moves, undo and analysis but not
+    /// the other three drafted, dirtying field groups: the comment editor, the
+    /// config editors and Rename. Their edits were unsaved, unmirrored, and
+    /// showed no dirty dot, while File > Save stayed enabled and willing to
+    /// commit them; a `kill -9` lost them with no Restore offered. Watching
+    /// the fields, rather than adding three more calls, is what makes a fourth
+    /// writer — or a fourth drafted field — covered by default.
+    private func trackDraftContent() {
+        guard let draft else { return }
+        let generation = draftGeneration
+        withObservationTracking {
+            DraftComparator.touchComparedFields(of: draft.record)
+        } onChange: { [weak self] in
+            // Observation fires from `willSet`, so the new value is not in
+            // place yet — hop to the next main-actor turn before reading it
+            // back, the same shape every observer in this app uses.
+            Task { @MainActor in
+                guard let self, self.draftGeneration == generation else { return }
+                self.noteChanged()
+                self.trackDraftContent()
+            }
+        }
+    }
+
     private func scheduleMirrorWrite() {
         mirrorWriteTask?.cancel()
-        guard let draft, draft.isDirty else {
+        // With no draft open there is nothing to mirror and nothing of ours to
+        // delete: a mirror present here belongs to a PREVIOUS run and is
+        // waiting to be offered for restore. Clearing it is `close()`'s and
+        // `save()`'s job, both of which do it explicitly.
+        guard let draft else { return }
+        guard draft.isDirty else {
             mirrorStore.clear()
             return
         }
