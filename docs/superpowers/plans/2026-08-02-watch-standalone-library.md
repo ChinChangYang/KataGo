@@ -2601,6 +2601,8 @@ struct WatchStoredGameView: View {
 
 - [ ] **Step 7: Rewrite the root view**
 
+The route can't be decided from `.onAppear`: `WatchLiveModel.activate()` reads `session.receivedApplicationContext` synchronously, but that property is documented empty until activation completes, so on a true cold launch the replayed snapshot that should send the watch straight to the board lands a beat later, off the main-thread hop in `session(_:activationDidCompleteWith:)` — by which time `.onAppear` has already fired and read `model.latest` as `nil`. The fix is a bounded wait rather than a reactive hook: a `.task` polls `model.latest` for up to two seconds before calling `routeOnLaunch()` once, so the decision still happens near launch and never fires again later when a phone reconnects mid-browse and would otherwise yank the user off the library.
+
 Replace the whole of `ios/KataGo iOS/KataGo Anytime Watch/WatchRootView.swift` with:
 
 ```swift
@@ -2643,12 +2645,27 @@ struct WatchRootView: View {
                     }
                 }
         }
-        .onAppear(perform: routeOnLaunch)
+        .task {
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: Self.launchSnapshotGrace)
+            while model.latest == nil, clock.now < deadline, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            routeOnLaunch()
+        }
         .onChange(of: path) { _, newPath in
             // Leaving the auto-pushed board consumes the latch.
             if newPath.isEmpty { latchConsumed = true }
         }
     }
+
+    /// How long to wait for WCSession to replay its persisted application
+    /// context before deciding where to land. `receivedApplicationContext` is
+    /// documented empty until activation completes, so the snapshot that should
+    /// send us straight to the board arrives a beat AFTER the view appears —
+    /// sampling it at .onAppear would make the live route unreachable on every
+    /// cold launch.
+    private static let launchSnapshotGrace: Duration = .seconds(2)
 
     private var liveMirror: some View {
         TabView {

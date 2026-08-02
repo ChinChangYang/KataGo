@@ -37,12 +37,27 @@ struct WatchRootView: View {
                     }
                 }
         }
-        .onAppear(perform: routeOnLaunch)
+        .task {
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: Self.launchSnapshotGrace)
+            while model.latest == nil, clock.now < deadline, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            routeOnLaunch()
+        }
         .onChange(of: path) { _, newPath in
             // Leaving the auto-pushed board consumes the latch.
             if newPath.isEmpty { latchConsumed = true }
         }
     }
+
+    /// How long to wait for WCSession to replay its persisted application
+    /// context before deciding where to land. `receivedApplicationContext` is
+    /// documented empty until activation completes, so the snapshot that should
+    /// send us straight to the board arrives a beat AFTER the view appears —
+    /// sampling it at .onAppear would make the live route unreachable on every
+    /// cold launch.
+    private static let launchSnapshotGrace: Duration = .seconds(2)
 
     private var liveMirror: some View {
         TabView {
