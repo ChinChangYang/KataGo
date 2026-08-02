@@ -3067,7 +3067,21 @@ In `MainWindowController.swift`, near `toggleEditing(_:)`, add:
     }
 ```
 
-- [ ] **Step 4: Fill in the chrome refresh**
+- [ ] **Step 4: Wire `onStateChanged` so the chrome updates live**
+
+`DraftController.noteChanged()` calls `onStateChanged?()`, which nothing assigns
+— so without this the dirty dot would only change when a draft opens or closes,
+never as the user plays a move. Assign it where `draftController` is created,
+alongside the `libraryStore` setup in `MainWindowController`:
+
+```swift
+        draftController.onStateChanged = { [weak self] in
+            self?.refreshDraftChrome()
+        }
+```
+
+
+- [ ] **Step 5: Fill in the chrome refresh**
 
 Replace the `refreshDraftChrome()` stub from Task 10 with:
 
@@ -3085,7 +3099,7 @@ Replace the `refreshDraftChrome()` stub from Task 10 with:
     }
 ```
 
-- [ ] **Step 5: Gate the menu items**
+- [ ] **Step 6: Gate the menu items**
 
 In `validateMenuItem(_:)`, add before `default:`:
 
@@ -3095,7 +3109,7 @@ In `validateMenuItem(_:)`, add before `default:`:
             return draftController.isDirty
 ```
 
-- [ ] **Step 6: Build**
+- [ ] **Step 7: Build**
 
 ```bash
 cd "ios/KataGo iOS" && xcodebuild build -project "KataGo Anytime.xcodeproj" \
@@ -3117,7 +3131,7 @@ three-choice sheet:
     func presentConflictAlert() { commitDraft() }
 ```
 
-- [ ] **Step 7: Interactive check**
+- [ ] **Step 8: Interactive check**
 
 Signed Debug build. Unlock a game, play a move, and confirm:
 - the window title shows the game's name,
@@ -3125,7 +3139,7 @@ Signed Debug build. Unlock a game, play a move, and confirm:
 - File ▸ Save is enabled and ⌘S clears the dot,
 - the sidebar's Modified date updates only after ⌘S.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add "ios/KataGo iOS/KataGo Anytime Mac/AppDelegate.swift" \
