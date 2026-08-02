@@ -117,4 +117,24 @@ struct SgfReplayTests {
         #expect(p.blackVertices == ["A9"])
         #expect(p.whiteVertices == ["T1"])
     }
+
+    @Test func compressedSetupRangeSeedsEveryPointInTheRectangle() throws {
+        // AB[dd:ff] on a 9x9 is the 3x3 rectangle (3,3)...(5,5).
+        var r = try replay("(;GM[1]SZ[9]AB[dd:ff];W[aa])")
+        let start = r.position(at: 0)
+        #expect(Set(start.blackVertices) == Set(["D6", "E6", "F6", "D5", "E5", "F5", "D4", "E4", "F4"]))
+    }
+
+    @Test func aeRemovesASetupStoneBeforeAnyMoveIsPlayed() throws {
+        var r = try replay("(;GM[1]SZ[9]AB[dd][ee]AE[dd];W[aa])")
+        let start = r.position(at: 0)
+        #expect(start.blackVertices == ["E5"])
+    }
+
+    @Test func aeOnAPointNothingPlacedIsANoOp() throws {
+        var r = try replay("(;GM[1]SZ[9]AB[dd]AE[gg];W[aa])")
+        let start = r.position(at: 0)
+        #expect(start.blackVertices == ["D6"])
+        #expect(r.anomalyIndex == nil)
+    }
 }

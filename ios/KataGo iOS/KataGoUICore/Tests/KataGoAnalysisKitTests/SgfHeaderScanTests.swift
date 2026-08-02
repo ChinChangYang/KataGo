@@ -134,4 +134,52 @@ struct SgfHeaderScanTests {
         #expect(scan.moveColors == scan.moves.map(\.color))
         #expect(scan.moveColors == [.black, .white, .black])
     }
+
+    @Test func compressedRangeExpandsToTheFullRectangle() throws {
+        // AB[dd:ff] on a 9x9 is the 3x3 rectangle from (3,3) to (5,5) inclusive.
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AB[dd:ff])"))
+        let expected = Set((3...5).flatMap { y in (3...5).map { x in SgfPoint(x: x, y: y) } })
+        #expect(Set(scan.setupBlack) == expected)
+        #expect(scan.setupBlack.count == 9)
+    }
+
+    @Test func compressedRangeAcceptsEitherCornerOrientation() throws {
+        // The opposite corner order ("ff:dd") must expand to the same rectangle.
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AB[ff:dd])"))
+        let expected = Set((3...5).flatMap { y in (3...5).map { x in SgfPoint(x: x, y: y) } })
+        #expect(Set(scan.setupBlack) == expected)
+    }
+
+    @Test func compressedRangeAppliesToAWToo() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AW[aa:bb])"))
+        #expect(Set(scan.setupWhite) == Set([
+            SgfPoint(x: 0, y: 0), SgfPoint(x: 1, y: 0),
+            SgfPoint(x: 0, y: 1), SgfPoint(x: 1, y: 1),
+        ]))
+    }
+
+    @Test func malformedRangeDecodesToNoPointsWithoutCrashing() throws {
+        // A bad second corner ("z" is a single letter, not a 2-letter point).
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AB[dd:z])"))
+        #expect(scan.setupBlack.isEmpty)
+    }
+
+    @Test func aeReadsSetupRemovals() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AB[dd][ee]AE[dd])"))
+        #expect(scan.setupBlack == [SgfPoint(x: 3, y: 3), SgfPoint(x: 4, y: 4)])
+        #expect(scan.setupEmpty == [SgfPoint(x: 3, y: 3)])
+    }
+
+    @Test func aeAlsoExpandsCompressedRanges() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AE[aa:bb])"))
+        #expect(Set(scan.setupEmpty) == Set([
+            SgfPoint(x: 0, y: 0), SgfPoint(x: 1, y: 0),
+            SgfPoint(x: 0, y: 1), SgfPoint(x: 1, y: 1),
+        ]))
+    }
+
+    @Test func aePropertyIsNeverMistakenForAMove() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AE[dd];B[aa])"))
+        #expect(scan.moves == [SgfMove(color: .black, point: SgfPoint(x: 0, y: 0))])
+    }
 }

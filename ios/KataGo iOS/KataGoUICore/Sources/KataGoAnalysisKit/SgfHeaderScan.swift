@@ -51,10 +51,18 @@ public struct SgfHeaderScan: Sendable, Equatable {
     /// assumed alternation.
     public var moves: [SgfMove]
     /// AB[] setup stones (handicap placement and free setup), in document
-    /// order. These are positions, not moves.
+    /// order. These are positions, not moves. A compressed point range
+    /// ("AB[dd:ff]") is expanded to every point in the inclusive rectangle.
     public var setupBlack: [SgfPoint]
-    /// AW[] setup stones, in document order.
+    /// AW[] setup stones, in document order. Ranges expand as for setupBlack.
     public var setupWhite: [SgfPoint]
+    /// AE[] setup-stone removals, in document order. Ranges expand as for
+    /// setupBlack. NOTE (scope limit): like setupBlack/setupWhite, every AE
+    /// found anywhere on the mainline is collected here as a single flat list
+    /// applied at index 0 — a mid-game AE node is NOT attributed to its node
+    /// position. That is a deliberate, documented gap (see SgfReplay); fixing
+    /// it is a redesign of this scan's output shape and out of scope.
+    public var setupEmpty: [SgfPoint]
 
     /// Colors of the mainline moves in order. Kept as the scan's original
     /// surface so existing callers (the Safari extension) are unaffected.
@@ -100,6 +108,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
         var moves: [SgfMove] = []
         var setupBlack: [SgfPoint] = []
         var setupWhite: [SgfPoint] = []
+        var setupEmpty: [SgfPoint] = []
         for property in Self.properties(in: Self.mainlineForMoveScan(text)) {
             switch property.identifier {
             case "B", "W":
@@ -108,12 +117,16 @@ public struct SgfHeaderScan: Sendable, Equatable {
                 moves.append(SgfMove(color: color,
                                      point: Self.point(raw, width: width, height: height)))
             case "AB":
-                setupBlack += property.values.compactMap {
-                    Self.point($0, width: width, height: height)
+                setupBlack += property.values.flatMap {
+                    Self.points($0, width: width, height: height)
                 }
             case "AW":
-                setupWhite += property.values.compactMap {
-                    Self.point($0, width: width, height: height)
+                setupWhite += property.values.flatMap {
+                    Self.points($0, width: width, height: height)
+                }
+            case "AE":
+                setupEmpty += property.values.flatMap {
+                    Self.points($0, width: width, height: height)
                 }
             default:
                 break
@@ -122,6 +135,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
         self.moves = moves
         self.setupBlack = setupBlack
         self.setupWhite = setupWhite
+        self.setupEmpty = setupEmpty
     }
 
     /// Mainline text for the move regex: walk until the first ")" OUTSIDE a
@@ -163,7 +177,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
     }
 
     /// One SGF property: an identifier and its bracketed values.
-    struct Property {
+    private struct Property {
         var identifier: String
         var values: [String]
     }
@@ -172,7 +186,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
     /// verbatim between brackets, so nothing inside a value can be mistaken
     /// for an identifier; identifiers accumulate uppercase letters until a
     /// value block ends, so "AB" never splits into "A" and "B".
-    static func properties(in text: String) -> [Property] {
+    private static func properties(in text: String) -> [Property] {
         var result: [Property] = []
         var identifier = ""
         var values: [String] = []
@@ -216,7 +230,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
     /// Decodes an SGF point value. Returns nil for an empty value (an explicit
     /// pass) or for any point outside the board — which is exactly how the
     /// legacy "tt" pass decodes on boards up to 19x19.
-    static func point(_ raw: String, width: Int, height: Int) -> SgfPoint? {
+    private static func point(_ raw: String, width: Int, height: Int) -> SgfPoint? {
         let letters = Array(raw)
         guard letters.count == 2,
               let x = coordinate(letters[0]),
@@ -226,8 +240,42 @@ public struct SgfHeaderScan: Sendable, Equatable {
         return SgfPoint(x: x, y: y)
     }
 
+    /// Decodes an SGF point-LIST value: either a single point ("dd") or a
+    /// compressed rectangle ("dd:ff", the FF[4] "compressed point list"
+    /// syntax several editors emit for AB/AW/AE). Both corners are inclusive
+    /// and may be given in either orientation — each axis is normalised to
+    /// its own min/max, more permissive than the C++ parser's
+    /// `parseSgfLocRectangle` (which requires x1<=x2, y1<=y2 verbatim and
+    /// throws otherwise), matching this scan's general policy of dropping
+    /// what it cannot confidently decode rather than failing the whole scan.
+    /// A malformed range (bad corner, wrong shape) decodes to no points —
+    /// dropped, never a crash. Only used for AB/AW/AE; B/W move values are
+    /// never compressed lists in the SGF spec, so `point(_:width:height:)`
+    /// covers those unchanged.
+    private static func points(_ raw: String, width: Int, height: Int) -> [SgfPoint] {
+        guard raw.contains(":") else {
+            return point(raw, width: width, height: height).map { [$0] } ?? []
+        }
+        let parts = raw.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let corner1 = point(String(parts[0]), width: width, height: height),
+              let corner2 = point(String(parts[1]), width: width, height: height)
+        else { return [] }
+
+        let minX = min(corner1.x, corner2.x), maxX = max(corner1.x, corner2.x)
+        let minY = min(corner1.y, corner2.y), maxY = max(corner1.y, corner2.y)
+        var result: [SgfPoint] = []
+        result.reserveCapacity((maxX - minX + 1) * (maxY - minY + 1))
+        for y in minY...maxY {
+            for x in minX...maxX {
+                result.append(SgfPoint(x: x, y: y))
+            }
+        }
+        return result
+    }
+
     /// SGF coordinate letter: "a"..."z" = 0...25, "A"..."Z" = 26...51.
-    static func coordinate(_ character: Character) -> Int? {
+    private static func coordinate(_ character: Character) -> Int? {
         guard let ascii = character.asciiValue else { return nil }
         switch ascii {
         case UInt8(ascii: "a")...UInt8(ascii: "z"):

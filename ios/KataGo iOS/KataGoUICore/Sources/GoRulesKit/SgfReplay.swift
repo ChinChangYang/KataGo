@@ -63,6 +63,17 @@ public struct SgfReplay: Sendable {
             guard board.color(at: target) == .empty else { continue }
             board.placeSetupStone(at: target, color: .white)
         }
+        // AE removals apply AFTER both placements, mirroring the scope-limited
+        // "everything on the mainline collapses to index 0" simplification
+        // setupBlack/setupWhite already make (see SgfHeaderScan.setupEmpty).
+        // removingStones(at:) is a no-op for an already-empty index, so an
+        // AE on a point nothing ever placed is harmless.
+        if !scan.setupEmpty.isEmpty {
+            let removals = scan.setupEmpty.compactMap {
+                board.index(of: GoPoint(x: $0.x, y: $0.y))
+            }
+            board = board.removingStones(at: removals)
+        }
         checkpoints = [0: board]
     }
 
@@ -86,7 +97,15 @@ public struct SgfReplay: Sendable {
         // Nearest memoized board at or below the target; index 0 always exists.
         var from = 0
         for key in checkpoints.keys where key <= target && key > from { from = key }
-        var board = checkpoints[from] ?? GoBoard(width: width, height: height)
+        // `checkpoints[0]` is seeded in `init` and `from` only ever advances to
+        // an EXISTING checkpoint key, so this lookup cannot miss. Make that
+        // invariant explicit rather than falling back to a fresh empty board:
+        // a silent fallback here would replay from a board with no setup
+        // stones, corrupting every index onward without any signal that it
+        // happened.
+        guard var board = checkpoints[from] else {
+            preconditionFailure("no checkpoint at \(from); checkpoints[0] is seeded in init and `from` never advances past an existing key")
+        }
 
         var index = from
         while index < target {

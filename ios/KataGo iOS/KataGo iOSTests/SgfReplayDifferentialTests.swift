@@ -72,4 +72,74 @@ struct SgfReplayDifferentialTests {
     @Test func defaultRecordSgfAgrees() throws {
         try expectAgreement(GameRecord.defaultSgf, "GameRecord.defaultSgf")
     }
+
+    @Test func compressedSetupRangeAgrees() throws {
+        // AB[cc:ee] at the root: both parsers now expand FF[4] compressed
+        // point ranges (SgfHeaderScan.points, cpp/dataio/sgf.cpp's
+        // parseSgfLocRectangle), so they should agree.
+        try expectAgreement(
+            "(;FF[4]GM[1]SZ[9]KM[7]AB[cc:ee];W[gg])",
+            "compressed AB range")
+    }
+
+    @Test func aeSetupRemovalAgrees() throws {
+        // AE[ee] at the root targets a point NEITHER AB nor any move ever
+        // touches — deliberately, NOT "AE cancels an AB in the same node"
+        // (e.g. AB[cc]AE[cc]): that collides in the C++ side's own
+        // Board::setStonesFailIfNoLibs, which rejects ANY duplicate loc
+        // across the accumulated root placements regardless of color —
+        // an AB-then-AE-same-point root node throws there (caught, empty
+        // position), a PRE-EXISTING, unrelated engine limitation this fix
+        // does not touch. Genuine "AE removes a stone AB just placed" is
+        // pinned engine-free instead, in GoRulesKitTests'
+        // aeRemovesASetupStoneBeforeAnyMoveIsPlayed. This case exists to
+        // confirm AE parses and plumbs through to agreement for the
+        // non-colliding shape.
+        try expectAgreement(
+            "(;FF[4]GM[1]SZ[9]KM[7]AB[cc][dd]AE[ee];W[gg])",
+            "AE setup removal (non-colliding)")
+    }
+
+    @Test func midGameSetupNodeIsTheDocumentedOutOfScopeGap() throws {
+        // AB[gg] sits on a node AFTER the root, mid-game. SgfHeaderScan
+        // collects every AB/AW/AE it finds anywhere on the mainline into one
+        // flat list, and SgfReplay applies that whole list at index 0 (the
+        // documented, explicitly out-of-scope limitation — see
+        // SgfHeaderScan.setupEmpty's doc comment). Here the premature `gg`
+        // stone collides with a LATER real move at the same point.
+        let sgf = "(;FF[4]GM[1]SZ[9]KM[7];B[cc];W[dd];AB[gg];B[hh];W[gg])"
+        let scan = try #require(SgfHeaderScan(sgf: sgf))
+        var replay = SgfReplay(scan: scan)
+        let mine = replay.position(at: replay.moveCount)
+
+        // WHAT SgfReplay ACTUALLY DOES: `gg` is already black (from the
+        // premature index-0 setup) by the time the real `W[gg]` move is
+        // replayed, so that move is refused and skipped — exactly the
+        // failure mode Fix 2c's safety valve exists to catch.
+        #expect(Set(mine.blackVertices) == Set(["C7", "G3", "H2"]))
+        #expect(Set(mine.whiteVertices) == Set(["D6"]))
+        #expect(replay.anomalyIndex == 3)
+
+        // WHAT THE C++ PARSER ACTUALLY DOES: CompactSgf does not support
+        // AB/AW placements after the root node AT ALL (see SgfCpp.cpp's
+        // buildFrame comment) — setupBoardAndHistTolerant throws internally,
+        // caught, and getFinalPosition() degrades to a completely EMPTY
+        // position rather than a partial-but-wrong board.
+        let operations = SgfOperations(sgf: sgf)
+        let theirs = operations.finalStones()
+        #expect(theirs.black.isEmpty)
+        #expect(theirs.white.isEmpty)
+
+        // moveSize is a simpler pre-CompactSgf tally (real B/W nodes only),
+        // so it is unaffected by that failure and still agrees.
+        #expect(replay.moveCount == operations.moveSize)
+
+        // DIVERGENCE: the two parsers agree on NEITHER stone set for this
+        // out-of-scope input. Swift renders a confident, partially-wrong
+        // board (flagged via a non-nil anomalyIndex, which is what makes
+        // WatchBrowseModel.isReadable gate this game unreadable on the
+        // watch); the C++ side gives up entirely and renders nothing. Both
+        // are "wrong" in different ways — pinned here rather than silently
+        // accepted, per the mid-game setup scope decision in Fix 2.
+    }
 }
