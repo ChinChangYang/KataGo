@@ -50,13 +50,23 @@ extension MainWindowController: LibraryActionsDelegate {
                 let untitled = GameRecord.createGameRecord(sgf: sgf, name: name)
                 let record = self.draftController.openUntitled(untitled)
                 self.navigationContext.selectedGameRecord = record
+                // Unlock BEFORE the load, not after. ⌘N stays enabled during an
+                // engine relaunch, and a relaunch defers the load — so an
+                // `isEditing = true` written after it would never run for the
+                // deferred case, and any board that isn't 19x19 / komi 7 /
+                // default rules would come back locked, close the untitled
+                // draft, and take the new game with it (it was never inserted,
+                // so there is no row to recover). `loadDeferringUntilReady`
+                // re-derives the flag either way — an open draft keeps the
+                // board unlocked, see `DraftEditingSync` — so this only has to
+                // be right before the load, never after it.
+                self.session.gobanState.isEditing = true
                 // The board really does change here, so unlike unlocking an
                 // existing game this DOES need a load — through the same F14
-                // gate `performSelectGame` uses, since ⌘N stays enabled during
-                // an engine relaunch and an ungated load would reach a
-                // mid-teardown engine (`loadDeferringUntilReady`'s doc comment).
+                // gate `performSelectGame` uses, since an ungated load would
+                // reach a mid-teardown engine (`loadDeferringUntilReady`'s doc
+                // comment).
                 self.loadDeferringUntilReady(record, previous: previous)
-                self.session.gobanState.isEditing = true
                 self.libraryStore.refetch()
                 self.refreshDraftChrome()
             }
@@ -166,7 +176,12 @@ extension MainWindowController: LibraryActionsDelegate {
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        if game === navigationContext.selectedGameRecord {
+        // Through `resolvedRecord`, because a CLEAN draft is left open by the
+        // resolve above and the selection is then its detached clone, not
+        // `game`. A bare `===` reads that as "some other row" and skips the
+        // replacement, leaving the board sitting on a game that is about to be
+        // deleted out from under it.
+        if draftController.resolvedRecord(navigationContext.selectedGameRecord) === game {
             if let replacement = libraryStore.allGames.first(where: { $0 !== game }) {
                 selectGame(replacement)
             } else {

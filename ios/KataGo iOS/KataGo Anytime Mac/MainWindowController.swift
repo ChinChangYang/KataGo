@@ -652,7 +652,8 @@ final class MainWindowController: NSWindowController {
 
     /// Runs the actual `loadGame` for a selection. Split out so both the
     /// ready-path (`performSelectGame(_:)`) and the deferred-path drain
-    /// (`applyPendingSelection`) share one call site.
+    /// (`applyPendingSelection`) share one call site — and so that the draft
+    /// can be re-derived here, once, for every board load in the app.
     func load(game: GameRecord?, previous: GameRecord?) {
         session.gobanState.loadGame(
             gameRecord: game,
@@ -663,6 +664,55 @@ final class MainWindowController: NSWindowController {
             board: session.board,
             stones: session.stones
         )
+        // `loadGame` re-derives `isEditing` from the loaded SGF, so the draft
+        // has to be re-derived with it. The `isEditing` observer cannot cover
+        // this on its own: a load that leaves the flag at the value it already
+        // had is invisible to an edge detector, which is precisely how the
+        // board used to come back unlocked over a stored record.
+        syncDraftToEditingState()
+    }
+
+    /// Re-derives the draft from the live editing state, so `isEditing == true`
+    /// always means a detached draft is taking the writes. See
+    /// `DraftEditingSync` for why this is a rule over the state rather than a
+    /// pair of edge handlers.
+    private func syncDraftToEditingState() {
+        // Two passes at most: `.closeStale` is the only action that leaves
+        // anything still to decide, and because it clears the draft the second
+        // pass cannot return it again.
+        if applyDraftEditingSync() { applyDraftEditingSync() }
+    }
+
+    /// Applies one step of the rule. Returns whether it may have left more to
+    /// do.
+    @discardableResult
+    private func applyDraftEditingSync() -> Bool {
+        let gobanState = session.gobanState
+        let selected = navigationContext.selectedGameRecord
+
+        switch DraftEditingSync.decide(
+            isEditing: gobanState.isEditing,
+            hasDraft: draftController.draft != nil,
+            isDirty: draftController.isDirty,
+            draftStandsForSelection: draftController.isDraftRecord(selected),
+            hasSelection: selected != nil
+        ) {
+        case .none:
+            return false
+        case .closeStale:
+            draftController.close()
+            return true
+        case .unlock:
+            gobanState.isEditing = true
+            return false
+        case .open:
+            guard let origin = selected else { return false }
+            // No `loadGame`: the content is identical, so the engine and board
+            // must not move — only object identity changes, and from here every
+            // existing write path writes into the clone.
+            navigationContext.selectedGameRecord = draftController.open(origin: origin)
+            return false
+        }
     }
 
     /// F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
@@ -692,7 +742,14 @@ final class MainWindowController: NSWindowController {
         guard selectionGate.request(PendingSelection(game: game),
                                     isReady: boardReadiness.isEngineReady
                                         && !session.gobanState.reportGenerationActive) != nil
-        else { return }
+        else {
+            // The board has not moved, but the SELECTION already has, so the
+            // draft is re-derived now rather than when the gate drains: a clean
+            // draft left open by the exit gate would otherwise go on taking the
+            // writes for the game the board is about to leave.
+            syncDraftToEditingState()
+            return
+        }
         load(game: game, previous: previous)
     }
 
@@ -1677,24 +1734,11 @@ final class MainWindowController: NSWindowController {
             gobanState.clearAutoPlayStep()
         }
 
-        // Draft lifecycle rides the same edge. Unlocking opens a draft over the
-        // selected game and re-points the session at the DETACHED clone; from
-        // here every existing write path writes into the clone instead of the
-        // stored record. No `loadGame`: the content is identical, so the engine
-        // and board must not move — only object identity changes.
-        //
-        // The lock direction only reaches here for a CLEAN draft; a dirty one is
-        // intercepted by `resolve(then:)` before `isEditing` is ever flipped.
-        if gobanState.isEditing && !lastIsEditing, draftController.draft == nil,
-           let origin = navigationContext.selectedGameRecord {
-            navigationContext.selectedGameRecord = draftController.open(origin: origin)
-            refreshDraftChrome()
-        } else if !gobanState.isEditing && lastIsEditing, draftController.draft != nil {
-            let origin = draftController.resolvedRecord(navigationContext.selectedGameRecord)
-            draftController.close()
-            navigationContext.selectedGameRecord = origin
-            refreshDraftChrome()
-        }
+        // The draft rides along, but NOT on the edge: it is re-derived from the
+        // live state (see `syncDraftToEditingState`), because the edge is
+        // exactly what a load that leaves `isEditing` already true does not
+        // produce.
+        syncDraftToEditingState()
 
         lastIsAutoPlaying = gobanState.isAutoPlaying
         lastStonesReady = session.stones.isReady
@@ -2336,15 +2380,11 @@ final class MainWindowController: NSWindowController {
         refreshLockSlotToolbarItem()
 
         if lastBranchSgf.isActiveSgf && !newBranchSgf.isActiveSgf {
-            gobanState.loadGame(
-                gameRecord: navigationContext.selectedGameRecord,
-                previous: nil,
-                player: session.player,
-                bookLookup: session.bookLookup,
-                messageList: session.messageList,
-                board: session.board,
-                stones: session.stones
-            )
+            // Through `load(game:previous:)` rather than `gobanState.loadGame`
+            // directly, so this board load re-derives the draft like every
+            // other one — a committed branch requests unlock on reload, and an
+            // unlocked board must be a drafting board.
+            load(game: navigationContext.selectedGameRecord, previous: nil)
         }
 
         lastBranchSgf = gobanState.branchSgf
@@ -2731,11 +2771,37 @@ final class MainWindowController: NSWindowController {
         // silently drop them.
         if gobanState.isEditing {
             resolveDraft(for: .lock) { [weak self] in
-                self?.session.gobanState.isEditing = false
+                self?.performLock()
             }
         } else {
             gobanState.isEditing = true
         }
+    }
+
+    /// Locks the board, closing the draft first.
+    ///
+    /// Closing is not optional here. `syncDraftToEditingState` reads an open
+    /// draft as proof that the board belongs unlocked, so clearing the flag on
+    /// its own would simply be pushed back — locking is the one place a draft
+    /// is ended by intent rather than re-derived. (`resolveDraft` has already
+    /// closed it on the Save and Discard branches; a CLEAN draft arrives here
+    /// still open, which is the case this handles.)
+    private func performLock() {
+        guard draftController.draft != nil else {
+            session.gobanState.isEditing = false
+            return
+        }
+        // An untitled draft has no saved record to fall back to, so closing it
+        // in place would leave the board on nothing at all. It takes the same
+        // close-and-reload path Discard uses, which picks a replacement game.
+        // (Only a clean untitled draft reaches here — a dirty one was already
+        // resolved — so there is nothing to lose by dropping it.)
+        if draftController.isUntitled {
+            discardDraftAndReload()
+            return
+        }
+        closeDraftAndResyncSelection()
+        session.gobanState.isEditing = false
     }
 
     // MARK: - Draft save / revert
