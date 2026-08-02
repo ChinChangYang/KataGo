@@ -57,4 +57,27 @@ struct GameRecordDraftCopyTests {
         #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd];W[pp])")
         #expect(origin.name == "Origin")
     }
+
+    @Test func copyCarriesTheRuleFieldsConfigCopyInitDrops() {
+        let origin = makeOrigin()
+        // Derive the test values from a default-constructed Config so this
+        // genuinely catches the drop instead of matching a default by luck.
+        let fresh = Config()
+        let c = origin.concreteConfig
+        c.optionalKoRule = (fresh.optionalKoRule ?? 0) + 1
+        c.optionalScoringRule = (fresh.optionalScoringRule ?? 0) + 1
+        c.optionalTaxRule = (fresh.optionalTaxRule ?? 0) + 1
+        c.optionalMultiStoneSuicideLegal = !(fresh.optionalMultiStoneSuicideLegal ?? false)
+        c.optionalHasButton = !(fresh.optionalHasButton ?? false)
+        c.optionalWhiteHandicapBonusRule = (fresh.optionalWhiteHandicapBonusRule ?? 0) + 1
+
+        let copy = origin.detachedDraftCopy().concreteConfig
+
+        #expect(copy.optionalKoRule == c.optionalKoRule)
+        #expect(copy.optionalScoringRule == c.optionalScoringRule)
+        #expect(copy.optionalTaxRule == c.optionalTaxRule)
+        #expect(copy.optionalMultiStoneSuicideLegal == c.optionalMultiStoneSuicideLegal)
+        #expect(copy.optionalHasButton == c.optionalHasButton)
+        #expect(copy.optionalWhiteHandicapBonusRule == c.optionalWhiteHandicapBonusRule)
+    }
 }

@@ -19,39 +19,24 @@ extension GameRecord {
     /// the whole draft design rests on: an unregistered object cannot be
     /// autosaved, cannot be reached by `context.save()`, and cannot be exported
     /// to CloudKit, no matter what code runs.
+    @MainActor
     func detachedDraftCopy() -> GameRecord {
-        let newConfig = Config(config: config)
+        let copy = GameRecord(config: Config())
 
-        let copy = GameRecord(
-            sgf: sgf,
-            currentIndex: currentIndex,
-            config: newConfig,
-            name: name,
-            lastModificationDate: lastModificationDate,
-            comments: comments,
-            thumbnail: thumbnail,
-            scoreLeads: scoreLeads,
-            bestMoves: bestMoves,
-            winRates: winRates,
-            deadBlackStones: deadBlackStones,
-            deadWhiteStones: deadWhiteStones,
-            blackSchrodingerStones: blackSchrodingerStones,
-            whiteSchrodingerStones: whiteSchrodingerStones,
-            moves: moves,
-            blackStones: blackStones,
-            whiteStones: whiteStones,
-            ownershipWhiteness: ownershipWhiteness,
-            ownershipScales: ownershipScales,
-            width: width,
-            height: height
-        )
+        // Copied through DraftSnapshot rather than field-by-field here.
+        // `Config(config:)` silently drops six rule fields (optionalKoRule,
+        // optionalScoringRule, optionalTaxRule, optionalMultiStoneSuicideLegal,
+        // optionalHasButton, optionalWhiteHandicapBonusRule), which would open
+        // every non-default-rules game's draft already dirty and then write
+        // those defaults back over the saved game on Save. DraftSnapshot is the
+        // single place the drafted field list lives, so routing the copy
+        // through it means the two can never drift apart again.
+        DraftSnapshot(record: self, originUUID: nil).apply(to: copy)
 
-        // `GameRecord.init` has no `uuid` parameter and defaults it to a fresh
-        // UUID; the draft must keep the origin's so deep links, the widget's
-        // configured game, and `resolvedRecord` all still line up. There is no
-        // collision risk because the draft is never inserted.
+        // DraftSnapshot deliberately carries no uuid — applying one must never
+        // change a record's identity — so the draft's is set explicitly here.
         copy.uuid = uuid
-        newConfig.gameRecord = copy
+        copy.config?.gameRecord = copy
         return copy
     }
 }
