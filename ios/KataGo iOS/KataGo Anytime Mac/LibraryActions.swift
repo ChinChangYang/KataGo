@@ -28,22 +28,37 @@ extension MainWindowController: LibraryActionsDelegate {
 
     // MARK: - New
 
-    /// File ▸ New Game (⌘N) and the toolbar `New` item: present the New Game
-    /// setup sheet (Name / Board size / Komi / Rules). On Create it builds the
-    /// chosen settings into an SGF and runs the same insert → select → refetch →
-    /// reload tail as before; on Cancel nothing changes. The automatic,
-    /// non-interactive `createGameRecord()` paths (first-launch empty store,
-    /// last-game delete fallback) intentionally stay dialog-free.
+    /// File ▸ New Game (⌘N) and the toolbar `New` item.
+    ///
+    /// The sheet still runs first, because board size, komi and rules must be
+    /// fixed before a first move can exist — so the unsaved game already
+    /// carries the name the user typed and Save needs no naming dialog.
+    ///
+    /// Unlike before, the record is NOT inserted: a new game has no library row
+    /// until it is saved. Any unsaved draft is resolved first, since starting a
+    /// new game is itself a switch away from whatever is currently open. The
+    /// automatic, non-interactive `createGameRecord()` paths (first-launch
+    /// empty store, last-game delete fallback) intentionally stay untouched —
+    /// they still insert straight into the store.
     @objc func newGame(_ sender: Any?) {
-        let dialog = NewGameViewController(maxBoardLength: launchedMaxBoardLength) { [weak self] sgf, name in
+        resolveDraft(for: .switchGame) { [weak self] in
             guard let self else { return }
-            let new = GameRecord.createGameRecord(sgf: sgf, name: name)
-            self.modelContext.insert(new)
-            self.selectGame(new)
-            self.libraryStore.refetch()
-            WidgetCenter.shared.reloadAllTimelines()
+            let dialog = NewGameViewController(maxBoardLength: self.launchedMaxBoardLength) {
+                [weak self] sgf, name in
+                guard let self else { return }
+                let previous = self.navigationContext.selectedGameRecord
+                let untitled = GameRecord.createGameRecord(sgf: sgf, name: name)
+                let record = self.draftController.openUntitled(untitled)
+                self.navigationContext.selectedGameRecord = record
+                // The board really does change here, so unlike unlocking an
+                // existing game this DOES need a load.
+                self.load(game: record, previous: previous)
+                self.session.gobanState.isEditing = true
+                self.libraryStore.refetch()
+                self.refreshDraftChrome()
+            }
+            self.contentViewController?.presentAsSheet(dialog)
         }
-        contentViewController?.presentAsSheet(dialog)
     }
 
     // MARK: - Clone
