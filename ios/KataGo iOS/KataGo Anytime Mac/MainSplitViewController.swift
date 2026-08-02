@@ -26,6 +26,11 @@ final class MainSplitViewController: NSSplitViewController {
     private var inspectorViewController: InspectorViewController?
     private var inspectorSplitItem: NSSplitViewItem?
 
+    /// The sidebar's own view controller, retained so `resyncSidebarSelection()`
+    /// can reach `reloadPreservingSelection()` after an abandoned draft exit
+    /// (see that method's doc comment).
+    private var librarySidebarViewController: LibrarySidebarViewController?
+
     /// The board pane's container view. The window controller uses it as the
     /// window's `initialFirstResponder` (and as the target of the launch-time
     /// focus fallback) so keyboard focus lands on the board, not the sidebar
@@ -67,6 +72,7 @@ final class MainSplitViewController: NSSplitViewController {
         // Route the right-click context-menu CRUD actions back through the window
         // controller (weak — see the property's doc comment for the cycle).
         librarySidebarVC.actionsDelegate = windowController
+        self.librarySidebarViewController = librarySidebarVC
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: librarySidebarVC)
         sidebarItem.canCollapse = true
         sidebarItem.minimumThickness = 180
@@ -129,5 +135,16 @@ final class MainSplitViewController: NSSplitViewController {
         guard let inspectorVC = inspectorViewController,
               inspectorVC.tabViewItems.indices.contains(index) else { return }
         inspectorVC.selectedTabViewItemIndex = index
+    }
+
+    /// Re-syncs the sidebar's highlighted row to `navigationContext`. `NSTableView`
+    /// moves its own selection to a clicked row before `tableViewSelectionDidChange`
+    /// runs, so when a row click starts a draft-exit prompt that the user then
+    /// cancels (or a Save inside it fails), the highlight is left on a row that
+    /// was never actually loaded — `navigationContext.selectedGameRecord` never
+    /// moved. Called from `MainWindowController.abortDraftExit`, the one chokepoint
+    /// every abandoned exit already passes through.
+    func resyncSidebarSelection() {
+        librarySidebarViewController?.reloadPreservingSelection()
     }
 }

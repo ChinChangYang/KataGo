@@ -200,6 +200,21 @@ extension LibrarySidebarViewController {
         return store.games[row]
     }
 
+    /// Redirects a mutating action from `game` (always a stored record, since
+    /// `contextTargetGame` reads `store.games`) onto the live draft when `game`
+    /// is the draft's origin. Without this, right-clicking the row you are
+    /// currently editing and renaming/sharing it acts on the stored record
+    /// directly — syncing to iCloud immediately, and getting silently reverted
+    /// by the next Save because `name` is a drafted field. Clone and Delete
+    /// don't need this: cloning intentionally copies the saved game, and Delete
+    /// already resolves the draft itself (`LibraryActionsDelegate.deleteGame`).
+    private func editingTarget(for game: GameRecord) -> GameRecord {
+        guard let selected = navigationContext.selectedGameRecord,
+              actionsDelegate?.resolvedStoredRecord(selected) === game
+        else { return game }
+        return selected
+    }
+
     @objc private func cloneClickedGame(_ sender: Any?) {
         guard let game = contextTargetGame else { return }
         actionsDelegate?.cloneGame(game)
@@ -212,7 +227,7 @@ extension LibrarySidebarViewController {
 
     @objc private func renameClickedGame(_ sender: Any?) {
         guard let game = contextTargetGame else { return }
-        actionsDelegate?.renameGame(game)
+        actionsDelegate?.renameGame(editingTarget(for: game))
     }
 
     /// Shares the clicked (or selected) row's SGF, anchoring the share popover to
@@ -221,7 +236,7 @@ extension LibrarySidebarViewController {
         guard let game = contextTargetGame else { return }
         let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
         let rowRect = row >= 0 ? tableView.rect(ofRow: row) : tableView.bounds
-        actionsDelegate?.shareGame(game, from: tableView, rect: rowRect)
+        actionsDelegate?.shareGame(editingTarget(for: game), from: tableView, rect: rowRect)
     }
 
     @objc private func deleteClickedGame(_ sender: Any?) {

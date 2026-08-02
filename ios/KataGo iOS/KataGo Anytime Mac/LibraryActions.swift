@@ -51,8 +51,11 @@ extension MainWindowController: LibraryActionsDelegate {
                 let record = self.draftController.openUntitled(untitled)
                 self.navigationContext.selectedGameRecord = record
                 // The board really does change here, so unlike unlocking an
-                // existing game this DOES need a load.
-                self.load(game: record, previous: previous)
+                // existing game this DOES need a load — through the same F14
+                // gate `performSelectGame` uses, since ⌘N stays enabled during
+                // an engine relaunch and an ungated load would reach a
+                // mid-teardown engine (`loadDeferringUntilReady`'s doc comment).
+                self.loadDeferringUntilReady(record, previous: previous)
                 self.session.gobanState.isEditing = true
                 self.libraryStore.refetch()
                 self.refreshDraftChrome()

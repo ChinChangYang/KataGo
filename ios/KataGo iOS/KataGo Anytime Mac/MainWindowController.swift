@@ -645,23 +645,9 @@ final class MainWindowController: NSWindowController {
             break
         }
 
-        // F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
-        // finished its handshake. On a cold launch a selection can arrive
-        // mid-handshake (widget deep link or .sgf file-open); defer the load
-        // until `isEngineReady` (drained by `applyPendingSelection`). When ready,
-        // the gate is a transparent pass-through and the load runs synchronously
-        // with the real `previous` (the resize-preload it enables is wanted here).
-        //
-        // Also defer while a Deep Report is probing: the same external triggers
-        // can arrive mid-report (the modal sheet doesn't block them), which would
-        // interleave `loadsgf`/analyze commands with the report's probe traffic.
-        // Drained by `applyPendingSelection` on the report's `true -> false` edge
-        // (see `trackReportGeneration`), same as the engine-ready path.
-        guard selectionGate.request(PendingSelection(game: game),
-                                    isReady: boardReadiness.isEngineReady
-                                        && !session.gobanState.reportGenerationActive) != nil
-        else { return }
-        load(game: game, previous: previous)
+        // F14/F14b gate, factored into `loadDeferringUntilReady` so every other
+        // path that loads a game — not just a sidebar click — shares it.
+        loadDeferringUntilReady(game, previous: previous)
     }
 
     /// Runs the actual `loadGame` for a selection. Split out so both the
@@ -677,6 +663,37 @@ final class MainWindowController: NSWindowController {
             board: session.board,
             stones: session.stones
         )
+    }
+
+    /// F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
+    /// finished its handshake. On a cold launch a selection can arrive
+    /// mid-handshake (widget deep link or .sgf file-open); defer the load
+    /// until `isEngineReady` (drained by `applyPendingSelection`). When ready,
+    /// the gate is a transparent pass-through and the load runs synchronously
+    /// with the real `previous` (the resize-preload it enables is wanted here).
+    ///
+    /// Also defer while a Deep Report is probing: the same external triggers
+    /// can arrive mid-report (the modal sheet doesn't block them), which would
+    /// interleave `loadsgf`/analyze commands with the report's probe traffic.
+    /// Drained by `applyPendingSelection` on the report's `true -> false` edge
+    /// (see `trackReportGeneration`), same as the engine-ready path.
+    ///
+    /// `internal`, not `private`: `LibraryActions.newGame` (a separate file)
+    /// needs it too. Originally only `performSelectGame(_:)` used this gate;
+    /// `discardDraftAndReload` and `newGame`'s sheet completion called `load`
+    /// straight through, which sent GTP into a mid-teardown engine during a
+    /// relaunch (Models window ▸ Set Active) — the exact race F14 exists to
+    /// prevent, just reached from a door that wasn't watching for it. Giving
+    /// every game-loading call site the same gate, rather than gating each
+    /// menu item's `validateMenuItem` on `isEngineReady` and hoping nothing new
+    /// calls `load` without also remembering that check, keeps the guarantee
+    /// in the one place a future call site would naturally look for it.
+    func loadDeferringUntilReady(_ game: GameRecord?, previous: GameRecord?) {
+        guard selectionGate.request(PendingSelection(game: game),
+                                    isReady: boardReadiness.isEngineReady
+                                        && !session.gobanState.reportGenerationActive) != nil
+        else { return }
+        load(game: game, previous: previous)
     }
 
     /// Deep-link entry: fetch the game with the given UUID from the model store
@@ -2786,7 +2803,10 @@ final class MainWindowController: NSWindowController {
         discardDraftAndReload()
     }
 
-    /// Shared by Revert and the exit sheet's Discard button.
+    /// Shared by Revert and the exit sheet's Discard button. Loads through
+    /// `loadDeferringUntilReady`, not `load` directly: Revert stays enabled the
+    /// whole time a draft is open, including mid-relaunch, and an ungated
+    /// `load` would send GTP into an engine that is mid-teardown.
     func discardDraftAndReload() {
         let previous = navigationContext.selectedGameRecord
         let origin = draftController.resolvedRecord(previous)
@@ -2795,14 +2815,14 @@ final class MainWindowController: NSWindowController {
 
         if let origin {
             navigationContext.selectedGameRecord = origin
-            load(game: origin, previous: previous)
+            loadDeferringUntilReady(origin, previous: previous)
         } else {
             // An untitled draft has no saved counterpart: fall back to the
             // most-recent game, or the empty state.
             let fetched = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
             let target = fetched.first
             navigationContext.selectedGameRecord = target
-            load(game: target, previous: previous)
+            loadDeferringUntilReady(target, previous: previous)
         }
         libraryStore.refetch()
         refreshDraftChrome()
@@ -2997,6 +3017,13 @@ final class MainWindowController: NSWindowController {
     /// `NSApp.reply(toApplicationShouldTerminate:)` still only ever fires
     /// once per sheet answer.
     private func abortDraftExit(for trigger: DraftExitTrigger) {
+        // A sidebar row click can be what started this exit (`.switchGame`), and
+        // `NSTableView` already moved its own highlight to that row before the
+        // prompt even appeared — see `resyncSidebarSelection`'s doc comment. Every
+        // abort, from any trigger, restores it from `navigationContext`; the call
+        // is a no-op when the highlight was never touched.
+        (window?.contentViewController as? MainSplitViewController)?.resyncSidebarSelection()
+
         guard trigger == .quit else { return }
         NSApp.reply(toApplicationShouldTerminate: false)
     }
