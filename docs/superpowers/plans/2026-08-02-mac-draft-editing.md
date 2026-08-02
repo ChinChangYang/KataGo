@@ -17,6 +17,11 @@
 - **English only** in every committed file — source, comments, docs, commit messages. No CJK anywhere.
 - **Piped `xcodebuild` exit codes lie.** Always grep the output for `** BUILD SUCCEEDED **` / `** TEST SUCCEEDED **` rather than trusting `$?`.
 - **Never run two `xcodebuild` invocations concurrently** — a DerivedData lock produces spurious `TEST FAILED`.
+- **No file is compiled unless it is registered.** This project has no
+  file-system-synchronized groups. Use
+  `ruby scripts/add_project_file.rb <path> <target>...` for every new file, and
+  confirm the executed test COUNT rose — an unregistered test file does not
+  fail, it just never runs.
 - **The non-hosted test bundle must never link `KataGoUICore`** (it pulls in the C++ bridge). Only `KataGoGameStore` and `KataGoAnalysisKit`.
 - **`isEditing == true` means UNLOCKED.** This is the opposite of what the name suggests; every gate below depends on it.
 - **`@Model` schema is frozen** (CloudKit). Never add, rename or delete a stored property on `GameRecord` or `Config`.
@@ -128,6 +133,11 @@ test = project.new_target(:unit_test_bundle, TEST_TARGET, :osx, '26.0',
 
 test.build_configurations.each do |c|
   s = c.build_settings
+  # xcodeproj's :unit_test_bundle common settings never set PRODUCT_NAME (only
+  # :framework does), and an empty one fails the build with
+  # `Module name "" is not a valid identifier`. Matches what Xcode itself
+  # writes for the other targets in this project.
+  s['PRODUCT_NAME'] = '$(TARGET_NAME)'
   s['PRODUCT_BUNDLE_IDENTIFIER'] = "#{app_bundle_id}Tests"
   s['GENERATE_INFOPLIST_FILE'] = 'YES'
   s['SWIFT_VERSION'] = '6.0'
@@ -386,7 +396,18 @@ struct DetachedRecordSpikeTests {
 }
 ```
 
-- [ ] **Step 2: Run the spike**
+- [ ] **Step 2: Register the test file with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — the tests below would
+simply not run while the suite still reported success.
+
+```bash
+cd "ios/KataGo iOS" && ruby scripts/add_project_file.rb \
+  "KataGo Anytime MacTests/DetachedRecordSpikeTests.swift" "KataGo Anytime MacTests"
+```
+
+- [ ] **Step 3: Run the spike**
 
 ```bash
 cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
@@ -398,7 +419,7 @@ Expected: `** TEST SUCCEEDED **`, six tests passing.
 
 **If any test fails: STOP.** Report which one and what SwiftData actually did. Do not continue to Task 3.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add "ios/KataGo iOS/KataGo Anytime MacTests/DetachedRecordSpikeTests.swift"
@@ -571,22 +592,18 @@ extension GameRecord {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-group.set_source_tree("SOURCE_ROOT")
-group.set_path("KataGo Anytime Mac/Draft")
-ref = group.new_reference("GameRecord+Draft.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added GameRecord+Draft.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/GameRecord+Draft.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/GameRecordDraftCopyTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -979,20 +996,18 @@ struct DraftSnapshot: Codable, Equatable {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("DraftSnapshot.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added DraftSnapshot.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/DraftSnapshot.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/DraftSnapshotTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -1176,20 +1191,18 @@ enum DraftComparator {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("DraftComparator.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added DraftComparator.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/DraftComparator.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/DraftComparatorTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -1619,20 +1632,18 @@ final class GameDraft {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("GameDraft.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added GameDraft.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/GameDraft.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/GameDraftTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -1777,20 +1788,18 @@ enum DraftExitDecision: Equatable {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("DraftExitDecision.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added DraftExitDecision.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/DraftExitDecision.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/DraftExitDecisionTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -2040,20 +2049,18 @@ final class DraftMirrorStore {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("DraftMirrorStore.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added DraftMirrorStore.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/DraftMirrorStore.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/DraftMirrorStoreTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -2533,20 +2540,18 @@ final class DraftController {
 }
 ```
 
-- [ ] **Step 4: Add the file to both targets**
+- [ ] **Step 4: Register both new files with the project**
+
+This project has NO file-system-synchronized groups, so a `.swift` file that is
+not explicitly referenced is silently never compiled — tests inside an
+unregistered file simply do not run while the suite still reports success.
+Register the source file with BOTH targets and the test file with the test
+target, then confirm the executed test COUNT rises:
 
 ```bash
-cd "ios/KataGo iOS" && ruby -e '
-require "xcodeproj"
-p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
-test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
-group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
-ref = group.new_reference("DraftController.swift")
-app.add_file_references([ref])
-test.add_file_references([ref])
-p_.save
-puts "added DraftController.swift to both targets"'
+cd "ios/KataGo iOS"
+ruby scripts/add_project_file.rb "KataGo Anytime Mac/Draft/DraftController.swift" "KataGo Anytime Mac" "KataGo Anytime MacTests"
+ruby scripts/add_project_file.rb "KataGo Anytime MacTests/DraftControllerTests.swift" "KataGo Anytime MacTests"
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
