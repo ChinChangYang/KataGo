@@ -3589,9 +3589,14 @@ extension MainWindowController: NSMenuItemValidation {
 
         // Game menu "Allow Editing": checkmark reflects the live `isEditing`
         // (true == unlocked), enabled when a game is selected.
+        //
+        // Disabled while a branch is active. A branch and a draft are both
+        // uncommitted lines with different commit paths (Replace/Discard vs
+        // Save/Revert), and unlocking on top of a branch would leave both live
+        // at once. Deactivate Branch first, as the toolbar already forces.
         case #selector(toggleEditing(_:)):
             menuItem.state = gobanState.isEditing ? .on : .off
-            return hasGame
+            return hasGame && !gobanState.isBranchActive
 
         // Game menu "Deep Analysis Report…": requires a selected game, a ready
         // board, no AI move due, the game not finished (both-pass), and no
