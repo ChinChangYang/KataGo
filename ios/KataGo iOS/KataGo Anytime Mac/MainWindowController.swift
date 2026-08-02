@@ -116,6 +116,12 @@ final class MainWindowController: NSWindowController {
     /// edit mode must cancel any in-flight auto-play.
     private var lastIsEditing = false
 
+    /// Owns the unsaved editing session. While a draft is open,
+    /// `navigationContext.selectedGameRecord` is the draft's DETACHED record
+    /// rather than a stored game, which is what keeps every existing write
+    /// path from reaching SwiftData or iCloud.
+    let draftController = DraftController()
+
     /// Last-seen value of `session.bookLookup.isLoaded`, so the book-state observer
     /// (P6-T5) can detect the `false -> true` edge that iOS reacts to
     /// (`processBookLoadedChange`) and re-sync the book to the current move. Seeded
@@ -1543,6 +1549,25 @@ final class MainWindowController: NSWindowController {
             gobanState.clearAutoPlayStep()
         }
 
+        // Draft lifecycle rides the same edge. Unlocking opens a draft over the
+        // selected game and re-points the session at the DETACHED clone; from
+        // here every existing write path writes into the clone instead of the
+        // stored record. No `loadGame`: the content is identical, so the engine
+        // and board must not move — only object identity changes.
+        //
+        // The lock direction only reaches here for a CLEAN draft; a dirty one is
+        // intercepted by `resolve(then:)` before `isEditing` is ever flipped.
+        if gobanState.isEditing && !lastIsEditing, draftController.draft == nil,
+           let origin = navigationContext.selectedGameRecord {
+            navigationContext.selectedGameRecord = draftController.open(origin: origin)
+            refreshDraftChrome()
+        } else if !gobanState.isEditing && lastIsEditing, draftController.draft != nil {
+            let origin = draftController.resolvedRecord(navigationContext.selectedGameRecord)
+            draftController.close()
+            navigationContext.selectedGameRecord = origin
+            refreshDraftChrome()
+        }
+
         lastIsAutoPlaying = gobanState.isAutoPlaying
         lastStonesReady = session.stones.isReady
         lastIsEditing = gobanState.isEditing
@@ -1657,6 +1682,10 @@ final class MainWindowController: NSWindowController {
             try? modelContainer.mainContext.save()
             WidgetCenter.shared.reloadAllTimelines()
         }
+
+        // Every played move, undo and analysis update lands here, so this is
+        // the one place that has to tell the draft its content may have moved.
+        draftController.noteChanged()
     }
 
     // MARK: - Opening-book state sync (P6-T5)
@@ -2745,6 +2774,12 @@ final class MainWindowController: NSWindowController {
                                   isEditing: gobanState.isEditing,
                                   shouldGenMove: shouldGenMove,
                                   isAutoPlaying: gobanState.isAutoPlaying)
+    }
+
+    /// Window title and dirty dot. Filled in by the Save/Revert task; defined
+    /// here so the draft lifecycle above has something to call.
+    func refreshDraftChrome() {
+        window?.isDocumentEdited = draftController.isDirty
     }
 
     /// Updates the lock slot's image/label/tint/action from `lockSlotState`.

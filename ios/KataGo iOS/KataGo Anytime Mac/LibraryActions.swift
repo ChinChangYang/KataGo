@@ -392,6 +392,12 @@ extension MainWindowController: LibraryActionsDelegate {
         shareGame(game, from: nil, rect: .zero)
     }
 
+    // MARK: - Draft identity
+
+    func resolvedStoredRecord(_ record: GameRecord?) -> GameRecord? {
+        draftController.resolvedRecord(record)
+    }
+
     // MARK: - Re-sync from iCloud
 
     /// File ▸ "Re-sync from iCloud…": discard the local SwiftData store and let

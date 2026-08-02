@@ -19,6 +19,9 @@ protocol LibraryActionsDelegate: AnyObject {
     /// Imports the SGF files at `urls` and switches the board to the last one.
     /// Used by the sidebar's drag-and-drop drop handler.
     func importAndSelect(from urls: [URL])
+    /// Maps a possibly-draft record back to the saved game it stands for.
+    /// Returns nil for an untitled draft, which has no library row.
+    func resolvedStoredRecord(_ record: GameRecord?) -> GameRecord?
 }
 
 /// The native Library sidebar: a search field over a view-based `NSTableView`
@@ -47,6 +50,14 @@ final class LibrarySidebarViewController: NSViewController {
     private var isProgrammaticSelection = false
 
     private static let cellIdentifier = NSUserInterfaceItemIdentifier("GameRowCell")
+
+    /// While a draft is open the selected record is a detached clone that is
+    /// not in `store.games`, so comparisons must resolve back to the saved
+    /// game the draft stands for.
+    private var selectedStoredGame: GameRecord? {
+        actionsDelegate?.resolvedStoredRecord(navigationContext.selectedGameRecord)
+            ?? navigationContext.selectedGameRecord
+    }
 
     init(store: LibraryStore,
          navigationContext: NavigationContext,
@@ -139,7 +150,7 @@ final class LibrarySidebarViewController: NSViewController {
     func reloadPreservingSelection() {
         tableView.reloadData()
 
-        let targetRow = store.games.firstIndex { $0 === navigationContext.selectedGameRecord }
+        let targetRow = store.games.firstIndex { $0 === selectedStoredGame }
 
         isProgrammaticSelection = true
         defer { isProgrammaticSelection = false }
@@ -228,7 +239,7 @@ extension LibrarySidebarViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard let game = contextTargetGame else { return false }
         if menuItem.action == #selector(cloneCurrentPositionOfClickedGame(_:)) {
-            return game === navigationContext.selectedGameRecord
+            return game === selectedStoredGame
         }
         return true
     }
@@ -271,7 +282,7 @@ extension LibrarySidebarViewController: NSTableViewDelegate {
 
         // Re-entrancy guard: only act when the selection actually differs from
         // the currently-loaded game, so re-selecting the same row is a no-op.
-        guard selected !== navigationContext.selectedGameRecord else { return }
+        guard selected !== selectedStoredGame else { return }
 
         onSelect(selected)
     }
