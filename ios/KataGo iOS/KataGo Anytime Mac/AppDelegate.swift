@@ -194,6 +194,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      action: #selector(MainWindowController.importSGF(_:)),
                      keyEquivalent: "o")
         menu.addItem(.separator())
+        // File ▸ Save (⌘S): commits the open draft to SwiftData, from where it
+        // syncs to iCloud. Until this runs, an unlocked game's edits exist only
+        // in a detached record and a local mirror file.
+        menu.addItem(withTitle: "Save",
+                     action: #selector(MainWindowController.saveGame(_:)),
+                     keyEquivalent: "s")
+        // Throws the draft away and reloads the saved game. No key equivalent:
+        // it is destructive and infrequent.
+        menu.addItem(withTitle: "Revert to Saved",
+                     action: #selector(MainWindowController.revertGame(_:)),
+                     keyEquivalent: "")
+        menu.addItem(.separator())
         // Shares the currently-selected game's SGF via the system share sheet
         // (gated on a selection by `validateMenuItem`). Routed through the
         // responder chain to `MainWindowController`.

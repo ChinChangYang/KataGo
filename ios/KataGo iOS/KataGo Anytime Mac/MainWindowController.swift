@@ -252,6 +252,13 @@ final class MainWindowController: NSWindowController {
         // `GlobalPreferenceSync` `.onAppear` seeding.
         preferenceSync = MacGlobalPreferenceSync(gobanState: session.gobanState)
 
+        // Refreshes the window title, dirty dot and conflict subtitle whenever
+        // the draft's dirty/conflict state may have changed — including every
+        // played move, not just open/close (`DraftController.noteChanged()`).
+        draftController.onStateChanged = { [weak self] in
+            self?.refreshDraftChrome()
+        }
+
         let splitVC = MainSplitViewController(
             session: session,
             navigationContext: navigationContext,
@@ -628,7 +635,7 @@ final class MainWindowController: NSWindowController {
     /// Runs the actual `loadGame` for a selection. Split out so both the
     /// ready-path (`selectGame(_:)`) and the deferred-path drain
     /// (`applyPendingSelection`) share one call site.
-    private func load(game: GameRecord?, previous: GameRecord?) {
+    func load(game: GameRecord?, previous: GameRecord?) {
         session.gobanState.loadGame(
             gameRecord: game,
             previous: previous,
@@ -2600,6 +2607,85 @@ final class MainWindowController: NSWindowController {
         session.gobanState.isEditing.toggle()
     }
 
+    // MARK: - Draft save / revert
+
+    /// File ▸ Save (⌘S). Writes the draft through to the store: onto the
+    /// origin when there is one, otherwise as a newly inserted record. The
+    /// draft object stays live and selected afterwards, so saving never churns
+    /// object identity or reloads the board.
+    @objc func saveGame(_ sender: Any?) {
+        guard draftController.draft != nil else { return }
+
+        if draftController.hasConflict {
+            presentConflictAlert()
+            return
+        }
+
+        commitDraft()
+    }
+
+    /// The unconditional half of Save, shared with the exit sheet and the
+    /// conflict sheet's Overwrite button.
+    ///
+    /// No selection change is needed after an insert: the draft object stays
+    /// live and `draft.origin` now points at the newly inserted record, so
+    /// `resolvedRecord` maps the selection onto the new sidebar row by itself.
+    func commitDraft() {
+        do {
+            guard try draftController.save(into: modelContainer.mainContext) != nil
+            else { return }
+            libraryStore.refetch()
+            WidgetCenter.shared.reloadAllTimelines()
+            refreshDraftChrome()
+        } catch {
+            presentSaveFailureAlert(error)
+        }
+    }
+
+    /// File ▸ Revert to Saved. Drops the draft and reloads the saved game so
+    /// the engine and board resync — the same path a game switch takes.
+    @objc func revertGame(_ sender: Any?) {
+        guard draftController.draft != nil else { return }
+        discardDraftAndReload()
+    }
+
+    /// Shared by Revert and the exit sheet's Discard button.
+    func discardDraftAndReload() {
+        let previous = navigationContext.selectedGameRecord
+        let origin = draftController.resolvedRecord(previous)
+        draftController.close()
+        session.gobanState.isEditing = false
+
+        if let origin {
+            navigationContext.selectedGameRecord = origin
+            load(game: origin, previous: previous)
+        } else {
+            // An untitled draft has no saved counterpart: fall back to the
+            // most-recent game, or the empty state.
+            let fetched = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
+            let target = fetched.first
+            navigationContext.selectedGameRecord = target
+            load(game: target, previous: previous)
+        }
+        libraryStore.refetch()
+        refreshDraftChrome()
+    }
+
+    private func presentSaveFailureAlert(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Could not save this game."
+        // The draft is deliberately left open and dirty: nothing is discarded
+        // on a failed save.
+        alert.informativeText = "\(error.localizedDescription)\n\nYour changes are still here and unsaved."
+        alert.addButton(withTitle: "OK")
+        if let window { alert.beginSheetModal(for: window) }
+    }
+
+    /// Replaced by the real conflict sheet in the conflict-handling task. Until
+    /// then this is the pre-existing last-writer-wins behavior, so Save is never
+    /// a no-op while the feature is half-landed.
+    func presentConflictAlert() { commitDraft() }
+
     // MARK: - Deep Analysis Report
 
     /// Game-menu "Deep Analysis Report…": presents the shared SwiftUI report
@@ -2776,9 +2862,15 @@ final class MainWindowController: NSWindowController {
                                   isAutoPlaying: gobanState.isAutoPlaying)
     }
 
-    /// Window title and dirty dot. Filled in by the Save/Revert task; defined
-    /// here so the draft lifecycle above has something to call.
+    /// Window title, dirty dot and conflict subtitle.
+    ///
+    /// The title was a static "KataGo Anytime", which left an untitled game
+    /// with nothing on screen naming it — it has no sidebar row either.
     func refreshDraftChrome() {
+        let name = draftController.displayName
+            ?? navigationContext.selectedGameRecord?.name
+        window?.title = name ?? "KataGo Anytime"
+        window?.subtitle = draftController.hasConflict ? "Changed on another device" : ""
         window?.isDocumentEdited = draftController.isDirty
     }
 
@@ -3252,6 +3344,10 @@ extension MainWindowController: NSMenuItemValidation {
         // never needs a selected game or any particular engine/analysis state.
         case #selector(resyncLibraryFromICloud(_:)):
             return true
+
+        // File ▸ Save / Revert to Saved: only meaningful with unsaved changes.
+        case #selector(saveGame(_:)), #selector(revertGame(_:)):
+            return draftController.isDirty
 
         default:
             return canPerformNavigation(menuItem.action)
