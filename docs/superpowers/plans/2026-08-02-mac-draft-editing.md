@@ -1050,6 +1050,128 @@ EOF
 
 ---
 
+#### Task 4b (same task, after the commit above): close the `Config(config:)` gap
+
+`Config(config:)` in `KataGoUICore` forwards 30 of 36 fields and silently drops
+six: `optionalKoRule`, `optionalScoringRule`, `optionalTaxRule`,
+`optionalMultiStoneSuicideLegal`, `optionalHasButton`,
+`optionalWhiteHandicapBonusRule`. Task 3's `detachedDraftCopy()` uses it, so for
+any game with non-default rules the draft's config differs from the origin's the
+moment it opens: `DraftComparator` reports **dirty before the user touches
+anything**, and `save()` then writes those defaults back over the saved game.
+
+`KataGoUICore` is off-limits (fixing it there would change Clone on four other
+platforms), so the fix routes the copy through `DraftSnapshot` — which already
+lists all 36 fields and exists to be the single place that list lives.
+
+- [ ] **Step 7: Write the failing regression test**
+
+Append to `ios/KataGo iOS/KataGo Anytime MacTests/GameRecordDraftCopyTests.swift`:
+
+```swift
+    @Test func copyCarriesTheRuleFieldsConfigCopyInitDrops() {
+        let origin = makeOrigin()
+        // Derive the test values from a default-constructed Config so this
+        // genuinely catches the drop instead of matching a default by luck.
+        let fresh = Config()
+        let c = origin.concreteConfig
+        c.optionalKoRule = (fresh.optionalKoRule ?? 0) + 1
+        c.optionalScoringRule = (fresh.optionalScoringRule ?? 0) + 1
+        c.optionalTaxRule = (fresh.optionalTaxRule ?? 0) + 1
+        c.optionalMultiStoneSuicideLegal = !(fresh.optionalMultiStoneSuicideLegal ?? false)
+        c.optionalHasButton = !(fresh.optionalHasButton ?? false)
+        c.optionalWhiteHandicapBonusRule = (fresh.optionalWhiteHandicapBonusRule ?? 0) + 1
+
+        let copy = origin.detachedDraftCopy().concreteConfig
+
+        #expect(copy.optionalKoRule == c.optionalKoRule)
+        #expect(copy.optionalScoringRule == c.optionalScoringRule)
+        #expect(copy.optionalTaxRule == c.optionalTaxRule)
+        #expect(copy.optionalMultiStoneSuicideLegal == c.optionalMultiStoneSuicideLegal)
+        #expect(copy.optionalHasButton == c.optionalHasButton)
+        #expect(copy.optionalWhiteHandicapBonusRule == c.optionalWhiteHandicapBonusRule)
+    }
+```
+
+- [ ] **Step 8: Run it to verify it fails**
+
+```bash
+cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
+  -scheme "KataGo Anytime Mac" -destination 'platform=macOS' \
+  -only-testing:"KataGo Anytime MacTests/GameRecordDraftCopyTests" 2>&1 | tail -20
+```
+
+Expected: FAIL on `copyCarriesTheRuleFieldsConfigCopyInitDrops` — the six fields
+come back as defaults, not the origin's values. **If it passes, stop and report**:
+the premise of this fix is wrong.
+
+- [ ] **Step 9: Route the copy through `DraftSnapshot`**
+
+Replace the whole body of `detachedDraftCopy()` in
+`ios/KataGo iOS/KataGo Anytime Mac/Draft/GameRecord+Draft.swift` (keep the
+existing doc comment, and add the note below to it):
+
+```swift
+    func detachedDraftCopy() -> GameRecord {
+        let copy = GameRecord(config: Config())
+
+        // Copied through DraftSnapshot rather than field-by-field here.
+        // `Config(config:)` silently drops six rule fields (optionalKoRule,
+        // optionalScoringRule, optionalTaxRule, optionalMultiStoneSuicideLegal,
+        // optionalHasButton, optionalWhiteHandicapBonusRule), which would open
+        // every non-default-rules game's draft already dirty and then write
+        // those defaults back over the saved game on Save. DraftSnapshot is the
+        // single place the drafted field list lives, so routing the copy
+        // through it means the two can never drift apart again.
+        DraftSnapshot(record: self, originUUID: nil).apply(to: copy)
+
+        // DraftSnapshot deliberately carries no uuid — applying one must never
+        // change a record's identity — so the draft's is set explicitly here.
+        copy.uuid = uuid
+        copy.config?.gameRecord = copy
+        return copy
+    }
+```
+
+- [ ] **Step 10: Run the tests to verify they pass**
+
+```bash
+cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
+  -scheme "KataGo Anytime Mac" -destination 'platform=macOS' \
+  -only-testing:"KataGo Anytime MacTests" 2>&1 | tail -30
+```
+
+Expected: `** TEST SUCCEEDED **`. All earlier `GameRecordDraftCopyTests` must
+still pass — especially `copyPreservesIdentityFields` (uuid, name and
+`lastModificationDate` still come from the origin) and `copyHasItsOwnConfigObject`.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add "ios/KataGo iOS/KataGo Anytime Mac/Draft/GameRecord+Draft.swift" \
+        "ios/KataGo iOS/KataGo Anytime MacTests/GameRecordDraftCopyTests.swift"
+git commit -m "$(cat <<'EOF'
+fix(mac): stop the draft copy dropping six rule settings
+
+Config(config:) forwards 30 of 36 fields and silently drops
+optionalKoRule, optionalScoringRule, optionalTaxRule,
+optionalMultiStoneSuicideLegal, optionalHasButton and
+optionalWhiteHandicapBonusRule. A draft built on it differs from its
+origin the moment it opens, so a game with non-default rules would show
+unsaved changes the user never made - and saving would write the
+defaults back over their real settings.
+
+The copy now goes through DraftSnapshot, which already lists every
+drafted field and exists to be the single place that list lives.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01An63LYQDTk7aX8jjtmxVrF
+EOF
+)"
+```
+
+---
+
 ### Task 5: `DraftComparator`
 
 One comparison function, two questions. `differs(draft, baseline)` is *dirty*; `differs(origin, baseline)` is *conflict*.
