@@ -96,8 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// for a reply that isn't coming.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let wc = windowController, wc.hasUnresolvedDraft else { return .terminateNow }
-        wc.resolveDraft(for: .quit) {
-            NSApp.reply(toApplicationShouldTerminate: true)
+        // A re-entrant ⌘Q while the sheet is still up must not queue a second
+        // sheet and a second reply; keep waiting on the one already asked.
+        guard !wc.isAwaitingTerminateReply else { return .terminateLater }
+        wc.beginPendingTerminate()
+        wc.resolveDraft(for: .quit) { [weak wc] in
+            wc?.replyToPendingTerminate(true)
         }
         return .terminateLater
     }

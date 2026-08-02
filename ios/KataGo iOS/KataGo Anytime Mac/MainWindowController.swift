@@ -123,6 +123,18 @@ final class MainWindowController: NSWindowController {
     /// path from reaching SwiftData or iCloud.
     let draftController = DraftController()
 
+    /// True while the crash-mirror Restore sheet is up and unanswered. See
+    /// `offerDraftRestoreIfNeeded`.
+    private var isOfferingDraftRestore = false
+
+    /// True between returning `.terminateLater` from
+    /// `applicationShouldTerminate` and the reply that resolves it. AppKit is
+    /// free to re-invoke that delegate method while the sheet is up (a modal
+    /// run-loop mode is enough), and a second ask would queue a second sheet
+    /// and fire a second reply — one of which leaves the app wedged
+    /// "terminating" forever. Exactly one ask is outstanding at a time.
+    private(set) var isAwaitingTerminateReply = false
+
     /// Last-seen value of `session.bookLookup.isLoaded`, so the book-state observer
     /// (P6-T5) can detect the `false -> true` edge that iOS reacts to
     /// (`processBookLoadedChange`) and re-sync the book to the current move. Seeded
@@ -824,10 +836,19 @@ final class MainWindowController: NSWindowController {
     /// reschedule the mirror write, same as any other draft) — but either way
     /// `draftController.draft` is non-nil afterward, so the guard above already
     /// covers both buttons and a resolved offer never returns.
+    ///
+    /// That guard only holds once the sheet has been ANSWERED, though: the
+    /// sheet is window-modal, the menu bar stays live under it, and Models ▸
+    /// Set Active produces another engine-ready edge. `isOfferingDraftRestore`
+    /// covers the window in between — two sheets would otherwise queue, and
+    /// answering Restore then Discard would clear the mirror belonging to the
+    /// draft the first sheet had just restored.
     func offerDraftRestoreIfNeeded() {
-        guard draftController.draft == nil,
+        guard !isOfferingDraftRestore,
+              draftController.draft == nil,
               let mirror = draftController.mirrorStore.read(),
               let window else { return }
+        isOfferingDraftRestore = true
 
         let name = mirror.draft.game.name
         let alert = NSAlert()
@@ -838,6 +859,7 @@ final class MainWindowController: NSWindowController {
 
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }
+            self.isOfferingDraftRestore = false
             guard response == .alertFirstButtonReturn else {
                 self.draftController.mirrorStore.clear()
                 return
@@ -3095,7 +3117,20 @@ final class MainWindowController: NSWindowController {
         (window?.contentViewController as? MainSplitViewController)?.resyncSidebarSelection()
 
         guard trigger == .quit else { return }
-        NSApp.reply(toApplicationShouldTerminate: false)
+        replyToPendingTerminate(false)
+    }
+
+    /// Records that `applicationShouldTerminate` has deferred a quit.
+    func beginPendingTerminate() { isAwaitingTerminateReply = true }
+
+    /// Answers the deferred quit, at most once per ask. Both the resume
+    /// (`AppDelegate`'s continuation) and the abort (`abortDraftExit`) come
+    /// through here so neither can reply to an ask that is no longer
+    /// outstanding.
+    func replyToPendingTerminate(_ shouldTerminate: Bool) {
+        guard isAwaitingTerminateReply else { return }
+        isAwaitingTerminateReply = false
+        NSApp.reply(toApplicationShouldTerminate: shouldTerminate)
     }
 
     /// Closes the draft after a successful Save and points the selection back
