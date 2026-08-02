@@ -306,7 +306,7 @@
 		8514DA92E7C49142B62D8A66 /* initialize.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5E86CB9461F2B8990E7855E /* initialize.cc */; };
 		8539EDC26A91F72A938327C4 /* KataGoShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15F54862C94427C00A698D0 /* KataGoShortcuts.swift */; };
 		8556F9D19F31DF658150AC30 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		8576C911462316E43AEC314B /* VisionLockSlotModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */; };
+		8576C911462316E43AEC314B /* LockSlotModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C7682311A7E57931870CB0 /* LockSlotModelTests.swift */; };
 		858F8565771AF705AFD936CA /* usage.cc in Sources */ = {isa = PBXBuildFile; fileRef = D567C3AB127FDCD977020697 /* usage.cc */; };
 		859F96E24453B05F915DA565 /* CustomModelStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77627D8BC330129AADF1FD59 /* CustomModelStoreTests.swift */; };
 		85B66099A32069E08E277B43 /* inlined_string_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7D5F183562E888ACF1F14799 /* inlined_string_field.cc */; };
@@ -1465,7 +1465,7 @@
 		B96A4284E69EB64814A4AB2D /* GameSessionReportModeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionReportModeTests.swift; sourceTree = "<group>"; };
 		B973CEF3C35A8A5F581A7102 /* WatchBoardFrameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchBoardFrameTests.swift; sourceTree = "<group>"; };
 		B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = StorageReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/StorageReader.cpp; sourceTree = SOURCE_ROOT; };
-		B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionLockSlotModelTests.swift; sourceTree = "<group>"; };
+		B9C7682311A7E57931870CB0 /* LockSlotModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LockSlotModelTests.swift; sourceTree = "<group>"; };
 		B9F78B2A5CE3FB7CCC48EC52 /* CropImportUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CropImportUITestSupport.swift; sourceTree = "<group>"; };
 		BA88218FE439761B96AE38F7 /* MIL.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MIL.pb.cc; path = ../../cpp/external/katagocoreml/generated/MIL.pb.cc; sourceTree = SOURCE_ROOT; };
 		BAEE508A62193A6C83CD4AB2 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SafariWebExtensionHandler.swift; path = KataGoAnytimeSafariExtIOS/SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
@@ -3103,7 +3103,7 @@
 				9774AE44D6D0D96116485938 /* BoardStarPointsTests.swift */,
 				55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */,
 				7FC19951736E383CCB25292A /* BoardTopTextureTests.swift */,
-				B9C7682311A7E57931870CB0 /* VisionLockSlotModelTests.swift */,
+				B9C7682311A7E57931870CB0 /* LockSlotModelTests.swift */,
 				E40DA75B9A39F2FCAAED7940 /* VisionBranchFrameTests.swift */,
 				02C8E6BEA72D9B3F22428930 /* ModelSelectionStoreTests.swift */,
 				2FC5147B34571D123081175B /* VisionModelListItemTests.swift */,
@@ -4550,7 +4550,7 @@
 				CE47EFCF5BB2BB492B8ADCBB /* BoardStarPointsTests.swift in Sources */,
 				23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */,
 				586E19A271956325BE8212F2 /* BoardTopTextureTests.swift in Sources */,
-				8576C911462316E43AEC314B /* VisionLockSlotModelTests.swift in Sources */,
+				8576C911462316E43AEC314B /* LockSlotModelTests.swift in Sources */,
 				C0C8E44FF75179EDFED07A66 /* VisionBranchFrameTests.swift in Sources */,
 				5E0D724CCFC10F9813062517 /* ModelSelectionStoreTests.swift in Sources */,
 				16755B516D10AA042FEE8661 /* VisionModelListItemTests.swift in Sources */,

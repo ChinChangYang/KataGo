@@ -122,10 +122,12 @@ struct VisionControlOrnament: View {
     /// Branch" u-turn while one is (editing must never toggle mid-branch —
     /// a branch only forms while isEditing == false, and the editing play
     /// path would clear the saved record's data while moves are
-    /// branch-routed). VisionLockSlotModel owns the mapping; tests pin it.
+    /// branch-routed). LockSlotModel owns the mapping; tests pin it. Vision has
+    /// no auto-play UI, so it leaves `isAutoPlaying` at its default (false) and
+    /// keeps the always-enabled toggle.
     private var lockSlotButton: some View {
         let config = navigationContext.selectedGameRecord?.concreteConfig
-        let slot = VisionLockSlotModel.make(
+        let slot = LockSlotModel.make(
             isBranchActive: session.gobanState.isBranchActive,
             isEditing: session.gobanState.isEditing,
             shouldGenMove: config.map {
