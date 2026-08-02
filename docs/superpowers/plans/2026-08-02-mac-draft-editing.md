@@ -380,18 +380,26 @@ struct DetachedRecordSpikeTests {
         #expect(record.concreteConfig.komi == 5.5)
     }
 
-    @Test func detachedRecordEmitsObservationOnMutation() throws {
+    @Test func detachedRecordEmitsObservationOnMutation() async throws {
         // SwiftUI must redraw the board from the draft, which means the
         // generated accessors have to fire observation while detached.
+        //
+        // Uses `confirmation` rather than a captured `var fired`: this project
+        // builds with SWIFT_VERSION 6.0, `withObservationTracking`'s onChange
+        // parameter is @Sendable, and mutating a captured local from it is a
+        // compile error under complete concurrency checking. `Confirmation` is
+        // Sendable and thread-safe, so it carries the signal out instead.
+        // onChange fires synchronously during the mutation below, so the
+        // confirmation is always satisfied before the body returns.
         let record = GameRecord(config: Config())
-        var fired = false
-        withObservationTracking {
-            _ = record.sgf
-        } onChange: {
-            fired = true
+        await confirmation("observation fired for a detached record") { fired in
+            withObservationTracking {
+                _ = record.sgf
+            } onChange: {
+                fired()
+            }
+            record.sgf = "(;FF[4]GM[1]SZ[19];B[qq])"
         }
-        record.sgf = "(;FF[4]GM[1]SZ[19];B[qq])"
-        #expect(fired)
     }
 }
 ```
