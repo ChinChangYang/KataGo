@@ -2663,13 +2663,29 @@ final class MainWindowController: NSWindowController {
     /// object identity or reloads the board.
     @objc func saveGame(_ sender: Any?) {
         guard draftController.draft != nil else { return }
+        // ⌘S never leaves the game, so unlike `resolveDraft`'s Save branch it
+        // has nothing to gate on the outcome — the draft stays open (or, for
+        // Save as New Game, gets replaced by the new one) either way, so the
+        // user just gets another try.
+        saveResolvingConflict { _ in }
+    }
 
+    /// The one path into a commit that both ⌘S and the exit chokepoint
+    /// (`resolveDraft`) go through, so a conflicted draft is handled
+    /// identically no matter which door the user leaves through: presents the
+    /// conflict sheet when the saved game changed underneath the draft,
+    /// otherwise commits straight away.
+    ///
+    /// `completion` reports whether the draft actually ended up resolved —
+    /// `true` for a plain commit or a successful conflict-sheet choice,
+    /// `false` for a failed save or Cancel. `resolveDraft` needs that signal
+    /// to decide whether the exit may proceed; `saveGame` ignores it.
+    private func saveResolvingConflict(completion: @escaping (Bool) -> Void) {
         if draftController.hasConflict {
-            presentConflictAlert()
-            return
+            presentConflictAlert(completion: completion)
+        } else {
+            completion(commitDraft())
         }
-
-        commitDraft()
     }
 
     /// The unconditional half of Save, shared with the exit sheet and the
@@ -2679,12 +2695,13 @@ final class MainWindowController: NSWindowController {
     /// live and `draft.origin` now points at the newly inserted record, so
     /// `resolvedRecord` maps the selection onto the new sidebar row by itself.
     ///
-    /// Returns whether the save actually succeeded. `saveGame` (⌘S) ignores
-    /// it — the draft stays open either way, so the user just gets another
-    /// try — but the exit chokepoint (`resolveDraft`) needs to know: a failed
-    /// save must not be allowed to close the draft and continue the exit, or
-    /// the changes `presentSaveFailureAlert` just said are "still here and
-    /// unsaved" would be discarded right underneath that reassurance.
+    /// Returns whether the save actually succeeded. `saveResolvingConflict`
+    /// forwards that result: `saveGame` (⌘S) ignores it — the draft stays
+    /// open either way, so the user just gets another try — but the exit
+    /// chokepoint (`resolveDraft`) needs to know: a failed save must not be
+    /// allowed to close the draft and continue the exit, or the changes
+    /// `presentSaveFailureAlert` just said are "still here and unsaved" would
+    /// be discarded right underneath that reassurance.
     @discardableResult
     func commitDraft() -> Bool {
         do {
@@ -2748,9 +2765,16 @@ final class MainWindowController: NSWindowController {
     /// the draft becomes its own record and the incoming version stays intact.
     /// Discarding the user's own side is already File ▸ Revert to Saved, so it
     /// is named in the body rather than given a button.
-    func presentConflictAlert() {
+    ///
+    /// `completion` fires exactly once with the outcome: `true` once the
+    /// conflict is actually resolved (Save as New Game or Overwrite both
+    /// succeeded), `false` for Cancel or a failed save. `saveResolvingConflict`
+    /// is the only caller, shared by ⌘S and `resolveDraft`'s Save branch — the
+    /// latter needs this signal to know whether it's safe to close the draft
+    /// and let the exit continue.
+    func presentConflictAlert(completion: @escaping (Bool) -> Void) {
         guard let window, let draft = draftController.draft, let origin = draft.origin
-        else { return }
+        else { completion(false); return }
 
         let theirMoves = SgfHeaderScan(sgf: origin.sgf)?.moveCount ?? 0
         let mine = draft.moveCount
@@ -2781,7 +2805,7 @@ final class MainWindowController: NSWindowController {
                 do {
                     guard let inserted = try self.draftController.saveAsNewGame(
                         into: self.modelContainer.mainContext)
-                    else { return }
+                    else { completion(false); return }
                     // `saveAsNewGame` re-baselines against the ORIGIN, which
                     // is still the conflicting version — so leaving the draft
                     // open here would leave it dirty (mine vs. theirs again)
@@ -2799,13 +2823,15 @@ final class MainWindowController: NSWindowController {
                     self.libraryStore.refetch()
                     WidgetCenter.shared.reloadAllTimelines()
                     self.refreshDraftChrome()
+                    completion(true)
                 } catch {
                     self.presentSaveFailureAlert(error)
+                    completion(false)
                 }
             case .alertSecondButtonReturn:
-                self.commitDraft()
+                completion(self.commitDraft())
             default:
-                break   // Cancel: the draft stays open and dirty.
+                completion(false)   // Cancel: the draft stays open and dirty.
             }
         }
     }
@@ -2817,6 +2843,10 @@ final class MainWindowController: NSWindowController {
     /// Clean (or no draft) runs `continuation` straight through. Dirty presents
     /// Save · Discard · Cancel, and Cancel abandons the continuation entirely —
     /// the caller must NOT have performed any part of the exit before calling.
+    /// Save routes through `saveResolvingConflict`, the same conflict-aware
+    /// entry point ⌘S uses, so a draft that is both dirty and conflicted gets
+    /// the conflict sheet here too instead of silently overwriting the other
+    /// device's version.
     func resolveDraft(for trigger: DraftExitTrigger,
                       then continuation: @escaping () -> Void) {
         guard draftController.decision(for: trigger) == .prompt else {
@@ -2840,18 +2870,37 @@ final class MainWindowController: NSWindowController {
             guard let self else { return }
             switch response {
             case .alertFirstButtonReturn:
-                // A failed save (disk/CloudKit error) must not let the exit
-                // proceed — that would silently discard the very changes
-                // `presentSaveFailureAlert` just told the user are still here.
-                // It's an abort like Cancel below, so it owes `.quit` the same
-                // reply — routed through `abortDraftExit` rather than repeated
-                // here, so this branch cannot forget it the way it did before.
-                guard self.commitDraft() else {
-                    self.abortDraftExit(for: trigger)
-                    return
+                // A dirty draft can ALSO be conflicted — another device may
+                // have synced a change in while it was open — and this branch
+                // used to call `commitDraft()` directly, which would silently
+                // overwrite that other device's work with no warning. Routing
+                // through the same conflict-aware entry point `saveGame` uses
+                // makes every exit, not just ⌘S, present the conflict sheet
+                // first when one is needed.
+                //
+                // A failed save or a cancelled conflict sheet must not let
+                // the exit proceed — that would silently discard or overwrite
+                // the very changes the user was just asked about. Both count
+                // as an abort like Cancel below, routed through
+                // `abortDraftExit` rather than repeated here, so this branch
+                // cannot forget it the way it did before.
+                self.saveResolvingConflict { [weak self] resolved in
+                    guard let self else { return }
+                    guard resolved else {
+                        self.abortDraftExit(for: trigger)
+                        return
+                    }
+                    // Save as New Game (inside `presentConflictAlert`) already
+                    // closed the draft and moved the selection to the new
+                    // record. A plain commit — no conflict, or Overwrite —
+                    // leaves the draft open, the way ⌘S wants it, so only
+                    // that case still needs closing here before the exit can
+                    // continue.
+                    if self.draftController.draft != nil {
+                        self.closeDraftAndResyncSelection()
+                    }
+                    continuation()
                 }
-                self.closeDraftAndResyncSelection()
-                continuation()
             case .alertSecondButtonReturn:
                 // Reuses the same close-and-reload `revertGame` uses: Discard
                 // has to put the engine board back to the last-saved content,
@@ -2878,11 +2927,13 @@ final class MainWindowController: NSWindowController {
     /// missing this the first time, and keeps a future third abort branch
     /// from missing it too.
     ///
-    /// Never fires alongside `continuation()`: `resolveDraft`'s callback is a
-    /// single `switch` over the alert response, and each case either takes
-    /// this abort branch or the success branch that calls `continuation()`,
-    /// never both — so `NSApp.reply(toApplicationShouldTerminate:)` still
-    /// only ever fires once per sheet answer.
+    /// Never fires alongside `continuation()`: every path out of
+    /// `resolveDraft`'s callback — including the Save case's nested
+    /// `saveResolvingConflict` completion, which itself either aborts here or
+    /// falls through to `continuation()` — takes this abort branch or the
+    /// success branch that calls `continuation()`, never both — so
+    /// `NSApp.reply(toApplicationShouldTerminate:)` still only ever fires
+    /// once per sheet answer.
     private func abortDraftExit(for trigger: DraftExitTrigger) {
         guard trigger == .quit else { return }
         NSApp.reply(toApplicationShouldTerminate: false)
