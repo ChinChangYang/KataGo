@@ -588,12 +588,31 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Library selection
 
+    /// Public entry: every sidebar click, deep link (`selectGame(byID:)`), New/
+    /// Clone/Import, and the deferred-selection drain (`applyPendingSelection`)
+    /// land here, so this is where an unsaved draft is resolved before the
+    /// board moves on to a different game. Re-selecting the game the open draft
+    /// stands for is not a switch at all, so it skips the chokepoint entirely —
+    /// otherwise clicking the row you're already editing would look like an
+    /// exit and prompt for nothing.
+    func selectGame(_ game: GameRecord?) {
+        if let game, draftController.resolvedRecord(
+            navigationContext.selectedGameRecord) === game {
+            return
+        }
+        resolveDraft(for: .switchGame) { [weak self] in
+            self?.performSelectGame(game)
+        }
+    }
+
     /// Switches the board to a game chosen from the Library sidebar. Mirrors the
     /// iOS `GameSplitView.processChange` flow via the reusable
     /// `GobanState.loadGame`. The initial launch load stays in
     /// `initializeSession`; this only runs for genuine post-launch row changes
-    /// (identity-different from the currently-selected game).
-    func selectGame(_ game: GameRecord?) {
+    /// (identity-different from the currently-selected game). Only reached
+    /// through the `selectGame(_:)` chokepoint above, which resolves an open
+    /// draft first — by the time this runs there is nothing left to abandon.
+    private func performSelectGame(_ game: GameRecord?) {
         let previous = navigationContext.selectedGameRecord
         guard game !== previous else { return }
 
@@ -633,7 +652,7 @@ final class MainWindowController: NSWindowController {
     }
 
     /// Runs the actual `loadGame` for a selection. Split out so both the
-    /// ready-path (`selectGame(_:)`) and the deferred-path drain
+    /// ready-path (`performSelectGame(_:)`) and the deferred-path drain
     /// (`applyPendingSelection`) share one call site.
     func load(game: GameRecord?, previous: GameRecord?) {
         session.gobanState.loadGame(
@@ -681,8 +700,14 @@ final class MainWindowController: NSWindowController {
             stashed: pending.game,
             stashedIsDeleted: pending.game?.isDeleted == true,
             fetched: fetched)
-        navigationContext.selectedGameRecord = target
-        load(game: target, previous: nil)
+        // A deferred selection can land while a draft is open (a widget deep
+        // link or .sgf file-open doesn't wait on the user), so this drain is an
+        // exit too and goes through the same chokepoint as a sidebar switch.
+        resolveDraft(for: .switchGame) { [weak self] in
+            guard let self else { return }
+            self.navigationContext.selectedGameRecord = target
+            self.load(game: target, previous: nil)
+        }
     }
 
     // MARK: - Deep Report selection gating
@@ -2604,7 +2629,17 @@ final class MainWindowController: NSWindowController {
     /// (`isEditing == true` means UNLOCKED). `validateMenuItem` shows the
     /// checkmark from the live `gobanState.isEditing`.
     @objc func toggleEditing(_ sender: Any?) {
-        session.gobanState.isEditing.toggle()
+        let gobanState = session.gobanState
+        // Locking with unsaved changes is an exit: resolve before the flag
+        // flips, or the draft-close branch in `handleAutoPlayChange` would
+        // silently drop them.
+        if gobanState.isEditing {
+            resolveDraft(for: .lock) { [weak self] in
+                self?.session.gobanState.isEditing = false
+            }
+        } else {
+            gobanState.isEditing = true
+        }
     }
 
     // MARK: - Draft save / revert
@@ -2630,15 +2665,25 @@ final class MainWindowController: NSWindowController {
     /// No selection change is needed after an insert: the draft object stays
     /// live and `draft.origin` now points at the newly inserted record, so
     /// `resolvedRecord` maps the selection onto the new sidebar row by itself.
-    func commitDraft() {
+    ///
+    /// Returns whether the save actually succeeded. `saveGame` (⌘S) ignores
+    /// it — the draft stays open either way, so the user just gets another
+    /// try — but the exit chokepoint (`resolveDraft`) needs to know: a failed
+    /// save must not be allowed to close the draft and continue the exit, or
+    /// the changes `presentSaveFailureAlert` just said are "still here and
+    /// unsaved" would be discarded right underneath that reassurance.
+    @discardableResult
+    func commitDraft() -> Bool {
         do {
             guard try draftController.save(into: modelContainer.mainContext) != nil
-            else { return }
+            else { return true }
             libraryStore.refetch()
             WidgetCenter.shared.reloadAllTimelines()
             refreshDraftChrome()
+            return true
         } catch {
             presentSaveFailureAlert(error)
+            return false
         }
     }
 
@@ -2685,6 +2730,79 @@ final class MainWindowController: NSWindowController {
     /// then this is the pre-existing last-writer-wins behavior, so Save is never
     /// a no-op while the feature is half-landed.
     func presentConflictAlert() { commitDraft() }
+
+    // MARK: - Draft exit chokepoint
+
+    /// Every way of leaving the game being edited goes through here.
+    ///
+    /// Clean (or no draft) runs `continuation` straight through. Dirty presents
+    /// Save · Discard · Cancel, and Cancel abandons the continuation entirely —
+    /// the caller must NOT have performed any part of the exit before calling.
+    func resolveDraft(for trigger: DraftExitTrigger,
+                      then continuation: @escaping () -> Void) {
+        guard draftController.decision(for: trigger) == .prompt else {
+            continuation()
+            return
+        }
+        guard let window else {
+            continuation()
+            return
+        }
+
+        let name = draftController.displayName ?? "this game"
+        let alert = NSAlert()
+        alert.messageText = "Save changes to \(name)?"
+        alert.informativeText = "Your changes have not been saved to iCloud yet. If you don't save them, they will be lost."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Cancel")
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                // A failed save (disk/CloudKit error) must not let the exit
+                // proceed — that would silently discard the very changes
+                // `presentSaveFailureAlert` just told the user are still here.
+                guard self.commitDraft() else { return }
+                self.closeDraftAndResyncSelection()
+                continuation()
+            case .alertSecondButtonReturn:
+                // Reuses the same close-and-reload `revertGame` uses: Discard
+                // has to put the engine board back to the last-saved content,
+                // not just drop the draft object, or an exit that stays on
+                // this game (lock) would keep showing the abandoned edits.
+                self.discardDraftAndReload()
+                continuation()
+            default:
+                // Cancel: the continuation is abandoned. `.quit` is the one
+                // trigger that already returned `.terminateLater` before this
+                // sheet appeared (`AppDelegate.applicationShouldTerminate`);
+                // with no reply here the app would sit stuck "terminating"
+                // forever, so this is the one case Cancel still has to act on
+                // `NSApp` rather than simply doing nothing.
+                if trigger == .quit {
+                    NSApp.reply(toApplicationShouldTerminate: false)
+                }
+            }
+        }
+    }
+
+    /// Closes the draft after a successful Save and points the selection back
+    /// at the origin it was just committed onto. No reload is needed here —
+    /// unlike Discard (`discardDraftAndReload`), a successful commit already
+    /// made the origin match what's on screen — but without this the
+    /// selection is left on the now-detached draft clone, which breaks the
+    /// `===` identity checks `deleteGame` and the lock-mode observer in
+    /// `handleAutoPlayChange` rely on to find "the game on screen".
+    private func closeDraftAndResyncSelection() {
+        let origin = draftController.resolvedRecord(navigationContext.selectedGameRecord)
+        draftController.close()
+        navigationContext.selectedGameRecord = origin
+    }
+
+    /// True while a dirty draft is waiting on the user.
+    var hasUnresolvedDraft: Bool { draftController.isDirty }
 
     // MARK: - Deep Analysis Report
 
@@ -3158,6 +3276,17 @@ extension MainWindowController: NSWindowDelegate {
         session.stopRequested = true
         engineProcess?.terminate()
         engineProcess = nil
+    }
+
+    /// Blocks the close while a dirty draft is open, re-issuing it once the
+    /// user answers. `performClose` rather than `close` so the delegate chain
+    /// runs again from a now-clean state.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard hasUnresolvedDraft else { return true }
+        resolveDraft(for: .closeWindow) { [weak self] in
+            self?.window?.performClose(nil)
+        }
+        return false
     }
 
     func windowWillClose(_ notification: Notification) {

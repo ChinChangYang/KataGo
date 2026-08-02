@@ -88,6 +88,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
 
+    /// ⌘Q with unsaved changes: defer termination until the sheet is answered.
+    /// `.terminateLater` keeps the app alive; the reply resumes or aborts it.
+    /// A Cancel answer replies `false` from inside `resolveDraft` itself (its
+    /// `continuation` here is never invoked on Cancel, by design), so this
+    /// never leaves the app stuck mid-quit waiting for a reply that isn't coming.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let wc = windowController, wc.hasUnresolvedDraft else { return .terminateNow }
+        wc.resolveDraft(for: .quit) {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     /// Backstop: kill the engine child on app quit even if `windowWillClose`
     /// didn't fire (it may not on ⌘Q). The child also self-exits when the app's
     /// pipe fds close (stdin EOF / SIGPIPE), but this terminates it immediately

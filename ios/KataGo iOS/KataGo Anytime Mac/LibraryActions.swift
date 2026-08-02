@@ -104,6 +104,27 @@ extension MainWindowController: LibraryActionsDelegate {
 
     // MARK: - Delete
 
+    /// Public entry for every delete path that can target ANY row — the
+    /// sidebar's right-click context menu and its bare-⌫ key
+    /// (`LibrarySidebarViewController`) — not just the Edit-menu action
+    /// (`deleteSelectedGame`, which already resolves its own draft before
+    /// calling `performDeleteGame` directly). Deleting some other row than
+    /// the one being edited is not an exit and proceeds untouched; deleting
+    /// the row a draft stands for resolves it first, same as
+    /// `deleteSelectedGame` — otherwise a right-click Delete on the game
+    /// you're actively editing would strand the draft on a tombstone with no
+    /// chance to save.
+    func deleteGame(_ game: GameRecord) {
+        guard draftController.resolvedRecord(navigationContext.selectedGameRecord) === game
+        else {
+            performDeleteGame(game)
+            return
+        }
+        resolveDraft(for: .deleteOrigin) { [weak self] in
+            self?.performDeleteGame(game)
+        }
+    }
+
     /// Confirms (destructive) then deletes `game`. If it's the currently-loaded
     /// game, the board is switched to a replacement *before* the delete — while
     /// `game` is still a live object — so `selectGame` → `GobanState.loadGame`
@@ -113,8 +134,10 @@ extension MainWindowController: LibraryActionsDelegate {
     /// freshly-created default when no other game exists, so the board never
     /// lingers on a deleted game and an active search filter can't make us
     /// fabricate a phantom default. Deleting a non-loaded game leaves the
-    /// selection/board untouched.
-    func deleteGame(_ game: GameRecord) {
+    /// selection/board untouched. Only reached through the `deleteGame(_:)`
+    /// chokepoint above (or `deleteSelectedGame`'s own resolve), which
+    /// resolves an open draft on `game` first.
+    private func performDeleteGame(_ game: GameRecord) {
         let alert = NSAlert()
         alert.messageText = "Delete “\(game.name)”?"
         alert.informativeText = "This game will be permanently deleted. This cannot be undone."
@@ -379,10 +402,18 @@ extension MainWindowController: LibraryActionsDelegate {
         renameGame(game)
     }
 
-    /// Edit ▸ Delete (⌫): delete the currently-selected library game.
+    /// Edit ▸ Delete (⌫): delete the currently-selected library game. Resolves
+    /// an unsaved draft first — deleting the record a draft is editing would
+    /// otherwise strand the draft on a tombstone. Resolves straight to
+    /// `performDeleteGame` rather than through `deleteGame(_:)`'s own gate:
+    /// `navigationContext.selectedGameRecord` here is always the game on
+    /// screen, so the draft check would just repeat this same resolution.
     @objc func deleteSelectedGame(_ sender: Any?) {
-        guard let game = navigationContext.selectedGameRecord else { return }
-        deleteGame(game)
+        guard let game = draftController.resolvedRecord(
+            navigationContext.selectedGameRecord) else { return }
+        resolveDraft(for: .deleteOrigin) { [weak self] in
+            self?.performDeleteGame(game)
+        }
     }
 
     /// File ▸ Share…: share the currently-selected library game, anchored to the
