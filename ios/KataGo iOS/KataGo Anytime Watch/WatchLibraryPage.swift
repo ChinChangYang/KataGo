@@ -42,15 +42,24 @@ struct WatchLibraryPage: View {
             library.refresh()
             library.startObservingRemoteChanges()
             // Concurrent, not serialized: CKContainer.accountStatus() has no
-            // timeout, so awaiting it before starting the grace timer could
-            // pin the empty state on "Syncing from iCloud" for as long as
-            // that call hangs, since `now` would never get re-evaluated.
+            // timeout, so the write to `now` must not be sequenced behind
+            // awaiting it — that would pin the empty state on "Syncing from
+            // iCloud" for as long as that call hangs. The two children start
+            // together, but `now` (the only signal `emptyState(now:)` reads
+            // off this view) is driven by the grace timer alone; the account
+            // state is awaited and stored AFTER, so a hung accountStatus()
+            // no longer blocks the re-evaluation. `library.accountState` is
+            // an observed (non-ignored) property of an @Observable store, so
+            // its later arrival still re-renders the empty state on its own,
+            // and `LibrarySyncPolicy` checks `accountState != .unavailable`
+            // before it ever looks at the grace flag, so a late `.signedOut`
+            // still wins.
             async let accountState = Self.accountState()
             async let graceExpired: Void = Self.waitForLaunchGrace()
-            library.accountState = await accountState
             await graceExpired
             // Re-evaluate the empty state now that the launch grace expired.
             now = Date()
+            library.accountState = await accountState
         }
     }
 
