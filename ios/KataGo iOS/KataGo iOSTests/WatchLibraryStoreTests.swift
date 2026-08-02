@@ -89,6 +89,28 @@ struct WatchLibraryStoreTests {
         #expect(store.moveCount(for: row) == 3)
     }
 
+    @Test func moveCountRefreshesAfterARemoteEdit() throws {
+        let container = try makeContainer()
+        let record = insert(container, name: "Edited",
+                            sgf: "(;GM[1]SZ[9];B[aa];W[bb];B[cc])",
+                            width: 9, height: 9, modified: epoch)
+
+        let store = WatchLibraryStore(container: container, storeMode: .cloudKit)
+        store.refresh()
+        let original = try #require(store.rows.first)
+        #expect(store.moveCount(for: original) == 3)
+
+        // Simulate the record changing on another device: same uuid, new
+        // sgf, later lastModificationDate.
+        record.sgf = "(;GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd];B[ee])"
+        record.lastModificationDate = epoch.addingTimeInterval(60)
+
+        store.refresh()
+        let edited = try #require(store.rows.first)
+        #expect(edited.id == original.id)
+        #expect(store.moveCount(for: edited) == 5)
+    }
+
     @Test func unreadableSgfCountsAsZeroMoves() throws {
         let container = try makeContainer()
         insert(container, name: "Broken", sgf: "not an sgf at all",

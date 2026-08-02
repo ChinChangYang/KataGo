@@ -63,10 +63,20 @@ public final class WatchLibraryStore {
     @ObservationIgnored private let openedAt: Date
     @ObservationIgnored private var lastRemoteChange: Date?
     @ObservationIgnored private var observer: (any NSObjectProtocol)?
-    /// Memoized move counts. Observation-ignored on purpose: the library rows
-    /// read this during body evaluation, and mutating observed state there
-    /// would re-invalidate the view forever.
-    @ObservationIgnored private var moveCounts: [String: Int] = [:]
+    /// Memoized move counts, keyed by uuid *and* `lastModificationDate` so a
+    /// remote edit (same uuid, new content) invalidates the memo instead of
+    /// returning the pre-edit count forever. Observation-ignored on purpose:
+    /// the library rows read this during body evaluation, and mutating
+    /// observed state there would re-invalidate the view forever.
+    @ObservationIgnored private var moveCounts: [MoveCountKey: Int] = [:]
+
+    /// Identifies a game's content for memoization purposes: the uuid alone
+    /// is not enough, because a game edited on another device keeps its
+    /// uuid but arrives with a different `sgf`.
+    private struct MoveCountKey: Hashable {
+        let id: String
+        let lastModified: Date?
+    }
 
     public init(container: ModelContainer,
                 storeMode: LibraryStoreMode,
@@ -102,8 +112,13 @@ public final class WatchLibraryStore {
                                    sgf: record.sgf,
                                    lastModified: record.lastModificationDate)
         }
-        // A game may have been edited on another device; drop stale counts.
-        moveCounts = moveCounts.filter { key, _ in rows.contains { $0.id == key } }
+        // A game may have been edited on another device: its uuid survives
+        // but its lastModificationDate moves, so the composite key below
+        // already misses the memo and recomputes. This filter only drops
+        // entries for games that vanished from the fetch entirely, so the
+        // memo cannot grow without bound.
+        let liveKeys = Set(rows.map { MoveCountKey(id: $0.id, lastModified: $0.lastModified) })
+        moveCounts = moveCounts.filter { key, _ in liveKeys.contains(key) }
     }
 
     /// Refetch whenever CloudKit lands an import, so games appear without a
@@ -126,9 +141,10 @@ public final class WatchLibraryStore {
     /// The game's mainline length, scanned on demand and memoized so opening
     /// the library never scans a hundred SGFs up front.
     public func moveCount(for row: WatchLibraryRow) -> Int {
-        if let cached = moveCounts[row.id] { return cached }
+        let key = MoveCountKey(id: row.id, lastModified: row.lastModified)
+        if let cached = moveCounts[key] { return cached }
         let count = SgfHeaderScan(sgf: row.sgf)?.moveCount ?? 0
-        moveCounts[row.id] = count
+        moveCounts[key] = count
         return count
     }
 
