@@ -27,7 +27,7 @@ Inside `ios/KataGo iOS/`, the product is split across:
 ## Build Commands
 
 ### Building for All Platforms
-The app must build for all supported platforms. There are **five app targets/schemes**: `KataGo Anytime` (iOS only), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime Vision` (visionOS, volumetric RealityKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play). The `KataGo Anytime` scheme supports **neither macOS nor visionOS** — use `KataGo Anytime Mac` / `KataGo Anytime Vision`. The iOS app also embeds the **`KataGoAnytimeMessages`** iMessage extension (engine-free human-vs-human Go in a Messages thread; builds with the iOS scheme, no scheme of its own). Like the widget/watch, the Messages extension links ONLY bridge-free products: `KataGoGameStore` + `GoRulesKit` (a pure-Swift port of the engine's board rules + scoring in `KataGoUICore/Sources/GoRulesKit/`, differential-tested against the C++ board in `GoRulesKitDifferentialTests`) — never `KataGoUICore`/`GobanRecogKit`.
+The app must build for all supported platforms. There are **five app targets/schemes**: `KataGo Anytime` (iOS only), `KataGo Anytime Mac` (macOS, native AppKit), `KataGo Anytime Vision` (visionOS, volumetric RealityKit), `KataGo Anytime TV` (tvOS), and `KataGo Anytime Watch` (watchOS, companion live mirror + remote play, plus a standalone read-only game library). The watch links `KataGoGameStore` **and** `GoRulesKit` (both bridge-free) and opens `SharedModelContainer.shared` through the CloudKit-only ladder it shares with tvOS — a plain non-App-Group store over the private CloudKit database that degrades to local-only, then in-memory, and never crashes. Board positions on the watch come from replaying `GameRecord.sgf` via `SgfHeaderScan` + `GoRulesKit.SgfReplay`, never from the per-move `blackStones`/`whiteStones` dictionaries, which only cover indices the phone visited. The `KataGo Anytime` scheme supports **neither macOS nor visionOS** — use `KataGo Anytime Mac` / `KataGo Anytime Vision`. The iOS app also embeds the **`KataGoAnytimeMessages`** iMessage extension (engine-free human-vs-human Go in a Messages thread; builds with the iOS scheme, no scheme of its own). Like the widget/watch, the Messages extension links ONLY bridge-free products: `KataGoGameStore` + `GoRulesKit` (a pure-Swift port of the engine's board rules + scoring in `KataGoUICore/Sources/GoRulesKit/`, differential-tested against the C++ board in `GoRulesKitDifferentialTests`) — never `KataGoUICore`/`GobanRecogKit`.
 ```bash
 cd ios/KataGo\ iOS
 
@@ -169,4 +169,4 @@ The app uses KataGo's GTP extensions including:
 - iOS 26+
 - macOS 26+ (native, not Catalyst)
 - visionOS 26+
-- watchOS 26+ (companion live mirror + remote play, paired iPhone only)
+- watchOS 26+ (companion live mirror + remote play with a paired iPhone; standalone read-only game library when the phone is away)
