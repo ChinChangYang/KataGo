@@ -63,6 +63,16 @@ public final class WatchLibraryStore {
     @ObservationIgnored private let openedAt: Date
     @ObservationIgnored private var lastRemoteChange: Date?
     @ObservationIgnored private var observer: (any NSObjectProtocol)?
+    /// Coalesces remote-change-driven refetches (the pattern already running
+    /// the Mac's iCloud list, `LibraryStore.remoteRefetchTrigger`). CloudKit
+    /// can post a burst of `.NSPersistentStoreRemoteChange` notifications
+    /// during initial sync — each one here is a 100-row sorted fetch
+    /// materializing 100 SGF strings on the weakest main thread in the
+    /// family, so a refetch per event would be costly; the trailing window
+    /// also lets SwiftData's main-context auto-merge settle before the
+    /// refetch reads, which a same-tick refetch on the LAST event of a burst
+    /// could otherwise race and miss.
+    @ObservationIgnored private let remoteRefetchTrigger = CoalescedTrigger()
     /// Memoized move counts, keyed by uuid *and* `lastModificationDate` so a
     /// remote edit (same uuid, new content) invalidates the memo instead of
     /// returning the pre-edit count forever. Observation-ignored on purpose:
@@ -122,7 +132,12 @@ public final class WatchLibraryStore {
     }
 
     /// Refetch whenever CloudKit lands an import, so games appear without a
-    /// relaunch. Same pattern as the Mac's iCloud list.
+    /// relaunch. Same pattern as the Mac's iCloud list: `lastRemoteChange` is
+    /// stamped on EVERY notification (so `emptyState` keeps reading as
+    /// "syncing" through a burst), but the actual refetch is coalesced —
+    /// otherwise the LAST notification of a burst could be serviced before
+    /// SwiftData's auto-merge lands, and nothing fires afterwards, leaving
+    /// those games invisible until relaunch.
     public func startObservingRemoteChanges() {
         guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(
@@ -133,7 +148,7 @@ public final class WatchLibraryStore {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.lastRemoteChange = Date()
-                self.refresh()
+                self.remoteRefetchTrigger.schedule { [weak self] in self?.refresh() }
             }
         }
     }

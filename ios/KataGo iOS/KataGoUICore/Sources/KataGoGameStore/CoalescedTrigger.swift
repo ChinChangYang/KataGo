@@ -5,12 +5,18 @@ import Foundation
 /// trailing window, so a burst of N rapid calls runs the work exactly once —
 /// after the burst goes quiet for `delay`.
 ///
-/// Extracted into `KataGoUICore` (dependency-light, platform-agnostic) so the
-/// coalescing/cancellation logic is unit-testable from the iOS test host: its
-/// only consumer, the macOS `LibraryStore`, is a Mac-target-only type the test
-/// target can't reach. `LibraryStore` uses it to absorb the burst of
-/// `.NSPersistentStoreRemoteChange` notifications CloudKit posts during initial
-/// sync, where a full refetch + table reload per event would thrash the sidebar.
+/// Lives in `KataGoGameStore` (Foundation-only, bridge-free) rather than
+/// `KataGoUICore` so the watch — which links `KataGoGameStore` but never
+/// `KataGoUICore` — can reach it too. `KataGoUICore` re-exports the type
+/// (`GameStoreReexport.swift`), so its own consumers (the macOS
+/// `LibraryStore`, the tvOS `CloudKitSyncMonitor`/`TVAttractMode`) and the
+/// iOS test host (`CoalescedTriggerTests`, `@testable import KataGoUICore`)
+/// keep seeing it unqualified. Two consumers use it to absorb a burst of
+/// `.NSPersistentStoreRemoteChange` notifications CloudKit posts during
+/// initial sync, where a full refetch + reload per event would thrash the
+/// list: the Mac's `LibraryStore` (sidebar table) and the watch's
+/// `WatchLibraryStore` (game list) — the coalescing window also lets
+/// SwiftData's main-context auto-merge settle before the refetch reads.
 ///
 /// Lifecycle: the pending run captures whatever `work` captures — pass
 /// `[weak self]` if `work` references an owner that may deallocate first. The

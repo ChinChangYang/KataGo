@@ -23,10 +23,12 @@ import KataGoUICore
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     /// Debounces remote-change-driven refetches (see `scheduleCoalescedRefetch`).
-    /// Lives in `KataGoUICore` so its coalescing/cancellation logic is unit-tested
-    /// (`CoalescedTriggerTests`) — this Mac-only type isn't reachable by the test
-    /// target. Not torn down in `deinit`: the `[weak self]` work closure no-ops
-    /// once `self` is gone.
+    /// Lives in `KataGoGameStore` (re-exported through `KataGoUICore`) so its
+    /// coalescing/cancellation logic is unit-tested (`CoalescedTriggerTests`)
+    /// — this Mac-only type isn't reachable by the test target directly — and
+    /// so the same primitive backs the watch's `WatchLibraryStore`. Not torn
+    /// down in `deinit`: the `[weak self]` work closure no-ops once `self` is
+    /// gone.
     private let remoteRefetchTrigger = CoalescedTrigger()
 
     init(container: ModelContainer) {
