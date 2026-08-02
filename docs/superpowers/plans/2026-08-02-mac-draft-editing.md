@@ -3741,6 +3741,43 @@ commit paths. In `validateMenuItem`, replace the `toggleEditing` case:
             return hasGame && !gobanState.isBranchActive
 ```
 
+- [ ] **Step 1b: Fix the three findings deferred from earlier reviews**
+
+Each was found by a task review, judged out of scope for the file set that task
+was allowed to touch, and logged for here.
+
+**(a) The sidebar highlight lies after a cancelled switch.**
+`LibrarySidebarViewController.tableViewSelectionDidChange` lets `NSTableView`
+move its own selection before `onSelect` runs, so when the user clicks another
+game and then presses **Cancel** on the Save sheet, the row highlight stays on
+the game they did *not* switch to. The board and
+`navigationContext.selectedGameRecord` are correct; only the visible highlight
+is wrong, until some unrelated refetch repairs it. Fix by re-syncing the table
+selection when a switch does not proceed — `reloadPreservingSelection()` already
+restores the highlight from `navigationContext`, so calling it on the cancel
+path is enough.
+
+**(b) Context-menu Rename/Share bypass the draft.**
+`renameClickedGame` / `shareClickedGame` resolve through `contextTargetGame` →
+`store.games[row]`, which is always the **stored** record. Right-clicking the
+row you are currently editing and renaming it therefore writes the origin
+directly and syncs to iCloud immediately — and your next Save reverts it,
+because `name` is a drafted field. The menu-bar Rename/Share are already correct
+(they act on the selected record, which is the draft). Make the context-menu
+versions agree: when the clicked row is the draft's origin, act on the draft
+record instead.
+
+**(c) Two load paths bypass the engine-readiness gate.**
+`LibraryActions.newGame` and `MainWindowController.discardDraftAndReload` both
+call `load(game:previous:)` directly, skipping the `selectionGate` /
+`boardReadiness.isEngineReady` deferral that `performSelectGame` enforces. During
+an engine relaunch (Models window ▸ Set Active) ⌘N and Revert stay enabled and
+would send GTP to an engine mid-teardown — the race the F14 machinery exists to
+prevent. Route both through the same gate, or gate the menu items on
+`isEngineReady`. State which you chose and why.
+
+After each, rebuild and re-run the Mac suite (still 64 tests).
+
 - [ ] **Step 2: Update the README**
 
 In the macOS section, alongside the existing "Allow Editing ⌘E" entry, add:
