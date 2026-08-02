@@ -2091,10 +2091,15 @@ EOF
 
 ### Task 9: `DraftController`
 
-The Mac-target owner. AppKit-adjacent, so it is not unit-tested; the pure logic it delegates to already is.
+The Mac-target owner. It imports no AppKit — only Foundation, SwiftData and
+`KataGoGameStore` — so it is unit-tested like everything else in `Draft/`. In
+particular `resolvedRecord(_:)` must be covered: the sidebar highlight and every
+library action route through it, and if it returns the wrong object a draft
+leaks into the store.
 
 **Files:**
 - Create: `ios/KataGo iOS/KataGo Anytime Mac/Draft/DraftController.swift`
+- Test: `ios/KataGo iOS/KataGo Anytime MacTests/DraftControllerTests.swift`
 
 **Interfaces:**
 - Consumes: `GameDraft`, `DraftMirrorStore`, `DraftExitDecision`, `ModelContext`.
@@ -2111,7 +2116,251 @@ The Mac-target owner. AppKit-adjacent, so it is not unit-tested; the pure logic 
   - `func restore(from: DraftMirror, origin: GameRecord?) -> GameRecord`
   - `var mirrorStore: DraftMirrorStore`
 
-- [ ] **Step 1: Write the implementation**
+- [ ] **Step 1: Write the failing test**
+
+Create `ios/KataGo iOS/KataGo Anytime MacTests/DraftControllerTests.swift`:
+
+```swift
+//
+//  DraftControllerTests.swift
+//  KataGo Anytime MacTests
+//
+
+import Testing
+import Foundation
+import SwiftData
+@testable import KataGoGameStore
+
+@MainActor
+struct DraftControllerTests {
+
+    private func tempMirrorStore() throws -> DraftMirrorStore {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "draft-controller-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return DraftMirrorStore(directory: url)
+    }
+
+    private func context() throws -> ModelContext {
+        try ModelContainer(
+            for: GameRecord.self, Config.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)).mainContext
+    }
+
+    private func storedGame(in context: ModelContext, name: String = "Saved") throws -> GameRecord {
+        let record = GameRecord(config: Config())
+        record.sgf = "(;FF[4]GM[1]SZ[19];B[dd])"
+        record.name = name
+        context.insert(record)
+        try context.save()
+        return record
+    }
+
+    // MARK: - resolvedRecord: the seam the sidebar depends on
+
+    @Test func resolvedRecordMapsTheDraftBackToItsOrigin() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+
+        let draftRecord = controller.open(origin: origin)
+
+        #expect(draftRecord !== origin)
+        #expect(controller.resolvedRecord(draftRecord) === origin)
+    }
+
+    @Test func resolvedRecordPassesThroughAnUnrelatedRecord() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+        let other = try storedGame(in: ctx, name: "Other")
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        _ = controller.open(origin: origin)
+
+        #expect(controller.resolvedRecord(other) === other)
+    }
+
+    @Test func resolvedRecordIsNilForAnUntitledDraft() throws {
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let untitled = GameRecord(config: Config())
+        let record = controller.openUntitled(untitled)
+
+        #expect(controller.resolvedRecord(record) == nil)
+    }
+
+    @Test func resolvedRecordPassesThroughWhenNoDraftIsOpen() throws {
+        let ctx = try context()
+        let game = try storedGame(in: ctx)
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+
+        #expect(controller.resolvedRecord(game) === game)
+        #expect(controller.resolvedRecord(nil) == nil)
+    }
+
+    @Test func isDraftRecordDistinguishesTheDraftFromStoredGames() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let draftRecord = controller.open(origin: origin)
+
+        #expect(controller.isDraftRecord(draftRecord))
+        #expect(!controller.isDraftRecord(origin))
+        #expect(!controller.isDraftRecord(nil))
+    }
+
+    // MARK: - Lifecycle
+
+    @Test func openingAndClosingTracksState() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+
+        #expect(controller.draft == nil)
+        _ = controller.open(origin: origin)
+        #expect(controller.draft != nil)
+        #expect(!controller.isUntitled)
+        #expect(controller.displayName == "Saved")
+
+        controller.close()
+        #expect(controller.draft == nil)
+        #expect(!controller.isDirty)
+    }
+
+    @Test func untitledDraftsReportThemselvesAsUntitled() throws {
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let untitled = GameRecord(config: Config())
+        untitled.name = "Fresh"
+        _ = controller.openUntitled(untitled)
+
+        #expect(controller.isUntitled)
+        #expect(controller.displayName == "Fresh")
+    }
+
+    @Test func closeRemovesTheMirrorFile() throws {
+        let ctx = try context()
+        let store = try tempMirrorStore()
+        let controller = DraftController(mirrorStore: store)
+        let origin = try storedGame(in: ctx)
+        let record = controller.open(origin: origin)
+        record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        store.write(DraftMirror(draft: controller.draft!.snapshot(),
+                                baseline: controller.draft!.baseline))
+        #expect(store.read() != nil)
+
+        controller.close()
+
+        #expect(store.read() == nil)
+    }
+
+    // MARK: - Save
+
+    @Test func saveWritesThroughAndClearsTheMirror() throws {
+        let ctx = try context()
+        let store = try tempMirrorStore()
+        let controller = DraftController(mirrorStore: store)
+        let origin = try storedGame(in: ctx)
+        let record = controller.open(origin: origin)
+        record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        store.write(DraftMirror(draft: controller.draft!.snapshot(),
+                                baseline: controller.draft!.baseline))
+
+        let outcome = try controller.save(into: ctx)
+
+        guard case .updatedOrigin(let saved)? = outcome else {
+            Issue.record("expected updatedOrigin, got \(String(describing: outcome))")
+            return
+        }
+        #expect(saved === origin)
+        #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd];W[pp])")
+        #expect(!controller.isDirty)
+        #expect(store.read() == nil)
+    }
+
+    @Test func saveWithNoDraftReturnsNil() throws {
+        let ctx = try context()
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        #expect(try controller.save(into: ctx) == nil)
+    }
+
+    @Test func saveAsNewGameLeavesTheOriginIntact() throws {
+        let ctx = try context()
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let origin = try storedGame(in: ctx)
+        let record = controller.open(origin: origin)
+        record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+
+        let inserted = try controller.saveAsNewGame(into: ctx)
+
+        #expect(inserted?.name == "Saved (conflicted copy)")
+        #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd])")
+        #expect(try ctx.fetch(FetchDescriptor<GameRecord>()).count == 2)
+    }
+
+    // MARK: - Exit decisions
+
+    @Test func decisionPromptsOnlyWhenDirty() throws {
+        let ctx = try context()
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        #expect(controller.decision(for: .quit) == .proceed)
+
+        let origin = try storedGame(in: ctx)
+        let record = controller.open(origin: origin)
+        #expect(controller.decision(for: .quit) == .proceed)
+
+        record.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        #expect(controller.decision(for: .quit) == .prompt)
+    }
+
+    // MARK: - Restore
+
+    @Test func restoreRebuildsTheDraftFromAMirror() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+
+        let edited = origin.detachedDraftCopy()
+        edited.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp];B[cc])"
+        let mirror = DraftMirror(
+            draft: DraftSnapshot(record: edited, originUUID: origin.uuid),
+            baseline: DraftSnapshot(record: origin, originUUID: origin.uuid))
+
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let restored = controller.restore(from: mirror, origin: origin)
+
+        #expect(restored.sgf == "(;FF[4]GM[1]SZ[19];B[dd];W[pp];B[cc])")
+        #expect(controller.isDirty)
+        #expect(controller.resolvedRecord(restored) === origin)
+        #expect(origin.sgf == "(;FF[4]GM[1]SZ[19];B[dd])")
+    }
+
+    @Test func restoreWithoutAnOriginComesBackUntitled() throws {
+        let ctx = try context()
+        let origin = try storedGame(in: ctx)
+        let edited = origin.detachedDraftCopy()
+        edited.sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        let mirror = DraftMirror(
+            draft: DraftSnapshot(record: edited, originUUID: origin.uuid),
+            baseline: DraftSnapshot(record: origin, originUUID: origin.uuid))
+
+        let controller = DraftController(mirrorStore: try tempMirrorStore())
+        let restored = controller.restore(from: mirror, origin: nil)
+
+        #expect(restored.sgf == "(;FF[4]GM[1]SZ[19];B[dd];W[pp])")
+        #expect(controller.isUntitled)
+        #expect(controller.isDirty)
+    }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+```bash
+cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
+  -scheme "KataGo Anytime Mac" -destination 'platform=macOS' \
+  -only-testing:"KataGo Anytime MacTests/DraftControllerTests" 2>&1 | tail -20
+```
+
+Expected: FAIL — `cannot find 'DraftController' in scope`.
+
+- [ ] **Step 3: Write the implementation**
 
 Create `ios/KataGo iOS/KataGo Anytime Mac/Draft/DraftController.swift`:
 
@@ -2284,23 +2533,33 @@ final class DraftController {
 }
 ```
 
-- [ ] **Step 2: Add the file to the app target only**
-
-`DraftController` is not unit-tested, so it goes into the app target alone.
+- [ ] **Step 4: Add the file to both targets**
 
 ```bash
 cd "ios/KataGo iOS" && ruby -e '
 require "xcodeproj"
 p_ = Xcodeproj::Project.open("KataGo Anytime.xcodeproj")
-app = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
+app  = p_.targets.find { |t| t.name == "KataGo Anytime Mac" }
+test = p_.targets.find { |t| t.name == "KataGo Anytime MacTests" }
 group = p_.main_group.find_subpath("KataGo Anytime Mac/Draft", true)
 ref = group.new_reference("DraftController.swift")
 app.add_file_references([ref])
+test.add_file_references([ref])
 p_.save
-puts "added DraftController.swift to the app target"'
+puts "added DraftController.swift to both targets"'
 ```
 
-- [ ] **Step 3: Verify the app builds**
+- [ ] **Step 5: Run the tests to verify they pass**
+
+```bash
+cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
+  -scheme "KataGo Anytime Mac" -destination 'platform=macOS' \
+  -only-testing:"KataGo Anytime MacTests/DraftControllerTests" 2>&1 | tail -30
+```
+
+Expected: `** TEST SUCCEEDED **`, fourteen tests passing.
+
+- [ ] **Step 6: Verify the app builds**
 
 ```bash
 cd "ios/KataGo iOS" && xcodebuild build -project "KataGo Anytime.xcodeproj" \
@@ -2310,7 +2569,7 @@ cd "ios/KataGo iOS" && xcodebuild build -project "KataGo Anytime.xcodeproj" \
 
 Expected: `** BUILD SUCCEEDED **`
 
-- [ ] **Step 4: Verify the existing tests still pass**
+- [ ] **Step 7: Verify the whole Mac suite still passes**
 
 ```bash
 cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
@@ -2320,7 +2579,7 @@ cd "ios/KataGo iOS" && xcodebuild test -project "KataGo Anytime.xcodeproj" \
 
 Expected: `** TEST SUCCEEDED **`
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add "ios/KataGo iOS/KataGo Anytime Mac/Draft/DraftController.swift" \
@@ -3315,9 +3574,15 @@ Expected: `** TEST SUCCEEDED **`
 No file under `KataGoUICore/` was modified, so this should be a formality —
 verify that first, then run the iOS suite.
 
+The base is **`ceceb675`**, the commit this feature started from. Not `master`:
+it does not exist as a local ref here (only `origin/master`), and earlier
+commits on this branch legitimately do touch `KataGoUICore` — `ec93cfc0` moved
+`LockSlotModel` into it — so a branch-wide comparison would fail for reasons
+that have nothing to do with this feature.
+
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev && \
-  git diff --name-only master...HEAD -- "ios/KataGo iOS/KataGoUICore/" | head
+  git diff --name-only ceceb675..HEAD -- "ios/KataGo iOS/KataGoUICore/" | head
 ```
 
 Expected: **no output**. If anything is listed, stop and justify it.
@@ -3366,13 +3631,13 @@ Then repeat step 3 and use ⌘S instead: the move persists and the date updates.
 
 ```bash
 cd /Users/chinchangyang/Code/KataGo-ios-dev && \
-  git diff master...HEAD | LC_ALL=C grep -nP '[\x{4E00}-\x{9FFF}\x{3000}-\x{303F}\x{FF00}-\x{FFEF}]' | head
+  git diff ceceb675..HEAD | LC_ALL=C grep -nP '[\x{4E00}-\x{9FFF}\x{3000}-\x{303F}\x{FF00}-\x{FFEF}]' | head
 ```
 
-Expected: no output (no CJK anywhere in the diff).
+Expected: no output (no CJK anywhere in this feature's diff).
 
 ```bash
-git diff master...HEAD | grep -niE 'gmail|taiwan|taipei' | head
+git diff ceceb675..HEAD | grep -niE 'gmail|taiwan|taipei' | head
 ```
 
 Expected: no output.
