@@ -155,6 +155,14 @@ final class MainWindowController: NSWindowController {
     /// reference (set when the item is built in the `.toggleEye` case).
     private weak var eyeToolbarItem: NSToolbarItem?
 
+    /// The toolbar's lock slot, retained weakly so `refreshLockSlotToolbarItem()`
+    /// can swap its image/label/tint/action between the Lock/Unlock toggle and
+    /// the red "Deactivate Branch" u-turn. One item serves both states — exactly
+    /// as the iOS `TopToolbarView` trailing slot does — so the toolbar's width
+    /// never changes when a branch starts. The `NSToolbar` owns the item; we only
+    /// borrow a reference (set when the item is built in the `.lockSlot` case).
+    private weak var lockSlotToolbarItem: NSToolbarItem?
+
     /// The toolbar's active-model dropdown (P5-T6), retained weakly so
     /// `refreshActiveModelToolbarItem()` can update its displayed title after a
     /// model switch (the menu rebuilds itself live via `menuNeedsUpdate(_:)`, but
@@ -2131,6 +2139,12 @@ final class MainWindowController: NSWindowController {
         let gobanState = session.gobanState
         let newBranchSgf = gobanState.branchSgf
 
+        // Swap the toolbar's lock slot the instant branch mode changes, in
+        // EITHER direction, rather than waiting for AppKit's next validation
+        // pass. (`validateToolbarItem` still refreshes it defensively, which is
+        // what covers plain `isEditing` / `isAutoPlaying` changes.)
+        refreshLockSlotToolbarItem()
+
         if lastBranchSgf.isActiveSgf && !newBranchSgf.isActiveSgf {
             gobanState.loadGame(
                 gameRecord: navigationContext.selectedGameRecord,
@@ -2631,6 +2645,58 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    /// The live state of the lock slot, resolved by the shared `LockSlotModel`
+    /// so macOS, visionOS and the iOS `TopToolbarView` cannot drift apart. With
+    /// no game selected there is no `concreteConfig` to ask about a pending
+    /// genmove, so `shouldGenMove` reads false — the slot then shows the plain
+    /// Lock toggle and `validateToolbarItem` disables it for want of a game.
+    private var lockSlotState: LockSlotModel {
+        let gobanState = session.gobanState
+        let shouldGenMove = navigationContext.selectedGameRecord.map {
+            gobanState.shouldGenMove(config: $0.concreteConfig, player: session.player)
+        } ?? false
+        return LockSlotModel.make(isBranchActive: gobanState.isBranchActive,
+                                  isEditing: gobanState.isEditing,
+                                  shouldGenMove: shouldGenMove,
+                                  isAutoPlaying: gobanState.isAutoPlaying)
+    }
+
+    /// Updates the lock slot's image/label/tint/action from `lockSlotState`.
+    /// Called after the item is built, from the branch observer (so entering or
+    /// leaving a branch swaps the slot immediately), and defensively from
+    /// `validateToolbarItem` — the same refresh pattern the Analyze and eye
+    /// items use, which also covers `isEditing` and `isAutoPlaying` changes
+    /// without a dedicated observer.
+    ///
+    /// The `action` swaps with the state, so `validateToolbarItem` keys off the
+    /// live selector and needs no extra branch. `label` copies iOS verbatim and
+    /// describes the CURRENT state ("Unlock" = this game is unlocked); `toolTip`
+    /// follows this file's convention of naming the NEXT action instead, which
+    /// is what a pointer user actually reads under `displayMode = .iconOnly`.
+    private func refreshLockSlotToolbarItem() {
+        guard let item = lockSlotToolbarItem else { return }
+        let slot = lockSlotState
+
+        let base = NSImage(systemSymbolName: slot.systemImage,
+                           accessibilityDescription: slot.label)
+        // A fresh NSImage each call, so the red palette of the branch state
+        // never leaks into the lock toggle (mirrors `refreshEyeToolbarItem`).
+        item.image = slot.isRed
+            ? base?.withSymbolConfiguration(.init(paletteColors: [.systemRed]))
+            : base
+        item.label = slot.label
+
+        switch slot.kind {
+        case .toggleLock:
+            item.action = #selector(toggleEditing(_:))
+            // `isEditing == true` means UNLOCKED, so the next action locks.
+            item.toolTip = session.gobanState.isEditing ? "Lock Editing" : "Unlock Editing"
+        case .deactivateBranch:
+            item.action = #selector(deactivateBranchAction(_:))
+            item.toolTip = "Deactivate Branch"
+        }
+    }
+
     #if DEBUG
     // MARK: - Verification snapshot (DEBUG only)
     //
@@ -3074,10 +3140,11 @@ extension MainWindowController: NSMenuItemValidation {
 // MARK: - Toolbar item validation
 
 extension MainWindowController: NSToolbarItemValidation {
-    /// Enables/disables the nav-group subitems (⏮◀▶⏭) through the responder
-    /// chain. AppKit calls this for each `target = nil` item that resolves to
-    /// this responder; non-navigation items default to enabled. Uses the same
-    /// `canGoBackward` / `canGoForward` tests as the Navigate menu.
+    /// Enables/disables the toolbar's `target = nil` items through the responder
+    /// chain. AppKit calls this for each item that resolves to this responder,
+    /// which also gives the state-carrying items (Analyze, eye, lock slot) a
+    /// periodic hook to re-sync their appearance. Items with no rule of their
+    /// own default to enabled.
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         // Active-model dropdown: always enabled; opportunistically refresh its
         // displayed title so it tracks the live selection even when the model was
@@ -3098,7 +3165,23 @@ extension MainWindowController: NSToolbarItemValidation {
             refreshEyeToolbarItem()
             return navigationContext.selectedGameRecord != nil
         }
-        return canPerformNavigation(item.action)
+        if item.itemIdentifier == .lockSlot {
+            // Keyed off the IDENTIFIER, not the selector: this item's action
+            // swaps between `toggleEditing` and `deactivateBranchAction` with
+            // its state, so a selector test would miss one of the two. Refresh
+            // opportunistically, then apply the shared model's own disable rule
+            // (auto-play for the toggle, a pending genmove for the branch exit)
+            // on top of "a game must be loaded".
+            refreshLockSlotToolbarItem()
+            return navigationContext.selectedGameRecord != nil && !lockSlotState.isDisabled
+        }
+        // Everything else (sidebar, New, Import, Model, Inspector) is always
+        // available. This used to fall through to `canPerformNavigation`, but no
+        // toolbar item carries a navigation selector any more — that routing
+        // existed purely for the removed nav group, and leaving it here would
+        // suggest new items can opt into navigation validation by selector when
+        // they would in fact land on its `default` and come back enabled.
+        return true
     }
 }
 
@@ -3107,9 +3190,9 @@ private extension NSToolbarItem.Identifier {
     static let newGame = NSToolbarItem.Identifier("newGame")
     static let importSGF = NSToolbarItem.Identifier("importSGF")
     static let activeModel = NSToolbarItem.Identifier("activeModel")
-    static let navGroup = NSToolbarItem.Identifier("navGroup")
     static let analyze = NSToolbarItem.Identifier("analyze")
     static let toggleEye = NSToolbarItem.Identifier("toggleEye")
+    static let lockSlot = NSToolbarItem.Identifier("lockSlot")
     static let toggleInspector = NSToolbarItem.Identifier("toggleInspector")
 }
 
@@ -3121,9 +3204,13 @@ extension MainWindowController: NSToolbarDelegate {
             .importSGF,
             .activeModel,
             .flexibleSpace,
-            .navGroup,
+            // Game-state controls sit centred; the sidebar/inspector chrome
+            // brackets them. Move navigation is keyboard-only (← → jump ten,
+            // ↑ ↓ step one — see `handleBoardShortcut`) plus the Navigate menu
+            // and the Chart tab's click-to-jump, so there is no nav group here.
             .analyze,
             .toggleEye,
+            .lockSlot,
             .flexibleSpace,
             .toggleInspector,
         ]
@@ -3135,9 +3222,9 @@ extension MainWindowController: NSToolbarDelegate {
             .newGame,
             .importSGF,
             .activeModel,
-            .navGroup,
             .analyze,
             .toggleEye,
+            .lockSlot,
             .toggleInspector,
             .flexibleSpace,
             .space,
@@ -3187,6 +3274,18 @@ extension MainWindowController: NSToolbarDelegate {
             eyeToolbarItem = item
             refreshEyeToolbarItem()
             return item
+        case .lockSlot:
+            // iOS `TopToolbarView` parity: ONE slot that is the Lock/Unlock
+            // toggle off-branch and the red "Deactivate Branch" u-turn on it.
+            // Both the image and the action are set by the refresh below, so
+            // the seed values here are never seen.
+            let item = makeItem(itemIdentifier,
+                                label: "Lock",
+                                symbol: "lock",
+                                action: #selector(toggleEditing(_:)))
+            lockSlotToolbarItem = item
+            refreshLockSlotToolbarItem()
+            return item
         case .activeModel:
             return makeActiveModelItem(itemIdentifier)
         case .toggleInspector:
@@ -3195,8 +3294,6 @@ extension MainWindowController: NSToolbarDelegate {
                             label: "Inspector",
                             symbol: "sidebar.right",
                             action: #selector(NSSplitViewController.toggleInspector(_:)))
-        case .navGroup:
-            return makeNavGroup(itemIdentifier)
         default:
             return nil
         }
@@ -3320,31 +3417,4 @@ extension MainWindowController: NSToolbarDelegate {
         refreshActiveModelToolbarItem()
     }
 
-    /// ⏮ ◀ ▶ ⏭ as a segmented navigation group routed through the responder chain.
-    private func makeNavGroup(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItemGroup {
-        let specs: [(label: String, symbol: String, action: Selector)] = [
-            ("First", "backward.end", #selector(goToStart(_:))),
-            ("Back", "backward", #selector(goBackward(_:))),
-            ("Forward", "forward", #selector(goForward(_:))),
-            ("Last", "forward.end", #selector(goToEnd(_:))),
-        ]
-
-        let subitems = specs.enumerated().map { index, spec -> NSToolbarItem in
-            let sub = NSToolbarItem(
-                itemIdentifier: NSToolbarItem.Identifier("\(identifier.rawValue).\(index)"))
-            sub.label = spec.label
-            sub.toolTip = spec.label
-            sub.image = NSImage(systemSymbolName: spec.symbol, accessibilityDescription: spec.label)
-            sub.target = nil  // first responder
-            sub.action = spec.action
-            return sub
-        }
-
-        let group = NSToolbarItemGroup(itemIdentifier: identifier)
-        group.label = "Navigate"
-        group.subitems = subitems
-        group.controlRepresentation = .expanded
-        group.selectionMode = .momentary
-        return group
-    }
 }
