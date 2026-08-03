@@ -10,24 +10,54 @@ import KataGoUICore
 
 struct PlayView: View {
     var gameRecord: GameRecord
-    @State var isHorizontalLayout = false
     @Environment(BoardSize.self) var board
     @Environment(GobanState.self) var gobanState
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @FocusState var commentIsFocused: Bool
     // Lives here (not in InfoView) so the selected tab survives the pane
     // unmounting during full-screen board mode.
     @State private var selectedInfoTab: InfoTabs = .chart
 
-    func infoBoardView(for dimensions: Dimensions) -> some View {
-        return VStack {
-            if gobanState.isInfoPaneVisible {
+    /// Phone landscape has width to spare and almost no height, so stacking
+    /// the pane above the board starves the board: measured on an iPhone 17,
+    /// the 150 pt `InfoView.minHeight` floor left the board 73 pt of a 231 pt
+    /// lane and a 19x19 rendered at 2.35 pt per cell — against the 7.34 pt its
+    /// row numbers need to stay intact — while ~640 pt of width went unused.
+    /// Side by side, the board takes the height it needs and the pane takes
+    /// the width nothing else wanted.
+    ///
+    /// Compact height is the phone-landscape signal specifically: iPad
+    /// landscape stays regular and keeps the stacked layout, which fits there.
+    private var usesSideBySideLayout: Bool {
+        verticalSizeClass == .compact && gobanState.isInfoPaneVisible
+    }
+
+    @ViewBuilder
+    func infoBoardView(for dimensions: Dimensions, in size: CGSize) -> some View {
+        if usesSideBySideLayout {
+            HStack(spacing: 0) {
+                // The board is square and height-bound in this layout, so it
+                // needs only about its own height in width. The half-width cap
+                // keeps the pane usable on a destination that is short AND
+                // narrow, where the board would otherwise take the whole lane.
+                BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+                    .frame(width: min(size.height, size.width / 2))
+
                 InfoView(gameRecord: gameRecord,
                          selectedTab: $selectedInfoTab,
                          commentIsFocused: $commentIsFocused)
-                    .frame(height: max(dimensions.emptyHeight, InfoView.minHeight))
             }
+        } else {
+            VStack {
+                if gobanState.isInfoPaneVisible {
+                    InfoView(gameRecord: gameRecord,
+                             selectedTab: $selectedInfoTab,
+                             commentIsFocused: $commentIsFocused)
+                        .frame(height: max(dimensions.emptyHeight, InfoView.minHeight))
+                }
 
-            BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+                BoardView(gameRecord: gameRecord, commentIsFocused: $commentIsFocused)
+            }
         }
     }
 
@@ -40,7 +70,7 @@ struct PlayView: View {
                                             showCoordinate: gobanState.showCoordinate,
                                             showPass: gobanState.showPass)
 
-                infoBoardView(for: dimensions)
+                infoBoardView(for: dimensions, in: geometry.size)
             }
 
             StatusToolbarItems(gameRecord: gameRecord)
