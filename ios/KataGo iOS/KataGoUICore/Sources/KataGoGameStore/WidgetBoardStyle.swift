@@ -114,6 +114,29 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public static let gobanInk = RGB(red: 95 / 255, green: 65 / 255, blue: 25 / 255)
     public static let gobanWood = RGB(red: 216 / 255, green: 185 / 255, blue: 92 / 255)
 
+    /// The in-app board's fill for the STRONGEST analysis candidate, stated as
+    /// RGB rather than as `Color.cyan` — the system cyan is an adaptive
+    /// dynamic color and is not this value.
+    ///
+    /// `AnalysisView` colors each candidate by `analysisBaseColor(visits:
+    /// maxVisits:)`. Feed that ramp `visits == maxVisits` and the ratio is 1,
+    /// so `fraction = 2 / ((1/1 - 1)^0.9 + 1) = 2`; the `fraction >= 1` branch
+    /// gives `hue = 1 - sqrt(2 - 2)/2 = 1`, the discretizer leaves it at 1,
+    /// and the final `/ 2` maps it to hue 0.5 at saturation 1, brightness 1 —
+    /// i.e. RGB(0, 1, 1). A cached best move is by definition the top move, so
+    /// it always lands on this one color and the ramp itself (which lives in
+    /// KataGoUICore, above this target) never has to cross module lines.
+    public static let bestMoveFill = RGB(red: 0, green: 1, blue: 1)
+
+    /// The opacity `AnalysisView` draws a non-hidden candidate at.
+    public static let bestMoveFillOpacity = 0.8
+
+    /// Ring width for the best-move marker, as a ratio of the cell pitch —
+    /// `AnalysisView` strokes it at `squareLengthDiv16`.
+    public static func bestMoveRingWidth(cellSize: Double) -> Double {
+        max(cellSize / 16, 0.5)
+    }
+
     /// Spherical-stone drop shadow, as ratios of the stone diameter. Raised
     /// from 0.30/0.06/0.05: at widget cell sizes that shadow blurred into
     /// the wood and the stones read as flat discs.

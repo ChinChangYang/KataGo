@@ -102,6 +102,65 @@ struct WatchBoardFrameTests {
         #expect(frame.scoreLeadBlack == nil)
     }
 
+    private func storedFrame(bestMove: String?,
+                             width: Int = 19, height: Int = 19) -> WatchBoardFrame {
+        WatchBoardFrame.stored(title: "Study", boardWidth: width, boardHeight: height,
+                               blackStones: [], whiteStones: [],
+                               lastMoveVertex: nil,
+                               moveIndex: 3, moveCount: 40,
+                               winrateBlack: 0.5, scoreLeadBlack: 0,
+                               bestMove: bestMove, comment: nil)
+    }
+
+    @Test func bestMoveMarkIsNoneWhenTheToggleIsOff() {
+        #expect(storedFrame(bestMove: "K10").bestMoveMark(showBestMove: false) == .none)
+        #expect(storedFrame(bestMove: "K10").bestMoveVertex(showBestMove: false) == nil)
+    }
+
+    /// Analysis coverage is whatever the phone happened to look at, so most
+    /// indices cache nothing.
+    @Test func bestMoveMarkIsNoneWhenTheRecordCachedNothing() {
+        #expect(storedFrame(bestMove: nil).bestMoveMark(showBestMove: true) == .none)
+    }
+
+    @Test func bestMoveMarkIsDrawableForARealVertex() {
+        let frame = storedFrame(bestMove: "K10")
+        #expect(frame.bestMoveMark(showBestMove: true) == .drawable("K10"))
+        #expect(frame.bestMoveVertex(showBestMove: true) == "K10")
+    }
+
+    /// The case the Review page has to spell out in words. `Coordinate.move`
+    /// really does return the literal "pass", and near the end of a scored
+    /// game passing IS the engine's best move — so a well-reviewed record has
+    /// cached passes at exactly the indices a user scrubs to last. The board
+    /// cannot draw one, so it must not be reported as drawable.
+    @Test func bestMoveMarkIsUnrenderableForAPass() {
+        let frame = storedFrame(bestMove: "pass")
+        #expect(frame.bestMoveMark(showBestMove: true) == .unrenderable("pass"))
+        #expect(frame.bestMoveVertex(showBestMove: true) == nil)
+    }
+
+    /// Anything the board's own parser rejects is unrenderable, not silently
+    /// dropped: 'I' is skipped in GTP columns, and a vertex can outrun a
+    /// smaller board if a record was ever written against a different size.
+    @Test(arguments: ["I5", "T19", "", "Z99", "AA1"])
+    func bestMoveMarkIsUnrenderableForAnythingTheBoardCannotParse(vertex: String) {
+        // 9x9: the rightmost column is 'J' and the top row is 9.
+        let frame = storedFrame(bestMove: vertex, width: 9, height: 9)
+        #expect(frame.bestMoveMark(showBestMove: true) == .unrenderable(vertex))
+        #expect(frame.bestMoveVertex(showBestMove: true) == nil)
+    }
+
+    /// Live frames never carry a cached best move, so the live mirror is
+    /// unaffected no matter what the toggle says.
+    @Test func liveFramesNeverHaveABestMove() {
+        let frame = WatchBoardFrame.live(snapshot: snapshot(), stale: false,
+                                         showCandidates: true,
+                                         lastMoveVertex: nil, title: nil)
+        #expect(frame.bestMoveMark(showBestMove: true) == .none)
+        #expect(frame.bestMoveVertex(showBestMove: true) == nil)
+    }
+
     @Test func scoreTextReadsFromWhicheverSideLeads() {
         #expect(WatchBoardFrame.scoreText(3.5) == "B+3.5")
         #expect(WatchBoardFrame.scoreText(-3.5) == "W+3.5")

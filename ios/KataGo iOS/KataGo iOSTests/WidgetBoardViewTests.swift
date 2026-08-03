@@ -325,6 +325,135 @@ struct WidgetBoardViewTests {
         #expect(Int(corner.r) - Int(corner.b) > 50)
     }
 
+    /// Where the best-move probe samples. On a 9x9 drawn into 200 pt with
+    /// coordinates off the margin is 0, so the cell is 200/9 = 22.222 pt and
+    /// the origin is (200 - 8 * 22.222)/2 = 11.111 pt. "D5" is grid (3, 4) —
+    /// column D is index 3, and GTP row 5 flips to y = 9 - 5 — which lands at
+    /// (11.111 + 3 * 22.222, 11.111 + 4 * 22.222) = (77.8, 100).
+    ///
+    /// Deliberately NOT the centre point "E5": grid (4, 4) is the 9x9 tengen,
+    /// and a star point is painted in the opaque grid ink, so a "this pixel is
+    /// bare wood" control would read black there and pass or fail for the
+    /// wrong reason.
+    private static let bestMoveProbe = (vertex: "D5", x: 78, y: 100)
+
+    /// Blue minus red for a sampled pixel. The marker fill is RGB(0, 1, 1) at
+    /// 0.8 opacity, so anywhere it paints this is strongly positive; wood is
+    /// strongly negative (r ≈ 216, b ≈ 92) and the grid ink is ~0.
+    private func cyanness(_ p: (r: UInt8, g: UInt8, b: UInt8, a: UInt8)) -> Int {
+        Int(p.b) - Int(p.r)
+    }
+
+    /// The cached best move paints the in-app board's marker AT the requested
+    /// intersection: a full-cell disc in the top-candidate color (hue 0.5 /
+    /// sat 1 / bri 1 at 0.8 opacity, i.e. cyan), ringed in blue.
+    @MainActor @Test func bestMoveVertex_paintsTheAnalysisMarkerAtTheGridPoint() {
+        let probe = Self.bestMoveProbe
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   bestMoveVertex: probe.vertex,
+                                   style: .appGoban(drawsOwnWood: true))
+        guard let sample = pixel(of: view, size: 200, x: probe.x, y: probe.y) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(sample.a == 255)
+        #expect(sample.b > 150)
+        #expect(sample.g > 150)
+        #expect(cyanness(sample) > 100)
+    }
+
+    /// The A/B control: the same board WITHOUT the marker is not cyan at that
+    /// intersection, so the test above is measuring the marker and not the
+    /// board's own colouring. (The bare intersection is a grid crossing —
+    /// opaque ink — so this is near 0 rather than wood's negative value.)
+    @MainActor @Test func bestMoveVertex_absentLeavesTheIntersectionUnmarked() {
+        let probe = Self.bestMoveProbe
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   style: .appGoban(drawsOwnWood: true))
+        guard let sample = pixel(of: view, size: 200, x: probe.x, y: probe.y) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(cyanness(sample) < 50)
+    }
+
+    /// A cached "pass" — which `Coordinate.move` really does return, and which
+    /// `GobanState.maybeUpdateAnalysisData` stores verbatim — is unparseable,
+    /// so the board draws nothing rather than putting a marker on some wrong
+    /// intersection. Callers that must not show an unchanged board are
+    /// expected to classify it first (`WatchBoardFrame.bestMoveMark`).
+    ///
+    /// Sweeps every intersection rather than one probe point, so a regression
+    /// that mapped an unparseable vertex onto SOME point (say (0,0)) is caught
+    /// wherever it landed.
+    @MainActor @Test(arguments: ["pass", "I5", "Z99", ""])
+    func bestMoveVertex_unparseableDrawsNothingAnywhere(vertex: String) {
+        let view = WidgetBoardView(width: 9, height: 9, blackVertices: [], whiteVertices: [],
+                                   bestMoveVertex: vertex,
+                                   style: .appGoban(drawsOwnWood: true))
+        let geometry = WidgetBoardGeometry(width: 9, height: 9,
+                                           size: CGSize(width: 200, height: 200))
+        for gx in 0..<9 {
+            for gy in 0..<9 {
+                let point = geometry.position(x: gx, y: gy)
+                guard let sample = pixel(of: view, size: 200,
+                                         x: Int(point.x.rounded()),
+                                         y: Int(point.y.rounded())) else {
+                    Issue.record("render produced no image")
+                    return
+                }
+                #expect(cyanness(sample) < 50,
+                        "\(vertex) drew a marker at grid (\(gx), \(gy))")
+            }
+        }
+    }
+
+    /// The spherical stones moved from a view-per-stone `ForEach` into one
+    /// `Canvas` of two sprites (`SphericalStoneLayer`), because the watch now
+    /// re-evaluates the whole board on every Digital Crown detent. Every
+    /// goban-family variant that renders spherical stones must still produce
+    /// an image, at both extremes of board size.
+    @MainActor @Test(arguments: [CGFloat(120), CGFloat(360)])
+    func sphericalStoneLayer_rendersEveryGobanVariant(side: CGFloat) {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let appGoban = WidgetBoardView(width: 19, height: 19,
+                                       blackVertices: ["Q16", "D4"], whiteVertices: ["Q4", "D16"],
+                                       style: .appGoban(drawsOwnWood: true))
+        #expect(ImageRenderer(content: appGoban.frame(width: side, height: side)).uiImage != nil)
+
+        let goban = WidgetBoardView(width: 9, height: 9,
+                                    blackVertices: ["C3"], whiteVertices: ["G7"],
+                                    style: .goban(drawsOwnWood: true), woodImage: wood)
+        #expect(ImageRenderer(content: goban.frame(width: side, height: side)).uiImage != nil)
+
+        // The dense case the batching exists for: 37x37 with a full board.
+        let dense = WidgetBoardView(
+            width: 37, height: 37,
+            blackVertices: (1...37).map { "AA\($0)" },
+            whiteVertices: (1...37).map { "AB\($0)" },
+            style: .appGoban(drawsOwnWood: true))
+        #expect(ImageRenderer(content: dense.frame(width: side, height: side)).uiImage != nil)
+    }
+
+    /// REGRESSION GUARD for the Canvas switch. A `Canvas` is greedy — it fills
+    /// the frame it is given — so if it ever painted a background (or were
+    /// constructed `opaque:`), the full-bleed goban would stop being
+    /// transparent outside its grid and the widget backplate's wood would show
+    /// a seam. `widgetBoardView_gobanFullBleedLeavesMarginTransparent` covers
+    /// the empty board; this covers the board WITH stones, which is the case
+    /// that actually instantiates the stone layer.
+    @MainActor @Test func sphericalStoneLayer_leavesTheFullBleedMarginTransparent() {
+        let wood = WidgetWoodTexture.texture(widthPX: 64, heightPX: 64).cgImage
+        let view = WidgetBoardView(width: 9, height: 9,
+                                   blackVertices: ["C3", "E5"], whiteVertices: ["G7"],
+                                   style: .goban(drawsOwnWood: false), woodImage: wood)
+        guard let corner = pixel(of: view, size: 200, x: 4, y: 4) else {
+            Issue.record("render produced no image")
+            return
+        }
+        #expect(corner.a == 0)
+    }
+
     /// Non-standard and rectangular boards now get star points too, from the
     /// shared BoardStarPoints rule (even sizes still have none).
     @Test func hoshiPoints_nonStandardSizes_useSharedRule() {

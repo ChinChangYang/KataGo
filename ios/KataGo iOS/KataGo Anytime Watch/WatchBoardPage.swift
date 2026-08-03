@@ -8,10 +8,17 @@ struct WatchBoardPage: View {
     var body: some View {
         let peek = model.peek
 
+        // The VStack stays even though it now wraps a single child: the frame
+        // is optional, and this container is what carries `.focusable()`, the
+        // Crown, and the status pill through the no-snapshot-yet state on a
+        // cold launch. Hanging them on WatchFrameBoard instead would take the
+        // Crown away from the TabView's own vertical paging only once a frame
+        // had arrived.
         VStack(spacing: 2) {
             if let frame = liveFrame {
                 WatchFrameBoard(frame: frame,
-                                staleAccessibilityLabel: staleAccessibilityLabel)
+                                staleAccessibilityLabel: staleAccessibilityLabel,
+                                suppressesScore: model.rejectionMessage != nil)
             }
         }
         .overlay(alignment: .top) { statusPill }

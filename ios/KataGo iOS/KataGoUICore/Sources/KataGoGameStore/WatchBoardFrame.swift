@@ -73,6 +73,47 @@ public struct WatchBoardFrame: Equatable, Sendable {
     /// How many candidate dots the board draws at watch size.
     public static let candidateDotLimit = 3
 
+    /// What the Review toggle can actually do with this frame's cached best
+    /// move.
+    public enum BestMoveMark: Equatable, Sendable {
+        /// Nothing to show: the toggle is off, or the record cached no best
+        /// move at this index (coverage is whatever the phone happened to
+        /// analyze, so most indices land here).
+        case none
+        /// A vertex the board can draw.
+        case drawable(String)
+        /// A vertex the board CANNOT draw, carried so the caller can say so in
+        /// words instead of showing an unchanged board.
+        ///
+        /// This is not hypothetical: `Coordinate.move` returns the literal
+        /// string `"pass"`, `GobanState.maybeUpdateAnalysisData` stores
+        /// whatever `getBestMove` returned, and near the end of a scored game
+        /// passing IS the engine's best move — so any well-reviewed game has
+        /// cached passes at exactly the indices a user scrubs to last.
+        case unrenderable(String)
+    }
+
+    /// Classifies the cached best move for the Review page's toggle.
+    ///
+    /// Renderability is decided with `parseVertex` — the same function the
+    /// board itself parses with — so the classification and the drawing can
+    /// never disagree about what "drawable" means.
+    public func bestMoveMark(showBestMove: Bool) -> BestMoveMark {
+        guard showBestMove, let bestMove else { return .none }
+        guard parseVertex(bestMove, width: boardWidth, height: boardHeight) != nil else {
+            return .unrenderable(bestMove)
+        }
+        return .drawable(bestMove)
+    }
+
+    /// The vertex to hand `WidgetBoardView`, or nil.
+    public func bestMoveVertex(showBestMove: Bool) -> String? {
+        guard case .drawable(let vertex) = bestMoveMark(showBestMove: showBestMove) else {
+            return nil
+        }
+        return vertex
+    }
+
     /// A frame from an iPhone snapshot. The caller has already chosen WHICH
     /// snapshot (cursor target, ring entry, or live head) and whether its
     /// candidates are current — that mode logic stays in the board page.

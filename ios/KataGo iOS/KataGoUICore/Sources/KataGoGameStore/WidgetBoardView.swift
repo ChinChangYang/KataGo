@@ -123,12 +123,22 @@ public struct WidgetBoardView: View {
     let white: [(Int, Int)]
     let candidateDots: [(x: Int, y: Int, rank: Int)]
     let lastMovePoint: (x: Int, y: Int)?
+    let bestMovePoint: (x: Int, y: Int)?
     let showCoordinates: Bool
     let style: WidgetBoardStyle
     let woodImage: CGImage?
 
+    /// - Parameter bestMoveVertex: A single engine-recommended move to blend
+    ///   onto the board, drawn the way the in-app board draws its strongest
+    ///   candidate (`AnalysisView`). Distinct from `candidateVertices`, which
+    ///   is a live RANKING drawn as small hue-coded dots; this is one cached
+    ///   suggestion. An unparseable vertex — notably the literal `"pass"`,
+    ///   which `Coordinate.move` really does return — draws nothing, so a
+    ///   caller that must not silently show an empty board should classify it
+    ///   first (see `WatchBoardFrame.bestMoveMark`).
     public init(width: Int, height: Int, blackVertices: [String], whiteVertices: [String],
                 candidateVertices: [String] = [], lastMoveVertex: String? = nil,
+                bestMoveVertex: String? = nil,
                 showCoordinates: Bool = false,
                 style: WidgetBoardStyle = .standard,
                 woodImage: CGImage? = nil) {
@@ -142,6 +152,7 @@ public struct WidgetBoardView: View {
             candidates: candidateVertices, lastMove: lastMoveVertex, width: w, height: h)
         self.candidateDots = annotations.dots
         self.lastMovePoint = annotations.last
+        self.bestMovePoint = bestMoveVertex.flatMap { parseVertex($0, width: w, height: h) }
         self.showCoordinates = showCoordinates
         self.style = style
         self.woodImage = woodImage
@@ -225,12 +236,15 @@ public struct WidgetBoardView: View {
         }
     }
 
-    /// The stones. The classic variant stamps the app's Metal-shader stones
-    /// through ONE `Canvas` of pre-rasterized symbols (`ClassicStoneLayer`) —
-    /// a per-stone `colorEffect` view would be the ~1000-layer, 76 ms case
-    /// `StoneView` was rewritten to escape, and boards here reach 37x37.
-    /// Every other variant keeps the original view-per-stone drawing, so the
-    /// watch, widget and TV boards are untouched.
+    /// The stones. Both non-flat variants stamp ONE `Canvas` of pre-rasterized
+    /// symbols rather than building a view per stone — a per-stone shader or
+    /// gradient+shadow view is the ~1000-layer, 76 ms case `StoneView` was
+    /// rewritten to escape, and boards here reach 37x37 (1369 points).
+    /// `ClassicStoneLayer` draws the app's Metal-shader stones and does not
+    /// exist on watchOS; `SphericalStoneLayer` draws the vector approximation
+    /// and exists everywhere. Only the genuinely flat variants (`.standard`,
+    /// `.accented`) still draw a view per stone, which is cheap for plain
+    /// filled circles.
     @ViewBuilder
     private func stoneLayer(cell: CGFloat, originX: CGFloat, originY: CGFloat) -> some View {
         let diameter = cell * style.stoneDiameterRatio
@@ -239,24 +253,33 @@ public struct WidgetBoardView: View {
             ClassicStoneLayer(black: black, white: white,
                               cell: cell, stoneLength: diameter,
                               originX: originX, originY: originY)
+        } else if style.stonesAreSpherical {
+            SphericalStoneLayer(black: black, white: white, cell: cell, diameter: diameter,
+                                originX: originX, originY: originY)
         } else {
             flatStoneLayer(cell: cell, diameter: diameter, originX: originX, originY: originY)
         }
 #else
-        flatStoneLayer(cell: cell, diameter: diameter, originX: originX, originY: originY)
+        // `usesShaderStones` is unconditionally false here, so `classicGoban`
+        // lands on the spherical path along with the rest of the goban family.
+        if style.stonesAreSpherical {
+            SphericalStoneLayer(black: black, white: white, cell: cell, diameter: diameter,
+                                originX: originX, originY: originY)
+        } else {
+            flatStoneLayer(cell: cell, diameter: diameter, originX: originX, originY: originY)
+        }
 #endif
     }
 
-    /// White first, then black — the historical order, kept so already-shipped
-    /// surfaces render identically.
+    /// The genuinely flat stones (`.standard`, `.accented`). White first, then
+    /// black — the historical order, kept so already-shipped surfaces render
+    /// identically.
     @ViewBuilder
     private func flatStoneLayer(cell: CGFloat, diameter: CGFloat,
                                 originX: CGFloat, originY: CGFloat) -> some View {
         ForEach(Array(white.enumerated()), id: \.offset) { _, s in
             Group {
-                if style.stonesAreSpherical {
-                    SphericalStone(isBlack: false, diameter: diameter)
-                } else if style.whiteStoneIsAccentOutline {
+                if style.whiteStoneIsAccentOutline {
                     // Accent RING over a faint neutral interior — the
                     // counterpart to black's solid disc; the two stay
                     // tellable apart under any single tint.
@@ -274,9 +297,7 @@ public struct WidgetBoardView: View {
         }
         ForEach(Array(black.enumerated()), id: \.offset) { _, s in
             Group {
-                if style.stonesAreSpherical {
-                    SphericalStone(isBlack: true, diameter: diameter)
-                } else if style.blackStoneIsAccentFill {
+                if style.blackStoneIsAccentFill {
                     // Full-luminance fill; the system supplies the hue.
                     Circle().fill(.white).boardAccentable(true)
                 } else {
@@ -380,6 +401,27 @@ public struct WidgetBoardView: View {
                     .frame(width: max(cell * 0.36, 3), height: max(cell * 0.36, 3))
                     .position(CGPoint(x: originX + CGFloat(d.x) * cell, y: originY + CGFloat(d.y) * cell))
                 }
+                if let bm = bestMovePoint {
+                    // The in-app board's marker for the strongest candidate
+                    // (`AnalysisView.moves`): a full-cell disc in the visits
+                    // color — which at visits == maxVisits resolves to hue 0.5
+                    // (cyan) at 0.8 opacity — ringed in blue at cell/16. Drawn
+                    // over the stones like the app's overlay, and above the
+                    // candidate dots so a single cached suggestion always
+                    // reads on top of a live ranking.
+                    Circle()
+                        .fill(Color(red: WidgetBoardStyle.bestMoveFill.red,
+                                    green: WidgetBoardStyle.bestMoveFill.green,
+                                    blue: WidgetBoardStyle.bestMoveFill.blue)
+                            .opacity(WidgetBoardStyle.bestMoveFillOpacity))
+                        .overlay {
+                            Circle().stroke(Color.blue,
+                                            lineWidth: WidgetBoardStyle.bestMoveRingWidth(cellSize: cell))
+                        }
+                        .frame(width: cell, height: cell)
+                        .position(CGPoint(x: originX + CGFloat(bm.x) * cell,
+                                          y: originY + CGFloat(bm.y) * cell))
+                }
                 if let lm = lastMovePoint {
                     let marker = style.lastMoveMarkerDiameter(cellSize: cell)
                     Group {
@@ -423,34 +465,5 @@ public struct WidgetBoardView: View {
     }
 }
 
-/// A flat-vector approximation of the 3D stones: an off-center radial
-/// highlight (upper-left key light) over a darkening rim, plus a soft drop
-/// shadow that scales with the stone. White additionally gets a faint dark
-/// rim so it separates from the light wood underneath.
-private struct SphericalStone: View {
-    let isBlack: Bool
-    let diameter: CGFloat
-
-    var body: some View {
-        let stops: [Gradient.Stop] = isBlack
-            ? [.init(color: Color(white: 0.52), location: 0),
-               .init(color: Color(white: 0.22), location: 0.45),
-               .init(color: Color(white: 0.05), location: 1)]
-            : [.init(color: .white, location: 0),
-               .init(color: Color(white: 0.93), location: 0.55),
-               .init(color: Color(white: 0.78), location: 1)]
-        ZStack {
-            Circle().fill(RadialGradient(stops: stops,
-                                         center: UnitPoint(x: 0.37, y: 0.33),
-                                         startRadius: 0,
-                                         endRadius: diameter * 0.70))
-            if !isBlack {
-                Circle().strokeBorder(.black.opacity(0.12),
-                                      lineWidth: max(diameter * 0.02, 0.5))
-            }
-        }
-        .shadow(color: .black.opacity(WidgetBoardStyle.stoneShadowOpacity),
-                radius: diameter * WidgetBoardStyle.stoneShadowRadiusRatio,
-                x: 0, y: diameter * WidgetBoardStyle.stoneShadowYOffsetRatio)
-    }
-}
+// `SphericalStone` — the flat-vector approximation of the 3D stones — moved to
+// `SphericalStoneLayer.swift`, which batches it into one Canvas.
