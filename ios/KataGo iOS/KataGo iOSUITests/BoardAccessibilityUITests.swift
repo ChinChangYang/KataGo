@@ -11,6 +11,20 @@ final class BoardAccessibilityUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // This is the only UI test class that rotates, and the simulator
+        // remembers its orientation ACROSS PROCESSES — so leaving it landscape
+        // poisons every class that runs after this one alphabetically, which
+        // then measures and scrolls a landscape app while assuming portrait.
+        // That cost 9 of the 10 failures in the 2026-08-03 full-suite run
+        // (CoreMLCacheFooter, GifExport, GlobalSettingsMenu, PhotoImportGrid,
+        // KataGo_iOSUITests) and reproduced in isolation, because the poison is
+        // device state rather than test ordering within a process.
+        //
+        // This block is the net for ordinary `throws` exits only. It does NOT
+        // cover a failed assertion: `continueAfterFailure = false` aborts the
+        // runner process, and teardown blocks do not run on that path. The
+        // rotating test therefore restores portrait inline, before it asserts.
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
     }
 
     /// Launches the app, gets past the model picker, and lands on a fresh
@@ -130,12 +144,16 @@ final class BoardAccessibilityUITests: XCTestCase {
     @MainActor func testCoordinatePitchClearsTheWidestBoardsFloor() throws {
         let app = launchToFreshBoard()
 
-        func check(_ orientationName: String, pitch19: CGFloat) {
+        // `frame` is passed in rather than read from `app` here: the landscape
+        // pass restores portrait before it asserts (see below), so by the time
+        // this runs `app.frame` would report the portrait window and the
+        // printed record — the whole point of these lines — would be wrong.
+        func check(_ orientationName: String, pitch19: CGFloat, frame: CGRect) {
             let largestIntact = (2...37).last {
                 guaranteedPitch(forBoardSide: $0, given: pitch19) >= requiredPitch(forBoardSide: $0)
             } ?? 0
             print("MEASURED container — device=\(UIDevice.current.name) \(orientationName) " +
-                  "app.frame=\(app.frame) pitch19=\(pitch19) " +
+                  "app.frame=\(frame) pitch19=\(pitch19) " +
                   "largestBoardWithIntactLabels=\(largestIntact)")
             XCTAssertGreaterThanOrEqual(
                 pitch19, requiredPitch(forBoardSide: 19),
@@ -149,7 +167,7 @@ final class BoardAccessibilityUITests: XCTestCase {
         }
 
         let portrait = measureBoardPitch(app)
-        check("portrait", pitch19: portrait)
+        check("portrait", pitch19: portrait, frame: app.frame)
         // Portrait is the orientation that must carry every board size: it is
         // the one the widest boards are usable in.
         XCTAssertGreaterThanOrEqual(
@@ -157,17 +175,32 @@ final class BoardAccessibilityUITests: XCTestCase {
             "portrait: a 37x37 would truncate its column labels")
 
         // Landscape is where the height budget bites — the pass row, captured
-        // strip, and info pane all come out of it. The simulator has refused to
-        // rotate before (iPhone still does), so report that rather than
-        // reporting an unmeasured pass.
+        // strip, and info pane all come out of it. The simulator refused to
+        // rotate iPhones when this was written; it now honours the request, so
+        // the branch below really runs.
         XCUIDevice.shared.orientation = .landscapeLeft
         Thread.sleep(forTimeInterval: 3)
-        guard app.frame.width > app.frame.height else {
+        let landscapeFrame = app.frame
+        let rotated = landscapeFrame.width > landscapeFrame.height
+        let landscapePitch = rotated ? measureBoardPitch(app) : nil
+
+        // Restore HERE, before asserting — the `setUpWithError` teardown block
+        // is not enough on its own. A failed XCTAssert under
+        // `continueAfterFailure = false` aborts the runner process outright
+        // (this target builds with Swift exceptions disabled, so the unwind
+        // ends in `abort()`), and teardown blocks do not run on that path.
+        // Measured, not assumed: with the restore only in teardown, the six
+        // downstream tests below still failed. The teardown block stays as the
+        // net for ordinary `throws` exits, which unwind normally.
+        XCUIDevice.shared.orientation = .portrait
+        Thread.sleep(forTimeInterval: 2)
+
+        guard let landscapePitch else {
             print("MEASURED container — rotation REFUSED, landscape NOT measured " +
-                  "(app.frame=\(app.frame))")
+                  "(app.frame=\(landscapeFrame))")
             return
         }
-        check("landscape", pitch19: measureBoardPitch(app))
+        check("landscape", pitch19: landscapePitch, frame: landscapeFrame)
     }
 
     /// The goban exposes named accessibility targets ("K 10", "Pass") so Voice

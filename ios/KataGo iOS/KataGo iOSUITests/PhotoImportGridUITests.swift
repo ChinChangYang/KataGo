@@ -38,6 +38,15 @@ final class PhotoImportGridUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // Every size assertion below measures a live frame, so the orientation
+        // has to be known rather than inherited. The simulator remembers it
+        // across processes and this class runs after two rotators — the board
+        // accessibility test and the launch-configuration sweep — so pin it
+        // here rather than trusting them to clean up. In landscape the sheet
+        // reaches its 560 pt cap and the photo goes height-bound, which these
+        // assertions would otherwise report as a `maxWidth` cap or a
+        // `layoutPriority(-1)` regression that does not exist.
+        XCUIDevice.shared.orientation = .portrait
     }
 
     @MainActor

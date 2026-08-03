@@ -15,6 +15,17 @@ final class KataGo_iOSUITestsLaunchTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // `runsForEachTargetApplicationUIConfiguration` makes XCTest run this
+        // test once per orientation — and XCTest, not this file, applies the
+        // rotation, so there is no `XCUIDevice` call here to notice. It leaves
+        // the device in whichever orientation ran last, and the simulator
+        // remembers that across processes, so the next class to measure a frame
+        // silently measures landscape. That is what failed
+        // `PhotoImportGridUITests` in the 2026-08-03 full-suite run: in
+        // landscape the import sheet hits its 560 pt cap and the photo becomes
+        // height-bound. XCTest re-applies each configuration before its run, so
+        // restoring afterwards costs the sweep nothing.
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
     }
 
     @MainActor func testLaunch() throws {
