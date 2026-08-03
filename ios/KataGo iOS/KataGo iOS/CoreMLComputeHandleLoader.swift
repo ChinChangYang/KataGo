@@ -85,6 +85,10 @@ public func loadCoreMLHandle(
             // would let CoreML attempt ANE segments that have faulted before.
             config.computeUnits = .cpuAndGPU
             #else
+            // The iOS Backend settings sheet reports Core ML op routing under
+            // exactly these compute units (`engineCoreMLComputeUnits` in
+            // CoreMLRoutingProbe.swift), and omits a GPU column because GPU is
+            // not among them. Changing this line must change that readout too.
             config.computeUnits = .cpuAndNeuralEngine
             #endif
             let model = try MLModel(contentsOf: pinned.url, configuration: config)

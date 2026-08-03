@@ -139,6 +139,37 @@ final class BackendConfigSheetUITests: XCTestCase {
         XCTAssertTrue(stepper.isHittable, "Search Threads stepper is not hittable")
     }
 
+    /// The Core ML Routing control must be present and enabled for the
+    /// built-in network, which always has a source file on disk.
+    ///
+    /// Presence only, on purpose: tapping it reads a compute plan and, on a
+    /// cache miss, converts the network first — tens of seconds of real work
+    /// that would make this suite slow and flaky. The state machine behind
+    /// the button is covered by CoreMLRoutingProbeTests, and the routing
+    /// numbers themselves are meaningless on the Simulator anyway (no Neural
+    /// Engine), which is why the section renders a caveat there.
+    @MainActor
+    func testCoreMLRoutingControlIsPresentForTheBuiltInNetwork() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let row = app.staticTexts[builtInTitle]
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(builtInTitle)")
+        row.tap()
+
+        openBackendSheet(in: app)
+
+        let check = app.buttons["CoreMLRouting.checkButton"]
+        XCTAssertTrue(check.waitForExistence(timeout: 10),
+                      "Core ML routing check button not found")
+        XCTAssertTrue(check.isEnabled, "Core ML routing check button should be enabled")
+
+        // The built-in network is bundled, so the "not downloaded" state must
+        // never appear for it.
+        XCTAssertFalse(app.staticTexts["CoreMLRouting.unavailable"].exists,
+                       "Built-in network must not report a missing source file")
+    }
+
     // MARK: - Helpers
 
     /// From the model detail view, tap the gear button that presents
