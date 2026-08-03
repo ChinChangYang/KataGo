@@ -110,3 +110,46 @@ struct CoreMLCacheReadinessProjectionTests {
         #expect(projected == launchKey.digest)
     }
 }
+
+/// The projection helpers callers use when they DO know which model is
+/// selected. `makeProjectionResolver` above has no selection context (it is
+/// handed the picker's visible filenames), so it keys the aux net to the
+/// built-in; these are the rule everything else must follow.
+struct CoreMLAuxNetProjectionTests {
+    /// `maxBoardSizeForNNBuffer` is engine-WIDE: every net a launch loads is
+    /// converted at the SELECTED model's `effectiveMaxBoardLength`. The aux
+    /// projection must follow the selection, not the built-in — otherwise a
+    /// custom network at a non-default board size would be looked up against
+    /// an artifact the engine never produces.
+    @Test func auxNetIsKeyedToTheSelectedModelsBoardLength() async throws {
+        guard Bundle.main.path(forResource: "b18c384nbt-humanv0",
+                               ofType: "bin.gz") != nil else {
+            return  // Test bundle does not ship the aux net; skip cleanly.
+        }
+        let model = try #require(NeuralNetworkModel.allCases.first)
+        let expected = Int32(BackendSettings(model: model).effectiveMaxBoardLength)
+
+        let aux = try #require(auxNetProjection(keyedTo: model))
+        #expect(aux.nnXLen == expected)
+        #expect(aux.nnYLen == expected)
+        #expect(aux.sourcePath.hasSuffix("b18c384nbt-humanv0.bin.gz"))
+    }
+
+    /// Both nets share one geometry, because the engine gives them one NN
+    /// buffer. If these ever diverge, any caller reading them together would
+    /// describe two artifacts the engine never loads together.
+    @Test func mainAndAuxProjectionsAgreeOnGeometry() async throws {
+        guard Bundle.main.path(forResource: "b18c384nbt-humanv0",
+                               ofType: "bin.gz") != nil,
+              let model = NeuralNetworkModel.builtInModel,
+              let main = mainNetProjection(for: model),
+              let aux = auxNetProjection(keyedTo: model) else {
+            return
+        }
+        #expect(main.nnXLen == aux.nnXLen)
+        #expect(main.nnYLen == aux.nnYLen)
+        #expect(main.requireExactNNLen == aux.requireExactNNLen)
+        #expect(main.useFP16 == aux.useFP16)
+        #expect(main.maxBatchSize == aux.maxBatchSize)
+    }
+}

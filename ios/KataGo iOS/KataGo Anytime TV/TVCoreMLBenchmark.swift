@@ -185,44 +185,18 @@ final class TVCoreMLBenchmark {
 
     /// Count each model operation's PREFERRED compute device under `units`. Returns
     /// nil if the compute plan can't be produced/walked (e.g. non-program structure).
+    ///
+    /// The walk itself lives in `KataGoUICore.CoreMLRoutingPlan` so the iOS
+    /// backend-settings readout and this benchmark cannot diverge, and so the
+    /// iOS-simulator test target can reach the shared type. This wrapper only
+    /// reorders the fields into the column order the results table renders.
     private nonisolated static func routing(
         url: URL, units: MLComputeUnits
     ) async -> (ane: Int, gpu: Int, cpu: Int)? {
-        let cfg = MLModelConfiguration()
-        cfg.computeUnits = units
-        do {
-            let plan = try await MLComputePlan.load(contentsOf: url, configuration: cfg)
-            var ane = 0, gpu = 0, cpu = 0
-
-            func classify(_ device: MLComputeDevice) {
-                switch device {
-                case .cpu: cpu += 1
-                case .gpu: gpu += 1
-                case .neuralEngine: ane += 1
-                @unknown default: break
-                }
-            }
-            func walk(_ operations: [MLModelStructure.Program.Operation]) {
-                for op in operations {
-                    if let usage = plan.deviceUsage(for: op) {
-                        classify(usage.preferred)
-                    }
-                    for block in op.blocks { walk(block.operations) }
-                }
-            }
-
-            switch plan.modelStructure {
-            case .program(let program):
-                for function in program.functions.values {
-                    walk(function.block.operations)
-                }
-            default:
-                return nil
-            }
-            return (ane, gpu, cpu)
-        } catch {
-            return nil
-        }
+        guard let counts = await CoreMLRoutingPlan.deviceUsageCounts(
+            compiledModelURL: url, computeUnits: units)
+        else { return nil }
+        return (counts.neuralEngine, counts.gpu, counts.cpu)
     }
 
     // MARK: - Helpers

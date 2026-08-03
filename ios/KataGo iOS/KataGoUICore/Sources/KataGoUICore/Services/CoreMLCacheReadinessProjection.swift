@@ -17,20 +17,20 @@ import Foundation
 /// Primitive inputs for `CoreMLModelCache.projectedDigest`.
 /// Keeps the framework ignorant of app-target types like
 /// `BackendSettings` and `NeuralNetworkModel`.
-struct ProjectionInputs: Equatable {
-    let sourcePath: String
-    let nnXLen: Int32
-    let nnYLen: Int32
-    let requireExactNNLen: Bool
-    let useFP16: Bool
-    let maxBatchSize: Int
+public struct ProjectionInputs: Equatable, Sendable {
+    public let sourcePath: String
+    public let nnXLen: Int32
+    public let nnYLen: Int32
+    public let requireExactNNLen: Bool
+    public let useFP16: Bool
+    public let maxBatchSize: Int
 
-    init(sourcePath: String,
-         nnXLen: Int32,
-         nnYLen: Int32,
-         requireExactNNLen: Bool,
-         useFP16: Bool,
-         maxBatchSize: Int) {
+    public init(sourcePath: String,
+                nnXLen: Int32,
+                nnYLen: Int32,
+                requireExactNNLen: Bool,
+                useFP16: Bool,
+                maxBatchSize: Int) {
         self.sourcePath = sourcePath
         self.nnXLen = nnXLen
         self.nnYLen = nnYLen
@@ -41,6 +41,72 @@ struct ProjectionInputs: Equatable {
 }
 
 typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
+
+/// File name of the bundled human-SL auxiliary network. The engine loads it
+/// alongside the user-selected model on every non-tvOS launch
+/// (`KataGoHelper.runGtp`), so it is converted and cached too.
+public let humanSLAuxFileName = "b18c384nbt-humanv0.bin.gz"
+
+/// Projection for the selected model itself.
+///
+/// Returns nil when the source file is not on disk — the "not downloaded
+/// yet" case for catalog networks, which callers must treat as an absence
+/// rather than an error.
+public func mainNetProjection(for model: NeuralNetworkModel) -> ProjectionInputs? {
+    let sourcePath: String
+    if model.builtIn {
+        // Built-in model lives in the bundle. Mirror the exact
+        // lookup used at engine launch (see
+        // `ModelRunnerView.onChange(of: selectedModel)`) so the
+        // cache key matches.
+        guard let bundlePath = Bundle.main.path(
+            forResource: "default_model",
+            ofType: "bin.gz")
+        else { return nil }
+        sourcePath = bundlePath
+    } else {
+        guard let downloaded = model.downloadedURL,
+              FileManager.default.fileExists(atPath: downloaded.path)
+        else { return nil }
+        sourcePath = downloaded.path
+    }
+
+    let settings = BackendSettings(model: model)
+    let nnLen = Int32(settings.effectiveMaxBoardLength)
+    return ProjectionInputs(
+        sourcePath: sourcePath,
+        nnXLen: nnLen,
+        nnYLen: nnLen,
+        requireExactNNLen: settings.requireExactNNLen,
+        useFP16: true,           // iOS Apple Silicon default
+        maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
+}
+
+/// Projection for the bundled human-SL auxiliary network, keyed to the
+/// settings of `selectedModel`.
+///
+/// `maxBoardSizeForNNBuffer` is engine-WIDE: `ModelRunnerView` passes the
+/// SELECTED model's `effectiveMaxBoardLength`, and every net the launch
+/// loads — main and aux alike — is converted at that one geometry. So the
+/// aux entry's cache key follows whichever model is selected, NOT the
+/// built-in's settings. This is the single implementation of that rule;
+/// anything needing the aux digest must come through here rather than
+/// recomputing it, or the two copies will drift.
+public func auxNetProjection(keyedTo selectedModel: NeuralNetworkModel) -> ProjectionInputs? {
+    guard let bundlePath = Bundle.main.path(
+        forResource: "b18c384nbt-humanv0",
+        ofType: "bin.gz")
+    else { return nil }
+    let settings = BackendSettings(model: selectedModel)
+    let nnLen = Int32(settings.effectiveMaxBoardLength)
+    return ProjectionInputs(
+        sourcePath: bundlePath,
+        nnXLen: nnLen,
+        nnYLen: nnLen,
+        requireExactNNLen: settings.requireExactNNLen,
+        useFP16: true,
+        maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
+}
 
 /// Production resolver. Walks `NeuralNetworkModel.allCases` to find
 /// the named model, computes its `BackendSettings`, and maps to the
@@ -54,58 +120,21 @@ typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInput
 /// projection cannot drift from the launch's actual cache key.
 func makeProjectionResolver() -> ProjectionResolver {
     return { fileName in
-        // Human SL aux is bundled and shares the built-in's backend
-        // settings (the engine loads them together with the same nnLen
-        // and same fp16/maxBatchSize). Project its digest against the
-        // built-in's settings so the cached aux entry is reused verbatim
-        // when the user selects the built-in.
-        if fileName == "b18c384nbt-humanv0.bin.gz" {
-            guard let bundlePath = Bundle.main.path(
-                    forResource: "b18c384nbt-humanv0",
-                    ofType: "bin.gz"),
-                  let builtIn = NeuralNetworkModel.builtInModel
-            else { return nil }
-            let settings = BackendSettings(model: builtIn)
-            let nnLen = Int32(settings.effectiveMaxBoardLength)
-            return ProjectionInputs(
-                sourcePath: bundlePath,
-                nnXLen: nnLen,
-                nnYLen: nnLen,
-                requireExactNNLen: settings.requireExactNNLen,
-                useFP16: true,
-                maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
+        // The aux net has no model of its own to be selected, and readiness
+        // has no selection context — it is handed the picker's visible
+        // filenames, which never include the aux net. Key it to the built-in
+        // as the documented fallback. Callers that DO know the selection
+        // (e.g. `CoreMLRoutingProbe`) must call `auxNetProjection(keyedTo:)`
+        // with it directly; both paths share that one implementation.
+        if fileName == humanSLAuxFileName {
+            guard let builtIn = NeuralNetworkModel.builtInModel else { return nil }
+            return auxNetProjection(keyedTo: builtIn)
         }
 
         guard let model = NeuralNetworkModel.allAvailable.first(where: { $0.fileName == fileName })
         else { return nil }
 
-        let sourcePath: String
-        if model.builtIn {
-            // Built-in model lives in the bundle. Mirror the exact
-            // lookup used at engine launch (see
-            // `ModelRunnerView.onChange(of: selectedModel)`) so the
-            // cache key matches.
-            guard let bundlePath = Bundle.main.path(
-                forResource: "default_model",
-                ofType: "bin.gz")
-            else { return nil }
-            sourcePath = bundlePath
-        } else {
-            guard let downloaded = model.downloadedURL,
-                  FileManager.default.fileExists(atPath: downloaded.path)
-            else { return nil }
-            sourcePath = downloaded.path
-        }
-
-        let settings = BackendSettings(model: model)
-        let nnLen = Int32(settings.effectiveMaxBoardLength)
-        return ProjectionInputs(
-            sourcePath: sourcePath,
-            nnXLen: nnLen,
-            nnYLen: nnLen,
-            requireExactNNLen: settings.requireExactNNLen,
-            useFP16: true,           // iOS Apple Silicon default
-            maxBatchSize: KataGoHelper.mlxNnMaxBatchSize)
+        return mainNetProjection(for: model)
     }
 }
 
