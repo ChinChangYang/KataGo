@@ -44,15 +44,17 @@ struct SphericalStoneLayer: View {
 
     /// Room the sprite's raster must leave around the stone for its shadow.
     ///
-    /// A Canvas symbol is rasterized at its LAYOUT size, and `.shadow` draws
-    /// outside that — so an unpadded sprite would have its shadow shorn off
-    /// square at the stone's edge, which the per-view rendering never did.
-    /// `3 * blurRadius` is where a Gaussian has decayed to nothing, plus the
-    /// downward offset. Symmetric, so the stone stays centred in its raster
-    /// and `context.draw(_:at:)` still lands it on the intersection.
+    /// A Canvas symbol is rasterized at its LAYOUT size and anything drawn
+    /// outside is shorn off, which the per-view rendering never did. Padding
+    /// is symmetric so the stone stays centred in its raster and
+    /// `context.draw(_:at:)` still lands it on the intersection.
+    ///
+    /// See `WidgetBoardStyle.stoneShadowExtent` for why the blur factor there
+    /// is 6 rather than the textbook 3 — an under-padded sprite renders the
+    /// stone at the right size with a measurably clipped shadow, which is
+    /// exactly the kind of difference that survives a "looks fine to me".
     private var shadowPadding: CGFloat {
-        diameter * (WidgetBoardStyle.stoneShadowRadiusRatio * 3
-                    + WidgetBoardStyle.stoneShadowYOffsetRatio)
+        WidgetBoardStyle.stoneShadowExtent(diameter: diameter)
     }
 
     var body: some View {

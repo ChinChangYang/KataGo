@@ -435,6 +435,32 @@ struct WidgetBoardViewTests {
         #expect(ImageRenderer(content: dense.frame(width: side, height: side)).uiImage != nil)
     }
 
+    /// REGRESSION GUARD for the sprite padding. `SphericalStoneLayer` pads its
+    /// Canvas sprite by `stoneShadowExtent`; a Canvas symbol is rasterized at
+    /// its layout size, so too little padding shears the shadow off square at
+    /// the stone's edge.
+    ///
+    /// This is not theoretical — it shipped in the first cut of the batching.
+    /// A/B rendering the batched Canvas against the per-view drawing it
+    /// replaced (2026-08-04, 9x9 at 109 pt, scale 3) measured stone ink 5.41%
+    /// LIGHT at a blur factor of 3, against a 50%-contrast edge radius that
+    /// moved only 0.25 px — the stone was the right size, the shadow was
+    /// clipped. It converged to 0.05% from ~0.55 x diameter upward. Tightening
+    /// the extent back below that floor must fail here.
+    @Test func stoneShadowExtent_clearsTheMeasuredClippingFloor() {
+        for diameter in [4.0, 10.0, 33.4, 120.0] {
+            let extent = WidgetBoardStyle.stoneShadowExtent(diameter: diameter)
+            #expect(extent >= diameter * WidgetBoardStyle.stoneShadowExtentFloorRatio)
+        }
+        // Scales linearly with the stone, so one ratio governs every size.
+        let unit = WidgetBoardStyle.stoneShadowExtent(diameter: 1)
+        #expect(abs(WidgetBoardStyle.stoneShadowExtent(diameter: 50) - unit * 50) < 1e-9)
+        // And it must actually cover the shadow it is derived from: the blur
+        // reach plus the downward offset.
+        #expect(unit > WidgetBoardStyle.stoneShadowRadiusRatio * 3
+                       + WidgetBoardStyle.stoneShadowYOffsetRatio)
+    }
+
     /// REGRESSION GUARD for the Canvas switch. A `Canvas` is greedy — it fills
     /// the frame it is given — so if it ever painted a background (or were
     /// constructed `opaque:`), the full-bleed goban would stop being

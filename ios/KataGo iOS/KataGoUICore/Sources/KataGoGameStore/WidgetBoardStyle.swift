@@ -144,6 +144,32 @@ public struct WidgetBoardStyle: Equatable, Sendable {
     public static let stoneShadowRadiusRatio = 0.11
     public static let stoneShadowYOffsetRatio = 0.08
 
+    /// How far a spherical stone's drop shadow reaches beyond the stone, as a
+    /// ratio of its diameter. `SphericalStoneLayer` pads its Canvas sprite by
+    /// this much, because a Canvas symbol is rasterized at its LAYOUT size and
+    /// anything drawn outside is shorn off.
+    ///
+    /// The blur factor is 6, NOT the textbook 3. Measured 2026-08-04 by
+    /// A/B-rendering the batched Canvas against the per-view drawing it
+    /// replaced: at a factor of 3 the stones' total ink came out 5.41% LIGHT
+    /// against a near-identical 50%-contrast edge radius — i.e. the stone was
+    /// the right size but its shadow was being clipped. The gap closes to
+    /// 0.05% from a factor of ~5 upward, so SwiftUI's `.shadow(radius:)`
+    /// spreads visibly wider than 3x that radius and `radius` is not the
+    /// Gaussian sigma. 6 is the smallest verified-converged value with margin.
+    ///
+    /// Cost of the margin is negligible: a board rasterizes exactly TWO
+    /// sprites (one per color) regardless of how many stones it draws.
+    public static func stoneShadowExtent(diameter: Double) -> Double {
+        diameter * (stoneShadowRadiusRatio * 6 + stoneShadowYOffsetRatio)
+    }
+
+    /// The smallest shadow extent measured to render indistinguishably from
+    /// the per-view drawing, as a ratio of the stone diameter. Pinned so a
+    /// future tightening of `stoneShadowExtent` that would start clipping the
+    /// shadow again fails a test instead of shipping.
+    public static let stoneShadowExtentFloorRatio = 0.55
+
     /// The drop shadow the whole BOARD casts, as ratios of the cell pitch —
     /// the app board's own (`BoardLineView` shadows its wood slab with
     /// `radius: squareLength / 16` at an offset of `squareLength / 8`).
