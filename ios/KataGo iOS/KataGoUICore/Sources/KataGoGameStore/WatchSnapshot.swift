@@ -63,6 +63,21 @@ public struct WatchSnapshot: Codable, Equatable, Sendable {
     /// stream" so the AI-turn hourglass never shows for a paused engine.
     public var analysisPaused: Bool?
 
+    // v1.2 — also optional, same reason: an older phone simply omits it and
+    // the watch falls back to inferring the move by diffing snapshots.
+    /// GTP vertex of the move played into this position, from the host's own
+    /// SGF — the point the phone's board draws its last-move marker on. Nil
+    /// for the start of a game, after a pass, or from a pre-v1.2 phone.
+    ///
+    /// On the wire rather than inferred watch-side because inference cannot
+    /// cover the two cases that matter most. The watch's differ
+    /// (`WatchPeekBuffer.lastMoveVertex`) needs the immediately preceding
+    /// snapshot, which the peek buffer is not guaranteed to hold once the user
+    /// scrubs to an arbitrary index; and it requires `cur.count == prev.count
+    /// + 1`, so it silently gives up on any move that CAPTURES — often the
+    /// move you most want to find on a wrist.
+    public var lastMoveVertex: String?
+
     public init(boardWidth: Int, boardHeight: Int,
                 blackStones: [String], whiteStones: [String],
                 toMove: String, moveNumber: Int, analysisRunning: Bool,

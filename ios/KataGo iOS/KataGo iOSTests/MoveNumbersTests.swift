@@ -141,6 +141,45 @@ struct MoveNumbersTests {
                 == MoveNumbers.derive(sgf: Self.threeMoveSgf, currentIndex: 3))
     }
 
+    /// The O(1) accessor must agree with the full walk at EVERY index of
+    /// several games, including the pass and recapture SGFs — it is the whole
+    /// justification for reading one move instead of the mainline.
+    @Test(arguments: [threeMoveSgf, recaptureSgf, passSgf, fiveMoveSgf])
+    func lastPlayedVertexMatchesTheFullDerivation(sgf: String) {
+        let helper = SgfHelper(sgf: sgf)
+        for index in 0...6 {
+            let derived = MoveNumbers.derive(sgf: sgf, currentIndex: index).lastPoint
+            let expected = derived.flatMap {
+                BoardPoint.toString([$0], width: helper.xSize, height: helper.ySize)
+            }
+            #expect(MoveNumbers.lastPlayedVertex(sgf: sgf, currentIndex: index) == expected,
+                    "index \(index)")
+        }
+    }
+
+    /// `startIndex` rebases the NUMBERING only. Which move is last is a
+    /// property of the position, so branch mode must not change it.
+    @Test func lastPlayedVertexIgnoresBranchRebasing() {
+        let helper = SgfHelper(sgf: Self.fiveMoveSgf)
+        for start in [0, 2, 4] {
+            let derived = MoveNumbers.derive(sgf: Self.fiveMoveSgf,
+                                             currentIndex: 5, startIndex: start).lastPoint
+            let expected = derived.flatMap {
+                BoardPoint.toString([$0], width: helper.xSize, height: helper.ySize)
+            }
+            #expect(MoveNumbers.lastPlayedVertex(sgf: Self.fiveMoveSgf, currentIndex: 5) == expected)
+        }
+    }
+
+    /// A pass has no point to mark, matching the board's own marker.
+    @Test func lastPlayedVertexIsNilForAPassAndForTheStart() {
+        #expect(MoveNumbers.lastPlayedVertex(sgf: Self.passSgf, currentIndex: 2) == nil)
+        #expect(MoveNumbers.lastPlayedVertex(sgf: Self.threeMoveSgf, currentIndex: 0) == nil)
+        // An index past the end of the mainline clamps to the final move,
+        // matching `derive`, rather than reporting "no last move".
+        #expect(MoveNumbers.lastPlayedVertex(sgf: Self.threeMoveSgf, currentIndex: 99) == "C3")
+    }
+
     @Test func styleStringsMatchEnumOrder() {
         #expect(Config.moveNumberStyles.count == 4)
         #expect(Config.moveNumberStyles[MoveNumberStyle.lastThreeMoves.rawValue] == Config.lastThreeMovesNumberStyle)

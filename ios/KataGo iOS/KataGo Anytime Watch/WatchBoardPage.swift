@@ -118,8 +118,19 @@ struct WatchBoardPage: View {
             // Cursor mode: the host analyzes the shown position, so candidates
             // are always current. Ring mode keeps v0's live-only rule.
             showCandidates: cursorMode || peek.isLive,
-            lastMoveVertex: cursorMode ? nil
-                : WatchPeekBuffer.lastMoveVertex(previous: previous, current: shown),
+            // The phone's own answer wins whenever it sent one (v1.2+). It is
+            // authoritative in BOTH modes: each buffered snapshot carries the
+            // move that produced its own position.
+            //
+            // Cursor mode used to pass nil outright, so the live board drew NO
+            // last-move marker exactly when the phone was nearby and healthy —
+            // the common case — because the differ below needs the
+            // immediately-preceding snapshot and the ring may not hold the
+            // index the user scrubbed to. The fallback is kept only for
+            // pre-v1.2 phones, where nil restores precisely the old behavior.
+            lastMoveVertex: shown.lastMoveVertex
+                ?? (cursorMode ? nil
+                    : WatchPeekBuffer.lastMoveVertex(previous: previous, current: shown)),
             title: nil)
     }
 }

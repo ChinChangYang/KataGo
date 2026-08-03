@@ -67,6 +67,12 @@ public enum WatchSnapshotBuilder {
             candidates: candidates,
             hostTimestamp: now)
         snapshot.analysisPaused = paused
+        // Deliberately outside the `gameRecord` block below: those are the
+        // v1.1 WRITE-path fields, gated on having a record to bind commands
+        // to. The last move is read-only decoration and `lastPlayedVertex`
+        // already tolerates a nil record, so a read-only (v0-style) caller
+        // still gets a marker.
+        snapshot.lastMoveVertex = session.gobanState.lastPlayedVertex(gameRecord: gameRecord)
 
         if let gameRecord {
             let gate = WatchHostGate.evaluate(session: session, gameRecord: gameRecord)

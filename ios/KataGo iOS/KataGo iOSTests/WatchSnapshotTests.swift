@@ -84,4 +84,31 @@ struct WatchSnapshotTests {
         #expect(decoded.analysisPaused == nil)
         #expect(decoded.blackStones == s.blackStones)
     }
+
+    /// v1.2's last-move field round-trips and defaults nil, so a pre-v1.2
+    /// phone leaves the watch exactly where it was: inferring the move by
+    /// diffing snapshots.
+    @Test func lastMoveVertexRoundTripsAndDefaultsNil() throws {
+        var s = Self.makeSnapshot()
+        #expect(s.lastMoveVertex == nil)
+        s.lastMoveVertex = "Q16"
+        #expect(try WatchSnapshot.decode(s.encodedData()) == s)
+
+        var json = try JSONSerialization.jsonObject(with: s.encodedData()) as! [String: Any]
+        json.removeValue(forKey: "lastMoveVertex")
+        let old = try WatchSnapshot.decode(JSONSerialization.data(withJSONObject: json))
+        #expect(old.lastMoveVertex == nil)
+        #expect(old.blackStones == s.blackStones)
+    }
+
+    /// A pre-v1.2 WATCH decoding a v1.2 frame must ignore the unknown key
+    /// rather than fail — the other half of the mixed-version pairing, which
+    /// an OS resync can produce by reverting the phone to an older bundle.
+    @Test func unknownFutureKeysDoNotBreakDecoding() throws {
+        var json = try JSONSerialization.jsonObject(
+            with: Self.makeSnapshot().encodedData()) as! [String: Any]
+        json["someFieldFromAFuturePhone"] = "whatever"
+        let decoded = try WatchSnapshot.decode(JSONSerialization.data(withJSONObject: json))
+        #expect(decoded.boardWidth == Self.makeSnapshot().boardWidth)
+    }
 }

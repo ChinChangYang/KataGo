@@ -144,6 +144,8 @@ public class GobanState {
     @ObservationIgnored private var nextMoveCacheResult: Move? = nil
     @ObservationIgnored private var moveNumbersCacheKey: (String, Int, Int)? = nil
     @ObservationIgnored private var moveNumbersCacheResult: MoveNumbers = .empty
+    @ObservationIgnored private var lastPlayedVertexCacheKey: (String, Int)? = nil
+    @ObservationIgnored private var lastPlayedVertexCacheResult: String? = nil
 
     public func sendShowBoardCommand(messageList: MessageList) {
         messageList.appendAndSend(command: "showboard")
@@ -867,6 +869,30 @@ public class GobanState {
         moveNumbersCacheResult = result
 
         return result
+    }
+
+    /// GTP vertex of the move played into the current position, or nil when
+    /// there is none or it was a pass — the same point the board's own
+    /// last-move marker sits on (`MoveNumberView.lastMoveMarker`).
+    ///
+    /// Separate from `getMoveNumbers` on purpose. That one short-circuits to
+    /// `.empty` when the move-number style is `.lastThreeMoves`, which is
+    /// correct for the label it feeds but wrong for anything that just wants
+    /// the last move: the watch mirror would lose its marker whenever the
+    /// phone's user happened to pick that display style.
+    ///
+    /// Cached on `(sgf, currentIndex)` because the watch snapshot asks at
+    /// ~2 Hz while the answer only changes when a move is played.
+    public func lastPlayedVertex(gameRecord: GameRecord?) -> String? {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else { return nil }
+        if let key = lastPlayedVertexCacheKey, key == (sgf, currentIndex) {
+            return lastPlayedVertexCacheResult
+        }
+        let vertex = MoveNumbers.lastPlayedVertex(sgf: sgf, currentIndex: currentIndex)
+        lastPlayedVertexCacheKey = (sgf, currentIndex)
+        lastPlayedVertexCacheResult = vertex
+        return vertex
     }
 
     public func forwardMoves(
