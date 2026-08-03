@@ -5,6 +5,7 @@
 //  Created by Chin-Chang Yang on 2024/8/18.
 //
 
+import SwiftData
 import Testing
 @testable import KataGo_Anytime
 @testable import KataGoUICore
@@ -375,6 +376,111 @@ struct ConfigModelTests {
         #expect(cloneConfig.optionalHumanProfileForWhite == originalConfig.optionalHumanProfileForWhite)
         #expect(cloneConfig.optionalSoundEffect == originalConfig.optionalSoundEffect)
         #expect(cloneConfig.optionalShowComments == originalConfig.optionalShowComments)
+    }
+
+    /// The rest of the copied fields, all set away from their defaults so an
+    /// omission in `Config(config:)` shows up as a value change rather than as
+    /// a coincidental match. The six rule fields were dropped for exactly that
+    /// reason: the copy took the initializer's defaults, so
+    /// `GameRecord.clone()` turned a Japanese-rules game into a Chinese-rules
+    /// one — invisible in the app only because loading a game overwrites those
+    /// six from the SGF's `RU[]` (`GobanState.switchGame`), which masks the
+    /// loss whenever the SGF happens to carry a ruleset.
+    @Test func testCloneCarriesEveryRemainingField() async throws {
+        let original = Config()
+        original.optionalShowPass = false
+        original.optionalVerticalFlip = true
+        original.optionalBlackMaxTime = 1.25
+        original.optionalWhiteMaxTime = 2.5
+        original.koRule = .situational
+        original.scoringRule = .territory
+        original.taxRule = .all
+        original.multiStoneSuicideLegal = true
+        original.hasButton = true
+        original.whiteHandicapBonusRule = .n_minus_one
+        original.optionalShowWinrateBar = false
+        original.optionalAnalysisStyle = 1
+        original.optionalShowCharts = false
+        original.optionalUseLLM = true
+        original.optionalTemperature = 0.9
+        original.tone = .poetic
+
+        let clone = Config(config: original)
+
+        #expect(clone.optionalShowPass == original.optionalShowPass)
+        #expect(clone.optionalVerticalFlip == original.optionalVerticalFlip)
+        #expect(clone.optionalBlackMaxTime == original.optionalBlackMaxTime)
+        #expect(clone.optionalWhiteMaxTime == original.optionalWhiteMaxTime)
+        #expect(clone.optionalKoRule == original.optionalKoRule)
+        #expect(clone.optionalScoringRule == original.optionalScoringRule)
+        #expect(clone.optionalTaxRule == original.optionalTaxRule)
+        #expect(clone.optionalMultiStoneSuicideLegal == original.optionalMultiStoneSuicideLegal)
+        #expect(clone.optionalHasButton == original.optionalHasButton)
+        #expect(clone.optionalWhiteHandicapBonusRule == original.optionalWhiteHandicapBonusRule)
+        #expect(clone.optionalShowWinrateBar == original.optionalShowWinrateBar)
+        #expect(clone.optionalAnalysisStyle == original.optionalAnalysisStyle)
+        #expect(clone.optionalShowCharts == original.optionalShowCharts)
+        #expect(clone.optionalUseLLM == original.optionalUseLLM)
+        #expect(clone.optionalTemperature == original.optionalTemperature)
+        #expect(clone.optionalTone == original.optionalTone)
+    }
+
+    /// Drift alarm for `Config(config:)`.
+    ///
+    /// The two tests above only prove the fields they name are copied; they
+    /// stay green forever after someone adds a 38th property and forgets the
+    /// copy initializer, which is precisely the failure that lost the rule
+    /// fields. Every parameter of the designated initializer carries a
+    /// default, so an omission is not a compile error — nothing but this list
+    /// notices. Pin the schema instead: adding or removing a persisted
+    /// property fails here, and the fix is to update `Config(config:)`, the
+    /// round-trip tests, and this set together.
+    ///
+    /// `gameRecord` is the one property `Config(config:)` deliberately does
+    /// NOT copy — a detached copy has no owner until the caller assigns one.
+    @Test func configPersistedPropertiesAreAllCopied() async throws {
+        // Split across several arrays: one 37-element set literal type-checks
+        // too slowly for the compiler's budget.
+        let copiedNames: [String] = [
+            "boardWidth", "boardHeight", "rule", "komi",
+            "playoutDoublingAdvantage", "analysisWideRootNoise",
+            "maxAnalysisMoves", "analysisInterval", "analysisInformation",
+            "hiddenAnalysisVisitRatio", "stoneStyle", "showCoordinate",
+            "humanSLRootExploreProbWeightful", "humanSLProfile"
+        ]
+        let copiedOptionalNames: [String] = [
+            "optionalAnalysisForWhom", "optionalShowOwnership",
+            "optionalHumanRatioForWhite", "optionalHumanProfileForWhite",
+            "optionalSoundEffect", "optionalShowComments", "optionalShowPass",
+            "optionalVerticalFlip", "optionalBlackMaxTime", "optionalWhiteMaxTime"
+        ]
+        let copiedRuleNames: [String] = [
+            "optionalKoRule", "optionalScoringRule", "optionalTaxRule",
+            "optionalMultiStoneSuicideLegal", "optionalHasButton",
+            "optionalWhiteHandicapBonusRule"
+        ]
+        let copiedDisplayNames: [String] = [
+            "optionalShowWinrateBar", "optionalAnalysisStyle",
+            "optionalShowCharts", "optionalUseLLM", "optionalTemperature",
+            "optionalTone"
+        ]
+        // `gameRecord` is the one property `Config(config:)` deliberately does
+        // NOT copy: a detached copy has no owner until the caller assigns one.
+        var expected = Set(copiedNames)
+        expected.formUnion(copiedOptionalNames)
+        expected.formUnion(copiedRuleNames)
+        expected.formUnion(copiedDisplayNames)
+        expected.insert("gameRecord")
+
+        let schema = Schema([Config.self])
+        let entity = try #require(schema.entities.first { $0.name == "Config" })
+        let persisted = Set(entity.properties.map(\.name))
+
+        let unlisted = persisted.subtracting(expected).sorted()
+        let vanished = expected.subtracting(persisted).sorted()
+        let hint = "Config's persisted properties changed (new: \(unlisted), gone: \(vanished)). Every field must also be forwarded in `Config(config:)` — omitting one still compiles and silently resets that field to its default in every GameRecord.clone(). Update the copy initializer, the round-trip tests above, and this list together."
+
+        #expect(persisted == expected, "\(hint)")
     }
 
     // 8. Existing Tests with Enhancements

@@ -127,6 +127,18 @@ public final class Config {
         self.optionalTone = optionalTone
     }
 
+    /// A field-by-field copy, detached from any game record — the caller owns
+    /// wiring `gameRecord` up, which is why it is the one property not copied.
+    ///
+    /// EVERY other stored property must be forwarded here. Because the
+    /// initializer above defaults each parameter, a field omitted from this
+    /// call does not fail to compile: the copy silently takes that field's
+    /// DEFAULT instead of the source's value. That is how the six rule fields
+    /// (ko, scoring, tax, multi-stone suicide, button, white handicap bonus)
+    /// were lost by every `GameRecord.clone()` until this was fixed —
+    /// cloning a Japanese-rules game produced a Chinese-rules copy.
+    /// `configPersistedPropertiesAreAllCopied` in `ConfigModelTests` fails
+    /// when the model gains a property, as the reminder to extend this list.
     public convenience init(config: Config?) {
         assert(config != nil)
         if let config = config {
@@ -155,6 +167,12 @@ public final class Config {
                 optionalVerticalFlip: config.optionalVerticalFlip,
                 optionalBlackMaxTime: config.optionalBlackMaxTime,
                 optionalWhiteMaxTime: config.optionalWhiteMaxTime,
+                optionalKoRule: config.optionalKoRule,
+                optionalScoringRule: config.optionalScoringRule,
+                optionalTaxRule: config.optionalTaxRule,
+                optionalMultiStoneSuicideLegal: config.optionalMultiStoneSuicideLegal,
+                optionalHasButton: config.optionalHasButton,
+                optionalWhiteHandicapBonusRule: config.optionalWhiteHandicapBonusRule,
                 optionalShowWinrateBar: config.optionalShowWinrateBar,
                 optionalAnalysisStyle: config.optionalAnalysisStyle,
                 optionalShowCharts: config.optionalShowCharts,
