@@ -72,6 +72,22 @@ public class GobanState {
     /// write a synced record (variations are discarded silently on exit).
     /// Defaults false so the iOS/macOS mainline-step behavior is unchanged.
     public var forcesBranchOnPlay = false
+    /// Armed immediately before a `printsgf` whose reply only re-states what
+    /// the record already holds. Two paths load the record's own SGF into the
+    /// engine and then read it straight back out: the cold-launch sync
+    /// (iOS/macOS/visionOS) and the visionOS game switch. `maybeCollectSgf`
+    /// consumes this to skip the `lastModificationDate` stamp — opening a game
+    /// is not modifying it, and stamping there re-sorted the library on every
+    /// launch. The visible damage was via a widget/Shortcut deep link, which
+    /// selects an arbitrary older game: viewing it floated it to the top of the
+    /// library ahead of games the user had actually played.
+    ///
+    /// Consumed by ANY `printsgf` reply, whichever arm handles it, so the latch
+    /// can never outlive the send that armed it and eat a later real move's
+    /// stamp. GTP replies are FIFO, so a move's `printsgf` queued behind a
+    /// launch echo still finds the latch clear by the time its own reply lands.
+    /// Arm it through `sendLoadEchoPrintSgf` rather than setting it directly.
+    public var nextSgfReplyIsLoadEcho = false
     /// True while a Deep Analysis Report is probing the engine. GameSession
     /// bypasses live-analysis collection for `info` lines (probe replies are
     /// consumed via `lineObserver` by the report's collector instead), so the
@@ -727,6 +743,17 @@ public class GobanState {
                 printError("maybeLoadSgf: failed to write temp SGF for loadsgf: \(error)")
             }
         }
+    }
+
+    /// Reads the just-loaded game back out of the engine, arming
+    /// `nextSgfReplyIsLoadEcho` so the reply syncs the record without stamping
+    /// it as modified. Keeps the arm adjacent to the send so the two cannot
+    /// drift apart; every other `printsgf` sender (a played move, a rules or
+    /// board-size change, a pasted SGF) deliberately sends the plain command
+    /// and does stamp.
+    public func sendLoadEchoPrintSgf(messageList: MessageList) {
+        nextSgfReplyIsLoadEcho = true
+        messageList.appendAndSend(command: "printsgf")
     }
 
     public func getCurrentIndex(gameRecord: GameRecord?) -> Int? {

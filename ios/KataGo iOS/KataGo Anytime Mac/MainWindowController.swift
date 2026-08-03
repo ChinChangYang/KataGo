@@ -1136,7 +1136,9 @@ final class MainWindowController: NSWindowController {
             messageList: session.messageList
         )
         session.gobanState.sendShowBoardCommand(messageList: session.messageList)
-        session.messageList.appendAndSend(command: "printsgf")
+        // A load echo (see ContentView.initializationTask): syncs the record
+        // from the engine without stamping it as modified.
+        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
 
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
 

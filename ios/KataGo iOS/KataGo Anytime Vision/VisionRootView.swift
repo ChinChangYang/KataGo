@@ -1372,12 +1372,18 @@ struct VisionRootView: View {
                                     messageList: session.messageList,
                                     board: session.board,
                                     stones: session.stones)
-        session.messageList.appendAndSend(command: "printsgf")
+        // A load echo: this reads back the SGF just loaded from `record`, so it
+        // syncs the record without stamping it as modified. Boot routes through
+        // here too (resolveAndMountCurrentGame), so this covers the cold launch
+        // as well as a switch. Opening a game must not re-sort the library —
+        // and iOS parity demands it, since switching games there ends with
+        // `showboard` and never stamps.
+        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
         session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
                                                      messageList: session.messageList,
                                                      player: session.player)
-        // The switch bumps the game's lastModificationDate, which can change
-        // an unconfigured widget's "most recent" resolution (iOS parity).
+        // The switch still moves `record.currentIndex` to the tip (above), which
+        // changes the position a widget configured for this game displays.
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

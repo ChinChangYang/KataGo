@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		006072105E784323AD8C43E6 /* GameSessionLoadEchoStampTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E50033915841A30CD30F6D /* GameSessionLoadEchoStampTests.swift */; };
 		00BFD5EF6E27BFC1A2AE45B9 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = E1013E562FD8322700D0A4F0 /* MLX */; };
 		011085AC1F2879F10A33ADB9 /* cord_rep_btree_reader.cc in Sources */ = {isa = PBXBuildFile; fileRef = F646B1776FEE25B7199B681D /* cord_rep_btree_reader.cc */; };
 		011559ABD37118152E2411A3 /* any_lite.cc in Sources */ = {isa = PBXBuildFile; fileRef = B0BBA9D4195D76AB26782D5D /* any_lite.cc */; };
@@ -1259,6 +1260,7 @@
 		484C978DC55B1151B3DAD0F2 /* cord_internal.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_internal.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_internal.cc"; sourceTree = SOURCE_ROOT; };
 		484DAA5FDE137F723D760720 /* TVSelfPlayScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVSelfPlayScreen.swift; sourceTree = "<group>"; };
 		49DECA294437EEBE7BC59924 /* usage.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = usage.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/usage.cc"; sourceTree = SOURCE_ROOT; };
+		49E50033915841A30CD30F6D /* GameSessionLoadEchoStampTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionLoadEchoStampTests.swift; sourceTree = "<group>"; };
 		4ACC295BC21E8BE626A5B861 /* KataGoAnytimeWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KataGoAnytimeWatchApp.swift; path = "KataGo Anytime Watch/KataGoAnytimeWatchApp.swift"; sourceTree = "<group>"; };
 		4B1FB377A827EF5CA47BF88C /* utf8_for_code_point.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utf8_for_code_point.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/utf8_for_code_point.cc"; sourceTree = SOURCE_ROOT; };
 		4B353F521781321D83987622 /* TextClassifier.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = TextClassifier.pb.cc; path = ../../cpp/external/katagocoreml/generated/TextClassifier.pb.cc; sourceTree = SOURCE_ROOT; };
@@ -3252,6 +3254,7 @@
 				51FCCAF099AFE873A8CFD3D7 /* WatchLibraryStoreTests.swift */,
 				8BBE4B1C9DC324C057070A99 /* WatchStoredAnalysisTests.swift */,
 				15476132936DC1E28DC82E65 /* WatchNavigationPolicyTests.swift */,
+				49E50033915841A30CD30F6D /* GameSessionLoadEchoStampTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4762,6 +4765,7 @@
 				CCCA47AF5B5894C3B6003FBE /* WatchLibraryStoreTests.swift in Sources */,
 				6B2D021933BD863EAEB70326 /* WatchStoredAnalysisTests.swift in Sources */,
 				CC5A364583B20C7FE1FA19D7 /* WatchNavigationPolicyTests.swift in Sources */,
+				006072105E784323AD8C43E6 /* GameSessionLoadEchoStampTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

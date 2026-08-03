@@ -138,7 +138,10 @@ struct ContentView: View {
         )
 
         session.gobanState.sendShowBoardCommand(messageList: session.messageList)
-        session.messageList.appendAndSend(command: "printsgf")
+        // A load echo: this reads back the SGF just loaded from the record, so
+        // it must sync without stamping the game as modified (launching the app
+        // is not editing the game it happens to open).
+        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
         await session.messaging(
             gameRecords: gameRecords,
             modelContext: modelContext,

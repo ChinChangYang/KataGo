@@ -402,6 +402,11 @@ public final class GameSession {
     ) {
         let sgfPrefix = "= (;FF[4]GM[1]"
         if message.hasPrefix(sgfPrefix) {
+            // Consumed on ANY printsgf reply, whichever arm below handles it,
+            // so a load echo can never outlive the send that armed it and
+            // silently swallow a later real move's stamp.
+            let isLoadEcho = gobanState.nextSgfReplyIsLoadEcho
+            gobanState.nextSgfReplyIsLoadEcho = false
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
                 let sgfHelper = SgfOperations(sgf: sgfString)
@@ -427,9 +432,23 @@ public final class GameSession {
                     // never be written: every legitimate printsgf there is
                     // branch-routed above; anything reaching this arm is a
                     // stray reply that would overwrite a synced game.
-                    gameRecord.sgf = sgfString
-                    gameRecord.currentIndex = currentIndex
-                    gameRecord.lastModificationDate = Date.now
+                    //
+                    // Assign only on a real change. SwiftData dirties a record
+                    // when a property is set even to its existing value, and a
+                    // dirtied record is saved and exported to CloudKit — so the
+                    // launch echo, which re-states the SGF verbatim, used to
+                    // push an identical record to iCloud on every cold launch.
+                    if gameRecord.sgf != sgfString {
+                        gameRecord.sgf = sgfString
+                    }
+                    if gameRecord.currentIndex != currentIndex {
+                        gameRecord.currentIndex = currentIndex
+                    }
+                    // A load echo re-states the record; it does not modify it,
+                    // so it must not touch the timestamp the library sorts on.
+                    if !isLoadEcho {
+                        gameRecord.lastModificationDate = Date.now
+                    }
                     gobanState.maybeUpdateMoves(gameRecord: gameRecord, board: board, sgfHelper: sgfHelper)
                 }
             }
