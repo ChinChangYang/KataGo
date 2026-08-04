@@ -65,6 +65,10 @@ struct WatchRootView: View {
             WatchMovesPage()
         }
         .tabViewStyle(.verticalPage)
+        // Plain, not tinted. Rendering `Offline` in red was tried and measured on
+        // a 46 mm simulator: watchOS ignores `foregroundStyle` on a navigation
+        // title and drew it in the same gray as `Live`. The word carries the
+        // meaning, and a modifier that does nothing is worse than none.
         .navigationTitle(liveTitle)
         .overlay(alignment: .bottom) {
             if let message = model.rejectionMessage {
