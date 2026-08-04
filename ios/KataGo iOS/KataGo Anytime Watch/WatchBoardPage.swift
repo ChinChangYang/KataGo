@@ -16,12 +16,9 @@ struct WatchBoardPage: View {
         // had arrived.
         VStack(spacing: 2) {
             if let frame = liveFrame {
-                WatchFrameBoard(frame: frame,
-                                staleAccessibilityLabel: staleAccessibilityLabel,
-                                suppressesScore: model.rejectionMessage != nil)
+                WatchFrameBoard(frame: frame)
             }
         }
-        .overlay(alignment: .top) { statusPill }
         .focusable()
         .digitalCrownRotation($crownIndex,
                               from: 0, through: crownUpperBound,
@@ -73,36 +70,6 @@ struct WatchBoardPage: View {
         let target = Int(crownIndex.rounded())
         if target == latest.hostMoveIndex { return latest }
         return model.peek.entry(forHostIndex: target, gameID: latest.hostGameID) ?? latest
-    }
-
-    private var staleAccessibilityLabel: Text {
-        if let at = model.receivedAt ?? model.latest.map(\.hostTimestamp) {
-            Text("Not receiving updates; last update \(at, style: .relative) ago")
-        } else {
-            Text("Not receiving updates")
-        }
-    }
-
-    @ViewBuilder private var statusPill: some View {
-        let peek = model.peek
-        if model.sharedCursorAvailable {
-            if let target = model.cursorPendingTarget {
-                Text("→ \(target)/\(model.latest?.hostMoveCount ?? 0)")
-                    .font(.caption2).padding(3)
-                    .background(.orange.opacity(0.85), in: Capsule())
-            } else if let index = model.latest?.hostMoveIndex,
-                      let count = model.latest?.hostMoveCount, index < count {
-                Text("\(index)/\(count)")
-                    .font(.caption2).padding(3)
-                    .background(.orange.opacity(0.85), in: Capsule())
-                    .onTapGesture { model.scrub(to: count) }
-            }
-        } else if !peek.isLive {
-            Text("\(peek.movesBehindLive) behind live")
-                .font(.caption2).padding(3)
-                .background(.orange.opacity(0.85), in: Capsule())
-                .onTapGesture { peek.viewIndex = peek.entries.count - 1 }
-        }
     }
 
     /// The frame to draw: same cursor/ring selection as before, expressed once.

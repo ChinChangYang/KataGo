@@ -22,24 +22,18 @@ import KataGoGameStore
 /// a page inside `NavigationStack > TabView(.verticalPage)` with a visible
 /// title gets 204x150 pt on a 46 mm), so the gutter costs no board area at
 /// all — the leftover width was already going to be empty margin.
+///
+/// Nothing is drawn over the wood. Readouts that used to sit here — the score,
+/// the staleness glyph, the scrub position — moved to the navigation title and
+/// the second page. The corner they occupied is not information-sparse: on a
+/// 9x9 it is as contested as anywhere else, and on smaller boards it is worse.
 struct WatchFrameBoard: View {
     let frame: WatchBoardFrame
-    /// Spoken text for the stale indicator; nil hides the indicator. Stored
-    /// games never mirror anything, so they pass nothing.
-    var staleAccessibilityLabel: Text? = nil
     /// Whether to blend the record's cached best move onto the board. Defaults
     /// to false so the live mirror is provably unaffected — live frames carry
     /// no `bestMove` anyway (`WatchBoardFrame.live` hard-codes it nil), and
     /// only the stored browser's Review toggle passes true.
     var showBestMove: Bool = false
-    /// Hides the score readout while something else owns the bottom of the
-    /// screen. The live mirror's rejection banner is bottom-anchored on the
-    /// TabView in `WatchRootView`, so without this the two would stack.
-    var suppressesScore: Bool = false
-
-    private var isStale: Bool {
-        frame.source == .live(stale: true)
-    }
 
     var body: some View {
         board
@@ -68,7 +62,6 @@ struct WatchFrameBoard: View {
                         style: .classicGoban(drawsOwnWood: true))
             .aspectRatio(CGFloat(frame.boardWidth) / CGFloat(frame.boardHeight),
                          contentMode: .fit)
-            .overlay(alignment: .bottomLeading) { statusCluster }
     }
 
     /// The two-tone bar, in the in-app board's orientation: White fills from
@@ -114,36 +107,5 @@ struct WatchFrameBoard: View {
             return Text("Win rate unavailable")
         }
         return Text("Black win rate \(Int((winrate * 100).rounded())) percent")
-    }
-
-    /// Stale indicator and score, over the board's bottom-left corner — the
-    /// least information-dense part of a Go position, and the only place left
-    /// once the board takes the whole page.
-    @ViewBuilder private var statusCluster: some View {
-        let score = suppressesScore ? nil : frame.scoreLeadBlack
-        if (isStale && staleAccessibilityLabel != nil) || score != nil {
-            HStack(spacing: 3) {
-                if isStale, let staleAccessibilityLabel {
-                    Image(systemName: "wifi.slash")
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                        .accessibilityLabel(staleAccessibilityLabel)
-                }
-                if let score {
-                    Text(WatchBoardFrame.scoreText(score))
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            // A flat capsule, not `.ultraThinMaterial`: it matches the pills
-            // the watch already draws (`.orange.opacity(0.85)` for the status
-            // pill, `.red.opacity(0.9)` for the rejection banner), and a blur
-            // pass per frame is not worth paying for on a wrist while the
-            // Crown is scrubbing.
-            .background(.black.opacity(0.45), in: Capsule())
-            .padding(2)
-        }
     }
 }

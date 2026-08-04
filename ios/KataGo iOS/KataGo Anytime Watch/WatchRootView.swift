@@ -65,7 +65,7 @@ struct WatchRootView: View {
             WatchMovesPage()
         }
         .tabViewStyle(.verticalPage)
-        .navigationTitle("Live")
+        .navigationTitle(liveTitle)
         .overlay(alignment: .bottom) {
             if let message = model.rejectionMessage {
                 Label { Text(message) } icon: { Image(systemName: "xmark.circle.fill") }
@@ -75,6 +75,19 @@ struct WatchRootView: View {
             }
         }
         .animation(.snappy, value: model.rejectionMessage)
+    }
+
+    /// The board page's only status readout. `hostMoveIndex` rather than the
+    /// Crown's position deliberately: this reports what the PHONE has
+    /// confirmed, exactly as the deleted pill did, while `pendingTarget`
+    /// covers the in-flight value.
+    private var liveTitle: String {
+        WatchBoardTitle.live(stale: model.isStale,
+                             pendingTarget: model.cursorPendingTarget,
+                             hostMoveIndex: model.latest?.hostMoveIndex,
+                             hostMoveCount: model.latest?.hostMoveCount,
+                             sharedCursorAvailable: model.sharedCursorAvailable,
+                             movesBehindLive: model.peek.movesBehindLive)
     }
 
     private func routeOnLaunch() {
