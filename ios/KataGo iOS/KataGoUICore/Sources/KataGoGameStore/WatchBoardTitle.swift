@@ -17,16 +17,30 @@ public enum WatchBoardTitle {
     /// The live mirror's title. Precedence, highest first:
     ///
     ///   1. `Offline`   — the phone has stopped sending frames
-    ///   2. `→ 5/50`    — a scrub is waiting on the phone to confirm
-    ///   3. `3/50`      — cursor mode, parked behind the host's position
-    ///   4. `3 behind`  — ring mode, parked behind the newest frame received
-    ///   5. `Live`
+    ///   2. cursor mode (`sharedCursorAvailable`):
+    ///      a. `→ 5/50`    — a scrub is waiting on the phone to confirm
+    ///      b. `3/50`      — parked behind the host's position
+    ///      c. `Live`
+    ///   3. ring mode:
+    ///      a. `3 behind`  — parked behind the newest frame received
+    ///      b. `Live`
     ///
     /// Staleness outranks a pending scrub deliberately. `WatchLiveModel.scrub`
     /// gates on `sharedCursorAvailable` (`!isStale && isReachable`), so a
     /// pending target can survive INTO a stale state but can never be created
     /// in one — and once the phone is unreachable it will never be confirmed.
     /// Reporting `→ 5/50` there would promise an arrival that cannot happen.
+    ///
+    /// The pending-target branch is nested inside `sharedCursorAvailable` for
+    /// a related reason: `pendingTarget` is phase-derived (`WatchSharedCursor`)
+    /// and is cleared only by confirmation or a 5s timeout, so it can outlive
+    /// a reachability drop for up to that timeout — leaving `stale == false`,
+    /// `sharedCursorAvailable == false`, and a stale `pendingTarget` all true
+    /// at once. In that state the board renders RING mode (it selects
+    /// `peek.current`, not the host cursor frame), so reporting the pending
+    /// target would print a host-mainline index beside a ring-buffer board:
+    /// two different coordinate spaces. The on-board pill this title replaces
+    /// nested its own pending-target branch inside the same cursor-mode check.
     public static func live(stale: Bool,
                             pendingTarget: Int?,
                             hostMoveIndex: Int?,
@@ -34,8 +48,8 @@ public enum WatchBoardTitle {
                             sharedCursorAvailable: Bool,
                             movesBehindLive: Int) -> String {
         if stale { return "Offline" }
-        if let pendingTarget { return "→ \(pendingTarget)/\(hostMoveCount ?? 0)" }
         if sharedCursorAvailable {
+            if let pendingTarget { return "→ \(pendingTarget)/\(hostMoveCount ?? 0)" }
             // A pre-v1.1 phone sends no cursor at all, so an absent index is
             // "no position to report", not "position zero".
             guard let hostMoveIndex, let hostMoveCount,

@@ -26,8 +26,27 @@ struct WatchBoardTitleTests {
         #expect(live(hostMoveIndex: 3, hostMoveCount: 50) == "3/50")
     }
 
+    @Test func cursorModeOneMoveBehindStillReportsThePosition() {
+        #expect(live(hostMoveIndex: 49, hostMoveCount: 50) == "49/50")
+    }
+
     @Test func pendingScrubReportsItsTarget() {
         #expect(live(pendingTarget: 5, hostMoveIndex: 3, hostMoveCount: 50) == "→ 5/50")
+    }
+
+    /// `pendingTarget` is phase-derived and can survive a reachability drop
+    /// for up to its 5s confirmation timeout, so `sharedCursorAvailable` can
+    /// go false while a pending target is still set. The board renders RING
+    /// mode there, so the title must too — not a host-mainline index beside
+    /// a ring-buffer board.
+    @Test func pendingScrubIsIgnoredWhenTheSharedCursorIsUnavailable() {
+        #expect(live(stale: false, pendingTarget: 5, sharedCursorAvailable: false,
+                     movesBehindLive: 3) == "3 behind")
+    }
+
+    @Test func pendingScrubWithoutAHostCountFallsBackToZero() {
+        #expect(live(pendingTarget: 5, hostMoveCount: nil,
+                     sharedCursorAvailable: true) == "→ 5/0")
     }
 
     /// Staleness outranks a pending scrub: `WatchLiveModel.scrub` gates on
