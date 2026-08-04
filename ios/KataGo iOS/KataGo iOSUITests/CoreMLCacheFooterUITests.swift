@@ -12,10 +12,12 @@
 //     baseline because no cache write happened for downloaded models.
 //
 //  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" the
-//     footer immediately shows "Main: 0 of 4 · 0 B" and
-//     "Human SL: 0 of 4 · 0 B". No automatic repopulation occurs; the
+//     footer immediately shows "Main: 0 of <cap> · 0 B" and
+//     "Human SL: 0 of <cap> · 0 B". No automatic repopulation occurs; the
 //     cache refills only when the user explicitly loads a model.
 //     The "Clear Cache" button hides once totalCount == 0.
+//     The caps come from CoreMLModelCache.shared and differ per partition,
+//     so these tests never assert on the cap itself — only on the count.
 //
 //  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
 //  for a clean cache state.
@@ -40,7 +42,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         app.launch()
 
         // The Core ML cache persists across local runs and may already be at its
-        // 4-entry cap ("Main: 4 of 4"), leaving no room for the count to grow —
+        // entry cap ("Main: N of N"), leaving no room for the count to grow —
         // launching another model would just evict+replace. Clear it first so the
         // increment is observable (mirrors the file-header note about starting
         // from a clean cache). "Clear Cache" is only present when non-empty.
@@ -56,7 +58,7 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         //
         // An engine launch may write more than one cache entry — the main
         // model plus auxiliaries like a HumanSL policy net — so this step
-        // is treated as a baseline rather than a fixed "1 of 4" check.
+        // is treated as a baseline rather than a fixed count.
 
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
@@ -88,9 +90,9 @@ final class CoreMLCacheFooterUITests: XCTestCase {
     }
 
     /// After dropping PrecompileScheduler, tapping "Clear Cache" wipes the
-    /// cache and leaves the footer at "Main: 0 of 4" / "Human SL: 0 of 4".
-    /// No automatic rewarm occurs. The "Clear Cache" button is hidden once
-    /// totalCount drops to zero.
+    /// cache and leaves the footer at "Main: 0 of <cap>" / "Human SL: 0 of
+    /// <cap>". No automatic rewarm occurs. The "Clear Cache" button is hidden
+    /// once totalCount drops to zero.
     @MainActor
     func testFooterShowsZeroAfterClear() throws {
         let app = XCUIApplication()
@@ -120,24 +122,31 @@ final class CoreMLCacheFooterUITests: XCTestCase {
         // bytes", …) AND differs between the app process and this test process,
         // so we cannot match the byte string directly. The deterministic,
         // process-independent signal that the partition is empty is the
-        // cleared count "0 of <cap>", which the footer renders as
-        // "<Label>: 0 of 4 · <size>". Assert on the count.
-        let zeroCount = "0 of 4"
-
-        // Footer must now read "Main: 0 of 4" after Clear.
+        // cleared count in "<Label>: 0 of <cap> · <size>".
+        //
+        // Assert on the PARSED count, never on the cap: the caps now come from
+        // CoreMLModelCache.shared (evictionCap / auxiliaryEvictionCap), they
+        // differ between the two partitions, and either may be retuned. The
+        // label prefix is checked separately so a mislabelled row still fails,
+        // and `parseCount` returns -1 when the line does not match the
+        // "<Label>: N of M" shape at all.
         revealCacheFooter(in: app)
         let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
         XCTAssertTrue(mainStats.waitForExistence(timeout: 30),
                       "CoreMLCache.footerMainStats not found after Clear")
-        XCTAssertTrue(mainStats.label.contains("Main: \(zeroCount)"),
-                      "Expected 'Main: \(zeroCount)' after Clear, got: '\(mainStats.label)'")
+        XCTAssertTrue(mainStats.label.hasPrefix("Main: "),
+                      "Expected the main line to be labelled 'Main: ', got: '\(mainStats.label)'")
+        XCTAssertEqual(parseCount(mainStats.label), 0,
+                       "Expected 'Main: 0 of <cap>' after Clear, got: '\(mainStats.label)'")
 
-        // Human SL partition must also read "Human SL: 0 of 4" after Clear.
+        // Human SL partition must also read "Human SL: 0 of <cap>" after Clear.
         let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
         XCTAssertTrue(auxStats.waitForExistence(timeout: 30),
                       "CoreMLCache.footerAuxStats not found after Clear")
-        XCTAssertTrue(auxStats.label.contains("Human SL: \(zeroCount)"),
-                      "Expected 'Human SL: \(zeroCount)' after Clear, got: '\(auxStats.label)'")
+        XCTAssertTrue(auxStats.label.hasPrefix("Human SL: "),
+                      "Expected the aux line to be labelled 'Human SL: ', got: '\(auxStats.label)'")
+        XCTAssertEqual(parseCount(auxStats.label), 0,
+                       "Expected 'Human SL: 0 of <cap>' after Clear, got: '\(auxStats.label)'")
 
         // The Clear Cache button must disappear once totalCount == 0.
         XCTAssertFalse(clearButton.waitForExistence(timeout: 5),

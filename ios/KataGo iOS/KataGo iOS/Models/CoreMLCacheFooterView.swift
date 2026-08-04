@@ -14,8 +14,11 @@ struct CoreMLCacheFooterView: View {
     @State private var showConfirm = false
     @State private var clearing = false
 
-    private var mainCap: Int { 4 }
-    private var auxCap: Int { 4 }
+    // Read the caps from the cache itself rather than restating them. These
+    // used to be literals and drifted from the actor's actual eviction caps,
+    // which made the footer claim a ceiling the cache did not enforce.
+    private var mainCap: Int { CoreMLModelCache.shared.evictionCap }
+    private var auxCap: Int { CoreMLModelCache.shared.auxiliaryEvictionCap }
     private var totalCount: Int { mainCount + auxCount }
 
     var body: some View {

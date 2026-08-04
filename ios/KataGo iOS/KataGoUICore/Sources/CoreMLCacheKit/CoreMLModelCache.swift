@@ -34,13 +34,19 @@ private struct IndexFile: Codable {
 
 public actor CoreMLModelCache {
     public let cacheRoot: URL
-    public let evictionCap: Int
+    // `evictionCap` and `auxiliaryEvictionCap` below are `nonisolated` so
+    // off-actor callers — notably the model picker's cache footer, which
+    // renders "N of <cap>" — can read them synchronously instead of
+    // restating the numbers as literals that drift out of step with the
+    // caps eviction actually enforces. Safe because both are `Sendable`
+    // `let`s fixed at init.
+    nonisolated public let evictionCap: Int
     /// Source-file basenames classified as auxiliary (e.g., the bundled
     /// human SL net). Each engine launch writes one main entry and one
     /// auxiliary entry; partitioning eviction means an aux-side overflow
     /// never evicts a user-visible main entry.
     public let auxiliaryFileNames: Set<String>
-    public let auxiliaryEvictionCap: Int
+    nonisolated public let auxiliaryEvictionCap: Int
 
     private var entries: [String: IndexEntry] = [:]    // digest → entry
     private var pinnedSerials: [DigestEpoch: Set<UInt64>] = [:]
@@ -398,9 +404,9 @@ extension CoreMLModelCache {
     ///
     /// Exists for deleting a network the user imported. Eviction is LRU by
     /// COUNT (`evictionCap` entries), not by size, so an abandoned entry can
-    /// hold hundreds of megabytes until eight newer networks displace it —
-    /// which for most users never happens. Removing the network's file without
-    /// this leaves that disk stranded indefinitely.
+    /// hold hundreds of megabytes until `evictionCap` newer entries displace
+    /// it — which for most users never happens. Removing the network's file
+    /// without this leaves that disk stranded indefinitely.
     @discardableResult
     public func invalidateAll(sourceFileName: String) -> Int {
         let doomed = entries.values.filter { $0.sourceFileName == sourceFileName }
@@ -842,9 +848,21 @@ extension CoreMLModelCache {
         // The bundled human SL net is loaded alongside the user-selected
         // model on every launch. Partition it into its own LRU pool so
         // eviction can't drop a user-visible main entry to keep an aux one.
+        //
+        // The two caps are deliberately asymmetric. Main holds whatever
+        // network the user picked, at whatever board size and backend
+        // config — the combinations multiply, and a compiled entry for a
+        // large net runs to hundreds of megabytes, so this is the pool
+        // worth growing. Aux only ever holds the one bundled human SL net,
+        // so its ceiling is bounded no matter what the user downloads and
+        // a smaller pool costs little. Consequence, accepted knowingly:
+        // past the aux cap a config switch can hit main and miss aux, so
+        // the human SL net recompiles while the main net does not. The
+        // partitions are independent, so that is a warm-up cost, not a
+        // correctness problem.
         return CoreMLModelCache(
             cacheRoot: root,
-            evictionCap: 4,
+            evictionCap: 10,
             auxiliaryFileNames: ["b18c384nbt-humanv0.bin.gz"],
             auxiliaryEvictionCap: 4)
     }()
