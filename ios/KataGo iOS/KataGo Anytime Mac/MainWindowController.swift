@@ -3719,6 +3719,17 @@ extension MainWindowController: NSMenuItemValidation {
         window?.firstResponder is NSText
     }
 
+    /// True while ANY sheet is attached to the window.
+    ///
+    /// Broader than `isPresentingSheet`, which only sees `presentAsSheet`
+    /// children and so misses `NSAlert.beginSheetModal` and `NSOpenPanel`
+    /// sheets — including `resolveDraft`'s own Save · Discard · Cancel prompt.
+    /// Edit ▸ Paste re-enters `resolveDraft`, so without this a ⌘V while that
+    /// prompt is up would stack a second copy of it on the same window.
+    private var isAnySheetAttached: Bool {
+        window?.attachedSheet != nil
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let gobanState = session.gobanState
         let hasGame = navigationContext.selectedGameRecord != nil
@@ -3845,6 +3856,29 @@ extension MainWindowController: NSMenuItemValidation {
         // File ▸ Save / Revert to Saved: only meaningful with unsaved changes.
         case #selector(saveGame(_:)), #selector(revertGame(_:)):
             return draftController.isDirty
+
+        // Edit ▸ Copy (⌘C): copy the game on the board as SGF. Only reached
+        // through the responder chain when no text control has focus — a field
+        // editor implements `copy:` too and, being earlier in the chain, wins
+        // the target lookup and validates for itself.
+        case #selector(copyGameSgf(_:)):
+            return gobanState.getSgf(gameRecord: navigationContext.selectedGameRecord) != nil
+                && !isAnySheetAttached
+
+        // Edit ▸ Paste (⌘V): create a game from the clipboard's SGF.
+        //
+        // This asks only whether the pasteboard OFFERS text, never what that
+        // text IS. macOS 26 alerts the user when an app reads the general
+        // pasteboard outside a paste-related user action, and menu validation
+        // runs on every Edit-menu open — so reading contents here could raise a
+        // system permission prompt just for opening a menu. `canReadObject` is
+        // a type query, not a read. Whether the text actually parses as an SGF,
+        // and whether its board fits the running engine, are decided inside
+        // `pasteGameSgf` (a real paste action, and so exempt), which explains
+        // rather than silently doing nothing.
+        case #selector(pasteGameSgf(_:)):
+            return NSPasteboard.general.canReadObject(forClasses: [NSString.self], options: nil)
+                && !isAnySheetAttached
 
         default:
             return canPerformNavigation(menuItem.action)

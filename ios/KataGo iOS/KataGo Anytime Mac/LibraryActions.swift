@@ -349,17 +349,62 @@ extension MainWindowController: LibraryActionsDelegate {
         }
     }
 
-    /// Confirm seam for the photo-import sheet: creates (or de-dups to) a game
-    /// from the recognized SGF and selects it, reusing the exact same
-    /// insert/refetch/select/widget-reload sequence as the file path.
-    private func importAndSelect(sgf: String, name: String) {
-        guard let result = GameRecord.importGameRecord(sgf: sgf, name: name, in: modelContext) else { return }
-        if result.isNew {
-            modelContext.insert(result.gameRecord)
+    /// Confirm seam for the photo-import sheet: creates — or de-dups to — a game
+    /// from an SGF string and selects it, reusing the exact same
+    /// insert/refetch/select/widget-reload sequence as the file path. Importing
+    /// an SGF already in the library re-selects the stored row instead of adding
+    /// a second one, which is what makes re-opening the same `.sgf` idempotent.
+    ///
+    /// Returns false when nothing was imported.
+    @discardableResult
+    private func importAndSelect(sgf: String, name: String) -> Bool {
+        guard let result = GameRecord.importGameRecord(sgf: sgf, name: name, in: modelContext)
+        else { return false }
+        return adoptImported(result.gameRecord, isNew: result.isNew)
+    }
+
+    /// Edit ▸ Paste's seam: ALWAYS creates a new game, even when an identical
+    /// SGF is already stored.
+    ///
+    /// Deliberately not `importAndSelect`. De-duplicating a paste means ⌘V on a
+    /// game already in the library re-selects it — and when that game is the one
+    /// already on screen, `selectGame`'s identity guard makes the whole thing a
+    /// no-op, so the keystroke looks broken. A paste is an explicit "make me a
+    /// game from this", so it always produces one; the file-based import paths
+    /// keep de-duplicating.
+    ///
+    /// `internal`, not `private`: `pasteGameSgf` (a separate file) calls it.
+    /// Returns false when the SGF does not parse or its board is too large.
+    @discardableResult
+    func createAndSelect(sgf: String, name: String) -> Bool {
+        guard let record = GameRecord.importedGameRecord(sgf: sgf, name: name)
+        else { return false }
+        return adoptImported(record, isNew: true)
+    }
+
+    /// Shared tail of both import seams: gate the board size, insert a new
+    /// record, then select and refresh.
+    ///
+    /// The board-size gate is authoritative here, run against the parsed config
+    /// rather than any caller's own scan. `PastedSgf` reads SZ with a
+    /// whole-string match while its move scan stops at the first game tree, so
+    /// on a multi-game collection it can report a different size than the C++
+    /// parse `createGameRecord` actually used. An oversized board must never
+    /// reach the engine: it aborts the process on the first analysis
+    /// (`boardFits`). Checked BEFORE the insert, so a refusal leaves the library
+    /// untouched.
+    private func adoptImported(_ record: GameRecord, isNew: Bool) -> Bool {
+        let config = record.concreteConfig
+        guard boardFits(width: config.boardWidth,
+                        height: config.boardHeight,
+                        maxBoardLength: launchedMaxBoardLength) else { return false }
+        if isNew {
+            modelContext.insert(record)
         }
-        selectGame(result.gameRecord)
+        selectGame(record)
         libraryStore.refetch()
         WidgetCenter.shared.reloadAllTimelines()
+        return true
     }
 
     /// File ▸ Import… (⌘O) and the toolbar `Import` item: present an open panel
