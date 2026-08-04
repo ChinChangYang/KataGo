@@ -208,11 +208,13 @@ extension MainWindowController: LibraryActionsDelegate {
     /// image routes to the photo-import preview sheet (recognition + confirm)
     /// instead. For SGF/text URLs we reuse the package's `importGameRecord(from:in:)`
     /// — which de-duplicates against the store, so a re-imported game returns
-    /// `isNew == false` and is *selected without being re-inserted*. URLs that
-    /// fail to parse (nil result) are skipped, not fatal, so one bad file can't
-    /// abort a multi-file drop. We select the LAST imported SGF record (matching
-    /// iOS, where each import overwrites the selection) and refetch once after the
-    /// batch so the sidebar reflects every new row.
+    /// `isNew == false` and is *selected without being re-inserted*. A URL that
+    /// fails to parse, or whose board is too large for the running engine, is
+    /// skipped rather than aborting a multi-file drop — but never SILENTLY: the
+    /// refused names are collected and reported in one alert after the batch.
+    /// We select the LAST imported SGF record (matching iOS, where each import
+    /// overwrites the selection) and refetch once after the batch so the sidebar
+    /// reflects every new row.
     ///
     /// A board image opens the recognition sheet, which is modal — only one board
     /// can be confirmed at a time — so if several images are selected we present
@@ -221,6 +223,8 @@ extension MainWindowController: LibraryActionsDelegate {
     func importAndSelect(from urls: [URL]) {
         var lastImported: GameRecord?
         var pendingImage: (data: Data, name: String)?
+        var refusedTooLarge: [String] = []
+        var refusedUnreadable: [String] = []
         for url in urls {
             if let imageData = imageDataIfImage(at: url) {
                 if pendingImage == nil {
@@ -228,7 +232,18 @@ extension MainWindowController: LibraryActionsDelegate {
                 }
                 continue
             }
-            guard let result = GameRecord.importGameRecord(from: url, in: modelContext) else { continue }
+            guard let result = GameRecord.importGameRecord(from: url, in: modelContext) else {
+                refusedUnreadable.append(url.lastPathComponent)
+                continue
+            }
+            // Same gate the paste path applies, for the same reason: a board over
+            // the running engine's NN buffer aborts the process on its first
+            // analysis, not on load (`boardFits`). Checked BEFORE the insert, so
+            // a refusal leaves the library untouched.
+            guard boardFitsRunningEngine(result.gameRecord) else {
+                refusedTooLarge.append(result.gameRecord.name)
+                continue
+            }
             if result.isNew {
                 modelContext.insert(result.gameRecord)
             }
@@ -239,9 +254,38 @@ extension MainWindowController: LibraryActionsDelegate {
             libraryStore.refetch()
             WidgetCenter.shared.reloadAllTimelines()
         }
+        if !refusedTooLarge.isEmpty || !refusedUnreadable.isEmpty {
+            presentImportFailureAlert(tooLarge: refusedTooLarge, unreadable: refusedUnreadable)
+        }
         if let pendingImage {
             presentPhotoImport(imageData: pendingImage.data, name: pendingImage.name)
         }
+    }
+
+    /// Names the files an import batch could not open, grouped by reason.
+    ///
+    /// A sheet, never `runModal` — a modal run loop here would block the
+    /// `@MainActor` GTP loop. Presented after the successful imports have been
+    /// selected, so the alert describes what was left out of a batch that
+    /// otherwise went through.
+    private func presentImportFailureAlert(tooLarge: [String], unreadable: [String]) {
+        let alert = NSAlert()
+        alert.messageText = (tooLarge.count + unreadable.count) == 1
+            ? "Could not open this file." : "Could not open some files."
+        var parts: [String] = []
+        if !tooLarge.isEmpty {
+            parts.append("""
+                Larger than the \(launchedMaxBoardLength)×\(launchedMaxBoardLength) board the running \
+                engine was started for. Raise Max Board Size in Manage Models, then import again:
+                """ + "\n" + tooLarge.map { "• \($0)" }.joined(separator: "\n"))
+        }
+        if !unreadable.isEmpty {
+            parts.append("Not a game record this app can read:\n"
+                         + unreadable.map { "• \($0)" }.joined(separator: "\n"))
+        }
+        alert.informativeText = parts.joined(separator: "\n\n")
+        alert.addButton(withTitle: "OK")
+        if let window { alert.beginSheetModal(for: window) }
     }
 
     /// If `file` is an image, reads and returns its bytes inside a
@@ -382,22 +426,12 @@ extension MainWindowController: LibraryActionsDelegate {
         return adoptImported(record, isNew: true)
     }
 
-    /// Shared tail of both import seams: gate the board size, insert a new
-    /// record, then select and refresh.
-    ///
-    /// The board-size gate is authoritative here, run against the parsed config
-    /// rather than any caller's own scan. `PastedSgf` reads SZ with a
-    /// whole-string match while its move scan stops at the first game tree, so
-    /// on a multi-game collection it can report a different size than the C++
-    /// parse `createGameRecord` actually used. An oversized board must never
-    /// reach the engine: it aborts the process on the first analysis
-    /// (`boardFits`). Checked BEFORE the insert, so a refusal leaves the library
-    /// untouched.
+    /// Shared tail of the single-record import seams: gate the board size,
+    /// insert a new record, then select and refresh. (The multi-file
+    /// `importAndSelect(from:)` inserts in a loop and selects once at the end,
+    /// so it applies `boardFitsRunningEngine` itself rather than calling this.)
     private func adoptImported(_ record: GameRecord, isNew: Bool) -> Bool {
-        let config = record.concreteConfig
-        guard boardFits(width: config.boardWidth,
-                        height: config.boardHeight,
-                        maxBoardLength: launchedMaxBoardLength) else { return false }
+        guard boardFitsRunningEngine(record) else { return false }
         if isNew {
             modelContext.insert(record)
         }
@@ -405,6 +439,24 @@ extension MainWindowController: LibraryActionsDelegate {
         libraryStore.refetch()
         WidgetCenter.shared.reloadAllTimelines()
         return true
+    }
+
+    /// Whether `record`'s board fits the engine that is actually running.
+    ///
+    /// The authoritative gate for every import path, run against the PARSED
+    /// config rather than any caller's own scan: `PastedSgf` reads SZ with a
+    /// whole-string match while its move scan stops at the first game tree, so
+    /// on a multi-game collection it can report a different size than the C++
+    /// parse `createGameRecord` actually used. An oversized board must never
+    /// reach the engine — `NNEvaluator::evaluate` throws on a search worker
+    /// thread and aborts the whole process on the first analysis, not on load
+    /// (`boardFits`). Callers must therefore check BEFORE inserting, so a
+    /// refusal leaves the library untouched.
+    private func boardFitsRunningEngine(_ record: GameRecord) -> Bool {
+        let config = record.concreteConfig
+        return boardFits(width: config.boardWidth,
+                         height: config.boardHeight,
+                         maxBoardLength: launchedMaxBoardLength)
     }
 
     /// File ▸ Import… (⌘O) and the toolbar `Import` item: present an open panel
