@@ -379,6 +379,7 @@
 		98B9D95E283BC41AEC57EDED /* TVSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EA5057791773CF57906CB7 /* TVSettingsStore.swift */; };
 		98DFC305761C0DE2F9D0CE93 /* BubbleRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A06D560E16B91A5C405F0F /* BubbleRenderer.swift */; };
 		995DCC993AF4FE53572CEFE2 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCAA9F700346D9A7DAD96C6 /* SettingsViewController.swift */; };
+		9A1A8D627BA1BF5E15519A0A /* WatchAnalysisSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2842B3D4BEE675DD794D63 /* WatchAnalysisSummary.swift */; };
 		9A34E4B5C1756E1E008ADD42 /* CustomModelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994CB69AAC19A7A731B8A2A2 /* CustomModelViews.swift */; };
 		9A499C386E2147C790CD265A /* SavedGameBackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4041DD0A93E44FC303CE8A5C /* SavedGameBackgroundTests.swift */; };
 		9A4B4DAC7C372D65EB6AC699 /* GameSessionInitializeClearTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */; };
@@ -1310,6 +1311,7 @@
 		5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_material.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/seed_material.cc"; sourceTree = SOURCE_ROOT; };
 		5DEB80FD375524597006B528 /* KataGoAnytimeSafariExt.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = KataGoAnytimeSafariExt.entitlements; path = KataGoAnytimeSafariExt/KataGoAnytimeSafariExt.entitlements; sourceTree = "<group>"; };
 		5E1405189D7D3837B2A46C2C /* log_sink.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = log_sink.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/log/log_sink.cc"; sourceTree = SOURCE_ROOT; };
+		5E2842B3D4BEE675DD794D63 /* WatchAnalysisSummary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchAnalysisSummary.swift; path = "KataGo Anytime Watch/WatchAnalysisSummary.swift"; sourceTree = "<group>"; };
 		5E5E37AF0F0AB64BC62C04C6 /* MainWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		5E6A38E6EFA35EA8E7902554 /* KataGo Anytime Vision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo Anytime Vision.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5F6CAE149C2D97CD25EB7312 /* extension.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = extension.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/extension.cc"; sourceTree = SOURCE_ROOT; };
@@ -2279,6 +2281,7 @@
 				DE80B7E9B79A731EB1957049 /* WatchBrowseModel.swift */,
 				98FF59F6685696E7A87A8101 /* WatchLibraryPage.swift */,
 				B79DFB175A61E73C447085FF /* WatchStoredGameView.swift */,
+				5E2842B3D4BEE675DD794D63 /* WatchAnalysisSummary.swift */,
 			);
 			name = "KataGo Anytime Watch";
 			sourceTree = SOURCE_ROOT;
@@ -4101,6 +4104,7 @@
 				4AB5F2F2C64EA99A347B8962 /* WatchBrowseModel.swift in Sources */,
 				92AF3081FDE087198819CCDC /* WatchLibraryPage.swift in Sources */,
 				693ADFABAAA93405FED6BCC6 /* WatchStoredGameView.swift in Sources */,
+				9A1A8D627BA1BF5E15519A0A /* WatchAnalysisSummary.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

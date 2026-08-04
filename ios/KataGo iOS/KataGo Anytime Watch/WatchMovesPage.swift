@@ -8,6 +8,14 @@ struct WatchMovesPage: View {
     var body: some View {
         let live = model.latest
         List {
+            WatchAnalysisSummary(
+                winrateBlack: live?.rootWinrateBlack,
+                scoreLeadBlack: live?.rootScoreLeadBlack,
+                // The board no longer says the phone has gone quiet, only the
+                // title does — and a one-word title cannot say HOW quiet.
+                staleSince: model.isStale
+                    ? (model.receivedAt ?? live?.hostTimestamp) : nil)
+
             if let live, live.analysisRunning, live.isHumanTurn == false {
                 // Spec: when the side to move is AI-controlled the carousel is
                 // replaced — no Play affordance, no genmove race. Strictly

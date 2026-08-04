@@ -105,6 +105,9 @@ struct WatchStoredGameView: View {
 
     private func reviewPage(_ frame: WatchBoardFrame) -> some View {
         List {
+            WatchAnalysisSummary(winrateBlack: frame.winrateBlack,
+                                 scoreLeadBlack: frame.scoreLeadBlack)
+
             // Always present and always enabled, even at the many indices with
             // no cached analysis: the setting is global, and a control that
             // appeared and vanished as the user scrubbed would read as a
@@ -125,7 +128,12 @@ struct WatchStoredGameView: View {
             if let comment = frame.comment {
                 Text(comment).font(.caption)
             }
-            if frame.bestMove == nil, frame.comment == nil {
+            // All four, not just two. A record can cache a win rate and a
+            // score at an index while caching neither a best move nor a
+            // comment; testing only the latter pair would print this denial
+            // directly beneath a score the page had just displayed.
+            if frame.winrateBlack == nil, frame.scoreLeadBlack == nil,
+               frame.bestMove == nil, frame.comment == nil {
                 Text("No analysis saved for this move").foregroundStyle(.secondary)
             }
         }
