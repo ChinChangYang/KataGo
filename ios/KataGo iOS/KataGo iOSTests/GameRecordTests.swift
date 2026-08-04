@@ -67,6 +67,47 @@ struct GameRecordTests {
         #expect(record.whiteStones?[2] == "Q4")
     }
 
+    /// The de-duplicating wrapper is what keeps re-opening the same `.sgf`
+    /// idempotent for the file-based import paths.
+    @Test func importGameRecord_reusesAStoredRecordWithTheSameSgf() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        let first = try #require(GameRecord.importGameRecord(sgf: sgf, name: "First", in: context))
+        context.insert(first.gameRecord)
+        try context.save()
+
+        let second = try #require(GameRecord.importGameRecord(sgf: sgf, name: "Second", in: context))
+        #expect(second.isNew == false)
+        #expect(second.gameRecord === first.gameRecord)
+        #expect(second.gameRecord.name == "First")
+    }
+
+    /// macOS Edit ▸ Paste goes through this instead, so ⌘V on an SGF already in
+    /// the library still produces a game rather than silently re-selecting the
+    /// stored one.
+    @Test func importedGameRecord_alwaysBuildsANewRecord() async throws {
+        let container = try GameRecordTests.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let sgf = "(;FF[4]GM[1]SZ[19];B[dd];W[pp])"
+        let stored = GameRecord.createGameRecord(sgf: sgf, name: "Stored")
+        context.insert(stored)
+        try context.save()
+
+        let pasted = try #require(GameRecord.importedGameRecord(sgf: sgf, name: "Pasted"))
+        #expect(pasted !== stored)
+        #expect(pasted.name == "Pasted")
+        // Same parse as the de-duplicating path: cursor at the end, final
+        // position stored for the widget.
+        #expect(pasted.currentIndex == 2)
+        #expect(pasted.blackStones?[2] == "D16")
+        #expect(pasted.whiteStones?[2] == "Q4")
+    }
+
+    @Test func importedGameRecord_rejectsUnparsableSgf() async throws {
+        #expect(GameRecord.importedGameRecord(sgf: "not an sgf", name: "Bad") == nil)
+    }
+
     @Test func importGameRecord_finalStonesFeedGameEntity() async throws {
         let container = try GameRecordTests.makeInMemoryContainer()
         let context = ModelContext(container)

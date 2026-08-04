@@ -245,7 +245,20 @@ extension GameRecord {
         if let existing = findExistingGameRecord(withSgf: sgf, in: modelContext) {
             return (gameRecord: existing, isNew: false)
         }
+        guard let newRecord = importedGameRecord(sgf: sgf, name: name) else { return nil }
+        return (gameRecord: newRecord, isNew: true)
+    }
 
+    /// Builds the record an import of `sgf` would produce — parsing, comments and
+    /// the final board position — WITHOUT the duplicate check and without
+    /// inserting anything. Returns nil when the SGF does not parse.
+    ///
+    /// Split out of `importGameRecord` for the callers that must always produce a
+    /// NEW game even when an identical SGF is already stored: macOS Edit ▸ Paste,
+    /// where silently re-selecting the existing game reads as ⌘V having done
+    /// nothing at all. The file-based import paths keep the de-duplicating
+    /// wrapper above, so re-importing the same `.sgf` still does not add a row.
+    public class func importedGameRecord(sgf: String, name: String) -> GameRecord? {
         let sgfHelper = SgfOperations(sgf: sgf)
         guard let moveSize = sgfHelper.moveSize else { return nil }
 
@@ -262,13 +275,12 @@ extension GameRecord {
         let blackStones: [Int: String] = [moveSize: finalStones.black.joined(separator: " ")]
         let whiteStones: [Int: String] = [moveSize: finalStones.white.joined(separator: " ")]
 
-        let newRecord = GameRecord.createGameRecord(sgf: sgf,
-                                                    currentIndex: moveSize,
-                                                    name: name,
-                                                    comments: comments,
-                                                    blackStones: blackStones,
-                                                    whiteStones: whiteStones)
-        return (gameRecord: newRecord, isNew: true)
+        return GameRecord.createGameRecord(sgf: sgf,
+                                           currentIndex: moveSize,
+                                           name: name,
+                                           comments: comments,
+                                           blackStones: blackStones,
+                                           whiteStones: whiteStones)
     }
 
     public func updateToLatestVersion() {
