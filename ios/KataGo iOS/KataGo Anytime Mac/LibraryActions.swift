@@ -241,7 +241,11 @@ extension MainWindowController: LibraryActionsDelegate {
             // analysis, not on load (`boardFits`). Checked BEFORE the insert, so
             // a refusal leaves the library untouched.
             guard boardFitsRunningEngine(result.gameRecord) else {
-                refusedTooLarge.append(result.gameRecord.name)
+                // The file name, not `gameRecord.name`: this alert lists files
+                // the user picked, so both groups must name them the same way.
+                // (The record's name is the file name minus its extension, so
+                // using it here dropped the ".sgf" from one group only.)
+                refusedTooLarge.append(url.lastPathComponent)
                 continue
             }
             if result.isNew {
