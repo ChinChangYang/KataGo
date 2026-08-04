@@ -20,10 +20,11 @@ struct WatchStoredGameView: View {
     // when the user opens a different game.
     @State private var model: WatchBrowseModel?
     @State private var crownIndex: Double = 0
-    /// Whether the transient move counter is on screen. The board takes the
-    /// whole page now, so a PERMANENT counter would obscure its top edge for
-    /// the whole time a game is being read; this shows it while the Crown is
-    /// moving and gets out of the way afterwards.
+    /// Whether the title shows the scrub counter instead of the game's name.
+    /// The board takes the whole page and nothing is drawn on the wood, so the
+    /// counter lives in the title; showing it permanently would mean a game's
+    /// name was never on screen, so it appears while the Crown is moving and
+    /// gets out of the way afterwards.
     @State private var showsCounter = false
 
     /// Blends the record's cached best move onto the board. `@AppStorage`
@@ -52,7 +53,10 @@ struct WatchStoredGameView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(model?.row.name ?? row.name)
+        .navigationTitle(WatchBoardTitle.stored(name: model?.row.name ?? row.name,
+                                                index: model?.index ?? 0,
+                                                count: model?.moveCount ?? 0,
+                                                showsCounter: showsCounter))
         .task(id: row.id) {
             let opened = WatchBrowseModel(row: row, container: container)
             crownIndex = Double(opened.index)
@@ -67,8 +71,6 @@ struct WatchStoredGameView: View {
         VStack(spacing: 2) {
             WatchFrameBoard(frame: frame, showBestMove: showBestMove)
         }
-        .overlay(alignment: .top) { counterPill(frame) }
-        .animation(.easeInOut(duration: 0.2), value: showsCounter)
         .focusable()
         .digitalCrownRotation($crownIndex,
                               from: 0, through: Double(model.moveCount),
@@ -89,17 +91,6 @@ struct WatchStoredGameView: View {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             showsCounter = false
-        }
-    }
-
-    @ViewBuilder
-    private func counterPill(_ frame: WatchBoardFrame) -> some View {
-        if showsCounter, let index = frame.moveIndex, let count = frame.moveCount {
-            Text("\(index)/\(count)")
-                .font(.caption2)
-                .padding(3)
-                .background(.orange.opacity(0.85), in: Capsule())
-                .transition(.opacity)
         }
     }
 
