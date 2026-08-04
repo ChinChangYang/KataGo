@@ -9,6 +9,13 @@ struct SavedGameEntry: TimelineEntry {
     /// the provider (the view never sees the intent). Presentation config,
     /// not game data — deliberately NOT part of SavedGameSnapshot.
     var background: SavedGameBackground = .default
+    /// The user's Edit Widget "Show Comment" choice, resolved from the intent by
+    /// the provider (the view never sees the intent) — presentation config, not
+    /// game data, exactly like `background`. The `= true` member default is what
+    /// keeps the configuration-free construction sites compiling and showing
+    /// today's full layout: `placeholder(in:)` below, and the `#Preview`
+    /// timelines in `SavedGameWidget.swift`.
+    var showsComment: Bool = true
 }
 
 struct SavedGameProvider: AppIntentTimelineProvider {
@@ -24,7 +31,8 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         if context.isPreview {
             return SavedGameEntry(date: .now, snapshot: .placeholder,
                                   background: SavedGameBackground.resolve(
-                                      rawValue: configuration.background))
+                                      rawValue: configuration.background),
+                                  showsComment: configuration.showsComment)
         }
         return await entry(for: configuration)
     }
@@ -52,6 +60,7 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         }
         return SavedGameEntry(date: .now, snapshot: snapshot,
                               background: SavedGameBackground.resolve(
-                                  rawValue: configuration.background))
+                                  rawValue: configuration.background),
+                              showsComment: configuration.showsComment)
     }
 }

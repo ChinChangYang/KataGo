@@ -5,7 +5,7 @@ import KataGoGameStore
 
 struct SelectGameIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Select Game"
-    static let description = IntentDescription("Choose which saved game the widget shows.")
+    static let description = IntentDescription("Choose which saved game the widget shows, and how it looks.")
 
     // The configured game is stored as its UUID STRING — a plain value that
     // round-trips through the intent WITHOUT the AppEntity re-materialization
@@ -33,6 +33,27 @@ struct SelectGameIntent: WidgetConfigurationIntent {
     /// via `SavedGameBackground.resolve`.
     @Parameter(title: "Background", optionsProvider: BackgroundOptionsProvider())
     var background: String?
+
+    /// The Edit Widget "Show Comment" switch. A plain, NON-optional `Bool` with
+    /// a declared default — deliberately, and NOT a relapse into the AppEnum
+    /// shape the two comments above warn against. `Bool` conforms to
+    /// `AppIntents._IntentValue` DIRECTLY (`UnwrappedType == Bool`,
+    /// `ValueType == Bool`), exactly as `String` does; `AppEnum`/`AppEntity`
+    /// instead reach it through `AppValue: PersistentlyIdentifiable`, and it is
+    /// that type-identity round-trip through the AppIntents registry — not
+    /// parameters as such — that yields nil when linkd rejects the widget
+    /// bundle. A Bool carries no persistent identifier to look up, so it decodes
+    /// straight out of the stored intent like the two Strings above.
+    ///
+    /// `default: true` is load-bearing twice: it is the behavior the widget
+    /// shipped with before this switch existed, AND it is what an ALREADY-PLACED
+    /// widget resolves to — such a configuration simply has no entry for this
+    /// new key, so the declared default fills it and no existing widget changes
+    /// appearance. It must stay a LITERAL: the initializer takes the default as
+    /// `_const`, so a named constant will not compile here. And the property
+    /// name IS the stored key, so renaming it would reset every configured row.
+    @Parameter(title: "Show Comment", default: true)
+    var showsComment: Bool
 }
 
 /// Supplies the Background picker: one item per `SavedGameBackground` case,

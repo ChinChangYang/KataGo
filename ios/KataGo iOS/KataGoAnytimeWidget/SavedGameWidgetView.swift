@@ -96,6 +96,42 @@ struct SavedGameWidgetView: View {
             .clipShape(RoundedRectangle(cornerRadius: plan.boardDrawsOwnWood ? 6 : 0))
     }
 
+    /// Comment switched off, on the two WIDE families (~2:1): the board takes
+    /// the container's FULL height — the biggest square the family can hold —
+    /// and the name sits beside it, centred in the width the square leaves over.
+    ///
+    /// `layoutPriority(1)` is what makes "full height" a GUARANTEE rather than a
+    /// coincidence. An HStack sizes its children least-flexible-first and offers
+    /// each only `remaining / childrenLeft` — half the row, for this pair. A 1:1
+    /// `.fit` board answers `min(width, height)`, so the moment half the row is
+    /// narrower than the container is tall (a family closer to 2:1 than iOS's, a
+    /// future device, a name column with a large minimum width) the square
+    /// silently shrinks to that half. Sizing the board FIRST against the whole
+    /// remaining width lands `min(width, height)` on the height every time.
+    private func boardBesideName(plan: SavedGameWidgetLayout.Plan,
+                                 spacing: CGFloat,
+                                 name: Text,
+                                 nameLines: Int) -> some View {
+        HStack(spacing: spacing) {
+            board(showsCoordinates: plan.showsCoordinates)
+                // Holds the ROW at full height even if the square ever came out
+                // smaller than the container: the square then centres in its
+                // slot instead of collapsing the stack.
+                .frame(maxHeight: .infinity)
+                .layoutPriority(1)
+            name
+                .lineLimit(nameLines)
+                .minimumScaleFactor(0.6)
+                .widgetAccentable()
+                // maxWidth holds the row at full width — without it a short name
+                // shrinks the HStack and the widget CENTRES the pair, pulling the
+                // board off the leading edge. maxHeight + `.leading` is the
+                // vertical centring: `.leading` is leading horizontally and
+                // CENTER vertically.
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+    }
+
     /// The user-chosen backplate (or the neutral system material while the
     /// widget is tinted). The wood image is the SAME shared bitmap the board
     /// card draws, scaled to fill the container.
@@ -143,6 +179,7 @@ struct SavedGameWidgetView: View {
         let snap = entry.snapshot
         let plan = SavedGameWidgetLayout.plan(family: layoutFamily,
                                               isSimplified: isSimplified,
+                                              commentIsEnabled: entry.showsComment,
                                               hasComment: !snap.comment.isEmpty,
                                               moveCount: snap.moveCount)
         Group {
@@ -182,34 +219,53 @@ struct SavedGameWidgetView: View {
                     // The extra-large family is wide (~2:1), so spend the room on WIDTH:
                     // a big square board on the leading side (height-bounded, then sized to
                     // a square by the 1:1 aspect) and a roomy info column trailing.
-                    HStack(spacing: 16) {
-                        board(showsCoordinates: plan.showsCoordinates)
-                            .frame(maxHeight: .infinity)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(snap.name).font(.title2).bold().lineLimit(2)
-                                .widgetAccentable()
-                            if plan.showsMoveCount {
-                                Text("Move \(snap.moveCount)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                    //
+                    // With the comment switched off that column holds only the
+                    // name, so the board claims the row and the name centres
+                    // beside it. Branching at the family level (rather than
+                    // threading conditional modifiers through one stack) keeps
+                    // the else-branch BYTE-IDENTICAL to what ships today, so
+                    // "unchanged when the comment is on" is structural.
+                    if plan.boardFillsHeight {
+                        boardBesideName(plan: plan, spacing: 16,
+                                        name: Text(snap.name).font(.title2).bold(),
+                                        nameLines: 3)
+                    } else {
+                        HStack(spacing: 16) {
+                            board(showsCoordinates: plan.showsCoordinates)
+                                .frame(maxHeight: .infinity)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(snap.name).font(.title2).bold().lineLimit(2)
+                                    .widgetAccentable()
+                                if plan.showsMoveCount {
+                                    Text("Move \(snap.moveCount)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if plan.showsComment {
+                                    Text(snap.comment).font(.body)
+                                }
+                                Spacer(minLength: 0)
                             }
-                            if plan.showsComment {
-                                Text(snap.comment).font(.body)
-                            }
-                            Spacer(minLength: 0)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 case .medium:
-                    HStack(spacing: 10) {
-                        board(showsCoordinates: plan.showsCoordinates)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(snap.name).font(.headline).lineLimit(1)
-                                .widgetAccentable()
-                            if plan.showsComment {
-                                Text(snap.comment).font(.caption).lineLimit(3)
+                    if plan.boardFillsHeight {
+                        boardBesideName(plan: plan, spacing: 10,
+                                        name: Text(snap.name).font(.headline),
+                                        nameLines: 2)
+                    } else {
+                        HStack(spacing: 10) {
+                            board(showsCoordinates: plan.showsCoordinates)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(snap.name).font(.headline).lineLimit(1)
+                                    .widgetAccentable()
+                                if plan.showsComment {
+                                    Text(snap.comment).font(.caption).lineLimit(3)
+                                }
+                                Spacer(minLength: 0)
                             }
-                            Spacer(minLength: 0)
                         }
                     }
                 }

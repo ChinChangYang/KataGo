@@ -12,7 +12,7 @@ struct SavedGameWidget: Widget {
             SavedGameWidgetView(entry: entry)
         }
         .configurationDisplayName("Saved Game")
-        .description("Shows a saved game's name, board, and the comment at the displayed move.")
+        .description("Shows a saved game's name and board, with the comment at the displayed move when Show Comment is on.")
         // `.systemExtraLarge` is available on iPadOS, macOS, and visionOS 26 (the
         // platforms this widget ships to); iPhone simply never offers it. No `#if`
         // guard is needed — the enum case compiles on every slice.
@@ -50,4 +50,22 @@ struct SavedGameWidget: Widget {
                     lastBlackStones: ["Q16", "D4", "C16"],
                     lastWhiteStones: ["Q4", "D16", "R14"],
                     moveCount: 6))
+}
+
+/// The same game with the Edit Widget "Show Comment" switch OFF: the comment
+/// and the "Move N" line drop out and the board claims the row, with the name
+/// centred beside it.
+#Preview("Medium, comment off", as: .systemMedium) {
+    SavedGameWidget()
+} timeline: {
+    SavedGameEntry(date: .now,
+                   snapshot: SavedGameSnapshot(
+                    gameID: nil,
+                    name: "Sample Game",
+                    comment: "A quiet opening. Black takes the empty corners; White builds toward the center and the fight is still to come.",
+                    boardWidth: 19, boardHeight: 19,
+                    lastBlackStones: ["Q16", "D4", "C16"],
+                    lastWhiteStones: ["Q4", "D16", "R14"],
+                    moveCount: 6),
+                   showsComment: false)
 }
