@@ -2,7 +2,7 @@ import SwiftUI
 import KataGoGameStore
 
 /// Draws a WatchBoardFrame: the board at the largest size the page allows,
-/// with a vertical winrate bar beside it and the score over it. Shared by the
+/// with a vertical winrate bar beside it in reserved margin. Shared by the
 /// live mirror and the offline browser so the two can never drift apart.
 ///
 /// Layout, and why it is a padded overlay rather than an `HStack`:
