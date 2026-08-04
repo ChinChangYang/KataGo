@@ -174,4 +174,14 @@ public struct WatchBoardFrame: Equatable, Sendable {
         scoreLeadBlack >= 0 ? String(format: "B+%.1f", scoreLeadBlack)
                             : String(format: "W+%.1f", -scoreLeadBlack)
     }
+
+    /// "62%" from Black's win rate.
+    ///
+    /// Black-perspective to agree with the gutter bar beside the board, which
+    /// fills from the bottom for Black, and with that bar's accessibility
+    /// label — the number and the picture must never disagree about whose win
+    /// rate is being shown.
+    public static func winratePercentText(_ winrateBlack: Float) -> String {
+        "\(Int((winrateBlack * 100).rounded()))%"
+    }
 }

@@ -166,4 +166,21 @@ struct WatchBoardFrameTests {
         #expect(WatchBoardFrame.scoreText(-3.5) == "W+3.5")
         #expect(WatchBoardFrame.scoreText(0) == "B+0.0")
     }
+
+    /// Every input here is exactly representable in Float, so the rounding
+    /// boundaries are deterministic rather than dependent on binary
+    /// approximation of the literal.
+    @Test func winratePercentRoundsHalvesAwayFromZero() {
+        #expect(WatchBoardFrame.winratePercentText(0) == "0%")
+        #expect(WatchBoardFrame.winratePercentText(0.375) == "38%")
+        #expect(WatchBoardFrame.winratePercentText(0.5) == "50%")
+        #expect(WatchBoardFrame.winratePercentText(0.625) == "63%")
+        #expect(WatchBoardFrame.winratePercentText(1) == "100%")
+    }
+
+    /// A win rate a hair under 1 must read 100%, not 99% — the watch reports
+    /// what the phone computed, and truncation would understate a won game.
+    @Test func winratePercentRoundsRatherThanTruncates() {
+        #expect(WatchBoardFrame.winratePercentText(0.999) == "100%")
+    }
 }
