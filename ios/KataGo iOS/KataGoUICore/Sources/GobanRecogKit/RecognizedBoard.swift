@@ -77,9 +77,12 @@ public struct RecognizedBoard: Equatable, Sendable {
     /// Contract (see task brief / plan):
     ///   `(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[n]RU[Chinese]KM[7]PL[B|W]AB[…]AW[…])`
     ///
-    /// - `RU[Chinese]` is MANDATORY: the engine's `loadsgf` reads rules via
-    ///   `Sgf::getRulesOrFail`, which aborts (uncatchable) on an SGF with no
-    ///   rules tag. `Chinese` is KataGo's safe default (parsed case-insensitively).
+    /// - `RU[Chinese]` must be written: without a rules tag the Swift bridge's
+    ///   `SgfCpp::getRules` catches `getRulesOrFail` into an ALL-DEFAULT rule
+    ///   set with komi 7.0, so a recognized board would silently load under
+    ///   rules nobody chose. (Not a crash — the engine's `loadsgf` uses
+    ///   `getRulesOrWarn` and falls back to its current rules.) `Chinese` is
+    ///   KataGo's safe default (parsed case-insensitively).
     /// - `KM[7]` matches the bridge's default komi so the displayed komi is
     ///   consistent after import.
     /// - `PL[B|W]` is the chosen next-to-play.

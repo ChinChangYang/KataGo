@@ -26,10 +26,12 @@ enum UITestSeed {
     static let gifGameUUID = UUID(uuidString: "0000A11F-0000-0000-0000-00000000C1F0")!
     static let gifGameName = "UITest GIF Game"
 
-    /// Short 6-move 19x19 main line. `RU[...]` is REQUIRED: the engine-side
-    /// `loadsgf` reads rules via `Sgf::getRulesOrFail`, which aborts (uncatchable)
-    /// on an SGF without one (see `SampleGames`). `KM[7]` matches the komi
-    /// `createGameRecord` derives.
+    /// Short 6-move 19x19 main line. Keep `RU[...]`: without it the Swift
+    /// bridge's `SgfCpp::getRules` catches `getRulesOrFail` into an ALL-DEFAULT
+    /// rule set with komi 7.0, so the seeded game would silently come up under
+    /// different rules than it names (see `SampleGames`). It is not a crash
+    /// risk — the engine's `loadsgf` uses `getRulesOrWarn` and merely falls back
+    /// to the current rules. `KM[7]` matches the komi `createGameRecord` derives.
     static let gifGameSgf =
         "(;FF[4]GM[1]SZ[19]RU[chinese]KM[7];B[pd];W[dp];B[qp];W[dc];B[fq];W[cn])"
 
