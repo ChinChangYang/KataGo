@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // normally handles this; this is the guarded fallback for the case where
         // the search field still grabbed focus when the window became key.
         wc.focusBoardOnLaunch()
+        warnIfLibraryStorageUnavailable(in: wc)
 
         // Proactive identity hygiene (Issue 2): assign stable, unique, non-nil
         // uuids to CloudKit-synced records so the widget's AppIntents round-trip
@@ -84,6 +85,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSLog("repairStoredIdentities failed: \(error)")
             }
         }
+    }
+
+    /// Says so when the library could not be opened this launch.
+    ///
+    /// `SharedModelContainer` used to `fatalError` when neither the CloudKit nor
+    /// the local-only rung could open the App-Group store, which turned a
+    /// declined macOS data-access consent into a crash on every launch. It now
+    /// degrades to an in-memory store instead — the on-disk library is untouched
+    /// and a later launch retries — but that comes up as an EMPTY game list, and
+    /// an empty list presented as if it were real is its own kind of data loss:
+    /// the user starts over, and those games disappear on quit. So say it out
+    /// loud, once, before they touch anything.
+    ///
+    /// A sheet on the main window, not `runModal`: a modal run loop here would
+    /// block the `@MainActor` GTP loop the engine is starting on.
+    @MainActor
+    private func warnIfLibraryStorageUnavailable(in wc: MainWindowController) {
+        guard SharedModelContainer.storeMode == .inMemory else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Your games could not be opened."
+        alert.informativeText = """
+            KataGo Anytime could not reach its library this launch, so it started \
+            with an empty one. Your saved games are still on disk — nothing has \
+            been deleted — but anything you do now will be lost when you quit.
+
+            This usually means the app was denied access to its own stored data. \
+            Check Privacy & Security in System Settings, then reopen the app.
+            """
+        alert.addButton(withTitle: "OK")
+        guard let window = wc.window else { return }
+        alert.beginSheetModal(for: window)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }

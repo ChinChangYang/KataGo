@@ -159,12 +159,75 @@ struct SharedModelContainerTests {
 
     // MARK: - onOpenFailure (F12 fallback routing — pure logic)
 
-    @Test func onOpenFailure_app_retriesThenLocalOnlyThenCrash() {
-        #expect(SharedModelContainer.onOpenFailure(isApp: true) == .retryThenLocalOnlyThenCrash)
+    @Test func onOpenFailure_app_retriesThenLocalOnlyThenInMemory() {
+        #expect(SharedModelContainer.onOpenFailure(isApp: true) == .retryThenLocalOnlyThenInMemory)
     }
 
     @Test func onOpenFailure_extension_inMemoryNeverCrashes() {
         #expect(SharedModelContainer.onOpenFailure(isApp: false) == .inMemoryPlaceholder)
+    }
+
+    // MARK: - Open ladder (F12 — the rung that used to crash)
+
+    private struct OpenFailed: Error {}
+
+    @MainActor
+    private func inMemoryContainer() throws -> ModelContainer {
+        try ModelContainer(for: SharedModelContainer.schema,
+                           configurations: SharedModelContainer.inMemoryConfig())
+    }
+
+    @Test @MainActor func openLadder_reportsCloudKitWhenTheStoreOpens() throws {
+        let container = try inMemoryContainer()
+        let result = SharedModelContainer.openWithLadder(
+            isApp: true,
+            openCloudKit: { container },
+            openLocalOnly: { throw OpenFailed() },
+            openInMemory: { container })
+        #expect(result.mode == .cloudKit)
+    }
+
+    @Test @MainActor func openLadder_degradesToLocalOnlyWhenCloudKitFails() throws {
+        let container = try inMemoryContainer()
+        let result = SharedModelContainer.openWithLadder(
+            isApp: true,
+            openCloudKit: { throw OpenFailed() },
+            openLocalOnly: { container },
+            openInMemory: { container })
+        #expect(result.mode == .localOnly)
+    }
+
+    /// THE REGRESSION TEST. Both on-disk rungs share the App Group container, so
+    /// when the container itself is unreadable — macOS 26's data-access consent
+    /// declined, not corruption — they fail together. That used to reach a
+    /// `fatalError`, which crashed the app at launch, every launch, with
+    /// recovery only through System Settings. The app must degrade like the
+    /// tvOS/watch ladder instead.
+    ///
+    /// Against the old code this test would abort the whole test process rather
+    /// than fail, because the rung it covers was a `fatalError`.
+    @Test @MainActor func openLadder_degradesToInMemoryWhenBothDiskRungsFail() throws {
+        let container = try inMemoryContainer()
+        let result = SharedModelContainer.openWithLadder(
+            isApp: true,
+            openCloudKit: { throw OpenFailed() },
+            openLocalOnly: { throw OpenFailed() },
+            openInMemory: { container })
+        #expect(result.mode == .inMemory)
+    }
+
+    /// An extension has no retry and no local-only rung: it goes straight to the
+    /// placeholder, unchanged by this fix.
+    @Test @MainActor func openLadder_extensionSkipsStraightToInMemory() throws {
+        let container = try inMemoryContainer()
+        var localOnlyWasTried = false
+        let result = SharedModelContainer.openWithLadder(
+            isApp: false,
+            openCloudKit: { throw OpenFailed() },
+            openLocalOnly: { localOnlyWasTried = true; return container },
+            openInMemory: { container })
+        #expect(result.mode == .inMemory)
+        #expect(localOnlyWasTried == false)
     }
 
     // MARK: - App Group flags (injected UserDefaults)

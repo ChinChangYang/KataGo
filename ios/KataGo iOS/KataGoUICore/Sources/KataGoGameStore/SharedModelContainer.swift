@@ -92,21 +92,28 @@ public enum SharedModelContainer {
                            cloudKitDatabase: .none)
     }
 
-    #if os(tvOS) || os(watchOS)
-    /// Which rung of the CloudKit-only open ladder produced `shared`. Written
-    /// exactly once, inside the `shared` static-let initializer (swift_once —
-    /// happens-before every reader); `nonisolated(unsafe)` mirrors the
-    /// LibraryStore write-once observer-token pattern.
-    nonisolated(unsafe) private static var _cloudOnlyStoreMode: LibraryStoreMode = .cloudKit
+    /// Which rung of the open ladder produced `shared`. Written exactly once,
+    /// inside the `shared` static-let initializer (swift_once — happens-before
+    /// every reader); `nonisolated(unsafe)` mirrors the LibraryStore write-once
+    /// observer-token pattern.
+    ///
+    /// Cross-platform, not tvOS/watch-only: every platform now has a rung below
+    /// the store on disk (see `openWithLadder`), and an app that comes up
+    /// `.inMemory` must be able to say so rather than show an empty library as
+    /// if it were the real one.
+    nonisolated(unsafe) private static var _storeMode: LibraryStoreMode = .cloudKit
 
-    /// The rung of the open ladder that won, for the library's empty-state UI
-    /// ("iCloud is unavailable" when sync cannot happen this launch). The
-    /// getter touches `shared` first so no caller can observe the default
-    /// before the ladder has run.
-    public static var cloudOnlyStoreMode: LibraryStoreMode {
+    /// The rung of the open ladder that won. The getter touches `shared` first
+    /// so no caller can observe the default before the ladder has run.
+    public static var storeMode: LibraryStoreMode {
         _ = shared
-        return _cloudOnlyStoreMode
+        return _storeMode
     }
+
+    #if os(tvOS) || os(watchOS)
+    /// The CloudKit-only ladder's name for `storeMode`, kept so the existing
+    /// empty-state call sites ("iCloud is unavailable") are untouched.
+    public static var cloudOnlyStoreMode: LibraryStoreMode { storeMode }
 
     /// A PLAIN SwiftData store (no `groupContainer`) mirrored to the private
     /// CloudKit database. Apple TV has no second process to share with and its
@@ -128,25 +135,26 @@ public enum SharedModelContainer {
     }
 
     /// CloudKit-only open path — NEVER crashes: CloudKit → local-only →
-    /// in-memory. Unlike the iOS app's `retryThenLocalOnlyThenCrash`, a
-    /// memory-pressured TV or watch must degrade to a retryable "storage
-    /// unavailable" state, never `fatalError`.
+    /// in-memory. A memory-pressured TV or watch must degrade to a retryable
+    /// "storage unavailable" state rather than `fatalError`. The app ladder in
+    /// `openWithLadder` now ends the same way, for the same reason; this path
+    /// stays separate only because it skips the App Group and the migration.
     private static func openCloudOnlyStore() -> ModelContainer {
         do {
             let container = try ModelContainer(for: schema,
                                                configurations: cloudOnlyCloudKitConfig())
-            _cloudOnlyStoreMode = .cloudKit
+            _storeMode = .cloudKit
             return container
         } catch {
             NSLog("SharedModelContainer: CloudKit store open failed, degrading local-only: \(error)")
             do {
                 let container = try ModelContainer(for: schema,
                                                    configurations: cloudOnlyLocalConfig())
-                _cloudOnlyStoreMode = .localOnly
+                _storeMode = .localOnly
                 return container
             } catch {
                 NSLog("SharedModelContainer: local store open failed, using in-memory: \(error)")
-                _cloudOnlyStoreMode = .inMemory
+                _storeMode = .inMemory
                 return makeInMemoryContainer()
             }
         }
@@ -194,34 +202,71 @@ public enum SharedModelContainer {
         openOrFallback(isApp: isApp, cloudKit: oldStoreCloudKitConfig, localOnly: oldStoreLocalOnlyConfig)
     }
 
-    /// Opens `cloudKit()`, applying the F12 fallback ladder on failure: app
-    /// retries once, then degrades to `localOnly()` (same file, keep data), then
-    /// crashes; an extension never crashes and falls back to an in-memory
-    /// placeholder.
+    /// Opens `cloudKit()`, applying the F12 fallback ladder on failure, and
+    /// records which rung won in `storeMode`.
     private static func openOrFallback(isApp: Bool,
                                        cloudKit: () -> ModelConfiguration,
                                        localOnly: () -> ModelConfiguration) -> ModelContainer {
+        let result = openWithLadder(
+            isApp: isApp,
+            openCloudKit: {
+                try openContainer(retries: isApp ? 1 : 0) {
+                    try ModelContainer(for: schema, configurations: cloudKit())
+                }
+            },
+            openLocalOnly: { try ModelContainer(for: schema, configurations: localOnly()) },
+            openInMemory: { makeInMemoryContainer() })
+        _storeMode = result.mode
+        // Anything below the top rung means this launch cannot sync; `.cloudKit`
+        // clears a stale banner from a previous degraded launch.
+        if isApp { setCloudKitSyncDegraded(result.mode != .cloudKit) }
+        return result.container
+    }
+
+    /// The F12 fallback ladder, with the three container opens injected so every
+    /// rung — including the one that used to crash — is testable without a real
+    /// store.
+    ///
+    /// App: CloudKit (retried once by the caller) → `localOnly` (same file, keeps
+    /// all data, sync degraded) → in-memory. Extension: CloudKit → in-memory,
+    /// with no local-only attempt.
+    ///
+    /// **The last rung used to be `fatalError`**, on the reasoning that reaching
+    /// it meant genuine corruption and "a visible crash beats silently losing the
+    /// library". That reasoning missed a case: both disk rungs name the SAME App
+    /// Group container and differ only in `cloudKitDatabase`, so anything that
+    /// makes the container itself unreadable fails both together. macOS 26 added
+    /// exactly such a case — a declined app-data-access consent — which turned
+    /// one mis-click into a crash on every subsequent launch, recoverable only
+    /// through System Settings. Nothing was corrupt and nothing was lost; the app
+    /// simply could not reach its own store.
+    ///
+    /// In-memory does not lose data either: the on-disk store is untouched and a
+    /// later launch retries the whole ladder. It IS visibly empty, which is why
+    /// `storeMode` is recorded — a caller that comes up `.inMemory` must say so
+    /// rather than present an empty library as if it were the real one.
+    public static func openWithLadder(
+        isApp: Bool,
+        openCloudKit: () throws -> ModelContainer,
+        openLocalOnly: () throws -> ModelContainer,
+        openInMemory: () -> ModelContainer
+    ) -> (container: ModelContainer, mode: LibraryStoreMode) {
         do {
-            let container = try openContainer(retries: isApp ? 1 : 0) {
-                try ModelContainer(for: schema, configurations: cloudKit())
-            }
-            if isApp { setCloudKitSyncDegraded(false) }   // CloudKit healthy — clear stale banner
-            return container
+            return (try openCloudKit(), .cloudKit)
         } catch {
             switch onOpenFailure(isApp: isApp) {
-            case .retryThenLocalOnlyThenCrash:
-                // Keep ALL on-disk data; degrade sync rather than crash or lose data.
-                setCloudKitSyncDegraded(true)
+            case .retryThenLocalOnlyThenInMemory:
+                NSLog("SharedModelContainer: CloudKit store open failed, degrading local-only: \(error)")
                 do {
-                    return try ModelContainer(for: schema, configurations: localOnly())
+                    // Keep ALL on-disk data; degrade sync rather than lose data.
+                    return (try openLocalOnly(), .localOnly)
                 } catch {
-                    // Even the local store won't open — genuine corruption. A
-                    // visible crash beats silently losing the library.
-                    fatalError("SharedModelContainer: failed to open store: \(error)")
+                    NSLog("SharedModelContainer: local store open failed, using in-memory: \(error)")
+                    return (openInMemory(), .inMemory)
                 }
             case .inMemoryPlaceholder:
                 // Extension must never crash; show a placeholder instead.
-                return makeInMemoryContainer()
+                return (openInMemory(), .inMemory)
             }
         }
     }
@@ -286,14 +331,16 @@ public enum SharedModelContainer {
 
     /// How to recover when opening the real store throws (F12).
     public enum OpenFallback: Equatable {
-        /// App: retry once, then local-only (keep data, degrade sync), then crash.
-        case retryThenLocalOnlyThenCrash
+        /// App: retry once, then local-only (keep data, degrade sync), then an
+        /// in-memory placeholder. Formerly `…ThenCrash`; see `openWithLadder`
+        /// for why the crash had to go.
+        case retryThenLocalOnlyThenInMemory
         /// Extension: never crash; fall back to an in-memory placeholder.
         case inMemoryPlaceholder
     }
 
     public static func onOpenFailure(isApp: Bool) -> OpenFallback {
-        isApp ? .retryThenLocalOnlyThenCrash : .inMemoryPlaceholder
+        isApp ? .retryThenLocalOnlyThenInMemory : .inMemoryPlaceholder
     }
 
     // MARK: - App Group flags (local per-device, NOT CloudKit-synced)
