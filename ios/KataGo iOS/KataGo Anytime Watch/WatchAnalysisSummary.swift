@@ -34,9 +34,10 @@ struct WatchAnalysisSummary: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             // The exact wording the deleted board glyph handed VoiceOver. The
-            // visible row is shorter because the title already says "Offline";
-            // the spoken one stays self-contained because a title is not read
-            // alongside every row.
+            // visible row can be terse because the reader has just come from
+            // the board page, whose title said "Offline"; the spoken one
+            // repeats that, because VoiceOver does not read a page's title
+            // alongside every row it announces.
             .accessibilityElement()
             .accessibilityLabel(
                 Text("Not receiving updates; last update \(staleSince, style: .relative) ago"))
