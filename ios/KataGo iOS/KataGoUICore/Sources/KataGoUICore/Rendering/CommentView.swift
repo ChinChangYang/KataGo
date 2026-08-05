@@ -83,7 +83,7 @@ public struct CommentView: View {
             }
             .onChange(of: gameRecord.currentIndex) { oldIndex, newIndex in
                 if oldIndex != newIndex {
-                    gameRecord.comments?[oldIndex] = comment
+                    CommentPersistence.store(comment, at: oldIndex, in: gameRecord)
                     comment = gameRecord.comments?[newIndex] ?? ""
                 }
             }
@@ -95,8 +95,19 @@ public struct CommentView: View {
                     comment = newValue
                 }
             }
+            // Flush while the pane is still on screen. `.task(id:)` IS the
+            // debounce: SwiftUI cancels the running task on every keystroke, so
+            // the countdown restarts and only completes once typing stops.
+            // Without this the record — and therefore the watch widget, the iOS
+            // widget, and Shortcuts — would not see a comment until the pane
+            // disappeared.
+            .task(id: comment) {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                CommentPersistence.store(comment, at: gameRecord.currentIndex, in: gameRecord)
+            }
             .onDisappear {
-                gameRecord.comments?[gameRecord.currentIndex] = comment
+                CommentPersistence.store(comment, at: gameRecord.currentIndex, in: gameRecord)
             }
             .task {
                 commentator = Commentator(
@@ -126,5 +137,9 @@ public struct CommentView: View {
         } else {
             comment = commentator?.generateNaturalComment() ?? ""
         }
+        // Generation finishes in one shot, so persist immediately rather than
+        // waiting out the typing debounce: the whole point of the button is
+        // that the text is now real.
+        CommentPersistence.store(comment, at: gameRecord.currentIndex, in: gameRecord)
     }
 }
