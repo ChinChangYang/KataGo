@@ -88,6 +88,7 @@
 		1F7EB7DC24D6B85275638C3D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 879E6D92CA6E4B225BDC33E3 /* AppIcon.icon */; };
 		200E2726222793045A3D463E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */; };
 		20D73A20AA9FB7484440EC4F /* Imputer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 14C9F049828D2C767A8EA405 /* Imputer.pb.cc */; };
+		21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */; };
 		23A9466778CA07DB91843E66 /* BoardGeometryRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BAFECB2568358C282730DA /* BoardGeometryRulesTests.swift */; };
 		23BD041DE508CFC8BD3B27AC /* VisionModelBootResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD79CC9919790FED10D4219 /* VisionModelBootResolverTests.swift */; };
 		2461BA3862388B00DD5F8871 /* GobanStateResumeAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB49693C31982E897CF6E60A /* GobanStateResumeAnalysisTests.swift */; };
@@ -1930,6 +1931,7 @@
 		F0A9BD4C3C25E46C9CABA769 /* low_level_alloc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = low_level_alloc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/low_level_alloc.cc"; sourceTree = SOURCE_ROOT; };
 		F0C21644108B173C7D8CC60E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		F19CDAADBA08BFAD9A2A0FE3 /* LibraryActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryActions.swift; sourceTree = "<group>"; };
+		F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchWidgetLibrarySourceTests.swift; sourceTree = "<group>"; };
 		F21C36C1D309CE0FA71EB9C9 /* VisionGameShell.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionGameShell.swift; path = "KataGo Anytime Vision/VisionGameShell.swift"; sourceTree = "<group>"; };
 		F26A521D8D2F1BB926B18F46 /* time_zone_format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_format.cc"; sourceTree = SOURCE_ROOT; };
 		F329D19DE7EA7597C7EED61D /* DraftEditingSyncTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftEditingSyncTests.swift; sourceTree = "<group>"; };
@@ -3300,6 +3302,7 @@
 				31454F8EE56ED892B6C5DA6A /* WatchWidgetRefreshPolicyTests.swift */,
 				ECC8F2638C2B753BC7475420 /* WatchWidgetDefaultsTests.swift */,
 				76B68D61C6F83745BF0CA95F /* WatchWidgetTileTextTests.swift */,
+				F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4829,6 +4832,7 @@
 				1F12F81117E09B927C33CC09 /* WatchWidgetRefreshPolicyTests.swift in Sources */,
 				DBF5D5BCC69F23027531B05D /* WatchWidgetDefaultsTests.swift in Sources */,
 				739E282D6AE8DC2BE0A56800 /* WatchWidgetTileTextTests.swift in Sources */,
+				21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
