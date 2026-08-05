@@ -18,6 +18,11 @@ public enum WatchWidgetTileLayout: Equatable, Sendable {
     /// Nothing to show. `headline` always renders; `detail` is a second line
     /// when there is room for it.
     case unavailable(headline: String, detail: String?)
+    /// No record yet, but the retired complication's score scalar is still
+    /// in the App Group. A one-release cutover fallback: the string is
+    /// already formatted (by `scoreText`), so the view does no formatting of
+    /// its own.
+    case legacyScore(String)
     /// Name + score row, then the comment body filling the remaining height.
     case withComment
     /// Name + score row, then the move line, then the age. The DEFAULT: most
@@ -37,14 +42,26 @@ public enum WatchWidgetTileText {
     public static let separator = " - "
 
     public static func layout(for snapshot: WatchWidgetSnapshot?,
+                              legacyScoreLeadBlack: Double? = nil,
                               storageAvailable: Bool,
                               luminanceReduced: Bool) -> WatchWidgetTileLayout {
-        // Storage first: it outranks Always-On because a tile that cannot read
-        // its record has nothing to dim.
+        // Storage first: it outranks everything else, including the legacy
+        // fallback below — the legacy scalar lives in the same App Group, so
+        // a tile that cannot read its record cannot read that either. There
+        // is nothing to fall back to.
         guard storageAvailable else {
             return .unavailable(headline: "Storage unavailable", detail: nil)
         }
         guard let snapshot else {
+            // Cutover window: no record has been written yet, but the
+            // retired complication's score scalar is still sitting in the
+            // App Group. This is checked before "No game yet" — and before
+            // the Always-On check below, since `.reduced` only makes sense
+            // as a dimming of an existing record's content; with no record
+            // at all there is nothing to dim, only a lone score to show.
+            if let legacyScoreLeadBlack, let score = scoreText(legacyScoreLeadBlack) {
+                return .legacyScore(score)
+            }
             return .unavailable(headline: "No game yet",
                                 detail: "Open KataGo Anytime on your Watch")
         }
@@ -85,8 +102,17 @@ public enum WatchWidgetTileText {
     /// silently dropped, the same styling loss this repo already recorded for
     /// watchOS navigation titles. So the WRITER truncates, and the durable
     /// token goes first.
-    public static func inlineText(for snapshot: WatchWidgetSnapshot?) -> String {
-        guard let snapshot else { return "No game" }
+    public static func inlineText(for snapshot: WatchWidgetSnapshot?,
+                                  legacyScoreLeadBlack: Double? = nil) -> String {
+        guard let snapshot else {
+            // Same cutover fallback as `layout(for:legacyScoreLeadBlack:...)`,
+            // rendered through the same compact formatting a real score gets
+            // in this family.
+            if let legacyScoreLeadBlack, let score = compactScoreText(legacyScoreLeadBlack) {
+                return score
+            }
+            return "No game"
+        }
         let lead = compactScoreText(snapshot.scoreLeadBlack) ?? "Move \(snapshot.parkedIndex)"
         let remaining = inlineBudget - lead.count - separator.count
         guard remaining > 0 else { return lead }
@@ -98,8 +124,15 @@ public enum WatchWidgetTileText {
     }
 
     /// A different readout, not a compact rendition of name + comment.
-    public static func circularText(for snapshot: WatchWidgetSnapshot?) -> String {
-        guard let snapshot else { return "--" }
+    public static func circularText(for snapshot: WatchWidgetSnapshot?,
+                                    legacyScoreLeadBlack: Double? = nil) -> String {
+        guard let snapshot else {
+            // Same cutover fallback as `inlineText`, above.
+            if let legacyScoreLeadBlack, let score = compactScoreText(legacyScoreLeadBlack) {
+                return score
+            }
+            return "--"
+        }
         return compactScoreText(snapshot.scoreLeadBlack) ?? "\(snapshot.parkedIndex)"
     }
 }

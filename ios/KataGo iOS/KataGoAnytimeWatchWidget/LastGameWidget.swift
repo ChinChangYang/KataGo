@@ -108,6 +108,7 @@ struct LastGameWidgetView: View {
 
     private var layout: WatchWidgetTileLayout {
         WatchWidgetTileText.layout(for: entry.snapshot,
+                                   legacyScoreLeadBlack: entry.legacyScoreLeadBlack,
                                    storageAvailable: entry.storageAvailable,
                                    luminanceReduced: isLuminanceReduced)
     }
@@ -117,6 +118,12 @@ struct LastGameWidgetView: View {
             switch layout {
             case .unavailable(let headline, let detail):
                 unavailableBody(headline: headline, detail: detail)
+            case .legacyScore(let score):
+                // Cutover window: no record yet, but the retired
+                // complication's score is still in the App Group and beats a
+                // "no game" card. Keeps the monospaced styling the score
+                // always had here.
+                Text(score).font(.system(.headline, design: .monospaced))
             case .reduced:
                 headerRow
                 metaLine
@@ -142,16 +149,12 @@ struct LastGameWidgetView: View {
 
     @ViewBuilder
     private func unavailableBody(headline: String, detail: String?) -> some View {
-        if let legacy = entry.legacyScoreLeadBlack,
-           let score = WatchWidgetTileText.scoreText(legacy) {
-            // Cutover window: no record yet, but the retired complication's
-            // score is still in the App Group and beats a "no game" card.
-            Text(score).font(.system(.headline, design: .monospaced))
-        } else {
-            Text(headline).font(.headline).lineLimit(1)
-            if let detail {
-                Text(detail).font(.caption2).foregroundStyle(.secondary)
-            }
+        // The legacy-score cutover fallback is a distinct `WatchWidgetTileLayout`
+        // case now (`.legacyScore`), handled above in `rectangular` — this body
+        // only ever renders a genuine unavailable state.
+        Text(headline).font(.headline).lineLimit(1)
+        if let detail {
+            Text(detail).font(.caption2).foregroundStyle(.secondary)
         }
     }
 
@@ -201,19 +204,13 @@ struct LastGameWidgetView: View {
     // MARK: small families
 
     private var inlineText: String {
-        if entry.snapshot == nil, let legacy = entry.legacyScoreLeadBlack,
-           let score = WatchWidgetTileText.compactScoreText(legacy) {
-            return score
-        }
-        return WatchWidgetTileText.inlineText(for: entry.snapshot)
+        WatchWidgetTileText.inlineText(for: entry.snapshot,
+                                       legacyScoreLeadBlack: entry.legacyScoreLeadBlack)
     }
 
     private var circularText: String {
-        if entry.snapshot == nil, let legacy = entry.legacyScoreLeadBlack,
-           let score = WatchWidgetTileText.compactScoreText(legacy) {
-            return score
-        }
-        return WatchWidgetTileText.circularText(for: entry.snapshot)
+        WatchWidgetTileText.circularText(for: entry.snapshot,
+                                         legacyScoreLeadBlack: entry.legacyScoreLeadBlack)
     }
 
     /// Built inline rather than by linking `GameDeepLink`: that type reaches

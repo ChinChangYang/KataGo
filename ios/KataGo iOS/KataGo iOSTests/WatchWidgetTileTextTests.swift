@@ -72,6 +72,48 @@ struct WatchWidgetTileTextTests {
         #expect(layout == .unavailable(headline: "Storage unavailable", detail: nil))
     }
 
+    // MARK: legacy score cutover
+
+    @Test func noRecordWithALegacyScoreShowsTheLegacyLayout() {
+        // The one-release cutover window: nothing has written the new record
+        // yet, but the retired complication's score is still in the App
+        // Group and is worth more than a "no game" card.
+        let layout = WatchWidgetTileText.layout(for: nil, legacyScoreLeadBlack: 3.5,
+                                                storageAvailable: true,
+                                                luminanceReduced: false)
+        #expect(layout == .legacyScore("B+3.5"))
+    }
+
+    @Test func aRealRecordIgnoresALingeringLegacyScore() {
+        // Once the new record exists it is always the truth; a leftover
+        // legacy scalar from before the cutover must never override it.
+        let layout = WatchWidgetTileText.layout(for: snapshot(comment: nil),
+                                                legacyScoreLeadBlack: 3.5,
+                                                storageAvailable: true,
+                                                luminanceReduced: false)
+        #expect(layout == .withoutComment)
+    }
+
+    @Test func storageUnavailableOutranksALingeringLegacyScore() {
+        // A tile that cannot read its record has nothing to fall back to —
+        // the legacy scalar lives in the same App Group, so it is exactly as
+        // unreachable as the record would be.
+        let layout = WatchWidgetTileText.layout(for: nil, legacyScoreLeadBlack: 3.5,
+                                                storageAvailable: false,
+                                                luminanceReduced: false)
+        #expect(layout == .unavailable(headline: "Storage unavailable", detail: nil))
+    }
+
+    @Test func legacyScoreWinsOverAlwaysOnDimming() {
+        // .reduced dims an EXISTING record's content; with no record at all
+        // there is nothing to dim, so the legacy score still wins even under
+        // Always-On.
+        let layout = WatchWidgetTileText.layout(for: nil, legacyScoreLeadBlack: 3.5,
+                                                storageAvailable: true,
+                                                luminanceReduced: true)
+        #expect(layout == .legacyScore("B+3.5"))
+    }
+
     // MARK: score
 
     @Test func theScoreNamesItsLeader() {
@@ -141,11 +183,21 @@ struct WatchWidgetTileTextTests {
         #expect(text.contains(" - "))
     }
 
+    @Test func inlineFallsBackToTheLegacyScoreWithNoRecord() {
+        let text = WatchWidgetTileText.inlineText(for: nil, legacyScoreLeadBlack: 21.8)
+        #expect(text == "B+22")
+    }
+
     // MARK: circular
 
     @Test func circularShowsTheScoreThenTheMoveNumber() {
         #expect(WatchWidgetTileText.circularText(for: snapshot(score: 21.8)) == "B+22")
         #expect(WatchWidgetTileText.circularText(for: snapshot(score: nil)) == "42")
         #expect(WatchWidgetTileText.circularText(for: nil) == "--")
+    }
+
+    @Test func circularFallsBackToTheLegacyScoreWithNoRecord() {
+        let text = WatchWidgetTileText.circularText(for: nil, legacyScoreLeadBlack: -21.8)
+        #expect(text == "W+22")
     }
 }
