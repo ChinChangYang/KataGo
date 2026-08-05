@@ -36,6 +36,15 @@ struct WatchSnapshotV13Tests {
         // The exact compatibility this optionality exists for: a payload
         // written before these fields existed must decode, with nil meaning
         // "older phone" rather than "no name".
+        //
+        // `v12` never sets gameName/positionComment/isBranch, so they stay
+        // nil. WatchSnapshot relies on Swift's synthesized Codable, whose
+        // encodeIfPresent omits a nil optional entirely rather than writing
+        // an explicit JSON null — so those three keys are already absent
+        // from `v12.encodedData()`, exactly the shape a genuine older-phone
+        // payload has. The removeValue calls below are therefore defensive
+        // no-ops, not stripping anything actually present; they are kept as
+        // belt-and-braces documentation of intent.
         var v12 = frame()
         v12.hostGameID = "GAME-A"
         v12.hostMoveIndex = 42

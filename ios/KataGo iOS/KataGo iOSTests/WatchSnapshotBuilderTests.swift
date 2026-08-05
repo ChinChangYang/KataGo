@@ -168,4 +168,92 @@ struct WatchSnapshotBuilderTests {
         #expect(snapshot.hostGameID == nil && snapshot.hostMoveIndex == nil
                 && snapshot.canScrub == nil && snapshot.canPlay == nil)
     }
+
+    @Test func builderPopulatesGameNameIsBranchAndPositionComment() {
+        // No branch active: the displayed index is the record's own
+        // currentIndex, so the comment stored there should ride along
+        // unsuppressed.
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])",
+            currentIndex: 4,
+            name: "Ladder Fight 3",
+            comments: [4: "White cuts cleanly."])
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: session, gameRecord: gameRecord, moveCount: 4, now: .now)
+
+        #expect(snapshot.gameName == "Ladder Fight 3")
+        #expect(snapshot.isBranch == false)
+        #expect(snapshot.positionComment == "White cuts cleanly.")
+    }
+
+    @Test func branchActiveSuppressesCommentButKeepsGameNameAndIsBranch() {
+        // gameRecord.comments is keyed by MAINLINE index, but getCurrentIndex
+        // reports the branch index while a branch is active. Put a comment
+        // at that very branch index so an unsuppressed lookup would find it
+        // (proving the nil below is deliberate suppression, not a missing
+        // key) — and confirm gameName/isBranch still populate normally, so
+        // the suppression is scoped to positionComment alone.
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])",
+            currentIndex: 2,
+            name: "Ladder Fight 3",
+            comments: [2: "at divergence", 5: "would leak if unsuppressed"])
+        session.gobanState.branchSgf = "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[ee];W[ff];B[gg])"
+        session.gobanState.branchIndex = 5
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: session, gameRecord: gameRecord, moveCount: 4, now: .now)
+
+        #expect(snapshot.isBranch == true)
+        #expect(snapshot.positionComment == nil)
+        #expect(snapshot.gameName == "Ladder Fight 3")
+    }
+
+    @Test func positionCommentIsLookedUpAtTheDisplayedIndexNotIndexZero() {
+        // Guards against reading the lookup index before the builder
+        // assigns it (snapshot.hostMoveIndex), which would silently pull
+        // every comment from move 0 regardless of where the game is parked.
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])",
+            currentIndex: 3,
+            comments: [0: "opening comment", 3: "displayed comment"])
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: session, gameRecord: gameRecord, moveCount: 4, now: .now)
+
+        #expect(snapshot.positionComment == "displayed comment")
+    }
+
+    @Test func longCommentAtTheDisplayedIndexIsCappedForTheWire() {
+        // Pins the cap to the actual wire boundary: WatchSnapshotV13Tests'
+        // worst-case-size test bakes an already-capped string into a
+        // hand-built snapshot, so it would still pass even if the builder's
+        // cappedComment() call were deleted. This exercises the builder
+        // itself.
+        let session = GameSession()
+        session.board.width = 9; session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        let longComment = String(repeating: "a",
+                                 count: WatchWidgetSnapshot.commentCharacterLimit + 500)
+        let gameRecord = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb];B[cc];W[dd])",
+            currentIndex: 4,
+            comments: [4: longComment])
+
+        let snapshot = WatchSnapshotBuilder.makeSnapshot(
+            session: session, gameRecord: gameRecord, moveCount: 4, now: .now)
+
+        // limit characters plus one for the appended ellipsis.
+        #expect(snapshot.positionComment?.count == WatchWidgetSnapshot.commentCharacterLimit + 1)
+    }
 }
