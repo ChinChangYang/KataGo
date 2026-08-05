@@ -469,6 +469,7 @@
 		BA2179C27358544EA3F9EB56 /* SelfPlayAttractPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D48FC1E4B0BA7ACE8D3473C /* SelfPlayAttractPolicyTests.swift */; };
 		BB566FAF6A2CC73012B21674 /* substitute.cc in Sources */ = {isa = PBXBuildFile; fileRef = 744518C7A1BEE2A0C3B3133A /* substitute.cc */; };
 		BB84C34F8B17A74E55B030CE /* GameRecord+Draft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1351D9B86F81A1CE0E3834 /* GameRecord+Draft.swift */; };
+		BD292E47A23A029417087418 /* WatchWidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD3106389746904F6A9BE88 /* WatchWidgetSnapshotTests.swift */; };
 		BD4FC7857C878EC30A61B5DB /* VisionGameDeleteFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6744588CD056E4B130D12589 /* VisionGameDeleteFlowTests.swift */; };
 		BD9B6B885BF6BA69621E7105 /* SavedGameProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */; };
 		BDD321DAA44964C4887A5E06 /* repeated_field.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC5101F03317F990C4EC6BD2 /* repeated_field.cc */; };
@@ -1311,6 +1312,7 @@
 		59BDE2664FA33EFE5A79F545 /* wire_format_lite.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = wire_format_lite.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/wire_format_lite.cc"; sourceTree = SOURCE_ROOT; };
 		59E556A6B20E1ACB368463BE /* VisionModelsOrnament.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionModelsOrnament.swift; path = "KataGo Anytime Vision/VisionModelsOrnament.swift"; sourceTree = "<group>"; };
 		59FF3528498B725719949971 /* chart.js */ = {isa = PBXFileReference; includeInIndex = 1; name = chart.js; path = KataGoAnytimeSafariExtIOS/Resources/chart.js; sourceTree = "<group>"; };
+		5AD3106389746904F6A9BE88 /* WatchWidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchWidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		5B0269EB029E1950EA4F042D /* SgfReplayDifferentialTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfReplayDifferentialTests.swift; sourceTree = "<group>"; };
 		5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameProviderTests.swift; sourceTree = "<group>"; };
 		5C4E95A95BD9FCFF980A2DE4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeMessages/Info.plist; sourceTree = "<group>"; };
@@ -3283,6 +3285,7 @@
 				C4B89CB5B1D3EBA62B5CA7E6 /* WatchBoardLayoutTests.swift */,
 				4939645D714DCB1B3C0ECFDC /* WatchBoardTitleTests.swift */,
 				B626C5165C639C79B3AEE928 /* CommentPersistenceTests.swift */,
+				5AD3106389746904F6A9BE88 /* WatchWidgetSnapshotTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4804,6 +4807,7 @@
 				F3B5C79213B69A91A1C665CB /* WatchBoardLayoutTests.swift in Sources */,
 				9839295F3CBA15F895A19317 /* WatchBoardTitleTests.swift in Sources */,
 				91224677EFE042663FE4E801 /* CommentPersistenceTests.swift in Sources */,
+				BD292E47A23A029417087418 /* WatchWidgetSnapshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
