@@ -133,6 +133,28 @@ struct CommentPersistenceTests {
         CommentPersistence.store(text, at: 0, in: record)
         #expect(record.comments?[0] == text)
     }
+
+    @Test func blankTextNeverCreatesAnEntryThatDidNotExist() {
+        // The new typing-debounce flush also fires on the pane's FIRST
+        // appearance, when the text is "". Creating an entry there would put an
+        // empty string at that index — and `GameEntity.firstComment` reads
+        // `comments?[0]` directly, so a blank at move 0 would become the iOS
+        // widget picker's subtitle instead of falling through to the earliest
+        // real comment.
+        let record = GameRecord(config: Config(), comments: [:])
+        CommentPersistence.store("", at: 0, in: record)
+        #expect(record.comments?[0] == nil)
+        CommentPersistence.store("   \n", at: 5, in: record)
+        #expect(record.comments?[5] == nil)
+    }
+
+    @Test func clearingAnExistingCommentStillPersists() {
+        // The other half of the rule: emptying a comment the user had written
+        // must be saved, or the pane would silently refuse to delete text.
+        let record = GameRecord(config: Config(), comments: [3: "old"])
+        CommentPersistence.store("", at: 3, in: record)
+        #expect(record.comments?[3] == "")
+    }
 }
 ```
 
@@ -175,7 +197,17 @@ public enum CommentPersistence {
     /// dictionary if the record arrived without one. The text is stored
     /// verbatim: it is user content, which may be in any script, and callers
     /// that care about blank comments (`WatchStoredAnalysis.at`) already trim.
+    ///
+    /// Blank text does NOT create an entry that did not exist. The typing
+    /// debounce fires on the pane's first appearance too, and an empty string
+    /// stored at move 0 would be returned verbatim by
+    /// `GameEntity.firstComment` (which reads `comments?[0]` before its
+    /// fallback), making the iOS widget picker's subtitle blank instead of the
+    /// game's earliest real comment. Clearing an EXISTING comment still
+    /// persists — otherwise the pane could not delete text.
     public static func store(_ text: String, at index: Int, in record: GameRecord) {
+        let isBlank = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if isBlank, record.comments?[index] == nil { return }
         if record.comments == nil { record.comments = [:] }
         record.comments?[index] = text
     }
@@ -689,6 +721,36 @@ struct WatchWidgetRecordsTests {
         let stored = WatchWidgetRecords(live: record(.live, gameID: "GAME-A", at: 600), library: nil)
         let other = record(.live, gameID: "GAME-B", at: 0)
         #expect(stored.acceptingLive(other)?.live?.gameID == "GAME-B")
+    }
+
+    // MARK: accepting a library candidate
+
+    @Test func anUnchangedLibraryCandidateIsRejected() {
+        // Same content-key rule as the live side: a CloudKit refresh burst
+        // must not rewrite an identical record once per notification.
+        let stored = WatchWidgetRecords(live: nil, library: record(.library, at: 0))
+        #expect(stored.acceptingLibrary(record(.library, at: 600)) == nil)
+    }
+
+    @Test func aChangedLibraryCandidateIsAccepted() {
+        let stored = WatchWidgetRecords(live: nil,
+                                        library: record(.library, comment: nil, at: 0))
+        let updated = stored.acceptingLibrary(record(.library, comment: "New note.", at: 600))
+        #expect(updated?.library?.comment == "New note.")
+    }
+
+    @Test func theLibraryWriterHasNoMonotonicGuard() {
+        // Unlike the live side there is exactly one library writer, serialized
+        // on the main actor, so an out-of-order write cannot occur and an
+        // older-clocked but DIFFERENT record must still land (a game edited on
+        // another device can legitimately carry an earlier timestamp).
+        let stored = WatchWidgetRecords(live: nil, library: record(.library, at: 600))
+        let older = record(.library, gameID: "GAME-B", at: 0)
+        #expect(stored.acceptingLibrary(older)?.library?.gameID == "GAME-B")
+    }
+
+    @Test func theFirstLibraryRecordIsAlwaysAccepted() {
+        #expect(WatchWidgetRecords().acceptingLibrary(record(.library))?.library != nil)
     }
 
     // MARK: eviction
