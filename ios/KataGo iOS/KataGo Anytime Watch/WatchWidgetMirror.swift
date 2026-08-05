@@ -24,11 +24,6 @@ final class WatchWidgetMirror {
     private var lastReloadKey: String?
     private var lastReloadAt: Date?
 
-    /// Identity of the row last mirrored, so a refresh whose newest row has
-    /// not moved does no SwiftData fetch at all. CloudKit's initial sync fires
-    /// a burst of refreshes.
-    private var lastMirroredRow: (id: String, modified: Date)?
-
     init(container: ModelContainer,
          defaults: UserDefaults? = WatchWidgetDefaults.sharedDefaults()) {
         self.container = container
@@ -42,6 +37,24 @@ final class WatchWidgetMirror {
     /// job: deleting the mirrored game from the Mac while the iPhone app is
     /// closed pushes no further frames, and without this the tile would keep a
     /// dead game — with a newer clock — forever.
+    ///
+    /// The extras fetch below runs on every call that has a newest row —
+    /// there is deliberately no memo keyed on `(id, lastModified)` to skip it
+    /// when the row "hasn't moved". Such a memo was tried and removed: a
+    /// `GameRecord`'s `lastModificationDate` does NOT advance when only its
+    /// comment changes (`CommentPersistence.store` and Deep Report's
+    /// copy-to-comment both mutate `comments` without touching it — see the
+    /// note on `WatchWidgetSnapshot.capturedAt`), so an id/lastModified memo
+    /// would silently swallow every comment-only edit until the watch app
+    /// next relaunched — defeating this feature's headline behavior. Re-doing
+    /// the fetch every time is safe and cheap instead: it is one row with
+    /// four properties (`fetchLimit = 1`, narrow `propertiesToFetch`), the
+    /// resulting write is already content-gated by
+    /// `WatchWidgetRecords.acceptingLibrary` (an unchanged `contentKey`
+    /// produces no `UserDefaults` write and no timeline reload), and the
+    /// burst this would otherwise guard against — CloudKit's initial-sync
+    /// storm — is already damped upstream by `WatchLibraryStore`'s
+    /// `CoalescedTrigger`.
     func mirrorLibrary(rows: [WatchLibraryRow],
                        moveCount: (WatchLibraryRow) -> Int,
                        libraryIsAuthoritative: Bool,
@@ -59,19 +72,15 @@ final class WatchWidgetMirror {
         // A row with no lastModified has no honest ordering, so it is not
         // mirrored at all (the repo contains an 1846-dated sample record
         // shaped exactly like one).
-        if let row = rows.first, let modified = row.lastModified {
-            let unchanged = lastMirroredRow?.id == row.id && lastMirroredRow?.modified == modified
-            if !unchanged {
-                if let extras = WatchWidgetLibrarySource.extras(gameID: row.id,
-                                                                container: container) {
-                    let candidate = WatchWidgetLibrarySource.snapshot(
-                        row: row, moveCount: moveCount(row), extras: extras, capturedAt: now)
-                    if let updated = records.acceptingLibrary(candidate) {
-                        records = updated
-                        changed = true
-                    }
+        if let row = rows.first, row.lastModified != nil {
+            if let extras = WatchWidgetLibrarySource.extras(gameID: row.id,
+                                                            container: container) {
+                let candidate = WatchWidgetLibrarySource.snapshot(
+                    row: row, moveCount: moveCount(row), extras: extras, capturedAt: now)
+                if let updated = records.acceptingLibrary(candidate) {
+                    records = updated
+                    changed = true
                 }
-                lastMirroredRow = (row.id, modified)
             }
         }
 
