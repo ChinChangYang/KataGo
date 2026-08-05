@@ -11,14 +11,17 @@ import Foundation
 import KataGoAnalysisKit
 
 struct WatchWidgetSnapshotTests {
-    private func sample(comment: String? = "White cuts.",
+    private func sample(name: String = "Ladder Fight 3",
+                        comment: String? = "White cuts.",
                         parkedIndex: Int = 42,
+                        mainlineMoveCount: Int = 178,
                         score: Double? = 3.5,
+                        isBranch: Bool = false,
                         capturedAt: Date = Date(timeIntervalSince1970: 1_000)) -> WatchWidgetSnapshot {
-        WatchWidgetSnapshot(gameID: "GAME-A", name: "Ladder Fight 3",
+        WatchWidgetSnapshot(gameID: "GAME-A", name: name,
                             comment: comment, parkedIndex: parkedIndex,
-                            mainlineMoveCount: 178, scoreLeadBlack: score,
-                            isBranch: false, capturedAt: capturedAt, source: .live)
+                            mainlineMoveCount: mainlineMoveCount, scoreLeadBlack: score,
+                            isBranch: isBranch, capturedAt: capturedAt, source: .live)
     }
 
     // MARK: content key
@@ -54,6 +57,28 @@ struct WatchWidgetSnapshotTests {
 
     @Test func aMissingScoreIsNotTheSameAsZero() {
         #expect(sample(score: nil).contentKey != sample(score: 0).contentKey)
+    }
+
+    @Test func contentCannotForgeAFieldBoundary() {
+        // "X|Y" name + "c" comment must not collapse onto "X" name +
+        // "Y|c" comment: naive pipe-joining makes both render as
+        // "...|X|Y|c|..." and the second, genuinely different snapshot's
+        // display change would be silently dropped by the write gate.
+        let a = sample(name: "X|Y", comment: "c")
+        let b = sample(name: "X", comment: "Y|c")
+        #expect(a.contentKey != b.contentKey)
+    }
+
+    @Test func theKeyChangesWithIsBranch() {
+        // The tile suppresses "of 178" when isBranch is true, so a branch
+        // flip with everything else equal must still change what is drawn.
+        #expect(sample().contentKey != sample(isBranch: true).contentKey)
+    }
+
+    @Test func theKeyChangesWithMainlineMoveCount() {
+        // The tile renders "Move 42 of 178"; a change to the mainline
+        // length alone must be visible to the write gate.
+        #expect(sample().contentKey != sample(mainlineMoveCount: 179).contentKey)
     }
 
     // MARK: comment cap

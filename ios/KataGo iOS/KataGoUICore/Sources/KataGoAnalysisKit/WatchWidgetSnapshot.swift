@@ -73,9 +73,40 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     /// The score is rounded to a tenth as an Int rather than formatted, so
     /// analysis jitter does not churn the key and +0.0 / -0.0 cannot produce
     /// two different keys for the same lead.
+    ///
+    /// Every field is written length-prefixed (`"<count>:<text>"`) rather
+    /// than joined with a plain separator. `name` and `comment` are user
+    /// content — a game title, or commentary copied verbatim from an
+    /// imported SGF `C[]` node — so they may contain any character,
+    /// including whatever separator this code might otherwise pick. A
+    /// prefixed count is not something the content can imitate: the
+    /// boundary is fixed the instant the count is read, before a single
+    /// character of the content itself is examined, so two distinct field
+    /// splits (e.g. `name: "X|Y", comment: "c"` vs. `name: "X", comment:
+    /// "Y|c"`) can never produce the same key. `isBranch` and
+    /// `mainlineMoveCount` are included too: the tile renders "Move 42 of
+    /// 178" and suppresses the "of 178" half on a branch, so both drive
+    /// what is actually displayed and both must be able to change the key.
+    ///
+    /// This cannot be built with Swift's `Hasher` / `hashValue` /
+    /// `hash(into:)`. Those are seeded per process for hash-flooding
+    /// protection, so the same snapshot would hash differently in the
+    /// watch app (which writes this key) than in the widget extension
+    /// (which recomputes it later, in a separate process, to compare
+    /// against what was written) — the two would never agree. Only a
+    /// deterministic string survives that process boundary.
     public var contentKey: String {
         let score = scoreLeadBlack.map { String(Int(($0 * 10).rounded())) } ?? ""
-        return "\(gameID)|\(parkedIndex)|\(name)|\(comment ?? "")|\(score)"
+        let fields = [
+            gameID,
+            String(parkedIndex),
+            name,
+            comment ?? "",
+            score,
+            isBranch ? "1" : "0",
+            String(mainlineMoveCount),
+        ]
+        return fields.map { "\($0.count):\($0)" }.joined()
     }
 
     /// Trim, drop-if-blank, and cap by GRAPHEME count. Never bytes or unicode
