@@ -78,6 +78,23 @@ public struct WatchSnapshot: Codable, Equatable, Sendable {
     /// move you most want to find on a wrist.
     public var lastMoveVertex: String?
 
+    // v1.3 — optional for the same reason every field after v1 is: WCSession
+    // persists the last application context across app updates, and on
+    // TestFlight the watch and the phone update independently, so
+    // watch-1.3 + phone-1.2 is a normal multi-day state.
+    /// The game's name, so the complication can name it without a lookup.
+    /// The watch backfills from its own library when this is nil, which is
+    /// what keeps the tile correct against an older phone.
+    public var gameName: String?
+    /// The comment stored at `hostMoveIndex`, already capped to the wire
+    /// limit by `WatchWidgetSnapshot.cappedComment`.
+    public var positionComment: String?
+    /// True while the host is on a branch. `hostMoveIndex` is then a BRANCH
+    /// index while `hostMoveCount` still describes the saved mainline, so a
+    /// consumer must neither pair the two nor look a mainline comment up by
+    /// that index.
+    public var isBranch: Bool?
+
     public init(boardWidth: Int, boardHeight: Int,
                 blackStones: [String], whiteStones: [String],
                 toMove: String, moveNumber: Int, analysisRunning: Bool,

@@ -82,6 +82,13 @@ public enum WatchSnapshotBuilder {
             snapshot.isHumanTurn = gate.isHumanTurn
             snapshot.canScrub = gate.canScrub
             snapshot.canPlay = gate.canPlay
+            snapshot.gameName = gameRecord.name
+            let onBranch = session.gobanState.isBranchActive
+            snapshot.isBranch = onBranch
+            // A branch index cannot address the saved record's mainline
+            // comments, so send none rather than one from a different line.
+            snapshot.positionComment = onBranch ? nil : WatchWidgetSnapshot.cappedComment(
+                gameRecord.comments?[snapshot.hostMoveIndex ?? 0])
         }
         return snapshot
     }

@@ -312,6 +312,7 @@
 		7EB9A9DD7D95056BC596B38A /* parse.cc in Sources */ = {isa = PBXBuildFile; fileRef = CFF4187E328E507D1C765E42 /* parse.cc */; };
 		7EC0CD05C4C232D1470AF087 /* gaussian_distribution.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5B49A6D9F23E639CE1F5B23 /* gaussian_distribution.cc */; };
 		7F0EA1825BC00439AFB5F8FC /* ascii.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8DE9BEBFBBE6A427CA92E372 /* ascii.cc */; };
+		7F22F90E095E72F85359CA12 /* WatchSnapshotV13Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48979B318BC07B7BAC18DC1 /* WatchSnapshotV13Tests.swift */; };
 		7F49FA893A281B56BC49D48C /* BoardCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3688217D006AF0B82530FB /* BoardCameraView.swift */; };
 		7F518296B362958295125FAB /* demangle_rust.cc in Sources */ = {isa = PBXBuildFile; fileRef = D7A16EC2F498FDCFE013273A /* demangle_rust.cc */; };
 		7F7D2D591ED27F30B0E011AC /* time_zone_info.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2A1A02066A3354353FCEF4E2 /* time_zone_info.cc */; };
@@ -1524,6 +1525,7 @@
 		B42FFA9BF167371D4080ECCC /* KataGoAnytimeSafariExtIOS.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KataGoAnytimeSafariExtIOS.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B4436137B816E4C5938931D3 /* GameEntityQueryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameEntityQueryTests.swift; sourceTree = "<group>"; };
 		B46C3F10D2B92478B9E2863A /* MMapFileReader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MMapFileReader.cpp; path = ../../cpp/external/katagocoreml/vendor/mlmodel/src/MILBlob/Blob/MMapFileReader.cpp; sourceTree = SOURCE_ROOT; };
+		B48979B318BC07B7BAC18DC1 /* WatchSnapshotV13Tests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSnapshotV13Tests.swift; sourceTree = "<group>"; };
 		B50E718D8F766C0F90AFE475 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeSafariExtIOS/Info.plist; sourceTree = "<group>"; };
 		B54E8EA00507BE7D9B9DFCAE /* DraftComparatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftComparatorTests.swift; sourceTree = "<group>"; };
 		B55A917374F587FC1DBCF8EA /* format.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = format.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/format.cc"; sourceTree = SOURCE_ROOT; };
@@ -3306,6 +3308,7 @@
 				ECC8F2638C2B753BC7475420 /* WatchWidgetDefaultsTests.swift */,
 				76B68D61C6F83745BF0CA95F /* WatchWidgetTileTextTests.swift */,
 				F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */,
+				B48979B318BC07B7BAC18DC1 /* WatchSnapshotV13Tests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4837,6 +4840,7 @@
 				DBF5D5BCC69F23027531B05D /* WatchWidgetDefaultsTests.swift in Sources */,
 				739E282D6AE8DC2BE0A56800 /* WatchWidgetTileTextTests.swift in Sources */,
 				21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */,
+				7F22F90E095E72F85359CA12 /* WatchSnapshotV13Tests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
