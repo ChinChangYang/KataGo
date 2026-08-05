@@ -829,6 +829,7 @@
 		E90952FB2AB9934AF8821ABB /* crc_memcpy_x86_arm_combined.cc in Sources */ = {isa = PBXBuildFile; fileRef = DC2CED6534484C095E0B08DC /* crc_memcpy_x86_arm_combined.cc */; };
 		E913D199F6A62E4D128EE1ED /* CustomModel.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E4E2DDB1A29692B06506E9C4 /* CustomModel.pb.cc */; };
 		E9402E25F92F0CD631A80013 /* Fp8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AC8906AF025B8EBA6668E166 /* Fp8.cpp */; };
+		E96564901137B284551108AD /* KataGoAnalysisKit in Frameworks */ = {isa = PBXBuildFile; productRef = 58376E6658EBA292DB2CB7A8 /* KataGoAnalysisKit */; };
 		E98EA6A7F1DC70565B86CE23 /* GLMClassifier.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 309424B4F2E53DB007EACE23 /* GLMClassifier.pb.cc */; };
 		E99FEAC22B79D98CFC4DB9F4 /* CoreMLRoutingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F186F795BF17850123D8C36 /* CoreMLRoutingProbe.swift */; };
 		EA3309ACDA21A54B331ACE3E /* KataGoAnytimeSafariExtIOS.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B42FFA9BF167371D4080ECCC /* KataGoAnytimeSafariExtIOS.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -2126,6 +2127,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2CCFD053A9EA126208A223ED /* Foundation.framework in Frameworks */,
+				E96564901137B284551108AD /* KataGoAnalysisKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3591,6 +3593,9 @@
 			dependencies = (
 			);
 			name = KataGoAnytimeWatchWidget;
+			packageProductDependencies = (
+				58376E6658EBA292DB2CB7A8 /* KataGoAnalysisKit */,
+			);
 			productName = KataGoAnytimeWatchWidget;
 			productReference = 8785A1BDBADA9F7BEFF2911C /* KataGoAnytimeWatchWidget.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -6448,6 +6453,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
 			productName = KataGoGameStore;
+		};
+		58376E6658EBA292DB2CB7A8 /* KataGoAnalysisKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = KataGoAnalysisKit;
 		};
 		5C46CD74498343777CE6553E /* GoRulesKit */ = {
 			isa = XCSwiftPackageProductDependency;

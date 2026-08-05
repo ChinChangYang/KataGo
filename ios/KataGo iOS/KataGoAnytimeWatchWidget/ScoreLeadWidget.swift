@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import KataGoAnalysisKit
 
 /// Smart Stack / complication tile: the live analysis score lead, colored by
 /// leader, marked stale after 10 minutes without an update. Data arrives via
