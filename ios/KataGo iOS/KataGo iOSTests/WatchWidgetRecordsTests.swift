@@ -63,6 +63,26 @@ struct WatchWidgetRecordsTests {
         #expect(records.resolved(now: t0)?.gameID == "GAME-A")
     }
 
+    @Test func aLiveRecordExactlyAtTheExpiryBoundaryLosesToTheLibrary() {
+        // This pins the exact boundary of the >= check in resolved(now:).
+        // With elapsed time exactly equal to liveExpiry, the library must win.
+        // A regression from >= to > would let the live record incorrectly survive.
+        let records = WatchWidgetRecords(
+            live: record(.live, gameID: "GAME-A", at: 0),
+            library: record(.library, gameID: "GAME-B", at: -3_600))
+        let now = t0.addingTimeInterval(WatchWidgetRecords.liveExpiry)
+        #expect(records.resolved(now: now)?.gameID == "GAME-B")
+    }
+
+    @Test func whenTimestampsAreEqualDifferentGamesResolveToLive() {
+        // This pins the deliberate >= tie-break in resolved(now:) when games
+        // differ. A regression from >= to > would let the library win undetected.
+        let records = WatchWidgetRecords(
+            live: record(.live, gameID: "GAME-A", at: 0),
+            library: record(.library, gameID: "GAME-B", at: 0))
+        #expect(records.resolved(now: t0)?.source == .live)
+    }
+
     // MARK: same-game merge
 
     @Test func theSameGameMergesRatherThanPicks() {
@@ -103,12 +123,22 @@ struct WatchWidgetRecordsTests {
         #expect(resolved?.comment == "Written on iPad.")
     }
 
+    @Test func whenTimestampsAreEqualTheLiveRecordIsTheNewerHalfOfAMerge() {
+        // This pins the deliberate >= tie-break in merged(live:library:).
+        // A regression from >= to > would let the library win undetected.
+        // Test uses different parkedIndex to verify which record contributes.
+        let records = WatchWidgetRecords(
+            live: record(.live, parkedIndex: 158, at: 0),
+            library: record(.library, parkedIndex: 100, at: 0))
+        let resolved = records.resolved(now: t0)
+        #expect(resolved?.parkedIndex == 158)  // live's index, confirming live is the newer half
+    }
+
     // MARK: accepting a live candidate
 
     @Test func anUnchangedCandidateIsRejectedSoNothingIsWritten() {
         let stored = WatchWidgetRecords(live: record(.live, at: 0), library: nil)
-        var candidate = record(.live, at: 600)   // same content, later clock
-        candidate.capturedAt = t0.addingTimeInterval(600)
+        let candidate = record(.live, at: 600)   // same content, later clock
         #expect(stored.acceptingLive(candidate) == nil)
     }
 
