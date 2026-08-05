@@ -4,6 +4,6 @@ import SwiftUI
 @main
 struct KataGoAnytimeWatchWidgetBundle: WidgetBundle {
     var body: some Widget {
-        ScoreLeadWidget()
+        LastGameWidget()
     }
 }
