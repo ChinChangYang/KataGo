@@ -58,6 +58,16 @@ public final class WatchLibraryStore {
     /// Set by the view layer, which owns the CloudKit account check.
     public var accountState: ICloudAccountState = .unknown
 
+    /// Invoked after every `refresh()`, once `rows` is current.
+    ///
+    /// The store itself stays read-only and side-effect-free: it must not
+    /// import WidgetKit (it compiles for tvOS, which has no WidgetKit) and it
+    /// must not write UserDefaults (WatchLibraryStoreTests calls `refresh()`
+    /// in-process, which would scribble the real App Group on every test run).
+    /// This callback is how the complication mirror learns the library changed
+    /// without either.
+    @ObservationIgnored public var onRefresh: (() -> Void)?
+
     @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private let storeMode: LibraryStoreMode
     @ObservationIgnored private let openedAt: Date
@@ -129,6 +139,7 @@ public final class WatchLibraryStore {
         // memo cannot grow without bound.
         let liveKeys = Set(rows.map { MoveCountKey(id: $0.id, lastModified: $0.lastModified) })
         moveCounts = moveCounts.filter { key, _ in liveKeys.contains(key) }
+        onRefresh?()
     }
 
     /// Refetch whenever CloudKit lands an import, so games appear without a

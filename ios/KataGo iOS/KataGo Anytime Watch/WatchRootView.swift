@@ -18,6 +18,7 @@ struct WatchRootView: View {
     /// Set once the user has left the auto-pushed board, so the library stays
     /// reachable for the rest of this session.
     @State private var latchConsumed = false
+    @State private var mirror: WatchWidgetMirror?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -38,6 +39,24 @@ struct WatchRootView: View {
                 }
         }
         .task {
+            let mirror = mirror ?? WatchWidgetMirror(container: container)
+            self.mirror = mirror
+            // Fires at the end of every refresh(), including the coalesced
+            // remote-change path, so a CloudKit import updates the tile
+            // without the user opening the library page.
+            library.onRefresh = { [weak library] in
+                guard let library else { return }
+                mirror.mirrorLibrary(
+                    rows: library.rows,
+                    moveCount: { library.moveCount(for: $0) },
+                    // Never evict on a partial view of the library: a
+                    // degraded store, or a fetch that hit its row cap, has
+                    // not proved a game is gone.
+                    libraryIsAuthoritative:
+                        SharedModelContainer.watchStoreMode == .cloudKit
+                        && library.rows.count < WatchLibraryStore.fetchLimit)
+            }
+
             let clock = ContinuousClock()
             let deadline = clock.now.advanced(by: Self.launchSnapshotGrace)
             while model.latest == nil, clock.now < deadline, !Task.isCancelled {

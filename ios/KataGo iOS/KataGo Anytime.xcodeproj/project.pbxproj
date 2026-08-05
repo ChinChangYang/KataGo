@@ -449,6 +449,7 @@
 		AFC5B3DCCEA0597897878C23 /* notification.cc in Sources */ = {isa = PBXBuildFile; fileRef = 959FD21C12D9EA5999A3D914 /* notification.cc */; };
 		AFEA7FF9AB9294901CE92621 /* zero_copy_stream_impl.cc in Sources */ = {isa = PBXBuildFile; fileRef = C265AAB33E1F5B55C031CF61 /* zero_copy_stream_impl.cc */; };
 		B00DB60CFD33E4B1C6ADBADC /* BroadcastControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AEACD5C8AAD349ECEB0545 /* BroadcastControllerTests.swift */; };
+		B1B59939A8F80710F52ABCCF /* WatchWidgetMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1A07025C15ADC5EEC5F27B /* WatchWidgetMirror.swift */; };
 		B1C57B3AED6E2672EEDCCFCE /* chart.js in Resources */ = {isa = PBXBuildFile; fileRef = 06CA4C1F8125C6717766A98A /* chart.js */; };
 		B23010B1294C87C3F7317184 /* KataGoSwift.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B27893A6A8E848D89F9EA9CC /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
@@ -1434,6 +1435,7 @@
 		889C8DD096280C173C6D96CB /* KataGo TV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo TV.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A43DB7B90199404ACAFE5C2 /* page-hook.js */ = {isa = PBXFileReference; includeInIndex = 1; name = "page-hook.js"; path = "KataGoAnytimeSafariExtIOS/Resources/page-hook.js"; sourceTree = "<group>"; };
 		8A6BC863CAB2B7C2A93A4954 /* generated_enum_util.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = generated_enum_util.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/generated_enum_util.cc"; sourceTree = SOURCE_ROOT; };
+		8B1A07025C15ADC5EEC5F27B /* WatchWidgetMirror.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchWidgetMirror.swift; path = "KataGo Anytime Watch/WatchWidgetMirror.swift"; sourceTree = "<group>"; };
 		8BBC0B17931482DDF9473F56 /* zone_info_source.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = zone_info_source.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/zone_info_source.cc"; sourceTree = SOURCE_ROOT; };
 		8BBE4B1C9DC324C057070A99 /* WatchStoredAnalysisTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStoredAnalysisTests.swift; sourceTree = "<group>"; };
 		8BC634571F9784AC9B25213E /* OpenGame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenGame.swift; sourceTree = "<group>"; };
@@ -2306,6 +2308,7 @@
 				98FF59F6685696E7A87A8101 /* WatchLibraryPage.swift */,
 				B79DFB175A61E73C447085FF /* WatchStoredGameView.swift */,
 				5E2842B3D4BEE675DD794D63 /* WatchAnalysisSummary.swift */,
+				8B1A07025C15ADC5EEC5F27B /* WatchWidgetMirror.swift */,
 			);
 			name = "KataGo Anytime Watch";
 			sourceTree = SOURCE_ROOT;
@@ -4143,6 +4146,7 @@
 				92AF3081FDE087198819CCDC /* WatchLibraryPage.swift in Sources */,
 				693ADFABAAA93405FED6BCC6 /* WatchStoredGameView.swift in Sources */,
 				9A1A8D627BA1BF5E15519A0A /* WatchAnalysisSummary.swift in Sources */,
+				B1B59939A8F80710F52ABCCF /* WatchWidgetMirror.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
