@@ -39,8 +39,6 @@ struct WatchLibraryPage: View {
         }
         .navigationTitle("KataGo")
         .task {
-            library.refresh()
-            library.startObservingRemoteChanges()
             // Concurrent, not serialized: CKContainer.accountStatus() has no
             // timeout, so the write to `now` must not be sequenced behind
             // awaiting it — that would pin the empty state on "Syncing from

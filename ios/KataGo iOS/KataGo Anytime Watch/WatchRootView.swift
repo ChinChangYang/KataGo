@@ -19,6 +19,11 @@ struct WatchRootView: View {
     /// Set once the user has left the auto-pushed board, so the library stays
     /// reachable for the rest of this session.
     @State private var latchConsumed = false
+    /// The game a complication tap named, held until it can be resolved.
+    @State private var pendingDeepLinkID: String?
+    /// Set once the launch grace has expired, so an unresolvable link can stop
+    /// waiting rather than latch forever.
+    @State private var graceExpired = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -70,12 +75,16 @@ struct WatchRootView: View {
                         && library.rows.count < WatchLibraryStore.fetchLimit,
                     container: container)
             }
+            library.refresh()
+            library.startObservingRemoteChanges()
 
             let clock = ContinuousClock()
             let deadline = clock.now.advanced(by: Self.launchSnapshotGrace)
             while model.latest == nil, clock.now < deadline, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(50))
             }
+            graceExpired = true
+            applyPendingDeepLink()
             routeOnLaunch()
         }
         .onChange(of: path) { _, newPath in
@@ -90,6 +99,18 @@ struct WatchRootView: View {
             guard phase == .active else { return }
             routeOnLaunch()
         }
+        .onOpenURL { url in
+            // The scheme also carries import-sgf; anything this cannot parse
+            // must be ignored rather than clobber a pending link.
+            guard let id = GameDeepLink.gameID(from: url)?.uuidString else { return }
+            pendingDeepLinkID = id
+            // Called directly, not left to .onChange: this tile points at one
+            // game at a time, so tapping the SAME id twice is the normal
+            // interaction and writing an equal value fires no change.
+            applyPendingDeepLink()
+        }
+        .onChange(of: pendingDeepLinkID, initial: true) { _, _ in applyPendingDeepLink() }
+        .onChange(of: model.latest?.hostGameID) { _, _ in applyPendingDeepLink() }
     }
 
     /// How long to wait for WCSession to replay its persisted application
@@ -135,8 +156,36 @@ struct WatchRootView: View {
                              movesBehindLive: model.peek.movesBehindLive)
     }
 
+    /// The one place a pending deep link becomes navigation. Always clears the
+    /// latch on a terminal disposition — a stranded latch would suppress
+    /// `routeOnLaunch` for the rest of the session.
+    private func applyPendingDeepLink() {
+        guard let pending = pendingDeepLinkID else { return }
+        switch WatchNavigationPolicy.deepLinkDisposition(
+            pendingGameID: pending,
+            hostGameID: model.latest?.hostGameID,
+            hasSnapshot: model.latest != nil,
+            libraryHasRow: library.row(byID: pending) != nil,
+            graceExpired: graceExpired) {
+        case .wait:
+            return
+        case .live:
+            // ASSIGN, never append: the app is often already at [.live], and
+            // appending would leave a two-deep stack whose back-swipe lands on
+            // the mirror instead of the library.
+            path = [.live]
+        case .stored(let id):
+            path = [.stored(id)]
+        case .giveUp:
+            break
+        }
+        pendingDeepLinkID = nil
+    }
+
     private func routeOnLaunch() {
-        guard path.isEmpty else { return }
+        // A tap names a specific game; the launch heuristic must never
+        // overwrite it.
+        guard pendingDeepLinkID == nil, path.isEmpty else { return }
         let route = WatchNavigationPolicy.launchRoute(hasSnapshot: model.latest != nil,
                                                       latchConsumed: latchConsumed)
         if route == .liveGame { path = [.live] }

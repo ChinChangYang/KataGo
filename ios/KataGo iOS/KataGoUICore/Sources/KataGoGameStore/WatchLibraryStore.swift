@@ -178,6 +178,36 @@ public final class WatchLibraryStore {
         rows.first { $0.id == id }
     }
 
+    /// One game by id, independent of `refresh()` ordering and of the
+    /// newest-100 window.
+    ///
+    /// `row(id:)` scans `rows`, which is populated only after a refresh and is
+    /// capped at `fetchLimit` — fine for a list the user is looking at, and
+    /// wrong for a complication tap that cold-launches the app or names an
+    /// older game. Bounded exactly like `WatchBrowseModel.record(for:)`:
+    /// `propertiesToFetch` lists precisely the fields a `WatchLibraryRow`
+    /// carries, `sgf` included, because the stored-game view replays from it.
+    public func row(byID id: String) -> WatchLibraryRow? {
+        if let cached = row(id: id) { return cached }
+        guard let uuid = UUID(uuidString: id) else { return nil }
+        let target: UUID? = uuid
+        var descriptor = FetchDescriptor<GameRecord>(
+            predicate: #Predicate { $0.uuid == target },
+            sortBy: [.init(\.lastModificationDate, order: .reverse)])
+        descriptor.fetchLimit = 1
+        descriptor.propertiesToFetch = [
+            \.uuid, \.name, \.width, \.height, \.sgf, \.lastModificationDate
+        ]
+        guard let record = try? container.mainContext.fetch(descriptor).first,
+              let recordUUID = record.uuid else { return nil }
+        return WatchLibraryRow(id: recordUUID.uuidString,
+                               name: record.name,
+                               boardWidth: record.width ?? 19,
+                               boardHeight: record.height ?? 19,
+                               sgf: record.sgf,
+                               lastModified: record.lastModificationDate)
+    }
+
     /// What to show while `rows` is empty. Delegates to the same policy the
     /// Apple TV library uses.
     public func emptyState(now: Date) -> EmptyLibraryState {

@@ -33,3 +33,39 @@ public enum WatchNavigationPolicy {
         return rowID == hostGameID
     }
 }
+
+/// What to do with a complication tap that named a game.
+public enum WatchDeepLinkDisposition: Equatable, Sendable {
+    /// Too early to decide — keep the latch and re-evaluate.
+    case wait
+    case live
+    case stored(String)
+    /// The game cannot be resolved and never will be; drop the latch.
+    case giveUp
+}
+
+extension WatchNavigationPolicy {
+    /// Precedence for a pending deep link, highest first:
+    ///
+    ///   1. the phone is playing this exact game -> `.live`
+    ///   2. the library can produce a row for it -> `.stored`
+    ///   3. neither, but the launch grace has not expired -> `.wait`
+    ///   4. otherwise -> `.giveUp`
+    ///
+    /// `.wait` exists because a cold launch from a tap is the one moment when
+    /// BOTH inputs are still missing: the library has not fetched, and
+    /// WCSession has not replayed its persisted context. Deciding then is what
+    /// dead-ends the tap on "Game not found".
+    public static func deepLinkDisposition(pendingGameID: String,
+                                           hostGameID: String?,
+                                           hasSnapshot: Bool,
+                                           libraryHasRow: Bool,
+                                           graceExpired: Bool) -> WatchDeepLinkDisposition {
+        if opensLiveMirror(rowID: pendingGameID, hostGameID: hostGameID,
+                           hasSnapshot: hasSnapshot) {
+            return .live
+        }
+        if libraryHasRow { return .stored(pendingGameID) }
+        return graceExpired ? .giveUp : .wait
+    }
+}
