@@ -55,9 +55,9 @@ struct WatchRootView: View {
             // this view — leaves `libraryName` nil and falls back to whatever
             // name (if any) the frame itself carries; a nameless frame with
             // no library to consult is simply not mirrored (see
-            // `WatchWidgetRecords.acceptingLive`/`acceptingLibrary`). That is
-            // an accepted degradation, not an oversight: a current phone
-            // sends the name on the wire.
+            // `WatchWidgetLiveSource.snapshot`, which returns nil rather than
+            // storing a nameless record). That is an accepted degradation,
+            // not an oversight: a current phone sends the name on the wire.
             model.libraryName = { [weak library] id in library?.row(id: id)?.name }
             // Fires at the end of every refresh(), including the coalesced
             // remote-change path, so a CloudKit import updates the tile
@@ -94,8 +94,16 @@ struct WatchRootView: View {
         .onChange(of: scenePhase) { _, phase in
             // A scene created during a background wake has already burned its
             // one-shot launch route with no user present. Re-arm on the first
-            // activation, guarded by `latchConsumed` so this can never bounce
-            // the user off the library mid-session.
+            // activation, guarded by `latchConsumed` so a session that has
+            // already left the auto-pushed board once is not pushed back to
+            // it again. `latchConsumed` only flips once `path` has been
+            // non-empty and then emptied, so it does NOT guard against a
+            // later push: a user who launches straight to the library with
+            // no snapshot yet, then lowers and raises their wrist after one
+            // arrives, IS routed to the live board by this re-arm. That
+            // matches the app's zero-tap philosophy rather than fighting it,
+            // so the behavior is kept — this comment exists so it is not
+            // mistaken for a bounce-proof guard later.
             guard phase == .active else { return }
             routeOnLaunch()
         }

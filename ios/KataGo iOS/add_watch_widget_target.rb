@@ -44,7 +44,7 @@ end
 # 2. Register sources + Info.plist/entitlements.
 group = project.main_group.find_subpath(WIDGET, true)
 group.set_source_tree('SOURCE_ROOT')
-%w[KataGoAnytimeWatchWidgetBundle.swift ScoreLeadWidget.swift].each do |f|
+%w[KataGoAnytimeWatchWidgetBundle.swift LastGameWidget.swift].each do |f|
   ref = group.new_reference("#{WIDGET}/#{f}")
   widget.source_build_phase.add_file_reference(ref)
 end

@@ -354,8 +354,14 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     /// halves were wrong for a tile that shows a name and a comment: those
     /// change while the score sits still, and a JSON encode plus a cfprefsd
     /// transaction twice a second is not something to do on watch hardware.
-    /// `WatchWidgetMirror` now gates the WRITE on the displayed content and
-    /// keeps time only as a floor.
+    /// `WatchWidgetMirror` now gates the WRITE on the displayed content
+    /// instead, which eliminates the write whenever that content is
+    /// unchanged — an idle board, a paused analysis, a repeated frame. It
+    /// does NOT eliminate the 2 Hz rate on its own: a root score lead moves
+    /// by more than the rounding tolerance on most frames, so a live
+    /// analysis still writes at frame rate while it runs. That is bounded —
+    /// only while the watch app is foregrounded and the phone is analysing —
+    /// not a bug this gate was meant to close.
     private func mirrorWidget(_ snapshot: WatchSnapshot) {
         guard let gameID = snapshot.hostGameID,
               let candidate = WatchWidgetLiveSource.snapshot(

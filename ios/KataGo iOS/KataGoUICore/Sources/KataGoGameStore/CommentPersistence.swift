@@ -28,6 +28,14 @@ public enum CommentPersistence {
     /// game's earliest real comment. Clearing an EXISTING comment still
     /// persists — otherwise the pane could not delete text.
     public static func store(_ text: String, at index: Int, in record: GameRecord) {
+        // A write that would not change the stored value is skipped outright.
+        // This is a CloudKit-synced @Model, and the debounce that calls this
+        // function is keyed on the text value, so every programmatic
+        // assignment (pane appearance, an external writer's re-sync,
+        // generation completing) would otherwise re-store the identical
+        // string about a second later — a dirty write, and a CloudKit
+        // export, for nothing.
+        if record.comments?[index] == text { return }
         let isBlank = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if isBlank, record.comments?[index] == nil { return }
         if record.comments == nil { record.comments = [:] }

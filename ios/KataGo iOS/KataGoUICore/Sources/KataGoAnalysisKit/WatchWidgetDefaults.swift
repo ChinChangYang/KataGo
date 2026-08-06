@@ -7,10 +7,11 @@
 //  App Group containers are PER-DEVICE. `group.chinchangyang.KataGo-iOS.tw` is
 //  entitled on both the iPhone and the watch, which reads as one shared
 //  container but is not: nothing the iPhone writes there is visible to the
-//  watch widget. That is why all three writers live in the watch app process
-//  and the phone reaches the tile only through WatchConnectivity. It is a
-//  platform constraint, not a style choice — "just have the relay write the
-//  record" looks plausible and produces a permanently empty tile.
+//  watch widget. That is why both mirrors (live and library, fed from three
+//  call sites) live in the watch app process and the phone reaches the tile
+//  only through WatchConnectivity. It is a platform constraint, not a style
+//  choice — "just have the relay write the record" looks plausible and
+//  produces a permanently empty tile.
 //
 //  Note also that on watchOS the SwiftData store deliberately does NOT use
 //  this group (see SharedModelContainer's CloudKit-only branch), so this is

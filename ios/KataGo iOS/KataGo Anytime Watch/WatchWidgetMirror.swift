@@ -6,10 +6,12 @@ import KataGoGameStore
 /// Owns every App-Group write the complication reads, and every timeline
 /// reload it gets.
 ///
-/// All three writers live in the watch app process because App Group
-/// containers are PER-DEVICE: `group.chinchangyang.KataGo-iOS.tw` is entitled
-/// on the iPhone too, but nothing the phone writes there is visible here. That
-/// is a platform constraint, not a style choice.
+/// Both mirrors — live and library — live in the watch app process (across
+/// three call sites: `WatchLiveModel`'s ingest and complication paths, and
+/// `WatchRootView`'s library refresh) because App Group containers are
+/// PER-DEVICE: `group.chinchangyang.KataGo-iOS.tw` is entitled on the iPhone
+/// too, but nothing the phone writes there is visible here. That is a
+/// platform constraint, not a style choice.
 ///
 /// `WidgetCenter` is confined to this type (and the widget target) on purpose:
 /// KataGoGameStore compiles for tvOS, which has no WidgetKit.

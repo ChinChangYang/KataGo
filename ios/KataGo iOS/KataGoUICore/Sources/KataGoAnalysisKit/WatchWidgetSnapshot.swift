@@ -70,9 +70,12 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     /// writers skip the encode and the `UserDefaults` write entirely on a
     /// match, which is what keeps a 2 Hz ingest off cfprefsd.
     ///
-    /// The score is rounded to a tenth as an Int rather than formatted, so
-    /// analysis jitter does not churn the key and +0.0 / -0.0 cannot produce
-    /// two different keys for the same lead.
+    /// The score is rounded to a tenth as an Int rather than formatted. A
+    /// root score lead routinely moves by more than 0.05 between search
+    /// updates, so this does NOT stop the key from changing on most frames
+    /// while analysis is live — rounding only collapses sub-tenth
+    /// differences the tile would not render anyway, and makes +0.0 / -0.0
+    /// produce the same key instead of two different ones for the same lead.
     ///
     /// Every field is written length-prefixed (`"<count>:<text>"`) rather
     /// than joined with a plain separator. `name` and `comment` are user

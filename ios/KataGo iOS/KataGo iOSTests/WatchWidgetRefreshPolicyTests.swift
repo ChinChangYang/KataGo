@@ -40,8 +40,10 @@ struct WatchWidgetRefreshPolicyTests {
     @Test func aCommentChangeAloneIsEnoughToReload() {
         // The regression this policy exists to prevent: the old gate required
         // a half-point score move, so a new comment never reached the tile.
-        let before = "GAME-A|42|Ladder Fight 3||35"
-        let after  = "GAME-A|42|Ladder Fight 3|White cuts.|35"
+        // Any two distinct strings exercise this policy — the content key's
+        // actual (length-prefixed) shape is pinned by WatchWidgetSnapshotTests.
+        let before = "no comment yet"
+        let after  = "no comment yet, but now White cuts."
         #expect(WatchWidgetRefreshPolicy.shouldReload(
             previousKey: before, nextKey: after,
             elapsed: WatchWidgetRefreshPolicy.reloadFloor))
