@@ -25,52 +25,47 @@ struct WatchWidgetDefaultsTests {
                             comment: "White cuts.", parkedIndex: 42,
                             mainlineMoveCount: 178, scoreLeadBlack: 3.5,
                             isBranch: false,
-                            capturedAt: Date(timeIntervalSince1970: 1_000),
-                            source: .live)
+                            capturedAt: Date(timeIntervalSince1970: 1_000))
     }
 
-    @Test func anEmptySuiteReadsAsAnEmptyEnvelopeNotACrash() {
+    @Test func anEmptySuiteReadsAsAnEmptyRecordNotACrash() {
         withSuite { defaults in
-            let records = WatchWidgetDefaults.read(from: defaults)
-            #expect(records.live == nil)
-            #expect(records.library == nil)
+            #expect(WatchWidgetDefaults.read(from: defaults).library == nil)
         }
     }
 
-    @Test func aNilSuiteReadsAsAnEmptyEnvelope() {
+    @Test func aNilSuiteReadsAsAnEmptyRecord() {
         // `UserDefaults(suiteName:)` returns nil when the App Group is
         // unavailable; the widget must render a distinct state, not crash.
-        let records = WatchWidgetDefaults.read(from: nil)
-        #expect(records.live == nil)
-        #expect(records.library == nil)
+        #expect(WatchWidgetDefaults.read(from: nil).library == nil)
     }
 
-    @Test func recordsRoundTripThroughTheSuite() {
+    @Test func theRecordRoundTripsThroughTheSuite() {
         withSuite { defaults in
-            let written = WatchWidgetRecords(live: sample, library: nil)
+            let written = WatchWidgetRecord(library: sample)
             #expect(WatchWidgetDefaults.write(written, to: defaults))
             #expect(WatchWidgetDefaults.read(from: defaults) == written)
         }
     }
 
     @Test func datesSurviveTheRoundTripToTheSecond() {
-        // The encoder pins secondsSince1970 to match WatchSnapshot; a default
-        // strategy change here would silently break `capturedAt` ordering.
+        // The encoder pins secondsSince1970; a default strategy change here
+        // would silently break `capturedAt` ordering.
         withSuite { defaults in
-            WatchWidgetDefaults.write(WatchWidgetRecords(live: sample), to: defaults)
-            let read = WatchWidgetDefaults.read(from: defaults)
-            #expect(read.live?.capturedAt == sample.capturedAt)
+            WatchWidgetDefaults.write(WatchWidgetRecord(library: sample), to: defaults)
+            #expect(WatchWidgetDefaults.read(from: defaults).library?.capturedAt
+                    == sample.capturedAt)
         }
     }
 
     @Test func writingToANilSuiteFailsLoudlyRatherThanSilently() {
-        #expect(!WatchWidgetDefaults.write(WatchWidgetRecords(live: sample), to: nil))
+        #expect(!WatchWidgetDefaults.write(WatchWidgetRecord(library: sample), to: nil))
     }
 
-    @Test func corruptDataReadsAsAnEmptyEnvelope() {
+    @Test func corruptDataReadsAsAnEmptyRecord() {
         withSuite { defaults in
             defaults.set(Data([0x00, 0x01]), forKey: WatchWidgetDefaults.recordsKey)
-            #expect(WatchWidgetDefaults.read(from: defaults).live == nil)
+            #expect(WatchWidgetDefaults.read(from: defaults).library == nil)
         }
     }
 
@@ -108,8 +103,7 @@ struct WatchWidgetDefaultsTests {
     }
 
     @Test func theWidgetKindIsTheLegacyIdentifier() {
-        // Renaming it would orphan every placement AND flip
-        // WCSession.isComplicationEnabled to false, silently killing the push.
+        // Renaming it would orphan every placement testers have already made.
         #expect(WatchWidgetDefaults.widgetKind == "ScoreLeadWidget")
     }
 }

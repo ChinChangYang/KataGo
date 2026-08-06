@@ -17,14 +17,6 @@
 import Foundation
 
 public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
-    /// Which mirror wrote this record. Rendered as a one-glyph distinction on
-    /// the tile so a tester can tell a stalled push from a stalled reload —
-    /// the freshness path's failure modes are otherwise indistinguishable.
-    public enum Source: String, Codable, Sendable {
-        case live
-        case library
-    }
-
     /// Bounds the wire payload, NOT the tile. Fitting text to the rect is
     /// SwiftUI's job; this exists so a Commentator paragraph cannot push the
     /// 2 Hz application context past its 16 KB test bound.
@@ -44,16 +36,14 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     /// mainline-indexed, so a branch index must not be used to look one up.
     public var isBranch: Bool
     /// Watch-observed time at which `contentKey` last changed — deliberately
-    /// not the phone's `hostTimestamp` (a 2 Hz heartbeat) nor
-    /// `lastModificationDate` (another device's clock, and unmoved by a
-    /// comment edit). One clock governs both records, so they are comparable.
+    /// not `lastModificationDate`, which is another device's clock and does
+    /// not move when only a comment changes.
     public var capturedAt: Date
-    public var source: Source
 
     public init(gameID: String, name: String, comment: String?,
                 parkedIndex: Int, mainlineMoveCount: Int,
                 scoreLeadBlack: Double?, isBranch: Bool,
-                capturedAt: Date, source: Source) {
+                capturedAt: Date) {
         self.gameID = gameID
         self.name = name
         self.comment = comment
@@ -62,20 +52,16 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
         self.scoreLeadBlack = scoreLeadBlack
         self.isBranch = isBranch
         self.capturedAt = capturedAt
-        self.source = source
     }
 
-    /// Identity of what the tile would DISPLAY. Excludes `capturedAt` and
-    /// `source` so an unchanged position produces an unchanged key: the
-    /// writers skip the encode and the `UserDefaults` write entirely on a
-    /// match, which is what keeps a 2 Hz ingest off cfprefsd.
+    /// Identity of what the tile would DISPLAY. Excludes `capturedAt` so an
+    /// unchanged position produces an unchanged key: the writer skips the
+    /// encode and the `UserDefaults` write entirely on a match.
     ///
-    /// The score is rounded to a tenth as an Int rather than formatted. A
-    /// root score lead routinely moves by more than 0.05 between search
-    /// updates, so this does NOT stop the key from changing on most frames
-    /// while analysis is live — rounding only collapses sub-tenth
-    /// differences the tile would not render anyway, and makes +0.0 / -0.0
-    /// produce the same key instead of two different ones for the same lead.
+    /// The score is rounded to a tenth as an Int rather than formatted.
+    /// Rounding collapses sub-tenth differences the tile would not render
+    /// anyway, and makes +0.0 / -0.0 produce the same key instead of two
+    /// different ones for the same lead.
     ///
     /// Every field is written length-prefixed (`"<count>:<text>"`) rather
     /// than joined with a plain separator. `name` and `comment` are user

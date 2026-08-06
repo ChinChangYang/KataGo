@@ -31,9 +31,8 @@ struct LastGameEntry: TimelineEntry {
 struct LastGameProvider: TimelineProvider {
     private func read(at date: Date) -> LastGameEntry {
         let defaults = WatchWidgetDefaults.sharedDefaults()
-        let records = WatchWidgetDefaults.read(from: defaults)
         return LastGameEntry(date: date,
-                             snapshot: records.resolved(now: date),
+                             snapshot: WatchWidgetDefaults.read(from: defaults).library,
                              storageAvailable: defaults != nil,
                              legacyScoreLeadBlack:
                                 WatchWidgetDefaults.legacyScoreLeadBlack(from: defaults))
@@ -46,7 +45,7 @@ struct LastGameProvider: TimelineProvider {
                         comment: "White's cut is the only move that keeps the corner alive.",
                         parkedIndex: 42, mainlineMoveCount: 178,
                         scoreLeadBlack: 3.5, isBranch: false,
-                        capturedAt: .now, source: .library),
+                        capturedAt: .now),
                       storageAvailable: true,
                       legacyScoreLeadBlack: nil)
     }
@@ -206,24 +205,19 @@ struct LastGameWidgetView: View {
 
     @ViewBuilder private var metaLine: some View {
         if let snapshot = entry.snapshot {
-            HStack(spacing: 4) {
-                // No relative-date Text here, deliberately. One reserved width
-                // for the widest value it could EVER show — not the value it
-                // is showing — and it squeezed this row's only real content
-                // down to a bare "Move…" at every size, 46mm included. The
-                // move number is the position identity the tile exists to
-                // name, so the age is what leaves. Cost, recorded honestly:
-                // the tile no longer self-reports staleness between reloads.
-                Text(WatchWidgetTileText.moveText(parkedIndex: snapshot.parkedIndex,
-                                                  mainlineMoveCount: snapshot.mainlineMoveCount,
-                                                  isBranch: snapshot.isBranch))
-                Spacer(minLength: 0)
-                Image(systemName: snapshot.source == .live
-                      ? "dot.radiowaves.left.and.right" : "icloud")
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+            // No relative-date Text here, deliberately. One reserved width
+            // for the widest value it could EVER show — not the value it
+            // is showing — and it squeezed this row's only real content
+            // down to a bare "Move…" at every size, 46mm included. The
+            // move number is the position identity the tile exists to
+            // name, so the age is what leaves. Cost, recorded honestly:
+            // the tile no longer self-reports staleness between reloads.
+            Text(WatchWidgetTileText.moveText(parkedIndex: snapshot.parkedIndex,
+                                              mainlineMoveCount: snapshot.mainlineMoveCount,
+                                              isBranch: snapshot.isBranch))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -282,7 +276,7 @@ struct LastGameWidget: Widget {
                                + "alive, and Black must answer at the 3-3 point first. ",
                                count: 4)),
                     parkedIndex: 42, mainlineMoveCount: 178, scoreLeadBlack: 3.5,
-                    isBranch: false, capturedAt: .now, source: .live),
+                    isBranch: false, capturedAt: .now),
                   storageAvailable: true, legacyScoreLeadBlack: nil)
 }
 
@@ -293,7 +287,7 @@ struct LastGameWidget: Widget {
                   snapshot: WatchWidgetSnapshot(
                     gameID: "GAME-A", name: "Ladder Fight 3", comment: nil,
                     parkedIndex: 42, mainlineMoveCount: 178, scoreLeadBlack: 3.5,
-                    isBranch: false, capturedAt: .now, source: .library),
+                    isBranch: false, capturedAt: .now),
                   storageAvailable: true, legacyScoreLeadBlack: nil)
 }
 
@@ -311,7 +305,7 @@ struct LastGameWidget: Widget {
                   snapshot: WatchWidgetSnapshot(
                     gameID: "GAME-A", name: "Ladder Fight 3", comment: nil,
                     parkedIndex: 42, mainlineMoveCount: 178, scoreLeadBlack: 4.5,
-                    isBranch: false, capturedAt: .now, source: .live),
+                    isBranch: false, capturedAt: .now),
                   storageAvailable: true, legacyScoreLeadBlack: nil)
 }
 
@@ -322,6 +316,6 @@ struct LastGameWidget: Widget {
                   snapshot: WatchWidgetSnapshot(
                     gameID: "GAME-A", name: "Ladder Fight 3", comment: nil,
                     parkedIndex: 42, mainlineMoveCount: 178, scoreLeadBlack: 21.8,
-                    isBranch: false, capturedAt: .now, source: .live),
+                    isBranch: false, capturedAt: .now),
                   storageAvailable: true, legacyScoreLeadBlack: nil)
 }

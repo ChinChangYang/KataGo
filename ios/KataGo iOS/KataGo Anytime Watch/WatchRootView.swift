@@ -48,15 +48,6 @@ struct WatchRootView: View {
                 widgetMirror.mirrorLibrary(
                     rows: library.rows,
                     moveCount: { library.moveCount(for: $0) },
-                    // Never evict on a partial view of the library: a degraded
-                    // store, or a fetch that hit its row cap, has not proved a
-                    // game is gone. Task 4 removes this argument along with the
-                    // eviction pass itself — leave it here for now so the watch
-                    // target keeps compiling, which the iOS scheme requires
-                    // (the watch app is an iOS target dependency).
-                    libraryIsAuthoritative:
-                        SharedModelContainer.watchStoreMode == .cloudKit
-                        && library.rows.count < WatchLibraryStore.fetchLimit,
                     container: container)
             }
             library.refresh()

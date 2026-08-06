@@ -65,7 +65,6 @@ struct WatchWidgetLibrarySourceTests {
         #expect(snapshot.name == "Ladder Fight 3")
         #expect(snapshot.mainlineMoveCount == 178)
         #expect(snapshot.parkedIndex == 42)
-        #expect(snapshot.source == .library)
         #expect(snapshot.capturedAt == t0)
     }
 

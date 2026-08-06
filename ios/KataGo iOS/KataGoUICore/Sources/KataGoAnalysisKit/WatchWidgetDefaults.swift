@@ -7,11 +7,9 @@
 //  App Group containers are PER-DEVICE. `group.chinchangyang.KataGo-iOS.tw` is
 //  entitled on both the iPhone and the watch, which reads as one shared
 //  container but is not: nothing the iPhone writes there is visible to the
-//  watch widget. That is why both mirrors (live and library, fed from three
-//  call sites) live in the watch app process and the phone reaches the tile
-//  only through WatchConnectivity. It is a platform constraint, not a style
-//  choice — "just have the relay write the record" looks plausible and
-//  produces a permanently empty tile.
+//  watch widget. The watch app is therefore the only possible writer — which,
+//  now that the phone has no WatchConnectivity channel to the watch either, is
+//  also the only writer there is.
 //
 //  Note also that on watchOS the SwiftData store deliberately does NOT use
 //  this group (see SharedModelContainer's CloudKit-only branch), so this is
@@ -28,10 +26,8 @@ public enum WatchWidgetDefaults {
     ///
     /// Deliberately still the old identifier. Renaming it would drop every
     /// placement testers have already made — they would see an empty slot, not
-    /// a renamed tile — and, because `WCSession.isComplicationEnabled` tracks
-    /// an ACTIVE face placement, it would also flip the phone's push gate to
-    /// false with no error anywhere. Hoisted here so the app-side and
-    /// widget-side constants cannot drift apart.
+    /// a renamed tile. Hoisted here so the app-side and widget-side constants
+    /// cannot drift apart.
     public static let widgetKind = "ScoreLeadWidget"
 
     /// Written by the complication this one replaces. Read for one release so
@@ -47,18 +43,18 @@ public enum WatchWidgetDefaults {
         UserDefaults(suiteName: appGroupID)
     }
 
-    public static func read(from defaults: UserDefaults?) -> WatchWidgetRecords {
+    public static func read(from defaults: UserDefaults?) -> WatchWidgetRecord {
         guard let data = defaults?.data(forKey: recordsKey),
-              let records = try? decoder.decode(WatchWidgetRecords.self, from: data)
-        else { return WatchWidgetRecords() }
-        return records
+              let record = try? decoder.decode(WatchWidgetRecord.self, from: data)
+        else { return WatchWidgetRecord() }
+        return record
     }
 
     /// Returns false when the write could not happen (no App Group, or an
     /// encode failure), so callers do not record a reload they never earned.
     @discardableResult
-    public static func write(_ records: WatchWidgetRecords, to defaults: UserDefaults?) -> Bool {
-        guard let defaults, let data = try? encoder.encode(records) else { return false }
+    public static func write(_ record: WatchWidgetRecord, to defaults: UserDefaults?) -> Bool {
+        guard let defaults, let data = try? encoder.encode(record) else { return false }
         defaults.set(data, forKey: recordsKey)
         return true
     }
@@ -77,10 +73,10 @@ public enum WatchWidgetDefaults {
         defaults.set(true, forKey: legacyCleanupFlagKey)
     }
 
-    // `secondsSince1970` on both sides, matching WatchSnapshot's coders: the
-    // default strategy would encode a Double reference-date offset, which is
-    // fine in isolation but diverges from the payload this shares a process
-    // with, and `capturedAt` ordering is load-bearing.
+    // `secondsSince1970` on both sides. `capturedAt` ordering is load-bearing,
+    // and the default strategy would encode a Double reference-date offset —
+    // fine in isolation, but this is a cross-process boundary and an explicit
+    // strategy is what keeps both sides pinned to the same one.
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970

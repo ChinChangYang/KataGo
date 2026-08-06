@@ -22,9 +22,7 @@ import KataGoGameStore
 final class WatchWidgetMirror {
     private let defaults: UserDefaults?
 
-    /// The content key and time of the last reload actually requested, keyed
-    /// on the RESOLVED record — what the tile renders — rather than on either
-    /// mirror alone.
+    /// The content key and time of the last reload actually requested.
     private var lastReloadKey: String?
     private var lastReloadAt: Date?
 
@@ -36,11 +34,7 @@ final class WatchWidgetMirror {
         WatchWidgetDefaults.cleanLegacyKeysOnce(in: defaults)
     }
 
-    /// Refresh the `.library` record, and evict a `.live` record whose game is
-    /// gone. This is the only writer that sees both worlds, so eviction is its
-    /// job: deleting the mirrored game from the Mac while the iPhone app is
-    /// closed pushes no further frames, and without this the tile would keep a
-    /// dead game — with a newer clock — forever.
+    /// Refresh the stored record from the newest row of the library.
     ///
     /// The extras fetch below runs on every call that has a newest row —
     /// there is deliberately no memo keyed on `(id, lastModified)` to skip it
@@ -53,48 +47,31 @@ final class WatchWidgetMirror {
     /// next relaunched — defeating this feature's headline behavior. Re-doing
     /// the fetch every time is safe and cheap instead: it is one row with
     /// four properties (`fetchLimit = 1`, narrow `propertiesToFetch`), the
-    /// resulting write is already content-gated by
-    /// `WatchWidgetRecords.acceptingLibrary` (an unchanged `contentKey`
-    /// produces no `UserDefaults` write and no timeline reload), and the
-    /// burst this would otherwise guard against — CloudKit's initial-sync
-    /// storm — is already damped upstream by `WatchLibraryStore`'s
-    /// `CoalescedTrigger`.
+    /// resulting write is already content-gated by `WatchWidgetRecord.accepting`
+    /// (an unchanged `contentKey` produces no `UserDefaults` write and no
+    /// timeline reload), and the burst this would otherwise guard against —
+    /// CloudKit's initial-sync storm — is already damped upstream by
+    /// `WatchLibraryStore`'s `CoalescedTrigger`.
     func mirrorLibrary(rows: [WatchLibraryRow],
                        moveCount: (WatchLibraryRow) -> Int,
-                       libraryIsAuthoritative: Bool,
                        container: ModelContainer,
                        now: Date = Date()) {
-        var records = WatchWidgetDefaults.read(from: defaults)
-        var changed = false
-
-        let swept = records.evictingStaleLive(libraryIDs: Set(rows.map(\.id)),
-                                              libraryIsAuthoritative: libraryIsAuthoritative)
-        if swept != records {
-            records = swept
-            changed = true
-        }
-
         // A row with no lastModified has no honest ordering, so it is not
         // mirrored at all (the repo contains an 1846-dated sample record
         // shaped exactly like one).
-        if let row = rows.first, row.lastModified != nil {
-            if let extras = WatchWidgetLibrarySource.extras(gameID: row.id,
-                                                            container: container) {
-                let candidate = WatchWidgetLibrarySource.snapshot(
-                    row: row, moveCount: moveCount(row), extras: extras, capturedAt: now)
-                if let updated = records.acceptingLibrary(candidate) {
-                    records = updated
-                    changed = true
-                }
-            }
-        }
-
-        guard changed, WatchWidgetDefaults.write(records, to: defaults) else { return }
-        reloadIfNeeded(records, now: now)
+        guard let row = rows.first, row.lastModified != nil,
+              let extras = WatchWidgetLibrarySource.extras(gameID: row.id,
+                                                           container: container) else { return }
+        let candidate = WatchWidgetLibrarySource.snapshot(
+            row: row, moveCount: moveCount(row), extras: extras, capturedAt: now)
+        let stored = WatchWidgetDefaults.read(from: defaults)
+        guard let updated = stored.accepting(candidate),
+              WatchWidgetDefaults.write(updated, to: defaults) else { return }
+        reloadIfNeeded(updated, now: now)
     }
 
-    private func reloadIfNeeded(_ records: WatchWidgetRecords, now: Date) {
-        let key = records.resolved(now: now)?.contentKey ?? ""
+    private func reloadIfNeeded(_ record: WatchWidgetRecord, now: Date) {
+        let key = record.library?.contentKey ?? ""
         let elapsed = now.timeIntervalSince(lastReloadAt ?? .distantPast)
         guard WatchWidgetRefreshPolicy.shouldReload(previousKey: lastReloadKey,
                                                     nextKey: key,

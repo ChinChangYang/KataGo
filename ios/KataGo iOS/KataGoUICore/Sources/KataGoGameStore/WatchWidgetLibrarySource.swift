@@ -29,7 +29,7 @@ public enum WatchWidgetLibrarySource {
 
     /// Pure derivation, so the lookup rule is testable without a store.
     /// Delegates to `WatchStoredAnalysis.at` rather than reimplementing the
-    /// lookup, so this, `WatchStoredGameView`, and the phone's comment pane
+    /// lookup, so this, `WatchGameView`, and the phone's comment pane
     /// cannot drift apart on what "the comment at index N" means.
     public static func extras(currentIndex: Int,
                               comments: [Int: String]?,
@@ -84,7 +84,6 @@ public enum WatchWidgetLibrarySource {
                             // divergence point; only the phone's live frame
                             // can carry a branch index.
                             isBranch: false,
-                            capturedAt: capturedAt,
-                            source: .library)
+                            capturedAt: capturedAt)
     }
 }

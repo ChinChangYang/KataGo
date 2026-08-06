@@ -21,16 +21,15 @@ struct WatchWidgetSnapshotTests {
         WatchWidgetSnapshot(gameID: "GAME-A", name: name,
                             comment: comment, parkedIndex: parkedIndex,
                             mainlineMoveCount: mainlineMoveCount, scoreLeadBlack: score,
-                            isBranch: isBranch, capturedAt: capturedAt, source: .live)
+                            isBranch: isBranch, capturedAt: capturedAt)
     }
 
     // MARK: content key
 
-    @Test func theKeyIgnoresCapturedAtAndSource() {
-        // Otherwise every 2 Hz frame would look like a change and the writer
-        // would encode + write to cfprefsd twice a second on watch hardware.
-        var other = sample(capturedAt: Date(timeIntervalSince1970: 9_999))
-        other.source = .library
+    @Test func theKeyIgnoresCapturedAt() {
+        // Otherwise a re-read of an unchanged record would look like a change
+        // and the writer would encode + write to cfprefsd for nothing.
+        let other = sample(capturedAt: Date(timeIntervalSince1970: 9_999))
         #expect(sample().contentKey == other.contentKey)
     }
 

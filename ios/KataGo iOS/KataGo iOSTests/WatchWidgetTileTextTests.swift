@@ -22,7 +22,7 @@ struct WatchWidgetTileTextTests {
                             parkedIndex: parkedIndex,
                             mainlineMoveCount: mainlineMoveCount,
                             scoreLeadBlack: score, isBranch: isBranch,
-                            capturedAt: Date(timeIntervalSince1970: 0), source: .live)
+                            capturedAt: Date(timeIntervalSince1970: 0))
     }
 
     // MARK: layout choice
@@ -49,7 +49,7 @@ struct WatchWidgetTileTextTests {
     }
 
     @Test func noCommentIsTheDefaultLayoutNotAnEmptyRegion() {
-        // Comments are sparse at most indices — WatchStoredGameView already
+        // Comments are sparse at most indices — WatchGameView already
         // prints "No analysis saved for this move" for exactly this case — so
         // the comment-less layout is the common one, and it must fill the rect
         // rather than leave a hole where a paragraph would go.
