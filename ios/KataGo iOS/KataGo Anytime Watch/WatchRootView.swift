@@ -2,23 +2,18 @@ import SwiftUI
 import SwiftData
 import KataGoGameStore
 
-/// Where the watch can navigate. The library is the root; the live mirror and
-/// any saved game are pushes from it.
+/// Where the watch can navigate. The library is the root; a saved game is the
+/// only push from it.
 enum WatchRoute: Hashable {
-    case live
-    case stored(String)
+    case game(String)
 }
 
 struct WatchRootView: View {
-    @Environment(WatchLiveModel.self) private var model
     @Environment(WatchLibraryStore.self) private var library
-    @Environment(\.scenePhase) private var scenePhase
     let container: ModelContainer
+    let widgetMirror: WatchWidgetMirror
 
     @State private var path: [WatchRoute] = []
-    /// Set once the user has left the auto-pushed board, so the library stays
-    /// reachable for the rest of this session.
-    @State private var latchConsumed = false
     /// The game a complication tap named, held until it can be resolved.
     @State private var pendingDeepLinkID: String?
     /// Set once the launch grace has expired, so an unresolvable link can stop
@@ -30,9 +25,7 @@ struct WatchRootView: View {
             WatchLibraryPage(path: $path)
                 .navigationDestination(for: WatchRoute.self) { route in
                     switch route {
-                    case .live:
-                        liveMirror
-                    case .stored(let id):
+                    case .game(let id):
                         if let row = library.row(byID: id) {
                             WatchStoredGameView(row: row, container: container)
                         } else {
@@ -44,32 +37,23 @@ struct WatchRootView: View {
                 }
         }
         .task {
-            // The mirror itself is `KataGoAnytimeWatchApp.init()`'s, already
-            // wired into `model.widgetMirror` before `activateForLaunch()`
-            // ran — this view only supplies the library half it could not
-            // have at app-init time (the container, and the name backfill).
-            let mirror = model.widgetMirror
-            // Resolves a game id to its library name for a frame from a phone
-            // that predates the v1.3 wire fields. Only reachable once the
-            // library exists, so a cold background wake — which never mounts
-            // this view — leaves `libraryName` nil and falls back to whatever
-            // name (if any) the frame itself carries; a nameless frame with
-            // no library to consult is simply not mirrored (see
-            // `WatchWidgetLiveSource.snapshot`, which returns nil rather than
-            // storing a nameless record). That is an accepted degradation,
-            // not an oversight: a current phone sends the name on the wire.
-            model.libraryName = { [weak library] id in library?.row(id: id)?.name }
             // Fires at the end of every refresh(), including the coalesced
             // remote-change path, so a CloudKit import updates the tile
-            // without the user opening the library page.
+            // without the user opening the library page. This is now the ONLY
+            // writer the complication has: nothing wakes this app in the
+            // background any more, so the tile shows whatever was true the
+            // last time the app ran.
             library.onRefresh = { [weak library] in
                 guard let library else { return }
-                mirror?.mirrorLibrary(
+                widgetMirror.mirrorLibrary(
                     rows: library.rows,
                     moveCount: { library.moveCount(for: $0) },
-                    // Never evict on a partial view of the library: a
-                    // degraded store, or a fetch that hit its row cap, has
-                    // not proved a game is gone.
+                    // Never evict on a partial view of the library: a degraded
+                    // store, or a fetch that hit its row cap, has not proved a
+                    // game is gone. Task 4 removes this argument along with the
+                    // eviction pass itself — leave it here for now so the watch
+                    // target keeps compiling, which the iOS scheme requires
+                    // (the watch app is an iOS target dependency).
                     libraryIsAuthoritative:
                         SharedModelContainer.watchStoreMode == .cloudKit
                         && library.rows.count < WatchLibraryStore.fetchLimit,
@@ -78,34 +62,9 @@ struct WatchRootView: View {
             library.refresh()
             library.startObservingRemoteChanges()
 
-            let clock = ContinuousClock()
-            let deadline = clock.now.advanced(by: Self.launchSnapshotGrace)
-            while model.latest == nil, clock.now < deadline, !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(50))
-            }
+            try? await Task.sleep(for: Self.deepLinkResolutionGrace)
             graceExpired = true
             applyPendingDeepLink()
-            routeOnLaunch()
-        }
-        .onChange(of: path) { _, newPath in
-            // Leaving the auto-pushed board consumes the latch.
-            if newPath.isEmpty { latchConsumed = true }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            // A scene created during a background wake has already burned its
-            // one-shot launch route with no user present. Re-arm on the first
-            // activation, guarded by `latchConsumed` so a session that has
-            // already left the auto-pushed board once is not pushed back to
-            // it again. `latchConsumed` only flips once `path` has been
-            // non-empty and then emptied, so it does NOT guard against a
-            // later push: a user who launches straight to the library with
-            // no snapshot yet, then lowers and raises their wrist after one
-            // arrives, IS routed to the live board by this re-arm. That
-            // matches the app's zero-tap philosophy rather than fighting it,
-            // so the behavior is kept — this comment exists so it is not
-            // mistaken for a bounce-proof guard later.
-            guard phase == .active else { return }
-            routeOnLaunch()
         }
         .onOpenURL { url in
             // The scheme also carries import-sgf; anything this cannot parse
@@ -118,84 +77,37 @@ struct WatchRootView: View {
             applyPendingDeepLink()
         }
         .onChange(of: pendingDeepLinkID, initial: true) { _, _ in applyPendingDeepLink() }
-        .onChange(of: model.latest?.hostGameID) { _, _ in applyPendingDeepLink() }
     }
 
-    /// How long to wait for WCSession to replay its persisted application
-    /// context before deciding where to land. `receivedApplicationContext` is
-    /// documented empty until activation completes, so the snapshot that should
-    /// send us straight to the board arrives a beat AFTER the view appears —
-    /// sampling it at .onAppear would make the live route unreachable on every
-    /// cold launch.
-    private static let launchSnapshotGrace: Duration = .seconds(2)
-
-    private var liveMirror: some View {
-        TabView {
-            WatchBoardPage()
-            WatchMovesPage()
-        }
-        .tabViewStyle(.verticalPage)
-        // Plain, not tinted. Rendering `Offline` in red was tried and measured on
-        // a 46 mm simulator: watchOS ignores `foregroundStyle` on a navigation
-        // title and drew it in the same gray as `Live`. The word carries the
-        // meaning, and a modifier that does nothing is worse than none.
-        .navigationTitle(liveTitle)
-        .overlay(alignment: .bottom) {
-            if let message = model.rejectionMessage {
-                Label { Text(message) } icon: { Image(systemName: "xmark.circle.fill") }
-                    .font(.caption2).padding(4)
-                    .background(.red.opacity(0.9), in: Capsule())
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.snappy, value: model.rejectionMessage)
-    }
-
-    /// The board page's only status readout. `hostMoveIndex` rather than the
-    /// Crown's position deliberately: this reports what the PHONE has
-    /// confirmed, exactly as the deleted pill did, while `pendingTarget`
-    /// covers the in-flight value.
-    private var liveTitle: String {
-        WatchBoardTitle.live(stale: model.isStale,
-                             pendingTarget: model.cursorPendingTarget,
-                             hostMoveIndex: model.latest?.hostMoveIndex,
-                             hostMoveCount: model.latest?.hostMoveCount,
-                             sharedCursorAvailable: model.sharedCursorAvailable,
-                             movesBehindLive: model.peek.movesBehindLive)
-    }
+    /// How long a tap that names a game the store cannot yet resolve keeps
+    /// waiting before giving up. `WatchLibraryStore.row(byID:)` runs its own
+    /// direct descriptor fetch, independent of `refresh()` and of the 100-row
+    /// cap, so a game already in the local store resolves on the first
+    /// evaluation and never touches this at all — the grace only covers a
+    /// CloudKit import still in flight. Kept short on purpose: while it runs
+    /// the user is on a fully interactive library, and a long window mostly
+    /// buys opportunities to yank them out of a list mid-browse.
+    private static let deepLinkResolutionGrace: Duration = .seconds(2)
 
     /// The one place a pending deep link becomes navigation. Always clears the
-    /// latch on a terminal disposition — a stranded latch would suppress
-    /// `routeOnLaunch` for the rest of the session.
+    /// latch on a terminal disposition — a stranded latch would keep
+    /// re-evaluating for the rest of the session.
     private func applyPendingDeepLink() {
         guard let pending = pendingDeepLinkID else { return }
         switch WatchNavigationPolicy.deepLinkDisposition(
             pendingGameID: pending,
-            hostGameID: model.latest?.hostGameID,
-            hasSnapshot: model.latest != nil,
             libraryHasRow: library.row(byID: pending) != nil,
             graceExpired: graceExpired) {
         case .wait:
             return
-        case .live:
-            // ASSIGN, never append: the app is often already at [.live], and
-            // appending would leave a two-deep stack whose back-swipe lands on
-            // the mirror instead of the library.
-            path = [.live]
-        case .stored(let id):
-            path = [.stored(id)]
+        case .game(let id):
+            // ASSIGN, never append: a second tap must replace the destination
+            // rather than leave a two-deep stack whose back-swipe lands on the
+            // previously-tapped game instead of the library.
+            path = [.game(id)]
         case .giveUp:
             break
         }
         pendingDeepLinkID = nil
-    }
-
-    private func routeOnLaunch() {
-        // A tap names a specific game; the launch heuristic must never
-        // overwrite it.
-        guard pendingDeepLinkID == nil, path.isEmpty else { return }
-        let route = WatchNavigationPolicy.launchRoute(hasSnapshot: model.latest != nil,
-                                                      latchConsumed: latchConsumed)
-        if route == .liveGame { path = [.live] }
     }
 }

@@ -2,10 +2,8 @@ import SwiftUI
 import CloudKit
 import KataGoGameStore
 
-/// The watch's root: every saved game, with the phone's current game pinned
-/// on top when there is one.
+/// The watch's root: every saved game, newest first.
 struct WatchLibraryPage: View {
-    @Environment(WatchLiveModel.self) private var live
     @Environment(WatchLibraryStore.self) private var library
     @Binding var path: [WatchRoute]
 
@@ -13,45 +11,32 @@ struct WatchLibraryPage: View {
 
     var body: some View {
         List {
-            if live.latest != nil {
-                Section {
-                    Button {
-                        path.append(.live)
-                    } label: {
-                        liveRow
-                    }
-                }
-            }
-
             if library.rows.isEmpty {
                 emptyState
             } else {
-                Section("Games") {
-                    ForEach(library.rows) { row in
-                        Button {
-                            open(row)
-                        } label: {
-                            gameRow(row)
-                        }
+                // Unsectioned on purpose. There is exactly one kind of game on
+                // the watch now, so a "Games" header would label nothing — the
+                // navigation title already describes the whole screen.
+                ForEach(library.rows) { row in
+                    Button {
+                        path.append(.game(row.id))
+                    } label: {
+                        gameRow(row)
                     }
                 }
             }
         }
-        .navigationTitle("KataGo")
+        .navigationTitle("Games")
         .task {
             // Concurrent, not serialized: CKContainer.accountStatus() has no
             // timeout, so the write to `now` must not be sequenced behind
             // awaiting it — that would pin the empty state on "Syncing from
-            // iCloud" for as long as that call hangs. The two children start
-            // together, but `now` (the only signal `emptyState(now:)` reads
-            // off this view) is driven by the grace timer alone; the account
-            // state is awaited and stored AFTER, so a hung accountStatus()
-            // no longer blocks the re-evaluation. `library.accountState` is
-            // an observed (non-ignored) property of an @Observable store, so
-            // its later arrival still re-renders the empty state on its own,
-            // and `LibrarySyncPolicy` checks `accountState != .unavailable`
-            // before it ever looks at the grace flag, so a late `.signedOut`
-            // still wins.
+            // iCloud" for as long as that call hangs. `library.accountState` is
+            // an observed property of an @Observable store, so its later
+            // arrival still re-renders the empty state on its own, and
+            // `LibrarySyncPolicy` checks `accountState != .unavailable` before
+            // it ever looks at the grace flag, so a late `.signedOut` still
+            // wins.
             async let accountState = Self.accountState()
             async let graceExpired: Void = Self.waitForLaunchGrace()
             await graceExpired
@@ -59,32 +44,6 @@ struct WatchLibraryPage: View {
             now = Date()
             library.accountState = await accountState
         }
-    }
-
-    private var liveRow: some View {
-        HStack {
-            Image(systemName: live.isStale ? "wifi.slash" : "dot.radiowaves.left.and.right")
-                .foregroundStyle(live.isStale ? .red : .green)
-            VStack(alignment: .leading) {
-                Text(liveTitle).lineLimit(1)
-                Text(liveSubtitle).font(.caption2).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var liveTitle: String {
-        if let id = live.latest?.hostGameID, let row = library.row(id: id) {
-            return row.name
-        }
-        return "Live on iPhone"
-    }
-
-    private var liveSubtitle: String {
-        guard let snapshot = live.latest else { return "" }
-        if let index = snapshot.hostMoveIndex, let count = snapshot.hostMoveCount {
-            return "Move \(index) of \(count)"
-        }
-        return "\(snapshot.boardWidth)x\(snapshot.boardHeight)"
     }
 
     private func gameRow(_ row: WatchLibraryRow) -> some View {
@@ -115,19 +74,11 @@ struct WatchLibraryPage: View {
                   systemImage: "exclamationmark.icloud")
                 .font(.caption)
         case .empty:
+            // Still "from your iPhone": the phone is where games are created
+            // and iCloud is still the pipe. It is just no longer a live one.
             Label("No games yet. Games sync from your iPhone.",
                   systemImage: "circle.grid.cross")
                 .font(.caption)
-        }
-    }
-
-    private func open(_ row: WatchLibraryRow) {
-        if WatchNavigationPolicy.opensLiveMirror(rowID: row.id,
-                                                 hostGameID: live.latest?.hostGameID,
-                                                 hasSnapshot: live.latest != nil) {
-            path.append(.live)
-        } else {
-            path.append(.stored(row.id))
         }
     }
 

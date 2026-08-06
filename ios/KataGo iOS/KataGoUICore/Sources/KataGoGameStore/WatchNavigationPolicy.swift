@@ -8,38 +8,13 @@
 
 import Foundation
 
-public enum WatchLaunchRoute: Equatable, Sendable {
-    case library
-    case liveGame
-}
-
-public enum WatchNavigationPolicy {
-    /// A snapshot — live or replayed from WCSession's persisted context —
-    /// means the phone has something to show, so the watch opens on the board
-    /// exactly as it always has. `latchConsumed` is set once the user has
-    /// swiped back, so the library stays reachable for the rest of the session.
-    public static func launchRoute(hasSnapshot: Bool,
-                                   latchConsumed: Bool) -> WatchLaunchRoute {
-        (hasSnapshot && !latchConsumed) ? .liveGame : .library
-    }
-
-    /// Whether tapping a library row should open the live mirror rather than
-    /// the watch's own replay. There is never a stale second view of the game
-    /// the phone is actually playing.
-    public static func opensLiveMirror(rowID: String,
-                                       hostGameID: String?,
-                                       hasSnapshot: Bool) -> Bool {
-        guard hasSnapshot, let hostGameID else { return false }
-        return rowID == hostGameID
-    }
-}
+public enum WatchNavigationPolicy {}
 
 /// What to do with a complication tap that named a game.
 public enum WatchDeepLinkDisposition: Equatable, Sendable {
     /// Too early to decide — keep the latch and re-evaluate.
     case wait
-    case live
-    case stored(String)
+    case game(String)
     /// The game cannot be resolved and never will be; drop the latch.
     case giveUp
 }
@@ -47,25 +22,21 @@ public enum WatchDeepLinkDisposition: Equatable, Sendable {
 extension WatchNavigationPolicy {
     /// Precedence for a pending deep link, highest first:
     ///
-    ///   1. the phone is playing this exact game -> `.live`
-    ///   2. the library can produce a row for it -> `.stored`
-    ///   3. neither, but the launch grace has not expired -> `.wait`
-    ///   4. otherwise -> `.giveUp`
+    ///   1. the library can produce a row for it -> `.game`
+    ///   2. it cannot, but the launch grace has not expired -> `.wait`
+    ///   3. otherwise -> `.giveUp`
     ///
     /// `.wait` exists because a cold launch from a tap is the one moment when
-    /// BOTH inputs are still missing: the library has not fetched, and
-    /// WCSession has not replayed its persisted context. Deciding then is what
-    /// dead-ends the tap on "Game not found".
+    /// the store may not yet have imported the game the tile names. Deciding
+    /// then is what dead-ends the tap on "Game not found". The grace is
+    /// deliberately short (see `WatchRootView.deepLinkResolutionGrace`): during
+    /// `.wait` the user is already sitting on a fully interactive library, so a
+    /// long window mostly buys opportunities to yank them out of a list they
+    /// have started browsing.
     public static func deepLinkDisposition(pendingGameID: String,
-                                           hostGameID: String?,
-                                           hasSnapshot: Bool,
                                            libraryHasRow: Bool,
                                            graceExpired: Bool) -> WatchDeepLinkDisposition {
-        if opensLiveMirror(rowID: pendingGameID, hostGameID: hostGameID,
-                           hasSnapshot: hasSnapshot) {
-            return .live
-        }
-        if libraryHasRow { return .stored(pendingGameID) }
+        if libraryHasRow { return .game(pendingGameID) }
         return graceExpired ? .giveUp : .wait
     }
 }

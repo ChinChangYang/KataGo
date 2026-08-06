@@ -6,25 +6,18 @@ import KataGoGameStore
 /// Owns every App-Group write the complication reads, and every timeline
 /// reload it gets.
 ///
-/// Both mirrors — live and library — live in the watch app process (across
-/// three call sites: `WatchLiveModel`'s ingest and complication paths, and
-/// `WatchRootView`'s library refresh) because App Group containers are
+/// The mirror lives in the watch app process because App Group containers are
 /// PER-DEVICE: `group.chinchangyang.KataGo-iOS.tw` is entitled on the iPhone
-/// too, but nothing the phone writes there is visible here. That is a
-/// platform constraint, not a style choice.
+/// too, but nothing the iPhone writes there is visible here. That was already
+/// a platform constraint rather than a style choice; now that the phone has no
+/// WatchConnectivity channel either, this process is the only writer there can
+/// possibly be.
 ///
 /// `WidgetCenter` is confined to this type (and the widget target) on purpose:
 /// KataGoGameStore compiles for tvOS, which has no WidgetKit.
 ///
-/// Deliberately holds no `ModelContainer`. `mirrorLive` — the only path a
-/// background wake ever exercises — never touches SwiftData; only
-/// `mirrorLibrary` does, and it now takes the container as a parameter from
-/// its caller instead. That makes this type constructible from
-/// `UserDefaults` alone, which is what lets `KataGoAnytimeWatchApp.init()`
-/// build it (and wire it into `WatchLiveModel.widgetMirror`) before
-/// `activateForLaunch()` runs — without paying for
-/// `SharedModelContainer.shared`'s CloudKit-mirrored stack on a background
-/// launch that only needs to write one record and ask for a reload.
+/// Deliberately holds no `ModelContainer` — `mirrorLibrary` takes one as a
+/// parameter from its caller instead.
 @MainActor
 final class WatchWidgetMirror {
     private let defaults: UserDefaults?
@@ -97,27 +90,15 @@ final class WatchWidgetMirror {
         }
 
         guard changed, WatchWidgetDefaults.write(records, to: defaults) else { return }
-        reloadIfNeeded(records, now: now, immediate: false)
+        reloadIfNeeded(records, now: now)
     }
 
-    /// Store a live candidate, if it says anything new. `immediate` bypasses
-    /// the reload floor for a background wake, where refreshing the tile is
-    /// the entire point of having been woken.
-    func mirrorLive(_ candidate: WatchWidgetSnapshot,
-                    now: Date = Date(),
-                    immediate: Bool = false) {
-        let records = WatchWidgetDefaults.read(from: defaults)
-        guard let updated = records.acceptingLive(candidate),
-              WatchWidgetDefaults.write(updated, to: defaults) else { return }
-        reloadIfNeeded(updated, now: now, immediate: immediate)
-    }
-
-    private func reloadIfNeeded(_ records: WatchWidgetRecords, now: Date, immediate: Bool) {
+    private func reloadIfNeeded(_ records: WatchWidgetRecords, now: Date) {
         let key = records.resolved(now: now)?.contentKey ?? ""
         let elapsed = now.timeIntervalSince(lastReloadAt ?? .distantPast)
-        guard immediate || WatchWidgetRefreshPolicy.shouldReload(previousKey: lastReloadKey,
-                                                                 nextKey: key,
-                                                                 elapsed: elapsed) else { return }
+        guard WatchWidgetRefreshPolicy.shouldReload(previousKey: lastReloadKey,
+                                                    nextKey: key,
+                                                    elapsed: elapsed) else { return }
         lastReloadKey = key
         lastReloadAt = now
         WidgetCenter.shared.reloadTimelines(ofKind: WatchWidgetDefaults.widgetKind)
