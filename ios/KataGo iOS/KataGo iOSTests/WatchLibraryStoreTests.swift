@@ -134,6 +134,28 @@ struct WatchLibraryStoreTests {
         #expect(store.row(id: "not-a-real-id") == nil)
     }
 
+    @Test func rowByIDFallsBackToSwiftDataWithoutARefresh() throws {
+        let container = try makeContainer()
+        let record = insert(container, name: "ColdLaunch",
+                            sgf: "(;GM[1]SZ[19];B[aa])", width: 19, height: 9,
+                            modified: epoch)
+        let id = try #require(record.uuid).uuidString
+
+        // No refresh(): `rows` stays empty, so the only way this lookup can
+        // succeed is the SwiftData fallback in `row(byID:)` -- exactly the
+        // cold-launch and over-the-cap cases it exists for.
+        let store = WatchLibraryStore(container: container, storeMode: .cloudKit)
+        let row = try #require(store.row(byID: id))
+        #expect(row.id == id)
+        #expect(row.name == "ColdLaunch")
+        #expect(row.boardWidth == 19)
+        #expect(row.boardHeight == 9)
+        #expect(row.sgf == "(;GM[1]SZ[19];B[aa])")
+        #expect(row.lastModified == epoch)
+
+        #expect(store.row(byID: UUID().uuidString) == nil)
+    }
+
     @Test func emptyStateIsUnavailableOnADegradedStore() throws {
         let container = try makeContainer()
         let store = WatchLibraryStore(container: container, storeMode: .localOnly)
