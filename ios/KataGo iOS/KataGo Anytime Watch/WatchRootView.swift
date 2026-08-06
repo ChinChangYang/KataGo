@@ -41,6 +41,8 @@ struct WatchRootView: View {
         .task {
             let mirror = mirror ?? WatchWidgetMirror(container: container)
             self.mirror = mirror
+            model.widgetMirror = mirror
+            model.libraryName = { [weak library] id in library?.row(id: id)?.name }
             // Fires at the end of every refresh(), including the coalesced
             // remote-change path, so a CloudKit import updates the tile
             // without the user opening the library page.

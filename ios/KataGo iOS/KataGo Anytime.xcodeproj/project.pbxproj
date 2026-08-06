@@ -148,6 +148,7 @@
 		3E869E6B682BD483B8357165 /* ModelRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E148BFDAF75668F928411F5 /* ModelRowView.swift */; };
 		3EB83F156FDA36C7A6B95C32 /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
 		3F0F1FAD14DF56AF51E92359 /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
+		3F6F3D191E2542F7EECCD384 /* WatchWidgetLiveSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD4BFA9D6642E382A9F3876 /* WatchWidgetLiveSourceTests.swift */; };
 		3FBCCE2DD4D79BA9BD8BFB7D /* DraftComparator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27842009F1FF785B99F51B4 /* DraftComparator.swift */; };
 		3FDDFB931023326A8D6172B6 /* duration.cc in Sources */ = {isa = PBXBuildFile; fileRef = 654FC19CA890927671A573BA /* duration.cc */; };
 		400609EAE90D058453056476 /* SetupCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8363C681599FEED58861C0 /* SetupCardView.swift */; };
@@ -1602,6 +1603,7 @@
 		CC00000000000000E16F0004 /* EngineLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineLifecycleTests.swift; sourceTree = "<group>"; };
 		CC00000000000000F6000004 /* CoreMLCacheReadinessProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessProjectionTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessProjectionTests.swift"; sourceTree = SOURCE_ROOT; };
 		CC00000000000000F7000004 /* CoreMLCacheReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreMLCacheReadinessTests.swift; path = "KataGo iOSTests/CoreMLCacheReadinessTests.swift"; sourceTree = SOURCE_ROOT; };
+		CCD4BFA9D6642E382A9F3876 /* WatchWidgetLiveSourceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchWidgetLiveSourceTests.swift; sourceTree = "<group>"; };
 		CE8363C681599FEED58861C0 /* SetupCardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SetupCardView.swift; path = KataGoAnytimeMessages/SetupCardView.swift; sourceTree = "<group>"; };
 		CF36A72AB240CF1EBD48C4E7 /* GobanStateOwnershipPersistenceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateOwnershipPersistenceTests.swift; sourceTree = "<group>"; };
 		CF7C0984E748B1EB654DDB89 /* img0811.jpg */ = {isa = PBXFileReference; includeInIndex = 1; name = img0811.jpg; path = Fixtures/img0811.jpg; sourceTree = "<group>"; };
@@ -3309,6 +3311,7 @@
 				76B68D61C6F83745BF0CA95F /* WatchWidgetTileTextTests.swift */,
 				F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */,
 				B48979B318BC07B7BAC18DC1 /* WatchSnapshotV13Tests.swift */,
+				CCD4BFA9D6642E382A9F3876 /* WatchWidgetLiveSourceTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4841,6 +4844,7 @@
 				739E282D6AE8DC2BE0A56800 /* WatchWidgetTileTextTests.swift in Sources */,
 				21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */,
 				7F22F90E095E72F85359CA12 /* WatchSnapshotV13Tests.swift in Sources */,
+				3F6F3D191E2542F7EECCD384 /* WatchWidgetLiveSourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

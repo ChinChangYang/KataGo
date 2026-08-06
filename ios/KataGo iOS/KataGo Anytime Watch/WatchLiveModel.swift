@@ -15,7 +15,6 @@ import KataGoGameStore
 final class WatchLiveModel: NSObject, WCSessionDelegate {
     static let staleAfter: TimeInterval = 10
     static let appGroupID = "group.chinchangyang.KataGo-iOS.tw"
-    static let complicationKind = "ScoreLeadWidget"
 
     private(set) var latest: WatchSnapshot?
     private(set) var receivedAt: Date?
@@ -23,8 +22,13 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     /// Ticks every 5 s so `isStale` re-evaluates without new frames.
     private(set) var now = Date()
     @ObservationIgnored private var clockTask: Task<Void, Never>?
-    @ObservationIgnored private var lastComplicationReload: Date?
-    @ObservationIgnored private var lastComplicationScore: Float?
+    /// Set by WatchRootView. The model does not own the mirror: writing the
+    /// record needs the SwiftData container for the library half, and the
+    /// live path must never touch SwiftData.
+    @ObservationIgnored var widgetMirror: WatchWidgetMirror?
+    /// Resolves a game id to its library name, so a frame from a phone that
+    /// predates the v1.3 wire fields still produces a named tile.
+    @ObservationIgnored var libraryName: ((String) -> String?)?
 
     let cursor = WatchSharedCursor()
     private(set) var isReachable = false
@@ -98,7 +102,7 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         case .waiting, nil:
             break
         }
-        mirrorComplication(snapshot)
+        mirrorWidget(snapshot)
     }
 
     /// Crown moved to `target` (host mainline index). Debounced goTo.
@@ -194,18 +198,22 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Budget-friendly: reload the complication only on a ≥0.5-point change
-    /// and at most every 30 s.
-    private func mirrorComplication(_ snapshot: WatchSnapshot) {
-        let defaults = UserDefaults(suiteName: Self.appGroupID)
-        defaults?.set(Double(snapshot.rootScoreLeadBlack), forKey: "watchScoreLeadBlack")
-        defaults?.set(snapshot.hostTimestamp, forKey: "watchScoreUpdatedAt")
-        let scoreDelta = abs((lastComplicationScore ?? .infinity) - snapshot.rootScoreLeadBlack)
-        let elapsed = now.timeIntervalSince(lastComplicationReload ?? .distantPast)
-        guard scoreDelta >= 0.5, elapsed >= 30 else { return }
-        lastComplicationScore = snapshot.rootScoreLeadBlack
-        lastComplicationReload = now
-        WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
+    /// Project the frame into the complication's record.
+    ///
+    /// The previous version wrote two App-Group scalars on EVERY ingest — up
+    /// to 2 Hz — and gated only the reload, on a half-point score move. Both
+    /// halves were wrong for a tile that shows a name and a comment: those
+    /// change while the score sits still, and a JSON encode plus a cfprefsd
+    /// transaction twice a second is not something to do on watch hardware.
+    /// `WatchWidgetMirror` now gates the WRITE on the displayed content and
+    /// keeps time only as a floor.
+    private func mirrorWidget(_ snapshot: WatchSnapshot) {
+        guard let gameID = snapshot.hostGameID,
+              let candidate = WatchWidgetLiveSource.snapshot(
+                from: snapshot,
+                fallbackName: libraryName?(gameID),
+                capturedAt: Date()) else { return }
+        widgetMirror?.mirrorLive(candidate)
     }
 
     nonisolated func session(_ session: WCSession,
