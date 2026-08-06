@@ -5,18 +5,20 @@ from **8d (top anchor)** down to **25k**. The ladder is anchored at 8d and tuned
 
 - **7d → 14k — a fixed 100-ELO staircase.** Each consecutive rung is tuned (via
   `humanSLChosenMovePiklLambda`) so that, in a **normal even game** (komi 6.5, colours alternated),
-  its stronger neighbour beats it by **100 ELO**, certified to a **95% CI within ±30** ([70, 130]).
+  its stronger neighbour beats it by **100 ELO**, certified to a **95% CI within ±30** ([70, 130]) —
+  with two honestly-documented exceptions (4d +76, 3d +112; see the Status note below).
 - **15k → 25k — a pure-human tail.** At this depth the even-game gap between *adjacent* Human-SL
   ranks is **non-monotonic in λ and peaks below 100 ELO** — adjacent deep-kyu profiles are
   near-tied, so a full 100-ELO step is **not reachable** by the λ lever. These rungs therefore ship
   at **`humanSLChosenMovePiklLambda = 1e8` (pure-human imitation)** and their **natural** even-game
-  gap vs the stronger neighbour is *measured and documented* (to a 95% CI within ±30), not forced to
-  100. See the [deep-kyu finding](#findings).
+  gap vs the stronger neighbour is *measured and documented* (to a 95% CI half-width ≤30, before
+  integer rounding of printed endpoints), not forced to 100. See the [deep-kyu finding](#findings).
 
 > **Status (2026-08-06): both regimes tuned.** **7d→14k are all locked** — 21 rungs: 17 certified at
 > +100, plus the four honestly re-measured dan rungs below. **15k→25k
 > are all shipped at λ=1e8** (11 of 11 pure-human rungs), each with its natural even-game gap measured
-> to a 95% CI half-width ≤30: **+29, +24, +44, +70, +32, +8, +23, +29, −1, +55, +86** (15k→25k) —
+> to a 95% CI half-width ≤30 (before integer rounding of the table endpoints):
+> **+29, +24, +44, +70, +32, +8, +23, +29, −1, +55, +86** (15k→25k) —
 > non-monotonic and all **below +100** (most well below it), consistent with the deep-kyu finding.
 > Four dan rungs
 > (**6d, 5d, 4d, 3d**) that had locked early via a since-removed optimistic pooled estimator were
@@ -39,18 +41,21 @@ Each rung is calibrated on a **normal even game** — territory-fair **komi 6.5*
 > **weaker rank** vs **stronger rank**, **even game (komi 6.5, alternating colours)** → the stronger
 > side wins **64.0%**, i.e. the weaker side wins **36.0%** = `1/(1+10^(100/400))` (a **100-ELO** gap).
 
-The gap is held to a **95% CI within [70, 130] ELO** (i.e. 100 ± 30) — a *directly measured*,
-per-adjacent-pair precision target. (Because the ladder is a chain anchored at 8d, the *cumulative*
+In the staircase regime (7d→14k) the gap is held to a **95% CI within [70, 130] ELO** (i.e. 100 ± 30)
+— a *directly measured*, per-adjacent-pair precision target — except the honestly re-measured 4d/3d
+(documented in Status/Results); the deep-kyu tail (15k→25k) is *measured to ±30 precision* rather than
+held to a target. (Because the ladder is a chain anchored at 8d, the *cumulative*
 ELO-vs-8d of a far rung compounds across hops and has a wider CI; the ±30 applies to each **adjacent**
 gap, which is what is calibrated.)
 
 ### Uniform 100 ELO/rung (goal history)
 
-The gap target has been **100 ELO for every rung** since 2026-07-17. An earlier version of this
+The gap target was set to **100 ELO for every rung** on 2026-07-17. An earlier version of this
 re-tune used 100 ELO for the dan rungs and 50 ELO for the kyu rungs; that split was dropped in favour
-of a **uniform 100** throughout, because the low-dan λ values come out small (strong play), so a
-moderate 100/rung is used across the whole ladder to observe how λ climbs into the kyu range. (If a
-deep-kyu λ runs too high — toward pure-human policy — the gap may be revisited in a future run.)
+of a **uniform 100** target, because the low-dan λ values come out small (strong play) and a moderate
+100/rung let the run observe how λ climbs into the kyu range. The anticipated deep-kyu saturation then
+occurred: from 15k down, λ ran to pure-human policy without reaching +100, and the uniform target gave
+way to the two-regime outcome above (100-ELO staircase 7d→14k; measured pure-human tail 15k→25k).
 
 An even-earlier calibration (preserved in the author's fork's git history) spaced the ladder by **1 KGS rank** using a
 **komi-0.5 handicap game tuned to 50% winrate**; a subsequent even-game evaluation showed those
@@ -111,7 +116,8 @@ fixed 40 visits and differ only in λ.
 
 The `tunehuman` subcommand is maintained in the author's fork
 ([ChinChangYang/KataGo](https://github.com/ChinChangYang/KataGo), branch `tunehuman-mlx`) and is not
-part of upstream KataGo — the shipped configs are plain GTP configs and need no engine change. It
+part of upstream KataGo — the shipped configs are plain GTP configs and need no engine change beyond
+the small 21k–25k profile-name parsing extension shipped with them. It
 plays in-process candidate-vs-baseline games and supports every
 even-game knob: **`-komi 6.5 -cand-color auto`** (auto alternates colours → unbiased even-game
 winrate) and **`-target-elo -100`** (maps to the 36.0% candidate-winrate target via
@@ -206,8 +212,10 @@ see [Deep-kyu pure-human tail](#deep-kyu-pure-human-tail-15k--25k) below._
 > plateau ~+58 ELO for λ ∈ [0.60, 0.80]**, then climbs through a **steep, narrow
 > transition across [0.80, 0.85]** (+58 → ~+140) to a **~+140 plateau** for λ ≥ 0.85.
 > So 13k required **λ=0.83 — far above its neighbors** (12k=0.463) — and a long
-> concentration (~800 games) to certify the +100 gap. Deep-kyu rungs are expected to
-> need high λ and extended CERT grinds for this reason.
+> concentration (~800 games) to certify the +100 gap. Deep-kyu rungs were expected to
+> need high λ and extended CERT grinds for this reason — borne out at 14k (λ=3.40), while
+> from 15k down even λ→∞ no longer reaches +100 and the ladder switches to the measured
+> pure-human tail (below).
 
 > **14k note (high-λ crossing):** the 14k↔13k even-game gap is **flat ~+9 ELO for λ ≲ 1.5**
 > (candidate ≈ tied with 13k), then rises steeply, crossing **+100 at λ≈3.4** and plateauing
@@ -230,8 +238,8 @@ imprecisely. Per the project decision, these are **measured and documented as-is
 At this depth adjacent Human-SL ranks are **near-tied**: the even-game gap is **non-monotonic in λ and
 peaks below 100 ELO** (see [Findings](#findings)), so a full 100-ELO step is **not reachable** by the λ
 lever. These rungs therefore ship at **`humanSLChosenMovePiklLambda = 1e8`** (pure-human imitation) and
-their **natural** even-game gap vs the stronger neighbour is **measured** (95% CI within ±30), not forced
-to 100. Same even-game protocol (komi 6.5, alternating colours, Japanese, b28c512 main net, 40v,
+their **natural** even-game gap vs the stronger neighbour is **measured** (95% CI half-width ≤30;
+the table's endpoints are rounded to integers, so several rows print as 30.5), not forced to 100. Same even-game protocol (komi 6.5, alternating colours, Japanese, b28c512 main net, 40v,
 winLossUtilityFactor 0).
 
 | Config | Profile | Baseline (stronger) | Even-game gap (95% CI) | Games | maxVisits | piklLambda |
@@ -280,13 +288,16 @@ winLossUtilityFactor 0).
   pooled mean toward the target while the shipped λ's *own* gap sat elsewhere. Fix: **sticky
   concentration** (so one cell reaches the honest game count) + **deletion of the pooled fallback**
   (single-cell φ=1 is now the sole gate). **Honest re-measurement (2026-08-06, measure-only, no λ
-  re-tune):** at their shipped λ the four rungs measure **6d +100 [71,130], 5d +91 [70,111],
+  re-tune):** at their shipped λ (4d/3d: pooling the two adjacent 1%-grid cells around it) the four
+  rungs measure **6d +100 [71,130], 5d +91 [70,111],
   4d +76 [57,96], 3d +112 [89,134]** (6d/5d single-cell; 4d/3d pooled over the two nearest-λ cells,
   ~1256/1039 games, CI half-width ≤~23). So the pooled estimator was not just optimistically *tight* but
   also *off-centre* on 4d and 3d: **4d is under-spaced (~+76 below 5d, not +100) and 3d over-spaced
   (~+112)**, while 6d/5d land right.
   Because λ re-tuning is out of scope, these are documented as measured. Lesson: measure each rung on
-  games at **one** λ (never a λ-gradient pool), and the honest single-cell gap is the number to trust.
+  games at **one** λ — or, when a single cell is short of games, pool only the two adjacent 1%-grid
+  cells (as for 4d/3d), never a wide λ-gradient window — and that honest on-λ gap is the number to
+  trust.
 
 #### Deep-kyu regime (15k → 25k): the 100-ELO step is not reachable by λ
 
