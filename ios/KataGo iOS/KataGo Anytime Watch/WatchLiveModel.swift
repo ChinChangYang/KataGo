@@ -2,13 +2,13 @@ import Foundation
 import Observation
 import WatchConnectivity
 import WatchKit
-import WidgetKit
 import KataGoGameStore
 
 /// Watch-side receiver: decodes WatchSnapshot frames from the application
-/// context, feeds the peek buffer, tracks staleness, and mirrors the score
-/// lead into the App Group for the complication. WCSession persists the most
-/// recent application context across launches (`receivedApplicationContext`),
+/// context, feeds the peek buffer, tracks staleness, and mirrors the full
+/// record — game name, comment, parked position, branch state — into the
+/// App Group for the complication. WCSession persists the most recent
+/// application context across launches (`receivedApplicationContext`),
 /// which IS the spec's "cache the last snapshot" — no extra storage needed.
 @Observable
 @MainActor

@@ -67,6 +67,18 @@ struct WatchWidgetLiveSourceTests {
         #expect(record?.name == "From Library")
     }
 
+    @Test func aWireNameWinsOverADistinctLibraryFallback() {
+        // Both candidates are present and non-blank, so this is the only test
+        // that pins the ORDER: the wire name must win, because the library
+        // copy can be stale relative to a rename that the live frame already
+        // reflects. A regression that swapped the candidate order would pass
+        // every other test in this file silently.
+        let record = WatchWidgetLiveSource.snapshot(from: frame(name: "Ladder Fight 3"),
+                                                    fallbackName: "Old Name From Library",
+                                                    capturedAt: t0)
+        #expect(record?.name == "Ladder Fight 3")
+    }
+
     @Test func aFrameWithNoNameAnywhereIsRefused() {
         #expect(WatchWidgetLiveSource.snapshot(from: frame(name: nil),
                                                fallbackName: nil,
