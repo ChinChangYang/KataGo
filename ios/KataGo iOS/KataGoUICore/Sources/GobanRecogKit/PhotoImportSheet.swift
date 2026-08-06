@@ -46,6 +46,13 @@ public struct PhotoImportSheet: View {
     private let onRetry: (() -> Void)?
     private let retryButtonTitle: String
 
+    /// The preview draws stones in whatever style the live board uses, read
+    /// from the same `GlobalSettings.stoneStyle` key the board reads. It was
+    /// hardcoded to Fast, which happened to match the shipping default until
+    /// the default moved to Classic; matching by coincidence is what made that
+    /// a latent bug, so it now reads the setting.
+    @AppStorage(GlobalSettingsKeys.stoneStyle) private var stoneStyleIndex = Config.defaultStoneStyle
+
     @State private var phase: Phase = .recognizing
     @State private var nextToPlay: PlayerColor = .black
     /// The user-corrected position, nil while untouched. Kept separate from the
@@ -207,7 +214,7 @@ public struct PhotoImportSheet: View {
                 blackVertices: vertices.black,
                 whiteVertices: vertices.white,
                 overlay: .none,
-                isClassicStoneStyle: false,
+                isClassicStoneStyle: Config.isClassicStoneStyle(atIndex: stoneStyleIndex),
                 showCoordinate: true,
                 verticalFlip: false,
                 onTapCoordinate: { coordinate in

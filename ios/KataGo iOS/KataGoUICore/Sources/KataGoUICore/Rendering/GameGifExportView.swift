@@ -64,9 +64,7 @@ public struct GameGifExportView: View {
         _verticalFlip = State(initialValue: storedFlip ?? Config.defaultVerticalFlip)
         let styleIndex = (defaults.object(forKey: GlobalSettingsKeys.stoneStyle) as? Int)
             ?? Config.defaultStoneStyle
-        let isClassic = Config.stoneStyles.indices.contains(styleIndex)
-            && Config.stoneStyles[styleIndex] == Config.classicStoneStyle
-        _isClassicStoneStyle = State(initialValue: isClassic)
+        _isClassicStoneStyle = State(initialValue: Config.isClassicStoneStyle(atIndex: styleIndex))
     }
 
     /// Output raster size framed as image quality (pixel size is the GIF's

@@ -345,8 +345,16 @@ extension Config {
     }
 
     public var isClassicStoneStyle: Bool {
-        guard (0..<Config.stoneStyles.count).contains(stoneStyle) else { return false }
-        return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
+        Config.isClassicStoneStyle(atIndex: stoneStyle)
+    }
+
+    /// Index form of `isClassicStoneStyle`, for the surfaces that hold a raw
+    /// `GlobalSettings.stoneStyle` index instead of a `Config` — the photo
+    /// import preview and the GIF exporter both read the key directly. An
+    /// out-of-range index reports `false` rather than trapping, matching the
+    /// instance property.
+    public static func isClassicStoneStyle(atIndex index: Int) -> Bool {
+        stoneStyles.indices.contains(index) && stoneStyles[index] == classicStoneStyle
     }
 }
 

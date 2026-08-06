@@ -244,6 +244,27 @@ struct ConfigModelTests {
         #expect(Config().isFastStoneStyle == false)
     }
 
+    /// The index form, used by the surfaces that read the raw
+    /// `GlobalSettings.stoneStyle` key instead of holding a `Config`: the photo
+    /// import preview and the GIF exporter. Neither can be reached from a unit
+    /// test (both are SwiftUI views), so the shared helper is the testable seam.
+    @Test func isClassicStoneStyleAtIndex() async throws {
+        #expect(Config.isClassicStoneStyle(atIndex: 0) == false)
+        #expect(Config.isClassicStoneStyle(atIndex: 1) == true)
+
+        // Out of range reports false rather than trapping — these indices come
+        // from UserDefaults and SwiftData, so a stale or corrupt value is
+        // reachable input, not a programmer error.
+        #expect(Config.isClassicStoneStyle(atIndex: -1) == false)
+        #expect(Config.isClassicStoneStyle(atIndex: Config.stoneStyles.count) == false)
+
+        // Agrees with the instance property it now backs.
+        for index in Config.stoneStyles.indices {
+            #expect(Config(stoneStyle: index).isClassicStoneStyle
+                    == Config.isClassicStoneStyle(atIndex: index))
+        }
+    }
+
     @Test func testIsAnalysisForCurrentPlayer() async throws {
         let config = Config()
 
