@@ -62,17 +62,25 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
 
     var cursorPendingTarget: Int? { cursor.pendingTarget }
 
-    func activate() {
+    /// The launch-critical half: register the delegate, activate, and replay
+    /// the persisted context. Called from `App.init()` so a BACKGROUND launch
+    /// — which never evaluates the window body, and therefore never runs
+    /// `.onAppear` — still has a delegate to receive the complication payload.
+    func activateForLaunch() {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         session.delegate = self
         session.activate()
-        // Replay the persisted last context so a cold launch shows the cached
-        // position (stale-badged) instead of a blank screen.
         if let data = session.receivedApplicationContext[WatchSnapshot.contextKey] as? Data {
             ingest(data, receivedAt: nil)
         }
-        clockTask?.cancel()
+    }
+
+    /// The UI-only half: a 5 s tick so `isStale` re-evaluates without new
+    /// frames. Started from the live view, never from `init()` — a background
+    /// wake has no staleness to render and no business running a timer.
+    func startClock() {
+        guard clockTask == nil else { return }
         clockTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
@@ -81,12 +89,29 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Hold the process alive until WatchConnectivity has nothing pending.
+    ///
+    /// Without this the app can be suspended between the delegate callback and
+    /// the MainActor hop, so the wake happens and produces nothing — and
+    /// `WKBackgroundTask` documents that failing to complete a background task
+    /// terminates the app (0xc51bad01/02/03).
+    func drainWatchConnectivity() async {
+        while WCSession.default.hasContentPending, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
     func ingest(_ data: Data, receivedAt: Date?) {
         guard let snapshot = try? WatchSnapshot.decode(data) else { return }
         // Spec: haptic on live-move arrival — only for a real position change
         // on a live (not cold-replay) frame while the user is pinned to live.
         let positionChanged = latest.map { $0.positionKey != snapshot.positionKey } ?? false
-        if positionChanged, receivedAt != nil, peek.isLive {
+        // `applicationState` matters now that the delegate is registered from
+        // `init()`: before that, a frame could only arrive with UI on screen.
+        // A background delivery must be silent. Not observable in the
+        // simulator, which reports the app as active.
+        if positionChanged, receivedAt != nil, peek.isLive,
+           WKApplication.shared().applicationState == .active {
             WKInterfaceDevice.current().play(.click)
         }
         latest = snapshot
@@ -173,10 +198,10 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         if reply.accepted {
             // goTo: confirmation arrives as the next frame (cursor.observe in
             // ingest). play: the move lands as a position-change frame.
-            if kind == .play { WKInterfaceDevice.current().play(.success) }
+            if kind == .play { playHapticIfVisible(.success) }
         } else {
             if kind == .goTo { cursor.abandon(); pendingGoToGameID = nil }
-            WKInterfaceDevice.current().play(.failure)
+            playHapticIfVisible(.failure)
             showRejection(reply.reason ?? "Rejected by iPhone")
         }
     }
@@ -184,8 +209,15 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     private func handleTransportFailure(_ message: String, for kind: WatchCommand.Kind) {
         if kind == .play { playPending = false }
         if kind == .goTo { cursor.abandon(); pendingGoToGameID = nil }
-        WKInterfaceDevice.current().play(.failure)
+        playHapticIfVisible(.failure)
         showRejection(message)
+    }
+
+    /// Haptics are feedback for something the wearer just did, so they are
+    /// suppressed whenever the app is not on screen.
+    private func playHapticIfVisible(_ type: WKHapticType) {
+        guard WKApplication.shared().applicationState == .active else { return }
+        WKInterfaceDevice.current().play(type)
     }
 
     private func showRejection(_ text: String) {
@@ -237,6 +269,40 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
                              didReceiveApplicationContext applicationContext: [String: Any]) {
         guard let data = applicationContext[WatchSnapshot.contextKey] as? Data else { return }
         Task { @MainActor in self.ingest(data, receivedAt: Date()) }
+    }
+
+    /// The phone's complication payload. Deliberately does NOT go through
+    /// `ingest`, for two reasons.
+    ///
+    /// `session(_:activationDidCompleteWith:)` replays the persisted context
+    /// only under `guard self.latest == nil`; setting `latest` from here would
+    /// permanently suppress the real mirror frame for the rest of the process,
+    /// and `sharedCursorAvailable`, `canPlayNow`, the board page and the launch
+    /// route all read it. And this callback fires on a background launch,
+    /// where the peek buffer, the shared cursor and the haptics have no
+    /// meaning.
+    ///
+    /// `nonisolated` and Sendable-extracting for the reason this file already
+    /// documents at the sendMessage call site: WCSession invokes delegate
+    /// methods on its own queue, and a plainly-declared method on a
+    /// `@MainActor` type traps off-main.
+    nonisolated func session(_ session: WCSession,
+                             didReceiveUserInfo userInfo: [String: Any]) {
+        guard let data = userInfo[WatchSnapshot.contextKey] as? Data else { return }
+        Task { @MainActor in self.ingestComplicationPayload(data) }
+    }
+
+    private func ingestComplicationPayload(_ data: Data) {
+        guard let frame = try? WatchSnapshot.decode(data),
+              let gameID = frame.hostGameID,
+              let candidate = WatchWidgetLiveSource.snapshot(
+                from: frame,
+                fallbackName: libraryName?(gameID),
+                capturedAt: Date()) else { return }
+        // `immediate`: refreshing the tile is the entire purpose of the wake,
+        // so the reload floor does not apply. The mirror's monotonic rule
+        // still rejects a late-delivered older payload.
+        widgetMirror?.mirrorLive(candidate, immediate: true)
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {

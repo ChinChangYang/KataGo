@@ -12,6 +12,7 @@ enum WatchRoute: Hashable {
 struct WatchRootView: View {
     @Environment(WatchLiveModel.self) private var model
     @Environment(WatchLibraryStore.self) private var library
+    @Environment(\.scenePhase) private var scenePhase
     let container: ModelContainer
 
     @State private var path: [WatchRoute] = []
@@ -69,6 +70,14 @@ struct WatchRootView: View {
         .onChange(of: path) { _, newPath in
             // Leaving the auto-pushed board consumes the latch.
             if newPath.isEmpty { latchConsumed = true }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // A scene created during a background wake has already burned its
+            // one-shot launch route with no user present. Re-arm on the first
+            // activation, guarded by `latchConsumed` so this can never bounce
+            // the user off the library mid-session.
+            guard phase == .active else { return }
+            routeOnLaunch()
         }
     }
 
