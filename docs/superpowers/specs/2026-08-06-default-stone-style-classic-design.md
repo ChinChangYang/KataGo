@@ -97,11 +97,20 @@ driven by `Config.defaultStoneStyle`. They are unaffected.
 
 None, and none is needed.
 
-`GlobalSettings.stoneStyle` is only ever written when the value actually
-changes — on iOS through `GlobalPreferenceSync`'s
-`.onChange(of: gobanState.stoneStyle)`, on macOS through
-`MacGlobalPreferenceSync`'s observation write-back. Neither fires when the
-seeding assignment writes the same value it read. So:
+Seeding `GobanState` from `UserDefaults` never writes the key back — on
+either platform, but by two different mechanisms.
+
+On iOS, `GlobalPreferenceSync` persists through
+`.onChange(of: gobanState.stoneStyle)`, and SwiftUI's `onChange` compares old
+against new, so assigning the value it just read does nothing.
+
+On macOS, `MacGlobalPreferenceSync` bridges observation with
+`withObservationTracking`, whose `onChange` fires on *any* mutation, equal or
+not. What protects the key there is ordering: `init` calls
+`seedFromDefaults()` before `trackPreferences()`, so nothing is observing
+while the seeding assignments run.
+
+So:
 
 - A user who never opened the picker has no stored key, and picks up Classic.
 - A user who deliberately chose Fast has a stored `0`, and keeps Fast.
