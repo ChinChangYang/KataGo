@@ -2,7 +2,7 @@
 //  WatchWidgetRefreshPolicy.swift
 //  KataGoAnalysisKit
 //
-//  When a change is worth a reload, and when it is worth a transfer.
+//  When a change is worth a timeline reload.
 //
 //  Every decision here is keyed on the DISPLAYED content, with time only ever
 //  acting as a floor. The complication this replaces gated its reload on a
@@ -10,19 +10,17 @@
 //  score and is exactly wrong for one that shows a name and a comment: those
 //  change while the score sits still.
 //
+//  There is no push half any more. The phone used to spend one of its ~50
+//  daily complication transfers to wake this watch app in the background; the
+//  watch no longer talks to the phone at all, so the only writer left is the
+//  watch's own library mirror, which runs in the foreground.
+//
 
 import Foundation
 
 public enum WatchWidgetRefreshPolicy {
-    /// Minimum spacing between timeline reloads driven by the live mirror.
-    /// A floor, never a trigger. A background wake bypasses it deliberately —
-    /// refreshing the tile is the entire purpose of that wake.
+    /// Minimum spacing between timeline reloads. A floor, never a trigger.
     public static let reloadFloor: TimeInterval = 30
-
-    /// Minimum spacing between phone complication transfers. The budget is
-    /// roughly 50 a day and drops to zero the moment the tile is not on an
-    /// active watch face, so this is far coarser than the local floor.
-    public static let pushInterval: TimeInterval = 5 * 60
 
     /// How long a rendered entry stays valid before WidgetKit re-asks. Mirrors
     /// `WidgetReloadPolicy.refreshInterval` on the phone side.
@@ -37,15 +35,6 @@ public enum WatchWidgetRefreshPolicy {
         guard let previousKey else { return true }
         guard previousKey != nextKey else { return false }
         return elapsed >= floor
-    }
-
-    public static func shouldPush(previousKey: String?,
-                                  nextKey: String,
-                                  elapsed: TimeInterval,
-                                  minInterval: TimeInterval = pushInterval) -> Bool {
-        guard let previousKey else { return true }
-        guard previousKey != nextKey else { return false }
-        return elapsed >= minInterval
     }
 
     public static func nextReloadDate(after date: Date) -> Date {

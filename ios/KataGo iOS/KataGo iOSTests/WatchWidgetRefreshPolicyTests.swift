@@ -2,8 +2,7 @@
 //  WatchWidgetRefreshPolicyTests.swift
 //  KataGo AnytimeTests
 //
-//  When a changed record is worth a timeline reload, and when a change is
-//  worth spending one of the phone's ~50 daily complication transfers.
+//  When a changed record is worth a timeline reload.
 //
 
 import Testing
@@ -47,32 +46,6 @@ struct WatchWidgetRefreshPolicyTests {
         #expect(WatchWidgetRefreshPolicy.shouldReload(
             previousKey: before, nextKey: after,
             elapsed: WatchWidgetRefreshPolicy.reloadFloor))
-    }
-
-    // MARK: push
-
-    @Test func anUnchangedKeyNeverPushes() {
-        #expect(!WatchWidgetRefreshPolicy.shouldPush(
-            previousKey: "same", nextKey: "same", elapsed: 10_000))
-    }
-
-    @Test func aChangedKeyPushesOnlyOncePerInterval() {
-        #expect(!WatchWidgetRefreshPolicy.shouldPush(
-            previousKey: "a", nextKey: "b", elapsed: 60))
-        #expect(WatchWidgetRefreshPolicy.shouldPush(
-            previousKey: "a", nextKey: "b",
-            elapsed: WatchWidgetRefreshPolicy.pushInterval))
-    }
-
-    @Test func theFirstPushIsNotRateLimited() {
-        #expect(WatchWidgetRefreshPolicy.shouldPush(
-            previousKey: nil, nextKey: "a", elapsed: 0))
-    }
-
-    @Test func thePushIntervalIsFarCoarserThanTheReloadFloor() {
-        // The transfer budget is ~50/day and shared with nothing else; the
-        // reload floor is local and cheap.
-        #expect(WatchWidgetRefreshPolicy.pushInterval > WatchWidgetRefreshPolicy.reloadFloor)
     }
 
     // MARK: timeline

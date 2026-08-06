@@ -27,7 +27,6 @@ struct ContentView: View {
     @State var audioModel = AudioModel()
     @State private var topUIState = TopUIState()
     @State var aiMove: String? = nil
-    @State private var watchRelay = WatchSessionRelay()
 
     var body: some View {
         if isInitialized {
@@ -62,7 +61,6 @@ struct ContentView: View {
                 }
             }
             .task {
-                watchRelay.start(session: session, navigationContext: navigationContext, audioModel: audioModel)
                 // Get messages from KataGo and append to the list of messages
                 await session.run(
                     gameRecords: gameRecords,
