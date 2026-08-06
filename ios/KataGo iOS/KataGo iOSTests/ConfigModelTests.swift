@@ -258,7 +258,12 @@ struct ConfigModelTests {
         #expect(Config.isClassicStoneStyle(atIndex: -1) == false)
         #expect(Config.isClassicStoneStyle(atIndex: Config.stoneStyles.count) == false)
 
-        // Agrees with the instance property it now backs.
+        // Guards future divergence, and verifies nothing today: the instance
+        // property currently *is* a call to this function, so both sides are
+        // the same expression. It earns its place only if someone re-inlines
+        // the instance property — the exact duplication this helper removed.
+        // (It does still pin that the property forwards `stoneStyle` rather
+        // than a constant.) The assertions above carry the real signal.
         for index in Config.stoneStyles.indices {
             #expect(Config(stoneStyle: index).isClassicStoneStyle
                     == Config.isClassicStoneStyle(atIndex: index))

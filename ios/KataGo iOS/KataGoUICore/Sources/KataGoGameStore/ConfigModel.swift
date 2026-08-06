@@ -332,10 +332,13 @@ extension Config {
     public static let defaultStoneStyleText = stoneStyles[defaultStoneStyle]
 
     public var stoneStyleText: String {
-        guard stoneStyle < Config.stoneStyles.count else {
+        // Full-range check, not just the upper bound: `stoneStyle` arrives from
+        // UserDefaults and SwiftData, so a negative is reachable input and would
+        // trap on the subscript below.
+        guard Config.stoneStyles.indices.contains(stoneStyle) else {
             return Config.defaultStoneStyleText
         }
-        
+
         return Config.stoneStyles[stoneStyle]
     }
 
@@ -353,6 +356,12 @@ extension Config {
     /// import preview and the GIF exporter both read the key directly. An
     /// out-of-range index reports `false` rather than trapping, matching the
     /// instance property.
+    ///
+    /// `GobanState.isClassicStoneStyle` also holds a raw index and deliberately
+    /// does *not* delegate here. It is one of six sibling helpers there
+    /// (`isClassicAnalysisStyle`, the four `isAnalysisInformation*`) that share
+    /// a single bounds-checking idiom; routing one of the six through this
+    /// function would trade a small duplication for an inconsistent block.
     public static func isClassicStoneStyle(atIndex index: Int) -> Bool {
         stoneStyles.indices.contains(index) && stoneStyles[index] == classicStoneStyle
     }

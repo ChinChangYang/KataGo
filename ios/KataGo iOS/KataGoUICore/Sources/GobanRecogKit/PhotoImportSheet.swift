@@ -215,6 +215,13 @@ public struct PhotoImportSheet: View {
                 whiteVertices: vertices.white,
                 overlay: .none,
                 isClassicStoneStyle: Config.isClassicStoneStyle(atIndex: stoneStyleIndex),
+                // These two stay fixed on purpose — do not "finish the job" by
+                // wiring them to the global settings the way the style above is.
+                // Coordinates must always show, because naming an intersection is
+                // how the user finds the stone the recognizer got wrong; and the
+                // preview must mirror the photo, whose orientation the user is
+                // comparing against. `verticalFlip: true` would also silently
+                // invert the row mapping in `onTapCoordinate` below.
                 showCoordinate: true,
                 verticalFlip: false,
                 onTapCoordinate: { coordinate in
