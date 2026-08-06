@@ -239,7 +239,8 @@ At this depth adjacent Human-SL ranks are **near-tied**: the even-game gap is **
 peaks below 100 ELO** (see [Findings](#findings)), so a full 100-ELO step is **not reachable** by the λ
 lever. These rungs therefore ship at **`humanSLChosenMovePiklLambda = 1e8`** (pure-human imitation) and
 their **natural** even-game gap vs the stronger neighbour is **measured** (95% CI half-width ≤30;
-the table's endpoints are rounded to integers, so several rows print as 30.5), not forced to 100. Same even-game protocol (komi 6.5, alternating colours, Japanese, b28c512 main net, 40v,
+the table's endpoints are rounded to integers, so several rows' implied half-width comes out to
+30.5), not forced to 100. Same even-game protocol (komi 6.5, alternating colours, Japanese, b28c512 main net, 40v,
 winLossUtilityFactor 0).
 
 | Config | Profile | Baseline (stronger) | Even-game gap (95% CI) | Games | maxVisits | piklLambda |
