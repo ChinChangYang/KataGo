@@ -5093,11 +5093,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 307;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_WKApplication = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "chinchangyang.KataGo-iOS.tw";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KataGo Anytime Watch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -5188,11 +5185,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 307;
 				DEVELOPMENT_TEAM = 6F82AZ9Z52;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "KataGo Anytime";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_WKApplication = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "chinchangyang.KataGo-iOS.tw";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KataGo Anytime Watch/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
