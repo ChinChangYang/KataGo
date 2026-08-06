@@ -32,6 +32,7 @@
 		09B76CBDA1A27CE4B244D374 /* AnalysisCandidateMovesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4762AACF9C73ECA5FBF891 /* AnalysisCandidateMovesTests.swift */; };
 		0AA072E98EE75C96AA2FE6E0 /* DeepReportGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290E4818571F3CFE012DE7EC /* DeepReportGeneratorTests.swift */; };
 		0AEAD57BA394449600F4EAC1 /* GoRulesKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5C46CD74498343777CE6553E /* GoRulesKit */; };
+		0B4EFD59D8F485D58EAC26D9 /* WatchComplicationPushThrottleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413FCE261EB84633A3863751 /* WatchComplicationPushThrottleTests.swift */; };
 		0B905DAB07B6367DF34C2385 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		0C66F65341C9563114FFF0E1 /* MLXTuneExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */; };
 		0DA2A5DF97DE6C4B3266AA34 /* common.cc in Sources */ = {isa = PBXBuildFile; fileRef = 24A40B6C3B2B0D0D582CE4D7 /* common.cc */; };
@@ -1265,6 +1266,7 @@
 		3FB8B3F43E9E8756E6098D9E /* TVPreviewSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVPreviewSupport.swift; sourceTree = "<group>"; };
 		4041DD0A93E44FC303CE8A5C /* SavedGameBackgroundTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameBackgroundTests.swift; sourceTree = "<group>"; };
 		40A265B1DCFCFBEE2F70C0A7 /* cordz_handle.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cordz_handle.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cordz_handle.cc"; sourceTree = SOURCE_ROOT; };
+		413FCE261EB84633A3863751 /* WatchComplicationPushThrottleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchComplicationPushThrottleTests.swift; sourceTree = "<group>"; };
 		41A69C74A59A561EBAC47B36 /* nanobenchmark.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nanobenchmark.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/nanobenchmark.cc"; sourceTree = SOURCE_ROOT; };
 		42385F0B74576452C7F1E237 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeSafariExt/Info.plist; sourceTree = "<group>"; };
 		42760A66F532E2E8D114E32A /* time_zone_libc.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_libc.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_libc.cc"; sourceTree = SOURCE_ROOT; };
@@ -3312,6 +3314,7 @@
 				F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */,
 				B48979B318BC07B7BAC18DC1 /* WatchSnapshotV13Tests.swift */,
 				CCD4BFA9D6642E382A9F3876 /* WatchWidgetLiveSourceTests.swift */,
+				413FCE261EB84633A3863751 /* WatchComplicationPushThrottleTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4845,6 +4848,7 @@
 				21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */,
 				7F22F90E095E72F85359CA12 /* WatchSnapshotV13Tests.swift in Sources */,
 				3F6F3D191E2542F7EECCD384 /* WatchWidgetLiveSourceTests.swift in Sources */,
+				0B4EFD59D8F485D58EAC26D9 /* WatchComplicationPushThrottleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -20,6 +20,19 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
     /// SgfOperations parses the whole SGF — memoize moveSize per SGF string so
     /// the 500 ms tick doesn't re-parse a long game.
     private var moveCountMemo: (sgf: String, count: Int?)?
+    /// Content key and time of the last complication payload enqueued, so a
+    /// heartbeat that changes nothing the tile shows never spends a transfer.
+    /// Persisted (see `WatchComplicationPushThrottle`), not a plain property —
+    /// an in-memory-only value forgets itself on every process relaunch.
+    private let pushThrottle: WatchComplicationPushThrottle
+
+    /// `pushThrottleDefaults` defaults to `.standard` for the real app; tests
+    /// inject a throwaway suite so they never touch the developer's own
+    /// defaults domain.
+    init(pushThrottleDefaults: UserDefaults = .standard) {
+        pushThrottle = WatchComplicationPushThrottle(defaults: pushThrottleDefaults)
+        super.init()
+    }
 
     func start(session gameSession: GameSession,
                navigationContext: NavigationContext,
@@ -67,11 +80,50 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
         do {
             try wcSession.updateApplicationContext([WatchSnapshot.contextKey: data])
             lastSent = snapshot
+            pushComplicationIfDue(snapshot, data: data,
+                                  session: wcSession, now: snapshot.hostTimestamp)
         } catch {
             // Transient WCSession errors (e.g. not activated yet): drop the
             // frame; the next changed tick retries. Latest-wins semantics make
             // skipped frames harmless.
         }
+    }
+
+    /// Wake the watch app in the background so the complication updates
+    /// without the user opening it.
+    ///
+    /// Degrades rather than hard-gates. `isComplicationEnabled` is true only
+    /// while the tile sits on an ACTIVE watch face; a Smart-Stack-only
+    /// placement leaves it false and `remainingComplicationUserInfoTransfers`
+    /// at zero. In that case a plain `transferUserInfo` still lands the next
+    /// time the watch app runs, which is no worse than the application context
+    /// already achieves — and correctness never depends on this path.
+    private func pushComplicationIfDue(_ snapshot: WatchSnapshot,
+                                       data: Data,
+                                       session: WCSession,
+                                       now: Date) {
+        guard let key = WatchWidgetLiveSource.pushKey(for: snapshot) else { return }
+        let elapsed = now.timeIntervalSince(pushThrottle.lastPushedAt ?? .distantPast)
+        guard WatchWidgetRefreshPolicy.shouldPush(previousKey: pushThrottle.lastPushedKey,
+                                                  nextKey: key,
+                                                  elapsed: elapsed) else { return }
+
+        // Sweep our own stale transfers first. The queue is FIFO, and the
+        // header is explicit that re-tagging a new payload as current only
+        // UNTAGS the previous one — it stays queued and can be delivered AFTER
+        // the newer frame. The watch's monotonic clock rule makes that
+        // harmless, but there is no reason to spend delivery on it.
+        for transfer in session.outstandingUserInfoTransfers
+        where transfer.userInfo[WatchSnapshot.contextKey] != nil {
+            transfer.cancel()
+        }
+
+        if session.isComplicationEnabled, session.remainingComplicationUserInfoTransfers > 0 {
+            session.transferCurrentComplicationUserInfo([WatchSnapshot.contextKey: data])
+        } else {
+            session.transferUserInfo([WatchSnapshot.contextKey: data])
+        }
+        pushThrottle.recordPush(key: key, at: now)
     }
 
     // MARK: WCSessionDelegate (iOS side requires all three)
@@ -121,4 +173,58 @@ final class WatchSessionRelay: NSObject, WCSessionDelegate {
 private struct UncheckedSendableBox<T>: @unchecked Sendable {
     let value: T
     init(_ value: T) { self.value = value }
+}
+
+/// Rate-limit bookkeeping for `WatchSessionRelay.pushComplicationIfDue`,
+/// persisted to phone-local `UserDefaults` rather than kept as plain
+/// in-memory properties.
+///
+/// Why persisted: iOS backgrounds and kills this app routinely — far more
+/// often than a user force-quit — and `WatchWidgetRefreshPolicy.shouldPush`
+/// returns true unconditionally when `previousKey` is nil, which is correct
+/// for a genuine first push and wrong for "the process merely relaunched".
+/// Plain properties reset to nil on every launch and reopen that unthrottled
+/// branch for the next changed frame; against a budget of roughly 50
+/// complication transfers a day, that is plausibly 10-20 wasted transfers
+/// daily, not a rare edge. A future reader who sees only `var lastPushedKey`
+/// might "simplify" this back to a plain property, so this comment (and the
+/// dedicated test in WatchComplicationPushThrottleTests.swift) exist to head
+/// that off.
+///
+/// Deliberately `UserDefaults.standard`, NOT the App Group: the watch never
+/// reads this state — it is purely how the PHONE throttles its own pushes —
+/// and the App Group is a watch-local channel (see `WatchWidgetDefaults`);
+/// storing phone-only state there would mislead a future reader into
+/// thinking the watch consumes it.
+struct WatchComplicationPushThrottle {
+    /// Shared prefix so both keys read as a pair in a `defaults` dump and any
+    /// future addition to this struct is obviously grouped with them.
+    private static let keyPrefix = "WatchComplicationPushThrottle."
+    static let lastPushedKeyDefaultsKey = keyPrefix + "lastPushedKey"
+    static let lastPushedAtDefaultsKey = keyPrefix + "lastPushedAt"
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    /// Read directly from `defaults` on every access (never cached at init),
+    /// so a freshly constructed instance — e.g. after a background relaunch —
+    /// always sees whatever the previous process last wrote.
+    var lastPushedKey: String? {
+        defaults.string(forKey: Self.lastPushedKeyDefaultsKey)
+    }
+
+    var lastPushedAt: Date? {
+        defaults.object(forKey: Self.lastPushedAtDefaultsKey) as? Date
+    }
+
+    /// Write both fields after a successful enqueue. `UserDefaults` is a
+    /// reference type, so this needs no `mutating` keyword and the struct can
+    /// be held as a `let`.
+    func recordPush(key: String, at date: Date) {
+        defaults.set(key, forKey: Self.lastPushedKeyDefaultsKey)
+        defaults.set(date, forKey: Self.lastPushedAtDefaultsKey)
+    }
 }

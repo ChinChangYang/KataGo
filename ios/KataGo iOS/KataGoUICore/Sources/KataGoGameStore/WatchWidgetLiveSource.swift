@@ -48,4 +48,15 @@ public enum WatchWidgetLiveSource {
             capturedAt: capturedAt,
             source: .live)
     }
+
+    /// The content key this frame WOULD produce, for the phone's push gate.
+    ///
+    /// Reuses the record builder rather than recomputing a key, so the gate
+    /// cannot drift from what the watch will actually store — and it returns
+    /// nil for exactly the frames the watch would refuse, which is precisely
+    /// when a transfer would be wasted. `capturedAt` is irrelevant here:
+    /// `contentKey` excludes it.
+    public static func pushKey(for frame: WatchSnapshot) -> String? {
+        snapshot(from: frame, fallbackName: nil, capturedAt: .distantPast)?.contentKey
+    }
 }

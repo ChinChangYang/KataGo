@@ -120,4 +120,28 @@ struct WatchWidgetLiveSourceTests {
                                                     capturedAt: watchNow)
         #expect(record?.capturedAt == watchNow)
     }
+
+    // MARK: push key
+
+    @Test func thePushKeyIgnoresTheHeartbeat() {
+        // The relay rebuilds a frame every 500 ms and candidate visits move on
+        // nearly every tick; without a key that ignores them, the phone would
+        // burn its ~50 daily transfers in half a minute.
+        var later = frame()
+        later.hostTimestamp = t0.addingTimeInterval(600)
+        later.candidates = [WatchSnapshot.Candidate(vertex: "Q16", winrate: 0.5,
+                                                    scoreLead: 1, visits: 99_999, pv: [])]
+        #expect(WatchWidgetLiveSource.pushKey(for: frame())
+                == WatchWidgetLiveSource.pushKey(for: later))
+    }
+
+    @Test func thePushKeyMovesWithTheComment() {
+        #expect(WatchWidgetLiveSource.pushKey(for: frame())
+                != WatchWidgetLiveSource.pushKey(for: frame(comment: "Black lives.")))
+    }
+
+    @Test func aFrameNotWorthStoringIsNotWorthPushing() {
+        #expect(WatchWidgetLiveSource.pushKey(for: frame(gameID: nil)) == nil)
+        #expect(WatchWidgetLiveSource.pushKey(for: frame(name: nil)) == nil)
+    }
 }
