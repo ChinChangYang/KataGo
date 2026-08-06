@@ -27,8 +27,8 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     /// nil means "no comment at this position" and must be rendered as a
     /// different layout, never as an empty region.
     public var comment: String?
-    /// Where the game is parked. NOT the end of the mainline, and NOT
-    /// `WatchSnapshot.moveNumber` (stones placed, which passes do not advance).
+    /// Where the game is parked — an SGF mainline index. NOT the end of the
+    /// mainline, and NOT a count of stones placed, which passes do not advance.
     public var parkedIndex: Int
     public var mainlineMoveCount: Int
     public var scoreLeadBlack: Double?

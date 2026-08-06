@@ -14,12 +14,12 @@ It runs on **iPhone and iPad, Apple Vision Pro, Mac, Apple TV, and Apple Watch**
 | visionOS 26+ | `KataGo Anytime` | The same app, adapted for Apple Vision Pro |
 | macOS 26+ | `KataGo Anytime Mac` | Native AppKit app with a three-pane window and menu-bar/hotkey workflow |
 | tvOS 26+ | `KataGo Anytime TV` | Review & spectate app for the living room |
-| watchOS 26+ | `KataGo Anytime Watch` | Companion live mirror + remote play for a paired iPhone |
+| watchOS 26+ | `KataGo Anytime Watch` | Standalone read-only game library, synced over iCloud |
 
 Beyond the apps themselves:
 
 - A **Saved Game widget** (iOS, iPadOS, macOS, visionOS) puts a chosen game's board and comments on your Home Screen or desktop.
-- A **score-lead complication** on Apple Watch shows the live score of the mirrored game.
+- A **Last Game complication** on Apple Watch shows the name and comment at the position your last game is parked on.
 - Games are persisted with **SwiftData** and synced everywhere via **CloudKit** (iCloud).
 
 ## Engine, Neural Networks, and Opening Books
@@ -193,11 +193,14 @@ The TV app runs the built-in 18-block network on the Neural Engine and limits do
 
 ## KataGo Anytime on Apple Watch
 
-The Watch app is a companion for a paired iPhone:
+The Watch app is a standalone reader for your game library:
 
-- A **live mirror** of the iPhone's current game: board, candidate moves, win rate, and score lead, with a stale indicator when the phone stops updating.
-- **Remote control**: scrub through the game with the Digital Crown, and tap a candidate move to play it on the phone when the phone allows it.
-- A **score-lead complication** (inline, circular, and rectangular) for your watch face.
+- Your **saved games**, synced over iCloud, listed newest first.
+- Open one and **scrub its moves with the Digital Crown**. Boards are replayed on the watch from the game's own SGF, so every position is available — not only the ones another device happened to visit.
+- A **Review page** per position: win rate, score, the engine's best move, and any commentary the game already had saved. The watch runs no engine and computes nothing.
+- A **Last Game complication** (inline, circular, and rectangular) for your watch face. It refreshes while the Watch app is open.
+
+The Watch app does not connect to your iPhone and cannot change a game. Games are created on iPhone, iPad, Mac, Apple TV, or Vision Pro and reach the watch through iCloud.
 
 ## Building from Source
 

@@ -75,7 +75,7 @@ struct WidgetBoardViewTests {
     }
 
     /// visionOS creates any 2..37 board, square or rectangular, and those games
-    /// reach the widget thumbnails and the watch (WatchBoardPage renders this
+    /// reach the widget thumbnails and the watch (WatchFrameBoard renders this
     /// same view) — the extremes must render, not collapse or fault.
     @MainActor @Test func widgetBoardView_rendersLargeRectangularAndTinyBoards() {
         let large = WidgetBoardView(width: 37, height: 37,
