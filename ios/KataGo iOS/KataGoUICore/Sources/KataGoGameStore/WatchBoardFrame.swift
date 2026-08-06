@@ -2,10 +2,13 @@
 //  WatchBoardFrame.swift
 //  KataGoGameStore
 //
-//  What the watch draws, from either of its two worlds: a position mirrored
-//  from the iPhone over WCSession, or one the watch replayed itself from its
-//  own copy of a saved game. The board and moves pages render a frame and
-//  never ask which world produced it.
+//  What the watch draws: one position it replayed itself from its own copy of
+//  a saved game.
+//
+//  This used to carry a `Source` discriminator because a frame could also
+//  arrive mirrored from the iPhone over WatchConnectivity. That channel is
+//  gone, and with it the candidate list — nothing analyzes on the watch, so a
+//  frame's analysis fields are only ever whatever the record already cached.
 //
 //  Lives here rather than in the watch target because the watch has no test
 //  bundle — this is the same reason the visionOS logic lives in the package.
@@ -14,24 +17,12 @@
 import Foundation
 
 public struct WatchBoardFrame: Equatable, Sendable {
-    public enum Source: Equatable, Sendable {
-        /// Mirrored from the iPhone. `stale` once frames stop arriving.
-        case live(stale: Bool)
-        /// Replayed from the watch's own SwiftData copy of the game.
-        case stored
-    }
-
     public var title: String?
     public var boardWidth: Int
     public var boardHeight: Int
     public var blackStones: [String]
     public var whiteStones: [String]
     public var lastMoveVertex: String?
-    /// Vertices to dot on the board, already capped for legibility.
-    public var candidateVertices: [String]
-    /// The full candidate list for the moves page. Always empty when stored —
-    /// nothing analyzes on the watch.
-    public var candidates: [WatchSnapshot.Candidate]
     public var moveIndex: Int?
     public var moveCount: Int?
     /// Black's win rate, 0...1. Nil where nothing has been analyzed — hidden,
@@ -43,35 +34,26 @@ public struct WatchBoardFrame: Equatable, Sendable {
     public var bestMove: String?
     /// The commentary the record cached at this index.
     public var comment: String?
-    public var source: Source
 
     public init(title: String?, boardWidth: Int, boardHeight: Int,
                 blackStones: [String], whiteStones: [String],
-                lastMoveVertex: String?, candidateVertices: [String],
-                candidates: [WatchSnapshot.Candidate],
+                lastMoveVertex: String?,
                 moveIndex: Int?, moveCount: Int?,
                 winrateBlack: Float?, scoreLeadBlack: Float?,
-                bestMove: String?, comment: String?,
-                source: Source) {
+                bestMove: String?, comment: String?) {
         self.title = title
         self.boardWidth = boardWidth
         self.boardHeight = boardHeight
         self.blackStones = blackStones
         self.whiteStones = whiteStones
         self.lastMoveVertex = lastMoveVertex
-        self.candidateVertices = candidateVertices
-        self.candidates = candidates
         self.moveIndex = moveIndex
         self.moveCount = moveCount
         self.winrateBlack = winrateBlack
         self.scoreLeadBlack = scoreLeadBlack
         self.bestMove = bestMove
         self.comment = comment
-        self.source = source
     }
-
-    /// How many candidate dots the board draws at watch size.
-    public static let candidateDotLimit = 3
 
     /// What the Review toggle can actually do with this frame's cached best
     /// move.
@@ -112,61 +94,6 @@ public struct WatchBoardFrame: Equatable, Sendable {
             return nil
         }
         return vertex
-    }
-
-    /// A frame from an iPhone snapshot. The caller has already chosen WHICH
-    /// snapshot (cursor target, ring entry, or live head) and whether its
-    /// candidates are current — that mode logic stays in the board page.
-    public static func live(snapshot: WatchSnapshot,
-                            stale: Bool,
-                            showCandidates: Bool,
-                            lastMoveVertex: String?,
-                            title: String?) -> WatchBoardFrame {
-        WatchBoardFrame(
-            title: title,
-            boardWidth: snapshot.boardWidth,
-            boardHeight: snapshot.boardHeight,
-            blackStones: snapshot.blackStones,
-            whiteStones: snapshot.whiteStones,
-            lastMoveVertex: lastMoveVertex,
-            candidateVertices: showCandidates
-                ? snapshot.candidates.prefix(candidateDotLimit).map(\.vertex) : [],
-            candidates: snapshot.candidates,
-            moveIndex: snapshot.hostMoveIndex,
-            moveCount: snapshot.hostMoveCount,
-            winrateBlack: snapshot.rootWinrateBlack,
-            scoreLeadBlack: snapshot.rootScoreLeadBlack,
-            bestMove: nil,
-            comment: nil,
-            source: .live(stale: stale))
-    }
-
-    /// A frame the watch replayed from its own copy of a saved game. Analysis
-    /// fields come from whatever the record cached at this index; the watch
-    /// never computes them.
-    public static func stored(title: String?,
-                              boardWidth: Int, boardHeight: Int,
-                              blackStones: [String], whiteStones: [String],
-                              lastMoveVertex: String?,
-                              moveIndex: Int, moveCount: Int,
-                              winrateBlack: Float?, scoreLeadBlack: Float?,
-                              bestMove: String?, comment: String?) -> WatchBoardFrame {
-        WatchBoardFrame(
-            title: title,
-            boardWidth: boardWidth,
-            boardHeight: boardHeight,
-            blackStones: blackStones,
-            whiteStones: whiteStones,
-            lastMoveVertex: lastMoveVertex,
-            candidateVertices: [],
-            candidates: [],
-            moveIndex: moveIndex,
-            moveCount: moveCount,
-            winrateBlack: winrateBlack,
-            scoreLeadBlack: scoreLeadBlack,
-            bestMove: bestMove,
-            comment: comment,
-            source: .stored)
     }
 
     /// "B+3.2" / "W+3.2" from Black's signed score lead.

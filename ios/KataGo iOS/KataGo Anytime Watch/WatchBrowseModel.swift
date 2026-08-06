@@ -75,7 +75,7 @@ final class WatchBrowseModel {
         let position = replay.position(at: index)
         self.replay = replay   // keep the memoized checkpoints
         let analysis = storedAnalysis()
-        return WatchBoardFrame.stored(
+        return WatchBoardFrame(
             title: row.name,
             boardWidth: replay.width, boardHeight: replay.height,
             blackStones: position.blackVertices,

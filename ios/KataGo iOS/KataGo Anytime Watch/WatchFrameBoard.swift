@@ -2,8 +2,7 @@ import SwiftUI
 import KataGoGameStore
 
 /// Draws a WatchBoardFrame: the board at the largest size the page allows,
-/// with a vertical winrate bar beside it in reserved margin. Shared by the
-/// live mirror and the offline browser so the two can never drift apart.
+/// with a vertical winrate bar beside it in reserved margin.
 ///
 /// Layout, and why it is a padded overlay rather than an `HStack`:
 ///
@@ -29,10 +28,9 @@ import KataGoGameStore
 /// 9x9 it is as contested as anywhere else, and on smaller boards it is worse.
 struct WatchFrameBoard: View {
     let frame: WatchBoardFrame
-    /// Whether to blend the record's cached best move onto the board. Defaults
-    /// to false so the live mirror is provably unaffected — live frames carry
-    /// no `bestMove` anyway (`WatchBoardFrame.live` hard-codes it nil), and
-    /// only the stored browser's Review toggle passes true.
+    /// Whether to blend the record's cached best move onto the board. The
+    /// Review page's toggle drives it; it defaults to false so a caller that
+    /// has no toggle gets a plain board.
     var showBestMove: Bool = false
 
     var body: some View {
@@ -45,7 +43,6 @@ struct WatchFrameBoard: View {
         WidgetBoardView(width: frame.boardWidth, height: frame.boardHeight,
                         blackVertices: frame.blackStones,
                         whiteVertices: frame.whiteStones,
-                        candidateVertices: frame.candidateVertices,
                         lastMoveVertex: frame.lastMoveVertex,
                         bestMoveVertex: frame.bestMoveVertex(showBestMove: showBestMove),
                         // Off deliberately. The gate would let labels through

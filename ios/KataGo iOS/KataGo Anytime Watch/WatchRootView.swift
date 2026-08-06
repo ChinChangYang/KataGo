@@ -27,7 +27,7 @@ struct WatchRootView: View {
                     switch route {
                     case .game(let id):
                         if let row = library.row(byID: id) {
-                            WatchStoredGameView(row: row, container: container)
+                            WatchGameView(row: row, container: container)
                         } else {
                             ContentUnavailableView("Game not found",
                                                    systemImage: "questionmark.folder",

@@ -2,9 +2,8 @@ import SwiftUI
 import SwiftData
 import KataGoGameStore
 
-/// A saved game the watch replays itself: board page plus a review page,
-/// the same two-page shape as the live mirror.
-struct WatchStoredGameView: View {
+/// A saved game the watch replays itself: a board page plus a review page.
+struct WatchGameView: View {
     let row: WatchLibraryRow
     let container: ModelContainer
 
@@ -53,10 +52,10 @@ struct WatchStoredGameView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(WatchBoardTitle.stored(name: model?.row.name ?? row.name,
-                                                index: model?.index ?? 0,
-                                                count: model?.moveCount ?? 0,
-                                                showsCounter: showsCounter))
+        .navigationTitle(WatchBoardTitle.game(name: model?.row.name ?? row.name,
+                                              index: model?.index ?? 0,
+                                              count: model?.moveCount ?? 0,
+                                              showsCounter: showsCounter))
         .task(id: row.id) {
             let opened = WatchBrowseModel(row: row, container: container)
             crownIndex = Double(opened.index)
@@ -65,9 +64,9 @@ struct WatchStoredGameView: View {
     }
 
     private func boardPage(_ model: WatchBrowseModel, _ frame: WatchBoardFrame) -> some View {
-        // The VStack is kept as the modifier host for parity with
-        // WatchBoardPage — `.focusable()` is what wins the Crown away from the
-        // enclosing TabView's vertical paging, and it must not move.
+        // The VStack is kept as the modifier host: `.focusable()` is what wins
+        // the Crown away from the enclosing TabView's vertical paging, and it
+        // must not move.
         VStack(spacing: 2) {
             WatchFrameBoard(frame: frame, showBestMove: showBestMove)
         }
