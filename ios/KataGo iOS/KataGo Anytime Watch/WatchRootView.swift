@@ -19,7 +19,6 @@ struct WatchRootView: View {
     /// Set once the user has left the auto-pushed board, so the library stays
     /// reachable for the rest of this session.
     @State private var latchConsumed = false
-    @State private var mirror: WatchWidgetMirror?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -40,16 +39,27 @@ struct WatchRootView: View {
                 }
         }
         .task {
-            let mirror = mirror ?? WatchWidgetMirror(container: container)
-            self.mirror = mirror
-            model.widgetMirror = mirror
+            // The mirror itself is `KataGoAnytimeWatchApp.init()`'s, already
+            // wired into `model.widgetMirror` before `activateForLaunch()`
+            // ran — this view only supplies the library half it could not
+            // have at app-init time (the container, and the name backfill).
+            let mirror = model.widgetMirror
+            // Resolves a game id to its library name for a frame from a phone
+            // that predates the v1.3 wire fields. Only reachable once the
+            // library exists, so a cold background wake — which never mounts
+            // this view — leaves `libraryName` nil and falls back to whatever
+            // name (if any) the frame itself carries; a nameless frame with
+            // no library to consult is simply not mirrored (see
+            // `WatchWidgetRecords.acceptingLive`/`acceptingLibrary`). That is
+            // an accepted degradation, not an oversight: a current phone
+            // sends the name on the wire.
             model.libraryName = { [weak library] id in library?.row(id: id)?.name }
             // Fires at the end of every refresh(), including the coalesced
             // remote-change path, so a CloudKit import updates the tile
             // without the user opening the library page.
             library.onRefresh = { [weak library] in
                 guard let library else { return }
-                mirror.mirrorLibrary(
+                mirror?.mirrorLibrary(
                     rows: library.rows,
                     moveCount: { library.moveCount(for: $0) },
                     // Never evict on a partial view of the library: a
@@ -57,7 +67,8 @@ struct WatchRootView: View {
                     // not proved a game is gone.
                     libraryIsAuthoritative:
                         SharedModelContainer.watchStoreMode == .cloudKit
-                        && library.rows.count < WatchLibraryStore.fetchLimit)
+                        && library.rows.count < WatchLibraryStore.fetchLimit,
+                    container: container)
             }
 
             let clock = ContinuousClock()

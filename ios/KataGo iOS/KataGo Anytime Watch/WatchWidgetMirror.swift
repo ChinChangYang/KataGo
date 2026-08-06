@@ -13,9 +13,18 @@ import KataGoGameStore
 ///
 /// `WidgetCenter` is confined to this type (and the widget target) on purpose:
 /// KataGoGameStore compiles for tvOS, which has no WidgetKit.
+///
+/// Deliberately holds no `ModelContainer`. `mirrorLive` — the only path a
+/// background wake ever exercises — never touches SwiftData; only
+/// `mirrorLibrary` does, and it now takes the container as a parameter from
+/// its caller instead. That makes this type constructible from
+/// `UserDefaults` alone, which is what lets `KataGoAnytimeWatchApp.init()`
+/// build it (and wire it into `WatchLiveModel.widgetMirror`) before
+/// `activateForLaunch()` runs — without paying for
+/// `SharedModelContainer.shared`'s CloudKit-mirrored stack on a background
+/// launch that only needs to write one record and ask for a reload.
 @MainActor
 final class WatchWidgetMirror {
-    private let container: ModelContainer
     private let defaults: UserDefaults?
 
     /// The content key and time of the last reload actually requested, keyed
@@ -24,11 +33,11 @@ final class WatchWidgetMirror {
     private var lastReloadKey: String?
     private var lastReloadAt: Date?
 
-    init(container: ModelContainer,
-         defaults: UserDefaults? = WatchWidgetDefaults.sharedDefaults()) {
-        self.container = container
+    init(defaults: UserDefaults? = WatchWidgetDefaults.sharedDefaults()) {
         self.defaults = defaults
-        // Retire the previous complication's scalars, once.
+        // Retire the previous complication's scalars, once. UserDefaults-only,
+        // so this is safe to run this early — it cannot be why the mirror
+        // used to require deferring construction to first UI appearance.
         WatchWidgetDefaults.cleanLegacyKeysOnce(in: defaults)
     }
 
@@ -58,6 +67,7 @@ final class WatchWidgetMirror {
     func mirrorLibrary(rows: [WatchLibraryRow],
                        moveCount: (WatchLibraryRow) -> Int,
                        libraryIsAuthoritative: Bool,
+                       container: ModelContainer,
                        now: Date = Date()) {
         var records = WatchWidgetDefaults.read(from: defaults)
         var changed = false

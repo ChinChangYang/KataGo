@@ -38,6 +38,12 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     private(set) var playPending = false
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var rejectionClearTask: Task<Void, Never>?
+    /// The handle of the `Task` `session(_:didReceiveUserInfo:)` spawns to
+    /// run `ingestComplicationPayload`. `hasContentPending` only reflects
+    /// delivery to the delegate, not completion of that unawaited hop, so
+    /// `drainWatchConnectivity()` needs an actual handle to wait on — this is
+    /// it. Set and cleared only on the main actor.
+    @ObservationIgnored private var complicationIngestTask: Task<Void, Never>?
     /// The hostGameID captured at the moment a goTo was proposed (scrub-time),
     /// not at debounce-fire — so a game switch mid-debounce can't rebind the
     /// stale crown target onto the new game.
@@ -89,15 +95,75 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Hold the process alive until WatchConnectivity has nothing pending.
+    /// Upper bound on the whole drain. A `WKBackgroundTask` that never
+    /// completes gets the process terminated (0xc51bad01/02/03) rather than
+    /// merely finishing late, so this method must never wait unconditionally
+    /// on anything. 5 s is generous headroom over the work actually being
+    /// awaited — a UserDefaults write plus a `WidgetCenter` reload request,
+    /// both local and normally sub-second — while staying comfortably inside
+    /// a watchOS background-refresh task's own budget (tens of seconds), so
+    /// a stuck write still lets the background task complete on time instead
+    /// of running out the OS's clock.
+    private static let drainCeiling: Duration = .seconds(5)
+
+    /// How long to wait, once `hasContentPending` has cleared, for
+    /// `complicationIngestTask` to actually show up before concluding this
+    /// wake has no ingest work at all. See the reasoning in
+    /// `drainWatchConnectivity()`.
+    private static let taskAppearanceGrace: Duration = .milliseconds(500)
+
+    /// Hold the process alive until WatchConnectivity has nothing pending
+    /// AND the delegate's own downstream work — decoding the frame and
+    /// writing the widget record — has actually finished.
     ///
-    /// Without this the app can be suspended between the delegate callback and
-    /// the MainActor hop, so the wake happens and produces nothing — and
-    /// `WKBackgroundTask` documents that failing to complete a background task
-    /// terminates the app (0xc51bad01/02/03).
+    /// `hasContentPending` alone is not enough: it reflects delivery to the
+    /// delegate, not completion of the `Task { @MainActor in ... }` that
+    /// `session(_:didReceiveUserInfo:)` spawns and deliberately does not
+    /// await (see that method). Polling it alone can return before
+    /// `ingestComplicationPayload` has even run, and `WKBackgroundTask`
+    /// documents that failing to complete a background task terminates the
+    /// app — so the wake would happen and produce nothing.
     func drainWatchConnectivity() async {
-        while WCSession.default.hasContentPending, !Task.isCancelled {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: Self.drainCeiling)
+
+        while WCSession.default.hasContentPending, clock.now < deadline, !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        // `hasContentPending` clearing and the delegate's own hop onto the
+        // main actor race independently of each other and of this method, so
+        // `complicationIngestTask` can legitimately still be nil here —
+        // including on entry, if this drain starts running before
+        // WatchConnectivity has dispatched anything at all. The drain being
+        // invoked at all is proof the system woke this process for
+        // WatchConnectivity content, so a delegate call is expected
+        // imminently even when it has not landed yet: give it a short grace
+        // window rather than concluding immediately that there is nothing to
+        // wait for. The window is short (not the full ceiling) so a wake
+        // that turns out to carry no complication payload — e.g. some other
+        // WatchConnectivity delivery — does not sit out the whole budget for
+        // a task that will never arrive.
+        let graceDeadline = min(clock.now.advanced(by: Self.taskAppearanceGrace), deadline)
+        while complicationIngestTask == nil, clock.now < graceDeadline, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+
+        guard let task = complicationIngestTask else { return }
+        // Consume the handle: a later wake on the same warm process must
+        // never mistake this already-finished task for fresh work and skip
+        // its own grace wait above.
+        complicationIngestTask = nil
+
+        let remaining = deadline - clock.now
+        guard remaining > .zero else { return }
+        // Race the real work against the remaining ceiling so a hung write
+        // still lets the background task complete instead of hanging.
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await task.value }
+            group.addTask { try? await Task.sleep(for: remaining) }
+            await group.next()
+            group.cancelAll()
         }
     }
 
@@ -289,7 +355,19 @@ final class WatchLiveModel: NSObject, WCSessionDelegate {
     nonisolated func session(_ session: WCSession,
                              didReceiveUserInfo userInfo: [String: Any]) {
         guard let data = userInfo[WatchSnapshot.contextKey] as? Data else { return }
-        Task { @MainActor in self.ingestComplicationPayload(data) }
+        // Record the spawned task's handle before it can possibly run, so
+        // `drainWatchConnectivity()` has something to await instead of the
+        // `hasContentPending` signal that only reflects delivery to this
+        // method, not completion of the work below. The assignment below
+        // runs synchronously within this hop (no `await` precedes it), and a
+        // MainActor task newly created from code already running on the main
+        // actor cannot begin until this closure yields — so the handle is
+        // always recorded before `ingestComplicationPayload` starts.
+        Task { @MainActor in
+            self.complicationIngestTask = Task { @MainActor in
+                self.ingestComplicationPayload(data)
+            }
+        }
     }
 
     private func ingestComplicationPayload(_ data: Data) {
