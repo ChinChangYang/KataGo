@@ -23,10 +23,13 @@ public enum WatchWidgetTileLayout: Equatable, Sendable {
     /// already formatted (by `scoreText`), so the view does no formatting of
     /// its own.
     case legacyScore(String)
-    /// Name + score row, then the comment body filling the remaining height.
+    /// Name + score row, then up to three lines of comment. The move line is
+    /// deliberately absent here: a 40mm rectangular tile affords one or the
+    /// other, and on a position that carries a comment the comment is what
+    /// this tile exists to show.
     case withComment
-    /// Name + score row, then the move line, then the age. The DEFAULT: most
-    /// positions carry no comment.
+    /// Name + score row, then the move line. The DEFAULT: most positions
+    /// carry no comment, and this is where the move number lives.
     case withoutComment
     /// Always-On (luminance reduced): the header row and the move line only.
     case reduced

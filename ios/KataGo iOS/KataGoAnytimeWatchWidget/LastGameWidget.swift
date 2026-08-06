@@ -132,19 +132,35 @@ struct LastGameWidgetView: View {
                 metaLine
             case .withComment:
                 headerRow
-                metaLine
                 if let comment = entry.snapshot?.comment {
-                    // No lineLimit on purpose: the body takes whatever height
-                    // is left, so it renders two lines on a small watch and
-                    // three on a large one instead of clipping a fixed stack.
-                    Text(comment)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    // `fixedSize` is what makes the body WRAP at all. Without
+                    // it this Text is proposed an unbounded width, lays out as
+                    // one long line and truncates at the tile edge — roughly
+                    // 25 characters of a comment capped at 256. Neither a
+                    // lineLimit nor a maxWidth frame fixes that; both were
+                    // measured doing nothing.
+                    //
+                    // But a widget cannot scroll, so a body that then demands
+                    // its full ideal height CLIPS the rows above it — measured:
+                    // an uncapped 256-character comment ate the name row. Three
+                    // is the budget that fills a 40mm tile under this header
+                    // without spilling. ViewThatFits does NOT work here: inside
+                    // this VStack it is proposed less height than the stack
+                    // actually grants and picks 1 line even where 3 fit.
+                    commentBody(comment, lines: 3)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func commentBody(_ comment: String, lines: Int) -> some View {
+        Text(comment)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(lines)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -154,7 +170,16 @@ struct LastGameWidgetView: View {
         // only ever renders a genuine unavailable state.
         Text(headline).font(.headline).lineLimit(1)
         if let detail {
-            Text(detail).font(.caption2).foregroundStyle(.secondary)
+            // Same wrap trap as the comment body: without `fixedSize` this
+            // rendered "Open KataGo Anytim…" — an instruction cut mid-word,
+            // which is the one string a user with no games has to be able
+            // to read.
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
@@ -182,15 +207,16 @@ struct LastGameWidgetView: View {
     @ViewBuilder private var metaLine: some View {
         if let snapshot = entry.snapshot {
             HStack(spacing: 4) {
+                // No relative-date Text here, deliberately. One reserved width
+                // for the widest value it could EVER show — not the value it
+                // is showing — and it squeezed this row's only real content
+                // down to a bare "Move…" at every size, 46mm included. The
+                // move number is the position identity the tile exists to
+                // name, so the age is what leaves. Cost, recorded honestly:
+                // the tile no longer self-reports staleness between reloads.
                 Text(WatchWidgetTileText.moveText(parkedIndex: snapshot.parkedIndex,
                                                   mainlineMoveCount: snapshot.mainlineMoveCount,
                                                   isBranch: snapshot.isBranch))
-                Text("-")
-                // Self-updating in a widget without a timeline entry, which is
-                // what keeps the tile honest between reloads — and it is the
-                // one signal that separates "the push never fired" from "the
-                // reload was gated out" in a tester report.
-                Text(snapshot.capturedAt, style: .relative)
                 Spacer(minLength: 0)
                 Image(systemName: snapshot.source == .live
                       ? "dot.radiowaves.left.and.right" : "icloud")
@@ -248,7 +274,13 @@ struct LastGameWidget: Widget {
     LastGameEntry(date: .now,
                   snapshot: WatchWidgetSnapshot(
                     gameID: "GAME-A", name: "Ladder Fight 3",
-                    comment: "White's cut is the only move that keeps the corner alive.",
+                    // A comment at the 256-character cap, not a short one: the
+                    // short fixture this preview used to carry hid the fact
+                    // that the body was rendering a single truncated line.
+                    comment: WatchWidgetSnapshot.cappedComment(
+                        String(repeating: "White's cut is the only move that keeps the corner "
+                               + "alive, and Black must answer at the 3-3 point first. ",
+                               count: 4)),
                     parkedIndex: 42, mainlineMoveCount: 178, scoreLeadBlack: 3.5,
                     isBranch: false, capturedAt: .now, source: .live),
                   storageAvailable: true, legacyScoreLeadBlack: nil)
