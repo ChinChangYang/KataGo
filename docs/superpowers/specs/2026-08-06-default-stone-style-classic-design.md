@@ -55,8 +55,9 @@ public static let defaultStoneStyle = 1   // was 0
 with a comment recording why the original perf-driven default no longer
 applies, so a future reader does not "restore" it.
 
-Nothing else in production changes. These all derive from the constant and
-follow automatically:
+Nothing else in production changes — see Follow-up below for the two things
+that did change once the flip was in and the review found them. These all
+derive from the constant and follow automatically:
 
 | Site | Effect |
 | --- | --- |
@@ -110,6 +111,14 @@ not. What protects the key there is ordering: `init` calls
 `seedFromDefaults()` before `trackPreferences()`, so nothing is observing
 while the seeding assignments run.
 
+One macOS qualifier: once tracking is live, `persistToDefaults()` writes *all
+fourteen* global keys whenever *any one* of them changes. So a Mac user who
+never touched the stone-style picker keeps an absent key only until they
+toggle some unrelated global preference, at which point `stoneStyle`
+materializes as `1`. That is harmless — the value written is the Classic they
+were already being shown — but it means "no stored key" is durable on iOS and
+merely initial on macOS.
+
 So:
 
 - A user who never opened the picker has no stored key, and picks up Classic.
@@ -125,6 +134,30 @@ places (`GlobalPreferenceSync`, `MacGlobalPreferenceSync.seedFromDefaults`,
 and `ConfigView`'s picker `onChange`), none of which reads a per-game
 `Config`. The SwiftData `Config.stoneStyle` field is orphaned for rendering
 purposes.
+
+## Follow-up (2026-08-07, commit `946af2db`)
+
+Two production changes landed after the flip, both traced to it:
+
+**The photo-import preview now reads the setting.** `PhotoImportSheet` passed a
+hardcoded `isClassicStoneStyle: false`. That had *coincided* with the shipping
+default, so nobody could see it was wrong; flipping the default turned the
+coincidence into a guaranteed mismatch, leaving the import preview as the one
+board in the app still drawing Fast. It now reads
+`GlobalSettings.stoneStyle` through `@AppStorage`, the same key and the same
+`UserDefaults.standard` domain the live board reads on both platforms it ships
+to. The `#Preview` call sites stay hardcoded, as scoped.
+
+**`Config.isClassicStoneStyle(atIndex:)` is new public API.** The index→`Bool`
+check existed twice — inline in `Config.isClassicStoneStyle` and again in
+`GameGifExportView.init` — and the import fix would have made a third copy. It
+is now one tested static function that both instance property and both raw-index
+call sites delegate to. Being public on `Config`, it is visible to the widgets,
+the watch, and the Messages extension, which link `KataGoGameStore`; it is
+Foundation-only and adds no dependency, so their bridge-free constraint holds.
+
+`GobanState.isClassicStoneStyle` deliberately keeps its own copy rather than
+delegating — see the note on the helper in `ConfigModel.swift`.
 
 ## SwiftData and CloudKit safety
 

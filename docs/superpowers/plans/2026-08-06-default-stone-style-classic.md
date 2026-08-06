@@ -29,7 +29,9 @@ Two files change. No files are created.
 | `ios/KataGo iOS/KataGoUICore/Sources/KataGoGameStore/ConfigModel.swift` | Owns `Config` (`@Model`) and every `Config.default*` constant. Line 321 is the sole definition of the stone-style default. | Flip `defaultStoneStyle` `0` → `1`, with a comment recording why the original perf-driven default no longer applies. |
 | `ios/KataGo iOS/KataGo iOSTests/ConfigModelTests.swift` | Swift Testing suite for `Config`'s defaults and computed properties. Three assertions currently pin the default to Fast. | Add a regression guard that pins the default to Classic; flip the two tests that assert a fresh `Config()` is Fast. |
 
-Not touched, and deliberately so: `StoneView.swift` (renders whatever style it is handed), `StoneRenderPerfTests.swift` (its 20 ms classic bound needs no change but now guards the default path), `PhotoImportSheet.swift` and the various `#Preview` blocks (hardcoded `isClassicStoneStyle: false` call sites, out of scope per the spec), and `README.md` (line 141 names no default).
+Not touched, and deliberately so: `StoneView.swift` (renders whatever style it is handed), `StoneRenderPerfTests.swift` (its 20 ms classic bound needs no change but now guards the default path), the various `#Preview` blocks (hardcoded `isClassicStoneStyle: false` call sites, out of scope per the spec), and `README.md` (line 141 names no default).
+
+**Amended after the fact (2026-08-07, commit `946af2db`):** `PhotoImportSheet.swift` was on that list and is no longer. See the Out of Scope section for why it moved in.
 
 ---
 
@@ -339,7 +341,9 @@ State plainly which of the five builds succeeded, whether both test runs passed,
 
 Recorded so a reviewer does not read these as omissions:
 
-- **`PhotoImportSheet.swift:210`** hardcodes `isClassicStoneStyle: false` for the photo/camera import preview board. It ignores the user's setting today and will continue to. The user explicitly chose to leave it.
+- ~~**`PhotoImportSheet.swift:210`** hardcodes `isClassicStoneStyle: false` for the photo/camera import preview board. It ignores the user's setting today and will continue to. The user explicitly chose to leave it.~~
+
+  **REVERSED 2026-08-07 (commit `946af2db`) — this bullet was wrong to include it.** The user's scoping call ruled out the hardcoded `#Preview` call sites; this plan folded the import preview in with them, but it is not a `#Preview` — it is a shipping surface a user sees whenever they import a board from a photo. Its `false` had merely *coincided* with the old shipping default, so the flip to Classic turned a silent match into a guaranteed mismatch: the import preview would have been the one board in the app still drawing Fast. The final review surfaced it, the user asked for it to be decided in the follow-up round, and the decision was to make it follow `GlobalSettings.stoneStyle` like every other board. The `#Preview` exclusion below still stands.
 - **`GameGifRenderer`'s `isClassicStoneStyle: Bool = false` default parameter** is dead — `GameGifExportView` is the only caller and always passes an explicit value seeded from the setting.
 - **`DeepReportModel.isClassicStoneStyle = false`** is a property initializer that `DeepReportGenerator` overwrites from `gobanState` before the report renders.
 - **`#Preview` blocks** in `StoneView.swift` and `ReportBoardView.swift` pass fixed styles on purpose, to exercise both paths.
