@@ -318,7 +318,17 @@ extension Config {
     public static let fastStoneStyle = "Fast"
     public static let classicStoneStyle = "Classic"
     public static let stoneStyles = [fastStoneStyle, classicStoneStyle]
-    public static let defaultStoneStyle = 0
+    /// Classic (index 1). Fast held this slot from 829a9dbd (2024-07-11) for
+    /// render cost alone: the old per-stone view tree ran ~76 ms per frame on
+    /// a dense 19x19. The `Canvas`-of-symbols renderer in `StoneView` brought
+    /// that to ~0.9 ms — `StoneRenderPerfTests` guards it at 20 ms — so the
+    /// default is no longer a performance choice.
+    ///
+    /// ⚠️ Do NOT change this by reordering `stoneStyles`. The INDEX is what
+    /// persists, in both the `GlobalSettings.stoneStyle` UserDefaults key and
+    /// the SwiftData `Config.stoneStyle` column, so a reorder silently
+    /// reinterprets every value already stored on device and in CloudKit.
+    public static let defaultStoneStyle = 1
     public static let defaultStoneStyleText = stoneStyles[defaultStoneStyle]
 
     public var stoneStyleText: String {

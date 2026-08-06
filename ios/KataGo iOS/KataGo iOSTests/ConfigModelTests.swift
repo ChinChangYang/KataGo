@@ -219,19 +219,29 @@ struct ConfigModelTests {
     @Test func testStoneStyleComputedProperties() async throws {
         let config = Config()
 
-        // Default is "Fast" (index 0)
-        #expect(config.isFastStoneStyle == true)
-        #expect(config.isClassicStoneStyle == false)
-
-        // Set to "Classic" (index 1)
-        config.stoneStyle = 1
+        // Default is "Classic" (index 1)
         #expect(config.isFastStoneStyle == false)
         #expect(config.isClassicStoneStyle == true)
+
+        // Set to "Fast" (index 0)
+        config.stoneStyle = 0
+        #expect(config.isFastStoneStyle == true)
+        #expect(config.isClassicStoneStyle == false)
 
         // Set to an invalid index (e.g., 2) to ensure no false positives
         config.stoneStyle = 2
         #expect(config.isFastStoneStyle == false)
         #expect(config.isClassicStoneStyle == false)
+    }
+
+    /// Pins the SHIPPING default. Fast held this slot from 829a9dbd
+    /// (2024-07-11) purely for render cost; the `Canvas`-of-symbols rewrite in
+    /// `StoneView` removed that reason, and Classic is the better-looking
+    /// board. A future change back to Fast should fail here rather than ship.
+    @Test func defaultStoneStyleIsClassic() async throws {
+        #expect(Config.defaultStoneStyleText == Config.classicStoneStyle)
+        #expect(Config().isClassicStoneStyle == true)
+        #expect(Config().isFastStoneStyle == false)
     }
 
     @Test func testIsAnalysisForCurrentPlayer() async throws {
@@ -520,11 +530,11 @@ struct ConfigModelTests {
 
     @Test func stoneStyle() async throws {
         let config = Config()
-        #expect(config.isFastStoneStyle == true)
-        #expect(config.isClassicStoneStyle == false)
-        config.stoneStyle = 1
         #expect(config.isFastStoneStyle == false)
         #expect(config.isClassicStoneStyle == true)
+        config.stoneStyle = 0
+        #expect(config.isFastStoneStyle == true)
+        #expect(config.isClassicStoneStyle == false)
     }
 
     @Test func analysisForWhom() async throws {
