@@ -32,10 +32,12 @@ public struct WatchWidgetRecord: Codable, Equatable, Sendable {
     /// caller skips the encode and the `UserDefaults` write entirely.
     ///
     /// An unchanged `contentKey` means nothing the tile shows has moved, so
-    /// the stored `capturedAt` is preserved rather than refreshed. There is no
-    /// monotonicity guard: exactly one writer exists and it is serialized on
-    /// the main actor, and a game edited on another device can legitimately
-    /// arrive with an earlier timestamp.
+    /// the caller skips the write entirely and the stored `capturedAt` is
+    /// left untouched — there is no freshness rule riding on that, since
+    /// nothing reads `capturedAt` back. There is no monotonicity guard:
+    /// exactly one writer exists and it is serialized on the main actor, and
+    /// a game edited on another device can legitimately arrive with an
+    /// earlier timestamp.
     public func accepting(_ candidate: WatchWidgetSnapshot) -> WatchWidgetRecord? {
         if let library, library.contentKey == candidate.contentKey { return nil }
         return WatchWidgetRecord(library: candidate)

@@ -251,7 +251,7 @@ struct LastGameWidget: Widget {
     var body: some WidgetConfiguration {
         // The kind is deliberately the legacy identifier — see
         // WatchWidgetDefaults.widgetKind for why renaming it would orphan
-        // placements and silently disable the phone's push.
+        // every placement testers have already made.
         StaticConfiguration(kind: WatchWidgetDefaults.widgetKind,
                             provider: LastGameProvider()) { entry in
             LastGameWidgetView(entry: entry)

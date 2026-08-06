@@ -70,14 +70,16 @@ struct WatchRootView: View {
         .onChange(of: pendingDeepLinkID, initial: true) { _, _ in applyPendingDeepLink() }
     }
 
-    /// How long a tap that names a game the store cannot yet resolve keeps
-    /// waiting before giving up. `WatchLibraryStore.row(byID:)` runs its own
-    /// direct descriptor fetch, independent of `refresh()` and of the 100-row
-    /// cap, so a game already in the local store resolves on the first
-    /// evaluation and never touches this at all — the grace only covers a
-    /// CloudKit import still in flight. Kept short on purpose: while it runs
-    /// the user is on a fully interactive library, and a long window mostly
-    /// buys opportunities to yank them out of a list mid-browse.
+    /// The one-shot launch grace, not a per-tap timer: `.task` sleeps this
+    /// long once at launch and then sets `graceExpired`, so every deep-link
+    /// evaluation after that point decides instantly rather than waiting
+    /// again. `WatchLibraryStore.row(byID:)` runs its own direct descriptor
+    /// fetch, independent of `refresh()` and of the 100-row cap, so a game
+    /// already in the local store resolves on the first evaluation and never
+    /// touches this at all — the grace only covers a CloudKit import still in
+    /// flight. Kept short on purpose: while it runs the user is on a fully
+    /// interactive library, and a long window mostly buys opportunities to
+    /// yank them out of a list mid-browse.
     private static let deepLinkResolutionGrace: Duration = .seconds(2)
 
     /// The one place a pending deep link becomes navigation. Always clears the

@@ -8,8 +8,6 @@
 
 import Foundation
 
-public enum WatchNavigationPolicy {}
-
 /// What to do with a complication tap that named a game.
 public enum WatchDeepLinkDisposition: Equatable, Sendable {
     /// Too early to decide — keep the latch and re-evaluate.
@@ -19,7 +17,7 @@ public enum WatchDeepLinkDisposition: Equatable, Sendable {
     case giveUp
 }
 
-extension WatchNavigationPolicy {
+public enum WatchNavigationPolicy {
     /// Precedence for a pending deep link, highest first:
     ///
     ///   1. the library can produce a row for it -> `.game`

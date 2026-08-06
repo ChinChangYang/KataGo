@@ -12,6 +12,15 @@ import KataGoAnalysisKit
 struct WatchWidgetRecordTests {
     private let t0 = Date(timeIntervalSince1970: 1_000_000)
 
+    /// A throwaway suite, removed when the block returns. Never the real App
+    /// Group, which the simulator shares with anything else running.
+    private func withSuite(_ body: (UserDefaults) -> Void) {
+        let name = "test.watchwidgetrecord.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        body(defaults)
+        UserDefaults().removePersistentDomain(forName: name)
+    }
+
     private func snapshot(gameID: String = "GAME-A",
                           name: String = "Ladder Fight 3",
                           parkedIndex: Int = 10,
@@ -58,7 +67,15 @@ struct WatchWidgetRecordTests {
     /// yield its library half. `JSONDecoder` ignores the now-unknown "live"
     /// key, so this costs nothing at the process boundary — but it is the only
     /// thing standing between an update and a blank tile, so it is pinned.
-    @Test func aTwoMirrorBlobStillDecodesItsLibraryHalf() throws {
+    ///
+    /// Goes through `WatchWidgetDefaults.read(from:)` — the production reader
+    /// — rather than a locally-built `JSONDecoder`. A decoder built here would
+    /// only pin this test's own decoding choices; a symmetric change to both
+    /// the encoder and decoder inside `WatchWidgetDefaults` would keep such a
+    /// test green while real legacy blobs silently decode with wrong
+    /// instants, so it would not actually guard the cross-process contract it
+    /// claims to.
+    @Test func aTwoMirrorBlobStillDecodesItsLibraryHalf() {
         let legacy = """
         {"live":{"gameID":"OLD","name":"Old","parkedIndex":1,\
         "mainlineMoveCount":2,"isBranch":false,"capturedAt":0,"source":"live"},\
@@ -66,11 +83,11 @@ struct WatchWidgetRecordTests {
         "mainlineMoveCount":178,"scoreLeadBlack":1.5,"isBranch":false,\
         "capturedAt":1000000,"source":"library"}}
         """
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-        let record = try decoder.decode(WatchWidgetRecord.self,
-                                        from: Data(legacy.utf8))
-        #expect(record.library?.gameID == "GAME-A")
-        #expect(record.library?.parkedIndex == 10)
+        withSuite { defaults in
+            defaults.set(Data(legacy.utf8), forKey: WatchWidgetDefaults.recordsKey)
+            let record = WatchWidgetDefaults.read(from: defaults)
+            #expect(record.library?.gameID == "GAME-A")
+            #expect(record.library?.parkedIndex == 10)
+        }
     }
 }

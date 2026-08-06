@@ -80,9 +80,11 @@ public enum WatchWidgetLibrarySource {
                             parkedIndex: min(max(extras.parkedIndex, 0), moveCount),
                             mainlineMoveCount: moveCount,
                             scoreLeadBlack: extras.scoreLeadBlack,
-                            // A saved record's currentIndex is frozen at the
-                            // divergence point; only the phone's live frame
-                            // can carry a branch index.
+                            // Always false: a saved record's currentIndex is
+                            // frozen at its divergence point and is never
+                            // itself a branch. Retained as a hard-coded
+                            // constant rather than dropped, for App-Group
+                            // blob shape stability.
                             isBranch: false,
                             capturedAt: capturedAt)
     }

@@ -1,5 +1,12 @@
 # KataGo Anytime Watch v2.0 — Standalone Game Library
 
+> **Superseded 2026-08-06.** This design added the game library as a
+> fallback alongside the live WatchConnectivity mirror; WatchConnectivity has
+> since been removed entirely, so the watch is standalone-only, always. This
+> design record stays for history — see
+> `docs/superpowers/plans/2026-08-06-watch-standalone-only.md` for the
+> current design, and do not mine this doc for live-mirror requirements.
+
 Date: 2026-08-02
 Status: Approved (design)
 

@@ -73,10 +73,11 @@ public enum WatchWidgetDefaults {
         defaults.set(true, forKey: legacyCleanupFlagKey)
     }
 
-    // `secondsSince1970` on both sides. `capturedAt` ordering is load-bearing,
-    // and the default strategy would encode a Double reference-date offset —
-    // fine in isolation, but this is a cross-process boundary and an explicit
-    // strategy is what keeps both sides pinned to the same one.
+    // `secondsSince1970` on both sides. Nothing reads `capturedAt` today — it
+    // is a write-only provenance stamp — but an asymmetric strategy change
+    // (only the encoder or only the decoder) would still misdate a legacy
+    // blob written under the old pairing, so both sides stay pinned to the
+    // same explicit strategy across this cross-process boundary.
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970

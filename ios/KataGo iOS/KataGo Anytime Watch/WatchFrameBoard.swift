@@ -29,8 +29,8 @@ import KataGoGameStore
 struct WatchFrameBoard: View {
     let frame: WatchBoardFrame
     /// Whether to blend the record's cached best move onto the board. The
-    /// Review page's toggle drives it; it defaults to false so a caller that
-    /// has no toggle gets a plain board.
+    /// Review page's toggle drives it and always passes this explicitly;
+    /// the default of false just keeps a plain board the fallback.
     var showBestMove: Bool = false
 
     var body: some View {

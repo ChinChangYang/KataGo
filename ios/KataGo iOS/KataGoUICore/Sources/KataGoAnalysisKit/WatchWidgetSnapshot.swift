@@ -17,9 +17,9 @@
 import Foundation
 
 public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
-    /// Bounds the wire payload, NOT the tile. Fitting text to the rect is
-    /// SwiftUI's job; this exists so a Commentator paragraph cannot push the
-    /// 2 Hz application context past its 16 KB test bound.
+    /// Bounds the App-Group blob and the tile text, NOT layout. Fitting text
+    /// to the rect is SwiftUI's job; this exists so a Commentator paragraph
+    /// cannot push a comment past a reasonable size for either.
     public static let commentCharacterLimit = 256
 
     public var gameID: String
@@ -32,12 +32,20 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     public var parkedIndex: Int
     public var mainlineMoveCount: Int
     public var scoreLeadBlack: Double?
-    /// True while the phone is on a branch. The saved record's comments are
-    /// mainline-indexed, so a branch index must not be used to look one up.
+    /// Always false in production: the only writer (`WatchWidgetLibrarySource`)
+    /// hard-codes `false`, because a saved record's `currentIndex` is frozen at
+    /// its divergence point and never itself a branch. Kept — with the
+    /// `moveText` arm that reads it — for App-Group blob shape stability; a
+    /// decoded legacy two-mirror blob's `library` half was always false too,
+    /// so this field has never actually varied across the wire.
     public var isBranch: Bool
-    /// Watch-observed time at which `contentKey` last changed — deliberately
-    /// not `lastModificationDate`, which is another device's clock and does
-    /// not move when only a comment changes.
+    /// Nothing reads this back today: `contentKey` excludes it by design, and
+    /// the resolution/expiry/merge machinery that once ordered by it is gone.
+    /// Kept as a write-only provenance stamp — cheap, useful for forensics,
+    /// and it keeps the App-Group blob shape stable. Watch-observed time at
+    /// which `contentKey` last changed — deliberately not
+    /// `lastModificationDate`, which is another device's clock and does not
+    /// move when only a comment changes.
     public var capturedAt: Date
 
     public init(gameID: String, name: String, comment: String?,

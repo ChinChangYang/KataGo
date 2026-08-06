@@ -47,7 +47,9 @@ public struct WatchLibraryRow: Identifiable, Equatable, Sendable {
 public final class WatchLibraryStore {
     /// Newest-first cap. A wrist-sized process has no business materializing
     /// an unbounded library, and nobody scrolls past a hundred games on a watch.
-    public static let fetchLimit = 100
+    /// Internal, not public: nothing outside this file references it, and the
+    /// package's own tests use `@testable import` so they keep access.
+    static let fetchLimit = 100
     /// How long after opening the store an empty library still reads as
     /// "syncing" rather than "no games".
     public static let launchGrace: TimeInterval = 10

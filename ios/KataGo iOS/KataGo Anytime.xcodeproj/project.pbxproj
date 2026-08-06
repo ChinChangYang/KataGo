@@ -1515,7 +1515,7 @@
 		B7146D0C6613D534F5E258D4 /* SubprocessKataGoEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubprocessKataGoEngine.swift; sourceTree = "<group>"; };
 		B78F7E8CE5B4F96AE465AE92 /* SgfTruncationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfTruncationTests.swift; sourceTree = "<group>"; };
 		B797CDE40306D2B33B324106 /* status.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = status.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/status/status.cc"; sourceTree = SOURCE_ROOT; };
-		B79DFB175A61E73C447085FF /* WatchGameView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "KataGo Anytime Watch/WatchGameView.swift"; sourceTree = "<group>"; };
+		B79DFB175A61E73C447085FF /* WatchGameView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchGameView.swift; path = "KataGo Anytime Watch/WatchGameView.swift"; sourceTree = "<group>"; };
 		B85AF4B613239554E8F49509 /* NeuralNetworkModelGateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NeuralNetworkModelGateTests.swift; sourceTree = "<group>"; };
 		B8D2D55DB7C62F9514F7697A /* DraftSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftSnapshotTests.swift; sourceTree = "<group>"; };
 		B9682C506A2F86E2277A5B30 /* DeepReportCommentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportCommentTests.swift; sourceTree = "<group>"; };

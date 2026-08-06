@@ -19,7 +19,15 @@
 import Foundation
 
 public enum WatchWidgetRefreshPolicy {
-    /// Minimum spacing between timeline reloads. A floor, never a trigger.
+    /// Minimum spacing between timeline reloads. A floor, never a trigger —
+    /// it still earns its keep against a CloudKit initial-sync burst, which
+    /// can hand the library mirror several distinct records in quick
+    /// succession. Recorded honestly: a *changed* key suppressed inside the
+    /// floor does not update the mirror's `lastReloadKey`, and there is no
+    /// following frame to carry it through later (there is no live path any
+    /// more), so the tile can sit stale until `timelineRefreshInterval`
+    /// re-asks on its own — self-healing within at most an hour, not
+    /// indefinitely stale.
     public static let reloadFloor: TimeInterval = 30
 
     /// How long a rendered entry stays valid before WidgetKit re-asks. Mirrors

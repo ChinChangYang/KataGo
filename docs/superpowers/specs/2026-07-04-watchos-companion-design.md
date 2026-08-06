@@ -1,5 +1,11 @@
 # KataGo Anytime Watch — Design Spec
 
+> **Superseded 2026-08-06.** WatchConnectivity was removed from the Watch app
+> entirely; the watch is now a standalone read-only game library, not a live
+> companion. This design record stays for history — see
+> `docs/superpowers/plans/2026-08-06-watch-standalone-only.md` for the
+> current design, and do not mine this doc for live-mirror requirements.
+
 **Date:** 2026-07-04
 **Status:** Approved (design review via 14-question grill, all decisions user-confirmed)
 **Exploration:** Sonnet-agent workflow `wf_547bc5f5-295` (4 surveys, 3 candidate designs, 3 adversarial critiques, grill synthesis)

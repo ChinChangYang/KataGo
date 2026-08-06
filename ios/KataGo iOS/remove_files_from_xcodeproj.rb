@@ -22,6 +22,7 @@ ARGV.each do |name|
   if refs.empty?
     missing << name
   else
+    warn "warning: #{refs.size} references match basename #{name}; removing all of them" if refs.size > 1
     refs.each(&:remove_from_project)
     removed << name
   end

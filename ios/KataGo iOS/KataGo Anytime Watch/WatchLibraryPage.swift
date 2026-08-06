@@ -74,9 +74,11 @@ struct WatchLibraryPage: View {
                   systemImage: "exclamationmark.icloud")
                 .font(.caption)
         case .empty:
-            // Still "from your iPhone": the phone is where games are created
-            // and iCloud is still the pipe. It is just no longer a live one.
-            Label("No games yet. Games sync from your iPhone.",
+            // Games can be created on any KataGo Anytime platform (iPhone,
+            // iPad, Mac, Apple TV, or Vision Pro — see README.md), so this
+            // must not name a single device. Kept short: it renders on a
+            // watch.
+            Label("No games yet. Play a game to see it here.",
                   systemImage: "circle.grid.cross")
                 .font(.caption)
         }

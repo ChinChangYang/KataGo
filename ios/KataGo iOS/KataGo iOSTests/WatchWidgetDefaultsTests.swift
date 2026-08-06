@@ -49,8 +49,9 @@ struct WatchWidgetDefaultsTests {
     }
 
     @Test func datesSurviveTheRoundTripToTheSecond() {
-        // The encoder pins secondsSince1970; a default strategy change here
-        // would silently break `capturedAt` ordering.
+        // The encoder pins secondsSince1970 on both sides; an asymmetric
+        // strategy change to just one of encoder/decoder would silently
+        // misdate a legacy blob written under the old pairing.
         withSuite { defaults in
             WatchWidgetDefaults.write(WatchWidgetRecord(library: sample), to: defaults)
             #expect(WatchWidgetDefaults.read(from: defaults).library?.capturedAt
