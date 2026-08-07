@@ -268,7 +268,16 @@ extension Config {
 
 extension Config {
     public static let defaultRule = 0
-    public static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
+    /// Sentinel stored in `rule` when the granular knobs match no named
+    /// ruleset (a hand-edited "Custom" combination). Readers treat any
+    /// out-of-range index the same way.
+    public static let customRule = -1
+    /// Named-ruleset tokens, indexed by the persisted `rule` field. Synced
+    /// records store the index, so this array is APPEND-ONLY: the first six
+    /// entries keep their historical positions.
+    public static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand",
+                               "tromp-taylor", "chinese-ogs", "stone-scoring", "aga-button",
+                               "ancient-territory"]
 }
 
 extension Config {

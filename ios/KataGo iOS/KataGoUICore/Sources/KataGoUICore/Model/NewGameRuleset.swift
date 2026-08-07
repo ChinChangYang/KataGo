@@ -93,6 +93,26 @@ public enum NewGameRuleset: CaseIterable, Equatable, Sendable {
     }
 }
 
+extension NewGameRuleset {
+    /// Index of this preset in `Config.rules` — the value the per-game rule
+    /// editors persist in `Config.rule` so the chosen label (e.g. Japanese
+    /// vs the engine-identical Korean) survives relaunch. `Config.customRule`
+    /// (-1) for `.custom`.
+    public var configRuleIndex: Int {
+        guard let token = sgfToken else { return Config.customRule }
+        return Config.rules.firstIndex(of: token) ?? Config.customRule
+    }
+
+    /// The preset a persisted `Config.rule` index names, or `nil` when the
+    /// index is the Custom sentinel / out of range (legacy or synced-ahead
+    /// records) — callers fall back to component matching or "Custom".
+    public static func preset(fromConfigRule index: Int) -> NewGameRuleset? {
+        guard Config.rules.indices.contains(index) else { return nil }
+        let token = Config.rules[index]
+        return NewGameRuleset.pickerCases.first { $0.sgfToken == token }
+    }
+}
+
 /// Stateless helpers that expand/serialize/match new-game rules. Every mapping
 /// goes through the engine's own SGF parser, so the presets never drift from
 /// what the engine actually plays.

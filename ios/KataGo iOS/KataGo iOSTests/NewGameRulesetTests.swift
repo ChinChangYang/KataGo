@@ -190,6 +190,29 @@ struct NewGameRulesetTests {
         #expect(config.whiteHandicapBonusRuleText == "0")
     }
 
+    // MARK: - Config.rule label persistence
+
+    /// The first six Config.rules entries are index-stable: synced records
+    /// persist the index, so this array is append-only.
+    @Test func configRulesKeepsHistoricalPrefix() {
+        #expect(Array(Config.rules.prefix(6)) ==
+                ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"])
+    }
+
+    /// Every named preset round-trips preset -> Config.rule index -> preset;
+    /// Custom maps to the -1 sentinel, which reads back as nil.
+    @Test func presetConfigRuleIndexRoundTrips() {
+        for preset in NewGameRuleset.pickerCases where preset != .custom {
+            let index = preset.configRuleIndex
+            #expect(Config.rules.indices.contains(index), "\(preset.displayName) has no Config.rules entry")
+            #expect(NewGameRuleset.preset(fromConfigRule: index) == preset,
+                    "\(preset.displayName) did not round-trip")
+        }
+        #expect(NewGameRuleset.custom.configRuleIndex == Config.customRule)
+        #expect(NewGameRuleset.preset(fromConfigRule: Config.customRule) == nil)
+        #expect(NewGameRuleset.preset(fromConfigRule: Config.rules.count) == nil)
+    }
+
     // MARK: - Helpers
 
     private func components(_ r: Rules) -> NewGameRuleComponents {
