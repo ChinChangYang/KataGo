@@ -154,3 +154,30 @@ the iOS Simulator; Mac editor on a signed Debug build). No new UI tests.
 - visionOS/watchOS surfaces (no rule editors there).
 - A reference table / link to lightvector's rules page in the UI.
 - Changing `friendlyPassOk` policy or using `kata-set-rules` at runtime.
+
+## Implementation notes (deltas discovered and shipped, 2026-08-07)
+
+1. **White-handicap-bonus order fix (prerequisite).** Planning uncovered a live
+   bug this feature sat on: `Config.whiteHandicapBonusRules` was
+   `["0", "N-1", "N"]` while the enum raw values, the C++ `Rules::WHB_*`
+   constants, and the bridge parser mean 0/N/N-1. `GobanState.switchGame`
+   assigns the bridge enum and replays the array text, so an SGF-loaded
+   `RU[chinese]` game (whb=N) sent `whiteHandicapBonus N-1`, oscillating
+   N↔N-1 across save/load cycles; the Mac Config editor popup mislabeled the
+   same way. The array is now `["0", "N", "N-1"]` (index == rawValue == C++
+   constant) and `NewGameRules.whiteHandicapBonusLabels` aliases it. The
+   meaning-flip for old picker-persisted records ships without migration
+   (tester data disposable).
+2. **TV label derivation.** `TVReviewScreen.ruleText` now reads
+   `NewGameRuleset.preset(fromConfigRule:)?.displayName ?? "Custom"` — the
+   old token prettifier would render the newly reachable tokens wrongly
+   ("Chinese Ogs"). Display only; TV editing stays out of scope.
+3. **Same-components pick persists the label only.** Refining Decision 4:
+   when a picked preset's expansion already equals the current components
+   (the picker's programmatic snap after a hand-edit, or a relabel between
+   engine-identical presets such as Japanese → Korean), only `config.rule`
+   is written — no GTP, no komi reset — and only when the index actually
+   differs, so opening the sheet never dirties the synced record. On macOS,
+   AppKit reports an explicit re-pick of the already-selected item (SwiftUI
+   cannot), so a same-label re-pick there re-applies fully and restores the
+   preset's default komi.
