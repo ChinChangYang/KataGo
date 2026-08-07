@@ -124,12 +124,13 @@ struct GtpCommandBuilderTests {
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 0.5) == strong)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 30.0) == strong)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1800", maxTime: 0.5) == strong)
-        // Weaker ranks (8d…20k) play fast at 40 visits, also ignoring the time.
+        // Ladder rungs (8d…25k) play fast at 40 visits, also ignoring the time.
         let weak = ["kata-set-param maxVisits 40",
                     "kata-set-param maxTime 60.0"]
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "8d", maxTime: 0.5) == weak)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "5k", maxTime: 30.0) == weak)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "20k", maxTime: 0.5) == weak)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "25k", maxTime: 0.5) == weak)
     }
 
     @Test func genMoveAnalyzeCommandsPrependsBudget() {
@@ -279,7 +280,7 @@ struct ConfigEngineSyncTests {
     }
 }
 
-// MARK: - HumanSLModel: keys, key→engine mapping, legacy level-formula params, normalization
+// MARK: - HumanSLModel: keys, key→engine mapping, #1209 ladder params, normalization
 
 struct HumanSLModelTests {
 
@@ -297,14 +298,15 @@ struct HumanSLModelTests {
         #expect(all.first == "AI")
         #expect(all.contains("9d"))
         #expect(all.contains("20k"))
+        #expect(all.contains("25k"))
         #expect(all.contains("Pro 1800"))
         #expect(all.contains("Pro 2023"))
         // The old duplicated/raw engine strings are gone from the menu.
         #expect(!all.contains("rank_9d"))
         #expect(!all.contains("preaz_9d"))
         #expect(!all.contains("proyear_2023"))
-        // 1 (AI) + 29 ranks (9d…1d, 1k…20k) + 224 pros (1800…2023) = 254.
-        #expect(all.count == 254)
+        // 1 (AI) + 34 ranks (9d…1d, 1k…25k) + 224 pros (1800…2023) = 259.
+        #expect(all.count == 259)
     }
 
     @Test func defaultProfileIsAI() {
@@ -315,6 +317,7 @@ struct HumanSLModelTests {
         #expect(HumanSLModel(profile: "9d")?.commands.contains("kata-set-param humanSLProfile preaz_9d") == true)
         #expect(HumanSLModel(profile: "5k")?.commands.contains("kata-set-param humanSLProfile preaz_5k") == true)
         #expect(HumanSLModel(profile: "20k")?.commands.contains("kata-set-param humanSLProfile preaz_20k") == true)
+        #expect(HumanSLModel(profile: "25k")?.commands.contains("kata-set-param humanSLProfile preaz_25k") == true)
     }
 
     @Test func proKeyMapsToProyearEngineProfile() {
@@ -326,27 +329,33 @@ struct HumanSLModelTests {
         #expect(HumanSLModel(profile: "AI")?.commands.contains("kata-set-param humanSLProfile rank_9d") == true)
     }
 
-    @Test func humanProfilesUseLegacyLevelFormulas() {
-        // 5k → level -5 in the restored level-based formulas.
+    @Test func humanRankProfilesUseCalibratedLadderConstants() {
+        // #1209 ladder rungs share constant human params; only λ varies by rank.
         let cmds = HumanSLModel(profile: "5k")!.commands
         #expect(paramValue(in: cmds, "humanSLChosenMoveProp") == 1.0)
-        #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.5)
-        #expect(paramValue(in: cmds, "chosenMoveTemperatureEarly") == 0.85)        // min-clamped
-        #expect(paramValue(in: cmds, "chosenMoveTemperature") == 0.7)              // min-clamped
-        #expect(paramValue(in: cmds, "chosenMoveTemperatureHalflife") == 82)       // 30 - (-5-8)*4
-        #expect(paramValue(in: cmds, "chosenMoveTemperatureOnlyBelowProb") == 0.01) // max-clamped
+        #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.8)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureEarly") == 0.7)
+        #expect(paramValue(in: cmds, "chosenMoveTemperature") == 0.25)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureHalflife") == 30)
+        #expect(paramValue(in: cmds, "chosenMoveTemperatureOnlyBelowProb") == 1.0)
         #expect(paramValue(in: cmds, "winLossUtilityFactor") == 0.0)              // human imitation
         #expect(paramValue(in: cmds, "staticScoreUtilityFactor") == 0.5)
         #expect(paramValue(in: cmds, "dynamicScoreUtilityFactor") == 0.5)
-        // λ at level -5: 0.06 + (-5 - 9)^2 * 0.03 = 5.94.
-        #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 5.94) < 1e-3)
+        // 5k's certified even-game λ.
+        #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 0.216) < 1e-4)
+        // Calibration environment: the four search heuristics are OFF for human play.
+        #expect(cmds.contains("kata-set-param useLcbForSelection false"))
+        #expect(cmds.contains("kata-set-param useUncertainty false"))
+        #expect(cmds.contains("kata-set-param useNoisePruning false"))
+        #expect(cmds.contains("kata-set-param subtreeValueBiasFactor 0.0"))
     }
 
     @Test func aiProfileEmittedCommandsArePreserved() {
-        // AI keeps the level-9 legacy values (unchanged by the param revert). Asserted
-        // by value (tolerance) so cosmetic Float formatting can't make this brittle.
+        // AI keeps its established values; the four search-heuristic RESTORES are
+        // appended so a prior human-profile move's sticky overrides never leak into
+        // full-strength play/analysis (engine GTP defaults: true/true/true/0.45).
         let cmds = HumanSLModel(profile: "AI")!.commands
-        #expect(cmds.count == 11)
+        #expect(cmds.count == 15)
         #expect(cmds.first == "kata-set-param humanSLProfile rank_9d")
         #expect(paramValue(in: cmds, "humanSLChosenMoveProp") == 0.0)
         #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.0)
@@ -358,35 +367,55 @@ struct HumanSLModelTests {
         #expect(paramValue(in: cmds, "winLossUtilityFactor") == 1.0)
         #expect(abs(paramValue(in: cmds, "staticScoreUtilityFactor")! - 0.1) < 1e-4)
         #expect(abs(paramValue(in: cmds, "dynamicScoreUtilityFactor")! - 0.3) < 1e-4)
+        #expect(cmds.contains("kata-set-param useLcbForSelection true"))
+        #expect(cmds.contains("kata-set-param useUncertainty true"))
+        #expect(cmds.contains("kata-set-param useNoisePruning true"))
+        #expect(cmds.contains("kata-set-param subtreeValueBiasFactor 0.45"))
     }
 
-    @Test func proProfilesUseLevel9LegacyConstants() {
-        // A pro profile maps to level 9 (like AI): λ 0.06 and the level-9 temperatures,
-        // but it is a HUMAN profile (root-explore 0.5, winLoss 0.0 — not AI's 0.0/1.0).
+    @Test func proProfilesUseFamilyConstants() {
+        // Pros share the ladder's constant human params with the 8d-anchor λ 0.06:
+        // imitation (winLoss 0), root-explore 0.8, temps 0.70/0.25.
         let pro = HumanSLModel(profile: "Pro 1950")!.commands
         #expect(pro.contains("kata-set-param humanSLProfile proyear_1950"))
         #expect(abs(paramValue(in: pro, "humanSLChosenMovePiklLambda")! - 0.06) < 1e-4)
-        #expect(paramValue(in: pro, "humanSLRootExploreProbWeightless") == 0.5)
+        #expect(paramValue(in: pro, "humanSLRootExploreProbWeightless") == 0.8)
         #expect(paramValue(in: pro, "winLossUtilityFactor") == 0.0)
-        #expect(abs(paramValue(in: pro, "chosenMoveTemperature")! - 0.16) < 1e-4)   // level 9
-        // 9d is a different (level-8) rank: preaz_9d engine profile, λ 0.09 (≠ 0.06).
-        let nineDan = HumanSLModel(profile: "9d")!.commands
-        #expect(nineDan.contains("kata-set-param humanSLProfile preaz_9d"))
-        #expect(abs(paramValue(in: nineDan, "humanSLChosenMovePiklLambda")! - 0.09) < 1e-4)
+        #expect(paramValue(in: pro, "chosenMoveTemperature") == 0.25)
+        #expect(pro.contains("kata-set-param useLcbForSelection false"))
     }
 
-    @Test func humanSLChosenMovePiklLambdaMatchesLegacyFormula() {
-        // Legacy λ = 0.06 + (level - 9)^2 * 0.03, with level derived from the rank key
-        // (AI/pros → 9; "Nd" → N-1; "Nk" → -N).
+    @Test func nineDanIsTheLegacyStrongReference() {
+        // 9d sits above the 40-visit ladder: preaz_9d @ 400 visits (budget asserted in
+        // searchBudgetIsPerRankVisitsIgnoringTime), λ 0.045, and — uniquely among human
+        // profiles — try-to-win (winLossUtilityFactor 1.0), per the PR docs' legacy 9d.
+        let cmds = HumanSLModel(profile: "9d")!.commands
+        #expect(cmds.contains("kata-set-param humanSLProfile preaz_9d"))
+        #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 0.045) < 1e-4)
+        #expect(paramValue(in: cmds, "winLossUtilityFactor") == 1.0)
+        #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.8)
+        #expect(paramValue(in: cmds, "staticScoreUtilityFactor") == 0.5)
+        #expect(paramValue(in: cmds, "dynamicScoreUtilityFactor") == 0.5)
+    }
+
+    @Test func humanSLChosenMovePiklLambdaMatchesCalibratedLadder() {
+        // The certified per-rank λ from PR #1209 (docs/HumanSL_Rank_Ladder.md): the
+        // 7d…14k staircase values, the 15k…25k pure-human tail (1e8), the hand-set
+        // 8d anchor, and the legacy-strong 9d.
         let expected: [String: Float] = [
-            "9d": 0.09, "8d": 0.18, "1d": 2.49, "5k": 5.94, "20k": 25.29,
+            "9d": 0.045, "8d": 0.06, "7d": 0.0776, "6d": 0.0994, "5d": 0.1324,
+            "4d": 0.1575, "3d": 0.1896, "2d": 0.213, "1d": 0.1917,
+            "1k": 0.2015, "2k": 0.1995, "3k": 0.2076, "4k": 0.2118, "5k": 0.216,
+            "6k": 0.2248, "7k": 0.2459, "8k": 0.2584, "9k": 0.3062, "10k": 0.3725,
+            "11k": 0.4081, "12k": 0.463, "13k": 0.83, "14k": 3.4004,
+            "15k": 1e8, "18k": 1e8, "20k": 1e8, "21k": 1e8, "25k": 1e8,
             "Pro 1950": 0.06, "AI": 0.06,
         ]
         for (key, lam) in expected {
             let cmds = HumanSLModel(profile: key)!.commands
             let value = paramValue(in: cmds, "humanSLChosenMovePiklLambda")
             #expect(value != nil)
-            #expect(abs((value ?? 0) - lam) < 1e-3)
+            #expect(abs((value ?? 0) - lam) < max(1e-4, lam * 1e-6), "λ mismatch for \(key)")
         }
     }
 
@@ -394,6 +423,7 @@ struct HumanSLModelTests {
         #expect(HumanSLModel(profile: "rank_9d")?.profile == "9d")
         #expect(HumanSLModel(profile: "preaz_9d")?.profile == "9d")   // both collapse
         #expect(HumanSLModel(profile: "preaz_5k")?.profile == "5k")
+        #expect(HumanSLModel(profile: "preaz_25k")?.profile == "25k")
         #expect(HumanSLModel(profile: "proyear_2000")?.profile == "Pro 2000")
         #expect(HumanSLModel(profile: "AI")?.profile == "AI")
         // A normalized legacy rank still drives the preaz engine profile.

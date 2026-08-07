@@ -11,22 +11,31 @@ import Foundation
 /// pro era like `"Pro 2023"`) to the engine `humanSLProfile` value and the
 /// `kata-set-param` command list.
 ///
-/// Ranks map to `humanSLProfile = preaz_<rank>`; pros to `proyear_<year>`. The
-/// move-selection params (temperatures, λ, exploration) scale with a strength
-/// `level` derived from the rank key (AI/pros → 9; `Nd` → N-1; `Nk` → -N). `AI` is
+/// Ranks map to `humanSLProfile = preaz_<rank>`; pros to `proyear_<year>`. `AI` is
 /// the strongest-net, no-human-bias profile.
+///
+/// Rank params come from the KataGo PR #1209 even-game ELO ladder
+/// (`docs/HumanSL_Rank_Ladder.md` on the `gtp-human-rank-configs` branch): the
+/// 8d→25k rungs share constant human params and differ only in the certified
+/// per-rank `humanSLChosenMovePiklLambda` (7d…14k a ~100-ELO staircase; 15k…25k the
+/// pure-human tail at 1e8); `9d` is the ladder docs' separate legacy-strong
+/// reference (λ 0.045, try-to-win, 400 visits via `GtpCommandBuilder`); pros reuse
+/// the 8d-anchor λ 0.06 in imitation mode. The ladder was certified on
+/// kata1-b28c512nbt @ 8 search threads, 40 visits, Japanese komi 6.5 — under the
+/// app's nets/threads the rungs are a calibrated relative ladder, not exact
+/// absolute strengths.
 public struct HumanSLModel {
 
     // MARK: - Profile keys (the key is also the stored value and the display label)
 
-    /// 9d…1d, then 1k…20k.
+    /// 9d…1d, then 1k…25k.
     private static let rankKeys: [String] =
-        (1...9).reversed().map { "\($0)d" } + (1...20).map { "\($0)k" }
+        (1...9).reversed().map { "\($0)d" } + (1...25).map { "\($0)k" }
 
     /// "Pro 1800" … "Pro 2023".
     private static let proKeys: [String] = (1800...2023).map { "Pro \($0)" }
 
-    /// All selectable keys, in menu order: AI, ranks (9d→20k), pros (oldest→newest).
+    /// All selectable keys, in menu order: AI, ranks (9d→25k), pros (oldest→newest).
     public static let allProfiles: [String] = ["AI"] + rankKeys + proKeys
 
     /// The pro-key display prefix. The trailing space is load-bearing — it
@@ -79,16 +88,6 @@ public struct HumanSLModel {
     private var isAI: Bool { profile == "AI" }
     private var isPro: Bool { profile.hasPrefix(HumanSLModel.proKeyPrefix) }
 
-    /// Strength level driving the move-selection formulas: AI and pros are strongest
-    /// (9); ranks step down — `9d`→8 … `1d`→0, `1k`→-1 … `20k`→-20. Checked after the
-    /// AI/pro guards so a pro key never reaches the rank regex.
-    private var level: Int {
-        if isAI || isPro { return 9 }
-        if let m = profile.wholeMatch(of: /(\d+)d/), let n = Int(m.1) { return n - 1 }
-        if let m = profile.wholeMatch(of: /(\d+)k/), let n = Int(m.1) { return -n }
-        return -30
-    }
-
     // MARK: - Engine parameters
 
     /// Value sent via `kata-set-param humanSLProfile`.
@@ -98,39 +97,70 @@ public struct HumanSLModel {
         return "preaz_" + profile                                       // "9d" → preaz_9d
     }
 
-    /// Probability of playing a human-like move rather than KataGo's move.
-    var humanSLChosenMoveProp: Float { isAI ? 0.0 : 1.0 }
+    /// The certified per-rank `humanSLChosenMovePiklLambda`, byte-copied from the
+    /// PR #1209 ladder table (values as strings so the GTP text is exactly the
+    /// config's — `Float` would print the tail's 1e8 as "1e+08").
+    private static let rankPiklLambda: [String: String] = [
+        "9d": "0.045",                                    // legacy-strong reference
+        "8d": "0.06",                                     // hand-set anchor
+        "7d": "0.07760", "6d": "0.09940", "5d": "0.13240", "4d": "0.15750",
+        "3d": "0.18960", "2d": "0.21300", "1d": "0.19170",
+        "1k": "0.20150", "2k": "0.19950", "3k": "0.20760", "4k": "0.21180",
+        "5k": "0.21600", "6k": "0.22480", "7k": "0.24590", "8k": "0.25840",
+        "9k": "0.30620", "10k": "0.37250", "11k": "0.40810", "12k": "0.46300",
+        "13k": "0.83000", "14k": "3.40040",
+        // 15k…25k: pure-human tail — even λ→∞ cannot reach a 100-ELO step here.
+        "15k": "100000000", "16k": "100000000", "17k": "100000000",
+        "18k": "100000000", "19k": "100000000", "20k": "100000000",
+        "21k": "100000000", "22k": "100000000", "23k": "100000000",
+        "24k": "100000000", "25k": "100000000",
+    ]
 
-    /// Use the human SL policy for root exploration during search.
-    var humanSLRootExploreProbWeightless: Float { isAI ? 0.0 : 0.5 }
-
-    /// Temperatures scale with `level`; the level-9 AI/pro values collapse to
-    /// 0.67 / 0.16 / 26 / 1.0 via these formulas.
-    var chosenMoveTemperatureEarly: Float { min(0.85, 0.70 - ((Float(level) - 8.0) * 0.03)) }
-    var chosenMoveTemperature: Float { min(0.70, 0.25 - ((Float(level) - 8.0) * 0.09)) }
-    var chosenMoveTemperatureHalflife: Int { 30 - ((level - 8) * 4) }
-    var chosenMoveTemperatureOnlyBelowProb: Float { min(1.0, max(0.01, pow(10.0, (Float(level) - 8.0) * 0.2))) }
-
-    /// Suppress human-like moves KataGo disapproves of, growing quadratically as the
-    /// level drops below 9 (AI/pros → 0.06; weaker ranks → larger, less suppression).
-    var humanSLChosenMovePiklLambda: Float { 0.06 + (Float(level) - 9.0) * (Float(level) - 9.0) * 0.03 }
-
-    /// Human profiles imitate (ignore win/loss); only AI tries to win.
-    var winLossUtilityFactor: Float { isAI ? 1.0 : 0.0 }
-    var staticScoreUtilityFactor: Float { isAI ? 0.1 : 0.5 }
-    var dynamicScoreUtilityFactor: Float { isAI ? 0.3 : 0.5 }
+    /// Suppression of human-like moves KataGo disapproves of; pros reuse the
+    /// 8d-anchor λ. (AI's own 0.06 is emitted by the AI branch directly.)
+    private var piklLambda: String {
+        HumanSLModel.rankPiklLambda[profile] ?? "0.06"
+    }
 
     public var commands: [String] {
-        ["kata-set-param humanSLProfile \(humanSLProfile)",
-         "kata-set-param humanSLChosenMoveProp \(humanSLChosenMoveProp)",
-         "kata-set-param humanSLRootExploreProbWeightless \(humanSLRootExploreProbWeightless)",
-         "kata-set-param chosenMoveTemperatureEarly \(chosenMoveTemperatureEarly)",
-         "kata-set-param chosenMoveTemperature \(chosenMoveTemperature)",
-         "kata-set-param chosenMoveTemperatureHalflife \(chosenMoveTemperatureHalflife)",
-         "kata-set-param chosenMoveTemperatureOnlyBelowProb \(chosenMoveTemperatureOnlyBelowProb)",
-         "kata-set-param humanSLChosenMovePiklLambda \(humanSLChosenMovePiklLambda)",
-         "kata-set-param winLossUtilityFactor \(winLossUtilityFactor)",
-         "kata-set-param staticScoreUtilityFactor \(staticScoreUtilityFactor)",
-         "kata-set-param dynamicScoreUtilityFactor \(dynamicScoreUtilityFactor)"]
+        if isAI {
+            // Full-strength profile. The last four lines RESTORE the engine's GTP
+            // defaults for the search heuristics the human profiles override below —
+            // kata-set-param is sticky, so without them a human-profile move would
+            // leave the heuristics off for subsequent full-strength play/analysis.
+            return ["kata-set-param humanSLProfile rank_9d",
+                    "kata-set-param humanSLChosenMoveProp 0.0",
+                    "kata-set-param humanSLRootExploreProbWeightless 0.0",
+                    "kata-set-param chosenMoveTemperatureEarly 0.67",
+                    "kata-set-param chosenMoveTemperature 0.16",
+                    "kata-set-param chosenMoveTemperatureHalflife 26",
+                    "kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0",
+                    "kata-set-param humanSLChosenMovePiklLambda 0.06",
+                    "kata-set-param winLossUtilityFactor 1.0",
+                    "kata-set-param staticScoreUtilityFactor 0.1",
+                    "kata-set-param dynamicScoreUtilityFactor 0.3",
+                    "kata-set-param useLcbForSelection true",
+                    "kata-set-param useUncertainty true",
+                    "kata-set-param useNoisePruning true",
+                    "kata-set-param subtreeValueBiasFactor 0.45"]
+        }
+        // The ladder's constant human params; only λ (and 9d's try-to-win) vary.
+        // winLoss 0 = imitation for every rung and pro; the legacy-strong 9d alone
+        // optimizes winrate. The four heuristics are OFF to match the calibration.
+        return ["kata-set-param humanSLProfile \(humanSLProfile)",
+                "kata-set-param humanSLChosenMoveProp 1.0",
+                "kata-set-param humanSLRootExploreProbWeightless 0.8",
+                "kata-set-param chosenMoveTemperatureEarly 0.7",
+                "kata-set-param chosenMoveTemperature 0.25",
+                "kata-set-param chosenMoveTemperatureHalflife 30",
+                "kata-set-param chosenMoveTemperatureOnlyBelowProb 1.0",
+                "kata-set-param humanSLChosenMovePiklLambda \(piklLambda)",
+                "kata-set-param winLossUtilityFactor \(profile == "9d" ? "1.0" : "0.0")",
+                "kata-set-param staticScoreUtilityFactor 0.5",
+                "kata-set-param dynamicScoreUtilityFactor 0.5",
+                "kata-set-param useLcbForSelection false",
+                "kata-set-param useUncertainty false",
+                "kata-set-param useNoisePruning false",
+                "kata-set-param subtreeValueBiasFactor 0.0"]
     }
 }
