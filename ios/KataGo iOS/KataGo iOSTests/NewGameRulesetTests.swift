@@ -52,9 +52,9 @@ struct NewGameRulesetTests {
 
     // MARK: - Compact (Custom) RU[] round-trips — the tricky serializer paths
 
-    /// `whb=N` must serialize to `whbN` and parse back to `.n` (NOT `.n_minus_one`).
-    /// This is the guard against the historically mis-ordered
-    /// `Config.whiteHandicapBonusRules` array.
+    /// `whb=N` must serialize to `whbN` and parse back to `.n` (NOT
+    /// `.n_minus_one`) — the guard that serialization is keyed by rawValue,
+    /// not by any display-array position.
     @Test func customWhbN_roundTrips() {
         let c = NewGameRuleComponents(koRule: .positional, scoringRule: .area, taxRule: .none,
                                       multiStoneSuicideLegal: false, hasButton: false,
@@ -143,6 +143,24 @@ struct NewGameRulesetTests {
         #expect(GameRecord.makeSgf(width: 19, height: 19, komi: 7, ruleString: "chinese").contains("KM[7]"))
         #expect(GameRecord.makeSgf(width: 19, height: 19, komi: 6.5, ruleString: "japanese").contains("KM[6.5]"))
         #expect(GameRecord.makeSgf(width: 19, height: 19, komi: 0, ruleString: "chinese").contains("KM[0]"))
+    }
+
+    // MARK: - Config WHB text alignment
+
+    /// `Config.whiteHandicapBonusRules` must be ordered by
+    /// `WhiteHandicapBonusRule.rawValue` (0 -> "0", n -> "N",
+    /// n_minus_one -> "N-1", matching the C++ `Rules::WHB_*` constants), so
+    /// the GTP text sent for a bridge-parsed rule is the rule itself.
+    @Test func whbConfigTextMatchesEnumRawValues() {
+        #expect(Config.whiteHandicapBonusRules == ["0", "N", "N-1"])
+        #expect(NewGameRules.whiteHandicapBonusLabels == Config.whiteHandicapBonusRules)
+        let config = Config()
+        config.whiteHandicapBonusRule = .n
+        #expect(config.whiteHandicapBonusRuleText == "N")
+        config.whiteHandicapBonusRule = .n_minus_one
+        #expect(config.whiteHandicapBonusRuleText == "N-1")
+        config.whiteHandicapBonusRule = .zero
+        #expect(config.whiteHandicapBonusRuleText == "0")
     }
 
     // MARK: - Helpers

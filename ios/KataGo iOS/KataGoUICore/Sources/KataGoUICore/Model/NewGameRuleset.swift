@@ -88,13 +88,10 @@ public enum NewGameRuleset: CaseIterable, Equatable, Sendable {
 /// what the engine actually plays.
 public enum NewGameRules {
     /// White-handicap-bonus labels ordered by `WhiteHandicapBonusRule.rawValue`
-    /// (zero→"0", n→"N", n_minus_one→"N-1"). NOTE: this is DELIBERATELY not the
-    /// existing `Config.whiteHandicapBonusRules` (`["0","N-1","N"]`), which is
-    /// historically mis-ordered relative to the enum raw values; using it for a
-    /// popup would mislabel the rule. The raw values here match the C++
-    /// `Rules::WHB_*` constants, so display, selection, and serialization stay
-    /// self-consistent and round-trip correctly.
-    public static let whiteHandicapBonusLabels = ["0", "N", "N-1"]
+    /// (zero→"0", n→"N", n_minus_one→"N-1"), matching the C++ `Rules::WHB_*`
+    /// constants. `Config.whiteHandicapBonusRules` now uses the same order, so
+    /// this is a straight alias kept for source compatibility.
+    public static let whiteHandicapBonusLabels = Config.whiteHandicapBonusRules
 
     /// Expands a named preset to its concrete rule components by parsing an
     /// `RU[<token>]` SGF through the same engine path the app loads games with —

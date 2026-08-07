@@ -699,7 +699,11 @@ extension Config {
     }
 
     public static let defaultWhiteHandicapBonusRule: Int = 0
-    public static let whiteHandicapBonusRules = ["0", "N-1", "N"]
+    /// Ordered by `WhiteHandicapBonusRule.rawValue` (matching the C++
+    /// `Rules::WHB_*` constants), so `whiteHandicapBonusRuleText` names the
+    /// rule the bridge parsed. Historically this was `["0", "N-1", "N"]`,
+    /// which made SGF-loaded games replay the wrong whb token.
+    public static let whiteHandicapBonusRules = ["0", "N", "N-1"]
     public static let defaultWhiteHandicapBonusRuleText = whiteHandicapBonusRules[defaultWhiteHandicapBonusRule]
 
     public var whiteHandicapBonusRule: WhiteHandicapBonusRule {
