@@ -172,6 +172,7 @@ struct RuleConfigView: View {
     @State var whiteHandicapBonusRuleText: String = Config.defaultWhiteHandicapBonusRuleText
     @State var komi: Float = Config.defaultKomi
     @State var komiText: String = String(Config.defaultKomi)
+    @State var rulesetText: String = NewGameRuleset.custom.displayName
 
     @Environment(MessageList.self) var messageList
     @Environment(Turn.self) var player
@@ -218,6 +219,42 @@ struct RuleConfigView: View {
             }
 
             ConfigTextPicker(
+                title: "Ruleset",
+                texts: NewGameRuleset.pickerCases.map(\.displayName),
+                selectedText: $rulesetText
+            )
+            .onAppear {
+                rulesetText = matchedRuleset.displayName
+            }
+            .onChange(of: rulesetText) { _, newValue in
+                guard let preset = NewGameRuleset.pickerCases.first(where: { $0.displayName == newValue }),
+                      preset != .custom else { return }
+                if NewGameRules.expand(preset) == currentComponents {
+                    // The picker snapped here programmatically, or the user
+                    // relabeled engine-identical rules (Japanese -> Korean):
+                    // persist the label, leave knobs/komi/engine untouched.
+                    // The equal-value guard keeps a plain sheet-open (the
+                    // onAppear snap) from re-dirtying the synced record; a
+                    // DIFFERING stale label is deliberately healed to match
+                    // the actual knobs.
+                    if config.rule != preset.configRuleIndex {
+                        config.rule = preset.configRuleIndex
+                    }
+                    return
+                }
+                ConfigEngineSync.applyRuleset(preset, config: config, messageList: messageList)
+                koRuleText = config.koRuleText
+                scoringRuleText = config.scoringRuleText
+                taxRuleText = config.taxRuleText
+                multiStoneSuicideLegal = config.multiStoneSuicideLegal
+                hasButton = config.hasButton
+                whiteHandicapBonusRuleText = config.whiteHandicapBonusRuleText
+                komi = config.komi
+                komiText = String(config.komi)
+                isRuleChanged = true
+            }
+
+            ConfigTextPicker(
                 title: "Ko rule",
                 texts: Config.koRules,
                 selectedText: $koRuleText
@@ -228,8 +265,12 @@ struct RuleConfigView: View {
             .onChange(of: koRuleText) { _, newValue in
                 let rawValue = Config.koRules.firstIndex(of: newValue) ?? Config.defaultKoRule
                 let koRule = KoRule(rawValue: rawValue) ?? .simple
+                // Equal to the config means this is the echo of a programmatic
+                // @State refresh (preset apply / onAppear seeding), not an edit.
+                guard koRule != config.koRule else { return }
                 ConfigEngineSync.setKoRule(koRule, config: config, messageList: messageList)
                 isRuleChanged = true
+                refreshRulesetSelection()
             }
 
             ConfigTextPicker(
@@ -243,8 +284,10 @@ struct RuleConfigView: View {
             .onChange(of: scoringRuleText) { _, _ in
                 let rawValue = Config.scoringRules.firstIndex(of: scoringRuleText) ?? Config.defaultScoringRule
                 let scoringRule = ScoringRule(rawValue: rawValue) ?? .area
+                guard scoringRule != config.scoringRule else { return }
                 ConfigEngineSync.setScoringRule(scoringRule, config: config, messageList: messageList)
                 isRuleChanged = true
+                refreshRulesetSelection()
             }
 
             ConfigTextPicker(
@@ -258,8 +301,10 @@ struct RuleConfigView: View {
             .onChange(of: taxRuleText) { _, _ in
                 let rawValue = Config.taxRules.firstIndex(of: taxRuleText) ?? Config.defaultTaxRule
                 let taxRule = TaxRule(rawValue: rawValue) ?? .none
+                guard taxRule != config.taxRule else { return }
                 ConfigEngineSync.setTaxRule(taxRule, config: config, messageList: messageList)
                 isRuleChanged = true
+                refreshRulesetSelection()
             }
 
             ConfigBoolItem(title: "Multi-stone suicide", value: $multiStoneSuicideLegal)
@@ -267,8 +312,10 @@ struct RuleConfigView: View {
                     multiStoneSuicideLegal = config.multiStoneSuicideLegal
                 }
                 .onChange(of: multiStoneSuicideLegal) { _, newValue in
+                    guard newValue != config.multiStoneSuicideLegal else { return }
                     ConfigEngineSync.setMultiStoneSuicideLegal(newValue, config: config, messageList: messageList)
                     isRuleChanged = true
+                    refreshRulesetSelection()
                 }
 
             ConfigBoolItem(title: "Has button", value: $hasButton)
@@ -276,8 +323,10 @@ struct RuleConfigView: View {
                     hasButton = config.hasButton
                 }
                 .onChange(of: hasButton) { _, newValue in
+                    guard newValue != config.hasButton else { return }
                     ConfigEngineSync.setHasButton(newValue, config: config, messageList: messageList)
                     isRuleChanged = true
+                    refreshRulesetSelection()
                 }
 
             ConfigTextPicker(
@@ -291,8 +340,10 @@ struct RuleConfigView: View {
             .onChange(of: whiteHandicapBonusRuleText) { _, _ in
                 let rawValue = Config.whiteHandicapBonusRules.firstIndex(of: whiteHandicapBonusRuleText) ?? Config.defaultWhiteHandicapBonusRule
                 let rule = WhiteHandicapBonusRule(rawValue: rawValue) ?? .zero
+                guard rule != config.whiteHandicapBonusRule else { return }
                 ConfigEngineSync.setWhiteHandicapBonusRule(rule, config: config, messageList: messageList)
                 isRuleChanged = true
+                refreshRulesetSelection()
             }
 
             ConfigTextField(
@@ -304,7 +355,11 @@ struct RuleConfigView: View {
                 komiText = String(komi)
             }
             .onChange(of: komiText) { _, newValue in
-                ConfigEngineSync.setKomi(Float(newValue) ?? Config.defaultKomi, config: config, messageList: messageList)
+                // Clamp + half-point-round exactly as setKomi will, so the
+                // echo of a programmatic refresh compares equal and is skipped.
+                let newKomi = min(1_000, max(-1_000, ((Float(newValue) ?? Config.defaultKomi) * 2).rounded() / 2))
+                guard newKomi != config.komi else { return }
+                ConfigEngineSync.setKomi(newKomi, config: config, messageList: messageList)
                 isRuleChanged = true
             }
         }
@@ -346,6 +401,32 @@ struct RuleConfigView: View {
                 }
             }
         }
+    }
+
+    /// The six granular rule components currently persisted in the config.
+    private var currentComponents: NewGameRuleComponents {
+        NewGameRuleComponents(koRule: config.koRule,
+                              scoringRule: config.scoringRule,
+                              taxRule: config.taxRule,
+                              multiStoneSuicideLegal: config.multiStoneSuicideLegal,
+                              hasButton: config.hasButton,
+                              whiteHandicapBonusRule: config.whiteHandicapBonusRule)
+    }
+
+    /// The named preset the current knobs correspond to (Custom when none).
+    /// The persisted `config.rule` label only breaks ties between
+    /// engine-identical presets (Japanese/Korean, AGA/BGA).
+    private var matchedRuleset: NewGameRuleset {
+        NewGameRules.match(currentComponents,
+                           preferring: NewGameRuleset.preset(fromConfigRule: config.rule))
+    }
+
+    /// After a hand-edit of one granular knob: snap the Ruleset picker to the
+    /// matching named preset (or Custom) and persist that label.
+    private func refreshRulesetSelection() {
+        let matched = matchedRuleset
+        config.rule = matched.configRuleIndex
+        rulesetText = matched.displayName
     }
 }
 
