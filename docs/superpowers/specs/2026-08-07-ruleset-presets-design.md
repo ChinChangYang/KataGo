@@ -177,7 +177,9 @@ the iOS Simulator; Mac editor on a signed Debug build). No new UI tests.
    (the picker's programmatic snap after a hand-edit, or a relabel between
    engine-identical presets such as Japanese → Korean), only `config.rule`
    is written — no GTP, no komi reset — and only when the index actually
-   differs, so opening the sheet never dirties the synced record. On macOS,
+   differs, so opening the sheet on a correctly-labeled record never dirties
+   it. (A record whose stored label disagrees with its actual knobs is
+   deliberately healed on sheet open — one write, once.) On macOS,
    AppKit reports an explicit re-pick of the already-selected item (SwiftUI
    cannot), so a same-label re-pick there re-applies fully and restores the
    preset's default komi.
