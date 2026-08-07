@@ -61,6 +61,18 @@ final class ConfigEditorViewController: NSViewController {
     /// Vertical stack holding every row; built once in `loadView`.
     private let formStack = NSStackView()
 
+    // Rules rows kept for programmatic repopulation when a Ruleset preset is
+    // picked (mirrors NewGameViewController's preset <-> granular sync).
+    // `reload(...)` never re-fires `onChange`, so there is no feedback loop.
+    private var rulesetRow: PopupRow!
+    private var komiRow: NumericRow!
+    private var koRow: PopupRow!
+    private var scoringRow: PopupRow!
+    private var taxRow: PopupRow!
+    private var suicideRow: CheckboxRow!
+    private var buttonRow: CheckboxRow!
+    private var whbRow: PopupRow!
+
     init(session: GameSession, gameRecord: GameRecord) {
         self.session = session
         self.gameRecord = gameRecord
@@ -183,80 +195,150 @@ final class ConfigEditorViewController: NSViewController {
         let config = self.config
         formStack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Rules"))
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.numericRow(
-                title: "Komi",
-                value: Double(config.komi),
-                minValue: -1_000,
-                maxValue: 1_000,
-                step: 0.5,
-                format: { Config.komiText(Float($0)) },
-                onChange: { [weak self] newValue in
-                    guard let self else { return }
-                    ConfigEngineSync.setKomi(Float(newValue), config: config, messageList: self.messageList)
-                }))
+        rulesetRow = ConfigFormBuilder.popupRow(
+            title: "Ruleset",
+            options: NewGameRuleset.pickerCases.map(\.displayName),
+            selectedIndex: NewGameRuleset.pickerCases.firstIndex(of: matchedRuleset()) ?? 0,
+            onChange: { [weak self] index in self?.rulesetChanged(index) })
+        formStack.addArrangedSubview(rulesetRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
-                title: "Ko rule",
-                options: Config.koRules,
-                selectedIndex: config.koRule.rawValue,
-                onChange: { [weak self] index in
-                    guard let self else { return }
-                    let koRule = KoRule(rawValue: index) ?? .simple
-                    ConfigEngineSync.setKoRule(koRule, config: config, messageList: self.messageList)
-                }))
+        komiRow = ConfigFormBuilder.numericRow(
+            title: "Komi",
+            value: Double(config.komi),
+            minValue: -1_000,
+            maxValue: 1_000,
+            step: 0.5,
+            format: { Config.komiText(Float($0)) },
+            onChange: { [weak self] newValue in
+                guard let self else { return }
+                ConfigEngineSync.setKomi(Float(newValue), config: config, messageList: self.messageList)
+            })
+        formStack.addArrangedSubview(komiRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
-                title: "Scoring rule",
-                options: Config.scoringRules,
-                selectedIndex: config.scoringRule.rawValue,
-                onChange: { [weak self] index in
-                    guard let self else { return }
-                    let scoringRule = ScoringRule(rawValue: index) ?? .area
-                    ConfigEngineSync.setScoringRule(scoringRule, config: config, messageList: self.messageList)
-                }))
+        koRow = ConfigFormBuilder.popupRow(
+            title: "Ko rule",
+            options: Config.koRules,
+            selectedIndex: config.koRule.rawValue,
+            onChange: { [weak self] index in
+                guard let self else { return }
+                let koRule = KoRule(rawValue: index) ?? .simple
+                ConfigEngineSync.setKoRule(koRule, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(koRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
-                title: "Tax rule",
-                options: Config.taxRules,
-                selectedIndex: config.taxRule.rawValue,
-                onChange: { [weak self] index in
-                    guard let self else { return }
-                    let taxRule = TaxRule(rawValue: index) ?? .none
-                    ConfigEngineSync.setTaxRule(taxRule, config: config, messageList: self.messageList)
-                }))
+        scoringRow = ConfigFormBuilder.popupRow(
+            title: "Scoring rule",
+            options: Config.scoringRules,
+            selectedIndex: config.scoringRule.rawValue,
+            onChange: { [weak self] index in
+                guard let self else { return }
+                let scoringRule = ScoringRule(rawValue: index) ?? .area
+                ConfigEngineSync.setScoringRule(scoringRule, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(scoringRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.checkboxRow(
-                title: "Multi-stone suicide",
-                isOn: config.multiStoneSuicideLegal,
-                onChange: { [weak self] isOn in
-                    guard let self else { return }
-                    ConfigEngineSync.setMultiStoneSuicideLegal(isOn, config: config, messageList: self.messageList)
-                }))
+        taxRow = ConfigFormBuilder.popupRow(
+            title: "Tax rule",
+            options: Config.taxRules,
+            selectedIndex: config.taxRule.rawValue,
+            onChange: { [weak self] index in
+                guard let self else { return }
+                let taxRule = TaxRule(rawValue: index) ?? .none
+                ConfigEngineSync.setTaxRule(taxRule, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(taxRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.checkboxRow(
-                title: "Has button",
-                isOn: config.hasButton,
-                onChange: { [weak self] isOn in
-                    guard let self else { return }
-                    ConfigEngineSync.setHasButton(isOn, config: config, messageList: self.messageList)
-                }))
+        suicideRow = ConfigFormBuilder.checkboxRow(
+            title: "Multi-stone suicide",
+            isOn: config.multiStoneSuicideLegal,
+            onChange: { [weak self] isOn in
+                guard let self else { return }
+                ConfigEngineSync.setMultiStoneSuicideLegal(isOn, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(suicideRow)
 
-        formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
-                title: "White handicap bonus",
-                options: Config.whiteHandicapBonusRules,
-                selectedIndex: config.whiteHandicapBonusRule.rawValue,
-                onChange: { [weak self] index in
-                    guard let self else { return }
-                    let rule = WhiteHandicapBonusRule(rawValue: index) ?? .zero
-                    ConfigEngineSync.setWhiteHandicapBonusRule(rule, config: config, messageList: self.messageList)
-                }))
+        buttonRow = ConfigFormBuilder.checkboxRow(
+            title: "Has button",
+            isOn: config.hasButton,
+            onChange: { [weak self] isOn in
+                guard let self else { return }
+                ConfigEngineSync.setHasButton(isOn, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(buttonRow)
+
+        whbRow = ConfigFormBuilder.popupRow(
+            title: "White handicap bonus",
+            options: Config.whiteHandicapBonusRules,
+            selectedIndex: config.whiteHandicapBonusRule.rawValue,
+            onChange: { [weak self] index in
+                guard let self else { return }
+                let rule = WhiteHandicapBonusRule(rawValue: index) ?? .zero
+                ConfigEngineSync.setWhiteHandicapBonusRule(rule, config: config, messageList: self.messageList)
+                self.granularRuleChanged()
+            })
+        formStack.addArrangedSubview(whbRow)
+    }
+
+    // MARK: Ruleset preset <-> granular sync
+
+    /// The six granular rule components currently persisted in the config.
+    private func currentComponents() -> NewGameRuleComponents {
+        NewGameRuleComponents(koRule: config.koRule,
+                              scoringRule: config.scoringRule,
+                              taxRule: config.taxRule,
+                              multiStoneSuicideLegal: config.multiStoneSuicideLegal,
+                              hasButton: config.hasButton,
+                              whiteHandicapBonusRule: config.whiteHandicapBonusRule)
+    }
+
+    /// The named preset the current knobs correspond to (Custom when none).
+    /// The persisted `config.rule` label only breaks ties between
+    /// engine-identical presets (Japanese/Korean, AGA/BGA).
+    private func matchedRuleset() -> NewGameRuleset {
+        NewGameRules.match(currentComponents(),
+                           preferring: NewGameRuleset.preset(fromConfigRule: config.rule))
+    }
+
+    /// A named preset was chosen: apply it live (six kata-set-rule + komi via
+    /// ConfigEngineSync.applyRuleset) and repopulate the granular rows.
+    /// Selecting "Custom" is a display-state no-op, matching the New Game
+    /// dialog and the iOS sheet. Relabeling engine-identical rules
+    /// (Japanese -> Korean) persists the label without touching the engine or
+    /// a hand-edited komi; an explicit re-pick of the already-matching preset
+    /// — which AppKit reports, unlike SwiftUI — falls through to a full apply
+    /// so it restores the preset's default komi.
+    private func rulesetChanged(_ index: Int) {
+        guard NewGameRuleset.pickerCases.indices.contains(index) else { return }
+        let chosen = NewGameRuleset.pickerCases[index]
+        guard chosen != .custom else { return }
+        if chosen != matchedRuleset(), NewGameRules.expand(chosen) == currentComponents() {
+            if config.rule != chosen.configRuleIndex {
+                config.rule = chosen.configRuleIndex
+            }
+            return
+        }
+        ConfigEngineSync.applyRuleset(chosen, config: config, messageList: messageList)
+        koRow.reload(selectedIndex: config.koRule.rawValue)
+        scoringRow.reload(selectedIndex: config.scoringRule.rawValue)
+        taxRow.reload(selectedIndex: config.taxRule.rawValue)
+        suicideRow.reload(isOn: config.multiStoneSuicideLegal)
+        buttonRow.reload(isOn: config.hasButton)
+        whbRow.reload(selectedIndex: config.whiteHandicapBonusRule.rawValue)
+        komiRow.reload(value: Double(config.komi))
+    }
+
+    /// A granular rule was hand-edited: re-derive the matching preset, snap
+    /// the Ruleset popup, and persist the label (Custom sentinel when none
+    /// match).
+    private func granularRuleChanged() {
+        let matched = matchedRuleset()
+        config.rule = matched.configRuleIndex
+        rulesetRow.reload(selectedIndex: NewGameRuleset.pickerCases.firstIndex(of: matched) ?? 0)
     }
 
     // MARK: Analysis
