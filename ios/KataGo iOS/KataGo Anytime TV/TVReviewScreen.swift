@@ -451,11 +451,9 @@ struct TVReviewScreen: View {
     }
 
     private var ruleText: String {
-        // A synced Config could carry an out-of-range rule; never crash on it.
-        guard Config.rules.indices.contains(config.rule) else { return "Custom" }
-        let raw = Config.rules[config.rule]
-        if raw == "aga" || raw == "bga" { return raw.uppercased() }
-        return raw.replacingOccurrences(of: "-", with: " ").capitalized
+        // The persisted index names a preset; the -1 Custom sentinel and any
+        // out-of-range synced value render as "Custom" (never crash).
+        NewGameRuleset.preset(fromConfigRule: config.rule)?.displayName ?? "Custom"
     }
 
     /// One color's label ("AI" / "9d" / "Human") and captured-stone count, shown
