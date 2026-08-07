@@ -112,6 +112,31 @@ public enum ConfigEngineSync {
         messageList.appendAndSend(command: GtpCommandBuilder.whiteHandicapBonusCommand(config.whiteHandicapBonusRuleText))
     }
 
+    // MARK: Named ruleset preset
+
+    /// Applies a named ruleset preset from the per-game rule editors: expands
+    /// it through the engine's own SGF parser (`NewGameRules.expand`), writes
+    /// all six granular rule fields plus the ruleset's default komi
+    /// (`NewGameRules.suggestedKomi`), persists the preset's label in
+    /// `config.rule`, and replays the SAME six `kata-set-rule` commands +
+    /// `komi` a game reload sends. Deliberately NOT `kata-set-rules <name>`:
+    /// the named GTP command would also flip `friendlyPassOk` to the preset's
+    /// value, diverging from the `false` the app forces at session start.
+    /// No-op for `.custom`, which has no expansion.
+    public static func applyRuleset(_ preset: NewGameRuleset,
+                                    config: Config,
+                                    messageList: MessageList) {
+        guard let components = NewGameRules.expand(preset) else { return }
+        setKoRule(components.koRule, config: config, messageList: messageList)
+        setScoringRule(components.scoringRule, config: config, messageList: messageList)
+        setTaxRule(components.taxRule, config: config, messageList: messageList)
+        setMultiStoneSuicideLegal(components.multiStoneSuicideLegal, config: config, messageList: messageList)
+        setHasButton(components.hasButton, config: config, messageList: messageList)
+        setWhiteHandicapBonusRule(components.whiteHandicapBonusRule, config: config, messageList: messageList)
+        setKomi(NewGameRules.suggestedKomi(components), config: config, messageList: messageList)
+        config.rule = preset.configRuleIndex
+    }
+
     // MARK: Playout doubling advantage (White advantage)
     //
     // iOS `ConfigView.swift` lines 427-429 (`AIConfigView`):

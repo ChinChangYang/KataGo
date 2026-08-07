@@ -190,6 +190,55 @@ struct NewGameRulesetTests {
         #expect(config.whiteHandicapBonusRuleText == "0")
     }
 
+    // MARK: - applyRuleset (preset -> config + GTP)
+
+    /// Applying Japanese writes all six knobs + komi 6.5 into the config,
+    /// stores the preset label, and sends exactly the reload-replay command
+    /// sequence (six kata-set-rule + komi — never kata-set-rules).
+    @Test @MainActor func applyRulesetJapanese() {
+        let config = Config()
+        let messageList = MessageList()
+        ConfigEngineSync.applyRuleset(.japanese, config: config, messageList: messageList)
+        #expect(config.koRule == .simple)
+        #expect(config.scoringRule == .territory)
+        #expect(config.taxRule == .seki)
+        #expect(config.multiStoneSuicideLegal == false)
+        #expect(config.hasButton == false)
+        #expect(config.whiteHandicapBonusRule == .zero)
+        #expect(config.komi == 6.5)
+        #expect(config.rule == NewGameRuleset.japanese.configRuleIndex)
+        #expect(messageList.messages.map(\.text) == [
+            "> kata-set-rule ko SIMPLE",
+            "> kata-set-rule scoring TERRITORY",
+            "> kata-set-rule tax SEKI",
+            "> kata-set-rule suicide false",
+            "> kata-set-rule hasButton false",
+            "> kata-set-rule whiteHandicapBonus 0",
+            "> komi 6.5"])
+    }
+
+    /// Chinese carries whb=N — the command must say "N" (this is what the
+    /// Task-1 array fix guarantees) — and area komi 7.5.
+    @Test @MainActor func applyRulesetChineseSendsWhbN() {
+        let config = Config()
+        let messageList = MessageList()
+        ConfigEngineSync.applyRuleset(.chinese, config: config, messageList: messageList)
+        #expect(config.whiteHandicapBonusRule == .n)
+        #expect(config.komi == 7.5)
+        #expect(config.rule == 0)
+        #expect(messageList.messages.map(\.text).contains("> kata-set-rule whiteHandicapBonus N"))
+    }
+
+    /// Custom has no expansion: nothing is written, nothing is sent.
+    @Test @MainActor func applyRulesetCustomIsNoOp() {
+        let config = Config()
+        let before = config.rule
+        let messageList = MessageList()
+        ConfigEngineSync.applyRuleset(.custom, config: config, messageList: messageList)
+        #expect(messageList.messages.isEmpty)
+        #expect(config.rule == before)
+    }
+
     // MARK: - Config.rule label persistence
 
     /// The first six Config.rules entries are index-stable: synced records
