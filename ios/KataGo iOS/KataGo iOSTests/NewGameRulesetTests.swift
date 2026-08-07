@@ -24,6 +24,10 @@ struct NewGameRulesetTests {
         (.bga,         NewGameRuleComponents(koRule: .situational, scoringRule: .area,      taxRule: .none, multiStoneSuicideLegal: false, hasButton: false, whiteHandicapBonusRule: .n_minus_one)),
         (.newZealand,  NewGameRuleComponents(koRule: .situational, scoringRule: .area,      taxRule: .none, multiStoneSuicideLegal: true,  hasButton: false, whiteHandicapBonusRule: .zero)),
         (.trompTaylor, NewGameRuleComponents(koRule: .positional,  scoringRule: .area,      taxRule: .none, multiStoneSuicideLegal: true,  hasButton: false, whiteHandicapBonusRule: .zero)),
+        (.chineseOGS,       NewGameRuleComponents(koRule: .positional,  scoringRule: .area,      taxRule: .none, multiStoneSuicideLegal: false, hasButton: false, whiteHandicapBonusRule: .n)),
+        (.agaButton,        NewGameRuleComponents(koRule: .situational, scoringRule: .area,      taxRule: .none, multiStoneSuicideLegal: false, hasButton: true,  whiteHandicapBonusRule: .n_minus_one)),
+        (.stoneScoring,     NewGameRuleComponents(koRule: .simple,      scoringRule: .area,      taxRule: .all,  multiStoneSuicideLegal: false, hasButton: false, whiteHandicapBonusRule: .zero)),
+        (.ancientTerritory, NewGameRuleComponents(koRule: .simple,      scoringRule: .territory, taxRule: .all,  multiStoneSuicideLegal: false, hasButton: false, whiteHandicapBonusRule: .zero)),
     ]
 
     // MARK: - Preset expansion matches the engine table
@@ -119,6 +123,29 @@ struct NewGameRulesetTests {
                                            multiStoneSuicideLegal: false, hasButton: true,
                                            whiteHandicapBonusRule: .n_minus_one)
         #expect(NewGameRules.suggestedKomi(button) == 7.0)                            // button
+    }
+
+    // MARK: - New presets (all engine-named rulesets)
+
+    /// Every named preset matches itself (with `preferring:` breaking the
+    /// engine-identical Japanese/Korean and AGA/BGA ties), so the editors can
+    /// identify each of the eleven unambiguously.
+    @Test func everyNamedPresetMatchesItself() {
+        for preset in NewGameRuleset.pickerCases where preset != .custom {
+            #expect(NewGameRules.match(NewGameRules.expand(preset)!, preferring: preset) == preset,
+                    "\(preset.displayName) did not match itself")
+        }
+        // chinese-ogs differs from chinese only in ko — keep them distinct.
+        #expect(NewGameRules.expand(.chineseOGS) != NewGameRules.expand(.chinese))
+    }
+
+    /// `suggestedKomi` agrees with rules.cpp for the new presets: aga-button
+    /// 7.0 (button), ancient-territory 6.5 (territory), the rest 7.5 (area).
+    @Test func suggestedKomiForNewPresets() {
+        #expect(NewGameRules.suggestedKomi(NewGameRules.expand(.agaButton)!) == 7.0)
+        #expect(NewGameRules.suggestedKomi(NewGameRules.expand(.ancientTerritory)!) == 6.5)
+        #expect(NewGameRules.suggestedKomi(NewGameRules.expand(.chineseOGS)!) == 7.5)
+        #expect(NewGameRules.suggestedKomi(NewGameRules.expand(.stoneScoring)!) == 7.5)
     }
 
     // MARK: - makeSgf board size + komi formatting

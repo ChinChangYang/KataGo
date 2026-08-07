@@ -47,21 +47,27 @@ public struct NewGameRuleComponents: Equatable {
 /// A named ruleset preset offered in the New Game dialog's Ruleset picker, plus
 /// the terminal `.custom` sentinel for a hand-edited rule combination.
 public enum NewGameRuleset: CaseIterable, Equatable, Sendable {
-    case chinese, japanese, korean, aga, bga, newZealand, trompTaylor, custom
+    case chinese, chineseOGS, japanese, korean, aga, bga, agaButton, newZealand,
+         trompTaylor, stoneScoring, ancientTerritory, custom
 
-    /// Picker order: named presets first, Custom last.
+    /// Picker order: named presets first (regional variants adjacent), Custom last.
     public static let pickerCases: [NewGameRuleset] =
-        [.chinese, .japanese, .korean, .aga, .bga, .newZealand, .trompTaylor, .custom]
+        [.chinese, .chineseOGS, .japanese, .korean, .aga, .bga, .agaButton,
+         .newZealand, .trompTaylor, .stoneScoring, .ancientTerritory, .custom]
 
     public var displayName: String {
         switch self {
         case .chinese: return "Chinese"
+        case .chineseOGS: return "Chinese (OGS/KGS)"
         case .japanese: return "Japanese"
         case .korean: return "Korean"
         case .aga: return "AGA"
         case .bga: return "BGA"
+        case .agaButton: return "AGA Button"
         case .newZealand: return "New Zealand"
         case .trompTaylor: return "Tromp-Taylor"
+        case .stoneScoring: return "Stone Scoring"
+        case .ancientTerritory: return "Ancient Territory"
         case .custom: return "Custom"
         }
     }
@@ -72,12 +78,16 @@ public enum NewGameRuleset: CaseIterable, Equatable, Sendable {
     public var sgfToken: String? {
         switch self {
         case .chinese: return "chinese"
+        case .chineseOGS: return "chinese-ogs"
         case .japanese: return "japanese"
         case .korean: return "korean"
         case .aga: return "aga"
         case .bga: return "bga"
+        case .agaButton: return "aga-button"
         case .newZealand: return "new-zealand"
         case .trompTaylor: return "tromp-taylor"
+        case .stoneScoring: return "stone-scoring"
+        case .ancientTerritory: return "ancient-territory"
         case .custom: return nil
         }
     }
