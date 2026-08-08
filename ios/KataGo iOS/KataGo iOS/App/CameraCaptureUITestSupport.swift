@@ -9,14 +9,18 @@
 //  cover dismisses — so `PhotoImportSheet` presents and runs the real
 //  recognition path, exercising the camera-specific "Retake" retry wiring.
 //
-//  Two launch arguments:
+//  Three launch arguments:
 //    --uitest-camera-import          a recognizable board (reuses the wide-margin
 //                                    9x9 blob from PhotoImportUITestSupport) so
 //                                    the sheet lands in the preview state.
 //    --uitest-camera-import-failing  a deterministic non-board image (a 64x64
 //                                    solid-gray JPEG rendered in code — no new
-//                                    embedded blob) so the sheet lands in the
-//                                    failure state, which offers "Retake".
+//                                    embedded blob) so recognition fails and the
+//                                    sheet offers "Retake".
+//    --uitest-camera-permission-denied
+//                                    pins `BoardCameraView` to its denied phase
+//                                    instead of asking AVFoundation. See
+//                                    `forcesDeniedCameraPermission`.
 //
 //  The seam NEVER constructs an AVFoundation object: it only sets pending state,
 //  keeping it Simulator-safe and away from the unconfigured-session capture
@@ -34,8 +38,31 @@ enum CameraCaptureUITestSupport {
     static let launchArg = "--uitest-camera-import"
 
     /// Auto-present the sheet (source `.camera`) with an unrecognizable image,
-    /// landing in the failure state (which offers "Retake").
+    /// so the sheet offers "Retake".
     static let failingLaunchArg = "--uitest-camera-import-failing"
+
+    /// Pins `BoardCameraView` to its `denied` phase instead of consulting
+    /// `AVCaptureDevice.authorizationStatus`.
+    ///
+    /// Without this the camera cover is only observable *eventually*, and on a
+    /// schedule the test does not control. `authorizationStatus` is backed by the
+    /// simulator's per-device TCC store, so it answers `.notDetermined` on a
+    /// device that has never been asked — `requestAccess` then puts up a
+    /// SpringBoard alert and the cover sits in its `checking` phase until
+    /// something dismisses it — and `.authorized` on every device that has.
+    /// Whether a given run pays that round trip is a property of the simulator's
+    /// history, not of the code under test.
+    ///
+    /// `denied` is the right phase to pin: it is the only one that renders
+    /// `BoardCamera.cancel` on its very first frame, and it constructs no
+    /// AVFoundation object at all, which keeps this seam's "never touch the
+    /// capture stack" invariant intact on a device that has no camera.
+    static let deniedPermissionLaunchArg = "--uitest-camera-permission-denied"
+
+    /// True when the camera cover should skip the AVFoundation permission query.
+    static var forcesDeniedCameraPermission: Bool {
+        ProcessInfo.processInfo.arguments.contains(deniedPermissionLaunchArg)
+    }
 
     /// Fixed name so the UI tests can identify the pending camera import.
     static let importedGameName = "UITest Camera Board"

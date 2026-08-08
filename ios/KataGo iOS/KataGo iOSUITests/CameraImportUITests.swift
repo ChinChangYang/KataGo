@@ -12,11 +12,24 @@
 //
 //  Assertions:
 //    * a recognizable camera board reaches the preview and shows NO retry
-//      button (retry is a failure-state affordance);
-//    * an unrecognizable camera image reaches the failure state, which offers
-//      the camera-specific "Retake" button; tapping it reopens the camera
-//      cover (proven by the stable `BoardCamera.cancel` element, present in both
-//      the Simulator's denied phase and its preview scaffold).
+//      button (retry is a recovery affordance, not a preview one);
+//    * an unrecognizable camera image reaches a recovery state offering the
+//      camera-specific "Retake" button; tapping it reopens the camera cover.
+//
+//  On the recovery state: `PhotoImportSheet.phaseAfterFailure` sends a photo
+//  that decodes but cannot be recognized to `.adjustingGrid(.firstFailure)` —
+//  "point at the board yourself" — and only an undecodable one to the terminal
+//  `.failure`. The gray JPEG below decodes, so this test lands in the grid
+//  phase. Both states render `PhotoImportSheet.retry` titled "Retake", so the
+//  assertions hold either way; the distinction matters only when reading a
+//  failure log.
+//
+//  Determinism: the camera cover is driven by `--uitest-camera-permission-denied`
+//  (see `CameraCaptureUITestSupport`). Without it the cover's observability
+//  depends on the Simulator's TCC history — a device that has never been asked
+//  puts up a SpringBoard alert and parks the cover in a phase that renders no
+//  identified element — which made the reopen assertion fail on some runs and
+//  pass on the next with no code change.
 //
 
 import XCTest
@@ -26,6 +39,7 @@ final class CameraImportUITests: XCTestCase {
     private let builtInTitle = "Built-in KataGo Network"
     private let cameraImportArg = "--uitest-camera-import"
     private let cameraImportFailingArg = "--uitest-camera-import-failing"
+    private let deniedPermissionArg = "--uitest-camera-permission-denied"
     private let sheetTitle = "Import from Photo"
 
     override func setUpWithError() throws {
@@ -50,9 +64,9 @@ final class CameraImportUITests: XCTestCase {
         XCTAssertTrue(board.waitForExistence(timeout: 120),
                       "Board preview element ('PhotoImportSheet.board') not found — recognition did not reach the preview state")
 
-        // The preview state has no retry affordance: retry is a failure-state
-        // button only. Assert both the identifier and the camera-specific label
-        // are absent.
+        // The preview state has no retry affordance: retry belongs to the
+        // recovery states only. Assert both the identifier and the
+        // camera-specific label are absent.
         XCTAssertFalse(app.buttons["PhotoImportSheet.retry"].exists,
                        "Retry button must not appear in the preview state")
         XCTAssertFalse(app.buttons["Retake"].exists,
@@ -68,43 +82,38 @@ final class CameraImportUITests: XCTestCase {
     @MainActor
     func testCameraImportFailureOffersRetakeAndReopensCamera() throws {
         let app = XCUIApplication()
-        app.launchArguments += [cameraImportFailingArg]
+        app.launchArguments += [cameraImportFailingArg, deniedPermissionArg]
         app.launch()
         launchBuiltInEngine(app)
 
-        // The sheet appears then lands in the failure state: the non-board image
-        // cannot be recognized, so the retry button (camera title "Retake",
-        // identifier "PhotoImportSheet.retry") is shown.
+        // The sheet appears, then recognition of the non-board image fails, so
+        // the retry button (camera title "Retake", identifier
+        // "PhotoImportSheet.retry") is shown — see the note on the recovery
+        // state in the file header.
         let title = app.staticTexts[sheetTitle]
         XCTAssertTrue(title.waitForExistence(timeout: 360),
                       "PhotoImportSheet ('\(sheetTitle)') never appeared — the failing camera launch-arg hook did not reach the sheet")
 
         let retry = app.buttons["PhotoImportSheet.retry"].firstMatch
         XCTAssertTrue(retry.waitForExistence(timeout: 120),
-                      "Failure-state retry button ('PhotoImportSheet.retry') never appeared — the unrecognizable image did not reach the failure state")
+                      "Retry button ('PhotoImportSheet.retry') never appeared — the unrecognizable image did not reach a recovery state")
         XCTAssertEqual(retry.label, "Retake",
-                       "Camera failure retry button should be titled 'Retake'")
+                       "Camera retry button should be titled 'Retake'")
 
-        let failureShot = XCTAttachment(screenshot: app.screenshot())
-        failureShot.name = "CameraImportFailure"
-        failureShot.lifetime = .keepAlways
-        add(failureShot)
-
-        // Tapping Retake reopens the camera cover. On the Simulator (no camera)
-        // BoardCameraView lands in either the denied phase or the preview
-        // scaffold; both expose the stable "BoardCamera.cancel" element. A camera
-        // permission prompt may appear on first access — answer it so the cover
-        // leaves its transient checking phase.
+        // Tapping Retake reopens the camera cover, and that handoff is the point
+        // of this test: `onRetry` only nils the sheet and flags intent, and
+        // GameSplitView presents the cover from the sheet's `onDismiss`. Setting
+        // both in one transaction instead races and the cover never presents, so
+        // this assertion is the guard on that wiring.
+        //
+        // The permission phase is pinned to `denied`, which renders
+        // "BoardCamera.cancel" on the cover's first frame — so a plain wait is
+        // enough and a timeout here means the cover really did not present.
         retry.tap()
 
         let cancel = app.buttons["BoardCamera.cancel"].firstMatch
-        XCTAssertTrue(waitForCameraCover(app, cancel: cancel, timeout: 40),
-                      "Camera cover ('BoardCamera.cancel') did not appear after tapping Retake")
-
-        let coverShot = XCTAttachment(screenshot: app.screenshot())
-        coverShot.name = "CameraCoverReopened"
-        coverShot.lifetime = .keepAlways
-        add(coverShot)
+        XCTAssertTrue(cancel.waitForExistence(timeout: 15),
+                      coverFailureMessage(app))
 
         // Cancel dismisses the cover.
         cancel.tap()
@@ -127,32 +136,28 @@ final class CameraImportUITests: XCTestCase {
         play.tap()
     }
 
-    /// Polls for the camera cover's stable Cancel element, answering a camera
-    /// permission alert (springboard) if one is presented so the cover can leave
-    /// its transient checking phase. Returns once the cover element is present
-    /// (permission granted → preview scaffold, or denied → denied phase — both
-    /// expose "BoardCamera.cancel"), or false on timeout.
+    /// Failure text for the reopen assertion, naming the state the app is
+    /// actually in. Built only when the assertion fails (the message is an
+    /// autoclosure), so the accessibility-tree dump costs nothing on the happy
+    /// path.
+    ///
+    /// The two ways this can go wrong look identical from the outside, and
+    /// telling them apart used to require a rerun:
+    ///   * the cover presented but its permission phase never resolved — the
+    ///     launch-arg pin did not take, and "BoardCamera.checking" is on screen;
+    ///   * the cover never presented — the sheet-dismiss → cover-present handoff
+    ///     in `GameSplitView` dropped, which is a product bug.
     @MainActor
-    private func waitForCameraCover(_ app: XCUIApplication,
-                                    cancel: XCUIElement,
-                                    timeout: TimeInterval) -> Bool {
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        // Any of these dismisses the alert; every outcome leaves the cover in a
-        // state that shows "BoardCamera.cancel".
-        let permissionButtons = ["OK", "Allow", "Don't Allow"]
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if cancel.exists { return true }
-            for label in permissionButtons {
-                let button = springboard.buttons[label]
-                if button.exists {
-                    button.tap()
-                    break
-                }
-            }
-            usleep(300_000)
-        }
-        return cancel.exists
+    private func coverFailureMessage(_ app: XCUIApplication) -> String {
+        let stuckChecking = app.descendants(matching: .any)["BoardCamera.checking"].exists
+        let diagnosis = stuckChecking
+            ? "the cover IS presented but is stuck in its permission-checking phase — the '\(deniedPermissionArg)' pin did not take effect"
+            : "the cover never presented — suspect the sheet-dismiss to cover-present handoff in GameSplitView"
+        return """
+        Camera cover ('BoardCamera.cancel') did not appear after tapping Retake: \(diagnosis).
+        Accessibility tree follows.
+        \(app.debugDescription)
+        """
     }
 
     /// Poll until `element` leaves the accessibility tree, or the timeout.

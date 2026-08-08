@@ -83,6 +83,11 @@ struct BoardCameraView: View {
 
     // MARK: - Phases
 
+    /// Shown while `resolvePermission()` is in flight — which, on a first-ever
+    /// camera access, means "while the system permission alert is up". The bare
+    /// spinner had no accessibility element of its own, so VoiceOver announced
+    /// nothing here and a UI test could not tell this phase apart from "the
+    /// cover never presented at all". Both now have a name.
     private var checking: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -90,6 +95,9 @@ struct BoardCameraView: View {
                 .controlSize(.large)
                 .tint(.white)
         }
+        .accessibilityElement()
+        .accessibilityIdentifier("BoardCamera.checking")
+        .accessibilityLabel("Preparing camera")
     }
 
     private var camera: some View {
@@ -307,6 +315,16 @@ struct BoardCameraView: View {
     // MARK: - Actions
 
     private func resolvePermission() async {
+#if DEBUG
+        // UI tests drive this cover on a Simulator, which has no camera and
+        // whose TCC answer depends on the device's history rather than on the
+        // code under test. The seam pins the phase so the cover is observable on
+        // its first frame; compiled out of Release entirely.
+        if CameraCaptureUITestSupport.forcesDeniedCameraPermission {
+            permission = .denied
+            return
+        }
+#endif
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             permission = .authorized
