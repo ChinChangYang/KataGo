@@ -156,7 +156,7 @@ Per-game settings in six sub-screens:
 - **Name** — the game's name.
 - **Rule** — Board width and height (default 19x19), Ko rule (Simple / Positional / Situational), Scoring rule (Area / Territory), Tax rule (None / Seki / All), Multi-stone suicide, Has-button, White handicap bonus, and Komi (default 7.0).
 - **Analysis** — Analysis for (Both / Black / White), Hidden analysis visit ratio, Analysis wide root noise, Max analysis moves (default 50), and Analysis interval (default 50).
-- **AI** — White advantage (playout doubling advantage), plus a per-side profile picker: **AI** (the full-strength engine, with a 0–60 s "Time per move" control), human-style ranks **9d through 20k**, or **Pro 1800 through Pro 2023** profiles. Rank and pro profiles play with a fixed visit budget so that rank means strength (400 visits for 9d and pro profiles, 40 for the rest), and a side left as Human is still analyzed with the strongest network.
+- **AI** — White advantage (playout doubling advantage), plus a per-side profile picker: **AI** (the full-strength engine, with a 0–60 s "Time per move" control), human-style ranks **9d through 25k**, or **Pro 1800 through Pro 2023** profiles. Rank and pro profiles play with a fixed visit budget so that rank means strength (400 visits for 9d and pro profiles, 40 for the rest), and a side left as Human is still analyzed with the strongest network.
 - **Comment** — the **Apple Intelligence** toggle, a commentary **Tone** picker (Technical, Educational, Encouraging, Enthusiastic, Poetic), and a **Temperature** stepper (0–1).
 - **SGF** — view, paste, or edit the game's SGF text directly.
 

@@ -12,18 +12,19 @@ public enum GtpCommandBuilder {
 
     /// Effectively-unbounded visit cap (the engine never reaches it within a move).
     public static let unboundedMaxVisits = 1_000_000_000
-    /// Visit budget for a strong human-SL profile (9d and pros) — #1209's calibration
-    /// point, at which the high-rank λ is ~1 KGS stone apart.
+    /// Visit budget for a strong human-SL profile (9d and pros) — the legacy-strong
+    /// 9d reference config's budget (#1209's `gtp_human9d.cfg`).
     public static let humanSLPlayMaxVisitsStrongRank = 400
-    /// Visit budget for weaker human ranks (8d…20k): a small budget so they play fast.
+    /// Visit budget for the ladder ranks (8d…25k) — the budget the #1209 ladder's
+    /// ~100-ELO rungs were certified at.
     public static let humanSLPlayMaxVisitsWeakRank = 40
     /// Backstop wall-clock for a human-SL move so a slow device/large net cannot
     /// hang; on normal devices the visit budget binds first.
     public static let humanSLPlaySafetyMaxTime: Float = 60
 
     /// Visit budget for a human play move: 9d and pros keep the strong 400-visit
-    /// budget; weaker ranks (8d…20k) play fast at 40. Pro → strong is a product
-    /// choice — change this one line to retune it.
+    /// budget; ladder ranks (8d…25k) play at the 40-visit calibration budget.
+    /// Pro → strong is a product choice — change this one line to retune it.
     static func humanSLPlayVisitBudget(for effectiveProfile: String) -> Int {
         (effectiveProfile == "9d" || effectiveProfile.hasPrefix("Pro "))
             ? humanSLPlayMaxVisitsStrongRank : humanSLPlayMaxVisitsWeakRank

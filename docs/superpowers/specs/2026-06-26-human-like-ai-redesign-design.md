@@ -1,7 +1,8 @@
 # Human-like AI Redesign
 
 **Date:** 2026-06-26
-**Status:** Approved (design)
+**Status:** Approved (design) — the tuned-parameter sections are superseded; see
+the 2026-08-07 amendment at the end
 **Branch:** ios-dev
 
 ## Problem
@@ -242,3 +243,38 @@ Update and extend the affected suites:
 - **λ calibrated at 400 visits / Japanese rules.** The app runs time-based search
   and user-chosen rules, so the 1-stone-per-rank spacing is approximate in-app.
   Acceptable; documented here.
+
+## Amendment (2026-08-07): retuned #1209 ladder re-adopted
+
+The parameter values above shipped, were **reverted** (commit `44a5188c` — the
+ladder played "too strong and slow"), and were then **re-adopted in retuned
+form** (commit `f076a379`) after upstream PR #1209 was recalibrated as a
+certified even-game ~100-ELO ladder
+(`ChinChangYang/KataGo#gtp-human-rank-configs`, ready-for-review 2026-08-06).
+The key/menu/normalization design in this spec is unchanged and still
+authoritative; the tuned-parameter sections are superseded as follows
+(`HumanSLModel.swift` is the source of truth):
+
+- **Ranks extend to 25k**: 9d…1d + 1k…25k → **259** profiles (1 + 34 + 224),
+  not 254. Prerequisite: `cpp/neuralnet/sgfmetadata.cpp` gained the PR's
+  21k–30k inverse-rank parsing (the rank input encoding saturates at 25k, so
+  26k–30k would encode identically; the menu stops at 25k).
+- **The λ table above is obsolete.** The shipped ladder: 8d anchor `0.06`;
+  7d…14k a certified ~100-ELO staircase (`0.07760` → `3.40040`); 15k…25k the
+  pure-human tail at `1e8` (even λ→∞ cannot produce a 100-ELO step there).
+  `9d` is the separate legacy-strong reference (λ `0.045`, from
+  `gtp_human9d.cfg`).
+- **`winLossUtilityFactor` is `0.0` (imitation) for every rung and pro** — the
+  "biggest behavioral change" flagged above (0→1, try-to-win) is reversed: the
+  retuned ladder is calibrated in imitation mode, which is what fixed the
+  "too strong" complaint behind the revert. The lone exception is the
+  legacy-strong `9d` (winLoss `1.0`).
+- **Four search heuristics mirror the calibration environment**: human
+  profiles set `useLcbForSelection`/`useUncertainty`/`useNoisePruning`
+  `false` and `subtreeValueBiasFactor 0.0`; the `AI` list explicitly restores
+  `true`/`true`/`true`/`0.45`. `kata-set-param` is sticky, so any future
+  sticky param must appear in BOTH command lists (15 lines each now).
+- **Calibration caveat**: the ladder was certified on kata1-b28c512nbt @ 8
+  search threads, 40 visits, Japanese komi 6.5. Under the app's nets and
+  thread counts the rungs are a calibrated *relative* ladder, not exact
+  absolute strengths.

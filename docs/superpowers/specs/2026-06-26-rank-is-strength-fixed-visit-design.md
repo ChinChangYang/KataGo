@@ -1,7 +1,8 @@
 # Rank Is Strength — Fixed-Visit Human Play
 
 **Date:** 2026-06-26
-**Status:** Approved (design)
+**Status:** Approved (design) — the single-400 budget and its calibration
+premise are superseded; see the 2026-08-07 amendment at the end
 **Branch:** ios-dev
 **Follows:** `2026-06-26-human-like-ai-redesign-design.md` (the #1209 rank ladder)
 
@@ -163,3 +164,19 @@ sides). Full-strength `AI` play and analysis are unchanged.
 - **Calibration is still approximate** (400 visits, but the app's rules/komi and
   net may differ from #1209's Japanese-rules tuning). Rank spacing is "close",
   not exact — unchanged from the prior spec's accepted caveat.
+
+## Amendment (2026-08-07): per-rank budgets and the retuned calibration point
+
+Two later changes re-based this spec's numbers. The mechanism — fixed visit
+budgets for human profiles, "Time per move" only for `AI`, and the structural
+`maxVisits` reset at every re-arm site — survives unchanged.
+
+- **The budget is per-rank, not a single 400** (shipped with the `44a5188c`
+  parameter revert): `humanSLPlayMaxVisitsStrongRank = 400` for `9d` and pros,
+  `humanSLPlayMaxVisitsWeakRank = 40` for every other rank
+  (`GtpCommandBuilder.humanSLPlayVisitBudget(for:)`).
+- **The calibration premise changed with the retuned #1209 ladder** (commit
+  `f076a379`): rungs are now certified as ~100-ELO even-game steps at
+  **40 visits** — "1 KGS stone apart at 400 visits" no longer describes the
+  ladder. 400 visits is now specifically the legacy-strong `9d`/pro budget
+  (from `gtp_human9d.cfg`), and the ladder ranks run 8d…**25k**.
