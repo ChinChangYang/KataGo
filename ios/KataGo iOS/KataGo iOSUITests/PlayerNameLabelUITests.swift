@@ -22,14 +22,10 @@
 
 import XCTest
 
-final class PlayerNameLabelUITests: XCTestCase {
+final class PlayerNameLabelUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let humanLabel = "Human"
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     @MainActor
     func testPlayerNameLabelsReflectThinkingTimeConfiguration() throws {

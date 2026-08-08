@@ -9,11 +9,7 @@
 
 import XCTest
 
-final class GlobalSettingsMenuUITests: XCTestCase {
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
+final class GlobalSettingsMenuUITests: PortraitUITestCase {
 
     /// Launches the engine, pops back from the board to the game list
     /// (clearing the selection on compact width), opens the dots menu, and

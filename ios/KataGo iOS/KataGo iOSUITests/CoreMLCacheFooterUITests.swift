@@ -25,14 +25,10 @@
 
 import XCTest
 
-final class CoreMLCacheFooterUITests: XCTestCase {
+final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
     private let builtInTitle  = "Built-in KataGo Network"
     private let lionffenTitle = "Lionffen b6c64 Network"
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     // MARK: - Tests
 

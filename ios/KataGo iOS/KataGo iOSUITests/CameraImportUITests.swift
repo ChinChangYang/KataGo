@@ -34,17 +34,13 @@
 
 import XCTest
 
-final class CameraImportUITests: XCTestCase {
+final class CameraImportUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let cameraImportArg = "--uitest-camera-import"
     private let cameraImportFailingArg = "--uitest-camera-import-failing"
     private let deniedPermissionArg = "--uitest-camera-permission-denied"
     private let sheetTitle = "Import from Photo"
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     @MainActor
     func testCameraImportShowsPreviewWithRetakeAbsent() throws {

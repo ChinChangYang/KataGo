@@ -11,15 +11,16 @@
 
 import XCTest
 
-final class BackendConfigSheetUITests: XCTestCase {
+// `PortraitUITestCase` matters more here than anywhere else: this class sorts
+// FIRST, so it inherits whatever orientation the PREVIOUS run left behind. On
+// 2026-08-03 that is exactly how it failed — `stepper.isHittable` below came
+// back false in an inherited landscape window, before any rotator in its own
+// run had executed.
+final class BackendConfigSheetUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let boardSizes = ["9x9", "13x13", "19x19", "37x37"]
     private let backends = ["MLX/GPU", "CoreML/NE", "GPU+ANE"]
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     @MainActor
     func testMaxBoardSizePickerDefaultsChangesAndPersists() throws {

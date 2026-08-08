@@ -21,16 +21,12 @@
 
 import XCTest
 
-final class PhotoImportUITests: XCTestCase {
+final class PhotoImportUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let photoImportArg = "--uitest-photo-import"
     private let sheetTitle = "Import from Photo"
     private let importedGameName = "UITest Photo Board"
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     @MainActor
     func testPhotoImportRecognizesAndCreatesGame() throws {

@@ -21,15 +21,11 @@
 
 import XCTest
 
-final class GifExportUITests: XCTestCase {
+final class GifExportUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
     private let seedName = "UITest GIF Game"
     private let seedLaunchArg = "--uitest-seed-gif-game"
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
 
     @MainActor
     func testExportGifPreviewReflectsLoopAndTapToReplay() throws {
