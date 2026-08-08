@@ -6,10 +6,23 @@
 //
 //  1. testFooterCountIncrementsAfterDownloadedModelLaunch — regression
 //     test for Step 2: after launching the built-in engine, returning to
-//     the picker, downloading the smallest non-built-in model
-//     (Lionffen b6c64, ~2.1 MB), and launching the engine with it, the
+//     the picker, and launching the engine with a non-built-in model, the
 //     footer count should advance. Previously the count stayed at the
 //     baseline because no cache write happened for downloaded models.
+//
+//     ⚠️ This test must NOT reach the network, and no test in this target
+//     may. It used to fetch Lionffen b6c64 (~2.1 MB) from
+//     media.katagotraining.org inside a 180 s ceiling, which made an
+//     offline machine, a captive portal, a DNS hiccup or a slow mirror
+//     produce a red run for an assertion that is not about downloading.
+//     It now runs against a model STAGED on disk before launch by
+//     `ModelStagingUITestSupport` — the same Lionffen b24c64 network the
+//     app already ships inside its Safari-extension appex, copied to the
+//     catalog entry's own download location at its exact declared byte
+//     count. The app cannot tell that apart from a real download, so the
+//     "launch a downloaded model" path this test exists to guard is still
+//     the path under test. If the staging does not happen the test fails
+//     outright rather than falling back to the network.
 //
 //  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" the
 //     footer immediately shows "Main: 0 of <cap> · 0 B" and
@@ -28,13 +41,24 @@ import XCTest
 final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
     private let builtInTitle  = "Built-in KataGo Network"
-    private let lionffenTitle = "Lionffen b6c64 Network"
+
+    /// The staged non-built-in model. This is the b24c64 net rather than the
+    /// b6c64 one the test used to download, because b24c64 is the network the
+    /// app already carries inside its Safari-extension appex — so it can be put
+    /// on disk offline, under its own catalog file name, with matching bytes.
+    private let lionffenTitle = "Lionffen b24c64 Network"
+
+    /// Stages that model before the first view renders. `ModelPickerView`
+    /// decides "downloaded" by testing for the file as it appears, so the
+    /// staging has to be in place before launch, not after.
+    private let stageModelArg = "--uitest-stage-downloaded-model"
 
     // MARK: - Tests
 
     @MainActor
     func testFooterCountIncrementsAfterDownloadedModelLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments += [stageModelArg]
         app.launch()
 
         // The Core ML cache persists across local runs and may already be at its
@@ -73,7 +97,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // at the baseline.
 
         tapModelRow(in: app, title: lionffenTitle)
-        ensureDownloadedThenPlay(in: app)
+        launchStagedModel(in: app)
         waitForEngineThenQuit(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
@@ -492,20 +516,24 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         button.tap()
     }
 
-    /// Handles both "needs to download" and "already downloaded" starting
-    /// states for a non-built-in model on ModelDetailView. On entry the trash
-    /// button's presence indicates whether the file is already on disk:
-    /// - trash visible → tap play (single tap launches the engine)
-    /// - trash absent  → tap download, wait for trash, tap play again
+    /// Launches the engine on a non-built-in model that is ALREADY on disk.
+    ///
+    /// The trash button is the app's own signal that the file is present: it
+    /// renders only when `ModelDetailView` found the model at its
+    /// `downloadedURL`. Requiring it here is what keeps this test offline —
+    /// this helper used to tap download and wait 180 s when the trash button
+    /// was absent, which is exactly the fallback that let a missing file turn
+    /// into a network fetch. There is deliberately no such branch now: if the
+    /// file is not staged, fail and say so, rather than quietly going online.
     @MainActor
-    private func ensureDownloadedThenPlay(in app: XCUIApplication,
-                                          downloadTimeout: TimeInterval = 180) {
+    private func launchStagedModel(in app: XCUIApplication) {
         let trash = app.buttons["ModelDetailView.trashButton"]
-        if !trash.exists {
-            tapDownloadOrPlay(in: app)
-            XCTAssertTrue(trash.waitForExistence(timeout: downloadTimeout),
-                          "Download did not complete within \(downloadTimeout)s")
-        }
+        XCTAssertTrue(
+            trash.waitForExistence(timeout: 15),
+            "\(lionffenTitle) is not on disk, so the app would offer to DOWNLOAD it — " +
+            "and UI tests must stay offline. The '\(stageModelArg)' launch argument " +
+            "should have staged it before launch; check ModelStagingUITestSupport, " +
+            "whose failures print a line beginning 'UITEST STAGING FAILED'.")
         tapDownloadOrPlay(in: app)
     }
 

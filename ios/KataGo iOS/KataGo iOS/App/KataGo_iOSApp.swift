@@ -27,6 +27,14 @@ struct KataGo_iOSApp: App {
 
         KataGoShortcuts.updateAppShortcutParameters()
 
+        // DEBUG-only, and a no-op without its launch argument: put a bundled
+        // network where a downloaded one would live, so the Core ML cache UI
+        // test never has to reach the internet. Here rather than in a `.task`
+        // because the model picker reads that file's presence as it renders.
+        #if DEBUG
+        ModelStagingUITestSupport.stageIfNeeded()
+        #endif
+
         // Register the cache-aware CoreML bridge (Task 19) before any view
         // appears (and thus before any engine launch). This wires
         // loadCoreMLHandleWithBridgeTimeout into the KataGoSwift seam. It runs
