@@ -206,8 +206,25 @@ struct MacBoardInteractionLayer: View {
         let point: BoardPoint
         /// The side-to-move's stone color for the ghost (`.black` / `.white`).
         let color: Color
-        /// The analysis readout for `point`, if a candidate move sits there.
+        /// The analysis readout for `point` — non-nil only when a candidate move
+        /// sits there AND the board's analysis overlay is showing its numbers
+        /// (`isAnalysisReadoutVisible`). Nil draws the ghost stone alone.
         let info: AnalysisInfo?
+    }
+
+    /// True when `AnalysisView` is currently drawing its per-move win%/score text
+    /// on the board below. The ghost disc COVERS that text, and the readout capsule
+    /// exists only to restore what the disc occludes — so it must never surface
+    /// analysis the board itself is hiding (eye closed or in book view, auto-play,
+    /// "Analysis for" excluding the side to move, or Analysis information = None).
+    ///
+    /// Note this is display visibility, NOT the engine state: on macOS closing the
+    /// eye leaves `analysisStatus == .run`, so the ghost stone's own guard below
+    /// stays satisfied while the numbers correctly disappear.
+    private var isAnalysisReadoutVisible: Bool {
+        gobanState.isAnalysisOverlayVisible(config: config,
+                                            nextColorForPlayCommand: player.nextColorForPlayCommand)
+            && !gobanState.isAnalysisInformationNone
     }
 
     /// Resolves whether — and what — to preview under the cursor. Returns `nil`
@@ -215,6 +232,10 @@ struct MacBoardInteractionLayer: View {
     /// stones are ready; analysis is running; no live pending move; the vertex is
     /// empty; it is not the pass area; and the side to move is known. This is a
     /// purely visual "what-if": it sends NO GTP and mutates NO engine state.
+    ///
+    /// The win%/score readout carries the EXTRA condition
+    /// `isAnalysisReadoutVisible`; when that fails the ghost stone still draws
+    /// (it is a play affordance, independent of analysis) but with no numbers.
     private func ghostState(dimensions: Dimensions) -> GhostState? {
         guard let location = hoveredLocation,
               let coordinate = coordinate(at: location, dimensions: dimensions),
@@ -233,7 +254,8 @@ struct MacBoardInteractionLayer: View {
         }
 
         let color: Color = (player.nextColorForPlayCommand == .black) ? .black : .white
-        return GhostState(point: point, color: color, info: analysis.info[point])
+        let info = isAnalysisReadoutVisible ? analysis.info[point] : nil
+        return GhostState(point: point, color: color, info: info)
     }
 
     /// The translucent ghost stone + optional win%/score readout drawn at the

@@ -346,6 +346,7 @@
 		8DD03C8206F47BF0AA019717 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
 		8E08E1ACAD8C81E891B51484 /* page-hook.js in Resources */ = {isa = PBXBuildFile; fileRef = DEACEA1C54828A291201F009 /* page-hook.js */; };
 		8E2FAFF53D1751FC110D9612 /* GamePickerPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE513B9F0282786C59038F8 /* GamePickerPerformanceTests.swift */; };
+		8E75D7B9C63345CA2FD17258 /* AnalysisOverlayVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F45BE61EEBDAD2A5D597DD /* AnalysisOverlayVisibilityTests.swift */; };
 		8E94A81C67B68E1C90B0BC6A /* graphcycles.cc in Sources */ = {isa = PBXBuildFile; fileRef = 4B723FFDCF4553074736CA50 /* graphcycles.cc */; };
 		8EDFE40C7E28E1E9E0208249 /* MacGlobalPreferenceSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0150B466FF1F9C1A8CB1CCC7 /* MacGlobalPreferenceSync.swift */; };
 		8FC7D9710283CCB707456D36 /* FeatureTypes.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = F6ACC552D92810C3B14873B0 /* FeatureTypes.pb.cc */; };
@@ -1365,6 +1366,7 @@
 		7395FBB767C059BABF60FAFF /* DraftExitDecisionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftExitDecisionTests.swift; sourceTree = "<group>"; };
 		7434F79FFAACA347E36CDF34 /* MILBuilder.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = MILBuilder.cpp; path = ../../cpp/external/katagocoreml/src/builder/MILBuilder.cpp; sourceTree = SOURCE_ROOT; };
 		744518C7A1BEE2A0C3B3133A /* substitute.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = substitute.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/substitute.cc"; sourceTree = SOURCE_ROOT; };
+		74F45BE61EEBDAD2A5D597DD /* AnalysisOverlayVisibilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisOverlayVisibilityTests.swift; sourceTree = "<group>"; };
 		7530028A07F8E37EA6AE1044 /* DateShortenedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DateShortenedTests.swift; sourceTree = "<group>"; };
 		7532F75F2E7D28AE11E46FB7 /* hashtable.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hashtable.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/profiling/hashtable.cc"; sourceTree = SOURCE_ROOT; };
 		75718F287064D8DFEDF26A86 /* TVControllerLegendTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVControllerLegendTests.swift; sourceTree = "<group>"; };
@@ -3273,6 +3275,7 @@
 				F1A6FA208E5E3C491E8C8C80 /* WatchWidgetLibrarySourceTests.swift */,
 				F94C7806F3F9AE664B9257ED /* WatchDeepLinkDispositionTests.swift */,
 				2C7C43327657E996C9F3B931 /* WatchWidgetRecordTests.swift */,
+				74F45BE61EEBDAD2A5D597DD /* AnalysisOverlayVisibilityTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4793,6 +4796,7 @@
 				21DF9B207231789961592B01 /* WatchWidgetLibrarySourceTests.swift in Sources */,
 				012D4CBBAD96FD99AAABB91A /* WatchDeepLinkDispositionTests.swift in Sources */,
 				E20BAE9FCD75EBF8599BB965 /* WatchWidgetRecordTests.swift in Sources */,
+				8E75D7B9C63345CA2FD17258 /* AnalysisOverlayVisibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

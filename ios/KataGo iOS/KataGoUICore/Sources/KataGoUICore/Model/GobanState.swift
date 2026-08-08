@@ -273,6 +273,24 @@ public class GobanState {
         }
     }
 
+    /// True when the on-board analysis overlay (`AnalysisView`) is rendering.
+    /// Single source of truth for "is analysis visible on the board", so overlays
+    /// layered on top of `BoardView` — the macOS hover preview — cannot drift from
+    /// what `AnalysisView` itself shows. This is overlay VISIBILITY, not engine
+    /// state: the eye hides the overlay without stopping analysis (and on macOS
+    /// `isAnalysisHiddenForPowerSaving` is a no-op, so analysis really does keep
+    /// running behind a closed eye).
+    ///
+    /// Deliberately excludes `isAnalysisInformationNone`: the overlay still draws
+    /// the ownership heatmap under this gate when Information = None. Callers that
+    /// only care about the per-move win%/score TEXT add that term themselves.
+    public func isAnalysisOverlayVisible(config: Config,
+                                         nextColorForPlayCommand: PlayerColor?) -> Bool {
+        return shouldRequestAnalysis(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
+            && (eyeStatus == .opened)
+            && !isAutoPlaying
+    }
+
     /// Continuous analysis is hidden AND pointless to run, so it can be paused
     /// to save power: a human-vs-AI game (exactly one side has a positive
     /// per-move thinking time), the analysis overlay is not visible
