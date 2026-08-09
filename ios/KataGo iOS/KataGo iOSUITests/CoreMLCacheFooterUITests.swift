@@ -57,8 +57,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
     @MainActor
     func testFooterCountIncrementsAfterDownloadedModelLaunch() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [stageModelArg]
+        let app = makeApp(stageModelArg)
         app.launch()
 
         // The Core ML cache persists across local runs and may already be at its
@@ -115,7 +114,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// once totalCount drops to zero.
     @MainActor
     func testFooterShowsZeroAfterClear() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Populate the cache by launching the built-in engine once.
@@ -181,7 +180,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// software-Metal path is slow to produce the first analysis.
     @MainActor
     func testAnalysisTextAppearsOnBoard() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         tapModelRow(in: app, title: builtInTitle)
@@ -213,7 +212,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// has been removed while the other per-game tabs remain.
     @MainActor
     func testDisplayPreferencesMovedToGlobalSettings() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // A game must be selected for the "Settings" menu item to appear,
@@ -323,7 +322,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
     @MainActor
     func testOpenSourceLicensesScreen() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // A game must be selected for the "Settings" menu item to appear.

@@ -15,7 +15,7 @@ final class GlobalSettingsMenuUITests: PortraitUITestCase {
     /// (clearing the selection on compact width), opens the dots menu, and
     /// drills into the Global Settings sheet.
     @MainActor func testGlobalSettingsAvailableWithoutSelectedGame() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Get past the model picker if it is up (Debug always shows it).

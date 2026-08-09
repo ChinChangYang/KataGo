@@ -29,7 +29,12 @@ final class KataGo_iOSUITestsLaunchTests: XCTestCase {
     }
 
     @MainActor func testLaunch() throws {
+        // This class cannot inherit `PortraitUITestCase.makeApp()` (see the
+        // ⚠️ note in that file — the portrait pin would clobber XCTest's own
+        // orientation sweep), so it repeats the baseline arguments here. Keep
+        // it in step with `PortraitUITestCase.baselineLaunchArguments`.
         let app = XCUIApplication()
+        app.launchArguments += ["--uitest-reset-backend-settings"]
         app.launch()
 
         // Insert steps here to perform after app launch but before taking a screenshot,

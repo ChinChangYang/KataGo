@@ -82,6 +82,48 @@ class PortraitUITestCase: XCTestCase {
             XCUIDevice.shared.orientation = .portrait
         }
     }
+
+    /// The app under test, carrying the launch arguments every UI test needs.
+    ///
+    /// Use this instead of `XCUIApplication()` directly. Extra arguments are
+    /// appended, so a test with its own seam still reads naturally:
+    /// `makeApp(stageModelArg)`. A test that genuinely needs a per-model setting
+    /// to survive across launches — none does today — can construct
+    /// `XCUIApplication()` itself, but then it owns the cleanup problem
+    /// described below.
+    ///
+    /// **Why the baseline exists.** Same reasoning as the portrait pin above,
+    /// one axis over. `BackendConfigSheetUITests` must persist a *smaller* Max
+    /// Board Size to prove the picker works, and an `abort()` before it can put
+    /// the value back leaves the engine launching with a 13x13 NN buffer — at
+    /// which point `GobanView` swaps every 19x19 board for the "Too large board
+    /// size" placeholder and new games are created at 13x13, for every class
+    /// that runs afterwards and every run after that. That state lives in
+    /// `UserDefaults`, not on the device, so nothing clears it on its own. The
+    /// durable answer is again the next process: each launch states its own
+    /// precondition rather than trusting the previous one to have cleaned up.
+    ///
+    /// ⚠️ **Unlike the orientation hazard above, this one is measured and live**
+    /// (2026-08-09, Xcode 26.6 / iOS 26.5). With `mlxBoardSize_default_model.bin.gz`
+    /// persisted as 13 and this baseline emptied, `GifExportUITests` — a class
+    /// that touches none of these settings — failed on
+    /// "Board did not appear (engine never finished launching)", a message that
+    /// names the wrong cause entirely. The value also outlives
+    /// `simctl uninstall`: the app's defaults plist lives beside the data
+    /// container, not inside it, so reinstalling does not clear it.
+    @MainActor
+    func makeApp(_ extraArguments: String...) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += Self.baselineLaunchArguments + extraArguments
+        return app
+    }
+
+    /// Arguments `makeApp()` adds to every launch.
+    ///
+    /// Spelled as a literal rather than imported from the app target, which is
+    /// what every other seam in this target does — a UI test bundle cannot
+    /// import the app module it drives.
+    static let baselineLaunchArguments = ["--uitest-reset-backend-settings"]
 }
 
 private extension UIDeviceOrientation {

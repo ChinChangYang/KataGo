@@ -30,8 +30,7 @@ final class PhotoImportUITests: PortraitUITestCase {
 
     @MainActor
     func testPhotoImportRecognizesAndCreatesGame() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [photoImportArg]
+        let app = makeApp(photoImportArg)
         app.launch()
 
         // DEBUG forces the model picker — launch the built-in network. Once the

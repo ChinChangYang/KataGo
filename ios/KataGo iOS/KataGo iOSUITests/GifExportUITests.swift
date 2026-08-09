@@ -29,8 +29,7 @@ final class GifExportUITests: PortraitUITestCase {
 
     @MainActor
     func testExportGifPreviewReflectsLoopAndTapToReplay() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [seedLaunchArg]
+        let app = makeApp(seedLaunchArg)
         launchToSeededGameBoard(app)
 
         // More ▸ This Game ▸ Export GIF.

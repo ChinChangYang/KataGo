@@ -11,11 +11,23 @@
 
 import XCTest
 
-// `PortraitUITestCase` matters more here than anywhere else: this class sorts
-// FIRST, so it inherits whatever orientation the PREVIOUS run left behind. On
-// 2026-08-03 that is exactly how it failed — `stepper.isHittable` below came
-// back false in an inherited landscape window, before any rotator in its own
-// run had executed.
+// `PortraitUITestCase` matters more here than anywhere else, on both of its
+// axes.
+//
+// Orientation: this class sorts FIRST, so it inherits whatever the PREVIOUS run
+// left behind. On 2026-08-03 that is exactly how it failed — `stepper.isHittable`
+// below came back false in an inherited landscape window, before any rotator in
+// its own run had executed.
+//
+// Per-model settings: this class is the suite's only writer of them, and
+// `makeApp()` clears them on every launch. That is what makes the "defaults to"
+// assertions below legitimate — they read a state this launch established,
+// rather than betting on the previous run having restored it. Because a failed
+// assertion `abort()`s (`continueAfterFailure = false`, exceptions disabled),
+// no end-of-test restore can be relied on, and a leaked Max Board Size of 13
+// would make every 19x19 board in every later class render as "Too large board
+// size". Anything new added here may therefore leave a non-default value
+// behind, but must not depend on one.
 final class BackendConfigSheetUITests: PortraitUITestCase {
 
     private let builtInTitle = "Built-in KataGo Network"
@@ -24,7 +36,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
 
     @MainActor
     func testMaxBoardSizePickerDefaultsChangesAndPersists() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Navigate from the model list into the built-in model's detail view.
@@ -43,7 +55,9 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                           "Max Board Size option '\(size)' not found")
         }
 
-        // Default selection is 19x19.
+        // Default selection is 19x19. `makeApp()` cleared the persisted value
+        // at launch, so this reads a genuine default rather than whatever the
+        // previous run happened to leave.
         XCTAssertTrue(segment(in: app, "19x19").isSelected,
                       "Max board size should default to 19x19, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
@@ -61,24 +75,19 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                       "Max board size did not persist as 13x13 across reopen, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
 
-        // Restore the 19x19 default so the test is idempotent: the choice is
-        // persisted per-model in UserDefaults, which survives app reinstall in the
-        // simulator's data container, so leaving it at 13x13 would make the
-        // "defaults to 19x19" assertion fail on the next run.
+        // Put 19x19 back. This is a courtesy — it keeps a manual launch on the
+        // same simulator from meeting a 13x13 engine — and one more round-trip
+        // through the picker. It is NOT what makes the suite safe: an abort at
+        // any assertion above skips it, which is why the reset lives in
+        // `makeApp()` instead.
         segment(in: app, "19x19").tap()
         XCTAssertTrue(segment(in: app, "19x19").isSelected,
-                      "Failed to restore the 19x19 default at end of test")
+                      "Selecting 19x19 again did not select it")
     }
 
     @MainActor
     func testBackendPickerChangesAndPersists() throws {
-        // NOTE: this does not assert an absolute "default" selection — the choice
-        // is persisted per-model in UserDefaults (which survives in the simulator
-        // data container), so a stale value from a prior run would poison such an
-        // assertion. The default of `.coremlNE` is covered by the BackendSettings
-        // unit tests. Here we verify each choice is selectable and persists, and
-        // we leave the model on the CoreML/NE default for idempotency.
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         let row = app.staticTexts[builtInTitle]
@@ -93,6 +102,15 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                           "Backend option '\(name)' not found")
         }
 
+        // Default selection is CoreML/NE. Assertable for the same reason as the
+        // board-size default above: `makeApp()` cleared the persisted choice at
+        // launch. (Before that reset existed this test could only say "each
+        // choice is selectable", because a stale value from a prior run would
+        // have poisoned an absolute claim.)
+        XCTAssertTrue(segment(in: app, "CoreML/NE").isSelected,
+                      "Backend should default to CoreML/NE, "
+                      + "selected was: \(selectedBackend(in: app) ?? "none")")
+
         // Select GPU+ANE; it must persist across a reopen (per-model UserDefaults).
         segment(in: app, "GPU+ANE").tap()
         XCTAssertTrue(segment(in: app, "GPU+ANE").isSelected,
@@ -104,7 +122,9 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                       "Backend did not persist as GPU+ANE across reopen, "
                       + "selected was: \(selectedBackend(in: app) ?? "none")")
 
-        // Restore CoreML/NE (the intended default); it must persist too.
+        // Back to CoreML/NE; it must persist too. A second round-trip, and a
+        // courtesy for a manual launch — not a safety net (see the board-size
+        // test above).
         segment(in: app, "CoreML/NE").tap()
         XCTAssertTrue(segment(in: app, "CoreML/NE").isSelected,
                       "Tapping CoreML/NE did not select it")
@@ -118,7 +138,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
 
     @MainActor
     func testSearchThreadsStepperIsPresent() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         let row = app.staticTexts[builtInTitle]
@@ -151,7 +171,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
     /// Engine), which is why the section renders a caveat there.
     @MainActor
     func testCoreMLRoutingControlIsPresentForTheBuiltInNetwork() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         let row = app.staticTexts[builtInTitle]

@@ -15,7 +15,7 @@ final class KataGo_iOSUITests: PortraitUITestCase {
 
     @MainActor func testExample() throws {
         // UI tests must launch the application that they test.
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Use XCTAssert and related functions to verify your tests produce the correct results.
@@ -27,7 +27,7 @@ final class KataGo_iOSUITests: PortraitUITestCase {
     /// bundle and committed as README images. On the simulator the backend is
     /// pinned to CoreML/NE, so launching the built-in net is supported.
     @MainActor func testCaptureReadmeScreens() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         func snap(_ name: String) {

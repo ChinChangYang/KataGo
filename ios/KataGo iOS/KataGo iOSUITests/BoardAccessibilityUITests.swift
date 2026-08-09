@@ -30,7 +30,7 @@ final class BoardAccessibilityUITests: PortraitUITestCase {
     /// which runs before this and before the app exists — rotating SpringBoard
     /// with no app under test is cheaper than rotating a launched one.
     @MainActor private func launchToFreshBoard() -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = makeApp()
         app.launch()
 
         // Launch the engine with the built-in network if the model picker is up.

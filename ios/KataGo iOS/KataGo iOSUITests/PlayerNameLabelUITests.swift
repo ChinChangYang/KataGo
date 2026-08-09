@@ -29,7 +29,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
 
     @MainActor
     func testPlayerNameLabelsReflectThinkingTimeConfiguration() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         launchToBoard(app)
 
         // Phase A — force a known all-human baseline (defends against config
@@ -76,7 +76,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
     /// uncommitted branch — keeping the board stable and the test idempotent.
     @MainActor
     func testTappingWhiteLabelTogglesAIAndHuman() throws {
-        let app = XCUIApplication()
+        let app = makeApp()
         launchToBoard(app)
 
         // Baseline: force both sides Human via the config steppers (robust against

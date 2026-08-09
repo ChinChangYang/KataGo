@@ -23,6 +23,60 @@ struct BackendSettingsTests {
                            fileSize: 0, builtIn: false, nnLen: nnLen)
     }
 
+    /// A fresh model maxes out at 19x19 — the size the app is tuned around, and
+    /// the one every default game uses.
+    ///
+    /// This claim used to live only in `BackendConfigSheetUITests`, where it
+    /// could not be trusted: that test persists 13x13 mid-run, and if it aborted
+    /// before restoring, the "defaults to 19x19" assertion was reading the
+    /// previous run's leftovers. Asserting it here, against a model whose keys
+    /// nothing else touches, is what makes it a real default check. The UI test
+    /// still asserts it too, but now against a launch that cleared the keys
+    /// first (`--uitest-reset-backend-settings`).
+    @Test func mlxBoardSizeDefaultsToNineteen() {
+        let settings = BackendSettings(model: uniqueModel())
+        #expect(settings.mlxBoardSize == .nineteen)
+    }
+
+    /// An unrecognised stored value falls back to the default rather than
+    /// propagating. `BoardSizeChoice` is a sparse `Int` enum (9/13/19/37), so a
+    /// build that drops a case would otherwise hand the engine a nil geometry.
+    @Test func mlxBoardSizeFallsBackToNineteenForAnUnknownStoredValue() {
+        let model = uniqueModel()
+        UserDefaults.standard.set(17, forKey: "mlxBoardSize_\(model.fileName)")
+        #expect(BackendSettings(model: model).mlxBoardSize == .nineteen)
+        UserDefaults.standard.removeObject(forKey: "mlxBoardSize_\(model.fileName)")
+    }
+
+    /// `persistedKeys(forFileName:)` must list every key the accessors write —
+    /// it is what the custom-model delete sweep and the UI-test reset seam both
+    /// walk, so a key missing from it leaks forever.
+    @Test func persistedKeysCoverEveryAccessor() {
+        let model = uniqueModel()
+        var settings = BackendSettings(model: model)
+        settings.backend = .mux
+        settings.numSearchThreads = 7
+        settings.mlxBoardSize = .thirteen
+        settings.tunerFull = true
+        settings.reTune = true
+
+        let keys = BackendSettings.persistedKeys(forFileName: model.fileName)
+        for key in keys {
+            #expect(UserDefaults.standard.object(forKey: key) != nil,
+                    "\(key) is listed but was never written")
+        }
+        keys.forEach(UserDefaults.standard.removeObject(forKey:))
+
+        // Every accessor is back on its documented default once the listed keys
+        // are gone — the property the reset seam relies on.
+        let cleared = BackendSettings(model: model)
+        #expect(cleared.backend == .coremlNE)
+        #expect(cleared.mlxBoardSize == .nineteen)
+        #expect(cleared.numSearchThreads == KataGoHelper.mlxNumSearchThreads)
+        #expect(cleared.tunerFull == false)
+        #expect(cleared.reTune == false)
+    }
+
     /// The engine-wide NN buffer geometry keys off the single `mlxBoardSize`
     /// regardless of the selected backend.
     @Test func effectiveMaxBoardLengthTracksMaxBoardSize() {

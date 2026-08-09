@@ -44,8 +44,7 @@ final class CameraImportUITests: PortraitUITestCase {
 
     @MainActor
     func testCameraImportShowsPreviewWithRetakeAbsent() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [cameraImportArg]
+        let app = makeApp(cameraImportArg)
         app.launch()
         launchBuiltInEngine(app)
 
@@ -77,8 +76,7 @@ final class CameraImportUITests: PortraitUITestCase {
 
     @MainActor
     func testCameraImportFailureOffersRetakeAndReopensCamera() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [cameraImportFailingArg, deniedPermissionArg]
+        let app = makeApp(cameraImportFailingArg, deniedPermissionArg)
         app.launch()
         launchBuiltInEngine(app)
 

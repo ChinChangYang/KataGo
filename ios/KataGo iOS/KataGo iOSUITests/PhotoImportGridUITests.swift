@@ -44,8 +44,7 @@ final class PhotoImportGridUITests: PortraitUITestCase {
 
     @MainActor
     func testGridRecoveryImportsBoardAfterCornerDrags() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--uitest-crop-import"]
+        let app = makeApp("--uitest-crop-import")
         app.launch()
         launchBuiltInEngine(app)
 
@@ -113,8 +112,7 @@ final class PhotoImportGridUITests: PortraitUITestCase {
 
     @MainActor
     func testAdjustGridFromPreviewAndBackPreservesPreview() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--uitest-camera-import"] // recognizable board → preview
+        let app = makeApp("--uitest-camera-import") // recognizable board → preview
         app.launch()
         launchBuiltInEngine(app)
 
@@ -153,10 +151,9 @@ final class PhotoImportGridUITests: PortraitUITestCase {
     /// full-frame-failure route, so it costs seconds, not ~100 s.
     @MainActor
     func testGridPhotoStaysReadableAtAccessibilityXXXL() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["--uitest-camera-import", // recognizable board → preview
-                                "-UIPreferredContentSizeCategoryName",
-                                "UICTContentSizeCategoryAccessibilityXXXL"]
+        let app = makeApp("--uitest-camera-import", // recognizable board → preview
+                          "-UIPreferredContentSizeCategoryName",
+                          "UICTContentSizeCategoryAccessibilityXXXL")
         app.launch()
         launchBuiltInEngine(app)
 

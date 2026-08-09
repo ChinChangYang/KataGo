@@ -33,6 +33,14 @@ struct KataGo_iOSApp: App {
         // because the model picker reads that file's presence as it renders.
         #if DEBUG
         ModelStagingUITestSupport.stageIfNeeded()
+
+        // DEBUG-only, and a no-op without its launch argument: drop the
+        // per-model Backend Settings so every UI test launch starts from the
+        // factory defaults, however the previous one died. Here rather than in
+        // a `.task` because `BackendConfigSheet` seeds its pickers in its own
+        // initializer and `ModelRunnerView` reads the values as it starts the
+        // engine.
+        BackendSettingsResetUITestSupport.resetIfNeeded()
         #endif
 
         // Register the cache-aware CoreML bridge (Task 19) before any view
