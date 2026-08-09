@@ -11,7 +11,7 @@ It runs on **iPhone and iPad, Apple Vision Pro, Mac, Apple TV, and Apple Watch**
 | Platform | Xcode scheme | What you get |
 |----------|--------------|--------------|
 | iOS / iPadOS 26+ | `KataGo Anytime` | Full play & analysis app (SwiftUI) |
-| visionOS 26+ | `KataGo Anytime` | The same app, adapted for Apple Vision Pro |
+| visionOS 26+ | `KataGo Anytime Vision` | Volumetric RealityKit app — a real-scale 3D goban played with a game controller |
 | macOS 26+ | `KataGo Anytime Mac` | Native AppKit app with a three-pane window and menu-bar/hotkey workflow |
 | tvOS 26+ | `KataGo Anytime TV` | Review & spectate app for the living room |
 | watchOS 26+ | `KataGo Anytime Watch` | Standalone read-only game library, synced over iCloud |
@@ -20,6 +20,8 @@ Beyond the apps themselves:
 
 - A **Saved Game widget** (iOS, iPadOS, macOS, visionOS) puts a chosen game's board and comments on your Home Screen or desktop.
 - A **Last Game complication** on Apple Watch shows the name and comment at the position your last game is parked on.
+- A **Safari extension** (macOS and iOS) blends KataGo analysis into Go games you find on the web — see [KataGo Anytime in Safari](#katago-anytime-in-safari).
+- A **Messages extension** plays engine-free, human-vs-human correspondence Go inside a Messages thread — see [KataGo Anytime in Messages](#katago-anytime-in-messages).
 - Games are persisted with **SwiftData** and synced everywhere via **CloudKit** (iCloud).
 
 ## Engine, Neural Networks, and Opening Books
@@ -54,11 +56,13 @@ The model picker offers the built-in 18-block `b18c384nbt` network plus eight do
 
 Each network row has a single status button — a download arrow, a stop icon while downloading, then a play button to launch the engine — plus a gear button for the backend settings above. On Apple TV the list is limited to networks of 100 MB or less. A separate human-style (human SL) network powers the rank and pro profiles described under [Game Settings](#settings) (Apple TV skips it).
 
+Below those lists, a **Custom Networks** section takes any KataGo network file you already have. **Add Custom Network…** opens a file picker (`.bin.gz`, `.txt.gz`, `.bin`, `.txt`), checks there is room for it, copies it with byte-accurate progress you can cancel, and refuses anything the engine cannot load. Custom networks **stay on this device** — they are never synced — and their rows can be edited or removed with swipe-to-delete. The Mac offers the same list under **Window ▸ Manage Models…**.
+
 ### Opening Books
 
 The model picker also links to an **Opening Books** screen with downloadable books for **6x6, 7x7, 8x8, and 9x9** boards (Japanese-like rules). When a game's board size has its book downloaded, the board's eye button gains a **book** state that overlays the book's candidate moves and evaluations.
 
-## Using the App on iPhone, iPad, and Vision Pro
+## Using the App on iPhone and iPad
 
 ### Navigating
 
@@ -67,7 +71,7 @@ The app uses a [`NavigationSplitView`](https://developer.apple.com/documentation
 - A **sidebar** titled **Games** lists your saved games as thumbnails — searchable, with swipe-to-delete, and a **Select** mode for bulk deletion.
 - The **detail** view shows the Go board for the selected game.
 
-On a fresh launch (when no model has been chosen yet) the first screen is the **model picker**, followed by a loading screen while the engine initializes, and then the split view. On **iPad** a Full-Screen button hides the info pane and sidebar so the board fills the display; on **visionOS** an Expand/Collapse button toggles the sidebar in and out of view.
+On a fresh launch (when no model has been chosen yet) the first screen is the **model picker**, followed by a loading screen while the engine initializes, and then the split view. On **iPad** a Full-Screen button hides the info pane and sidebar so the board fills the display.
 
 ### Playing and Reviewing
 
@@ -99,7 +103,7 @@ Tapping **Clone** asks how much of the game to copy:
 
 ### Import a Game from a Photo
 
-Import a real-world board position from a photo (More → Import → Photo), an image file, or drag-and-drop:
+Import a real-world board position from a photo (**More → Import → Photo**), a live **Camera** capture (**More → Import → Camera**, on iPhone and iPad when a back camera is available, with an on-screen guide for framing the board), an image file, or drag-and-drop:
 
 - On-device computer vision recognizes the board and stones and shows a preview with **black/white stone counts** and a **confidence** score.
 - **Tap any intersection to correct it** — taps cycle empty → black → white — and a **Reset** button undoes your edits.
@@ -109,9 +113,9 @@ Import a real-world board position from a photo (More → Import → Photo), an 
 
 **More → This Game → Deep Report** runs a structured probe of the current position and presents:
 
-- Ranked **candidate moves** with winrate, score lead, and visits, each with a principal-variation board that can toggle to an **ownership-change** view, plus follow-ups if the opponent plays elsewhere (tenuki).
-- A **Playing vs. Passing** comparison showing what the position is worth.
-- A streamed natural-language **summary** of the findings, with **Regenerate** and **Copy to Comment** actions.
+- Two candidates — the **best move** and an **alternative you choose** via **Pick an alternative…** — each with winrate, score lead, and visits, a principal-variation board that can toggle to an **ownership-change** view, and a follow-up if the opponent plays elsewhere (tenuki).
+- A **Playing vs. Passing** comparison showing what the position is worth, with the **most contested** regions listed.
+- A streamed natural-language **summary** of the findings, with **Regenerate**, **Refine** (re-runs the probe with a larger search budget), and **Copy to Comment** actions.
 
 ### GIF Export
 
@@ -123,11 +127,11 @@ The app can generate natural-language commentary for moves entirely on-device us
 
 ### Saved Game Widget
 
-Add the **Saved Game** widget (small through extra-large) to your Home Screen, Lock Screen, or Mac desktop. It renders a crisp vector board of the game's displayed move together with that move's comment, and each widget can be configured to follow a different saved game. Tapping the widget deep-links straight to that game.
+Add the **Saved Game** widget (small through extra-large) to your Home Screen or Mac desktop. It renders a crisp vector board of the game's displayed move together with that move's comment, and each widget can be configured to follow a different saved game. Tapping the widget deep-links straight to that game.
 
 ### Siri Shortcuts and Power Saving
 
-- App Intents expose **"Get Go Game Information"** (for a chosen game) and **"Get Latest Go Game Information"** to Siri and the Shortcuts app.
+- App Intents expose four actions to Siri and the Shortcuts app, on iOS and macOS alike: **"Get Go Game Information"** and **"Open Go Game"** (both for a game you pick), plus **"Get Latest Go Game Information"** and **"Open Latest Go Game"**.
 - In human-vs-AI games, when the analysis overlay is hidden and it's the human's turn, the app **pauses continuous analysis to save power** (iOS/visionOS); revealing the overlay resumes it.
 
 ## Settings
@@ -136,11 +140,12 @@ Settings are split in two: **More → Settings** opens the app-wide **Global Set
 
 ### Global Settings
 
-App-wide preferences in four groups:
+App-wide preferences in five groups:
 
 - **Board** — Stone style (Fast / Classic), Move numbers (Last 3 moves / Last move / All moves / Marker), Show coordinate, Show pass, Vertical flip, and Show chart/comments.
 - **Analysis** — Analysis information (Winrate / Score / All / None), Analysis style (Fast / Classic), Show ownership, Show win rate bar.
 - **Sound & Haptics** — Sound effect, Haptic feedback, Show visits/s.
+- **Accessibility** — a **Voice Control** help screen listing the phrases that drive the board, worded per platform ("Tap K 10" on iOS, "Click K 10" on the Mac). Every intersection and the pass tile are exposed as named targets, so Voice Control and VoiceOver can play moves through the same legality checks as a tap.
 - **Game List** — Large thumbnails.
 
 ### Engine
@@ -154,11 +159,22 @@ Shows the running **Model** and engine **Version**; tapping either (and confirmi
 Per-game settings in six sub-screens:
 
 - **Name** — the game's name.
-- **Rule** — Board width and height (default 19x19), Ko rule (Simple / Positional / Situational), Scoring rule (Area / Territory), Tax rule (None / Seki / All), Multi-stone suicide, Has-button, White handicap bonus, and Komi (default 7.0).
+- **Rule** — a **Ruleset** picker with eleven named presets (Chinese, Chinese (OGS/KGS), Japanese, Korean, AGA, BGA, AGA Button, New Zealand, Tromp-Taylor, Stone Scoring, Ancient Territory) plus **Custom**, sitting over the individual knobs: Board width and height (default 19x19), Ko rule (Simple / Positional / Situational), Scoring rule (Area / Territory), Tax rule (None / Seki / All), Multi-stone suicide, Has-button, White handicap bonus, and Komi (default 7.0). Presets are expanded by the engine's own SGF rules parser so they cannot drift, and editing any individual knob flips the picker to **Custom**. The Mac carries the same picker in its Config editor and New Game dialog.
 - **Analysis** — Analysis for (Both / Black / White), Hidden analysis visit ratio, Analysis wide root noise, Max analysis moves (default 50), and Analysis interval (default 50).
 - **AI** — White advantage (playout doubling advantage), plus a per-side profile picker: **AI** (the full-strength engine, with a 0–60 s "Time per move" control), human-style ranks **9d through 25k**, or **Pro 1800 through Pro 2023** profiles. Rank and pro profiles play with a fixed visit budget so that rank means strength (400 visits for 9d and pro profiles, 40 for the rest), and a side left as Human is still analyzed with the strongest network.
 - **Comment** — the **Apple Intelligence** toggle, a commentary **Tone** picker (Technical, Educational, Encouraging, Enthusiastic, Poetic), and a **Temperature** stepper (0–1).
 - **SGF** — view, paste, or edit the game's SGF text directly.
+
+## KataGo Anytime on Apple Vision Pro
+
+The Vision Pro app is a separate target (`KataGo Anytime Vision`) — not the iPhone app in a window. It opens a **volumetric window** containing a real-scale 3D goban built in RealityKit (about 0.46 x 0.50 m for a 19x19), with stones, candidate-move markers, and ownership squares placed in the scene:
+
+- **A game controller plays the moves.** The left stick or D-pad glides a ghost stone across the board, **A** plays it, **Y** passes, **B** shows/hides the analysis overlay, **X**/**L1** step back and **R1** steps forward (hold **L1** or **R1** to repeat), and **L2**/**R2** jump to the start and end of the game. Until a controller connects the app says **Connect a controller to play**; a mapping legend appears automatically the first time one does. Pinch works on the flat ornaments — menus, the game list, settings — but not on the board itself.
+- **Ornaments** ring the volume: a bottom-front bar with the player chips (pinch one to flip that side between Human and AI), a Games toggle, the analysis sparkle, a Settings gear, and the controller legend. The Games ornament lists your iCloud-synced games and carries **New Game** — 9x9 / 13x13 / 19x19 quick sizes plus a **Custom** card with width and height steppers for any rectangle.
+- **Settings** (right-side card) holds Analysis information (Winrate / Score / All / None), Show ownership, a board orientation toggle between **tabletop and standing**, the neural-net picker, and **Max Board Size**; changing the last one quits and respawns the engine with a new neural-net buffer.
+- The engine runs **in-process on CoreML/ANE only** — the GPU belongs to the 90 Hz compositor. A game larger than the launched Max Board Size refuses to load and points you at that setting.
+
+The Saved Game widget and `katago-anytime://` deep links work here too.
 
 ## KataGo Anytime on the Mac
 
@@ -202,6 +218,28 @@ The Watch app is a standalone reader for your game library:
 
 The Watch app does not connect to your iPhone and cannot change a game. Games are created on iPhone, iPad, Mac, Apple TV, or Vision Pro and reach the watch through iCloud.
 
+## KataGo Anytime in Safari
+
+**KataGo Anytime for Safari** is a web extension that blends KataGo analysis into Go games you find on the web. It ships as two appexes — `KataGoAnytimeSafariExt`, embedded in the Mac app, and `KataGoAnytimeSafariExtIOS`, embedded in the iOS app — and you enable it in Safari's Extensions settings.
+
+It is **not tied to particular sites**: the content script runs on all URLs and attaches to any page that embeds a **WGo.js** kifu player. When it finds one, it injects a shadow-DOM panel with:
+
+- **Analyze / Stop / Re-analyze**, with `n / total` progress as the sweep runs.
+- A whole-game **win rate and score chart**, and a per-move tooltip (`Move N - Black 57.3% - B+4.2 - 1234 visits`).
+- **Candidate moves and ownership drawn onto the site's own board**, with a Winrate / Score / All display selector.
+
+The two platforms are not equivalent. On **macOS** the extension spawns the sandboxed `katago-engine` subprocess running the full built-in 18-block network on the Neural Engine with 8 threads. On **iOS** the engine runs **in-process inside the appex** under an 80 MB jetsam cap, so it uses the tiny bundled `b24c64` network on the Neural Engine with a single thread and a 19x19 buffer — noticeably weaker than the app itself.
+
+> When developing the macOS extension, run the host app from `/Applications`; Safari will not load the appex from a DerivedData build location.
+
+## KataGo Anytime in Messages
+
+`KataGoAnytimeMessages` is an iMessage app for playing **correspondence Go against another person** inside a Messages thread. It contains **no engine and no AI** — it is human-vs-human only, and links only the bridge-free `KataGoGameStore` and `GoRulesKit` packages (a pure-Swift port of the engine's board rules and scoring).
+
+- **Setup card** — board size 2 to 37 with 9 / 13 / 19 quick buttons, the color you take, handicap 0-9 stones, and the full rule set (ko, scoring, tax, white handicap bonus) via the same named presets and Custom option as the main app.
+- **Playing** — the whole game state travels on the message bubble's URL, so each tap of a bubble restores that position. Turn alternation is enforced: the board is view-only when you sent the last message. **Confirm** stages the move and Messages' own send arrow commits it.
+- **Actions** — Pass and Resign during play; **Propose score**, **Accept**, and **Resume play** once the game reaches scoring. **Open in App** copies the game into your library.
+
 ## Building from Source
 
 ### Requirements
@@ -239,7 +277,7 @@ Open the project in [Xcode](https://developer.apple.com/xcode/):
 open "KataGo Anytime.xcodeproj"
 ```
 
-The project has four schemes: **KataGo Anytime** (iOS + visionOS), **KataGo Anytime Mac**, **KataGo Anytime TV**, and **KataGo Anytime Watch**.
+The project has five schemes: **KataGo Anytime** (iOS), **KataGo Anytime Mac**, **KataGo Anytime Vision**, **KataGo Anytime TV**, and **KataGo Anytime Watch**. The `KataGo Anytime` scheme supports neither macOS nor visionOS — use the platform's own scheme.
 
 Configure code signing in Xcode under the project's "Signing & Capabilities" section. Select an appropriate code signing identity and development team, typically linked to an Apple Development certificate and a Team ID registered with the Apple Developer Program.
 
@@ -255,7 +293,7 @@ You can build and run from Xcode via "Product -> Run" (or `Command + R`), or fro
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug
 
 # visionOS Simulator
-xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug
+xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Vision" -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -configuration Debug
 
 # macOS
 xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Mac" -destination 'platform=macOS' -configuration Debug
