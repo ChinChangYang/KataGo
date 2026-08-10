@@ -120,6 +120,15 @@ struct TVSelfPlayScreen: View {
     /// the whole broadcast; the licensed gen-move plays the moves.)
     private var isPaused: Bool { broadcast?.phase == .paused }
 
+    /// Branch-aware ghost-anchor inputs (the review-screen hook): the paused play
+    /// cursor reveals at — and follows — the last move.
+    private var lastMoveKey: LastMoveKey? {
+        guard let game,
+              let sgf = gobanState.getSgf(gameRecord: game),
+              let index = gobanState.getCurrentIndex(gameRecord: game) else { return nil }
+        return LastMoveKey(sgf: sgf, index: index)
+    }
+
     var body: some View {
         // Attract is a screensaver: the root owns focus and ANY press exits.
         // Manual is interactive: the root must NOT be focusable and must not
@@ -347,6 +356,13 @@ struct TVSelfPlayScreen: View {
             // reaction to a landed stone.
             guard newValue != .unknown, let game, !isGameOver else { return }
             broadcast?.noteTurnChanged(game: game)
+        }
+        // Ghost anchor (the review-screen hook): the paused play cursor
+        // reveals at — and follows — the last move.
+        .onChange(of: lastMoveKey, initial: true) { _, newValue in
+            ghost.setAnchor(newValue?.lastPoint,
+                            width: Int(board.width),
+                            height: Int(board.height))
         }
     }
 

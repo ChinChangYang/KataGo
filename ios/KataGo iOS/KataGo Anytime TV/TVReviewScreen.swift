@@ -299,6 +299,15 @@ struct TVReviewScreen: View {
             guard ready, replayBroadcast?.phase == .awaitingMove else { return }
             continueReplay()
         }
+        // Ghost anchor: reveal (and follow) the cursor at the board's last
+        // move — players expect to answer near it. The O(moves) SGF walk
+        // runs once per position change, never per body eval. lastPoint is
+        // nil for a pass or an empty board — the center fallback stays.
+        .onChange(of: lastMoveKey, initial: true) { _, newValue in
+            ghost.setAnchor(newValue?.lastPoint,
+                            width: Int(board.width),
+                            height: Int(board.height))
+        }
         // A focused board consumes every D-pad press (edges clamp, Select
         // plays), so Menu is the one way out of cursor mode. Attaching an
         // onExitCommand replaces the default NavigationStack pop; reproduce
@@ -538,6 +547,15 @@ struct TVReviewScreen: View {
     /// active, the record's mainline position otherwise.
     private var displayIndex: Int {
         gobanState.getCurrentIndex(gameRecord: game) ?? game.currentIndex
+    }
+
+    /// Branch-aware ghost-anchor inputs (the VisionRootView hook, shared via
+    /// LastMoveKey). Reading them in body keeps the onChange armed for
+    /// steps, jumps, picks, passes, and branch navigation.
+    private var lastMoveKey: LastMoveKey? {
+        guard let sgf = gobanState.getSgf(gameRecord: game),
+              let index = gobanState.getCurrentIndex(gameRecord: game) else { return nil }
+        return LastMoveKey(sgf: sgf, index: index)
     }
 
     /// Analysis OFF falls back to the persisted per-move values. They are
