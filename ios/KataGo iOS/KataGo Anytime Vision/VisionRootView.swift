@@ -422,9 +422,7 @@ struct VisionRootView: View {
         // position, never on the glide frame path. (Not getMoveNumbers — it
         // returns .empty under the last-3-moves display setting.)
         .onChange(of: lastMoveKey, initial: true) { _, newValue in
-            let lastPoint = newValue.flatMap {
-                MoveNumbers.derive(sgf: $0.sgf, currentIndex: $0.index).lastPoint
-            }
+            let lastPoint = newValue?.lastPoint
             #if DEBUG
             NSLog("VisionAnchor index=%@ lastPoint=%@ sgfLen=%@",
                   newValue.map { String($0.index) } ?? "nil",
@@ -499,11 +497,6 @@ struct VisionRootView: View {
     }
 
     // MARK: - Ghost anchor
-
-    private struct LastMoveKey: Equatable {
-        let sgf: String
-        let index: Int
-    }
 
     /// Branch-aware last-move derivation inputs; reading them in body keeps
     /// the onChange armed for own moves, AI replies, step/jump and branch

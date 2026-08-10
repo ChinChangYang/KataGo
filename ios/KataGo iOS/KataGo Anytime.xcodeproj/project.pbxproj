@@ -849,6 +849,7 @@
 		F24F93F07C1DC633485DEB6D /* GobanRecogKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2596160B109D97816148C51C /* GobanRecogKit */; };
 		F3B5C79213B69A91A1C665CB /* WatchBoardLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B89CB5B1D3EBA62B5CA7E6 /* WatchBoardLayoutTests.swift */; };
 		F55AD24F8B47A8E543C4B923 /* lionffen_b24c64_3x3_v3_12300.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = 46BFAAEDD1093DB0E7FC7C2F /* lionffen_b24c64_3x3_v3_12300.bin.gz */; };
+		F5C261D4903C3A4E51E2B111 /* LastMoveKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D62467D94D15F32653A85 /* LastMoveKeyTests.swift */; };
 		F669B066BE644088B09D3EDE /* civil_time_detail.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE23716608EA458E4BFD753E /* civil_time_detail.cc */; };
 		F7FE6A14B724E84C0ED79316 /* DraftMirrorStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59081CBBB1938B54C4E5FEA0 /* DraftMirrorStoreTests.swift */; };
 		F8925ECF511C916697D27A14 /* TVLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678C873A714F193ABAFBBE7C /* TVLoadingView.swift */; };
@@ -1305,6 +1306,7 @@
 		5617DDD280230D724D85091A /* str_cat.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = str_cat.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/str_cat.cc"; sourceTree = SOURCE_ROOT; };
 		56670017B37208754039FF64 /* Parameters.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Parameters.pb.cc; path = ../../cpp/external/katagocoreml/generated/Parameters.pb.cc; sourceTree = SOURCE_ROOT; };
 		56B99DA3E143A43DEB93814E /* clock.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = clock.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/clock.cc"; sourceTree = SOURCE_ROOT; };
+		571D62467D94D15F32653A85 /* LastMoveKeyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LastMoveKeyTests.swift; path = "KataGo iOSTests/LastMoveKeyTests.swift"; sourceTree = "<group>"; };
 		5794706AF4B265E17CEF12A4 /* ArrayFeatureExtractor.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ArrayFeatureExtractor.pb.cc; path = ../../cpp/external/katagocoreml/generated/ArrayFeatureExtractor.pb.cc; sourceTree = SOURCE_ROOT; };
 		57AFFAB6093C799F02577B92 /* WidgetBoardAnnotationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetBoardAnnotationTests.swift; sourceTree = "<group>"; };
 		57D6A59AC5AAD1DCC93B2231 /* TimelineStepClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineStepClassifierTests.swift; sourceTree = "<group>"; };
@@ -3091,6 +3093,7 @@
 				23BDB5F4E8F8BFBB8C57EDF8 /* KataGo Anytime MacTests */,
 				658B3094D0A2F584747F815A /* NarrationSpeechSettingTests.swift */,
 				59F2984BFD3DD89C5997BCE3 /* BroadcastReplayTests.swift */,
+				571D62467D94D15F32653A85 /* LastMoveKeyTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -4816,6 +4819,7 @@
 				8E75D7B9C63345CA2FD17258 /* AnalysisOverlayVisibilityTests.swift in Sources */,
 				B7D07A3D812190E662D6C7F4 /* NarrationSpeechSettingTests.swift in Sources */,
 				1EDB49669BF268D1220D1B06 /* BroadcastReplayTests.swift in Sources */,
+				F5C261D4903C3A4E51E2B111 /* LastMoveKeyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
