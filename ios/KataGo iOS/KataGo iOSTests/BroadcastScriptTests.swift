@@ -424,4 +424,13 @@ struct BroadcastScriptTests {
             overlay: .none, passChip: nil)
         #expect(passLast.lastMoveVertex == nil)
     }
+
+    @Test("A comment slide has no choreography and never grows")
+    func commentSlideIsStaticAndFrameless() {
+        let model = DeepReportModel()
+        let slide = BroadcastSlide(kind: .comment, title: "Comment",
+                                   facts: ["A synced note about this move."])
+        #expect(BroadcastScript.frames(for: slide, model: model).isEmpty)
+        #expect(!BroadcastScript.factsMayGrow(kind: .comment, model: model))
+    }
 }

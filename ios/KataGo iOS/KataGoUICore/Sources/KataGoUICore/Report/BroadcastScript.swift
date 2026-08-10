@@ -16,6 +16,11 @@ public enum BroadcastSlideKind: Equatable, Sendable {
     case best
     case alternative
     case pass
+    /// A replay-only slide carrying a synced per-move GameRecord comment.
+    /// Built by BroadcastController (never by slides(from:)); it shows over
+    /// the LIVE hero board — frames(for:model:) is empty and currentFrame
+    /// stays nil while it types.
+    case comment
 }
 
 /// One board-plus-facts segment of the broadcast. Board content lives in the
@@ -312,6 +317,10 @@ public enum BroadcastScript {
                                               overlay: .ownershipDelta(pass.ownershipDelta),
                                               passChip: nil))
             return frames
+
+        case .comment:
+            // The live board IS the visual; nothing to act out.
+            return []
         }
     }
 
@@ -371,6 +380,8 @@ public enum BroadcastScript {
         case .alternative:
             return model.candidates.count > 1 && model.candidates[1].tenuki == nil
         case .pass:
+            return false
+        case .comment:
             return false
         }
     }
