@@ -64,6 +64,17 @@ public final class BroadcastController {
     /// Report seam — tests script model stages instead of probing an engine.
     private let generateReport: @MainActor (DeepReportModel, GameRecord) async -> Void
     private let sleeper: ReportSleeper
+    /// Spoken narration (nil = silent). One utterance per fact, enqueued as
+    /// the fact starts typing; the end-of-slide hold waits the queue out.
+    private let speaker: NarrationSpeaking?
+    private let isSpeechEnabled: () -> Bool
+    /// Read fresh each use so a mid-broadcast Settings change takes effect
+    /// on the next slide.
+    private let pacing: () -> BroadcastPacing
+    /// Replay move source: non-nil switches the cycle's ending from the
+    /// licensed gen-move to "play the next RECORDED move", returning the
+    /// synced comment for the new position (nil = none). See Task 5.
+    private let replayAdvance: (@MainActor () -> String?)?
 
     private var cycleTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
@@ -85,7 +96,11 @@ public final class BroadcastController {
                 rootWinrate: Winrate,
                 rootScore: Score,
                 generateReport: (@MainActor (DeepReportModel, GameRecord) async -> Void)? = nil,
-                sleeper: @escaping ReportSleeper = { try await Task.sleep(for: .seconds($0)) }) {
+                sleeper: @escaping ReportSleeper = { try await Task.sleep(for: .seconds($0)) },
+                speaker: NarrationSpeaking? = nil,
+                isSpeechEnabled: @escaping () -> Bool = { false },
+                pacing: @escaping () -> BroadcastPacing = { .live },
+                replayAdvance: (@MainActor () -> String?)? = nil) {
         self.messageList = messageList
         self.gobanState = gobanState
         self.player = player
@@ -96,6 +111,10 @@ public final class BroadcastController {
                 .generate(model: model, gameRecord: game)
         }
         self.sleeper = sleeper
+        self.speaker = speaker
+        self.isSpeechEnabled = isSpeechEnabled
+        self.pacing = pacing
+        self.replayAdvance = replayAdvance
     }
 
     public var isShowingSlides: Bool { currentSlide != nil }
@@ -143,6 +162,7 @@ public final class BroadcastController {
             // mutate state (re-arm analysis, flip to .paused) after cancelAll
             // has already returned the screen to .idle.
             guard !Task.isCancelled else { return }
+            self.speaker?.cancelAll()
             self.currentSlide = nil
             self.currentFrame = nil
             self.typedText = ""
@@ -195,6 +215,7 @@ public final class BroadcastController {
         // it, bypassing the review screen's spectator protection into a
         // CloudKit-synced record.
         gobanState.broadcastGenMovePending = false
+        speaker?.cancelAll()
         currentSlide = nil
         currentFrame = nil
         typedText = ""
@@ -392,10 +413,11 @@ public final class BroadcastController {
             refreshFrames()
             if factIndex < facts.count {
                 emitDueFactFrames()
+                if isSpeechEnabled() { speaker?.speak(facts[factIndex]) }
                 for chunk in BroadcastScript.typewriterChunks(facts[factIndex]) {
                     guard !Task.isCancelled && !skipRequested else { break }
                     typedText += chunk
-                    let delay = Double(chunk.count) / BroadcastConstants.charactersPerSecond
+                    let delay = Double(chunk.count) / pacing().charactersPerSecond
                     try? await sleeper(delay)
                     elapsed += delay
                 }
@@ -411,19 +433,27 @@ public final class BroadcastController {
         }
         if skipRequested {
             skipRequested = false
+            speaker?.cancelAll()
             return
         }
         guard !Task.isCancelled else { return }
-        let dwell = max(BroadcastConstants.minimumSlideSeconds - elapsed,
-                        BroadcastConstants.dwellSeconds)
-        // Poll the dwell so a skip pressed during it is honored AND consumed.
-        // A single sleeper(dwell) swallowed such a skip, and the stale flag
-        // then blanked the NEXT slide on entry (see the F4 regression).
+        await waitOutDwellAndSpeech(elapsed: elapsed)
+    }
+
+    /// The end-of-slide hold: the pacing dwell/floor PLUS, when narration is
+    /// on, the remainder of the utterance queue (speech is never rate-
+    /// shifted, so on fast pacing it becomes the slide's floor). Polled so a
+    /// skip is honored AND consumed (the F4 regression) and cancellation is
+    /// prompt; a consumed skip also cuts the speech off mid-word.
+    private func waitOutDwellAndSpeech(elapsed: TimeInterval) async {
+        let dwell = max(pacing().minimumSlideSeconds - elapsed,
+                        pacing().dwellSeconds)
         var dwelled: TimeInterval = 0
-        while dwelled < dwell {
+        while dwelled < dwell || speaker?.isSpeaking == true {
             if Task.isCancelled { return }
             if skipRequested {
                 skipRequested = false
+                speaker?.cancelAll()
                 return
             }
             try? await sleeper(BroadcastConstants.pollSeconds)

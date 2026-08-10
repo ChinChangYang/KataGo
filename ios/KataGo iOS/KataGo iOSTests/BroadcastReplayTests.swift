@@ -1,0 +1,171 @@
+//
+//  BroadcastReplayTests.swift
+//  KataGo AnytimeTests
+//
+//  The replay move source, spoken narration, and pacing seams of the
+//  broadcast cycle — all timing-free (the BroadcastControllerTests pattern:
+//  scripted generator, yield-only sleeper, bounded MainActor pumps).
+//
+
+import Testing
+import SwiftData
+@testable import KataGoUICore
+
+@MainActor
+final class FakeSpeaker: NarrationSpeaking {
+    var spoken: [String] = []
+    var cancelCount = 0
+    /// true = utterances finish instantly (ordering tests);
+    /// false = the queue holds until finishAll() (pacing tests).
+    var autoFinishes = true
+    private var queueDepth = 0
+
+    func speak(_ text: String) {
+        spoken.append(text)
+        if !autoFinishes { queueDepth += 1 }
+    }
+
+    var isSpeaking: Bool { queueDepth > 0 }
+
+    func cancelAll() {
+        queueDepth = 0
+        cancelCount += 1
+    }
+
+    func finishAll() { queueDepth = 0 }
+}
+
+@MainActor
+struct BroadcastReplayTests {
+
+    private static func stageFullReport(_ model: DeepReportModel) {
+        model.sideToMove = .black
+        model.boardWidth = 9
+        model.boardHeight = 9
+        model.moveNumber = 3
+        model.position = PositionSummary(winrate: 0.6, scoreLead: 2.0, visits: 200)
+        model.candidates = [
+            CandidateReport(vertex: "E5", visits: 120, winrate: 0.6, scoreLead: 2.0,
+                            winrateDelta: 0, scoreLeadDelta: 0, pv: ["E5", "C3"],
+                            ownershipDelta: [:],
+                            tenuki: TenukiFollowUp(vertex: "C3", winrate: 0.65,
+                                                   scoreLead: 3.0, visits: 40, pv: ["C3"])),
+            CandidateReport(vertex: "C3", visits: 60, winrate: 0.58, scoreLead: 1.5,
+                            winrateDelta: -0.02, scoreLeadDelta: -0.5, pv: ["C3"],
+                            ownershipDelta: [BoardPoint(x: 2, y: 2): -0.4],
+                            tenuki: TenukiFollowUp(vertex: "E5", winrate: 0.6,
+                                                   scoreLead: 2.0, visits: 30, pv: ["E5"])),
+        ]
+        model.passComparison = PassComparison(punishmentVertex: "E5", winrate: 0.35,
+                                              scoreLead: -3.0, winrateDeltaVsBest: 0.25,
+                                              scoreLeadDeltaVsBest: 5.0,
+                                              ownershipDelta: [:], contestedPoints: [])
+        model.stage = .complete
+    }
+
+    @MainActor
+    private struct Fixture {
+        let session = GameSession()
+        let record: GameRecord
+        let controller: BroadcastController
+        let speaker = FakeSpeaker()
+
+        init(speechEnabled: Bool = true,
+             pacing: BroadcastPacing = .live,
+             replayAdvance: (@MainActor () -> String?)? = nil,
+             generate: @escaping @MainActor (DeepReportModel, GameRecord) async -> Void
+                = { model, _ in BroadcastReplayTests.stageFullReport(model) }) {
+            record = SelfPlayGame.makeRecord()
+            session.board.width = 9
+            session.board.height = 9
+            session.player.nextColorForPlayCommand = .black
+            session.gobanState.suppressesGenMove = true
+            session.gobanState.analysisStatus = .clear
+            controller = BroadcastController(messageList: session.messageList,
+                                             gobanState: session.gobanState,
+                                             player: session.player,
+                                             rootWinrate: session.rootWinrate,
+                                             rootScore: session.rootScore,
+                                             generateReport: generate,
+                                             sleeper: { _ in await Task.yield() },
+                                             speaker: speaker,
+                                             isSpeechEnabled: { speechEnabled },
+                                             pacing: { pacing },
+                                             replayAdvance: replayAdvance)
+        }
+
+        func sent(_ fragment: String) -> Bool {
+            session.messageList.messages.contains { $0.text.contains(fragment) }
+        }
+
+        func pump(until condition: () -> Bool) async {
+            for _ in 0..<20_000 {
+                if condition() { return }
+                await Task.yield()
+            }
+            Issue.record("pump timed out")
+        }
+    }
+
+    // MARK: - Speech
+
+    @Test("Enabled speech speaks every fact of every slide, in order")
+    func speaksAllFactsInOrder() async {
+        let f = Fixture()
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        let allFacts = BroadcastScript.slides(from: f.controller.reportModel!)
+            .flatMap { $0.facts }
+        #expect(!allFacts.isEmpty)
+        #expect(f.speaker.spoken == allFacts)
+    }
+
+    @Test("Disabled speech speaks nothing")
+    func disabledSpeaksNothing() async {
+        let f = Fixture(speechEnabled: false)
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(f.speaker.spoken.isEmpty)
+    }
+
+    @Test("An unfinished utterance holds the slide; finishing releases it")
+    func slideWaitsForSpeech() async {
+        let f = Fixture()
+        f.speaker.autoFinishes = false
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.slideNumber == 1 })
+        // Let the typewriter and dwell run out; the speech queue still holds.
+        for _ in 0..<3000 { await Task.yield() }
+        #expect(f.controller.slideNumber == 1)
+        f.speaker.finishAll()
+        await f.pump(until: { f.controller.slideNumber >= 2 })
+    }
+
+    @Test("Skip cancels speech immediately")
+    func skipCancelsSpeech() async {
+        let f = Fixture()
+        f.speaker.autoFinishes = false
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.slideNumber == 1 })
+        f.controller.skipSlide()
+        await f.pump(until: { f.speaker.cancelCount >= 1 })
+        await f.pump(until: { f.controller.slideNumber >= 2 })
+    }
+
+    @Test("Pause and cancelAll cancel speech")
+    func pauseAndCancelAllCancelSpeech() async {
+        let f = Fixture()
+        f.speaker.autoFinishes = false
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.isShowingSlides })
+        await f.controller.pause(game: f.record)
+        #expect(f.speaker.cancelCount >= 1)
+
+        let g = Fixture()
+        g.speaker.autoFinishes = false
+        g.controller.noteTurnChanged(game: g.record)
+        await g.pump(until: { g.controller.isShowingSlides })
+        g.controller.cancelAll()
+        #expect(g.speaker.cancelCount >= 1)
+    }
+}
