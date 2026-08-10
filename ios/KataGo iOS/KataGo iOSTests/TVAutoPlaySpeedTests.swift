@@ -12,18 +12,6 @@ struct TVAutoPlaySpeedTests {
         #expect(TVAutoPlaySpeed.allCases == [.slow, .normal, .fast])
     }
 
-    @Test func secondsMatchTheAgreedCadence() {
-        #expect(TVAutoPlaySpeed.slow.seconds == 3.0)
-        #expect(TVAutoPlaySpeed.normal.seconds == 1.5)
-        #expect(TVAutoPlaySpeed.fast.seconds == 0.7)
-    }
-
-    @Test func intervalMirrorsSeconds() {
-        for speed in TVAutoPlaySpeed.allCases {
-            #expect(speed.interval == .seconds(speed.seconds))
-        }
-    }
-
     @Test func rawValuesRoundTrip() {
         for speed in TVAutoPlaySpeed.allCases {
             #expect(TVAutoPlaySpeed(rawValue: speed.rawValue) == speed)

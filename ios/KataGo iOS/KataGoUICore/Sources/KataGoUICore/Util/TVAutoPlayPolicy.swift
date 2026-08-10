@@ -22,7 +22,7 @@ public enum TVAutoPlayStopReason: Equatable, Sendable {
 }
 
 public enum TVAutoPlayTick: Equatable, Sendable {
-    /// Step exactly one recorded move forward.
+    /// Run one narration cycle, which ends by stepping one recorded move.
     case advance
     /// Skip this tick: the previous move's board refresh is still in flight.
     case hold

@@ -7,10 +7,11 @@
 //  hidden so the goban fills the screen) plus a legible 10-foot side panel —
 //  player labels, captures, win rate, score, and a move/komi/rules info row —
 //  with a focusable transport row. The Siri-Remote D-pad steps moves; the
-//  Auto-Play toggle (or the remote's Play/Pause) replays the recorded moves on
-//  a timer, and any manual navigation stops it. Focusing the board itself arms
-//  the play cursor: the D-pad aims a ghost stone at any intersection, Select
-//  plays it as a variation, Menu returns to the panel.
+//  Auto-Play toggle (or the remote's Play/Pause) replays the recorded moves as
+//  a spoken, commentated broadcast — the live self-play UX with the recorded
+//  moves as the move source — and any manual navigation stops it. Focusing the
+//  board itself arms the play cursor: the D-pad aims a ghost stone at any
+//  intersection, Select plays it as a variation, Menu returns to the panel.
 //
 
 import SwiftUI
@@ -82,16 +83,23 @@ struct TVReviewScreen: View {
     @State private var totalMoves = 0
     /// The Top Moves row under remote focus, ringed on the board.
     @State private var highlightedPoint: BoardPoint?
-    /// Auto-Play: the recorded moves advancing on a timer. Plain state, NOT
-    /// `GobanState.isAutoPlaying` — that flag is the iOS wand's, is consulted
-    /// by ~10 live guards (AnalysisView, BoardView, the asymmetric human-SL
-    /// sends), is force-cleared by loadGame, and the only code that restores
-    /// what it suppresses lives in the iOS target and is not compiled for tvOS.
+    /// Auto-Play: the recorded moves replayed as a commentated broadcast
+    /// (the live self-play UX with the recorded move as the move source).
+    /// Plain state, NOT `GobanState.isAutoPlaying` — that flag is the iOS
+    /// wand's, is consulted by ~10 live guards (AnalysisView, BoardView, the
+    /// asymmetric human-SL sends), is force-cleared by loadGame, and the only
+    /// code that restores what it suppresses lives in the iOS target and is
+    /// not compiled for tvOS.
     @State private var isAutoPlaying = false
-    /// The running tick loop, cancelled by every stop path.
-    @State private var autoPlayTask: Task<Void, Never>?
-    /// Auto-Play cadence. Read fresh every tick, so it is always current.
-    @AppStorage(TVAutoPlaySpeed.defaultsKey) private var autoPlaySpeed = TVAutoPlaySpeed.defaultValue
+    /// The replay's broadcast driver; non-nil exactly while replaying.
+    @State private var replayBroadcast: BroadcastController?
+    /// The user's analysis-OFF preference, restored when the replay stops
+    /// (the broadcast protocol runs analysisStatus .clear — the
+    /// TVSelfPlayScreen.analysisWasUserOff pattern).
+    @State private var analysisWasUserOff = false
+    /// Whether the recorded game already ended — a full C++ SGF parse,
+    /// hoisted at replay start per this file's "never per body eval" rule.
+    @State private var recordedIsFinished = false
     /// The "Continuing live…" beat between the last recorded move and the push.
     @State private var isHandingOff = false
     @State private var handoffTask: Task<Void, Never>?
@@ -140,59 +148,81 @@ struct TVReviewScreen: View {
         // plays at it, and Menu hops focus back to the timeline (see the
         // onExitCommand branch below).
         HStack(spacing: 0) {
-            BoardView(gameRecord: game,
-                      interactive: false,
-                      showsCapturedStones: false,
-                      showsPass: false,
-                      showsWinrateBar: false,
-                      highlightedPoint: highlightedPoint,
-                      cursorPoint: ghost.point,
-                      commentIsFocused: $commentFocused)
-                // tvOS is always exactly 1920×1080 pt, so pin the square to
-                // the full screen height outright: inside the NavigationStack
-                // the safe-area insets survive ignoresSafeArea on this
-                // subtree, which silently shrank the fitted square to ~950 pt.
-                // A fixed frame also keeps the board independent of the
-                // panel's ideal height (it must never resize on toggles).
-                .frame(width: 1080, height: 1080)
-                // Focusable whenever the timeline isn't: onMoveCommand is
-                // only a FALLBACK on tvOS (a focusable target in the pressed
-                // direction wins and moves focus before the handler fires,
-                // verified on device 2026-07-16), so a focusable board to the
-                // timeline's left would hijack its left-scrub presses. No
-                // analysis gate — the cursor plays with the engine silent
-                // too; the kata-check-move submit path never needed
-                // candidates.
-                .focusable(!timelineFocused)
-                .focused($boardFocused)
-                .onMoveCommand(perform: boardMove)
-                // Select plays via the UIKit catcher (see TVSelectPressCatcher
-                // — .onTapGesture dropped every first Select on device).
-                // Armed off plain isAiming so the Menu exit disarms it in the
-                // same transaction that re-enables the panel.
-                .tvSelectPress(isEnabled: isAiming, perform: playAtCursor)
-                .overlay {
-                    // Focus affordance (the timeline-ring pattern): the board
-                    // has no system focus lift, so say "you are aiming" here.
-                    Rectangle()
-                        .stroke(boardFocused ? Color.tvWoodAccent : .clear,
-                                lineWidth: 4)
-                }
-                .onChange(of: boardFocused) { _, focused in
-                    isAiming = focused
-                    if focused {
-                        // Aiming the play cursor is taking over.
-                        stopAutoPlay()
-                        ghost.activate(width: Int(board.width),
-                                       height: Int(board.height))
-                    } else {
-                        ghost.reset()
+            ZStack {
+                BoardView(gameRecord: game,
+                          interactive: false,
+                          showsCapturedStones: false,
+                          showsPass: false,
+                          showsWinrateBar: false,
+                          highlightedPoint: highlightedPoint,
+                          cursorPoint: ghost.point,
+                          commentIsFocused: $commentFocused)
+                    // Focusable whenever the timeline isn't: onMoveCommand is
+                    // only a FALLBACK on tvOS (a focusable target in the
+                    // pressed direction wins and moves focus before the
+                    // handler fires, verified on device 2026-07-16), so a
+                    // focusable board to the timeline's left would hijack its
+                    // left-scrub presses. No analysis gate — the cursor plays
+                    // with the engine silent too; the kata-check-move submit
+                    // path never needed candidates. And never while replaying:
+                    // the slide layer owns focus then, and a board focus would
+                    // flip isAiming, which stops the replay (the self-play
+                    // screen's isPaused gate, adapted).
+                    .focusable(!timelineFocused && !isAutoPlaying)
+                    .focused($boardFocused)
+                    .onMoveCommand(perform: boardMove)
+                    // Select plays via the UIKit catcher (see
+                    // TVSelectPressCatcher — .onTapGesture dropped every first
+                    // Select on device). Armed off plain isAiming so the Menu
+                    // exit disarms it in the same transaction that re-enables
+                    // the panel.
+                    .tvSelectPress(isEnabled: isAiming, perform: playAtCursor)
+                    .overlay {
+                        // Focus affordance (the timeline-ring pattern): the
+                        // board has no system focus lift, so say "you are
+                        // aiming" here.
+                        Rectangle()
+                            .stroke(boardFocused ? Color.tvWoodAccent : .clear,
+                                    lineWidth: 4)
                     }
+                    .onChange(of: boardFocused) { _, focused in
+                        isAiming = focused
+                        if focused {
+                            // Aiming the play cursor is taking over.
+                            stopAutoPlay()
+                            ghost.activate(width: Int(board.width),
+                                           height: Int(board.height))
+                        } else {
+                            ghost.reset()
+                        }
+                    }
+
+                if let broadcast = replayBroadcast, broadcast.currentSlide != nil {
+                    replaySlideLayer(broadcast: broadcast)
                 }
+            }
+            // tvOS is always exactly 1920×1080 pt, so pin the square to the
+            // full screen height outright: inside the NavigationStack the
+            // safe-area insets survive ignoresSafeArea on this subtree, which
+            // silently shrank the fitted square to ~950 pt. A fixed frame also
+            // keeps the board independent of the panel's ideal height (it must
+            // never resize on toggles). The frame sits on the ZStack, not on
+            // BoardView, so the slide layer shares it (the TVSelfPlayScreen
+            // geometry).
+            .frame(width: 1080, height: 1080)
 
             Spacer(minLength: 24)
 
-            panel
+            Group {
+                if let broadcast = replayBroadcast, let slide = broadcast.currentSlide {
+                    TVBroadcastSlidePanel(title: slide.title,
+                                          text: broadcast.typedText,
+                                          slideNumber: broadcast.slideNumber,
+                                          slideCount: broadcast.slideCount)
+                } else {
+                    panel
+                }
+            }
                 // Hard ceiling: the 1080 pt screen minus the 30 pt vertical
                 // margins. A fixed frame reports this size to the HStack no
                 // matter how tall the content wants to be, so panel growth
@@ -257,6 +287,18 @@ struct TVReviewScreen: View {
                     isHandingOff = false
                 }
             }
+        // The replay chain: each cycle parks in .awaitingMove; the policy
+        // decides whether to run another (the old per-tick decision, now
+        // per-cycle). stones.isReady re-enters a .hold once the board
+        // refresh lands.
+        .onChange(of: replayBroadcast?.phase) { _, newPhase in
+            guard newPhase == .awaitingMove else { return }
+            continueReplay()
+        }
+        .onChange(of: stones.isReady) { _, ready in
+            guard ready, replayBroadcast?.phase == .awaitingMove else { return }
+            continueReplay()
+        }
         // A focused board consumes every D-pad press (edges clamp, Select
         // plays), so Menu is the one way out of cursor mode. Attaching an
         // onExitCommand replaces the default NavigationStack pop; reproduce
@@ -310,6 +352,32 @@ struct TVReviewScreen: View {
             // screen — the editing path on a synced record (build-291).
             didLoad = false
         }
+    }
+
+    // MARK: - Replay slides
+
+    /// The replay's slide surface over the hero slot. A choreography slide
+    /// mounts the acted-out slide board (the TVSelfPlayScreen pattern); the
+    /// Comment slide has no frame — the LIVE board stays visible beneath a
+    /// transparent layer that only keeps a focus home and the skip controls
+    /// (zero focusables would wedge the tvOS focus engine, see tooLargeView).
+    @ViewBuilder
+    private func replaySlideLayer(broadcast: BroadcastController) -> some View {
+        Group {
+            if let frame = broadcast.currentFrame, let model = broadcast.reportModel {
+                TVBroadcastSlideBoard(frame: frame, model: model)
+            } else {
+                Color.clear
+            }
+        }
+        .focusable(true)
+        .onMoveCommand { direction in
+            if direction == .right { broadcast.skipSlide() }
+        }
+        // Window-wide catcher invariant: while this is enabled the board's
+        // own catcher is off (isAiming is false during a replay) and the
+        // panel is the slide panel (no buttons).
+        .tvSelectPress(isEnabled: true, perform: { broadcast.skipSlide() })
     }
 
     // MARK: - Analysis + transport panel
@@ -526,8 +594,9 @@ struct TVReviewScreen: View {
         .buttonStyle(.bordered)
     }
 
-    /// Auto-Play: step the recorded moves on a timer. Disabled while a
-    /// variation is active — the mainline is what replays — which is also why
+    /// Auto-Play: replay the recorded moves as a commentated broadcast.
+    /// Disabled while a variation is active — the mainline is what replays —
+    /// which is also why
     /// `$toggleFocused` stays on the Analysis button: it is the timeline's
     /// programmatic down-hop target and must never be unfocusable.
     private var autoPlayToggle: some View {
@@ -625,12 +694,12 @@ struct TVReviewScreen: View {
     /// ungated pick could play a stale vertex. (The cursor needs no such
     /// gate — kata-check-move validates against the engine's own position.)
     private func pick(_ candidate: Analysis.CandidateMove) {
-        // Must precede the guard below: Auto-Play re-arms waitingForAnalysis
-        // on every tick (advanceOneMove() → reanalyze() → requestAnalysis),
-        // so gating the stop behind that guard would leave a window after
-        // every auto-advanced move where a Select here both does nothing AND
-        // fails to stop the replay — a dead-looking remote with stones still
-        // appearing.
+        // Must precede the guard below: the replay re-arms waitingForAnalysis
+        // on every cycle (its report probes, then the next position's
+        // requestAnalysis), so gating the stop behind that guard would leave a
+        // window after every auto-advanced move where a Select here both does
+        // nothing AND fails to stop the replay — a dead-looking remote with
+        // stones still appearing.
         stopAutoPlay()
         guard !gobanState.waitingForAnalysis else { return }
         submit(vertex: candidate.vertex)
@@ -745,8 +814,9 @@ struct TVReviewScreen: View {
     }
 
     private func stepBy(_ delta: Int) {
-        // Any manual step is the user taking over. The Auto-Play tick calls
-        // advanceOneMove() directly, so this can never cancel its own timer.
+        // Any manual step is the user taking over. The replay's own advance
+        // calls advanceReplayMove() directly, so this can never stop the
+        // broadcast it belongs to.
         stopAutoPlay()
         // Drop ticks while a previous batch's board refresh is in flight
         // (the visionOS undo/forward precedent) — a 10-move jump keeps the
@@ -807,17 +877,9 @@ struct TVReviewScreen: View {
         }
     }
 
-    /// Start replaying the recorded moves. Already parked at the last move is
-    /// not an error: there is nothing to replay, so this reports the end
-    /// immediately, which finishAutoPlay turns into the live handoff for an
-    /// unfinished game.
-    ///
-    /// The tick loop's FIRST statement must stay the sleep: `autoPlayTask` is
-    /// assigned only after the closure below is built, so a first tick that
-    /// ran any synchronous work before the sleep could call `stopAutoPlay()`
-    /// before the assignment lands, leaving a non-nil handle to an
-    /// already-finished task. A future "advance immediately on press" change
-    /// must not move the sleep off the top.
+    /// Start the commentated replay. Already parked at the last move is not
+    /// an error: nothing to replay, so report the end immediately — which
+    /// finishAutoPlay turns into the live handoff for an unfinished game.
     private func startAutoPlay() {
         guard !gobanState.isBranchActive, !isAutoPlaying else { return }
         guard gobanState.getNextMove(gameRecord: game) != nil else {
@@ -828,47 +890,92 @@ struct TVReviewScreen: View {
         // Lean-back viewing with no remote input: keep the system screensaver
         // from covering the replay (the TVSelfPlayScreen precedent).
         UIApplication.shared.isIdleTimerDisabled = true
-        // Invariant for the whole replay (game.sgf is never written here, and a
-        // branch stops the loop), and a full C++ parse — hoisted out of the tick
-        // per this file's "never per body eval" rule.
-        let recordedIsFinished = SelfPlayGame.recordedGameIsFinished(sgf: game.sgf)
-        autoPlayTask = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: autoPlaySpeed.interval)
-                guard !Task.isCancelled else { return }
-                switch TVAutoPlayPolicy.tick(
-                    hasNextMove: gobanState.getNextMove(gameRecord: game) != nil,
-                    isBranchActive: gobanState.isBranchActive,
-                    stonesReady: stones.isReady,
-                    recordedGameIsFinished: recordedIsFinished,
-                    thermalState: ProcessInfo.processInfo.thermalState
-                ) {
-                case .hold:
-                    continue
-                case .advance:
-                    advanceOneMove()
-                case .finish(let continuesLive):
-                    finishAutoPlay(continuesLive: continuesLive)
-                    return
-                case .stop:
-                    // The reason is the policy's testable output, not
-                    // something this screen acts on differently.
-                    stopAutoPlay()
-                    return
-                }
-            }
+        // Invariant for the whole replay (game.sgf is never written here,
+        // and a branch stops the loop); a full C++ parse, hoisted once.
+        recordedIsFinished = SelfPlayGame.recordedGameIsFinished(sgf: game.sgf)
+        // The broadcast engine-state protocol (the TVSelfPlayScreen entry,
+        // adapted): remember a user OFF, then run the cycles under
+        // analysisStatus .clear. suppressesGenMove is already true (review
+        // is a spectator) and replay mode never gen-moves at all. The
+        // asymmetric human-SL bundles are silenced for the replay's
+        // lifetime — a synced Human-vs-9d config would otherwise inject
+        // acks between a cycle's probes (Task 6 / the controller header).
+        analysisWasUserOff = (gobanState.analysisStatus == .clear)
+        gobanState.eyeStatus = .opened
+        gobanState.analysisStatus = .clear
+        gobanState.suppressesHumanSLTurnCommands = true
+        let broadcast = BroadcastController(
+            messageList: messageList,
+            gobanState: gobanState,
+            player: player,
+            rootWinrate: rootWinrate,
+            rootScore: rootScore,
+            speaker: AVSpeechNarrationSpeaker(),
+            isSpeechEnabled: { NarrationSpeechSetting.isEnabled },
+            pacing: { TVAutoPlaySpeed.current.broadcastPacing },
+            replayAdvance: { advanceReplayMove() })
+        replayBroadcast = broadcast
+        broadcast.noteTurnChanged(game: game)   // the first cycle
+    }
+
+    /// Every stop path funnels here (steps, picks, aiming, Play/Pause, Menu,
+    /// thermal, onDisappear). Tears the broadcast down (which cancels speech)
+    /// and restores the analysis state the replay protocol displaced.
+    private func stopAutoPlay() {
+        guard isAutoPlaying || replayBroadcast != nil else { return }
+        isAutoPlaying = false
+        replayBroadcast?.cancelAll()
+        replayBroadcast = nil
+        gobanState.suppressesHumanSLTurnCommands = false
+        UIApplication.shared.isIdleTimerDisabled = false
+        // cancelAll deliberately does not touch analysisStatus — the caller
+        // owns restoration (its doc comment).
+        if analysisWasUserOff {
+            gobanState.analysisStatus = .clear
+            gobanState.eyeStatus = .closed
+        } else {
+            gobanState.eyeStatus = .opened
+            gobanState.analysisStatus = .run
+            reanalyze()
         }
     }
 
-    /// Every stop path funnels here. Safe to call from inside the tick loop:
-    /// cancelling the task that is running is fine because the caller returns
-    /// immediately afterwards.
-    private func stopAutoPlay() {
-        guard isAutoPlaying || autoPlayTask != nil else { return }
-        isAutoPlaying = false
-        autoPlayTask?.cancel()
-        autoPlayTask = nil
-        UIApplication.shared.isIdleTimerDisabled = false
+    /// One cycle ended (phase == .awaitingMove): the per-cycle policy gate.
+    private func continueReplay() {
+        guard isAutoPlaying, let broadcast = replayBroadcast,
+              broadcast.phase == .awaitingMove else { return }
+        switch TVAutoPlayPolicy.tick(
+            hasNextMove: gobanState.getNextMove(gameRecord: game) != nil,
+            isBranchActive: gobanState.isBranchActive,
+            stonesReady: stones.isReady,
+            recordedGameIsFinished: recordedIsFinished,
+            thermalState: ProcessInfo.processInfo.thermalState
+        ) {
+        case .advance:
+            broadcast.noteTurnChanged(game: game)
+        case .hold:
+            break   // the stones.isReady onChange re-enters
+        case .finish(let continuesLive):
+            finishAutoPlay(continuesLive: continuesLive)
+        case .stop:
+            // The reason is the policy's testable output, not something this
+            // screen acts on differently.
+            stopAutoPlay()
+        }
+    }
+
+    /// The replay's move source: play the next recorded move and hand back
+    /// the synced comment for the position it lands on (nil = none). The
+    /// comment index is computed BEFORE the advance — the GTP round-trip
+    /// updates indices asynchronously.
+    private func advanceReplayMove() -> String? {
+        let nextIndex = (gobanState.getCurrentIndex(gameRecord: game) ?? game.currentIndex) + 1
+        gobanState.forwardMoves(limit: 1, gameRecord: game, board: board,
+                                messageList: messageList, player: player,
+                                audioModel: audioModel, stones: stones)
+        let comment = game.comments?[nextIndex]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (comment?.isEmpty == false) ? comment : nil
     }
 
     /// Reached the end of the recorded moves. An unfinished game hands off to a
@@ -924,15 +1031,6 @@ struct TVReviewScreen: View {
                             name: game.name.isEmpty ? SelfPlayGame.demoName : game.name,
                             scoreLeads: game.scoreLeads ?? [:],
                             winRates: game.winRates ?? [:])
-    }
-
-    /// One recorded move forward. Deliberately NOT routed through `stepBy`,
-    /// which stops Auto-Play — a tick calling it would cancel its own timer.
-    private func advanceOneMove() {
-        gobanState.forwardMoves(limit: 1, gameRecord: game, board: board,
-                                messageList: messageList, player: player,
-                                audioModel: audioModel, stones: stones)
-        reanalyze()
     }
 
 }

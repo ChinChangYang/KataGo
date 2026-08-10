@@ -17,7 +17,7 @@ public enum TVAutoPlaySpeed: String, CaseIterable, Identifiable, Sendable {
     case fast
 
     /// The one UserDefaults key, shared by the Settings picker's `@AppStorage`
-    /// and the review screen's per-tick read.
+    /// and the review replay's per-slide pacing read.
     public static let defaultsKey = "TVSettings.autoPlaySpeed"
 
     /// One source of truth for the default so the picker's declared default and
@@ -58,16 +58,4 @@ public enum TVAutoPlaySpeed: String, CaseIterable, Identifiable, Sendable {
         case .fast: "Fast"
         }
     }
-
-    /// Seconds between auto-advanced moves.
-    public var seconds: Double {
-        switch self {
-        case .slow: 3.0
-        case .normal: 1.5
-        case .fast: 0.7
-        }
-    }
-
-    /// The same cadence as a `Duration`, for `Task.sleep(for:)`.
-    public var interval: Duration { .seconds(seconds) }
 }
