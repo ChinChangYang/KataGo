@@ -43,6 +43,33 @@ public enum BroadcastConstants {
     public static let choreographyBeatSeconds: TimeInterval = 1.2
 }
 
+/// One replay/broadcast pacing profile. The live self-play broadcast always
+/// runs `.live`; the review replay maps TVAutoPlaySpeed onto tighter
+/// profiles. Only the typewriter, dwell, floor, and slide count scale —
+/// choreography beats, PV cadence, and the poll interval stay stock, and
+/// speech is never rate-shifted (an unfinished utterance holds the slide).
+public struct BroadcastPacing: Equatable, Sendable {
+    public let charactersPerSecond: Double
+    public let dwellSeconds: TimeInterval
+    public let minimumSlideSeconds: TimeInterval
+    /// Fact slides per cycle; the replay Comment slide is NOT counted.
+    public let maxSlideCount: Int
+
+    public init(charactersPerSecond: Double, dwellSeconds: TimeInterval,
+                minimumSlideSeconds: TimeInterval, maxSlideCount: Int) {
+        self.charactersPerSecond = charactersPerSecond
+        self.dwellSeconds = dwellSeconds
+        self.minimumSlideSeconds = minimumSlideSeconds
+        self.maxSlideCount = maxSlideCount
+    }
+
+    public static let live = BroadcastPacing(
+        charactersPerSecond: BroadcastConstants.charactersPerSecond,
+        dwellSeconds: BroadcastConstants.dwellSeconds,
+        minimumSlideSeconds: BroadcastConstants.minimumSlideSeconds,
+        maxSlideCount: Int.max)
+}
+
 /// A hypothetical stone placed on the report's base position during a
 /// choreography frame. The LAST placed stone of a frame carries the red
 /// current-move dot.

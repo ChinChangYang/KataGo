@@ -25,6 +25,30 @@ public enum TVAutoPlaySpeed: String, CaseIterable, Identifiable, Sendable {
     /// duplicated across TVSettingsScreen and TVSettingsStore — don't repeat it).
     public static let defaultValue: TVAutoPlaySpeed = .normal
 
+    /// The persisted speed right now. For escaping closures that must read
+    /// the CURRENT value each cycle (a captured @AppStorage copy would not).
+    public static var current: TVAutoPlaySpeed {
+        guard let raw = UserDefaults.standard.string(forKey: defaultsKey),
+              let speed = TVAutoPlaySpeed(rawValue: raw) else { return defaultValue }
+        return speed
+    }
+
+    /// How this speed paces the commentated replay (see BroadcastPacing).
+    /// Slow IS the live broadcast; normal tightens text; fast shows only the
+    /// Best Move slide at the tightest text pacing.
+    public var broadcastPacing: BroadcastPacing {
+        switch self {
+        case .slow:
+            .live
+        case .normal:
+            BroadcastPacing(charactersPerSecond: 45, dwellSeconds: 1.5,
+                            minimumSlideSeconds: 4.0, maxSlideCount: Int.max)
+        case .fast:
+            BroadcastPacing(charactersPerSecond: 60, dwellSeconds: 1.0,
+                            minimumSlideSeconds: 3.0, maxSlideCount: 1)
+        }
+    }
+
     public var id: String { rawValue }
 
     public var label: String {
