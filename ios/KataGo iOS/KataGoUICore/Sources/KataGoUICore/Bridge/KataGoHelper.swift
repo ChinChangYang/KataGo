@@ -77,19 +77,14 @@ public class KataGoHelper {
         let mainModelPath = modelPath ?? mainBundle.path(forResource: modelName,
                                                          ofType: modelExt)
 
-        // Whether to load the human-SL net. Apple TV never does (skips it as the
-        // single biggest memory lever, ~half the NN footprint). Elsewhere it is
-        // on by default, but callers running an analysis-only, memory-constrained
-        // engine (e.g. an app-extension appex) pass includeHumanNet:false to drop
-        // it — matching the tvOS shape: an empty humanModelArg so the engine's
-        // `humanModelFile != ""` gate is false, plus a config with the `humanSL*`
-        // params stripped (else Setup::loadParams throws "Provided parameter
-        // humanSL… but no human model was specified" and aborts the process).
-        #if os(tvOS)
-        let skipHumanNet = true
-        #else
+        // Whether to load the human-SL net. The caller decides — callers running
+        // an analysis-only, memory-constrained engine (e.g. an app-extension appex)
+        // pass includeHumanNet:false to drop it; every app target, tvOS included,
+        // takes the default true. When skipped: an empty humanModelArg so the
+        // engine's `humanModelFile != ""` gate is false, plus a config with the
+        // `humanSL*` params stripped (else Setup::loadParams throws "Provided
+        // parameter humanSL… but no human model was specified" and aborts).
         let skipHumanNet = !includeHumanNet
-        #endif
 
         let humanModelArg: String
         if skipHumanNet {
@@ -188,7 +183,7 @@ public class KataGoHelper {
             .filter { !String($0).trimmingCharacters(in: .whitespaces).hasPrefix("humanSL") }
             .joined(separator: "\n")
         let out = FileManager.default.temporaryDirectory
-            .appendingPathComponent("default_gtp_tvos.cfg")
+            .appendingPathComponent("default_gtp_stripped.cfg")
         do {
             try filtered.write(to: out, atomically: true, encoding: .utf8)
             return out.path(percentEncoded: false)

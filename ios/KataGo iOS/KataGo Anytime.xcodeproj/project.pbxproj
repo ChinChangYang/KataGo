@@ -473,6 +473,7 @@
 		BA2179C27358544EA3F9EB56 /* SelfPlayAttractPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D48FC1E4B0BA7ACE8D3473C /* SelfPlayAttractPolicyTests.swift */; };
 		BB566FAF6A2CC73012B21674 /* substitute.cc in Sources */ = {isa = PBXBuildFile; fileRef = 744518C7A1BEE2A0C3B3133A /* substitute.cc */; };
 		BB84C34F8B17A74E55B030CE /* GameRecord+Draft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1351D9B86F81A1CE0E3834 /* GameRecord+Draft.swift */; };
+		BC1B7192D1E8E447821BBAAC /* b18c384nbt-humanv0.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = E16BC83C2C4D2B2C00EA3A1E /* b18c384nbt-humanv0.bin.gz */; };
 		BD292E47A23A029417087418 /* WatchWidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD3106389746904F6A9BE88 /* WatchWidgetSnapshotTests.swift */; };
 		BD4FC7857C878EC30A61B5DB /* VisionGameDeleteFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6744588CD056E4B130D12589 /* VisionGameDeleteFlowTests.swift */; };
 		BD9B6B885BF6BA69621E7105 /* SavedGameProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */; };
@@ -3975,6 +3976,7 @@
 				923919A38F96C31748E774F2 /* default_gtp.cfg in Resources */,
 				1634D7F22CC02DC97B3EC6FB /* Assets.xcassets in Resources */,
 				48505CF7FF57FDBB232A8758 /* default_model.bin.gz in Resources */,
+				BC1B7192D1E8E447821BBAAC /* b18c384nbt-humanv0.bin.gz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
