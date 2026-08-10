@@ -23,8 +23,8 @@ public enum SelfPlayGame {
     /// A fresh demo record: default 19×19 SGF (carries the RU tag the C++
     /// parser requires) with both per-move times set so the shared gen-move
     /// loop plays both colors. A fresh `Config()` already resolves both
-    /// effective human profiles to "AI" — the only profile that can gen-move
-    /// on tvOS, where the human-SL net is not bundled.
+    /// effective human profiles to "AI" — the default play profile for self-play
+    /// gen-move on the TV platform.
     ///
     /// `maxBoardLength` (the size the running engine was launched with) caps the
     /// demo board so self-play stays runnable when the user lowers Max Board

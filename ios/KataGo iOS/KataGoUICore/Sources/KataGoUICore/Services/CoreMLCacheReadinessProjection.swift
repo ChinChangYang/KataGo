@@ -43,8 +43,9 @@ public struct ProjectionInputs: Equatable, Sendable {
 typealias ProjectionResolver = @Sendable (_ fileName: String) -> ProjectionInputs?
 
 /// File name of the bundled human-SL auxiliary network. The engine loads it
-/// alongside the user-selected model on every non-tvOS launch
-/// (`KataGoHelper.runGtp`), so it is converted and cached too.
+/// alongside the user-selected model on every launch (`KataGoHelper.runGtp`),
+/// unless `includeHumanNet:false` is passed (e.g., iOS Safari appex), so it is
+/// converted and cached too.
 public let humanSLAuxFileName = "b18c384nbt-humanv0.bin.gz"
 
 /// Projection for the selected model itself.

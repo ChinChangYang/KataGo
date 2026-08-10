@@ -3,9 +3,10 @@
 //  KataGo Anytime TV
 //
 //  tvOS "Review & spectate" app: browse iCloud-synced games and watch live AI
-//  analysis on the big screen. The in-process engine runs conservatively
-//  (CoreML/NE only, built-in b18 net, human-SL net skipped) — validated to fit
-//  the Apple TV 4K (A12) per-process memory limit (~2.1 GB) in Phase 0.
+//  analysis on the big screen. The in-process engine loads both the built-in b18
+//  net and the human-SL net, running on CoreML/NE only. The ~2.1 GB Apple TV 4K
+//  (A12) per-process memory limit is the operational constraint; Phase-0 validation
+//  predates the second net and dual-net memory validation on device is pending.
 //
 
 import SwiftUI

@@ -166,7 +166,7 @@ final class TVEngineController {
         let model = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
         maxBoardLength = BackendSettings(model: model).effectiveMaxBoardLength
         let launchedMaxBoardLength = maxBoardLength   // captured for the off-main thread
-        // Built-in b18 net, human-SL net skipped, CoreML/ANE only. Needs a
+        // Built-in b18 net and human-SL net, CoreML/ANE only. Needs a
         // >512 KB stack (BoardHistory copies) — match the iOS app's 1 MB.
         let thread = Thread { [weak self] in
             KataGoHelper.runGtp(deviceAssignments: EngineDeviceAssignments.platformMux,

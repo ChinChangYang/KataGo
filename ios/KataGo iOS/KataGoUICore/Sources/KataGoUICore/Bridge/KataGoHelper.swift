@@ -69,8 +69,8 @@ public class KataGoHelper {
         // The 18-block b18c384 built-in net on every platform, Apple TV included.
         // (Apple TV briefly shipped the tiny Lionffen b24c64 to dodge an ANE fault
         // under the old CoreML-vs-MLX benchmark; that benchmark is gone and b24c64's
-        // score/lead output was unreliable, so tvOS is back on b18 — the memory
-        // budget was validated for it in Phase 0. Human-SL net still skipped below.)
+        // score/lead output was unreliable, so tvOS is back on b18 — the single-net
+        // memory budget was validated in Phase 0.)
         let modelName = "default_model"
         let modelExt = "bin.gz"
 
@@ -171,9 +171,9 @@ public class KataGoHelper {
 
     /// Write a copy of the bundled GTP config with every `humanSL*` parameter line
     /// removed, returning its path. Callers that run without the human-SL net
-    /// (Apple TV always; any `includeHumanNet:false` caller) need this because the
-    /// engine aborts (`Setup::loadParams` → `throwHumanParsingError`) if those
-    /// params are present with no human model. Derived from the canonical config
+    /// (any `includeHumanNet:false` caller, e.g. the iOS Safari appex) need this
+    /// because the engine aborts (`Setup::loadParams` → `throwHumanParsingError`) if
+    /// those params are present with no human model. Derived from the canonical config
     /// each launch, so the two never drift (TMPDIR is purgeable but regenerated).
     private class func strippedHumanSLConfig(from path: String?) -> String? {
         guard let path,
