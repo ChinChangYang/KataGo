@@ -19,6 +19,8 @@ struct TVSettingsScreen: View {
     @Environment(TVControllerInput.self) private var controllerInput
 
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
+    @AppStorage(NarrationSpeechSetting.defaultsKey) private var spokenNarration
+        = NarrationSpeechSetting.defaultValue
     @AppStorage("TVSettings.showMemoryOverlay") private var showMemoryOverlay = false
     /// Auto-Play cadence on the review screen. A plain @AppStorage (unlike
     /// `boardSize`, whose key is derived from a model file name at runtime and
@@ -191,6 +193,11 @@ struct TVSettingsScreen: View {
                 .onChange(of: soundEffects) { _, newValue in
                     gobanState.soundEffect = newValue
                 }
+            Toggle("Spoken Narration", isOn: $spokenNarration)
+            Text("Reads the broadcast commentary aloud during live games and Auto-Play.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

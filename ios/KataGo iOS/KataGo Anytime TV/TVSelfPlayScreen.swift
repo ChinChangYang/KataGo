@@ -584,7 +584,9 @@ struct TVSelfPlayScreen: View {
                                         gobanState: gobanState,
                                         player: player,
                                         rootWinrate: rootWinrate,
-                                        rootScore: rootScore)
+                                        rootScore: rootScore,
+                                        speaker: AVSpeechNarrationSpeaker(),
+                                        isSpeechEnabled: { NarrationSpeechSetting.isEnabled })
 
         // The demo must load unlocked (editing) so moves persist into the
         // record — but editingAfterLoad only auto-unlocks the 19×19
