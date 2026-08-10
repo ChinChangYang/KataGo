@@ -345,6 +345,33 @@ struct BroadcastReplayTests {
         #expect(exited.value == 1)   // the cap cancelled it; an uncancelled park would time the pump out
     }
 
+    /// The stop path's ordering seam: a screen that stops a replay mid-cycle
+    /// must be able to sequence engine traffic AFTER the cancelled generator
+    /// has unwound. `cancelAll` alone returns while the generator is still
+    /// draining — its deferred restore then sends "stop" plus an undo tail,
+    /// which kills any kata-analyze armed before that lands (the review
+    /// screen's "analysis reads ON but nothing streams" stop bug).
+    @Test("cancelAllAndDrain awaits the cancelled generator's unwind")
+    func cancelAllAndDrainAwaitsTheUnwind() async {
+        let exited = Box()
+        let f = Fixture(replayAdvance: { nil },
+                        generate: { model, _ in
+                            BroadcastReplayTests.stageFullReport(model)
+                            model.stage = .passProbe          // keep generation OPEN
+                            while !Task.isCancelled { await Task.yield() }
+                            model.stage = .cancelled
+                            exited.value += 1
+                        })
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.isShowingSlides })
+        // Positive control: the generator really is parked, so the assertion
+        // after the drain cannot pass vacuously.
+        #expect(exited.value == 0)
+        await f.controller.cancelAllAndDrain()
+        #expect(exited.value == 1)   // returned only AFTER the unwind
+        #expect(f.controller.phase == .idle)
+    }
+
     @Test("A replayed one-pass position runs the full replay cycle, never the live gen-move shortcut")
     func onePassReplayNeverGenMoves() async {
         let counter = Counter()

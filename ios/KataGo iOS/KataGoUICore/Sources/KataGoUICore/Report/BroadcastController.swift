@@ -230,6 +230,21 @@ public final class BroadcastController {
         phase = .idle
     }
 
+    /// cancelAll, then await the cancelled tasks so callers can sequence
+    /// engine traffic AFTER the generator's cooperative restore has drained
+    /// (its deferred restore sends "stop" + an undo tail — anything armed
+    /// before that lands gets killed by it; the pause path awaits the same
+    /// drain for the same reason).
+    public func cancelAllAndDrain() async {
+        let cycle = cycleTask
+        let generation = generationTask
+        let pause = pauseTask
+        cancelAll()
+        await pause?.value
+        await cycle?.value
+        await generation?.value
+    }
+
     // MARK: - Cycle
 
     private func startCycle(game: GameRecord) {

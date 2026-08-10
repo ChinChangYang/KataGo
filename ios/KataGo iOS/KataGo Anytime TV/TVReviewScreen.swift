@@ -614,6 +614,13 @@ struct TVReviewScreen: View {
     /// separate Overlay toggle allowed — a stale board overlay with the
     /// engine stopped, and an invisible engine heating the fanless box.
     private func toggleAnalysis() {
+        // Any analysis toggle is the user taking over from the replay — and
+        // an un-stopped replay must never see a kata-analyze injected into a
+        // live report cycle (the controller's .clear protocol). stopAutoPlay
+        // restores the pre-replay analysis state synchronously, so the flip
+        // below reads it coherently; its post-drain re-arm guard then defers
+        // to whatever this toggle decides.
+        stopAutoPlay()
         if gobanState.analysisStatus == .run {
             // .clear is observed at the TVRootView, which sends GTP "stop";
             // closing the eye hides the board overlay and switches the
@@ -920,22 +927,39 @@ struct TVReviewScreen: View {
 
     /// Every stop path funnels here (steps, picks, aiming, Play/Pause, Menu,
     /// thermal, onDisappear). Tears the broadcast down (which cancels speech)
-    /// and restores the analysis state the replay protocol displaced.
+    /// and restores the analysis state the replay protocol displaced — the
+    /// flags synchronously, the engine's analyze stream only after the
+    /// cancelled generator has drained (see below).
     private func stopAutoPlay() {
         guard isAutoPlaying || replayBroadcast != nil else { return }
         isAutoPlaying = false
-        replayBroadcast?.cancelAll()
+        let broadcast = replayBroadcast
         replayBroadcast = nil
         gobanState.suppressesHumanSLTurnCommands = false
         UIApplication.shared.isIdleTimerDisabled = false
         // cancelAll deliberately does not touch analysisStatus — the caller
         // owns restoration (its doc comment).
+        //
+        // Synchronous state restore first, so callers that read or re-toggle
+        // the status right after (stepBy's reanalyze, toggleAnalysis) see the
+        // pre-replay state — but the actual analyze re-request must wait out
+        // the generator's cooperative restore ("stop" + undo tail), which
+        // would kill anything armed before it lands.
         if analysisWasUserOff {
             gobanState.analysisStatus = .clear
             gobanState.eyeStatus = .closed
         } else {
             gobanState.eyeStatus = .opened
             gobanState.analysisStatus = .run
+        }
+        Task { @MainActor in
+            await broadcast?.cancelAllAndDrain()
+            // The user may have toggled analysis, stepped (its own re-arm is
+            // also post-stop and may have died to the same generator stop —
+            // this re-arm covers it), or left the screen (maybePauseAnalysis
+            // set .pause) while the drain ran. Never fight a newer state:
+            // only a still-.run status wants the stream back.
+            guard gobanState.analysisStatus == .run else { return }
             reanalyze()
         }
     }
