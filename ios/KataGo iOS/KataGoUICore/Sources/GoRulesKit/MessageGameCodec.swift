@@ -280,7 +280,6 @@ public enum MessageGameCodec {
 
     /// SGF point letters: a...z then A...Z covers up to 52; 37 fits.
     static func sgfCoord(_ p: GoPoint) -> String {
-        let letters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-        return String(letters[p.x]) + String(letters[p.y])
+        BoardHandicapPoints.sgfCoordinate(x: p.x, y: p.y) ?? ""
     }
 }

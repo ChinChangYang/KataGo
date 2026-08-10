@@ -156,7 +156,7 @@ let package = Package(
         // live in the app test target instead.
         .testTarget(
             name: "GoRulesKitTests",
-            dependencies: ["GoRulesKit"]
+            dependencies: ["GoRulesKit", "KataGoGameStore"]
         ),
         // Standalone tests for the Safari-extension analysis tier (wire
         // schema, sweep scheduling, outbox, perspective math). Engine-free:

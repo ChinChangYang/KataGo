@@ -124,51 +124,13 @@ public struct GoGame: Sendable {
     /// first), then sides, center joins for odd counts >= 5. Returns fewer
     /// points than requested when the board's star layout can't seat them.
     public static func handicapPoints(width: Int, height: Int, count: Int) -> [GoPoint] {
-        let stars = BoardStarPoints.points(width: width, height: height).map { GoPoint(x: $0.x, y: $0.y) }
-        guard count >= 2 else { return [] }
-        let xs = Set(stars.map(\.x)).sorted()
-        let ys = Set(stars.map(\.y)).sorted()
-        guard xs.count >= 2, ys.count >= 2 else { return [] }
-        let (left, right) = (xs.first!, xs.last!)
-        let (top, bottom) = (ys.first!, ys.last!)
-        func star(_ x: Int, _ y: Int) -> GoPoint? {
-            stars.first { $0.x == x && $0.y == y }
-        }
-        // Black's first stone top-right, then diagonal, per convention.
-        let corners = [star(right, top), star(left, bottom), star(right, bottom), star(left, top)].compactMap { $0 }
-        let center = stars.first { xs.count == 3 && ys.count == 3
-            && $0.x == xs[1] && $0.y == ys[1] }
-        // Traditional order: the left/right middle points come before the
-        // top/bottom middle points (6-stone handicap = corners + both sides).
-        let sides = stars.filter { p in
-            !corners.contains(p) && center != p
-        }.sorted { a, b in
-            let aIsLeftRight = center.map { a.y == $0.y } ?? false
-            let bIsLeftRight = center.map { b.y == $0.y } ?? false
-            if aIsLeftRight != bIsLeftRight { return aIsLeftRight }
-            return a.x != b.x ? a.x < b.x : a.y < b.y
-        }
-        var order: [GoPoint] = []
-        switch count {
-        case 2, 3, 4:
-            order = Array(corners.prefix(count))
-        case 5, 7, 9:
-            guard let center else { return [] }
-            order = Array(corners.prefix(4)) + sides.prefix(count - 5) + [center]
-        case 6, 8:
-            order = Array(corners.prefix(4)) + sides.prefix(count - 4)
-        default:
-            return []
-        }
-        return order.count == count ? order : []
+        BoardHandicapPoints.points(width: width, height: height, count: count)
+            .map { GoPoint(x: $0.x, y: $0.y) }
     }
 
     /// Largest handicap the board's star layout can seat (0 when < 2).
     public static func maxHandicap(width: Int, height: Int) -> Int {
-        for n in stride(from: 9, through: 2, by: -1) where handicapPoints(width: width, height: height, count: n).count == n {
-            return n
-        }
-        return 0
+        BoardHandicapPoints.maxCount(width: width, height: height)
     }
 
     // MARK: - Ko hashing
