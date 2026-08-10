@@ -322,4 +322,38 @@ struct BroadcastReplayTests {
         // The panel headline still gets the snapshot.
         #expect(f.session.rootWinrate.black == 0.6)
     }
+
+    @MainActor
+    private final class Box {
+        var value = 0
+    }
+
+    @Test("The pacing cap cancels the leftover generation instead of awaiting it")
+    func capCancelsLeftoverGeneration() async {
+        let exited = Box()
+        let f = Fixture(pacing: TVAutoPlaySpeed.fast.broadcastPacing,
+                        replayAdvance: { nil },
+                        generate: { model, _ in
+                            BroadcastReplayTests.stageFullReport(model)
+                            model.stage = .passProbe          // keep generation OPEN
+                            while !Task.isCancelled { await Task.yield() }
+                            model.stage = .cancelled
+                            exited.value += 1
+                        })
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(exited.value == 1)   // the cap cancelled it; an uncancelled park would time the pump out
+    }
+
+    @Test("A replayed one-pass position runs the full replay cycle, never the live gen-move shortcut")
+    func onePassReplayNeverGenMoves() async {
+        let counter = Counter()
+        let f = Fixture(replayAdvance: { counter.advances += 1; return nil })
+        f.session.gobanState.passCount = 1
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(counter.advances == 1)
+        #expect(!f.sent("kata-search_analyze_cancellable"))
+        #expect(!f.session.gobanState.broadcastGenMovePending)
+    }
 }

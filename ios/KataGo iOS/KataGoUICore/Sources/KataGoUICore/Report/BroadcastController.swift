@@ -125,7 +125,10 @@ public final class BroadcastController {
 
     /// The screen's turn-change hook (fires off BoardView's shared observer
     /// signal). Starts the first cycle, chains the next one, or records that
-    /// the pre-sent gen-move's stone landed mid-slideshow.
+    /// the pre-sent gen-move's stone landed mid-slideshow. Replay-mode
+    /// screens must chain off `phase == .awaitingMove`, not off turn
+    /// changes — a commented move's turn flip lands mid-comment-slide and is
+    /// consumed here as `moveLanded`, never a fresh cycle.
     public func noteTurnChanged(game: GameRecord) {
         guard player.nextColorForPlayCommand != .unknown else { return }
         switch phase {
@@ -258,6 +261,15 @@ public final class BroadcastController {
             let chain = await self.runCycle(game: game, token: token)
             guard self.cycleToken == token else { return }
             self.cycleTask = nil
+            // Replay publishes .awaitingMove only once the handle is clear:
+            // the SCREEN chains off this phase signal (never the turn
+            // observer — a commented move's turn flip lands mid-comment-slide
+            // and is consumed as moveLanded), and publishing before the
+            // handle cleared would let a fast observer's noteTurnChanged be
+            // silently dropped by the cycleTask guard above.
+            if self.replayAdvance != nil, !Task.isCancelled, self.phase != .idle {
+                self.phase = .awaitingMove
+            }
             if chain {
                 self.startCycle(game: game)
             }
@@ -368,7 +380,6 @@ public final class BroadcastController {
                                         token: token)
             }
             if Task.isCancelled { return false }
-            phase = .awaitingMove
             return false
         }
         if !genMoveIssued {
