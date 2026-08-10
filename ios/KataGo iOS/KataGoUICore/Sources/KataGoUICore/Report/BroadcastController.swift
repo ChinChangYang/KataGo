@@ -235,6 +235,10 @@ public final class BroadcastController {
     /// (its deferred restore sends "stop" + an undo tail — anything armed
     /// before that lands gets killed by it; the pause path awaits the same
     /// drain for the same reason).
+    ///
+    /// One caller at a time: a second concurrent call finds the handles
+    /// already nil'd by the first's cancelAll and returns without awaiting
+    /// anything — callers own the single-drain discipline.
     public func cancelAllAndDrain() async {
         let cycle = cycleTask
         let generation = generationTask

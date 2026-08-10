@@ -945,6 +945,13 @@ struct TVReviewScreen: View {
             replayAdvance: { advanceReplayMove() })
         replayBroadcast = broadcast
         broadcast.noteTurnChanged(game: game)   // the first cycle
+        // The first cycle can refuse to start (turn still .unknown before the
+        // entry showboard replies, or a mid-game double pass putting
+        // passCount at 2): the controller parks in .idle and no phase edge
+        // will ever arrive. Unwind rather than stall silently.
+        if broadcast.phase == .idle {
+            stopAutoPlay()
+        }
     }
 
     /// Every stop path funnels here (steps, picks, aiming, Play/Pause, Menu,

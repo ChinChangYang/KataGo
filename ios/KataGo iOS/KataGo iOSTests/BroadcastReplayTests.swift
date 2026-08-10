@@ -150,6 +150,13 @@ struct BroadcastReplayTests {
         f.speaker.autoFinishes = false
         f.controller.noteTurnChanged(game: f.record)
         await f.pump(until: { f.controller.slideNumber == 1 })
+        // Pump until the typewriter has genuinely finished slide 1 — its
+        // LAST fact fully typed — before starting the fixed-yield window
+        // below. Without this, that window could end while slide 1 is still
+        // typing, which would weaken "the queue holds the slide" into
+        // nothing more than "the typewriter hasn't caught up yet".
+        let slide1LastFact = BroadcastScript.slides(from: f.controller.reportModel!)[0].facts.last!
+        await f.pump(until: { f.controller.typedText.contains(slide1LastFact) })
         // Let the typewriter and dwell run out; the speech queue still holds.
         // Bounded well below the wedge ceiling (BroadcastConstants.
         // speechHoldFloorSeconds) so this proves the QUEUE is holding the
