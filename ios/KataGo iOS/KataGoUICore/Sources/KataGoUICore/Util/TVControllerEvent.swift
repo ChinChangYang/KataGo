@@ -17,6 +17,10 @@
 //  to a system screenshot long-press, so its input is delayed or swallowed) and
 //  Home. Binding any of them would double-fire.
 //
+//  On the review screen the navigation buttons (L1/R1/L2/R2) also work while
+//  the play cursor is aiming — the cursor follows the last move as positions
+//  change; X and Y stay aiming-suppressed there (the cursor owns the modes).
+//
 
 import Foundation
 

@@ -864,12 +864,18 @@ struct TVReviewScreen: View {
 
     /// Focus-safe controller buttons. Inert while aiming: the board cursor owns
     /// the screen then, exactly as the D-pad does.
+    /// Focus-safe controller buttons. Navigation (L1/R1/L2/R2) now works
+    /// while aiming too — the ghost follows the changing last move via the
+    /// anchor hook, so stepping and aiming compose. X and Y stay inert
+    /// while aiming: the board cursor owns the screen's modes, and starting
+    /// Auto-Play or toggling analysis mid-aim would fight it.
     private func handleControllerEvent(_ event: TVControllerEvent) {
-        guard !isAiming else { return }
         switch event {
         case .buttonX:
+            guard !isAiming else { return }
             toggleAutoPlay()
         case .buttonY:
+            guard !isAiming else { return }
             toggleAnalysis()
         case .leftShoulder:
             stepBy(-1)
