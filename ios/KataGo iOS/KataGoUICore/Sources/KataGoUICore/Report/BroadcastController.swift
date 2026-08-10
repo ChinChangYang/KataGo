@@ -84,6 +84,10 @@ public final class BroadcastController {
     private var moveLanded = false
     private var genMoveIssued = false
     private var skipRequested = false
+    /// Characters enqueued for speech so far this slide — bounds the
+    /// end-of-slide speech hold against a wedged synthesizer (see
+    /// waitOutDwellAndSpeech). Reset at slide entry.
+    private var spokenCharactersThisSlide = 0
     /// Monotonic cycle identity: a cycle's continuation may only clear the
     /// shared handle (and chain) if no newer cycle has been started since —
     /// a cancelled cycle's continuation draining late must not clobber a
@@ -359,6 +363,7 @@ public final class BroadcastController {
     /// the Δ/PV branch and reshape the list mid-drain.
     private func present(slideIndex: Int, model: DeepReportModel) async {
         typedText = ""
+        spokenCharactersThisSlide = 0
         var elapsed: TimeInterval = 0
         var factIndex = 0
         var frames: [BroadcastBoardFrame] = []
@@ -413,7 +418,10 @@ public final class BroadcastController {
             refreshFrames()
             if factIndex < facts.count {
                 emitDueFactFrames()
-                if isSpeechEnabled() { speaker?.speak(facts[factIndex]) }
+                if isSpeechEnabled() {
+                    speaker?.speak(facts[factIndex])
+                    spokenCharactersThisSlide += facts[factIndex].count
+                }
                 for chunk in BroadcastScript.typewriterChunks(facts[factIndex]) {
                     guard !Task.isCancelled && !skipRequested else { break }
                     typedText += chunk
@@ -444,15 +452,27 @@ public final class BroadcastController {
     /// on, the remainder of the utterance queue (speech is never rate-
     /// shifted, so on fast pacing it becomes the slide's floor). Polled so a
     /// skip is honored AND consumed (the F4 regression) and cancellation is
-    /// prompt; a consumed skip also cuts the speech off mid-word.
+    /// prompt; a consumed skip also cuts the speech off mid-word. The speech
+    /// extension is itself capped (speechCeiling): a wedged synthesizer's
+    /// isSpeaking is not under this controller's control, so an unbounded
+    /// wait would park the whole broadcast — past the ceiling the utterance
+    /// is cancelled and the slide advances on silent pacing.
     private func waitOutDwellAndSpeech(elapsed: TimeInterval) async {
         let dwell = max(pacing().minimumSlideSeconds - elapsed,
                         pacing().dwellSeconds)
+        let speechCeiling = max(BroadcastConstants.speechHoldFloorSeconds,
+                                Double(spokenCharactersThisSlide)
+                                    / BroadcastConstants.assumedMinimumSpokenCharactersPerSecond)
         var dwelled: TimeInterval = 0
         while dwelled < dwell || speaker?.isSpeaking == true {
             if Task.isCancelled { return }
             if skipRequested {
                 skipRequested = false
+                speaker?.cancelAll()
+                return
+            }
+            if dwelled >= dwell + speechCeiling {
+                // The synthesizer wedged: degrade to silent pacing.
                 speaker?.cancelAll()
                 return
             }

@@ -7,6 +7,7 @@
 //  scripted generator, yield-only sleeper, bounded MainActor pumps).
 //
 
+import Foundation
 import Testing
 import SwiftData
 @testable import KataGoUICore
@@ -33,6 +34,14 @@ final class FakeSpeaker: NarrationSpeaking {
     }
 
     func finishAll() { queueDepth = 0 }
+}
+
+/// Records every delay the controller requests of its sleeper, in order —
+/// the seam for proving `pacing()` (not the hard-coded BroadcastConstants)
+/// drives the typewriter reveal rate.
+@MainActor
+final class DelayBox {
+    var delays: [TimeInterval] = []
 }
 
 @MainActor
@@ -69,6 +78,10 @@ struct BroadcastReplayTests {
         let record: GameRecord
         let controller: BroadcastController
         let speaker = FakeSpeaker()
+        /// Every delay requested of the sleeper, in order (empty unless a
+        /// test reads it — recording costs nothing the other fixtures care
+        /// about).
+        let recordedDelays = DelayBox()
 
         init(speechEnabled: Bool = true,
              pacing: BroadcastPacing = .live,
@@ -87,7 +100,10 @@ struct BroadcastReplayTests {
                                              rootWinrate: session.rootWinrate,
                                              rootScore: session.rootScore,
                                              generateReport: generate,
-                                             sleeper: { _ in await Task.yield() },
+                                             sleeper: { [recordedDelays] delay in
+                                                 recordedDelays.delays.append(delay)
+                                                 await Task.yield()
+                                             },
                                              speaker: speaker,
                                              isSpeechEnabled: { speechEnabled },
                                              pacing: { pacing },
@@ -135,10 +151,32 @@ struct BroadcastReplayTests {
         f.controller.noteTurnChanged(game: f.record)
         await f.pump(until: { f.controller.slideNumber == 1 })
         // Let the typewriter and dwell run out; the speech queue still holds.
-        for _ in 0..<3000 { await Task.yield() }
+        // Bounded well below the wedge ceiling (BroadcastConstants.
+        // speechHoldFloorSeconds) so this proves the QUEUE is holding the
+        // slide, not the ceiling eventually releasing it on its own.
+        var yields = 0
+        while f.controller.slideNumber == 1 && yields < 200 {
+            await Task.yield()
+            yields += 1
+        }
         #expect(f.controller.slideNumber == 1)
         f.speaker.finishAll()
         await f.pump(until: { f.controller.slideNumber >= 2 })
+    }
+
+    /// A wedged synthesizer (isSpeaking that never goes false and no
+    /// finishAll) must not park the broadcast forever: the speech-hold
+    /// ceiling (BroadcastConstants.speechHoldFloorSeconds /
+    /// assumedMinimumSpokenCharactersPerSecond) degrades to silent pacing —
+    /// cancelling the stuck utterance and letting the cycle complete.
+    @Test("A wedged synthesizer degrades to silent pacing; the broadcast completes")
+    func wedgedSynthesizerDegradesToSilentPacing() async {
+        let f = Fixture()
+        f.speaker.autoFinishes = false   // never calls finishAll(): isSpeaking stays true
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.slideNumber == 2 })
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(f.speaker.cancelCount >= 1)
     }
 
     @Test("Skip cancels speech immediately")
@@ -167,5 +205,36 @@ struct BroadcastReplayTests {
         await g.pump(until: { g.controller.isShowingSlides })
         g.controller.cancelAll()
         #expect(g.speaker.cancelCount >= 1)
+    }
+
+    // MARK: - Pacing
+
+    /// Proves pacing() (not the hard-coded BroadcastConstants) drives the
+    /// typewriter reveal rate: a recording sleeper captures every requested
+    /// delay, and a tight (.fast) profile's per-chunk delays must appear —
+    /// the .live-rate delay for the same chunk must NOT.
+    @Test("pacing() drives the typewriter reveal rate")
+    func pacingDrivesTypewriterRate() async {
+        let f = Fixture(pacing: TVAutoPlaySpeed.fast.broadcastPacing)
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+
+        let firstFact = BroadcastScript.slides(from: f.controller.reportModel!)
+            .flatMap { $0.facts }.first!
+        let chunks = BroadcastScript.typewriterChunks(firstFact)
+        #expect(!chunks.isEmpty)
+        // Any non-empty chunk discriminates 60 cps from 30 cps; guard
+        // defensively against a degenerate chunk where they'd collide.
+        let chunk = chunks.first {
+            Double($0.count) / TVAutoPlaySpeed.fast.broadcastPacing.charactersPerSecond
+                != Double($0.count) / BroadcastPacing.live.charactersPerSecond
+        } ?? chunks[0]
+        let fastDelay = Double(chunk.count) / TVAutoPlaySpeed.fast.broadcastPacing.charactersPerSecond
+        let liveDelay = Double(chunk.count) / BroadcastPacing.live.charactersPerSecond
+
+        #expect(f.recordedDelays.delays.contains(fastDelay))
+        if fastDelay != liveDelay {
+            #expect(!f.recordedDelays.delays.contains(liveDelay))
+        }
     }
 }

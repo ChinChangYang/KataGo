@@ -46,6 +46,15 @@ public enum BroadcastConstants {
     public static let pvStoneSeconds: TimeInterval = 0.9
     /// Choreography beat: transitions, pass chips, punish stones.
     public static let choreographyBeatSeconds: TimeInterval = 1.2
+    /// A wedged speech synthesizer must degrade to silent pacing, not a dead
+    /// broadcast: the end-of-slide speech hold never exceeds this floor or
+    /// the slide's spoken length at the assumed worst-case rate, whichever
+    /// is larger.
+    public static let speechHoldFloorSeconds: TimeInterval = 10.0
+    /// Deliberately far below any real synthesizer rate (en-US speaks at
+    /// roughly 14-17 characters/second) so the ceiling only ever cuts off a
+    /// synthesizer that has genuinely wedged.
+    public static let assumedMinimumSpokenCharactersPerSecond: Double = 5.0
 }
 
 /// One replay/broadcast pacing profile. The live self-play broadcast always
