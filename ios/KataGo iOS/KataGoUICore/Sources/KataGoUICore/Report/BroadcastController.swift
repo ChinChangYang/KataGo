@@ -52,8 +52,8 @@ public final class BroadcastController {
     public private(set) var typedText = ""
     public private(set) var reportModel: DeepReportModel?
     /// The slide board's current choreography frame; non-nil exactly while
-    /// currentSlide is non-nil (the first frame is assigned in the same
-    /// synchronous block as the slide).
+    /// currentSlide is non-nil — EXCEPT the replay Comment slide, which
+    /// deliberately keeps it nil so the live hero board stays mounted.
     public private(set) var currentFrame: BroadcastBoardFrame?
 
     private let messageList: MessageList
@@ -239,10 +239,12 @@ public final class BroadcastController {
         genMoveIssued = false
         skipRequested = false
         slideCount = 0
-        guard gobanState.passCount == 0 else {
+        guard gobanState.passCount == 0 || replayAdvance != nil else {
             // Endgame formality (grilled decision): once passing starts,
             // no report segments — answer immediately, the interstitial
-            // machinery takes over after the second pass.
+            // machinery takes over after the second pass. (Live only:
+            // replay routes through the full cycle so its move source and
+            // comment slide run — a report on a one-pass position is fine.)
             reportModel = nil
             issueGenMove(game: game)
             phase = .awaitingMove
@@ -300,8 +302,16 @@ public final class BroadcastController {
         writeSnapshotStats(model: model, game: game)
 
         var index = 0
+        var cappedByPacing = false
         while !Task.isCancelled {
             let slides = BroadcastScript.slides(from: model)
+            if index >= pacing().maxSlideCount {
+                // Fast replay shows only the Best Move slide; the leftover
+                // generation is cancelled below (probe restore() runs, the
+                // same path pause takes).
+                cappedByPacing = true
+                break
+            }
             if index >= slides.count {
                 if model.stage.isSettled { break }
                 try? await sleeper(BroadcastConstants.pollSeconds)
@@ -316,7 +326,8 @@ public final class BroadcastController {
             // the new slide's title over the previous slide's terminal frame
             // (a stray pass chip under "Best Move …").
             currentFrame = BroadcastScript.frames(for: slides[index], model: model).first
-            if model.stage.isSettled && index == slides.count - 1 && !genMoveIssued {
+            if model.stage.isSettled && index == slides.count - 1
+                && !genMoveIssued && replayAdvance == nil {
                 // Early gen-move (grilled decision): sent as the FINAL slide
                 // starts, so the reply lands invisibly (hero and panel both
                 // show report content) and the stone appears the moment the
@@ -328,7 +339,7 @@ public final class BroadcastController {
             index += 1
         }
 
-        if Task.isCancelled {
+        if Task.isCancelled || cappedByPacing {
             generation.cancel()
         }
         await generation.value
@@ -342,6 +353,24 @@ public final class BroadcastController {
             slideNumber = 0
         }
         if Task.isCancelled { return false }
+        if let replayAdvance {
+            // The recorded move IS this cycle's move. genMoveIssued marks
+            // "the move is played" so a turn change landing during the
+            // comment slide takes the moveLanded branch in noteTurnChanged
+            // instead of starting a nested cycle; the SCREEN chains cycles
+            // (policy-gated), so replay always returns false.
+            genMoveIssued = true
+            let comment = replayAdvance()
+            if let comment {
+                await presentStandalone(BroadcastSlide(kind: .comment,
+                                                       title: "Comment",
+                                                       facts: [comment]),
+                                        token: token)
+            }
+            if Task.isCancelled { return false }
+            phase = .awaitingMove
+            return false
+        }
         if !genMoveIssued {
             issueGenMove(game: game)
         }
@@ -448,6 +477,50 @@ public final class BroadcastController {
         await waitOutDwellAndSpeech(elapsed: elapsed)
     }
 
+    /// Types (and speaks) a slide that has NO choreography — the replay
+    /// Comment slide. currentFrame stays nil, the one deliberate exception
+    /// to the "frame non-nil while a slide shows" pairing: the TV screens
+    /// mount the slide board only when a frame exists, so the LIVE hero
+    /// board (already showing the just-played move) stays visible while the
+    /// comment types over it in the panel.
+    private func presentStandalone(_ slide: BroadcastSlide, token: Int) async {
+        slideCount += 1
+        slideNumber = slideCount
+        currentSlide = slide
+        currentFrame = nil
+        typedText = ""
+        spokenCharactersThisSlide = 0
+        var elapsed: TimeInterval = 0
+        for fact in slide.facts {
+            guard !Task.isCancelled && !skipRequested else { break }
+            if isSpeechEnabled() {
+                speaker?.speak(fact)
+                spokenCharactersThisSlide += fact.count
+            }
+            for chunk in BroadcastScript.typewriterChunks(fact) {
+                guard !Task.isCancelled && !skipRequested else { break }
+                typedText += chunk
+                let delay = Double(chunk.count) / pacing().charactersPerSecond
+                try? await sleeper(delay)
+                elapsed += delay
+            }
+            typedText += "\n"
+        }
+        if skipRequested {
+            skipRequested = false
+            speaker?.cancelAll()
+        } else if !Task.isCancelled {
+            await waitOutDwellAndSpeech(elapsed: elapsed)
+        }
+        // Same guard as present()'s epilogue: a cancelled cycle draining
+        // late must not blank a successor's live slide.
+        guard !Task.isCancelled, cycleToken == token else { return }
+        currentSlide = nil
+        currentFrame = nil
+        typedText = ""
+        slideNumber = 0
+    }
+
     /// The end-of-slide hold: the pacing dwell/floor PLUS, when narration is
     /// on, the remainder of the utterance queue (speech is never rate-
     /// shifted, so on fast pacing it becomes the slide's floor). Polled so a
@@ -511,6 +584,10 @@ public final class BroadcastController {
         let blackScore = model.sideToMove == .black ? position.scoreLead : -position.scoreLead
         rootWinrate.black = blackWinrate
         rootScore.black = blackScore
+        // Replay is a spectator: never write the synced record's per-move
+        // dictionaries (the review no-write invariant). The headline and
+        // chart playhead read the root models above.
+        guard replayAdvance == nil else { return }
         game.winRates?[game.currentIndex] = blackWinrate
         withAnimation(.spring) {
             game.scoreLeads?[game.currentIndex] = blackScore

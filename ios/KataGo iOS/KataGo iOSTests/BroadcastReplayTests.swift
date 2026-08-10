@@ -237,4 +237,89 @@ struct BroadcastReplayTests {
             #expect(!f.recordedDelays.delays.contains(liveDelay))
         }
     }
+
+    // MARK: - Replay move source
+
+    @MainActor
+    private final class Counter {
+        var advances = 0
+        var comment: String?
+    }
+
+    @Test("A replay cycle advances the record once, never gen-moves, never chains")
+    func replayCycleAdvancesOnceWithoutGenMove() async {
+        let counter = Counter()
+        let f = Fixture(replayAdvance: { counter.advances += 1; return nil })
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        for _ in 0..<500 { await Task.yield() }   // would-be chain window
+        #expect(counter.advances == 1)
+        #expect(!f.sent("kata-search_analyze_cancellable"))
+        #expect(!f.session.gobanState.broadcastGenMovePending)
+        #expect(f.controller.phase == .awaitingMove)
+    }
+
+    @Test("A synced comment shows as a frameless Comment slide, typed and spoken")
+    func commentSlideShowsOverLiveBoard() async {
+        let counter = Counter()
+        counter.comment = "A synced note about this move."
+        let f = Fixture(replayAdvance: { counter.advances += 1; return counter.comment })
+        var sawComment = false
+        var frameWasNilDuringComment = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.currentSlide?.kind == .comment {
+                sawComment = true
+                frameWasNilDuringComment = (f.controller.currentFrame == nil)
+            }
+            await Task.yield()
+        }
+        #expect(sawComment)
+        #expect(frameWasNilDuringComment)
+        #expect(f.speaker.spoken.contains("A synced note about this move."))
+    }
+
+    @Test("No comment means no Comment slide")
+    func nilCommentSkipsTheSlide() async {
+        let f = Fixture(replayAdvance: { nil })
+        var sawComment = false
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.currentSlide?.kind == .comment { sawComment = true }
+            await Task.yield()
+        }
+        #expect(!sawComment)
+    }
+
+    @Test("Fast pacing caps a replay cycle at the Best Move slide")
+    func fastPacingCapsSlides() async {
+        let f = Fixture(pacing: TVAutoPlaySpeed.fast.broadcastPacing,
+                        replayAdvance: { nil })
+        var maxSlide = 0
+        f.controller.noteTurnChanged(game: f.record)
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.currentSlide?.kind != .comment {
+                maxSlide = max(maxSlide, f.controller.slideNumber)
+            }
+            await Task.yield()
+        }
+        #expect(maxSlide == 1)
+        #expect(f.controller.phase == .awaitingMove)
+    }
+
+    @Test("Replay never writes the synced record's dictionaries")
+    func replayNeverWritesRecordDictionaries() async {
+        let f = Fixture(replayAdvance: { nil })
+        let winRatesBefore = f.record.winRates
+        let scoreLeadsBefore = f.record.scoreLeads
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(f.record.winRates == winRatesBefore)
+        #expect(f.record.scoreLeads == scoreLeadsBefore)
+        // The panel headline still gets the snapshot.
+        #expect(f.session.rootWinrate.black == 0.6)
+    }
 }
