@@ -64,6 +64,7 @@ struct BroadcastGenMoveTests {
 
         #expect(f.session.gobanState.broadcastGenMovePending)
         #expect(f.sent("kata-search_analyze_cancellable"))
+        #expect(f.sent("kata-set-param maxVisits"))
         #expect(f.session.gobanState.waitingForAnalysis)
     }
 
