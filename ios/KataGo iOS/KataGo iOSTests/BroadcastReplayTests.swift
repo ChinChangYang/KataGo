@@ -356,4 +356,29 @@ struct BroadcastReplayTests {
         #expect(!f.sent("kata-search_analyze_cancellable"))
         #expect(!f.session.gobanState.broadcastGenMovePending)
     }
+
+    // MARK: - Asymmetric human-SL suppression
+
+    @Test("The replay flag silences asymmetric human-SL turn commands")
+    func suppressionFlagSilencesAsymmetricSends() {
+        let session = GameSession()
+        let record = SelfPlayGame.makeRecord()
+        let config = record.concreteConfig
+        config.blackMaxTime = 1.0
+        config.humanSLProfile = "9d"     // black: a 9d engine profile
+        config.whiteMaxTime = 0          // white: Human → effective "AI" (asymmetric)
+        #expect(!config.isEqualBlackWhiteEffectiveHumanSettings)
+
+        session.gobanState.suppressesHumanSLTurnCommands = true
+        session.gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+            nextColorForPlayCommand: .black, config: config,
+            messageList: session.messageList)
+        #expect(session.messageList.messages.isEmpty)
+
+        session.gobanState.suppressesHumanSLTurnCommands = false
+        session.gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+            nextColorForPlayCommand: .black, config: config,
+            messageList: session.messageList)
+        #expect(!session.messageList.messages.isEmpty)
+    }
 }

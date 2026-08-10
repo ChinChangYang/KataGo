@@ -40,6 +40,13 @@ public class GobanState {
     /// reviewed on TV); the tvOS self-play screen clears it. Transient view
     /// state, never persisted; defaults false so iOS/macOS are unchanged.
     public var suppressesGenMove = false
+    /// While true, the per-turn asymmetric human-SL command bundles are not
+    /// sent. The tvOS review REPLAY sets this for its broadcast's lifetime:
+    /// a synced Human-vs-9d config is asymmetric, and the bundle's `=`/`?`
+    /// acks landing between a report cycle's probes would desync the
+    /// ReportCollector FIFO (see BroadcastController's header). Default
+    /// false — iOS/macOS/visionOS behavior is untouched.
+    public var suppressesHumanSLTurnCommands = false
     /// The tvOS broadcast's one-shot gen-move license. The broadcast keeps
     /// `suppressesGenMove` true for its whole lifetime (the turn observer
     /// must never free-run the game), so its single per-cycle gen-move reply
@@ -495,7 +502,8 @@ public class GobanState {
     public func maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
                                                   config: Config,
                                                   messageList: MessageList) {
-        if !config.isEqualBlackWhiteEffectiveHumanSettings && !isAutoPlaying {
+        if !config.isEqualBlackWhiteEffectiveHumanSettings && !isAutoPlaying
+            && !suppressesHumanSLTurnCommands {
             if nextColorForPlayCommand == .black,
                let humanSLModel = HumanSLModel(profile: config.effectiveHumanProfileForBlack) {
                 messageList.appendAndSend(commands: humanSLModel.commands)
