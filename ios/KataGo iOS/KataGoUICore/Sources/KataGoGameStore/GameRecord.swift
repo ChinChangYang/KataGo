@@ -47,6 +47,32 @@ public final class GameRecord {
         return "(;FF[4]GM[1]SZ[\(sizeField)]PB[]PW[]HA[0]KM[\(komiSgfField(komi))]RU[\(ruleString)])"
     }
 
+    /// SGF for a fresh classic-handicap game: `HA[n]` + `AB[...]` on the
+    /// conventional star points (stones always Black's) and White to move
+    /// (`PL[W]` — belt-and-suspenders: the engine's parser also infers White
+    /// from all-black placements). Returns `nil` when the board has no
+    /// star-point layout for `handicap` (see `BoardHandicapPoints`) — callers
+    /// disable those choices up front. `handicap == 0` delegates to the plain
+    /// builder. Komi is the caller's; the New Game flow passes 0.5 for
+    /// handicap games.
+    public static func makeSgf(width: Int, height: Int, komi: Float,
+                               ruleString: String, handicap: Int) -> String? {
+        guard handicap != 0 else {
+            return makeSgf(width: width, height: height, komi: komi, ruleString: ruleString)
+        }
+        let points = BoardHandicapPoints.points(width: width, height: height, count: handicap)
+        guard points.count == handicap else { return nil }
+        var setup = ""
+        for point in points {
+            guard let coordinate = BoardHandicapPoints.sgfCoordinate(x: point.x, y: point.y) else {
+                return nil
+            }
+            setup += "[\(coordinate)]"
+        }
+        let sizeField = width == height ? "\(width)" : "\(width):\(height)"
+        return "(;FF[4]GM[1]SZ[\(sizeField)]PB[]PW[]HA[\(handicap)]AB\(setup)PL[W]KM[\(komiSgfField(komi))]RU[\(ruleString)])"
+    }
+
     /// Renders komi for an SGF `KM[]` field: a bare integer when whole (matching
     /// the default SGF's `KM[7]`), else a trimmed decimal (`6.5`). Delegates to the
     /// shared, SGF-canonical `Config.komiText` (same module) so the SGF field and

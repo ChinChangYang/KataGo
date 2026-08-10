@@ -46,6 +46,10 @@ public struct SgfHeaderScan: Sendable, Equatable {
     public var boardHeight: Int
     public var komi: Float?
     public var rules: String?
+    /// The root's `PL[...]` property, decoded (case-insensitively) from the
+    /// four spellings the C++ parser's `getPLSpecifiedColor` accepts: `w`,
+    /// `white`, `b`, `black`. `nil` when absent or unrecognized.
+    public var nextPlayerOverride: PlayerColor?
     /// The mainline moves in order (move 1 first). Handicap games start with
     /// .white here because the scan reads actual B[]/W[] nodes, not an
     /// assumed alternation.
@@ -72,10 +76,16 @@ public struct SgfHeaderScan: Sendable, Equatable {
 
     /// Side to move at position `index` (after `index` moves): the color of
     /// mainline move `index + 1`, or after the last move, the opposite of the
-    /// final move's color. An empty game defaults to Black.
+    /// final move's color. With no moves at all, falls back to the same
+    /// ladder the C++ engine's `CompactSgf::setupInitialBoardAndHist` uses:
+    /// `PL[...]` override, else White when the setup is all-Black (a fresh
+    /// classic-handicap root), else Black.
     public func toMove(atMoveIndex index: Int) -> PlayerColor {
         if index < moveColors.count { return moveColors[index] }
-        return moveColors.last?.other ?? .black
+        if let last = moveColors.last { return last.other }
+        if let nextPlayerOverride { return nextPlayerOverride }
+        if !setupBlack.isEmpty && setupWhite.isEmpty { return .white }
+        return .black
     }
 
     /// Scan the root property block and mainline moves. Returns nil when the
@@ -98,6 +108,17 @@ public struct SgfHeaderScan: Sendable, Equatable {
         boardHeight = height
         komi = text.firstMatch(of: /KM\[([-\d.]+)\]/).flatMap { Float($0.1) }
         rules = text.firstMatch(of: /RU\[([^\]]*)\]/).map { String($0.1) }
+        // Matches getPLSpecifiedColor's accepted spellings exactly: w/white/
+        // b/black, case-insensitively.
+        if let plMatch = text.firstMatch(of: /PL\[([A-Za-z]+)\]/) {
+            switch plMatch.1.lowercased() {
+            case "w", "white": nextPlayerOverride = .white
+            case "b", "black": nextPlayerOverride = .black
+            default: nextPlayerOverride = nil
+            }
+        } else {
+            nextPlayerOverride = nil
+        }
 
         // Walk the sanitized mainline into (identifier, values) properties.
         // A token scan rather than a regex because SGF property identifiers
