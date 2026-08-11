@@ -740,11 +740,12 @@ struct VisionRootView: View {
 
     /// Any width x height in 2...cap (the Custom panel's steppers enforce the
     /// bounds; the quick 9/13/19 buttons disable above the cap). Default komi
-    /// and rules — the square path produces makeDefaultSgf byte-for-byte.
+    /// and rules (ADR 0001) — the square path produces makeDefaultSgf
+    /// byte-for-byte.
     private func startNewGame(width: Int, height: Int) {
         let record = GameRecord.createGameRecord(
-            sgf: GameRecord.makeSgf(width: width, height: height, komi: 7.0,
-                                    ruleString: "koSIMPLEscoreAREAtaxNONEsui0whbN"))
+            sgf: GameRecord.makeSgf(width: width, height: height, komi: Config.defaultKomi,
+                                    ruleString: GameRecord.defaultRuleString))
         modelContext.insert(record)
         try? modelContext.save()
 
