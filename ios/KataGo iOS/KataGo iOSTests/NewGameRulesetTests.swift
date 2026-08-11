@@ -262,6 +262,25 @@ struct NewGameRulesetTests {
         #expect(NewGameRuleset.preset(fromConfigRule: Config.rules.count) == nil)
     }
 
+    /// ADR 0001: the default game is the Tromp-Taylor preset with its
+    /// suggested komi — every Config default constant must stay consistent
+    /// with the preset's engine-parsed expansion.
+    @Test func defaultConfigIsTrompTaylorPreset() throws {
+        #expect(Config.rules[Config.defaultRule] == "tromp-taylor")
+        #expect(NewGameRuleset.preset(fromConfigRule: Config.defaultRule) == .trompTaylor)
+        let expanded = try #require(NewGameRules.expand(.trompTaylor))
+        let defaults = NewGameRuleComponents(
+            koRule: try #require(KoRule(rawValue: Config.defaultKoRule)),
+            scoringRule: try #require(ScoringRule(rawValue: Config.defaultScoringRule)),
+            taxRule: try #require(TaxRule(rawValue: Config.defaultTaxRule)),
+            multiStoneSuicideLegal: Config.defaultMultiStoneSuicideLegal,
+            hasButton: Config.defaultHasButton,
+            whiteHandicapBonusRule: try #require(WhiteHandicapBonusRule(rawValue: Config.defaultWhiteHandicapBonusRule)))
+        #expect(defaults == expanded)
+        #expect(NewGameRules.match(defaults) == .trompTaylor)
+        #expect(Config.defaultKomi == NewGameRules.suggestedKomi(expanded))
+    }
+
     // MARK: - Helpers
 
     private func components(_ r: Rules) -> NewGameRuleComponents {

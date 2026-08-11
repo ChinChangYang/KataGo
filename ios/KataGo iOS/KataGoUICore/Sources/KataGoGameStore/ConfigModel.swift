@@ -241,7 +241,7 @@ extension Config {
 extension Config {
     public static let defaultBoardWidth = 19
     public static let defaultBoardHeight = 19
-    public static let defaultKomi: Float = 7.0
+    public static let defaultKomi: Float = 7.5
     public static let defaultPlayoutDoublingAdvantage: Float = 0.0
     public static let defaultAnalysisWideRootNoise: Float = 0.03125
     public static let defaultMaxAnalysisMoves = 50
@@ -267,7 +267,9 @@ extension Config {
 }
 
 extension Config {
-    public static let defaultRule = 0
+    /// Config.rules[6] == "tromp-taylor" — the default game's ruleset
+    /// (ADR 0001: docs/adr/0001-default-ruleset-tromp-taylor.md).
+    public static let defaultRule = 6
     /// Sentinel stored in `rule` when the granular knobs match no named
     /// ruleset (a hand-edited "Custom" combination). Readers treat any
     /// out-of-range index the same way.
@@ -626,7 +628,7 @@ extension Config {
 }
 
 extension Config {
-    public static let defaultKoRule: Int = 0
+    public static let defaultKoRule: Int = 1   // POSITIONAL — Tromp-Taylor (ADR 0001)
     public static let koRules = ["SIMPLE", "POSITIONAL", "SITUATIONAL"]
     public static let defaultKoRuleText = koRules[defaultKoRule]
 
@@ -683,7 +685,7 @@ extension Config {
         return Config.taxRules[taxRule.rawValue]
     }
 
-    public static let defaultMultiStoneSuicideLegal: Bool = false
+    public static let defaultMultiStoneSuicideLegal: Bool = true   // Tromp-Taylor (ADR 0001)
 
     public var multiStoneSuicideLegal: Bool {
         get {
