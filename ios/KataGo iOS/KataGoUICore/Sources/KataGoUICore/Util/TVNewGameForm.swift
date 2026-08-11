@@ -15,12 +15,27 @@ public struct TVNewGameForm: Equatable {
 
     public private(set) var boardWidth: Int
     public private(set) var boardHeight: Int
-    public var ruleset: NewGameRuleset = .trompTaylor
+    public private(set) var ruleset: NewGameRuleset = .trompTaylor
     public var rankProfile: String = "AI"
     public private(set) var handicap: Int = 0
     public var humanPlaysBlack: Bool = true
     /// The LAUNCHED NN buffer (engine.maxBoardLength) — never live settings.
     public let maxBoardLength: Int
+    private var userPickedRuleset = false
+
+    /// The ruleset an untouched form carries: the app default for even
+    /// games, Chinese for handicap games — its whb-N compensation offsets
+    /// the free stones, which Tromp-Taylor's whb 0 does not (ADR 0002).
+    public static func defaultRuleset(forHandicap handicap: Int) -> NewGameRuleset {
+        handicap >= 2 ? .chinese : .trompTaylor
+    }
+
+    /// An explicit pick sticks: handicap changes stop retargeting the
+    /// ruleset once the user has chosen one.
+    public mutating func setRuleset(_ ruleset: NewGameRuleset) {
+        self.ruleset = ruleset
+        userPickedRuleset = true
+    }
 
     public init(maxBoardLength: Int) {
         self.maxBoardLength = maxBoardLength
@@ -36,10 +51,17 @@ public struct TVNewGameForm: Equatable {
         boardWidth = min(max(2, width), sizeCap)
         boardHeight = min(max(2, height), sizeCap)
         if handicap != 0, !availableHandicaps.contains(handicap) { handicap = 0 }
+        syncAutoRuleset()
     }
 
     public mutating func setHandicap(_ n: Int) {
         handicap = availableHandicaps.contains(n) ? n : 0
+        syncAutoRuleset()
+    }
+
+    private mutating func syncAutoRuleset() {
+        guard !userPickedRuleset else { return }
+        ruleset = Self.defaultRuleset(forHandicap: handicap)
     }
 
     /// 0 plus every n in 2...9 the board has a conventional layout for.

@@ -69,6 +69,14 @@ public struct GoRules: Sendable, Equatable {
         multiStoneSuicideLegal: false, hasButton: false,
         whiteHandicapBonusRule: .zero, komi: 7.5)
 
+    /// The rules a new game receives when the user has not chosen any: the
+    /// app default for even games, Chinese for handicap games — its whb-N
+    /// compensation offsets the free stones, which Tromp-Taylor's whb 0
+    /// does not (ADR 0002). An explicit user choice always wins.
+    public static func defaultForNewGame(handicap: Int) -> GoRules {
+        handicap >= 2 ? .chinese : .trompTaylor
+    }
+
     /// KataGo's compact rules string (Rules::toStringNoKomi) for the SGF
     /// RU[] property, so the engine's Rules::parseRules reads the hand-off
     /// SGF exactly: "ko<KO>score<SCORING>tax<TAX>sui<0|1>[button1][whb…]".

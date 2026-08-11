@@ -55,5 +55,7 @@ schema is frozen.
 - **Handicap games under the default ruleset lose the N-point white handicap
   bonus**: the previous Chinese default was whb N, Tromp-Taylor is whb 0, so a
   default-rules N-stone handicap game (tvOS "Play KataGo", Messages) scores N
-  points better for Black than before (handicap komi stays 0.5). This follows
-  the Tromp-Taylor convention; picking Chinese restores the bonus.
+  points better for Black than before (handicap komi stays 0.5). *Addressed
+  by ADR 0002*: an untouched-default handicap game now switches to the
+  Chinese preset, restoring the compensation; an explicit Tromp-Taylor pick
+  still means whb 0.

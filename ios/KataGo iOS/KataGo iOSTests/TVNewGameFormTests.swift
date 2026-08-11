@@ -63,11 +63,11 @@ struct TVNewGameFormTests {
     @Test("komi follows the preset until handicap forces 0.5")
     func komiFollowsPresetAndHandicap() {
         var form = TVNewGameForm(maxBoardLength: 37)
-        form.ruleset = .japanese
+        form.setRuleset(.japanese)
         #expect(form.komi == 6.5)
-        form.ruleset = .chinese
+        form.setRuleset(.chinese)
         #expect(form.komi == 7.5)
-        form.ruleset = .agaButton
+        form.setRuleset(.agaButton)
         #expect(form.komi == 7.0)
         form.setHandicap(2)
         #expect(form.komi == 0.5)
@@ -76,13 +76,72 @@ struct TVNewGameFormTests {
     @Test("the SGF carries size, handicap, PL, komi, and the preset token")
     func sgfCarriesEverything() throws {
         var form = TVNewGameForm(maxBoardLength: 37)
-        form.ruleset = .japanese
+        form.setRuleset(.japanese)
         form.setHandicap(3)
         let sgf = try #require(form.sgf)
         #expect(sgf.contains("HA[3]"))
         #expect(sgf.contains("PL[W]"))
         #expect(sgf.contains("KM[0.5]"))
         #expect(sgf.contains("RU[japanese]"))
+    }
+
+    @Test("handicap flips an untouched default to Chinese and back (ADR 0002)")
+    func handicapDefaultsToChinese() throws {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        form.setHandicap(2)
+        #expect(form.ruleset == .chinese)
+        #expect(form.komi == 0.5)
+        let sgf = try #require(form.sgf)
+        #expect(sgf.contains("RU[chinese]"))
+        #expect(sgf.contains("HA[2]"))
+        form.setHandicap(0)
+        #expect(form.ruleset == .trompTaylor)
+        #expect(form.komi == 7.5)
+    }
+
+    @Test("an explicit ruleset pick survives handicap changes")
+    func explicitPickSurvivesHandicap() throws {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        form.setRuleset(.trompTaylor)
+        form.setHandicap(2)
+        #expect(form.ruleset == .trompTaylor)
+        let sgf = try #require(form.sgf)
+        #expect(sgf.contains("RU[tromp-taylor]"))
+        form.setHandicap(0)
+        #expect(form.ruleset == .trompTaylor)
+    }
+
+    @Test("a pick made after the auto-flip also survives handicap changes")
+    func pickAfterAutoFlipSurvivesHandicap() {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        form.setHandicap(2)
+        #expect(form.ruleset == .chinese)
+        form.setRuleset(.japanese)
+        form.setHandicap(0)
+        #expect(form.ruleset == .japanese)
+        form.setHandicap(3)
+        #expect(form.ruleset == .japanese)
+    }
+
+    @Test("a size change that clears the handicap also reverts the auto ruleset")
+    func sizeClearingHandicapRevertsAutoRuleset() {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        form.setSize(width: 19, height: 19)
+        form.setHandicap(9)
+        #expect(form.ruleset == .chinese)
+        form.setSize(width: 9, height: 9)
+        #expect(form.handicap == 0)
+        #expect(form.ruleset == .trompTaylor)
+    }
+
+    @MainActor
+    @Test("apply carries the auto-Chinese label index for a handicap game")
+    func applyCarriesAutoChineseRuleIndex() {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        form.setHandicap(2)
+        let config = Config()
+        form.apply(to: config)
+        #expect(config.rule == NewGameRuleset.chinese.configRuleIndex)
     }
 
     @Test("ruleset choices are the 11 named presets")
@@ -96,7 +155,7 @@ struct TVNewGameFormTests {
     func applySetsTheEngineSide() {
         var form = TVNewGameForm(maxBoardLength: 37)
         form.rankProfile = "3k"
-        form.ruleset = .japanese
+        form.setRuleset(.japanese)
         let config = Config()
         form.apply(to: config)
         #expect(config.blackMaxTime == 0)

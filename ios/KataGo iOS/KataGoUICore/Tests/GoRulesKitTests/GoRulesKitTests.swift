@@ -389,6 +389,15 @@ struct MessageGameCodecTests {
         // cpp/game/rules.cpp: new-zealand → komi 7.5.
         #expect(GoRules.newZealand.komi == 7.5)
     }
+
+    @Test func handicapGamesDefaultToChinese() {
+        // ADR 0002: an untouched default follows the handicap — Chinese
+        // compensates White one point per free stone, Tromp-Taylor does not.
+        #expect(GoRules.defaultForNewGame(handicap: 0) == .trompTaylor)
+        #expect(GoRules.defaultForNewGame(handicap: 2) == .chinese)
+        #expect(GoRules.defaultForNewGame(handicap: 9) == .chinese)
+        #expect(GoRules.defaultForNewGame(handicap: 2).whiteHandicapBonusRule == .n)
+    }
 }
 
 /// Deterministic RNG so the playout test is reproducible.

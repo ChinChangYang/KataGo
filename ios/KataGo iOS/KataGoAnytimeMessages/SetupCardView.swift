@@ -130,13 +130,21 @@ struct SetupCardView: View {
             }
             .disabled(maxHandicap < 2)
             if handicap > 0 {
-                Text("Black places \(handicap) handicap stones; White moves first.")
+                Text(handicapFootnote)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
         .onChange(of: width) { clampHandicap() }
         .onChange(of: height) { clampHandicap() }
+        .onChange(of: handicap) { oldValue, newValue in
+            // An untouched default follows the handicap: Chinese compensates
+            // White one point per free stone, Tromp-Taylor does not
+            // (ADR 0002). An explicit preset pick or any knob edit sticks.
+            if chosenPresetID == nil, rules == .defaultForNewGame(handicap: oldValue) {
+                rules = .defaultForNewGame(handicap: newValue)
+            }
+        }
     }
 
     private var rulesSection: some View {
@@ -193,6 +201,14 @@ struct SetupCardView: View {
         Binding(
             get: { rules.hasButton },
             set: { rules.hasButton = $0 && rules.scoringRule == .area })
+    }
+
+    private var handicapFootnote: String {
+        var note = "Black places \(handicap) handicap stones; White moves first."
+        if chosenPresetID == nil, rules == .defaultForNewGame(handicap: handicap) {
+            note += " Chinese rules give White \(handicap) compensation points."
+        }
+        return note
     }
 
     private func clampHandicap() {

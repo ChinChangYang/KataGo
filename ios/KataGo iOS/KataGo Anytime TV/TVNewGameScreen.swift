@@ -112,7 +112,7 @@ struct TVNewGameScreen: View {
     private var rulesetIndexBinding: Binding<Int> {
         Binding(
             get: { TVNewGameForm.rulesetChoices.firstIndex(of: form.ruleset) ?? 0 },
-            set: { form.ruleset = TVNewGameForm.rulesetChoices[$0] })
+            set: { form.setRuleset(TVNewGameForm.rulesetChoices[$0]) })
     }
 
     private var rulesetSection: some View {
@@ -151,7 +151,7 @@ struct TVNewGameScreen: View {
             .disabled(!form.handicapPickerEnabled)
 
             Text(form.handicapPickerEnabled
-                 ? "Handicap stones go to Black; komi becomes 0.5."
+                 ? "Handicap stones go to Black; komi becomes 0.5, and unless you pick a ruleset the rules switch to Chinese, which compensates White one point per stone."
                  : "This board size has no star-point layout for handicap stones.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
