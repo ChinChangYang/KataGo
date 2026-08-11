@@ -20,6 +20,7 @@ import KataGoUICore
 /// Where library focus sits — one tag per focusable card, so D-pad movement
 /// is observable as a single onChange (the idle-attract activity signal).
 private enum LibraryFocus: Hashable {
+    case playKataGo
     case selfPlay
     case sample
     case game(PersistentIdentifier)
@@ -60,8 +61,15 @@ struct TVLibraryView: View {
     private var populatedGrid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 48) {
-                // Permanent lead card: the self-play demo stays reachable
-                // after real games sync.
+                // Permanent lead cards: Play KataGo (never gated — it needs no
+                // sample store) and the self-play demo stay reachable after
+                // real games sync.
+                NavigationLink(value: NewGameRoute()) {
+                    TVPlayKataGoCard()
+                }
+                .buttonStyle(.card)
+                .focused($focus, equals: .playKataGo)
+
                 if TVSampleGameStore.isAvailable {
                     NavigationLink(value: SelfPlayRoute(entry: .manual)) {
                         TVSelfPlayCard()
@@ -97,20 +105,18 @@ struct TVLibraryView: View {
 
     private var emptyState: some View {
         let state = syncMonitor.emptyLibraryState()
-        let hasCards = TVSampleGameStore.sampleGame != nil || TVSampleGameStore.isAvailable
         // Two columns side by side: the status + Settings on the left, the
-        // watchable game cards on the right. This keeps the whole thing SHORT
-        // vertically — the old single centered column grew tall enough that
-        // the Settings button spilled off the bottom — while filling the
+        // watchable/playable cards on the right. This keeps the whole thing
+        // SHORT vertically — the old single centered column grew tall enough
+        // that the Settings button spilled off the bottom — while filling the
         // horizontal space the single column wasted. Everything is centered in
-        // the full height, well clear of the "KataGo Anytime" title.
+        // the full height, well clear of the "KataGo Anytime" title. The right
+        // column always has at least the Play KataGo card (never gated), so
+        // the layout no longer needs a no-cards centered fallback.
         return HStack(alignment: .center, spacing: 72) {
-            statusColumn(state: state, alignment: hasCards ? .leading : .center)
-                .frame(maxWidth: hasCards ? 640 : 900,
-                       alignment: hasCards ? .leading : .center)
-            if hasCards {
-                sampleCards
-            }
+            statusColumn(state: state, alignment: .leading)
+                .frame(maxWidth: 640, alignment: .leading)
+            sampleCards
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 90)
@@ -176,14 +182,23 @@ struct TVLibraryView: View {
         }
     }
 
-    /// The empty state's focusable offerings: the bundled sample game and the
-    /// live self-play demo, side by side in the right column — the focus
-    /// engine has somewhere to land, and a brand-new user has something to
-    /// watch. No header: the Sample badge and the cards' own titles say what
-    /// they are, and dropping it reclaims vertical room.
+    /// The empty state's focusable offerings: Play KataGo, the bundled sample
+    /// game, and the live self-play demo, side by side in the right column —
+    /// the focus engine has somewhere to land, and a brand-new user has
+    /// something to do or watch immediately. No header: the Sample badge and
+    /// the cards' own titles say what they are, and dropping it reclaims
+    /// vertical room.
     @ViewBuilder
     private var sampleCards: some View {
         HStack(spacing: 44) {
+            NavigationLink(value: NewGameRoute()) {
+                TVPlayKataGoCard()
+                    .frame(width: 440)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.card)
+            .focused($focus, equals: .playKataGo)
+
             if let sample = TVSampleGameStore.sampleGame {
                 NavigationLink(value: sample) {
                     // Size the LABEL, not the button (an outer frame never
@@ -230,6 +245,40 @@ struct TVLibraryView: View {
         .padding(.vertical, 12)
         .background(.thinMaterial, in: Capsule())
         .padding(.bottom, 24)
+    }
+}
+
+/// The "Play KataGo" entry card: routes to `TVNewGameScreen`. Not a specific
+/// game (there is no board to thumbnail yet), so an icon fills the same
+/// square slot a board thumbnail would — matching `TVGameCard`/`TVSelfPlayCard`
+/// framing/padding keeps the grid's card heights uniform.
+struct TVPlayKataGoCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.tvWoodAccent.opacity(0.18))
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(Color.tvWoodAccent)
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .padding([.top, .horizontal], 20)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Play KataGo")
+                    .font(.headline)
+                    .lineLimit(1)
+                Text("Human vs KataGo — rank, rules, handicap")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -476,5 +525,11 @@ struct TVSearchView: View {
     }
     .frame(maxWidth: 900)
     .padding(80)
+}
+
+#Preview("Play KataGo card") {
+    TVPlayKataGoCard()
+        .frame(width: 400)
+        .padding(80)
 }
 #endif

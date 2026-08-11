@@ -90,6 +90,13 @@ struct TVRootView: View {
                                 TVSelfPlayScreen(route: route)
                                     .toolbar(.hidden, for: .tabBar)
                             }
+                            .navigationDestination(for: NewGameRoute.self) { _ in
+                                TVNewGameScreen(onStart: { record in
+                                    libraryPath.removeLast()      // replace the form with the game
+                                    libraryPath.append(record)    // classifier routes it to TVPlayScreen
+                                })
+                                .toolbar(.hidden, for: .tabBar)
+                            }
                     }
                     .tabItem { Label("Library", systemImage: "square.grid.2x2") }
                     .tag(TVTab.library)

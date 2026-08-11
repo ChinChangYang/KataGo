@@ -854,6 +854,7 @@
 		F2410CDA6A497EB2E0083B8C /* TVAutoPlaySpeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 961A003AB311ADAE1912EC2D /* TVAutoPlaySpeedTests.swift */; };
 		F24F93F07C1DC633485DEB6D /* GobanRecogKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2596160B109D97816148C51C /* GobanRecogKit */; };
 		F3B5C79213B69A91A1C665CB /* WatchBoardLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B89CB5B1D3EBA62B5CA7E6 /* WatchBoardLayoutTests.swift */; };
+		F5145415C25CFEA0692F0B8A /* TVNewGameScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E82BE088A41B8EF55D44D2 /* TVNewGameScreen.swift */; };
 		F55AD24F8B47A8E543C4B923 /* lionffen_b24c64_3x3_v3_12300.bin.gz in Resources */ = {isa = PBXBuildFile; fileRef = 46BFAAEDD1093DB0E7FC7C2F /* lionffen_b24c64_3x3_v3_12300.bin.gz */; };
 		F5C261D4903C3A4E51E2B111 /* LastMoveKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D62467D94D15F32653A85 /* LastMoveKeyTests.swift */; };
 		F669B066BE644088B09D3EDE /* civil_time_detail.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE23716608EA458E4BFD753E /* civil_time_detail.cc */; };
@@ -1624,6 +1625,7 @@
 		D7A16EC2F498FDCFE013273A /* demangle_rust.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = demangle_rust.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/internal/demangle_rust.cc"; sourceTree = SOURCE_ROOT; };
 		D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardTextParserTests.swift; sourceTree = "<group>"; };
 		D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreMLComputeHandleLoader.swift; sourceTree = "<group>"; };
+		D8E82BE088A41B8EF55D44D2 /* TVNewGameScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVNewGameScreen.swift; sourceTree = "<group>"; };
 		DB49693C31982E897CF6E60A /* GobanStateResumeAnalysisTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateResumeAnalysisTests.swift; sourceTree = "<group>"; };
 		DB4A44BA9F9E01AA3DA6FE91 /* hash.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hash.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/hash/internal/hash.cc"; sourceTree = SOURCE_ROOT; };
 		DB8C70B55F90A8E5D519D0D1 /* VisionBoardSceneModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisionBoardSceneModel.swift; path = "KataGo Anytime Vision/VisionBoardSceneModel.swift"; sourceTree = "<group>"; };
@@ -3399,6 +3401,7 @@
 				ED2B7F2919C753010BE57F78 /* TVBroadcastSlideView.swift */,
 				C724D772BF82F6088936A48A /* TVControllerInput.swift */,
 				235CD50179AAC5DFFBDE5FB3 /* TVPlayScreen.swift */,
+				D8E82BE088A41B8EF55D44D2 /* TVNewGameScreen.swift */,
 			);
 			path = "KataGo Anytime TV";
 			sourceTree = SOURCE_ROOT;
@@ -4190,6 +4193,7 @@
 				B3667449ADBC76B7C24CC5CF /* TVBroadcastSlideView.swift in Sources */,
 				F0D65CC49FDF0A3F54A83755 /* TVControllerInput.swift in Sources */,
 				173542B7B8C6E51A567479A9 /* TVPlayScreen.swift in Sources */,
+				F5145415C25CFEA0692F0B8A /* TVNewGameScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
