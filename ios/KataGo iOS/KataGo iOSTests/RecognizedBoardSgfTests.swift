@@ -21,12 +21,12 @@ struct RecognizedBoardSgfTests {
 
     @Test func synthesizedSgfHasMandatoryHeaderTags() {
         let sgf = tinyBoard().synthesizedSGF(nextToPlay: .black)
-        // RU[] is MANDATORY (loadsgf aborts without it); KM[7] matches the bridge
-        // default; the rest are the fixed app header.
-        #expect(sgf.hasPrefix("(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[3]RU[Chinese]KM[7]PL[B]"))
+        // RU[] is MANDATORY (loadsgf aborts without it); tromp-taylor + KM[7.5]
+        // are the app default (ADR 0001); the rest are the fixed app header.
+        #expect(sgf.hasPrefix("(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[3]RU[tromp-taylor]KM[7.5]PL[B]"))
         #expect(sgf.hasSuffix(")"))
-        #expect(sgf.contains("RU[Chinese]"))
-        #expect(sgf.contains("KM[7]"))
+        #expect(sgf.contains("RU[\(GameRecord.defaultRuleString)]"))
+        #expect(sgf.contains("KM[7.5]"))
         #expect(sgf.contains("SZ[3]"))
     }
 
@@ -112,7 +112,7 @@ struct RecognizedBoardSgfTests {
         #expect(board.blackCount == 12)
         #expect(board.whiteCount == 12)
         #expect(board.defaultNextToPlay == .black)
-        let expected = "(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[9]RU[Chinese]KM[7]PL[B]"
+        let expected = "(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[9]RU[tromp-taylor]KM[7.5]PL[B]"
             + "AB[hb][ib][hc][gd][ef][fg][fh][gh][ih][ei][fi][gi]"
             + "AW[gb][gc][cd][ee][fe][ff][gf][cg][gg][bh][ch][ai])"
         #expect(board.synthesizedSGF(nextToPlay: .black) == expected)

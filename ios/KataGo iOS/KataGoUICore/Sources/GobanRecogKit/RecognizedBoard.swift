@@ -75,15 +75,17 @@ public struct RecognizedBoard: Equatable, Sendable {
     /// Synthesizes a saved-game-ready SGF for this position.
     ///
     /// Contract (see task brief / plan):
-    ///   `(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[n]RU[Chinese]KM[7]PL[B|W]AB[…]AW[…])`
+    ///   `(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[n]RU[tromp-taylor]KM[7.5]PL[B|W]AB[…]AW[…])`
     ///
-    /// - `RU[Chinese]` must be written: without a rules tag the Swift bridge's
-    ///   `SgfCpp::getRules` catches `getRulesOrFail` into an ALL-DEFAULT rule
-    ///   set with komi 7.0, so a recognized board would silently load under
-    ///   rules nobody chose. (Not a crash — the engine's `loadsgf` uses
-    ///   `getRulesOrWarn` and falls back to its current rules.) `Chinese` is
-    ///   KataGo's safe default (parsed case-insensitively).
-    /// - `KM[7]` matches the bridge's default komi so the displayed komi is
+    /// - `RU[tromp-taylor]` must be written: without a rules tag the Swift
+    ///   bridge's `SgfCpp::getRules` catches `getRulesOrFail` into an
+    ///   ALL-DEFAULT rule set with komi 7.0, so a recognized board would
+    ///   silently load under rules nobody chose. (Not a crash — the engine's
+    ///   `loadsgf` uses `getRulesOrWarn` and falls back to its current rules.)
+    ///   Tromp-Taylor is the app's default ruleset (ADR 0001; keep in sync
+    ///   with `GameRecord.defaultRuleString` — this module can't link
+    ///   KataGoGameStore, so the tests pin the equality).
+    /// - `KM[7.5]` matches `Config.defaultKomi` so the displayed komi is
     ///   consistent after import.
     /// - `PL[B|W]` is the chosen next-to-play.
     /// - Points are column-letter first (`chr('a'+col)+chr('a'+row)`), `aa` =
@@ -103,7 +105,7 @@ public struct RecognizedBoard: Equatable, Sendable {
         }
 
         let pl = nextToPlay == .white ? "W" : "B"
-        var sgf = "(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[\(size)]RU[Chinese]KM[7]PL[\(pl)]"
+        var sgf = "(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[\(size)]RU[tromp-taylor]KM[7.5]PL[\(pl)]"
         if !black.isEmpty { sgf += "AB" + black }
         if !white.isEmpty { sgf += "AW" + white }
         sgf += ")"
