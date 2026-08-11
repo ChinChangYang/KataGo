@@ -517,10 +517,21 @@ struct TVPlayScreen: View {
         // BEFORE the load: the engine's play replies and printsgf echoes must
         // land in THIS record (GameSession routes by selectedGameRecord).
         navigationContext.selectedGameRecord = game
+        // Land at the tip (the VisionRootView.switchGame recipe — "pre-setting
+        // currentIndex to the move count makes loadGame's undo loop a no-op").
+        // Continuing a game means continuing from its last move, and a record
+        // synced mid-review (currentIndex < moveSize) would otherwise be loaded
+        // REWOUND while keeping its tail — which is exactly
+        // GobanState.isOverwriting on an unlocked record, so the first gen-move
+        // reply would latch confirmingAIOverwrite (no tvOS view renders that
+        // confirmation) and the game would park before the user played a move.
+        // It also makes the pass seed below honest: trailingPassCount describes
+        // the SGF's tip, which is only the position on the board once we are
+        // standing on it.
+        game.currentIndex = SgfOperations(sgf: game.sgf).moveSize ?? 0
         // Also before the load: the counter is a running one, never seeded from
         // an SGF, so a resumed game whose last move was a pass would otherwise
-        // start at 0 and the second pass would not end the game. loadGame's
-        // rewind loop then peels a pass back off for every undo it performs.
+        // start at 0 and the second pass would not end the game.
         gobanState.passCount = SelfPlayGame.trailingPassCount(inSgf: game.sgf)
         // A game the user plays is theirs to edit: editingAfterLoad only
         // auto-unlocks the 19×19 defaultSgf, so a 9×9 or an already-played game
