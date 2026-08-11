@@ -34,16 +34,16 @@ struct GtpCommandBuilderTests {
                 == "kata-analyze interval 10 maxmoves 50 ownership true ownershipStdev true rootInfo true")
         #expect(GtpCommandBuilder.boardSizeCommand(width: a.boardWidth, height: a.boardHeight)
                 == "rectangular_boardsize 19 19")
-        #expect(GtpCommandBuilder.komiCommand(a.komi) == "komi 7.0")
+        #expect(GtpCommandBuilder.komiCommand(a.komi) == "komi 7.5")
         #expect(GtpCommandBuilder.playoutDoublingAdvantageCommand(a.playoutDoublingAdvantage)
                 == "kata-set-param playoutDoublingAdvantage 0.0")
         #expect(GtpCommandBuilder.analysisWideRootNoiseCommand(a.analysisWideRootNoise)
                 == "kata-set-param analysisWideRootNoise 0.03125")
-        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[a.rule]) == "kata-set-rules chinese")
-        #expect(GtpCommandBuilder.koRuleCommand(a.koRuleText) == "kata-set-rule ko SIMPLE")
+        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[a.rule]) == "kata-set-rules tromp-taylor")
+        #expect(GtpCommandBuilder.koRuleCommand(a.koRuleText) == "kata-set-rule ko POSITIONAL")
         #expect(GtpCommandBuilder.scoringRuleCommand(a.scoringRuleText) == "kata-set-rule scoring AREA")
         #expect(GtpCommandBuilder.taxRuleCommand(a.taxRuleText) == "kata-set-rule tax NONE")
-        #expect(GtpCommandBuilder.multiStoneSuicideCommand(a.multiStoneSuicideLegal) == "kata-set-rule suicide false")
+        #expect(GtpCommandBuilder.multiStoneSuicideCommand(a.multiStoneSuicideLegal) == "kata-set-rule suicide true")
         #expect(GtpCommandBuilder.hasButtonCommand(a.hasButton) == "kata-set-rule hasButton false")
         #expect(GtpCommandBuilder.whiteHandicapBonusCommand(a.whiteHandicapBonusRuleText) == "kata-set-rule whiteHandicapBonus 0")
 
@@ -60,7 +60,7 @@ struct GtpCommandBuilderTests {
                 == "kata-set-param playoutDoublingAdvantage 1.5")
         #expect(GtpCommandBuilder.analysisWideRootNoiseCommand(b.analysisWideRootNoise)
                 == "kata-set-param analysisWideRootNoise 0.1")
-        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[b.rule]) == "kata-set-rules chinese")
+        #expect(GtpCommandBuilder.rulesetCommand(Config.rules[b.rule]) == "kata-set-rules tromp-taylor")
 
         // config c — same rule defaults as a
         let c = makeConfigs()[2]
@@ -75,10 +75,10 @@ struct GtpCommandBuilderTests {
             ko: a.koRuleText, scoring: a.scoringRuleText, tax: a.taxRuleText,
             multiStoneSuicide: a.multiStoneSuicideLegal, hasButton: a.hasButton,
             whiteHandicapBonus: a.whiteHandicapBonusRuleText)
-            == ["kata-set-rule ko SIMPLE",
+            == ["kata-set-rule ko POSITIONAL",
                 "kata-set-rule scoring AREA",
                 "kata-set-rule tax NONE",
-                "kata-set-rule suicide false",
+                "kata-set-rule suicide true",
                 "kata-set-rule hasButton false",
                 "kata-set-rule whiteHandicapBonus 0"])
         // config a: blackMaxTime=0, profile "AI" → unbounded visits, maxTime floored to 0.5
