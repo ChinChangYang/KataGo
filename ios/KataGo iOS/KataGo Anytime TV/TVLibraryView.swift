@@ -236,12 +236,18 @@ struct TVLibraryView: View {
 struct TVGameCard: View {
     let game: GameRecord
 
-    /// Computed here (not by the caller) so both call sites — the library
-    /// grid and search results — inherit the badge without repeating the
-    /// classification.
-    private var isPlayable: Bool {
-        TVPlayability.isPlayable(game)
-    }
+    /// Cached, not a plain computed property: `TVPlayability.isPlayable`
+    /// transitively parses the game's SGF through the C++ bridge
+    /// (`SelfPlayGame.recordedGameIsFinished`) — materially heavier than the
+    /// card's other per-render computed properties, and a LazyVGrid re-renders
+    /// cards often (tvOS focus-driven scroll). Hoisted once, mirroring
+    /// TVReviewScreen's `recordedIsFinished` precedent (also a one-shot SGF
+    /// parse cached into @State rather than repeated per access). Computed
+    /// here — not by the caller — so both call sites (library grid and
+    /// search results) inherit the badge without repeating the
+    /// classification; refreshed on `.onChange` of the game's identity in
+    /// case a LazyVGrid ever reuses a card instance for a different record.
+    @State private var isPlayable = false
 
     private var vertices: (black: [String], white: [String]) {
         let idx = displayIndex
@@ -302,6 +308,12 @@ struct TVGameCard: View {
                 continueBadge
             }
         }
+        .onAppear { refreshIsPlayable() }
+        .onChange(of: game.persistentModelID) { _, _ in refreshIsPlayable() }
+    }
+
+    private func refreshIsPlayable() {
+        isPlayable = TVPlayability.isPlayable(game)
     }
 
     private var continueBadge: some View {
