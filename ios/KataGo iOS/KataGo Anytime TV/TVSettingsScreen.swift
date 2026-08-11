@@ -213,12 +213,14 @@ struct TVSettingsScreen: View {
                     Text("").gridCellUnsizedAxes(.horizontal)
                     Text("Reviewing").font(.callout).foregroundStyle(.secondary)
                     Text("Live").font(.callout).foregroundStyle(.secondary)
+                    Text("Playing").font(.callout).foregroundStyle(.secondary)
                 }
                 ForEach(TVControllerLegend.rows) { row in
                     GridRow {
                         Label(row.name, systemImage: row.symbol)
                         Text(row.review)
                         Text(row.live)
+                        Text(row.play)
                     }
                 }
             }

@@ -76,10 +76,15 @@ struct TVRootView: View {
                     NavigationStack(path: $libraryPath) {
                         TVLibraryView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                TVReviewScreen(game: game, onContinueLive: { seed in
-                                    libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                })
-                                    .toolbar(.hidden, for: .tabBar)
+                                if TVPlayability.isPlayable(game) {
+                                    TVPlayScreen(game: game)
+                                        .toolbar(.hidden, for: .tabBar)
+                                } else {
+                                    TVReviewScreen(game: game, onContinueLive: { seed in
+                                        libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                    })
+                                        .toolbar(.hidden, for: .tabBar)
+                                }
                             }
                             .navigationDestination(for: SelfPlayRoute.self) { route in
                                 TVSelfPlayScreen(route: route)
@@ -98,10 +103,15 @@ struct TVRootView: View {
                     NavigationStack(path: $searchPath) {
                         TVSearchView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                TVReviewScreen(game: game, onContinueLive: { seed in
-                                    searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                })
-                                    .toolbar(.hidden, for: .tabBar)
+                                if TVPlayability.isPlayable(game) {
+                                    TVPlayScreen(game: game)
+                                        .toolbar(.hidden, for: .tabBar)
+                                } else {
+                                    TVReviewScreen(game: game, onContinueLive: { seed in
+                                        searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                    })
+                                        .toolbar(.hidden, for: .tabBar)
+                                }
                             }
                             .navigationDestination(for: SelfPlayRoute.self) { route in
                                 TVSelfPlayScreen(route: route)

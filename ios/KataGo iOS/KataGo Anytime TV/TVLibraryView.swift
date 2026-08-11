@@ -236,6 +236,13 @@ struct TVLibraryView: View {
 struct TVGameCard: View {
     let game: GameRecord
 
+    /// Computed here (not by the caller) so both call sites — the library
+    /// grid and search results — inherit the badge without repeating the
+    /// classification.
+    private var isPlayable: Bool {
+        TVPlayability.isPlayable(game)
+    }
+
     private var vertices: (black: [String], white: [String]) {
         let idx = displayIndex
         let b = (game.blackStones?[idx] ?? "").split(separator: " ").map(String.init)
@@ -288,6 +295,23 @@ struct TVGameCard: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .overlay(alignment: .topTrailing) {
+            // Purely decorative: no gesture, no focus — the card itself
+            // (via the enclosing NavigationLink) carries the tap target.
+            if isPlayable {
+                continueBadge
+            }
+        }
+    }
+
+    private var continueBadge: some View {
+        Text("Continue")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.black)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.tvWoodAccent, in: Capsule())
+            .padding(10)
     }
 }
 

@@ -43,6 +43,8 @@ public struct TVControllerLegendRow: Identifiable, Sendable, Equatable {
     public let review: String
     /// What it does during the live broadcast.
     public let live: String
+    /// What it does while playing a human-vs-AI game (TVPlayScreen).
+    public let play: String
 
     public var id: String { event.rawValue }
 }
@@ -53,31 +55,37 @@ public enum TVControllerLegend {
                               symbol: "square.circle",
                               name: "X",
                               review: "Auto-Play",
-                              live: "Pause / Resume"),
+                              live: "Pause / Resume",
+                              play: "Undo"),
         TVControllerLegendRow(event: .buttonY,
                               symbol: "triangle.circle",
                               name: "Y",
                               review: "Analysis on / off",
-                              live: "—"),
+                              live: "—",
+                              play: "Pass"),
         TVControllerLegendRow(event: .leftShoulder,
                               symbol: "l1.rectangle.roundedbottom",
                               name: "L1",
                               review: "Back one move (hold to repeat)",
-                              live: "Undo (while paused)"),
+                              live: "Undo (while paused)",
+                              play: "Undo (hold)"),
         TVControllerLegendRow(event: .rightShoulder,
                               symbol: "r1.rectangle.roundedbottom",
                               name: "R1",
                               review: "Forward one move (hold to repeat)",
-                              live: "Skip the current slide"),
+                              live: "Skip the current slide",
+                              play: "—"),
         TVControllerLegendRow(event: .leftTrigger,
                               symbol: "l2.rectangle.roundedtop",
                               name: "L2",
                               review: "Jump to the start",
-                              live: "—"),
+                              live: "—",
+                              play: "—"),
         TVControllerLegendRow(event: .rightTrigger,
                               symbol: "r2.rectangle.roundedtop",
                               name: "R2",
                               review: "Jump to the end",
-                              live: "—"),
+                              live: "—",
+                              play: "—"),
     ]
 }

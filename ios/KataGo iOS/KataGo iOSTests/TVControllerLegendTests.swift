@@ -37,4 +37,15 @@ struct TVControllerLegendTests {
         #expect(row?.review == "Auto-Play")
         #expect(row?.live == "Pause / Resume")
     }
+
+    @Test("play-screen column")
+    func playColumn() {
+        let byEvent = Dictionary(uniqueKeysWithValues: TVControllerLegend.rows.map { ($0.event, $0.play) })
+        #expect(byEvent[.buttonX] == "Undo")
+        #expect(byEvent[.buttonY] == "Pass")
+        #expect(byEvent[.leftShoulder] == "Undo (hold)")
+        #expect(byEvent[.rightShoulder] == "—")
+        #expect(byEvent[.leftTrigger] == "—")
+        #expect(byEvent[.rightTrigger] == "—")
+    }
 }
