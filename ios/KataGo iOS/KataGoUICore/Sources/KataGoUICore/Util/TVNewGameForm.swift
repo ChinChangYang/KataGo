@@ -15,7 +15,7 @@ public struct TVNewGameForm: Equatable {
 
     public private(set) var boardWidth: Int
     public private(set) var boardHeight: Int
-    public var ruleset: NewGameRuleset = .chinese
+    public var ruleset: NewGameRuleset = .trompTaylor
     public var rankProfile: String = "AI"
     public private(set) var handicap: Int = 0
     public var humanPlaysBlack: Bool = true
@@ -54,11 +54,11 @@ public struct TVNewGameForm: Equatable {
     /// Handicap forces komi 0.5; otherwise KataGo's own default for the preset.
     public var komi: Float {
         if handicap > 0 { return Self.handicapKomi }
-        guard let components = NewGameRules.expand(ruleset) else { return 7.0 }
+        guard let components = NewGameRules.expand(ruleset) else { return Config.defaultKomi }
         return NewGameRules.suggestedKomi(components)
     }
 
-    public var ruleString: String { ruleset.sgfToken ?? "chinese" }
+    public var ruleString: String { ruleset.sgfToken ?? GameRecord.defaultRuleString }
 
     public var sgf: String? {
         GameRecord.makeSgf(width: boardWidth, height: boardHeight, komi: komi,

@@ -50,6 +50,16 @@ struct TVNewGameFormTests {
         #expect(form.handicap == 5)
     }
 
+    @Test("the form defaults to the app default ruleset (ADR 0001)")
+    func defaultsToTrompTaylor() throws {
+        let form = TVNewGameForm(maxBoardLength: 37)
+        #expect(form.ruleset == .trompTaylor)
+        #expect(form.komi == 7.5)
+        let sgf = try #require(form.sgf)
+        #expect(sgf.contains("RU[tromp-taylor]"))
+        #expect(sgf.contains("KM[7.5]"))
+    }
+
     @Test("komi follows the preset until handicap forces 0.5")
     func komiFollowsPresetAndHandicap() {
         var form = TVNewGameForm(maxBoardLength: 37)
