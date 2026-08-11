@@ -120,6 +120,17 @@ struct GameRecordTests {
         #expect(entity.lastWhiteStones.sorted() == ["A8", "B9"])
     }
 
+    /// ADR 0001: the default game's SGF carries the named Tromp-Taylor token
+    /// and the preset's suggested komi, and createGameRecord derives that
+    /// komi into the Config.
+    @Test func defaultSgfIsTrompTaylorWithSuggestedKomi() async throws {
+        #expect(GameRecord.defaultSgf == "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7.5]RU[tromp-taylor])")
+        #expect(GameRecord.makeDefaultSgf(boardSize: 9) == "(;FF[4]GM[1]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[tromp-taylor])")
+        let record = GameRecord.createGameRecord()
+        #expect(record.concreteConfig.komi == 7.5)
+        #expect(record.concreteConfig.rule == Config.defaultRule)
+    }
+
     @Test func undoGameRecord() async throws {
         let gameRecord = GameRecord.createGameRecord(currentIndex: 1)
         #expect(gameRecord.sgf == GameRecord.defaultSgf)

@@ -25,11 +25,15 @@ public final class GameRecord {
     // which is also why the duplicate-UUID repair machinery exists.)
     #Index<GameRecord>([\.lastModificationDate], [\.uuid])
 
-    public static let defaultSgf = "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
+    /// The default game's ruleset token: Tromp-Taylor, KataGo's canonical
+    /// rules (ADR 0001). Every fresh-game surface composes its SGF from this
+    /// and `Config.defaultKomi` so the default cannot drift per-platform.
+    public static let defaultRuleString = "tromp-taylor"
+    public static let defaultSgf = makeDefaultSgf(boardSize: 19)
     public static let defaultName = "New Game"
 
     public static func makeDefaultSgf(boardSize: Int) -> String {
-        "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[7]RU[koSIMPLEscoreAREAtaxNONEsui0whbN])"
+        "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[\(Config.komiText(Config.defaultKomi))]RU[\(defaultRuleString)])"
     }
 
     /// Builds a fresh-game SGF that encodes board size, komi, and rules directly
