@@ -48,8 +48,9 @@ struct DeepReportAlternativeTests {
         let model = DeepReportModel()
         let generator: DeepReportGenerator
 
-        /// The default steps mirror the no-forced-probe happy path:
-        /// snapshot, grace, pass, grace, tenuki 0, grace, tenuki 1, grace.
+        /// The default steps mirror the happy path with the Alternative's
+        /// visit-parity probe: snapshot, grace, parity probe (B2), grace,
+        /// pass, grace, tenuki 0, grace, tenuki 1, grace.
         init(sgf: String, currentIndex: Int = 0, steps: [[String]]? = nil) {
             record = GameRecord.createGameRecord(sgf: sgf, currentIndex: currentIndex, name: "Report")
             session.useEngine(engine)
@@ -58,6 +59,8 @@ struct DeepReportAlternativeTests {
             session.player.nextColorFromShowBoard = .black
             let script = StepScript(session: session, steps: steps ?? [
                 ["= ", "=", DeepReportAlternativeTests.snapshotLine],
+                [],
+                ["= ", "=", DeepReportGeneratorTests.forcedLineB2],
                 [],
                 ["= ", "=", DeepReportAlternativeTests.passLine],
                 [],
@@ -91,9 +94,10 @@ struct DeepReportAlternativeTests {
         ]
     }
 
-    @Test func gameMoveInsideTopCandidatesBecomesAlternativeFromCache() async {
-        // Next recorded move B2 = the snapshot's #2 candidate: built from the
-        // cached snapshot info — no forced-allow probe on the wire.
+    @Test func gameMoveInsideTopCandidatesStillGetsParityProbe() async {
+        // Next recorded move B2 = the snapshot's #2 candidate. Visit parity:
+        // even a snapshot-ranked game move gets its own forced-allow probe;
+        // its values come from that probe, not the 50-visit snapshot entry.
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])")
         await f.generator.generate(model: f.model, gameRecord: f.record)
 
@@ -101,7 +105,9 @@ struct DeepReportAlternativeTests {
         #expect(f.model.gameMoveVertex == "B2")
         #expect(f.model.alternativeSource == .gameMove)
         #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
-        #expect(!f.engine.sent.contains { $0.contains("allow") })
+        #expect(f.engine.sent.contains(
+            "kata-analyze b interval 10 allow b B2 1 maxmoves 8 ownership true movesOwnership true rootInfo true"))
+        #expect(f.model.candidates[1].visits == 95)
         // Both candidates still get their tenuki probes.
         #expect(f.engine.sent.contains("play b A1"))
         #expect(f.engine.sent.contains("play b B2"))
@@ -148,7 +154,8 @@ struct DeepReportAlternativeTests {
 
     @Test func gameMoveEqualToBestKeepsEngineAlternative() async {
         // Next recorded move A1 IS the best move: the Alternative slot stays
-        // the engine's #2, but the vertex is remembered for the picker.
+        // the engine's #2, but the vertex is remembered for the picker. The
+        // engine-#2 alternative still gets its visit-parity probe.
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ab])")
         await f.generator.generate(model: f.model, gameRecord: f.record)
 
@@ -156,7 +163,8 @@ struct DeepReportAlternativeTests {
         #expect(f.model.gameMoveVertex == "A1")
         #expect(f.model.alternativeSource == .engine)
         #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
-        #expect(!f.engine.sent.contains { $0.contains("allow") })
+        #expect(f.engine.sent.contains { $0.contains("allow b B2") })
+        #expect(f.model.candidates[1].visits == 95)
     }
 
     @Test func passNextMoveYieldsNoGameMove() async {

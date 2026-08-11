@@ -36,6 +36,12 @@ struct DeepReportGeneratorTests {
     static let tenukiLine = "info move B2 visits 30 winrate 0.45 scoreLead -1.0 utilityLcb 0.2 order 0 pv B2 A2 "
         + "rootInfo visits 45 utility 0.1 winrate 0.44 scoreMean -0.5 scoreStdev 8.0 scoreLead -0.5 scoreSelfplay -0.4 weight 45.0 "
         + "ownership 0.4 0.4 0.4 0.4 ownershipStdev 0.1 0.1 0.1 0.1"
+    /// Forced-probe reply for the engine-#2 default (B2): all root visits
+    /// funneled into B2 (rootInfo visits == move visits) — the visit-parity
+    /// probe every Alternative gets.
+    static let forcedLineB2 = "info move B2 visits 95 winrate 0.54 scoreLead 2.8 utilityLcb 0.4 order 0 pv B2 A2 movesOwnership 0.1 0.1 0.1 0.1 "
+        + "rootInfo visits 95 utility 0.1 winrate 0.55 scoreMean 3.0 scoreStdev 8.0 scoreLead 3.0 scoreSelfplay 3.1 weight 95.0 "
+        + "ownership 0.5 0.5 0.5 0.5 ownershipStdev 0.1 0.1 0.1 0.1"
 
     @MainActor
     final class Script {
@@ -50,17 +56,21 @@ struct DeepReportGeneratorTests {
                 feed(["= ", "=", DeepReportGeneratorTests.snapshotLine])
             case 2:   // snapshot's post-stop grace: nothing to feed
                 break
-            case 3:   // pass probe: stop ack, analyze header, report line
+            case 3:   // parity probe for the engine-#2 alternative: stop ack, header, line
+                feed(["= ", "=", DeepReportGeneratorTests.forcedLineB2])
+            case 4:   // parity probe's post-stop grace: nothing to feed
+                break
+            case 5:   // pass probe: stop ack, analyze header, report line
                 feed(["= ", "=", DeepReportGeneratorTests.passLine])
-            case 4:   // pass probe's post-stop grace: nothing to feed
+            case 6:   // pass probe's post-stop grace: nothing to feed
                 break
-            case 5:   // tenuki 0 probe: stop ack, play ack, analyze header, report line
+            case 7:   // tenuki 0 probe: stop ack, play ack, analyze header, report line
                 feed(["= ", "= ", "=", DeepReportGeneratorTests.tenukiLine])
-            case 6:   // tenuki 0's post-stop grace: nothing to feed
+            case 8:   // tenuki 0's post-stop grace: nothing to feed
                 break
-            case 7:   // tenuki 1 probe: stop ack, undo ack, play ack, header, report line
+            case 9:   // tenuki 1 probe: stop ack, undo ack, play ack, header, report line
                 feed(["= ", "= ", "= ", "=", DeepReportGeneratorTests.tenukiLine])
-            case 8:   // tenuki 1's post-stop grace: nothing to feed
+            case 10:  // tenuki 1's post-stop grace: nothing to feed
                 break
             default: break
             }
@@ -97,6 +107,8 @@ struct DeepReportGeneratorTests {
         "kata-set-param maxVisits 1000000000",
         "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true",
         "stop",
+        "kata-analyze b interval 10 allow b B2 1 maxmoves 8 ownership true movesOwnership true rootInfo true",
+        "stop",
         "kata-analyze w interval 10 maxmoves 8 ownership true rootInfo true",
         "stop",
         "play b A1",
@@ -129,6 +141,12 @@ struct DeepReportGeneratorTests {
         // Tenuki attached: White-persp 0.44/-0.5 → Black 0.56/0.5, reply B2.
         #expect(f.model.candidates[0].tenuki?.vertex == "B2")
         #expect(abs((f.model.candidates[0].tenuki?.winrate ?? 0) - 0.56) < 1e-4)
+
+        // Visit parity: the engine-#2 alternative was re-valued by its own
+        // forced probe — 95 funneled visits, not the snapshot's 50.
+        #expect(f.model.candidates[1].vertex == "B2")
+        #expect(f.model.candidates[1].visits == 95)
+        #expect(abs(f.model.candidates[1].winrate - 0.46) < 1e-4)
 
         // Pass comparison: White-persp 0.72 → Black 0.28; best candidate 0.40.
         #expect(abs((f.model.passComparison?.winrate ?? 0) - 0.28) < 1e-4)
@@ -214,17 +232,17 @@ struct DeepReportGeneratorTests {
     }
 
     @Test func cancellationMidTenukiUndoesTheOutstandingPlay() async {
-        // Calls 1-4 (snapshot probe, snapshot grace, pass probe, pass grace)
-        // delegate to the script; call #5 — the first tenuki probe sleep,
-        // after `play b A1` was sent — throws. The candidate play is on the
-        // engine board and must be undone by restore.
+        // Calls 1-6 (snapshot probe + grace, parity probe + grace, pass probe
+        // + grace) delegate to the script; call #7 — the first tenuki probe
+        // sleep, after `play b A1` was sent — throws. The candidate play is
+        // on the engine board and must be undone by restore.
         let f = Fixture()
         let script = f.script
         let generator = DeepReportGenerator(
             messageList: f.session.messageList,
             budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
             sleeper: { interval in
-                if script.step >= 4 { throw CancellationError() }   // #5 = first tenuki probe
+                if script.step >= 6 { throw CancellationError() }   // #7 = first tenuki probe
                 try await script.sleeper(interval)
             }
         )

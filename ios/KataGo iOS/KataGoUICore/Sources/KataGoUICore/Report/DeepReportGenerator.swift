@@ -160,32 +160,16 @@ public final class DeepReportGenerator {
         // Smart default for the Alternative slot: the game's actually-played
         // next move (when reviewing mid-game and it differs from the best
         // move) beats the engine's #2 pedagogically — "what you played vs.
-        // what's best". A cached snapshot entry costs nothing; anything else
-        // needs one forced-allow probe. Probe silence → keep engine #2.
+        // what's best". Visit parity: whichever move fills the slot gets its
+        // own forced probe; probe silence falls back to the snapshot cache.
         model.gameMoveVertex = gameMoveVertex(session: session,
                                               gameRecord: gameRecord,
                                               sideToMove: sideToMove)
-        if let gameMove = model.gameMoveVertex,
-           gameMove != model.candidates.first?.vertex {
-            if let entry = model.snapshotEntries.first(where: { $0.vertex == gameMove }) {
-                setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
-                                              position: position, sideToMove: sideToMove,
-                                              baseOwnership: model.snapshotOwnership,
-                                              width: width, height: height),
-                               source: .gameMove, model: model)
-            } else if let parsed = try await forcedCandidateProbe(vertex: gameMove,
-                                                                  budget: budgets.tenuki,
-                                                                  mySymbol: mySymbol,
-                                                                  parser: parser),
-                      let entry = rankedEntries(in: parsed, width: width, height: height)
-                          .first(where: { $0.vertex == gameMove }) {
-                setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
-                                              position: position, sideToMove: sideToMove,
-                                              baseOwnership: model.snapshotOwnership,
-                                              width: width, height: height),
-                               source: .gameMove, model: model)
-            }
-        }
+        try await applyDefaultAlternative(model: model, position: position,
+                                          budget: budgets.tenuki,
+                                          mySymbol: mySymbol, parser: parser,
+                                          sideToMove: sideToMove,
+                                          width: width, height: height)
 
         // Stage 2: pass probe (zero mutation) — opponent to move on the same board.
         try await passStage(model: model, snapshot: snapshot, budget: budgets.pass,
@@ -202,9 +186,9 @@ public final class DeepReportGenerator {
     /// refine()'s probe pipeline: the same three stages at scaled budgets,
     /// replacing model sections as each lands — never wiping first. The
     /// Alternative slot is reconstructed around the new snapshot: a picked or
-    /// game-move vertex is preserved (from the new snapshot's cache or one
-    /// forced-allow probe); if it became the best move — or can't be
-    /// re-analyzed — the slot falls back to the smart default with a notice.
+    /// game-move vertex is preserved and re-probed under visit parity; if it
+    /// became the best move — or can't be re-analyzed — the slot falls back
+    /// to the smart default (also parity-probed) with a notice.
     private func runRefineProbes(model: DeepReportModel,
                                  scaled: ReportBudgets,
                                  sideToMove: PlayerColor) async throws {
@@ -225,33 +209,28 @@ public final class DeepReportGenerator {
         if let preserved = preservedVertex {
             if preserved == model.candidates.first?.vertex {
                 model.transientNotice = "\(preserved) is now the Best Move — the alternative was reset."
-                applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
-                                     width: width, height: height)
-            } else if let entry = model.snapshotEntries.first(where: { $0.vertex == preserved }) {
-                setAlternative(buildCandidate(vertex: preserved, info: entry.info,
-                                              position: position, sideToMove: sideToMove,
-                                              baseOwnership: model.snapshotOwnership,
-                                              width: width, height: height),
-                               source: preservedSource, model: model)
-            } else if let parsed = try await forcedCandidateProbe(vertex: preserved,
-                                                                  budget: scaled.tenuki,
-                                                                  mySymbol: mySymbol,
-                                                                  parser: parser),
-                      let entry = rankedEntries(in: parsed, width: width, height: height)
-                          .first(where: { $0.vertex == preserved }) {
-                setAlternative(buildCandidate(vertex: preserved, info: entry.info,
-                                              position: position, sideToMove: sideToMove,
-                                              baseOwnership: model.snapshotOwnership,
-                                              width: width, height: height),
-                               source: preservedSource, model: model)
+                try await applyDefaultAlternative(model: model, position: position,
+                                                  budget: scaled.tenuki, mySymbol: mySymbol,
+                                                  parser: parser, sideToMove: sideToMove,
+                                                  width: width, height: height)
+            } else if try await applyAlternative(vertex: preserved, source: preservedSource,
+                                                 budget: scaled.tenuki, model: model,
+                                                 position: position, mySymbol: mySymbol,
+                                                 parser: parser, sideToMove: sideToMove,
+                                                 width: width, height: height) {
+                // Preserved pick re-evaluated at the deeper budget (parity).
             } else {
                 model.transientNotice = "The engine couldn't re-analyze \(preserved) — the alternative was reset."
-                applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
-                                     width: width, height: height)
+                try await applyDefaultAlternative(model: model, position: position,
+                                                  budget: scaled.tenuki, mySymbol: mySymbol,
+                                                  parser: parser, sideToMove: sideToMove,
+                                                  width: width, height: height)
             }
         } else {
-            applyGameMoveDefault(model: model, position: position, sideToMove: sideToMove,
-                                 width: width, height: height)
+            try await applyDefaultAlternative(model: model, position: position,
+                                              budget: scaled.tenuki, mySymbol: mySymbol,
+                                              parser: parser, sideToMove: sideToMove,
+                                              width: width, height: height)
         }
 
         try await passStage(model: model, snapshot: snapshot, budget: scaled.pass,
@@ -262,32 +241,66 @@ public final class DeepReportGenerator {
                               sideToMove: sideToMove, width: width, height: height)
     }
 
-    /// The cached-only smart default: the game move when it differs from the
-    /// new best and sits in the snapshot cache, else the engine's #2 (which
-    /// `applySnapshot` already placed). Used by refine's fallbacks — unlike
-    /// the initial run it never spends a probe on the game move.
-    private func applyGameMoveDefault(model: DeepReportModel,
-                                      position: PositionSummary,
-                                      sideToMove: PlayerColor,
-                                      width: Int, height: Int) {
-        model.alternativeSource = .engine
-        guard let gameMove = model.gameMoveVertex,
-              gameMove != model.candidates.first?.vertex,
-              let entry = model.snapshotEntries.first(where: { $0.vertex == gameMove })
-        else { return }
-        setAlternative(buildCandidate(vertex: gameMove, info: entry.info,
+    /// Visit parity (CONTEXT.md): evaluate `vertex` with its own forced probe
+    /// so its visits land in the Best Move's ballpark; the cached snapshot
+    /// entry only backstops a silent engine. Returns false when neither
+    /// source can value the vertex (caller keeps the incumbent alternative).
+    private func applyAlternative(vertex: String,
+                                  source: AlternativeSource,
+                                  budget: TimeInterval,
+                                  model: DeepReportModel,
+                                  position: PositionSummary,
+                                  mySymbol: String,
+                                  parser: AnalysisLineParser,
+                                  sideToMove: PlayerColor,
+                                  width: Int, height: Int) async throws -> Bool {
+        let probed = try await forcedAlternativeInfo(vertex: vertex, budget: budget,
+                                                     mySymbol: mySymbol, parser: parser,
+                                                     width: width, height: height)
+        let info = probed ?? model.snapshotEntries.first(where: { $0.vertex == vertex })?.info
+        guard let info else { return false }
+        setAlternative(buildCandidate(vertex: vertex, info: info,
                                       position: position, sideToMove: sideToMove,
                                       baseOwnership: model.snapshotOwnership,
                                       width: width, height: height),
-                       source: .gameMove, model: model)
+                       source: source, model: model)
+        return true
+    }
+
+    /// Seeds the Alternative slot with the smart default — the game's
+    /// recorded move when it differs from the best move, else the engine's
+    /// #2 — and evaluates it under visit parity. When nothing applies
+    /// (single-candidate snapshot, or a silent probe with no cache) the
+    /// snapshot's own #2 stays.
+    private func applyDefaultAlternative(model: DeepReportModel,
+                                         position: PositionSummary,
+                                         budget: TimeInterval,
+                                         mySymbol: String,
+                                         parser: AnalysisLineParser,
+                                         sideToMove: PlayerColor,
+                                         width: Int, height: Int) async throws {
+        model.alternativeSource = .engine
+        let choice: (vertex: String, source: AlternativeSource)?
+        if let gameMove = model.gameMoveVertex, gameMove != model.candidates.first?.vertex {
+            choice = (gameMove, .gameMove)
+        } else if model.candidates.count > 1 {
+            choice = (model.candidates[1].vertex, .engine)
+        } else {
+            choice = nil
+        }
+        guard let choice else { return }
+        _ = try await applyAlternative(vertex: choice.vertex, source: choice.source,
+                                       budget: budget, model: model, position: position,
+                                       mySymbol: mySymbol, parser: parser,
+                                       sideToMove: sideToMove, width: width, height: height)
     }
 
     /// Targeted re-probe of a newly picked Alternative on a completed report:
-    /// only the picked move is probed (cached snapshot info when available,
-    /// one forced-allow probe otherwise, plus its tenuki follow-up); the
-    /// snapshot, best-move, and pass sections stay untouched. A failed or
-    /// cancelled pick leaves the prior alternative standing and posts a
-    /// `transientNotice` instead of failing the report.
+    /// the picked move always gets its own forced-allow probe (visit parity;
+    /// the cached snapshot entry only backstops a silent engine), plus its
+    /// tenuki follow-up; the snapshot, best-move, and pass sections stay
+    /// untouched. A failed or cancelled pick leaves the prior alternative
+    /// standing and posts a `transientNotice` instead of failing the report.
     public func repickAlternative(model: DeepReportModel,
                                   gameRecord: GameRecord,
                                   vertex: String) async {
@@ -318,20 +331,17 @@ public final class DeepReportGenerator {
                 // A prior gen-move may have left its sticky maxVisits cap
                 // behind — every probe session lifts it first.
                 send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
+                // Visit parity: even a snapshot-ranked pick gets its own
+                // probe; the cached entry only backstops a silent engine.
                 let info: AnalysisInfo
-                if let entry = model.snapshotEntries.first(where: { $0.vertex == vertex }) {
+                if let probed = try await forcedAlternativeInfo(vertex: vertex, budget: budget,
+                                                                mySymbol: mySymbol, parser: parser,
+                                                                width: width, height: height) {
+                    info = probed
+                } else if let entry = model.snapshotEntries.first(where: { $0.vertex == vertex }) {
                     info = entry.info
                 } else {
-                    guard let parsed = try await forcedCandidateProbe(vertex: vertex,
-                                                                      budget: budget,
-                                                                      mySymbol: mySymbol,
-                                                                      parser: parser),
-                          let entry = rankedEntries(in: parsed, width: width, height: height)
-                              .first(where: { $0.vertex == vertex })
-                    else {
-                        throw ReportError("The engine couldn't analyze \(vertex) here — it may be an illegal move.")
-                    }
-                    info = entry.info
+                    throw ReportError("The engine couldn't analyze \(vertex) here — it may be an illegal move.")
                 }
                 var alternative = buildCandidate(vertex: vertex, info: info,
                                                  position: position, sideToMove: sideToMove,
@@ -508,6 +518,23 @@ public final class DeepReportGenerator {
         try await sleeper(ReportConstants.stopGrace)
         guard let line = collector.latestLine(for: .forcedCandidate) else { return nil }
         return parser.parse(message: line)
+    }
+
+    /// One forced-candidate probe distilled to the nominated vertex's own info
+    /// entry — the visit-parity workhorse (see CONTEXT.md "Visit parity").
+    /// nil when the vertex can't be probed ("pass" has no allow form) or the
+    /// engine stayed silent / never ranked it (typically an illegal vertex).
+    private func forcedAlternativeInfo(vertex: String,
+                                       budget: TimeInterval,
+                                       mySymbol: String,
+                                       parser: AnalysisLineParser,
+                                       width: Int, height: Int) async throws -> AnalysisInfo? {
+        guard vertex != "pass",
+              let parsed = try await forcedCandidateProbe(vertex: vertex, budget: budget,
+                                                          mySymbol: mySymbol, parser: parser)
+        else { return nil }
+        return rankedEntries(in: parsed, width: width, height: height)
+            .first(where: { $0.vertex == vertex })?.info
     }
 
     /// One tenuki probe: play the candidate, analyze with the SAME side to

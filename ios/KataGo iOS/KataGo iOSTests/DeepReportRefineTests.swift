@@ -23,12 +23,20 @@ struct DeepReportRefineTests {
     static let passLine = DeepReportGeneratorTests.passLine
     static let tenukiLine = DeepReportGeneratorTests.tenukiLine
     static let forcedLine = DeepReportAlternativeTests.forcedLine
+    /// Forced-probe reply for A1 (the engine-#2 default once B2 leads).
+    static let forcedLineA1 = "info move A1 visits 92 winrate 0.59 scoreLead 4.8 utilityLcb 0.4 order 0 pv A1 B2 movesOwnership 0.9 0.9 0.9 0.9 "
+        + "rootInfo visits 92 utility 0.2 winrate 0.58 scoreMean 4.0 scoreStdev 8.0 scoreLead 4.0 scoreSelfplay 4.2 weight 92.0 "
+        + "ownership 0.5 0.5 0.5 0.5 ownershipStdev 0.1 0.1 0.1 0.1"
 
-    /// One full no-forced-probe probe conversation (generate or refine):
-    /// snapshot, grace, pass, grace, tenuki 0, grace, tenuki 1, grace.
-    static func conversation(snapshot: String = snapshotLine) -> [[String]] {
+    /// One full probe conversation (generate or refine): snapshot, grace,
+    /// visit-parity probe for the Alternative slot, grace, pass, grace,
+    /// tenuki 0, grace, tenuki 1, grace.
+    static func conversation(snapshot: String = snapshotLine,
+                             forced: String = DeepReportGeneratorTests.forcedLineB2) -> [[String]] {
         [
             ["= ", "=", snapshot],
+            [],
+            ["= ", "=", forced],
             [],
             ["= ", "=", passLine],
             [],
@@ -97,8 +105,9 @@ struct DeepReportRefineTests {
     }
 
     @Test func refineDoublesBudgetsAndCapsAtEight() async {
-        // Base 2/1/1 budgets: generate sleeps 2/1/1/1, then refines sleep
-        // 4/2/2/2 → 8/4/4/4 → 16/8/8/8 → 16/8/8/8 (capped).
+        // Base 2/1/1 budgets: generate sleeps 2/1/1/1/1 (the second slot is
+        // the Alternative's parity probe at the tenuki budget), then refines
+        // sleep 4/2/2/2/2 → 8/4/4/4/4 → 16/8/8/8/8 → 16/8/8/8/8 (capped).
         let f = Fixture(budgets: ReportBudgets(snapshot: 2, pass: 1, tenuki: 1, candidateCount: 2),
                         steps: Array(repeating: Self.conversation(), count: 5).flatMap { $0 })
         await f.generator.generate(model: f.model, gameRecord: f.record)
@@ -115,17 +124,18 @@ struct DeepReportRefineTests {
         #expect(f.model.budgetMultiplier == 8)
 
         #expect(f.script.probeIntervals == [
-            2, 1, 1, 1,
-            4, 2, 2, 2,
-            8, 4, 4, 4,
-            16, 8, 8, 8,
-            16, 8, 8, 8,
+            2, 1, 1, 1, 1,
+            4, 2, 2, 2, 2,
+            8, 4, 4, 4, 4,
+            16, 8, 8, 8, 8,
+            16, 8, 8, 8, 8,
         ])
         #expect(f.model.stage == .complete)
     }
 
     @Test func refineReplacesSectionsInPlace() async {
-        let f = Fixture(steps: Self.conversation() + Self.conversation(snapshot: Self.swappedSnapshotLine))
+        let f = Fixture(steps: Self.conversation()
+            + Self.conversation(snapshot: Self.swappedSnapshotLine, forced: Self.forcedLineA1))
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
         #expect(f.model.position?.visits == 150)
@@ -137,6 +147,8 @@ struct DeepReportRefineTests {
         #expect(f.model.position?.visits == 210)
         #expect(f.model.candidates.map(\.vertex) == ["B2", "A1"])
         #expect(f.model.alternativeSource == .engine)
+        // Parity: the new engine-#2 alternative (A1) carries its probe's visits.
+        #expect(f.model.candidates[1].visits == 92)
         #expect(f.model.candidates.allSatisfy { $0.tenuki != nil })
         #expect(f.session.gobanState.reportGenerationActive == false)
     }
@@ -164,7 +176,7 @@ struct DeepReportRefineTests {
         let refineConversation: [[String]] = [
             ["= ", "=", Self.snapshotLine],
             [],
-            ["= ", "=", Self.forcedLine],       // forced re-probe of the pick
+            ["= ", "=", Self.forcedLine],       // parity re-probe of the preserved pick
             [],
             ["= ", "=", Self.passLine],
             [],
@@ -199,7 +211,8 @@ struct DeepReportRefineTests {
         // B2 the BEST move — the alternative resets to the smart default
         // (engine #2 here) with a notice.
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])",
-                        steps: Self.conversation() + Self.conversation(snapshot: Self.swappedSnapshotLine))
+                        steps: Self.conversation()
+                            + Self.conversation(snapshot: Self.swappedSnapshotLine, forced: Self.forcedLineA1))
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.alternativeSource == .gameMove)
 
@@ -208,6 +221,8 @@ struct DeepReportRefineTests {
         #expect(f.model.stage == .complete)
         #expect(f.model.candidates.map(\.vertex) == ["B2", "A1"])
         #expect(f.model.alternativeSource == .engine)
+        // Parity: the reset smart default (engine #2 = A1) was probed too.
+        #expect(f.model.candidates[1].visits == 92)
         #expect(f.model.transientNotice != nil)
     }
 
