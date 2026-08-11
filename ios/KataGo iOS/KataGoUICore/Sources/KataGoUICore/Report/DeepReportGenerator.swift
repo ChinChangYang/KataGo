@@ -205,6 +205,13 @@ public final class DeepReportGenerator {
         let snapshot = try await snapshotProbe(budget: scaled.snapshot, parser: parser)
         let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
                                          width: width, height: height)
+        // applySnapshot just replaced the candidates with the snapshot's own
+        // top-2, so the source label must match until an alternative is
+        // re-applied: the preserved-pick parity probe below can throw
+        // (cancel / engine error), and refine's catch keeps the report — a
+        // stale .gameMove/.userPick would make the NEXT refine preserve the
+        // engine's #2 as if the player had picked it.
+        model.alternativeSource = .engine
 
         if let preserved = preservedVertex {
             if preserved == model.candidates.first?.vertex {

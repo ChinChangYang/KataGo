@@ -226,6 +226,30 @@ struct DeepReportRefineTests {
         #expect(f.model.transientNotice != nil)
     }
 
+    @Test func abortedPreservedPickProbeResetsAlternativeSource() async {
+        // Game move B2 is the alternative (.gameMove). During refine, the new
+        // snapshot lands (candidates -> [A1, B2]) but the engine errors during
+        // B2's parity probe: the label must fall back to .engine — a stale
+        // .gameMove would make the NEXT refine preserve the engine's #2 as if
+        // the player had picked it.
+        let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])",
+                        steps: Self.conversation() + [
+                            ["= ", "=", Self.snapshotLine],
+                            [],
+                            ["? engine error"],
+                        ])
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+        #expect(f.model.alternativeSource == .gameMove)
+
+        await f.generator.refine(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .complete)
+        #expect(f.model.transientNotice != nil)
+        #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
+        #expect(f.model.alternativeSource == .engine)
+        #expect(f.model.budgetMultiplier == 1)
+    }
+
     @Test func cancelledRefineKeepsCompletedReport() async {
         var refining = false
         let f = Fixture(steps: Self.conversation(),
