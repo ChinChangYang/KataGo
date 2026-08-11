@@ -245,6 +245,13 @@ struct TVPlayScreen: View {
             // Stop the stream on the way out (the root's waitingForAnalysis
             // observer turns the .pause into a GTP "stop").
             gobanState.maybePauseAnalysis()
+            // Hand the next screen a clean counter. This one is a RUNNING
+            // counter that no other screen seeds: TVReviewScreen never sets it,
+            // and BroadcastController.startCycle parks .idle on passCount >= 2
+            // — so backing out of a finished game would silently refuse to
+            // start Auto-Play on the next game reviewed. loadIfNeeded re-seeds
+            // from the SGF on every entry, so clearing here costs nothing.
+            gobanState.passCount = 0
             // Re-arm the entry protocol for the next appearance.
             didLoad = false
         }
@@ -605,11 +612,27 @@ struct TVPlayScreen: View {
     /// immediately, so a take-back of the user's OWN move is undo TWICE — hold
     /// L1 and TVControllerInput's auto-repeat delivers the second press while
     /// the engine is still thinking. Gating on the turn would make the second
-    /// undo unreachable and the take-back impossible.
+    /// undo unreachable and the take-back impossible. That second press is safe
+    /// precisely because the AI's move is a `kata-search_analyze_cancellable`:
+    /// queueing ANY line cancels it and the reply becomes the literal "play
+    /// cancelled", which postProcessAIMove's vertex regex drops — so the
+    /// in-flight search can never land as a move of the wrong color after the
+    /// undo has already flipped the turn back.
     ///
-    /// Because editing is unlocked and forcesBranchOnPlay is false, playing
-    /// after an undo replaces the tail rather than opening a variation — the
-    /// intended play-mode behavior.
+    /// Because editing is unlocked and forcesBranchOnPlay is false, an undo
+    /// REPLACES the tail: the `printsgf` below adopts the shortened line as the
+    /// game's line, which is both the intended take-back semantic and the thing
+    /// that keeps the engine's answer playable — see the resync note inside.
+    ///
+    /// Deliberately NOT routed through `GobanState.backwardMoves` (which the
+    /// review screen uses): that helper ends with `sendPostExecutionCommands`,
+    /// so the AI's gen-move bundle would be QUEUED AHEAD of any `printsgf` sent
+    /// afterwards, and GTP replies come back in order — the "play" reply would
+    /// arrive while the record still held the undone tail. Sending the three
+    /// commands here (the VisionRootView.undoOneMove shape) is what puts the
+    /// resync before the gen-move. It also removes a double-issue: the helper
+    /// requests the bundle itself AND BoardView's turn observer requests it
+    /// again on the same toggle; here the observer is the only issuer.
     private func undoOneMove() {
         // Persist the position's analysis before leaving it (the iOS
         // StatusToolbarItems / VisionRootView back-step precedent): the chart's
@@ -623,13 +646,29 @@ struct TVPlayScreen: View {
         // never step on top of a play awaiting its legality reply.
         guard stones.isReady,
               gobanState.pendingMoveTurn == nil,
-              // At index 0 backwardMoves moves nothing but still re-sends
-              // showboard and re-arms analysis — pointless work on a fanless
-              // box (the TVSelfPlayScreen L1 precedent).
+              // MANDATORY, not an optimization: this path sends the engine
+              // `undo` itself, so it must stop at the branch floor / move 0
+              // (GobanState.canStepBackward's own contract).
               gobanState.canStepBackward(gameRecord: game) else { return }
-        gobanState.backwardMoves(limit: 1, gameRecord: game,
-                                 messageList: messageList,
-                                 player: player, stones: stones)
+        gobanState.undoIndex(gameRecord: game)
+        gobanState.undo(messageList: messageList, stones: stones)
+        // THE RESYNC, and it must be sent HERE — after `undo`, before the turn
+        // flip that triggers the AI's gen-move. An undo leaves the record's SGF
+        // holding the undone move while its currentIndex steps back, which is
+        // exactly `GobanState.isOverwriting` — and an unlocked (isEditing)
+        // record in that state makes GameSession.postProcessAIMove latch
+        // `confirmingAIOverwrite` INSTEAD of playing the engine's answer. No
+        // tvOS view renders that confirmation dialog, so the reply would be
+        // swallowed, the turn would park on the AI, and every input guarded by
+        // `!isAITurn` would refuse. The printsgf reply rewrites sgf +
+        // currentIndex to the shortened line (GameSession.maybeCollectSgf),
+        // so isOverwriting is false again by the time the "play" line lands.
+        messageList.appendAndSend(command: "printsgf")
+        player.toggleNextColorForPlayCommand()
+        // The turn flip is what re-arms analysis (and the AI's gen-move) via
+        // BoardView's observer; this only refreshes the board — the shape
+        // VisionRootView.undoOneMove uses.
+        gobanState.sendShowBoardCommand(messageList: messageList)
     }
 
     /// The board's D-pad handler: one intersection per press, clamped at the
