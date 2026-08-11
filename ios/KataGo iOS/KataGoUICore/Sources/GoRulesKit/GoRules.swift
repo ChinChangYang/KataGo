@@ -49,7 +49,7 @@ public struct GoRules: Sendable, Equatable {
         multiStoneSuicideLegal: false, hasButton: false,
         whiteHandicapBonusRule: .zero, komi: 6.5)
     public static let korean = GoRules(
-        koRule: .positional, scoringRule: .territory, taxRule: .seki,
+        koRule: .simple, scoringRule: .territory, taxRule: .seki,
         multiStoneSuicideLegal: false, hasButton: false,
         whiteHandicapBonusRule: .zero, komi: 6.5)
     public static let aga = GoRules(
@@ -63,7 +63,7 @@ public struct GoRules: Sendable, Equatable {
     public static let newZealand = GoRules(
         koRule: .situational, scoringRule: .area, taxRule: .none,
         multiStoneSuicideLegal: true, hasButton: false,
-        whiteHandicapBonusRule: .zero, komi: 7.0)
+        whiteHandicapBonusRule: .zero, komi: 7.5)
     public static let stoneScoring = GoRules(
         koRule: .simple, scoringRule: .area, taxRule: .all,
         multiStoneSuicideLegal: false, hasButton: false,

@@ -51,7 +51,7 @@ struct SetupCardView: View {
     @State private var height = 19
     @State private var handicap = 0
     @State private var creatorColor: GoColor = .black
-    @State private var rules: GoRules = .chinese
+    @State private var rules: GoRules = .trompTaylor
 
     private var maxHandicap: Int { GoGame.maxHandicap(width: width, height: height) }
 

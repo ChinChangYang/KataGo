@@ -375,6 +375,20 @@ struct MessageGameCodecTests {
         #expect(reparsed?.x == 27)
         #expect(reparsed?.y == 36)
     }
+
+    @Test func koreanMatchesTheEngineBranch() {
+        // cpp/game/rules.cpp parses "korean" in the same branch as Japanese:
+        // SIMPLE ko, territory scoring, seki tax, komi 6.5.
+        var expected = GoRules.japanese
+        expected.komi = GoRules.korean.komi
+        #expect(GoRules.korean == expected)
+        #expect(GoRules.korean.koRule == .simple)
+    }
+
+    @Test func newZealandKomiMatchesTheEngineDefault() {
+        // cpp/game/rules.cpp: new-zealand → komi 7.5.
+        #expect(GoRules.newZealand.komi == 7.5)
+    }
 }
 
 /// Deterministic RNG so the playout test is reproducible.
