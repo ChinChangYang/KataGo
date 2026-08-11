@@ -23,6 +23,57 @@ private enum TVTab: Hashable {
     case settings
 }
 
+/// The `GameRecord` navigation destination, shared by both the Library and
+/// Search stacks. Classifies the pushed record as playable vs. review-only
+/// EXACTLY ONCE PER PUSH — in `init`, not by reading `TVPlayability` from
+/// inside the `navigationDestination` closure or a plain computed property.
+///
+/// `TVPlayability.isPlayable` re-parses the game's SGF through the C++
+/// bridge, and `game.sgf` / `game.concreteConfig`'s max-time fields are
+/// observable SwiftData properties that change on every `printsgf` echo
+/// while a game is being played. Reading them directly in the destination
+/// closure would re-run that parse on every move and, the instant the
+/// second pass (or a resulting `RE[...]`) lands in `game.sgf`, flip the
+/// branch out from under an already-mounted `TVPlayScreen` — replacing it
+/// with a locked `TVReviewScreen` and losing the result overlay's "Undo to
+/// keep playing" recovery (see `TVPlayScreen.resultOverlay`). Caching the
+/// verdict in `@State`, seeded once at construction, decouples the mounted
+/// screen's identity from every subsequent SGF mutation while it stays
+/// pushed.
+///
+/// `.onChange(of: game.persistentModelID)` reclassifies only if this view's
+/// identity is ever reused for a different underlying record (the same
+/// defensive edge as `TVGameCard`'s cached badge) — never for the SAME
+/// record mid-game. A fresh push still re-classifies (a new
+/// `TVGameDestinationView` is constructed for every push), so backing out
+/// of a finished game and re-entering it correctly opens review.
+private struct TVGameDestinationView: View {
+    let game: GameRecord
+    let onContinueLive: (SelfPlaySeed) -> Void
+
+    @State private var isPlayable: Bool
+
+    init(game: GameRecord, onContinueLive: @escaping (SelfPlaySeed) -> Void) {
+        self.game = game
+        self.onContinueLive = onContinueLive
+        _isPlayable = State(initialValue: TVPlayability.isPlayable(game))
+    }
+
+    var body: some View {
+        Group {
+            if isPlayable {
+                TVPlayScreen(game: game)
+            } else {
+                TVReviewScreen(game: game, onContinueLive: onContinueLive)
+            }
+        }
+        .toolbar(.hidden, for: .tabBar)
+        .onChange(of: game.persistentModelID) { _, _ in
+            isPlayable = TVPlayability.isPlayable(game)
+        }
+    }
+}
+
 struct TVRootView: View {
     @State private var session = GameSession()
     @State private var engineLifecycle = EngineLifecycle()
@@ -76,15 +127,9 @@ struct TVRootView: View {
                     NavigationStack(path: $libraryPath) {
                         TVLibraryView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                if TVPlayability.isPlayable(game) {
-                                    TVPlayScreen(game: game)
-                                        .toolbar(.hidden, for: .tabBar)
-                                } else {
-                                    TVReviewScreen(game: game, onContinueLive: { seed in
-                                        libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                    })
-                                        .toolbar(.hidden, for: .tabBar)
-                                }
+                                TVGameDestinationView(game: game, onContinueLive: { seed in
+                                    libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                })
                             }
                             .navigationDestination(for: SelfPlayRoute.self) { route in
                                 TVSelfPlayScreen(route: route)
@@ -110,15 +155,9 @@ struct TVRootView: View {
                     NavigationStack(path: $searchPath) {
                         TVSearchView()
                             .navigationDestination(for: GameRecord.self) { game in
-                                if TVPlayability.isPlayable(game) {
-                                    TVPlayScreen(game: game)
-                                        .toolbar(.hidden, for: .tabBar)
-                                } else {
-                                    TVReviewScreen(game: game, onContinueLive: { seed in
-                                        searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                    })
-                                        .toolbar(.hidden, for: .tabBar)
-                                }
+                                TVGameDestinationView(game: game, onContinueLive: { seed in
+                                    searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                                })
                             }
                             .navigationDestination(for: SelfPlayRoute.self) { route in
                                 TVSelfPlayScreen(route: route)
