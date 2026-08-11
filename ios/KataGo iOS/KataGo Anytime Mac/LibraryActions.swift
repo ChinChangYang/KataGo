@@ -44,10 +44,14 @@ extension MainWindowController: LibraryActionsDelegate {
         resolveDraft(for: .switchGame) { [weak self] in
             guard let self else { return }
             let dialog = NewGameViewController(maxBoardLength: self.launchedMaxBoardLength) {
-                [weak self] sgf, name in
+                [weak self] sgf, name, configRuleIndex in
                 guard let self else { return }
                 let previous = self.navigationContext.selectedGameRecord
                 let untitled = GameRecord.createGameRecord(sgf: sgf, name: name)
+                // createGameRecord doesn't derive Config.rule from RU[]; carry
+                // the chosen preset's label so other surfaces (tvOS cards)
+                // don't mislabel Mac-created games.
+                untitled.concreteConfig.rule = configRuleIndex
                 let record = self.draftController.openUntitled(untitled)
                 self.navigationContext.selectedGameRecord = record
                 // Unlock BEFORE the load, not after. ⌘N stays enabled during an

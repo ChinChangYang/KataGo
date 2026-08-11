@@ -26,15 +26,17 @@ final class NewGameViewController: NSViewController {
     /// The largest board the running engine can handle (its launched NN-buffer
     /// size). Board-size options never exceed this.
     private let maxBoardLength: Int
-    /// Called once, on Create, with the SGF (encoding size/komi/rules) and name.
-    private let onCreate: (_ sgf: String, _ name: String) -> Void
+    /// Called once, on Create, with the SGF (encoding size/komi/rules), the
+    /// name, and the chosen preset's Config.rule index (Custom → -1) so the
+    /// caller can persist the label createGameRecord doesn't derive.
+    private let onCreate: (_ sgf: String, _ name: String, _ configRuleIndex: Int) -> Void
 
     // Collected values (kept in sync by the row callbacks).
     private var gameName = GameRecord.defaultName
     private var boardWidth: Int
     private var boardHeight: Int
     private var komi: Float = 7.5
-    private var preset: NewGameRuleset = .chinese
+    private var preset: NewGameRuleset = .trompTaylor
     private var components: NewGameRuleComponents
 
     // Rows that need programmatic repopulation when preset ⇄ granular sync.
@@ -54,7 +56,8 @@ final class NewGameViewController: NSViewController {
 
     private let formStack = NSStackView()
 
-    init(maxBoardLength: Int, onCreate: @escaping (_ sgf: String, _ name: String) -> Void) {
+    init(maxBoardLength: Int,
+         onCreate: @escaping (_ sgf: String, _ name: String, _ configRuleIndex: Int) -> Void) {
         self.maxBoardLength = max(2, maxBoardLength)
         self.onCreate = onCreate
         self.boardPresets = [9, 13, 19].filter { $0 <= max(2, maxBoardLength) }
@@ -62,10 +65,10 @@ final class NewGameViewController: NSViewController {
         let defaultSize = boardPresets.last ?? max(2, maxBoardLength)
         self.boardWidth = defaultSize
         self.boardHeight = defaultSize
-        self.components = NewGameRules.expand(.chinese)
-            ?? NewGameRuleComponents(koRule: .simple, scoringRule: .area, taxRule: .none,
-                                     multiStoneSuicideLegal: false, hasButton: false,
-                                     whiteHandicapBonusRule: .n)
+        self.components = NewGameRules.expand(.trompTaylor)
+            ?? NewGameRuleComponents(koRule: .positional, scoringRule: .area, taxRule: .none,
+                                     multiStoneSuicideLegal: true, hasButton: false,
+                                     whiteHandicapBonusRule: .zero)
         super.init(nibName: nil, bundle: nil)
         self.komi = NewGameRules.suggestedKomi(components)
     }
@@ -305,7 +308,7 @@ final class NewGameViewController: NSViewController {
         let height = min(max(2, boardHeight), maxBoardLength)
         let ruleString = NewGameRules.ruleString(preset: preset, components: components)
         let sgf = GameRecord.makeSgf(width: width, height: height, komi: komi, ruleString: ruleString)
-        onCreate(sgf, name)
+        onCreate(sgf, name, preset.configRuleIndex)
         dismissSelf()
     }
 
