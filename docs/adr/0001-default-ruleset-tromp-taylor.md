@@ -52,3 +52,8 @@ schema is frozen.
   cleanest logical rules; Chinese remains one tap away in the picker.
 - Creation-site-only overriding was rejected because scattering defaults across
   surfaces is exactly the pattern that produced the original drift.
+- **Handicap games under the default ruleset lose the N-point white handicap
+  bonus**: the previous Chinese default was whb N, Tromp-Taylor is whb 0, so a
+  default-rules N-stone handicap game (tvOS "Play KataGo", Messages) scores N
+  points better for Black than before (handicap komi stays 0.5). This follows
+  the Tromp-Taylor convention; picking Chinese restores the bonus.

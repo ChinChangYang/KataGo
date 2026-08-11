@@ -35,12 +35,20 @@ struct RulesPreset: Identifiable, Equatable {
     ]
 
     /// The preset matching `rules` ignoring komi, or nil for custom knobs.
-    static func matching(_ rules: GoRules) -> RulesPreset? {
-        all.first { preset in
-            var withKomi = preset.rules
-            withKomi.komi = rules.komi
-            return withKomi == rules
+    /// `preferring` breaks ties between engine-identical presets (Korean ==
+    /// Japanese, both parsed in the same rules.cpp branch) in favor of the
+    /// user's chosen label instead of first-match snapping.
+    static func matching(_ rules: GoRules, preferring id: String? = nil) -> RulesPreset? {
+        if let id, let preferred = all.first(where: { $0.id == id }), preferred.matches(rules) {
+            return preferred
         }
+        return all.first { $0.matches(rules) }
+    }
+
+    private func matches(_ other: GoRules) -> Bool {
+        var withKomi = rules
+        withKomi.komi = other.komi
+        return withKomi == other
     }
 }
 
@@ -52,6 +60,9 @@ struct SetupCardView: View {
     @State private var handicap = 0
     @State private var creatorColor: GoColor = .black
     @State private var rules: GoRules = .trompTaylor
+    /// The picker label the user last chose, so engine-identical presets
+    /// (Korean/Japanese) keep the chosen name instead of snapping.
+    @State private var chosenPresetID: String?
 
     private var maxHandicap: Int { GoGame.maxHandicap(width: width, height: height) }
 
@@ -167,8 +178,9 @@ struct SetupCardView: View {
 
     private var presetBinding: Binding<String> {
         Binding(
-            get: { RulesPreset.matching(rules)?.id ?? "Custom" },
+            get: { RulesPreset.matching(rules, preferring: chosenPresetID)?.id ?? "Custom" },
             set: { id in
+                chosenPresetID = id
                 if let preset = RulesPreset.all.first(where: { $0.id == id }) {
                     rules = preset.rules
                 }
