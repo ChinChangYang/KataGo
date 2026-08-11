@@ -13,7 +13,7 @@ It runs on **iPhone and iPad, Apple Vision Pro, Mac, Apple TV, and Apple Watch**
 | iOS / iPadOS 26+ | `KataGo Anytime` | Full play & analysis app (SwiftUI) |
 | visionOS 26+ | `KataGo Anytime Vision` | Volumetric RealityKit app — a real-scale 3D goban played with a game controller |
 | macOS 26+ | `KataGo Anytime Mac` | Native AppKit app with a three-pane window and menu-bar/hotkey workflow |
-| tvOS 26+ | `KataGo Anytime TV` | Review & spectate app for the living room |
+| tvOS 26+ | `KataGo Anytime TV` | Review, spectate, and play ranked games against KataGo — for the living room |
 | watchOS 26+ | `KataGo Anytime Watch` | Standalone read-only game library, synced over iCloud |
 
 Beyond the apps themselves:
@@ -54,7 +54,7 @@ The model picker offers the built-in 18-block `b18c384nbt` network plus eight do
 - **Finetuned 9x9 Network** (~98 MB) and **Short Distributed Test Run Rect15 Final Net** (~87 MB).
 - **Lionffen b6c64** (~2 MB) and **Lionffen b24c64** (~5 MB), tiny community nets that run very fast.
 
-Each network row has a single status button — a download arrow, a stop icon while downloading, then a play button to launch the engine — plus a gear button for the backend settings above. On Apple TV the list is limited to networks of 100 MB or less. A separate human-style (human SL) network powers the rank and pro profiles described under [Game Settings](#settings) (Apple TV skips it).
+Each network row has a single status button — a download arrow, a stop icon while downloading, then a play button to launch the engine — plus a gear button for the backend settings above. On Apple TV the list is limited to networks of 100 MB or less. A separate human-style (human SL) network powers the rank and pro profiles described under [Game Settings](#settings), bundled on every platform including Apple TV.
 
 Below those lists, a **Custom Networks** section takes any KataGo network file you already have. **Add Custom Network…** opens a file picker (`.bin.gz`, `.txt.gz`, `.bin`, `.txt`), checks there is room for it, copies it with byte-accurate progress you can cancel, and refuses anything the engine cannot load. Custom networks **stay on this device** — they are never synced — and their rows can be edited or removed with swipe-to-delete. The Mac offers the same list under **Window ▸ Manage Models…**.
 
@@ -198,14 +198,16 @@ Under the hood the Mac app runs the engine in the sandboxed `katago-engine` subp
 
 ## KataGo Anytime on Apple TV
 
-The Apple TV app is built for **reviewing and spectating** rather than playing:
+The Apple TV app reviews, spectates, **and plays ranked games against KataGo**:
 
-- **Library** — your iCloud-synced games in a grid (with sync-aware empty states while iCloud is catching up), plus **Search** and **Settings** tabs.
+- **Library** — your iCloud-synced games in a grid (with sync-aware empty states while iCloud is catching up), plus **Search** and **Settings** tabs. A permanent **Play KataGo** card opens **New Game**. Unfinished human-vs-AI games — including ones started on iPhone, iPad, or Mac — show a **Continue** badge and reopen for play; finished or symmetric (AI-vs-AI) games open the read-only review as usual.
+- **New Game** — board size (9x9 / 13x13 / 19x19 quick sizes, or a custom width/height picker up to the current Max Board Size), the same eleven named ruleset presets as [Game Settings](#settings), KataGo's rank (**AI**, human-style ranks **9d through 1d** and **1k through 25k**, or **Pro 1800 through Pro 2023**), a classic handicap (0, or 2 through 9 stones — always placed for Black, with komi 0.5 and White moving first), and your color. **Start Game** creates the record and hands off straight into Play.
+- **Play** — a full-bleed board with the D-pad aiming a ghost stone and **Select** playing it; the side panel has **Pass**, **Undo**, and an analysis-overlay eye toggle. With a game controller, **X**/**L1** undoes (hold to take back further moves) and **Y** passes. Two passes end the game with a result overlay, and the finished game persists like any other saved game. Games created on Apple TV sync to your other devices over iCloud, same as everywhere else.
 - **Review** — step through a game read-only with a live **Top Moves** list; clicking a candidate move plays it out as a variation.
 - **Self-play** — watch KataGo play itself endlessly; an idle attract mode starts a demo game on its own.
 - **Settings → Diagnostics** — restart the engine, re-download the library from iCloud, run a CoreML benchmark across all four `MLComputeUnits` configurations, and toggle a live memory overlay.
 
-The TV app runs the built-in 18-block network on the Neural Engine and limits downloadable nets to 100 MB or less.
+The TV app runs the built-in 18-block network and the human-SL network (for ranked play) on the Neural Engine, and limits downloadable nets to 100 MB or less.
 
 ## KataGo Anytime on Apple Watch
 
