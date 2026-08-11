@@ -65,6 +65,7 @@
 		16DA2B0F2603C5AC4D072362 /* SubByteTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E03DD11DFA6F7F7D3334D722 /* SubByteTypes.cpp */; };
 		16E2F9BB0D8320C07DFD05FB /* CameraCaptureUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D69DBDC40073B85BE283389 /* CameraCaptureUITestSupport.swift */; };
 		1731A4ACE0777D87754C9547 /* VisionDeepLinkFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC9E7EC03FD47380254BCFE /* VisionDeepLinkFlowTests.swift */; };
+		173542B7B8C6E51A567479A9 /* TVPlayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235CD50179AAC5DFFBDE5FB3 /* TVPlayScreen.swift */; };
 		175B917CAFDC92213FB586E4 /* VisionEngineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3892CA59B0D5D89BE6327A /* VisionEngineController.swift */; };
 		17E24915B0190AAADDC56836 /* DateShortenedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7530028A07F8E37EA6AE1044 /* DateShortenedTests.swift */; };
 		1821247E1EAEBBC73694BAFD /* ItemSimilarityRecommender.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = E3143D709F2827A810FBB414 /* ItemSimilarityRecommender.pb.cc */; };
@@ -1212,6 +1213,7 @@
 		206D16FF81C121F070F69FC8 /* GLMRegressor.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = GLMRegressor.pb.cc; path = ../../cpp/external/katagocoreml/generated/GLMRegressor.pb.cc; sourceTree = SOURCE_ROOT; };
 		20E1823CF34C8B70836765B2 /* cord_rep_consume.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = cord_rep_consume.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/cord_rep_consume.cc"; sourceTree = SOURCE_ROOT; };
 		22D8D0DC676FBF50F1B5ABDB /* private_handle_accessor.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = private_handle_accessor.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/flags/internal/private_handle_accessor.cc"; sourceTree = SOURCE_ROOT; };
+		235CD50179AAC5DFFBDE5FB3 /* TVPlayScreen.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVPlayScreen.swift; sourceTree = "<group>"; };
 		23916145488517F6991FE10B /* TVScoreChart.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVScoreChart.swift; sourceTree = "<group>"; };
 		23FE417A3D400E1C82F55C71 /* OwnershipBudgetTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OwnershipBudgetTests.swift; sourceTree = "<group>"; };
 		24A40B6C3B2B0D0D582CE4D7 /* common.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = common.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/stubs/common.cc"; sourceTree = SOURCE_ROOT; };
@@ -3396,6 +3398,7 @@
 				9C2748CAC217C4C431516072 /* TVSelectPressCatcher.swift */,
 				ED2B7F2919C753010BE57F78 /* TVBroadcastSlideView.swift */,
 				C724D772BF82F6088936A48A /* TVControllerInput.swift */,
+				235CD50179AAC5DFFBDE5FB3 /* TVPlayScreen.swift */,
 			);
 			path = "KataGo Anytime TV";
 			sourceTree = SOURCE_ROOT;
@@ -4186,6 +4189,7 @@
 				D7B56B2B32C8EF8645566BBF /* Shaders.metal in Sources */,
 				B3667449ADBC76B7C24CC5CF /* TVBroadcastSlideView.swift in Sources */,
 				F0D65CC49FDF0A3F54A83755 /* TVControllerInput.swift in Sources */,
+				173542B7B8C6E51A567479A9 /* TVPlayScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
