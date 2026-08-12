@@ -165,19 +165,25 @@ struct TVPlayScreen: View {
                 // silently shrink the fitted square. A fixed frame also keeps
                 // the board independent of the panel's ideal height (it must
                 // never resize on a toggle).
-                .frame(width: 1080, height: 1080)
+                .frame(width: TVBoardLayout.boardSide, height: TVBoardLayout.boardSide)
 
-            Spacer(minLength: 24)
+            Spacer(minLength: TVBoardLayout.gapFloor)
 
             panel
-                // Hard ceiling: the 1080 pt screen minus the 30 pt vertical
-                // margins. A fixed frame reports this size to the HStack no
-                // matter how tall the content wants to be, so panel growth can
-                // never inflate the HStack and push the 1080 pt board
-                // off-screen. No .clipped(): it would shear the focus
-                // lift/shadow on the rows at the edges.
-                .frame(width: 500, height: 1020, alignment: .top)
-                .padding(.vertical, 30)
+                // Shared geometry (TVBoardLayout): 752 pt is the widest panel
+                // that keeps the Spacer above at its 24 pt floor, and the
+                // 1000 pt height is the 1080 pt screen minus the 40 pt
+                // vertical margins. This screen used to hardcode a 500 pt
+                // panel, which left the Spacer absorbing 276 pt of dead space
+                // between board and panel. A fixed frame reports this size to
+                // the HStack no matter how tall the content wants to be, so
+                // panel growth can never inflate the HStack and push the
+                // 1080 pt board off-screen. No .clipped(): it would shear the
+                // focus lift/shadow on the rows at the edges.
+                .frame(width: TVBoardLayout.panelWidth,
+                       height: TVBoardLayout.panelHeight,
+                       alignment: .top)
+                .padding(.vertical, TVBoardLayout.panelVerticalPadding)
                 // While the cursor is aiming, EVERY panel control must be
                 // unfocusable: onMoveCommand is only a FALLBACK on tvOS (a
                 // focusable target in the pressed direction wins and moves
@@ -188,8 +194,8 @@ struct TVPlayScreen: View {
                 .disabled(isAiming)
                 .focusSection()
         }
-        .padding(.leading, 24)
-        .padding(.trailing, 40)
+        .padding(.leading, TVBoardLayout.leadingMargin)
+        .padding(.trailing, TVBoardLayout.trailingMargin)
         .ignoresSafeArea()
         .overlay {
             if isGameOver {
@@ -744,9 +750,14 @@ struct TVPlayScreen: View {
 }
 
 /// A compact icon-only pill for the panel's control row: the label-carrying
-/// pills are 56 pt tall and greedy, and three greedy pills do not fit the
-/// 500 pt panel. The SYMBOL carries the state (eye ⇄ eye.slash — the app's own
-/// display-toggle idiom), so there is no "On/Off" label to shrink;
+/// pills are 56 pt tall and greedy, and three greedy pills did not fit when
+/// this panel was 500 pt wide. At the shared 752 pt width
+/// (TVBoardLayout.panelWidth) a third labelled pill would probably fit, but
+/// icon-only stays on purpose — it mirrors the review screen's control row so
+/// the pills read as a set across screens, and it leaves Pass and Undo the
+/// room to render their labels unshrunk. The SYMBOL carries the state
+/// (eye ⇄ eye.slash — the app's own display-toggle idiom), so there is no
+/// "On/Off" label to shrink;
 /// `accessibilityLabel` names the control for VoiceOver. Styling mirrors the
 /// review screen's toggles so the pills read as a set. (Its TVIconToggleButton
 /// is file-private, and widening review's access for one button is not worth

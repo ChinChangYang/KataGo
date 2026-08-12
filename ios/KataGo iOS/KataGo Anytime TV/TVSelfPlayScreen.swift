@@ -233,9 +233,10 @@ struct TVSelfPlayScreen: View {
                     // safe-area insets survive ignoresSafeArea and would
                     // otherwise shrink the fitted square). Also keeps the
                     // board independent of the panel's ideal height.
-                    .frame(width: 1080, height: 1080)
+                    .frame(width: TVBoardLayout.boardSide,
+                           height: TVBoardLayout.boardSide)
 
-                    Spacer(minLength: 24)
+                    Spacer(minLength: TVBoardLayout.gapFloor)
 
                     Group {
                         if let broadcast, let slide = broadcast.currentSlide {
@@ -247,19 +248,21 @@ struct TVSelfPlayScreen: View {
                             panel(for: game)
                         }
                     }
-                        // Hard ceiling: 752 pt is the max width that keeps
-                        // the Spacer at its 24 pt floor (24 + 1080 + 24 + 752
-                        // + 40 = 1920); the 1000 pt height is the screen
-                        // minus the 40 pt vertical margins. A fixed frame
-                        // reports this size to the HStack no matter how tall
-                        // the content wants to be, so panel growth can never
-                        // inflate the HStack and push the 1080 pt board
-                        // off-screen — content that outgrows the budget
-                        // overflows inside this slot, top-aligned. No
-                        // .clipped(): it would shear the focus lift/shadow on
-                        // the rows at the edges.
-                        .frame(width: 752, height: 1000, alignment: .top)
-                        .padding(.vertical, 40)
+                        // Shared geometry (TVBoardLayout) — the arithmetic
+                        // behind 752 × 1000 now lives in that file's header,
+                        // because the review and play screens had drifted to
+                        // their own inline 500 × 1020 and shipped a 276 pt
+                        // board/panel gap. A fixed frame reports this size to
+                        // the HStack no matter how tall the content wants to
+                        // be, so panel growth can never inflate the HStack and
+                        // push the 1080 pt board off-screen — content that
+                        // outgrows the budget overflows inside this slot,
+                        // top-aligned. No .clipped(): it would shear the focus
+                        // lift/shadow on the rows at the edges.
+                        .frame(width: TVBoardLayout.panelWidth,
+                               height: TVBoardLayout.panelHeight,
+                               alignment: .top)
+                        .padding(.vertical, TVBoardLayout.panelVerticalPadding)
                         // While the cursor is aiming, EVERY panel control
                         // must be unfocusable: onMoveCommand is only a
                         // fallback on tvOS (a focusable target in the pressed
@@ -273,8 +276,8 @@ struct TVSelfPlayScreen: View {
                 // Full-bleed hero board (matches the review screen): all safe
                 // areas ignored, explicit paddings are the only margins, so
                 // the square reaches the full 1080 pt height.
-                .padding(.leading, 24)
-                .padding(.trailing, 40)
+                .padding(.leading, TVBoardLayout.leadingMargin)
+                .padding(.trailing, TVBoardLayout.trailingMargin)
                 .ignoresSafeArea()
                 .overlay {
                     if isGameOver {
@@ -370,16 +373,16 @@ struct TVSelfPlayScreen: View {
 
     private func panel(for game: GameRecord) -> some View {
         // Spacing/padding, the 3-row Top Moves list, and the always-reserved
-        // chart slot are a 1000 pt vertical budget (the capped panel frame) —
-        // the full manual-mode stack must fit with the chart visible or the
-        // bottom items clip inside the panel.
+        // chart slot are a 1000 pt vertical budget (TVBoardLayout.panelHeight,
+        // the capped panel frame) — the full manual-mode stack must fit with
+        // the chart visible or the bottom items clip inside the panel.
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
                 Text(game.name.isEmpty ? SelfPlayGame.demoName : game.name)
                     .font(.title2.bold())
                     .lineLimit(1)
                     // Shrinks a touch so the full name fits beside the badge
-                    // in the 752 pt panel.
+                    // in the 752 pt panel (TVBoardLayout.panelWidth).
                     .minimumScaleFactor(0.7)
                 liveBadge
             }

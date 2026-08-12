@@ -209,9 +209,9 @@ struct TVReviewScreen: View {
             // never resize on toggles). The frame sits on the ZStack, not on
             // BoardView, so the slide layer shares it (the TVSelfPlayScreen
             // geometry).
-            .frame(width: 1080, height: 1080)
+            .frame(width: TVBoardLayout.boardSide, height: TVBoardLayout.boardSide)
 
-            Spacer(minLength: 24)
+            Spacer(minLength: TVBoardLayout.gapFloor)
 
             Group {
                 if let broadcast = replayBroadcast, let slide = broadcast.currentSlide {
@@ -223,16 +223,22 @@ struct TVReviewScreen: View {
                     panel
                 }
             }
-                // Hard ceiling: the 1080 pt screen minus the 30 pt vertical
-                // margins. A fixed frame reports this size to the HStack no
-                // matter how tall the content wants to be, so panel growth
-                // (e.g. the tall no-history placeholder) can never inflate
-                // the HStack and push the 1080 pt board off-screen — content
-                // that outgrows the budget overflows inside this slot,
-                // top-aligned. No .clipped(): it would shear the focus
-                // lift/shadow on the rows at the edges.
-                .frame(width: 500, height: 1020, alignment: .top)
-                .padding(.vertical, 30)
+                // Shared geometry (TVBoardLayout): 752 pt is the widest panel
+                // that keeps the Spacer above at its 24 pt floor, and the
+                // 1000 pt height is the 1080 pt screen minus the 40 pt
+                // vertical margins. This screen used to hardcode a 500 pt
+                // panel, which left the Spacer absorbing 276 pt of dead space
+                // between board and panel. A fixed frame reports this size to
+                // the HStack no matter how tall the content wants to be, so
+                // panel growth (e.g. the tall no-history placeholder) can
+                // never inflate the HStack and push the 1080 pt board
+                // off-screen — content that outgrows the budget overflows
+                // inside this slot, top-aligned. No .clipped(): it would shear
+                // the focus lift/shadow on the rows at the edges.
+                .frame(width: TVBoardLayout.panelWidth,
+                       height: TVBoardLayout.panelHeight,
+                       alignment: .top)
+                .padding(.vertical, TVBoardLayout.panelVerticalPadding)
                 // While the cursor is aiming, EVERY panel control must be
                 // unfocusable: onMoveCommand is only a fallback (see the
                 // board's focusable comment), so a focusable row to the
@@ -243,8 +249,8 @@ struct TVReviewScreen: View {
                 .disabled(isAiming)
                 .focusSection()
         }
-        .padding(.leading, 24)
-        .padding(.trailing, 40)
+        .padding(.leading, TVBoardLayout.leadingMargin)
+        .padding(.trailing, TVBoardLayout.trailingMargin)
         .ignoresSafeArea()
         .overlay {
             if isHandingOff {
@@ -392,17 +398,22 @@ struct TVReviewScreen: View {
     // MARK: - Analysis + transport panel
 
     private var panel: some View {
-        // Spacing/padding and the title/chart sizes are a 1080 pt vertical
-        // budget — the full analysis-on stack (2-line title through both
-        // toggles) clips at the original 24/24/200/.title values, and the
-        // Top Moves rows squeezed the block spacing from 20 to 10.
+        // Spacing/padding and the title/chart sizes are a 1000 pt vertical
+        // budget — TVBoardLayout.panelHeight, the frame this whole stack is
+        // capped to (it was a 1020 pt cap while the numbers lived inline, so
+        // the budget got 20 pt TIGHTER, never looser). The full analysis-on
+        // stack (2-line title through both toggles) clips at the original
+        // 24/24/200/.title values, and the Top Moves rows squeezed the block
+        // spacing from 20 to 10.
         VStack(alignment: .leading, spacing: 10) {
             Text(game.name.isEmpty ? "Untitled" : game.name)
                 .font(.title2.bold())
                 // One line, shrinking to fit: a second title line was
                 // affordable before the Top Moves rows, but now it overflows
-                // the 1080 budget (title clips at the top, the analysis
-                // toggle at the bottom).
+                // the 1000 pt budget (title clips at the top, the analysis
+                // toggle at the bottom). The panel is wider than it used to be
+                // (752 vs 500 pt), which only helps here — more of the name
+                // fits on the single line before minimumScaleFactor bites.
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
@@ -1127,9 +1138,12 @@ private struct TVToggleButton: View {
 
 /// The Auto-Play transport. Icon-only, and NOT greedy, so it fits beside the
 /// Analysis toggle in the panel's single control row — two full-width toggles
-/// stacked overflow the 1020 pt panel by 46 pt (measured on tvOS 26.5), and
-/// `minHeight` cannot fix that because the bordered style floors a pill at
-/// 66 pt. One row costs zero extra height.
+/// stacked overflowed the then-1020 pt panel by 46 pt (measured on tvOS 26.5),
+/// and `minHeight` cannot fix that because the bordered style floors a pill at
+/// 66 pt. One row costs zero extra height. The panel is now 1000 pt tall
+/// (TVBoardLayout.panelHeight), i.e. 20 pt LESS, so stacking them would
+/// overflow by ~66 pt — the single row is more necessary, not less. Widening
+/// the panel to 752 pt buys nothing here: the overflow is vertical.
 ///
 /// The SYMBOL carries the state (play → pause), so there is no "On/Off" label
 /// to shrink; `accessibilityLabel` is what names the control for VoiceOver.
@@ -1166,8 +1180,11 @@ private struct TVIconToggleButton: View {
 /// One color's panel row: stone glyph, captured count, player label. The
 /// count sits beside the stone as "xN" — the iOS captured-strip idiom
 /// (StoneView.drawCapturedStones) — replacing a trailing "captured N"
-/// sentence that truncated in the 500 pt panel once the count grew. Internal
-/// (not private): the self-play screen's player rows reuse it.
+/// sentence that truncated once the count grew, back when this panel was only
+/// 500 pt wide. The panel is 752 pt now (TVBoardLayout.panelWidth), but the
+/// compact form stays: it is the shared idiom with the self-play screen, which
+/// reuses this row (hence internal, not private), and a long player name still
+/// has to give way to the count.
 struct TVPlayerRow: View {
     let isBlack: Bool
     let name: String
