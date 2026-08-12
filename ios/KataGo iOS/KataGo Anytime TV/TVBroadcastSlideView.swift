@@ -30,8 +30,8 @@ struct TVBroadcastSlideBoard: View {
                         showCoordinate: model.showCoordinate,
                         verticalFlip: model.verticalFlip)
             .overlay(alignment: .top) {
-                if let chip = frame.passChip {
-                    TVPassChip(color: chip)
+                if let caption = frame.caption {
+                    TVBeatCaptionChip(caption: caption)
                         .padding(.top, 28)
                 }
             }
@@ -40,18 +40,35 @@ struct TVBroadcastSlideBoard: View {
     }
 }
 
-/// The acted-out pass beat's caption ("Black plays elsewhere"): stone glyph
-/// + label in a capsule, top-center over the board. The band above the top
-/// grid line only ever holds decorative coordinate letters, so the chip can
-/// never cover an acting stone on any board size.
-private struct TVPassChip: View {
-    /// Who plays elsewhere in the acted-out beat.
-    let color: PlayerColor
+/// The acted-out beat's caption ("Black passes" / "White plays elsewhere"):
+/// stone glyph + label in a capsule, top-center over the board. The band
+/// above the top grid line only ever holds decorative coordinate letters, so
+/// the chip can never cover an acting stone on any board size.
+///
+/// The two beats read differently on purpose: a PASS BEAT forfeits the move,
+/// a TENUKI BEAT relocates it. Rendering both as "plays elsewhere" (what a
+/// bare PlayerColor forced) mis-narrates every pass slide.
+private struct TVBeatCaptionChip: View {
+    /// Which beat is being acted out, and whose it is.
+    let caption: BeatCaption
+
+    private var color: PlayerColor {
+        switch caption {
+        case .passes(let player), .playsElsewhere(let player): player
+        }
+    }
+
+    private var text: String {
+        switch caption {
+        case .passes(let player): "\(player.name) passes"
+        case .playsElsewhere(let player): "\(player.name) plays elsewhere"
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             TVStoneIndicator(isBlack: color == .black)
-            Text("\(color == .black ? "Black" : "White") plays elsewhere")
+            Text(text)
                 .font(.title3.weight(.semibold))
         }
         .padding(.horizontal, 24)

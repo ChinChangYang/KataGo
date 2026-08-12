@@ -47,22 +47,54 @@ struct DeepReportGeneratorTests {
     final class Script {
         let session: GameSession
         var step = 0
+        /// Cold-engine simulation: the first snapshot analyze is acked but
+        /// never reports, so the generator's one retry has to carry it. The
+        /// two extra sleeps are absorbed here so the rest of the conversation
+        /// keeps its existing step numbers.
+        var overrideFirstSnapshotWithSilence = false
+        /// A rejected snapshot command — must NOT be retried.
+        var errorTheFirstSnapshot = false
+        private var silenceConsumed = false
+        private var silenceStep = 0
         init(session: GameSession) { self.session = session }
         func feed(_ lines: [String]) { lines.forEach { session.lineObserver?($0) } }
         func sleeper(_ interval: TimeInterval) async throws {
+            if errorTheFirstSnapshot, step == 0 {
+                step += 1
+                feed(["= ", "? cannot analyze this position"])
+                return
+            }
+            if overrideFirstSnapshotWithSilence, !silenceConsumed {
+                silenceStep += 1
+                switch silenceStep {
+                case 1:   // silent attempt: set-param ack + analyze header, no report line
+                    feed(["= ", "="])
+                case 2:   // its post-stop grace
+                    break
+                case 3:   // the retry: stop ack, set-param ack, analyze header, report line
+                    feed(["= ", "= ", "=", DeepReportGeneratorTests.snapshotLine])
+                case 4:   // the retry's grace; hand back to the shared script at the pass probe
+                    silenceConsumed = true
+                    step = 2
+                default:
+                    break
+                }
+                return
+            }
             step += 1
             switch step {
             case 1:   // snapshot probe: set-param ack, analyze header, report line
                 feed(["= ", "=", DeepReportGeneratorTests.snapshotLine])
             case 2:   // snapshot's post-stop grace: nothing to feed
                 break
-            case 3:   // parity probe for the engine-#2 alternative: stop ack, header, line
-                feed(["= ", "=", DeepReportGeneratorTests.forcedLineB2])
-            case 4:   // parity probe's post-stop grace: nothing to feed
-                break
-            case 5:   // pass probe: stop ack, analyze header, report line
+            case 3:   // pass probe: stop ack, analyze header, report line
+                      // (ADR 0003: the pass stage runs BEFORE the parity probe)
                 feed(["= ", "=", DeepReportGeneratorTests.passLine])
-            case 6:   // pass probe's post-stop grace: nothing to feed
+            case 4:   // pass probe's post-stop grace: nothing to feed
+                break
+            case 5:   // parity probe for the engine-#2 alternative: stop ack, header, line
+                feed(["= ", "=", DeepReportGeneratorTests.forcedLineB2])
+            case 6:   // parity probe's post-stop grace: nothing to feed
                 break
             case 7:   // tenuki 0 probe: stop ack, play ack, analyze header, report line
                 feed(["= ", "= ", "=", DeepReportGeneratorTests.tenukiLine])
@@ -103,13 +135,16 @@ struct DeepReportGeneratorTests {
     }
 
     /// The full probe command stream of the happy-path fixture, in order.
+    /// Snapshot, then the PASS probe, then the Alternative's visit-parity
+    /// probe, then the tenuki probes: ADR 0003 puts the pass stage ahead of
+    /// the newest, least-proven probe so it cannot starve the oldest feature.
     static let expectedProbePrefix = [
         "kata-set-param maxVisits 1000000000",
         "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true",
         "stop",
-        "kata-analyze b interval 10 allow b B2 1 maxmoves 8 ownership true movesOwnership true rootInfo true",
-        "stop",
         "kata-analyze w interval 10 maxmoves 8 ownership true rootInfo true",
+        "stop",
+        "kata-analyze b interval 10 allow b B2 1 maxmoves 8 ownership true movesOwnership true rootInfo true",
         "stop",
         "play b A1",
         "kata-analyze b interval 10 maxmoves 8 ownership true rootInfo true",
@@ -120,6 +155,49 @@ struct DeepReportGeneratorTests {
         "stop",
         "undo",
     ]
+
+    /// A cold engine — the first cycle after a replay screen opens — can spend
+    /// the whole snapshot budget loading and emit its first report line only
+    /// afterwards. Silence there is fatal (no candidates, no report), so it
+    /// costs the opening move of a replay ALL of its commentary. Observed in
+    /// the tvOS simulator as `generate FAILED 'The engine produced no analysis
+    /// for this position.'` on cycle 1, with every later cycle perfect. One
+    /// retry turns that into a lost beat instead of a lost report.
+    @Test func aSilentFirstSnapshotIsRetriedRatherThanFailingTheReport() async {
+        let f = Fixture()
+        // Step 1 answers the analyze but never reports; the retry at step 3
+        // does. Everything after shifts by the retry's two sleeps.
+        f.script.overrideFirstSnapshotWithSilence = true
+
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .complete)
+        #expect(f.model.candidates.count == 2)
+        #expect(f.model.passComparison != nil)
+        // Two analyze commands for one snapshot: the silent try, then the retry.
+        let snapshotAnalyzes = f.engine.sent.filter {
+            $0 == "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true"
+        }
+        #expect(snapshotAnalyzes.count == 2)
+    }
+
+    /// The retry is silence-only: repeating a command the engine just rejected
+    /// would only burn a second budget, so an ERROR still fails immediately.
+    @Test func anErroringSnapshotFailsWithoutARetry() async {
+        let f = Fixture()
+        f.script.errorTheFirstSnapshot = true
+
+        await f.generator.generate(model: f.model, gameRecord: f.record)
+
+        guard case .failed = f.model.stage else {
+            Issue.record("expected a failed report, got \(f.model.stage)")
+            return
+        }
+        let snapshotAnalyzes = f.engine.sent.filter {
+            $0 == "kata-analyze interval 50 maxmoves 8 ownership true movesOwnership true rootInfo true"
+        }
+        #expect(snapshotAnalyzes.count == 1)
+    }
 
     @Test func happyPathBuildsFullReport() async {
         let f = Fixture()
@@ -232,7 +310,7 @@ struct DeepReportGeneratorTests {
     }
 
     @Test func cancellationMidTenukiUndoesTheOutstandingPlay() async {
-        // Calls 1-6 (snapshot probe + grace, parity probe + grace, pass probe
+        // Calls 1-6 (snapshot probe + grace, pass probe + grace, parity probe
         // + grace) delegate to the script; call #7 — the first tenuki probe
         // sleep, after `play b A1` was sent — throws. The candidate play is
         // on the engine board and must be undone by restore.
@@ -287,6 +365,83 @@ struct DeepReportGeneratorTests {
             return
         }
         #expect(message.contains("no analysis"))
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(f.engine.sent.contains("showboard"))
+    }
+
+    // MARK: - ADR 0003: a failed probe drops its own section, not the report
+
+    /// THE regression a tester reported: the broadcast's "Playing vs. Passing"
+    /// slide silently vanished because ONE engine error line — raised during
+    /// the newest, least-proven probe (the Alternative's visit-parity probe) —
+    /// aborted every later stage AND poisoned every later `checkEngineError`.
+    /// The pass stage now runs first and the parity failure drops only its own
+    /// section, so the pass comparison survives and its slide is still built.
+    ///
+    /// Deliberately asserts nothing about the stages AFTER the error: an error
+    /// reply does not pop the collector's command FIFO, so replies that follow
+    /// one inside the same probe session are routed unreliably (pre-existing
+    /// behaviour, newly reachable now that the session keeps probing).
+    @Test("An engine error in the parity probe still leaves the pass section and its slide")
+    func parityProbeErrorKeepsThePassSectionAndItsSlide() async {
+        let f = Fixture(sleeperOverride: { _ in })
+        let script = DeepReportAlternativeTests.StepScript(session: f.session, steps: [
+            ["= ", "=", Self.snapshotLine],   // snapshot probe
+            [],                               // snapshot's stop grace
+            ["= ", "=", Self.passLine],       // PASS probe — lands before the parity probe
+            [],                               // pass stop grace
+            ["= ", "? engine error"],         // parity probe: stop ack, then the error
+        ])
+        let generator = DeepReportGenerator(
+            messageList: f.session.messageList,
+            budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
+            sleeper: { try await script.sleeper($0) }
+        )
+
+        await generator.generate(model: f.model, gameRecord: f.record)
+
+        // The report survives the hiccup...
+        #expect(f.model.stage == .complete)
+        // ...WITH its pass comparison (White-persp 0.72 → Black 0.28).
+        #expect(f.model.passComparison != nil)
+        #expect(f.model.passComparison?.punishmentVertex == "B2")
+        #expect(abs((f.model.passComparison?.winrate ?? 0) - 0.28) < 1e-4)
+        // ...and the broadcast still builds the Playing vs. Passing slide.
+        #expect(BroadcastScript.slides(from: f.model).map(\.kind) == [.best, .alternative, .pass])
+        // Only the parity SECTION is absent: the alternative keeps the
+        // snapshot's own 50-visit numbers instead of a probed 95.
+        #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
+        #expect(f.model.candidates[1].visits == 50)
+        #expect(f.session.gobanState.reportGenerationActive == false)
+        #expect(f.engine.sent.contains("showboard"))
+    }
+
+    /// Per-stage catches must never swallow a CancellationError: pause, skip
+    /// and the probe-session teardown are all built on it. A cancel during the
+    /// (isolated) pass stage aborts the WHOLE report — no later stage runs.
+    @Test("Cancellation during an isolated stage still aborts the whole report")
+    func cancellationDuringAnIsolatedStageAbortsEverything() async {
+        let f = Fixture()
+        let script = f.script
+        let generator = DeepReportGenerator(
+            messageList: f.session.messageList,
+            budgets: ReportBudgets(snapshot: 0, pass: 0, tenuki: 0, candidateCount: 2),
+            sleeper: { interval in
+                // Calls 1-2 are the snapshot probe + its grace; call #3 is the
+                // pass probe's sleep, the first ISOLATED stage.
+                if script.step >= 2 { throw CancellationError() }
+                try await script.sleeper(interval)
+            }
+        )
+
+        await generator.generate(model: f.model, gameRecord: f.record)
+
+        #expect(f.model.stage == .cancelled)
+        #expect(f.model.passComparison == nil)
+        // Neither later stage ran: the cancel propagated out of runProbes
+        // instead of being absorbed as "this section is simply absent".
+        #expect(!f.engine.sent.contains { $0.contains("allow b B2") })
+        #expect(!f.engine.sent.contains("play b A1"))
         #expect(f.session.gobanState.reportGenerationActive == false)
         #expect(f.engine.sent.contains("showboard"))
     }

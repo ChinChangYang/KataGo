@@ -135,17 +135,17 @@ struct BroadcastScriptTests {
         // bare open, pv1, pv2, then the 3-frame tenuki phase
         #expect(frames.count == 6)
         #expect(frames[0] == BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                                 overlay: .none, passChip: nil))
+                                                 overlay: .none, caption: nil))
         #expect(frames[1] == BroadcastBoardFrame(
             anchor: .fact(2),
             placedStones: [],
             overlay: .pv(["Q16"], startingWith: .black),
-            passChip: nil))
+            caption: nil))
         #expect(frames[2] == BroadcastBoardFrame(
             anchor: .afterPrevious(BroadcastConstants.pvStoneSeconds),
             placedStones: [],
             overlay: .pv(["Q16", "C3"], startingWith: .black),
-            passChip: nil))
+            caption: nil))
     }
 
     @Test func bestSlideTenukiPhaseActsOutIgnoreAndFollowUp() {
@@ -155,16 +155,16 @@ struct BroadcastScriptTests {
         let beat = BroadcastConstants.choreographyBeatSeconds
         let q16 = PlacedStone(vertex: "Q16", color: .black)
         #expect(frames[3] == BroadcastBoardFrame(anchor: .fact(3), placedStones: [q16],
-                                                 overlay: .none, passChip: nil))
+                                                 overlay: .none, caption: nil))
         #expect(frames[4] == BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                  placedStones: [q16],
                                                  overlay: .none,
-                                                 passChip: .white))
+                                                 caption: .playsElsewhere(.white)))
         #expect(frames[5] == BroadcastBoardFrame(
             anchor: .afterPrevious(beat),
             placedStones: [q16, PlacedStone(vertex: "R14", color: .black)],
             overlay: .none,
-            passChip: .white))
+            caption: .playsElsewhere(.white)))
         #expect(frames[5].lastMoveVertex == "R14")   // the punish stone gets the red dot
     }
 
@@ -174,7 +174,7 @@ struct BroadcastScriptTests {
         let best = BroadcastScript.slides(from: model)[0]
         let frames = BroadcastScript.frames(for: best, model: model)
         #expect(frames.count == 3)               // bare + pv1 + pv2, no tenuki phase
-        #expect(frames.allSatisfy { $0.passChip == nil })
+        #expect(frames.allSatisfy { $0.caption == nil })
     }
 
     @Test func factAnchorIndexTracksPositionFactCount() {
@@ -199,14 +199,14 @@ struct BroadcastScriptTests {
         #expect(BroadcastScript.frames(for: alternative, model: model) == [
             BroadcastBoardFrame(anchor: .fact(0),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [d4],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [d4],
                                 overlay: .ownershipDelta([BoardPoint(x: 3, y: 3): -0.4]),
-                                passChip: nil),
+                                caption: nil),
         ])
     }
 
@@ -225,16 +225,16 @@ struct BroadcastScriptTests {
         // phase occupies frames[4...6].
         #expect(frames.count == 7)
         #expect(frames[4] == BroadcastBoardFrame(anchor: .fact(1), placedStones: [d4],
-                                                  overlay: .none, passChip: nil))
+                                                  overlay: .none, caption: nil))
         #expect(frames[5] == BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                   placedStones: [d4],
                                                   overlay: .none,
-                                                  passChip: .white))
+                                                  caption: .playsElsewhere(.white)))
         #expect(frames[6] == BroadcastBoardFrame(
             anchor: .afterPrevious(beat),
             placedStones: [d4, PlacedStone(vertex: "F3", color: .black)],
             overlay: .none,
-            passChip: .white))
+            caption: .playsElsewhere(.white)))
         #expect(frames[6].lastMoveVertex == "F3")   // the punish stone gets the red dot
     }
 
@@ -249,7 +249,7 @@ struct BroadcastScriptTests {
             anchor: .afterPrevious(BroadcastConstants.choreographyBeatSeconds),
             placedStones: [],
             overlay: .pv(["D4"], startingWith: .black),
-            passChip: nil))
+            caption: nil))
         #expect(frames[3].overlay == ReportBoardOverlay.pv(["D4", "C3"], startingWith: .black))
         #expect(frames[3].anchor == .afterPrevious(BroadcastConstants.pvStoneSeconds))
     }
@@ -265,28 +265,28 @@ struct BroadcastScriptTests {
         let beat = BroadcastConstants.choreographyBeatSeconds
         #expect(BroadcastScript.frames(for: pass, model: model) == [
             BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .white)],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .fact(2),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .white)],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             // Canonical end: the same board the static pass slide showed —
             // best stone marked over the Δ grid.
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
                                 overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),
-                                passChip: nil),
+                                caption: nil),
         ])
     }
 
@@ -309,22 +309,22 @@ struct BroadcastScriptTests {
         let beat = BroadcastConstants.choreographyBeatSeconds
         #expect(BroadcastScript.frames(for: pass, model: model) == [
             BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .fact(2), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
                                 overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),
-                                passChip: nil),
+                                caption: nil),
         ])
     }
 
@@ -342,23 +342,23 @@ struct BroadcastScriptTests {
         let beat = BroadcastConstants.choreographyBeatSeconds
         #expect(BroadcastScript.frames(for: pass, model: model) == [
             BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .fact(1), placedStones: [],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .white)],
-                                overlay: .none, passChip: .black),
+                                overlay: .none, caption: .passes(.black)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat), placedStones: [],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [PlacedStone(vertex: "Q16", color: .black)],
                                 overlay: .ownershipDelta([BoardPoint(x: 15, y: 15): 0.5]),
-                                passChip: nil),
+                                caption: nil),
         ])
     }
 
@@ -409,19 +409,19 @@ struct BroadcastScriptTests {
                            PlacedStone(vertex: "pass", color: .black),
                            PlacedStone(vertex: "Q16", color: .black),
                            PlacedStone(vertex: "C3", color: .white)],
-            overlay: .none, passChip: nil)
+            overlay: .none, caption: nil)
         #expect(frame.blackVertices(base: ["D4", "Q16"]) == ["D4", "Q16"])
         #expect(frame.whiteVertices(base: ["D16"]) == ["D16", "C3"])
         #expect(frame.lastMoveVertex == "C3")
 
         let empty = BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                        overlay: .none, passChip: nil)
+                                        overlay: .none, caption: nil)
         #expect(empty.lastMoveVertex == nil)
 
         let passLast = BroadcastBoardFrame(
             anchor: .fact(0),
             placedStones: [PlacedStone(vertex: "pass", color: .black)],
-            overlay: .none, passChip: nil)
+            overlay: .none, caption: nil)
         #expect(passLast.lastMoveVertex == nil)
     }
 
@@ -432,5 +432,61 @@ struct BroadcastScriptTests {
                                    facts: ["A synced note about this move."])
         #expect(BroadcastScript.frames(for: slide, model: model).isEmpty)
         #expect(!BroadcastScript.factsMayGrow(kind: .comment, model: model))
+    }
+
+    @Test("The standalone pass/game-over slides have no choreography and never grow")
+    func standaloneSlidesAreStaticAndFrameless() {
+        let model = fullModel()
+        for slide in [BroadcastSlide(kind: .playedPass, title: "Black Passes",
+                                     facts: ["Black passes."]),
+                      BroadcastSlide(kind: .gameOver, title: "Game Over",
+                                     facts: ["Both players passed. The game is over."])] {
+            #expect(BroadcastScript.frames(for: slide, model: model).isEmpty)
+            #expect(!BroadcastScript.factsMayGrow(kind: slide.kind, model: model))
+        }
+    }
+
+    // MARK: - Beat captions (the pass/tenuki distinction)
+
+    /// THE regression guard for commit 58155796, which collapsed the caption
+    /// to a bare `PlayerColor?` and left the TV layer captioning every beat
+    /// "plays elsewhere". A pass forfeits the move; a tenuki relocates it —
+    /// the two beats must stay distinguishable in the frame model itself, not
+    /// by convention.
+    @Test("The pass beat captions .passes; a tenuki beat captions .playsElsewhere")
+    func passBeatAndTenukiBeatCarryDifferentCaptions() {
+        let model = fullModel()          // Black to move, so tenuki is White's
+        let slides = BroadcastScript.slides(from: model)
+
+        let passCaptions = BroadcastScript.frames(for: slides[2], model: model)
+            .compactMap(\.caption)
+        #expect(!passCaptions.isEmpty)
+        #expect(passCaptions.allSatisfy { $0 == BeatCaption.passes(.black) })
+
+        let tenukiCaptions = BroadcastScript.frames(for: slides[0], model: model)
+            .compactMap(\.caption)
+        #expect(!tenukiCaptions.isEmpty)
+        #expect(tenukiCaptions.allSatisfy { $0 == BeatCaption.playsElsewhere(.white) })
+
+        // Not merely different colors: different KINDS. Same player, same
+        // case-payload, still not equal.
+        #expect(BeatCaption.passes(.black) != BeatCaption.playsElsewhere(.black))
+    }
+
+    /// White to move flips both captions' colors: the pass beat is White's,
+    /// the tenuki beat is Black's (the opponent of the side to move).
+    @Test("Beat captions name the right player from either side")
+    func beatCaptionsFollowTheSideToMove() {
+        let model = fullModel()
+        model.sideToMove = .white
+        let slides = BroadcastScript.slides(from: model)
+        #expect(BroadcastScript.frames(for: slides[2], model: model)
+            .compactMap(\.caption) == [BeatCaption.passes(.white),
+                                       BeatCaption.passes(.white),
+                                       BeatCaption.passes(.white),
+                                       BeatCaption.passes(.white)])
+        #expect(BroadcastScript.frames(for: slides[0], model: model)
+            .compactMap(\.caption) == [BeatCaption.playsElsewhere(.black),
+                                       BeatCaption.playsElsewhere(.black)])
     }
 }

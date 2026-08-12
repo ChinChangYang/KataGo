@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **CORRECTION — 2026-08-12.** This plan shipped as written and is kept intact as the record of what shipped; nothing below has been rewritten. One decision was later **reversed**: the chip-label constraint (Global Constraints, "Chip label (user-confirmed)"). A pass forfeits the move while a tenuki relocates it, so one caption cannot describe both — the pass beat reads "Black passes" again. The `PassChipKind` → `PlayerColor?` collapse of Task 2 is being restored as a two-case `BeatCaption` (`passes(PlayerColor)` / `playsElsewhere(PlayerColor)`). See the correction note under the affected constraint.
+
 **Goal:** The broadcast's "Playing vs. Passing" slide interleaves sentence-by-sentence with the board — bare board while "If Black passes…" types, the pass chip beat, the punish sentence then the punish stone, the restored contested-areas sentence then the bare→best→Δ payoff.
 
 **Architecture:** Pure-data change riding the existing lockstep presenter: `ReportNarrator.passFacts` gains a `split:` broadcast form (three facts), `BroadcastScript.frames(for: .pass)` gets a new timeline using `.fact(i)`-anchored **barrier frames** (copies of the last appended frame) to hold the beat drain until each sentence types, and `PassChipKind` collapses to `PlayerColor?` because every chip now reads "\<Color\> plays elsewhere". `BroadcastController` is untouched.
@@ -15,6 +17,7 @@
 - **Barrier = copy of the LAST APPENDED frame**, never a hardcoded board. With `punishmentVertex == "pass"` the punish frame is skipped and `.fact(1)`/`.fact(2)` are two consecutive chip-frame copies; a hardcoded "punish + chip" barrier would place a "pass" stone (drawn off-grid).
 - **No `.fact(i)` anchor may reference `i >= facts.count`** — a never-typing fact would strand every later frame. The `.fact(2)` barrier condition (`!contestedPoints.isEmpty`) is byte-for-byte the fact-2 existence condition in `passFacts`.
 - Chip label (user-confirmed): "**Black plays elsewhere**" for the pass beat too — NOT "Black passes". Contested sentence: the **full iOS wording** verbatim. Punish sentence **keeps the tail** " if Black doesn't play at …" when a best move is named.
+  - **REVERSED 2026-08-12 (the line above is the original decision, kept as the record):** the pass beat reads "**Black passes**" again. A pass forfeits the move and a tenuki relocates it, so one caption cannot describe both. Task 2's collapsed `PassChipKind` → `PlayerColor?` is restored as a two-case `BeatCaption` — `passes(PlayerColor)` for the pass beat, `playsElsewhere(PlayerColor)` for the tenuki phases, which keep their wording. The contested/punish sentence constraints are unaffected.
 - In tests, spell `ReportBoardOverlay.none` where an optional chain could make `.none` ambiguous (Optional.none trap).
 - Swift Testing suites cannot be selected with `-only-testing` — run the full iOS-sim suite. Pipe xcodebuild through `tee` with `set -o pipefail` and judge by `TEST SUCCEEDED` / `BUILD SUCCEEDED` markers.
 - English-only in all committed content. Never push. Commit messages end with:

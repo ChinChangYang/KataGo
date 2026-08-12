@@ -78,6 +78,14 @@ public final class BroadcastController {
 
     private var cycleTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
+    /// The terminal "both players passed" caption's task. Detached from the
+    /// cycle machinery: by the time it runs there is no cycle left to run.
+    private var gameOverTask: Task<Void, Never>?
+    /// Whether the terminal caption has already been said for the current
+    /// game. The game-over guard is RE-ENTERED (every screen poke after the
+    /// second pass lands there), so the slide needs its own state to stay a
+    /// once-per-game event; a cycle on a live position again clears it.
+    private var didPresentGameOverSlide = false
     /// The in-flight pause drain, stored so cancelAll (a Menu exit) can cancel
     /// it before its continuation re-arms analysis for a torn-down screen.
     private var pauseTask: Task<Void, Never>?
@@ -217,6 +225,8 @@ public final class BroadcastController {
         cycleTask = nil
         generationTask?.cancel()
         generationTask = nil
+        gameOverTask?.cancel()
+        gameOverTask = nil
         // An exit during .awaitingMove must not leave the gen-move license
         // armed: a later screen's stray "play" reply would otherwise consume
         // it, bypassing the review screen's spectator protection into a
@@ -243,10 +253,12 @@ public final class BroadcastController {
         let cycle = cycleTask
         let generation = generationTask
         let pause = pauseTask
+        let gameOver = gameOverTask
         cancelAll()
         await pause?.value
         await cycle?.value
         await generation?.value
+        await gameOver?.value
     }
 
     // MARK: - Cycle
@@ -254,9 +266,24 @@ public final class BroadcastController {
     private func startCycle(game: GameRecord) {
         guard cycleTask == nil else { return }
         guard gobanState.passCount < 2 else {
+            // The terminal beat: the game ended on a double pass. It used to
+            // die silently here — a replay simply stopped dead — so it now
+            // gets one standalone caption. No score or result line: that
+            // would need its own engine probe (out of scope).
+            //
+            // The phase still flips to .idle SYNCHRONOUSLY, exactly as
+            // before: callers read it the moment they poke the controller
+            // (TVReviewScreen's "the first cycle refused to start, unwind
+            // rather than stall silently" check), and the caption is a
+            // standalone slide anyway — it types over the live board with
+            // currentFrame nil, needing no phase of its own.
+            presentGameOverSlideOnce()
             phase = .idle
             return
         }
+        // A live position again (new game, or an undo took a pass back): the
+        // terminal caption becomes earnable once more.
+        didPresentGameOverSlide = false
         moveLanded = false
         genMoveIssued = false
         skipRequested = false
@@ -332,17 +359,13 @@ public final class BroadcastController {
         }
         writeSnapshotStats(model: model, game: game)
 
+        // Every slide the report produced is presented, at every pacing
+        // profile: pacing scales how fast a cycle is narrated, never how much
+        // of it is narrated (the deleted BroadcastPacing.maxSlideCount let
+        // Fast drop the Alternative and Playing-vs-Passing slides outright).
         var index = 0
-        var cappedByPacing = false
         while !Task.isCancelled {
             let slides = BroadcastScript.slides(from: model)
-            if index >= pacing().maxSlideCount {
-                // Fast replay shows only the Best Move slide; the leftover
-                // generation is cancelled below (probe restore() runs, the
-                // same path pause takes).
-                cappedByPacing = true
-                break
-            }
             if index >= slides.count {
                 if model.stage.isSettled { break }
                 try? await sleeper(BroadcastConstants.pollSeconds)
@@ -355,7 +378,7 @@ public final class BroadcastController {
             // Constraint 5: the first frame lands in the SAME synchronous
             // block — the early-genmove await below would otherwise render
             // the new slide's title over the previous slide's terminal frame
-            // (a stray pass chip under "Best Move …").
+            // (a stray beat caption under "Best Move …").
             currentFrame = BroadcastScript.frames(for: slides[index], model: model).first
             if model.stage.isSettled && index == slides.count - 1
                 && !genMoveIssued && replayAdvance == nil {
@@ -370,7 +393,7 @@ public final class BroadcastController {
             index += 1
         }
 
-        if Task.isCancelled || cappedByPacing {
+        if Task.isCancelled {
             generation.cancel()
         }
         await generation.value
@@ -391,7 +414,20 @@ public final class BroadcastController {
             // instead of starting a nested cycle; the SCREEN chains cycles
             // (policy-gated), so replay always returns false.
             genMoveIssued = true
+            // A PLAYED pass (not the hypothetical the .pass slide weighs)
+            // gets its own standalone slide. Replay plays the recorded move
+            // SYNCHRONOUSLY inside replayAdvance (forwardMoves → play →
+            // passCount), so straddling the call is an exact test; the mover
+            // is the side to move BEFORE it, because the advance toggles the
+            // turn. Live mode is deliberately NOT covered here — see
+            // playedPassSlide(by:).
+            let mover = player.nextColorForPlayCommand
+            let passCountBeforeAdvance = gobanState.passCount
             let comment = replayAdvance()
+            if gobanState.passCount > passCountBeforeAdvance, mover != .unknown {
+                await presentStandalone(Self.playedPassSlide(by: mover), token: token)
+                if Task.isCancelled { return false }
+            }
             if let comment {
                 await presentStandalone(BroadcastSlide(kind: .comment,
                                                        title: "Comment",
@@ -507,8 +543,56 @@ public final class BroadcastController {
         await waitOutDwellAndSpeech(elapsed: elapsed)
     }
 
+    // MARK: - Standalone slides
+
+    /// The played-pass slide: the move this cycle caused WAS a pass. Distinct
+    /// from the `.pass` slide, which weighs the hypothetical "what if the side
+    /// to move passed here?" — this one reports what actually happened.
+    ///
+    /// Replay only, deliberately. In live mode the pass arrives with the
+    /// gen-move's reply, and the first pass then routes the next beat through
+    /// startCycle's synchronous endgame-formality branch, which answers
+    /// immediately and never opens a cycle task — there is no in-cycle moment
+    /// to type a slide in. A detached task there would type over the next
+    /// cycle's slides instead, and moving the formality branch into the cycle
+    /// task would open a window (between `phase = .awaitingMove` and the
+    /// continuation clearing `cycleTask`) in which a landing turn change is
+    /// dropped by the `cycleTask == nil` gate, stalling the live loop.
+    static func playedPassSlide(by color: PlayerColor) -> BroadcastSlide {
+        BroadcastSlide(kind: .playedPass,
+                       title: "\(color.name) Passes",
+                       facts: ["\(color.name) passes."])
+    }
+
+    /// The terminal beat's caption. No score or result line — that would need
+    /// its own engine probe.
+    static var gameOverSlide: BroadcastSlide {
+        BroadcastSlide(kind: .gameOver,
+                       title: "Game Over",
+                       facts: ["Both players passed. The game is over."])
+    }
+
+    /// Types the terminal caption at most once per game (see
+    /// `didPresentGameOverSlide`). The cycle machinery is finished by now —
+    /// this owns the shared slide state, so it takes the next cycle token to
+    /// keep any late-draining cycle continuation from blanking it.
+    private func presentGameOverSlideOnce() {
+        guard !didPresentGameOverSlide else { return }
+        didPresentGameOverSlide = true
+        cycleToken += 1
+        let token = cycleToken
+        // One slide, so the panel's progress dots stay hidden (they show
+        // only above a count of 1).
+        slideCount = 0
+        gameOverTask = Task { [weak self] in
+            guard let self else { return }
+            await self.presentStandalone(Self.gameOverSlide, token: token)
+        }
+    }
+
     /// Types (and speaks) a slide that has NO choreography — the replay
-    /// Comment slide. currentFrame stays nil, the one deliberate exception
+    /// Comment slide, the played-pass slide, and the terminal game-over
+    /// caption. currentFrame stays nil, the one deliberate exception
     /// to the "frame non-nil while a slide shows" pairing: the TV screens
     /// mount the slide board only when a frame exists, so the LIVE hero
     /// board (already showing the just-played move) stays visible while the

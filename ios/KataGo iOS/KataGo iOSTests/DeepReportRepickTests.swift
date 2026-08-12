@@ -35,14 +35,15 @@ struct DeepReportRepickTests {
         + "rootInfo visits 88 utility 0.1 winrate 0.53 scoreMean 2.6 scoreStdev 8.0 scoreLead 2.6 scoreSelfplay 2.6 weight 88.0 "
         + "ownership 0.5 0.5 0.5 0.5 ownershipStdev 0.1 0.1 0.1 0.1"
 
-    /// generate()'s conversation: snapshot, grace, parity probe for the
-    /// Alternative slot, grace, pass, grace, tenuki 0, grace, tenuki 1, grace.
+    /// generate()'s conversation: snapshot, grace, pass, grace, parity probe
+    /// for the Alternative slot, grace, tenuki 0, grace, tenuki 1, grace.
+    /// The pass probe precedes the parity probe per ADR 0003.
     static let generateSteps: [[String]] = [
         ["= ", "=", snapshotLine],
         [],
-        ["= ", "=", forcedLineB2],
-        [],
         ["= ", "=", passLine],
+        [],
+        ["= ", "=", forcedLineB2],
         [],
         ["= ", "= ", "=", tenukiLine],
         [],

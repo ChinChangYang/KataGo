@@ -41,10 +41,14 @@ struct TVAutoPlaySpeedTests {
         #expect(BroadcastPacing.live.charactersPerSecond == BroadcastConstants.charactersPerSecond)
         #expect(BroadcastPacing.live.dwellSeconds == BroadcastConstants.dwellSeconds)
         #expect(BroadcastPacing.live.minimumSlideSeconds == BroadcastConstants.minimumSlideSeconds)
-        #expect(BroadcastPacing.live.maxSlideCount == Int.max)
     }
 
-    @Test("Normal and fast pacing tighten monotonically; fast is best-slide-only")
+    /// Every knob a profile carries is a TIMING knob. The deleted
+    /// `maxSlideCount` was not — it let Fast drop the Alternative and
+    /// Playing-vs-Passing slides, i.e. a speed control deleting analysis.
+    /// (That the slide list is no longer truncated is proven end-to-end in
+    /// BroadcastReplayTests.fastPacingStillShowsEverySlide.)
+    @Test("Normal and fast pacing tighten monotonically, and only the timing")
     func fasterProfilesTighten() {
         let slow = TVAutoPlaySpeed.slow.broadcastPacing
         let normal = TVAutoPlaySpeed.normal.broadcastPacing
@@ -55,8 +59,12 @@ struct TVAutoPlaySpeedTests {
         #expect(fast.dwellSeconds < normal.dwellSeconds)
         #expect(normal.minimumSlideSeconds < slow.minimumSlideSeconds)
         #expect(fast.minimumSlideSeconds < normal.minimumSlideSeconds)
-        #expect(normal.maxSlideCount == Int.max)
-        #expect(fast.maxSlideCount == 1)
+        // A profile differs from .live in its timing alone: rebuilding .live's
+        // timings under any profile reproduces .live exactly.
+        #expect(BroadcastPacing(charactersPerSecond: slow.charactersPerSecond,
+                                dwellSeconds: slow.dwellSeconds,
+                                minimumSlideSeconds: slow.minimumSlideSeconds)
+                == BroadcastPacing.live)
     }
 
     @Test("current reads the defaults key, falling back to the default")

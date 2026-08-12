@@ -52,6 +52,14 @@ public final class ReportCollector: @unchecked Sendable {
         lock.withLock {
             if line.hasPrefix("? ") {
                 _sawError = true
+                // A "?" IS the command's one GTP reply, so it consumes the
+                // FIFO slot exactly as "=" does. Before ADR 0003 the probe
+                // session ended at the first error and this never mattered;
+                // now later stages keep running, and skipping the pop would
+                // route every subsequent reply one stage off — filing the
+                // pass probe's info line under the parity probe, which looks
+                // exactly like the silent section loss ADR 0003 exists to end.
+                currentStage = pendingStages.isEmpty ? nil : pendingStages.removeFirst()
             } else if line.hasPrefix("=") {
                 // One "=" line per command, FIFO: ack or analyze header.
                 currentStage = pendingStages.isEmpty ? nil : pendingStages.removeFirst()
@@ -64,6 +72,20 @@ public final class ReportCollector: @unchecked Sendable {
 
     public func latestLine(for stage: ReportStage) -> String? {
         lock.withLock { latestByStage[stage] }
+    }
+
+    /// Clears ONLY the error flag, so a probe's `sawError` judges its own
+    /// command window instead of inheriting an earlier probe's `? ` line
+    /// (ADR 0003: a failed probe drops its own section, not the whole report).
+    /// Called at the start of every probe helper.
+    ///
+    /// Deliberately does NOT touch pendingStages/currentStage/latestByStage:
+    /// those carry the FIFO stage routing for the WHOLE probe session — one
+    /// "=" line pops one sent command — so clearing them mid-session would
+    /// misattribute every reply that follows. Use `reset()` only between
+    /// sessions.
+    public func clearError() {
+        lock.withLock { _sawError = false }
     }
 
     public func reset() {

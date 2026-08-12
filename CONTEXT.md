@@ -16,6 +16,20 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Visits** — the number of search playouts backing a candidate's evaluation; the report's proxy for how trustworthy a candidate's numbers are.
 - **Visit parity** — the report's contract that the Alternative is always evaluated by its own forced-candidate probe, regardless of origin (engine rank, smart default, or user pick), so its visits are in the same ballpark as the Best Move's and its numbers are equally trustworthy.
 
+## Broadcast
+
+- **Broadcast** — the commentated slide show that narrates one position on Apple TV: deterministic fact sentences typed out in lockstep with an acted-out board, and spoken aloud when narration is on. Distinct from the *Deep Analysis Report*, which is the same underlying study data presented as a static sheet.
+- **Live mode** — the broadcast driving a game forward; each cycle ends by asking the engine for a move.
+- **Replay mode** — the broadcast walking a recorded game; each cycle ends by playing the game's next recorded move instead of asking for one.
+- **Cycle** — one move's worth of broadcast: generate the study data for the current position, present its slides, then advance the game by one move.
+- **Slide** — one titled unit of a cycle, carrying an ordered list of fact sentences. Four kinds: *Best Move*, *Alternative*, *Playing vs Passing*, *Comment*.
+- **Playing vs Passing slide** — the slide contrasting playing the best move with passing: what passing costs, where the opponent would punish, and which areas change hands. Present whenever the position's study data includes a pass comparison.
+- **Comment slide** — a slide whose facts are the human-written note attached to that move, rather than engine-derived sentences.
+- **Beat** — one acted-out moment of a slide's board choreography, paired with the sentence it illustrates.
+- **Pass beat** — the beat in which the side to move *passes*. Distinct from a tenuki beat: passing forfeits the move, it does not relocate it.
+- **Tenuki beat** — the beat in which a player ignores the move under discussion and *plays elsewhere*.
+- **Auto-Play Speed** — the viewer's pacing choice for a replay broadcast (Slow / Normal / Fast). A pacing profile — how fast sentences reveal and how long a slide dwells — not a per-move delay, and not a choice about which analysis is shown.
+
 ## Rules & presets
 
 - **Ruleset preset** — a named ruleset (Chinese, Japanese, Korean, AGA, BGA, AGA Button, New Zealand, Tromp-Taylor, Stone Scoring, Ancient Territory, Chinese OGS/KGS) defined *entirely* by its six rule components. Komi is **not** part of a preset's identity.

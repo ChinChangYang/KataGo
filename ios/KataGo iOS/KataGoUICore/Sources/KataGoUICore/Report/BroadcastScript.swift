@@ -21,6 +21,14 @@ public enum BroadcastSlideKind: Equatable, Sendable {
     /// the LIVE hero board — frames(for:model:) is empty and currentFrame
     /// stays nil while it types.
     case comment
+    /// A pass that was actually PLAYED by the move this cycle caused — as
+    /// opposed to `.pass`, which weighs the hypothetical "what if the side to
+    /// move passed here?". Built by BroadcastController (never by
+    /// slides(from:)) and presented standalone, exactly like `.comment`.
+    case playedPass
+    /// The terminal beat: both players passed, so the game is over. Built by
+    /// BroadcastController, presented standalone exactly once per game.
+    case gameOver
 }
 
 /// One board-plus-facts segment of the broadcast. Board content lives in the
@@ -59,29 +67,31 @@ public enum BroadcastConstants {
 
 /// One replay/broadcast pacing profile. The live self-play broadcast always
 /// runs `.live`; the review replay maps TVAutoPlaySpeed onto tighter
-/// profiles. Only the typewriter, dwell, floor, and slide count scale —
-/// choreography beats, PV cadence, and the poll interval stay stock, and
-/// speech is never rate-shifted (an unfinished utterance holds the slide).
+/// profiles. Only the typewriter, dwell, and floor scale — choreography
+/// beats, PV cadence, and the poll interval stay stock, and speech is never
+/// rate-shifted (an unfinished utterance holds the slide).
+///
+/// A pacing profile deliberately carries NO slide budget: pacing decides how
+/// fast a cycle is narrated, never how much of the analysis is narrated. The
+/// removed `maxSlideCount` let Fast drop the Alternative and Playing-vs-
+/// Passing slides outright — a speed control silently deleting analysis. Every
+/// profile now shows every slide the report produced.
 public struct BroadcastPacing: Equatable, Sendable {
     public let charactersPerSecond: Double
     public let dwellSeconds: TimeInterval
     public let minimumSlideSeconds: TimeInterval
-    /// Fact slides per cycle; the replay Comment slide is NOT counted.
-    public let maxSlideCount: Int
 
     public init(charactersPerSecond: Double, dwellSeconds: TimeInterval,
-                minimumSlideSeconds: TimeInterval, maxSlideCount: Int) {
+                minimumSlideSeconds: TimeInterval) {
         self.charactersPerSecond = charactersPerSecond
         self.dwellSeconds = dwellSeconds
         self.minimumSlideSeconds = minimumSlideSeconds
-        self.maxSlideCount = maxSlideCount
     }
 
     public static let live = BroadcastPacing(
         charactersPerSecond: BroadcastConstants.charactersPerSecond,
         dwellSeconds: BroadcastConstants.dwellSeconds,
-        minimumSlideSeconds: BroadcastConstants.minimumSlideSeconds,
-        maxSlideCount: Int.max)
+        minimumSlideSeconds: BroadcastConstants.minimumSlideSeconds)
 }
 
 /// A hypothetical stone placed on the report's base position during a
@@ -95,6 +105,21 @@ public struct PlacedStone: Equatable, Sendable {
         self.vertex = vertex
         self.color = color
     }
+}
+
+/// What an acted-out beat's board caption says: which player, and which KIND
+/// of beat it is. The two kinds are not interchangeable — a pass forfeits the
+/// move, a tenuki relocates it — and a frame that carried only a
+/// `PlayerColor` could not tell them apart, so the TV layer captioned every
+/// beat "plays elsewhere" (the regression this type exists to prevent).
+/// Named for the concept, not for either case, so neither reads as the
+/// default the other can be folded into.
+public enum BeatCaption: Equatable, Sendable {
+    /// The pass beat: the named player passes — forfeiting the move.
+    case passes(PlayerColor)
+    /// A tenuki beat: the named player ignores the move under discussion and
+    /// plays elsewhere.
+    case playsElsewhere(PlayerColor)
 }
 
 /// One board state of a slide's choreography. Frames are ordered; each shows
@@ -112,17 +137,17 @@ public struct BroadcastBoardFrame: Equatable, Sendable {
     public let anchor: Anchor
     public let placedStones: [PlacedStone]
     public let overlay: ReportBoardOverlay
-    /// The color who "plays elsewhere" in an acted-out pass/tenuki beat;
-    /// nil = no chip. The TV layer owns the caption copy
-    /// ("Black plays elsewhere").
-    public let passChip: PlayerColor?
+    /// What this beat's board caption says — a pass beat or a tenuki beat and
+    /// whose it is; nil = no caption. The TV layer owns the wording ("Black
+    /// passes" / "White plays elsewhere"); this names the beat only.
+    public let caption: BeatCaption?
 
     public init(anchor: Anchor, placedStones: [PlacedStone],
-                overlay: ReportBoardOverlay, passChip: PlayerColor?) {
+                overlay: ReportBoardOverlay, caption: BeatCaption?) {
         self.anchor = anchor
         self.placedStones = placedStones
         self.overlay = overlay
-        self.passChip = passChip
+        self.caption = caption
     }
 
     /// Merged, deduped, "pass"-filtered vertex list for the renderer. A
@@ -214,7 +239,7 @@ public enum BroadcastScript {
             guard let best = model.candidates.first else { return [] }
             let bestFactIndex = ReportNarrator.positionFacts(from: model).count
             var frames = [BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                              overlay: .none, passChip: nil)]
+                                              overlay: .none, caption: nil)]
             frames += pvPlayback(best.pv, startingWith: side,
                                  firstAnchor: .fact(bestFactIndex))
             if let tenuki = best.tenuki {
@@ -235,31 +260,31 @@ public enum BroadcastScript {
                 frames.append(BroadcastBoardFrame(
                     anchor: .fact(0),
                     placedStones: [PlacedStone(vertex: bestVertex, color: side)],
-                    overlay: .none, passChip: nil))
+                    overlay: .none, caption: nil))
                 frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                   placedStones: [],
-                                                  overlay: .none, passChip: nil))
+                                                  overlay: .none, caption: nil))
             } else {
                 frames.append(BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                                  overlay: .none, passChip: nil))
+                                                  overlay: .none, caption: nil))
             }
             if !alternative.ownershipDelta.isEmpty {
                 if alternative.vertex != "pass" {
                     let altStone = [PlacedStone(vertex: alternative.vertex, color: side)]
                     frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                       placedStones: altStone,
-                                                      overlay: .none, passChip: nil))
+                                                      overlay: .none, caption: nil))
                     frames.append(BroadcastBoardFrame(
                         anchor: .afterPrevious(beat),
                         placedStones: altStone,
                         overlay: .ownershipDelta(alternative.ownershipDelta),
-                        passChip: nil))
+                        caption: nil))
                 } else {
                     frames.append(BroadcastBoardFrame(
                         anchor: .afterPrevious(beat),
                         placedStones: [],
                         overlay: .ownershipDelta(alternative.ownershipDelta),
-                        passChip: nil))
+                        caption: nil))
                 }
             } else {
                 // Δ never landed: play the alternative's PV instead —
@@ -279,23 +304,27 @@ public enum BroadcastScript {
             guard let pass = model.passComparison else { return [] }
             let bestStones = bestVertex.map { [PlacedStone(vertex: $0, color: side)] } ?? []
             // Fact 0 ("If Black passes instead: …"): open on the bare board,
-            // then act the pass — chip only, no stone.
+            // then act the PASS BEAT — caption only, no stone. `.passes` is
+            // load-bearing here: this beat forfeits the move, it does not
+            // relocate it, and the caption must not read "plays elsewhere".
             var frames = [BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
-                                              overlay: .none, passChip: nil)]
+                                              overlay: .none, caption: nil)]
             frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                               placedStones: [],
-                                              overlay: .none, passChip: side))
+                                              overlay: .none,
+                                              caption: .passes(side)))
             // A barrier holds the beat drain so the next stone waits for its
             // sentence: a .fact-anchored copy of the LAST APPENDED frame
             // (never a hardcoded board — with a "pass" punishment the two
-            // barriers are both chip-frame copies). Emitting one is a visual
-            // no-op; its .fact index must exist or every later frame strands.
+            // barriers are both caption-frame copies). Emitting one is a
+            // visual no-op; its .fact index must exist or every later frame
+            // strands.
             func appendBarrier(at factIndex: Int) {
                 guard let last = frames.last else { return }
                 frames.append(BroadcastBoardFrame(anchor: .fact(factIndex),
                                                   placedStones: last.placedStones,
                                                   overlay: last.overlay,
-                                                  passChip: last.passChip))
+                                                  caption: last.caption))
             }
             // Fact 1 ("White would punish at …") types over the unchanged
             // chip board, then the punish stone lands.
@@ -305,7 +334,7 @@ public enum BroadcastScript {
                     anchor: .afterPrevious(beat),
                     placedStones: [PlacedStone(vertex: pass.punishmentVertex,
                                                color: opponent)],
-                    overlay: .none, passChip: side))
+                    overlay: .none, caption: .passes(side)))
             }
             // Fact 2 (contested areas) exists exactly when contestedPoints is
             // non-empty — the same condition as passFacts. Then the payoff:
@@ -315,20 +344,21 @@ public enum BroadcastScript {
             }
             frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                               placedStones: [],
-                                              overlay: .none, passChip: nil))
+                                              overlay: .none, caption: nil))
             if !bestStones.isEmpty {
                 frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                                   placedStones: bestStones,
-                                                  overlay: .none, passChip: nil))
+                                                  overlay: .none, caption: nil))
             }
             frames.append(BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                               placedStones: bestStones,
                                               overlay: .ownershipDelta(pass.ownershipDelta),
-                                              passChip: nil))
+                                              caption: nil))
             return frames
 
-        case .comment:
-            // The live board IS the visual; nothing to act out.
+        case .comment, .playedPass, .gameOver:
+            // Standalone slides: the live board IS the visual, so there is
+            // nothing to act out (currentFrame stays nil while they type).
             return []
         }
     }
@@ -347,14 +377,17 @@ public enum BroadcastScript {
                                    : .afterPrevious(BroadcastConstants.pvStoneSeconds),
                 placedStones: [],
                 overlay: .pv(Array(pv.prefix(count)), startingWith: side),
-                passChip: nil)
+                caption: nil)
         }
     }
 
-    /// The acted-out tenuki idea: candidate stone → "opponent plays
-    /// elsewhere" chip → the same color's punish stone (two consecutive
-    /// same-color stones). A "pass" candidate or punish vertex has no stone
-    /// to act with: no phase — the typed fact still tells the story.
+    /// The acted-out tenuki idea: candidate stone → the TENUKI BEAT's
+    /// "opponent plays elsewhere" caption → the same color's punish stone
+    /// (two consecutive same-color stones). The opponent here relocates the
+    /// move, never forfeits it, so the caption is `.playsElsewhere` — the
+    /// pass slide's beat is the other case. A "pass" candidate or punish
+    /// vertex has no stone to act with: no phase — the typed fact still tells
+    /// the story.
     private static func tenukiPhase(candidate: String, punish: String,
                                     factIndex: Int, side: PlayerColor,
                                     opponent: PlayerColor) -> [BroadcastBoardFrame] {
@@ -364,16 +397,16 @@ public enum BroadcastScript {
         return [
             BroadcastBoardFrame(anchor: .fact(factIndex),
                                 placedStones: [candidateStone],
-                                overlay: .none, passChip: nil),
+                                overlay: .none, caption: nil),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [candidateStone],
                                 overlay: .none,
-                                passChip: opponent),
+                                caption: .playsElsewhere(opponent)),
             BroadcastBoardFrame(anchor: .afterPrevious(beat),
                                 placedStones: [candidateStone,
                                                PlacedStone(vertex: punish, color: side)],
                                 overlay: .none,
-                                passChip: opponent),
+                                caption: .playsElsewhere(opponent)),
         ]
     }
 
@@ -390,7 +423,8 @@ public enum BroadcastScript {
             return model.candidates.count > 1 && model.candidates[1].tenuki == nil
         case .pass:
             return false
-        case .comment:
+        case .comment, .playedPass, .gameOver:
+            // Standalone slides carry their full text from the start.
             return false
         }
     }

@@ -49,8 +49,9 @@ struct DeepReportAlternativeTests {
         let generator: DeepReportGenerator
 
         /// The default steps mirror the happy path with the Alternative's
-        /// visit-parity probe: snapshot, grace, parity probe (B2), grace,
-        /// pass, grace, tenuki 0, grace, tenuki 1, grace.
+        /// visit-parity probe: snapshot, grace, pass, grace, parity probe
+        /// (B2), grace, tenuki 0, grace, tenuki 1, grace. Pass precedes the
+        /// parity probe per ADR 0003.
         init(sgf: String, currentIndex: Int = 0, steps: [[String]]? = nil) {
             record = GameRecord.createGameRecord(sgf: sgf, currentIndex: currentIndex, name: "Report")
             session.useEngine(engine)
@@ -60,9 +61,9 @@ struct DeepReportAlternativeTests {
             let script = StepScript(session: session, steps: steps ?? [
                 ["= ", "=", DeepReportAlternativeTests.snapshotLine],
                 [],
-                ["= ", "=", DeepReportGeneratorTests.forcedLineB2],
-                [],
                 ["= ", "=", DeepReportAlternativeTests.passLine],
+                [],
+                ["= ", "=", DeepReportGeneratorTests.forcedLineB2],
                 [],
                 ["= ", "= ", "=", DeepReportAlternativeTests.tenukiLine],
                 [],
@@ -78,14 +79,15 @@ struct DeepReportAlternativeTests {
     }
 
     /// Steps for a run whose game move needs the forced-allow probe:
-    /// snapshot, grace, forced, grace, pass, grace, tenuki 0, grace, tenuki 1, grace.
+    /// snapshot, grace, pass, grace, forced, grace, tenuki 0, grace, tenuki 1,
+    /// grace (ADR 0003 order — pass before the parity probe).
     static func forcedProbeSteps(forcedFeed: [String]) -> [[String]] {
         [
             ["= ", "=", snapshotLine],
             [],
-            forcedFeed,
-            [],
             ["= ", "=", passLine],
+            [],
+            forcedFeed,
             [],
             ["= ", "= ", "=", tenukiLine],
             [],

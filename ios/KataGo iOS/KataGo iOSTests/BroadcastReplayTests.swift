@@ -300,20 +300,24 @@ struct BroadcastReplayTests {
         #expect(!sawComment)
     }
 
-    @Test("Fast pacing caps a replay cycle at the Best Move slide")
-    func fastPacingCapsSlides() async {
+    /// Fast used to cap the cycle at the Best Move slide, silently dropping
+    /// Alternative and Playing-vs-Passing: a speed control deleting analysis.
+    /// Fast now means faster text and a shorter dwell, never less analysis —
+    /// all three slides play, in order, at every profile.
+    @Test("Fast pacing still shows every slide")
+    func fastPacingStillShowsEverySlide() async {
         let f = Fixture(pacing: TVAutoPlaySpeed.fast.broadcastPacing,
                         replayAdvance: { nil })
-        var maxSlide = 0
+        var kinds: [BroadcastSlideKind] = []
         f.controller.noteTurnChanged(game: f.record)
         for _ in 0..<20_000 {
             if f.controller.phase == .awaitingMove { break }
-            if f.controller.currentSlide?.kind != .comment {
-                maxSlide = max(maxSlide, f.controller.slideNumber)
+            if let kind = f.controller.currentSlide?.kind, kinds.last != kind {
+                kinds.append(kind)
             }
             await Task.yield()
         }
-        #expect(maxSlide == 1)
+        #expect(kinds == [.best, .alternative, .pass])
         #expect(f.controller.phase == .awaitingMove)
     }
 
@@ -335,21 +339,119 @@ struct BroadcastReplayTests {
         var value = 0
     }
 
-    @Test("The pacing cap cancels the leftover generation instead of awaiting it")
-    func capCancelsLeftoverGeneration() async {
-        let exited = Box()
+    /// The removed pacing cap used to end a fast cycle early and CANCEL the
+    /// still-running generation. With the cap gone, fast waits out the report
+    /// like every other profile: the generator is never cancelled, and the
+    /// sections that land late still become slides.
+    @Test("Fast pacing waits the generation out instead of cancelling it")
+    func fastPacingNeverCancelsTheGeneration() async {
+        let sawCancellation = Box()
         let f = Fixture(pacing: TVAutoPlaySpeed.fast.broadcastPacing,
                         replayAdvance: { nil },
                         generate: { model, _ in
                             BroadcastReplayTests.stageFullReport(model)
+                            model.passComparison = nil        // the pass section is late
                             model.stage = .passProbe          // keep generation OPEN
-                            while !Task.isCancelled { await Task.yield() }
-                            model.stage = .cancelled
-                            exited.value += 1
+                            for _ in 0..<200 { await Task.yield() }
+                            if Task.isCancelled { sawCancellation.value += 1 }
+                            BroadcastReplayTests.stageFullReport(model)
                         })
+        var sawPassSlide = false
         f.controller.noteTurnChanged(game: f.record)
-        await f.pump(until: { f.controller.phase == .awaitingMove })
-        #expect(exited.value == 1)   // the cap cancelled it; an uncancelled park would time the pump out
+        for _ in 0..<20_000 {
+            if f.controller.phase == .awaitingMove { break }
+            if f.controller.currentSlide?.kind == .pass { sawPassSlide = true }
+            await Task.yield()
+        }
+        #expect(sawCancellation.value == 0)
+        #expect(sawPassSlide)        // the late section still got its slide
+        #expect(f.controller.phase == .awaitingMove)
+    }
+
+    // MARK: - Played passes
+
+    /// Builds a replay controller whose `replayAdvance` can raise passCount
+    /// the way the real one does — GobanState.play() bumps it SYNCHRONOUSLY
+    /// inside forwardMoves, so the controller's before/after comparison
+    /// straddles the call. Fixture can't express this (its closure would have
+    /// to capture a session it doesn't own yet), so this wires one by hand.
+    @MainActor
+    private final class ReplayPassHarness {
+        let session = GameSession()
+        let record: GameRecord
+        let speaker = FakeSpeaker()
+        var controller: BroadcastController!
+        var advances = 0
+
+        init(playsPass: Bool) {
+            record = SelfPlayGame.makeRecord()
+            session.board.width = 9
+            session.board.height = 9
+            session.player.nextColorForPlayCommand = .black
+            session.gobanState.suppressesGenMove = true
+            session.gobanState.analysisStatus = .clear
+            controller = BroadcastController(
+                messageList: session.messageList,
+                gobanState: session.gobanState,
+                player: session.player,
+                rootWinrate: session.rootWinrate,
+                rootScore: session.rootScore,
+                generateReport: { model, _ in BroadcastReplayTests.stageFullReport(model) },
+                sleeper: { _ in await Task.yield() },
+                speaker: speaker,
+                isSpeechEnabled: { true },
+                pacing: { .live },
+                replayAdvance: { [weak self] in
+                    guard let self else { return nil }
+                    self.advances += 1
+                    // What GobanState.play does for a recorded move: a pass
+                    // raises passCount, anything else resets it to 0.
+                    self.session.gobanState.passCount = playsPass
+                        ? self.session.gobanState.passCount + 1 : 0
+                    self.session.player.toggleNextColorForPlayCommand()
+                    return nil
+                })
+        }
+
+        func pump(until condition: () -> Bool) async {
+            for _ in 0..<20_000 {
+                if condition() { return }
+                await Task.yield()
+            }
+            Issue.record("pump timed out")
+        }
+    }
+
+    @Test("A replayed pass gets its own standalone slide, naming who passed")
+    func playedPassGetsItsOwnSlide() async {
+        let h = ReplayPassHarness(playsPass: true)
+        h.controller.noteTurnChanged(game: h.record)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+
+        // Black was to move before the advance, so Black is the passer.
+        #expect(h.controller.currentSlide?.title == "Black Passes")
+        #expect(h.controller.currentSlide?.facts == ["Black passes."])
+        // Standalone, like the Comment slide: no choreography frame, so the
+        // live board (already showing the pass) stays mounted.
+        #expect(h.controller.currentFrame == nil)
+
+        await h.pump(until: { h.controller.phase == .awaitingMove })
+        #expect(h.advances == 1)
+        #expect(h.speaker.spoken.contains("Black passes."))
+    }
+
+    @Test("A replayed board move gets no played-pass slide")
+    func ordinaryReplayedMoveGetsNoPlayedPassSlide() async {
+        let h = ReplayPassHarness(playsPass: false)
+        var sawPlayedPass = false
+        h.controller.noteTurnChanged(game: h.record)
+        for _ in 0..<20_000 {
+            if h.controller.phase == .awaitingMove { break }
+            if h.controller.currentSlide?.kind == .playedPass { sawPlayedPass = true }
+            await Task.yield()
+        }
+        #expect(!sawPlayedPass)
+        #expect(h.advances == 1)
     }
 
     /// The stop path's ordering seam: a screen that stops a replay mid-cycle

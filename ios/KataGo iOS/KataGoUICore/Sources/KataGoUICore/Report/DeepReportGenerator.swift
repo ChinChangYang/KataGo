@@ -15,9 +15,20 @@
 //  - All parsing uses nextColor .white so values stay White-perspective
 //    (reportAnalysisWinratesAs = WHITE); normalization to the reported side
 //    happens exactly once, here, via ReportPerspective.
+//  - Probe stages are PARTIAL, not all-or-nothing (docs/adr/0003): only the
+//    snapshot is fatal; the pass, alternative-parity and tenuki stages each
+//    drop just their own section on failure, logged and never surfaced on
+//    screen. CancellationError always propagates.
 //
 
 import Foundation
+import OSLog
+
+/// Dropped probe stages land here and nowhere else: a TV audience must never
+/// see engine plumbing, so ADR 0003 pays for partial reports with a log line
+/// a developer can find instead of an on-screen notice.
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",
+                         category: "report.deep")
 
 /// Wall-clock budgets for the probe stages; injectable so tests substitute 0.
 public struct ReportBudgets: Sendable {
@@ -151,36 +162,91 @@ public final class DeepReportGenerator {
         let mySymbol = sideToMove == .black ? "b" : "w"
         let oppSymbol = sideToMove == .black ? "w" : "b"
 
-        // Stage 1: snapshot (zero mutation) — candidates, PVs, root + subtree ownership.
+        // Stage 1: snapshot (zero mutation) — candidates, PVs, root + subtree
+        // ownership. The ONE fatal stage (ADR 0003): no candidates means there
+        // is no report, so this throw is not isolated.
         model.stage = .snapshot
         let snapshot = try await snapshotProbe(budget: budgets.snapshot, parser: parser)
         let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
                                          width: width, height: height)
 
-        // Smart default for the Alternative slot: the game's actually-played
-        // next move (when reviewing mid-game and it differs from the best
-        // move) beats the engine's #2 pedagogically — "what you played vs.
-        // what's best". Visit parity: whichever move fills the slot gets its
-        // own forced probe; probe silence falls back to the snapshot cache.
+        // Stage 2: pass probe (zero mutation) — opponent to move on the same
+        // board. It runs BEFORE the alternative-parity probe on purpose: the
+        // parity probe is the newest, least-proven probe in the pipeline and
+        // must not be able to starve the oldest feature (a parity failure used
+        // to take the whole "Playing vs. Passing" section down with it).
+        //
+        // Timing invariant this ordering creates: the broadcast can now put
+        // the Alternative slide on screen carrying SNAPSHOT numbers before its
+        // parity probe has landed. That is fine in practice — the Best Move
+        // slide types for ~4 s, while the pass stage (1.0 s budget + 0.2 s
+        // stop grace) and the parity probe (1.0 s + 0.2 s) together finish by
+        // ~2.4 s — so parity numbers are in place before the Alternative slide
+        // is ever presented. Lengthening either budget past that headroom
+        // would make a snapshot-numbered Alternative slide visible.
+        try await runIsolatedStage("pass") {
+            try await passStage(model: model, snapshot: snapshot, budget: budgets.pass,
+                                oppSymbol: oppSymbol, parser: parser,
+                                sideToMove: sideToMove, width: width, height: height)
+        }
+
+        // Stage 3: the Alternative slot's smart default — the game's
+        // actually-played next move (when reviewing mid-game and it differs
+        // from the best move) beats the engine's #2 pedagogically, "what you
+        // played vs. what's best". Visit parity: whichever move fills the slot
+        // gets its own forced probe; probe silence falls back to the snapshot
+        // cache. A failure here leaves the snapshot's own #2 standing.
         model.gameMoveVertex = gameMoveVertex(session: session,
                                               gameRecord: gameRecord,
                                               sideToMove: sideToMove)
-        try await applyDefaultAlternative(model: model, position: position,
-                                          budget: budgets.tenuki,
-                                          mySymbol: mySymbol, parser: parser,
-                                          sideToMove: sideToMove,
-                                          width: width, height: height)
+        try await runIsolatedStage("alternative-parity") {
+            try await applyDefaultAlternative(model: model, position: position,
+                                              budget: budgets.tenuki,
+                                              mySymbol: mySymbol, parser: parser,
+                                              sideToMove: sideToMove,
+                                              width: width, height: height)
+        }
 
-        // Stage 2: pass probe (zero mutation) — opponent to move on the same board.
-        try await passStage(model: model, snapshot: snapshot, budget: budgets.pass,
-                            oppSymbol: oppSymbol, parser: parser,
-                            sideToMove: sideToMove, width: width, height: height)
+        // Stage 4: tenuki probes — play the candidate, analyze with the SAME side
+        // to move (= opponent ignored it), undo. The only state mutation, and
+        // the reason this stage stays LAST: an aborted tenuki leaves its
+        // `play` outstanding, and only the probe session's restore undoes it —
+        // no later stage may inherit that mutated board.
+        try await runIsolatedStage("tenuki") {
+            try await tenukiStage(model: model, budget: budgets.tenuki,
+                                  mySymbol: mySymbol, parser: parser,
+                                  sideToMove: sideToMove, width: width, height: height)
+        }
+        // A cancellation swallowed above would be a bug, but the pipeline also
+        // ends on the cooperative check so a cancel landing between stages
+        // still aborts the whole report.
+        try Task.checkCancellation()
+    }
 
-        // Stage 3: tenuki probes — play the candidate, analyze with the SAME side
-        // to move (= opponent ignored it), undo. The only state mutation.
-        try await tenukiStage(model: model, budget: budgets.tenuki,
-                              mySymbol: mySymbol, parser: parser,
-                              sideToMove: sideToMove, width: width, height: height)
+    /// Runs one NON-FATAL probe stage (ADR 0003): a failure drops only that
+    /// stage's section, is logged, and the pipeline continues with whatever
+    /// landed. Every isolated stage must rethrow CancellationError unchanged —
+    /// pause, skip and the probe-session teardown are all built on it, and
+    /// swallowing one would leave the engine hijacked with an undone play
+    /// still on its board.
+    private func runIsolatedStage(_ name: String,
+                                  _ body: () async throws -> Void) async throws {
+        do {
+            try await body()
+        } catch let cancellation as CancellationError {
+            throw cancellation
+        } catch {
+            // Resolved to a plain String first: Logger's interpolation takes an
+            // escaping autoclosure, which must not reach back into actor state.
+            let reason = Self.describe(error)
+            log.error("Deep Report stage '\(name, privacy: .public)' dropped: \(reason, privacy: .public)")
+        }
+    }
+
+    /// ReportError carries its message in a plain property; localizedDescription
+    /// on it would log the generic Foundation fallback instead.
+    private nonisolated static func describe(_ error: Error) -> String {
+        (error as? ReportError)?.message ?? error.localizedDescription
     }
 
     /// refine()'s probe pipeline: the same three stages at scaled budgets,
@@ -189,6 +255,17 @@ public final class DeepReportGenerator {
     /// game-move vertex is preserved and re-probed under visit parity; if it
     /// became the best move — or can't be re-analyzed — the slot falls back
     /// to the smart default (also parity-probed) with a notice.
+    ///
+    /// Deliberately NOT reordered pass-before-parity the way runProbes was
+    /// (ADR 0003 point 5). Refine's snapshot REPLACES model.candidates with the
+    /// new snapshot's own top-2 and the preserved-pick block below is what puts
+    /// the user's pick back; refine is still all-or-nothing under its caller's
+    /// catch, so any stage that throws between those two points ends the run
+    /// with the pick silently gone and a notice claiming the previous report
+    /// was kept. Today only the parity probe itself sits in that window;
+    /// hoisting the pass stage into it would let a pass-probe hiccup discard a
+    /// pick it has nothing to do with. Generate has no such window — nothing is
+    /// being restored there — which is why the reorder is safe on that path.
     private func runRefineProbes(model: DeepReportModel,
                                  scaled: ReportBudgets,
                                  sideToMove: PlayerColor) async throws {
@@ -421,8 +498,29 @@ public final class DeepReportGenerator {
     /// The snapshot analyze (zero board mutation): lifts the sticky maxVisits
     /// cap, streams candidates + PVs + root/subtree ownership, and returns the
     /// last report line. Throws when the engine stays silent.
+    /// Silence here is fatal (ADR 0003: no candidates means no report), so it
+    /// gets ONE retry first. A cold engine — the first cycle after a replay
+    /// screen opens — can spend the whole budget loading before it emits its
+    /// first report line, which cost the opening move of every replay its
+    /// entire commentary. The retry is silence-only: an engine ERROR still
+    /// fails immediately, because repeating a command the engine just
+    /// rejected only burns another budget.
     private func snapshotProbe(budget: TimeInterval,
                                parser: AnalysisLineParser) async throws -> ParsedAnalysis {
+        if let line = try await snapshotAttempt(budget: budget) {
+            return parser.parse(message: line)
+        }
+        log.notice("Snapshot probe was silent; retrying once before failing the report.")
+        guard let line = try await snapshotAttempt(budget: budget) else {
+            throw ReportError("The engine produced no analysis for this position.")
+        }
+        return parser.parse(message: line)
+    }
+
+    /// One snapshot analyze window. nil = the engine stayed silent; throws only
+    /// on a genuine engine error or cancellation.
+    private func snapshotAttempt(budget: TimeInterval) async throws -> String? {
+        collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
         send("kata-analyze interval \(ReportConstants.probeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
              stage: .snapshot)
@@ -431,10 +529,7 @@ public final class DeepReportGenerator {
         send("stop", stage: nil)
         // Let a final in-flight report line cross the pipe before reading.
         try await sleeper(ReportConstants.stopGrace)
-        guard let line = collector.latestLine(for: .snapshot) else {
-            throw ReportError("The engine produced no analysis for this position.")
-        }
-        return parser.parse(message: line)
+        return collector.latestLine(for: .snapshot)
     }
 
     /// Commits a snapshot to the model: position summary, the ranked-entry +
@@ -472,6 +567,7 @@ public final class DeepReportGenerator {
                            sideToMove: PlayerColor,
                            width: Int, height: Int) async throws {
         model.stage = .passProbe
+        collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-analyze \(oppSymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
              stage: .passProbe)
         try await sleeper(budget)
@@ -486,6 +582,13 @@ public final class DeepReportGenerator {
                                                        sideToMove: sideToMove,
                                                        best: model.candidates.first,
                                                        width: width, height: height)
+        } else {
+            // Silence, not an error: the probe ran and reported nothing, so
+            // there is no pass comparison and the "Playing vs. Passing" slide
+            // simply will not exist. Invisible on screen by design (ADR 0003),
+            // so the log line is the only way anyone ever learns it happened —
+            // which is precisely how this went unnoticed for two rounds.
+            log.notice("Pass probe reported no analysis; the report has no pass comparison.")
         }
     }
 
@@ -516,6 +619,7 @@ public final class DeepReportGenerator {
                                       budget: TimeInterval,
                                       mySymbol: String,
                                       parser: AnalysisLineParser) async throws -> ParsedAnalysis? {
+        collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) allow \(mySymbol) \(vertex) 1 maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
              stage: .forcedCandidate)
         try await sleeper(budget)
@@ -551,6 +655,7 @@ public final class DeepReportGenerator {
                              mySymbol: String, parser: AnalysisLineParser,
                              sideToMove: PlayerColor,
                              width: Int, height: Int) async throws -> TenukiFollowUp? {
+        collector.clearError()   // this probe's own error window (ADR 0003)
         send("play \(mySymbol) \(vertex)", stage: nil)
         outstandingPlays = 1
         send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",

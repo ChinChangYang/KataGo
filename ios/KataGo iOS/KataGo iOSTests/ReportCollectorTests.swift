@@ -65,6 +65,23 @@ struct ReportCollectorTests {
         #expect(c.sawError == true)
     }
 
+    /// ADR 0003 made this reachable: stages now keep running past an error,
+    /// so a "?" reply MUST consume its FIFO slot like "=" does. If it does
+    /// not, the next analyze's info line is filed under the errored command's
+    /// stage and the real stage silently comes back empty — the exact
+    /// invisible section loss ADR 0003 exists to end.
+    @Test func errorReplyConsumesItsFifoSlotSoLaterStagesStayAligned() {
+        let c = ReportCollector()
+        c.willSend(stage: .forcedCandidate)          // this one errors
+        c.ingest(line: "? cannot analyze")
+        c.willSend(stage: .passProbe)                // the next analyze
+        c.ingest(line: "=")
+        c.ingest(line: "info pass-line")
+
+        #expect(c.latestLine(for: .passProbe) == "info pass-line")
+        #expect(c.latestLine(for: .forcedCandidate) == nil)
+    }
+
     @Test func resetClearsState() {
         let c = ReportCollector()
         c.willSend(stage: .snapshot)

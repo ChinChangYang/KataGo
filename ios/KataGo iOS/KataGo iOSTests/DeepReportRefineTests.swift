@@ -28,9 +28,15 @@ struct DeepReportRefineTests {
         + "rootInfo visits 92 utility 0.2 winrate 0.58 scoreMean 4.0 scoreStdev 8.0 scoreLead 4.0 scoreSelfplay 4.2 weight 92.0 "
         + "ownership 0.5 0.5 0.5 0.5 ownershipStdev 0.1 0.1 0.1 0.1"
 
-    /// One full probe conversation (generate or refine): snapshot, grace,
-    /// visit-parity probe for the Alternative slot, grace, pass, grace,
-    /// tenuki 0, grace, tenuki 1, grace.
+    /// One full REFINE probe conversation: snapshot, grace, visit-parity probe
+    /// for the Alternative slot, grace, pass, grace, tenuki 0, grace,
+    /// tenuki 1, grace.
+    ///
+    /// refine keeps parity-before-pass on purpose (ADR 0003 reorders generate
+    /// only): its snapshot has already replaced the candidates, and the
+    /// preserved-pick block below is what puts the user's pick back — a stage
+    /// throwing between those two points ends the run with the pick gone, so
+    /// nothing else may be hoisted into that window.
     static func conversation(snapshot: String = snapshotLine,
                              forced: String = DeepReportGeneratorTests.forcedLineB2) -> [[String]] {
         [
@@ -39,6 +45,24 @@ struct DeepReportRefineTests {
             ["= ", "=", forced],
             [],
             ["= ", "=", passLine],
+            [],
+            ["= ", "= ", "=", tenukiLine],
+            [],
+            ["= ", "= ", "= ", "=", tenukiLine],
+            [],
+        ]
+    }
+
+    /// generate()'s conversation — the same stages with the PASS probe ahead
+    /// of the parity probe (ADR 0003).
+    static func generateConversation(snapshot: String = snapshotLine,
+                                     forced: String = DeepReportGeneratorTests.forcedLineB2) -> [[String]] {
+        [
+            ["= ", "=", snapshot],
+            [],
+            ["= ", "=", passLine],
+            [],
+            ["= ", "=", forced],
             [],
             ["= ", "= ", "=", tenukiLine],
             [],
@@ -105,11 +129,14 @@ struct DeepReportRefineTests {
     }
 
     @Test func refineDoublesBudgetsAndCapsAtEight() async {
-        // Base 2/1/1 budgets: generate sleeps 2/1/1/1/1 (the second slot is
-        // the Alternative's parity probe at the tenuki budget), then refines
-        // sleep 4/2/2/2/2 → 8/4/4/4/4 → 16/8/8/8/8 → 16/8/8/8/8 (capped).
+        // Base 2/1/1 budgets: generate sleeps 2/1/1/1/1 — snapshot, pass, the
+        // Alternative's parity probe (tenuki budget), then the two tenuki
+        // probes; refine runs the same stages parity-first, and both orders
+        // spend 1 on each of the middle two. Refines then sleep 4/2/2/2/2 →
+        // 8/4/4/4/4 → 16/8/8/8/8 → 16/8/8/8/8 (capped).
         let f = Fixture(budgets: ReportBudgets(snapshot: 2, pass: 1, tenuki: 1, candidateCount: 2),
-                        steps: Array(repeating: Self.conversation(), count: 5).flatMap { $0 })
+                        steps: Self.generateConversation()
+                            + Array(repeating: Self.conversation(), count: 4).flatMap { $0 })
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.budgetMultiplier == 1)
 
@@ -134,7 +161,7 @@ struct DeepReportRefineTests {
     }
 
     @Test func refineReplacesSectionsInPlace() async {
-        let f = Fixture(steps: Self.conversation()
+        let f = Fixture(steps: Self.generateConversation()
             + Self.conversation(snapshot: Self.swappedSnapshotLine, forced: Self.forcedLineA1))
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.candidates.map(\.vertex) == ["A1", "B2"])
@@ -158,7 +185,7 @@ struct DeepReportRefineTests {
         // ranks A1 best, so the preserved B2 alternative is rebuilt from the
         // new snapshot (still .gameMove).
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])",
-                        steps: Self.conversation() + Self.conversation())
+                        steps: Self.generateConversation() + Self.conversation())
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.alternativeSource == .gameMove)
 
@@ -185,7 +212,7 @@ struct DeepReportRefineTests {
             ["= ", "= ", "= ", "=", Self.tenukiLine],
             [],
         ]
-        let f = Fixture(steps: Self.conversation() + [
+        let f = Fixture(steps: Self.generateConversation() + [
             ["= ", "=", Self.forcedLine],       // repick A2: forced probe
             [],
             ["= ", "= ", "=", Self.tenukiLine], // repick A2: tenuki
@@ -211,7 +238,7 @@ struct DeepReportRefineTests {
         // B2 the BEST move — the alternative resets to the smart default
         // (engine #2 here) with a notice.
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])",
-                        steps: Self.conversation()
+                        steps: Self.generateConversation()
                             + Self.conversation(snapshot: Self.swappedSnapshotLine, forced: Self.forcedLineA1))
         await f.generator.generate(model: f.model, gameRecord: f.record)
         #expect(f.model.alternativeSource == .gameMove)
@@ -233,7 +260,7 @@ struct DeepReportRefineTests {
         // .gameMove would make the NEXT refine preserve the engine's #2 as if
         // the player had picked it.
         let f = Fixture(sgf: "(;GM[1]FF[4]SZ[2];B[ba])",
-                        steps: Self.conversation() + [
+                        steps: Self.generateConversation() + [
                             ["= ", "=", Self.snapshotLine],
                             [],
                             ["? engine error"],
@@ -252,7 +279,7 @@ struct DeepReportRefineTests {
 
     @Test func cancelledRefineKeepsCompletedReport() async {
         var refining = false
-        let f = Fixture(steps: Self.conversation(),
+        let f = Fixture(steps: Self.generateConversation(),
                         sleeperOverride: { script, interval in
                             if refining { throw CancellationError() }
                             try await script.sleeper(interval)
@@ -276,7 +303,7 @@ struct DeepReportRefineTests {
 
     @Test func engineErrorMidRefineKeepsCompletedReport() async {
         var refining = false
-        let f = Fixture(steps: Self.conversation(),
+        let f = Fixture(steps: Self.generateConversation(),
                         sleeperOverride: { script, interval in
                             if refining {
                                 script.session.lineObserver?("? engine crashed")
@@ -299,7 +326,7 @@ struct DeepReportRefineTests {
 
     @Test func silentRefineSnapshotKeepsCompletedReport() async {
         // The refine's snapshot probe yields nothing: the old report stands.
-        let f = Fixture(steps: Self.conversation() + [["= ", "="], []])
+        let f = Fixture(steps: Self.generateConversation() + [["= ", "="], []])
         await f.generator.generate(model: f.model, gameRecord: f.record)
         let priorVertices = f.model.candidates.map(\.vertex)
 

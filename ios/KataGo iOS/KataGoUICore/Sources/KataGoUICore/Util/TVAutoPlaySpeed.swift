@@ -34,18 +34,21 @@ public enum TVAutoPlaySpeed: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// How this speed paces the commentated replay (see BroadcastPacing).
-    /// Slow IS the live broadcast; normal tightens text; fast shows only the
-    /// Best Move slide at the tightest text pacing.
+    /// Slow IS the live broadcast; normal tightens the text; fast tightens it
+    /// further. Speed is a pacing choice ONLY — every profile narrates every
+    /// slide the report produced. Fast used to cap the cycle at the Best Move
+    /// slide, which made a speed control silently delete the Alternative and
+    /// Playing-vs-Passing analysis; that cap is gone.
     public var broadcastPacing: BroadcastPacing {
         switch self {
         case .slow:
             .live
         case .normal:
             BroadcastPacing(charactersPerSecond: 45, dwellSeconds: 1.5,
-                            minimumSlideSeconds: 4.0, maxSlideCount: Int.max)
+                            minimumSlideSeconds: 4.0)
         case .fast:
             BroadcastPacing(charactersPerSecond: 60, dwellSeconds: 1.0,
-                            minimumSlideSeconds: 3.0, maxSlideCount: 1)
+                            minimumSlideSeconds: 3.0)
         }
     }
 

@@ -163,6 +163,65 @@ struct BroadcastControllerTests {
         #expect(!f.sent("kata-search_analyze_cancellable"))
     }
 
+    /// The game-ending double pass used to die silently: the guard flipped to
+    /// .idle and a replay just stopped dead. It now says so ONCE — and only
+    /// once, because the guard is re-entered on every later poke.
+    @Test("Game over: one terminal slide, presented exactly once")
+    func gameOverPresentsTheTerminalSlideExactlyOnce() async {
+        let f = Fixture()
+        f.session.gobanState.passCount = 2
+
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.currentSlide?.kind == .gameOver })
+        // Standalone (the Comment-slide treatment): no choreography frame, so
+        // the live board underneath stays mounted while the caption types.
+        #expect(f.controller.currentFrame == nil)
+        #expect(f.controller.currentSlide?.facts
+                == ["Both players passed. The game is over."])
+        #expect(f.controller.phase == .idle)          // idle, exactly as before
+        #expect(!f.sent("kata-search_analyze_cancellable"))
+
+        // Every later poke re-enters the guard; none may start a second
+        // caption. Count nil → .gameOver edges across the whole window.
+        var reentries = 0
+        var wasShowing = true
+        for step in 0..<5_000 {
+            let isShowing = f.controller.currentSlide?.kind == .gameOver
+            if isShowing && !wasShowing { reentries += 1 }
+            wasShowing = isShowing
+            if step % 50 == 0 { f.controller.noteTurnChanged(game: f.record) }
+            await Task.yield()
+        }
+        #expect(reentries == 0)
+        #expect(f.controller.currentSlide == nil)     // it finished and cleared
+        #expect(f.controller.phase == .idle)
+    }
+
+    /// "Exactly once" is per GAME, not per controller lifetime: a new game (or
+    /// an undo taking a pass back) makes the caption earnable again.
+    @Test("A live position again re-arms the terminal slide")
+    func terminalSlideRearmsAfterTheGameResumes() async {
+        let f = Fixture()
+        f.session.gobanState.passCount = 2
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.currentSlide?.kind == .gameOver })
+        f.controller.cancelAll()
+
+        // Back on a live board: a full cycle runs...
+        f.session.gobanState.passCount = 0
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        // ...and .awaitingMove is published from inside runCycle, so let its
+        // continuation clear cycleTask before poking again (startCycle drops a
+        // poke while the handle is live).
+        for _ in 0..<200 { await Task.yield() }
+
+        f.session.gobanState.passCount = 2
+        f.session.player.nextColorForPlayCommand = .white
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.currentSlide?.kind == .gameOver })
+    }
+
     @Test("Failed generation: no slides, the move still plays")
     func failureDegradesToPlainMove() async {
         let f = Fixture(generate: { model, _ in model.stage = .failed("no analysis") })
@@ -595,7 +654,7 @@ struct BroadcastControllerTests {
         f.controller.noteTurnChanged(game: f.record)
         for _ in 0..<20_000 {
             if f.controller.phase == .awaitingMove { break }
-            if f.controller.currentFrame?.passChip == .white {
+            if f.controller.currentFrame?.caption == BeatCaption.playsElsewhere(.white) {
                 sawTenukiChip = true
             }
             await Task.yield()
