@@ -357,7 +357,15 @@ struct TVSelfPlayScreen: View {
             // observer signal. BoardView's own observer is inert while the
             // broadcast runs (analysisStatus .clear), so this is the only
             // reaction to a landed stone.
-            guard newValue != .unknown, let game, !isGameOver else { return }
+            //
+            // Deliberately NOT gated on !isGameOver. passCount is bumped
+            // before the turn toggles, in the same synchronous block, so a
+            // closing pass arrives here with isGameOver already true — that
+            // gate made the controller's terminal caption unreachable in live
+            // mode, and swallowed the played-pass caption for the pass that
+            // ended the game. The controller answers a game-over poke by
+            // captioning once and parking in .idle.
+            guard newValue != .unknown, let game else { return }
             broadcast?.noteTurnChanged(game: game)
         }
         // Ghost anchor (the review-screen hook): the paused play cursor

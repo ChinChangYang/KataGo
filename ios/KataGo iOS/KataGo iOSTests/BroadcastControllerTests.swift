@@ -9,6 +9,7 @@
 //
 
 import Testing
+import Foundation
 import SwiftData
 @testable import KataGoUICore
 
@@ -715,5 +716,347 @@ struct BroadcastControllerTests {
             await Task.yield()
         }
         #expect(sawFrozenDelta)   // the frozen C3 Δ frame still showed
+    }
+
+    // MARK: - Live captions
+
+    /// A LIVE controller (no replayAdvance) whose position can be advanced the
+    /// way an engine reply does. `GobanState.play` raises passCount for a pass
+    /// (and zeroes it for a stone) and the turn toggles immediately after —
+    /// both in one synchronous block, which is precisely why a live pass is
+    /// observed with the turn ALREADY flipped away from the passer, and why
+    /// the self-play screen used to see `isGameOver` on the closing poke.
+    @MainActor
+    private final class LiveHarness {
+        let session = GameSession()
+        let record: GameRecord
+        let speaker = FakeSpeaker()
+        let recordedDelays = DelayBox()
+        var controller: BroadcastController!
+
+        init(startingPassCount: Int = 0, speechEnabled: Bool = true) {
+            record = SelfPlayGame.makeRecord()
+            session.board.width = 9
+            session.board.height = 9
+            session.player.nextColorForPlayCommand = .black
+            session.gobanState.suppressesGenMove = true
+            session.gobanState.analysisStatus = .clear
+            // Set BEFORE construction: the controller baselines its pass count
+            // at init, which is what a seeded continuation (entering with the
+            // SGF's trailing passes already counted) depends on.
+            session.gobanState.passCount = startingPassCount
+            controller = BroadcastController(
+                messageList: session.messageList,
+                gobanState: session.gobanState,
+                player: session.player,
+                rootWinrate: session.rootWinrate,
+                rootScore: session.rootScore,
+                generateReport: { model, _ in BroadcastControllerTests.stageFullReport(model) },
+                sleeper: { [recordedDelays] delay in
+                    recordedDelays.delays.append(delay)
+                    await Task.yield()
+                },
+                speaker: speaker,
+                isSpeechEnabled: { speechEnabled })
+        }
+
+        /// What an engine reply does to shared state, in the engine's order.
+        func land(pass: Bool) {
+            session.gobanState.passCount = pass ? session.gobanState.passCount + 1 : 0
+            session.player.toggleNextColorForPlayCommand()
+        }
+
+        /// Land a move and poke the controller, exactly as the screen's
+        /// (now ungated) turn observer does.
+        func landAndPoke(pass: Bool) {
+            land(pass: pass)
+            controller.noteTurnChanged(game: record)
+        }
+
+        func sentCount(_ fragment: String) -> Int {
+            session.messageList.messages.filter { $0.text.contains(fragment) }.count
+        }
+
+        func pump(until condition: () -> Bool) async {
+            for _ in 0..<20_000 {
+                if condition() { return }
+                await Task.yield()
+            }
+            Issue.record("pump timed out")
+        }
+
+        /// A SHORT quiescence window. The sleeper is yield-only, so one yield
+        /// is one 0.1 s poll of simulated time — settle long enough and the
+        /// hold's wedged-synthesizer ceiling (dwell + 10 s ≈ 156 polls) fires
+        /// and ends the caption on its own. Anything this proves absent would
+        /// have appeared synchronously anyway: startCycle flips `phase` in the
+        /// same turn as the poke.
+        func settle() async {
+            for _ in 0..<20 { await Task.yield() }
+        }
+
+        /// Drive one ordinary cycle to its end so the tests below start from
+        /// a realistic "the gen-move is out, awaiting the reply" state.
+        func runFirstCycle() async {
+            controller.noteTurnChanged(game: record)
+            await pump(until: { self.controller.phase == .awaitingMove })
+        }
+    }
+
+    @Test("A live played pass gets its own caption, naming the side that moved")
+    func livePlayedPassGetsItsOwnCaption() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+
+        // Black was to move, so Black is the passer — even though the turn
+        // has already flipped to White by the time this is observed.
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+
+        #expect(h.controller.currentSlide?.title == "Black Passes")
+        #expect(h.controller.currentSlide?.facts == ["Black passes."])
+        // Standalone: no choreography frame, so the live board underneath
+        // stays mounted while the caption types.
+        #expect(h.controller.currentFrame == nil)
+        #expect(h.speaker.spoken.contains("Black passes."))
+    }
+
+    /// The positive control for the test above: the same harness, the same
+    /// poke, a stone instead of a pass.
+    @Test("An ordinary live move gets no caption")
+    func liveOrdinaryMoveGetsNoCaption() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+
+        var sawCaption = false
+        h.landAndPoke(pass: false)
+        for _ in 0..<20_000 {
+            if h.controller.currentSlide?.kind == .playedPass { sawCaption = true }
+            if h.controller.isShowingSlides { break }   // the next cycle began
+            await Task.yield()
+        }
+        #expect(!sawCaption)
+    }
+
+    /// Q4(c): the answer is asked for FIRST, so the stone lands whenever the
+    /// engine replies; only the next cycle's slides wait for the caption.
+    @Test("The answering move is requested before the caption finishes")
+    func liveAnswerIsRequestedWhileTheCaptionIsStillShowing() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+        #expect(h.sentCount("kata-search_analyze_cancellable") == 1)
+
+        h.speaker.autoFinishes = false            // hold the caption open
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+
+        // Still captioning, and the endgame formality has ALREADY asked for
+        // the reply — it is not queued behind the narration.
+        #expect(h.controller.currentSlide?.kind == .playedPass)
+        #expect(h.sentCount("kata-search_analyze_cancellable") == 2)
+        #expect(h.controller.phase == .awaitingMove)
+    }
+
+    /// The hazard that kept live captions out of the last round: a turn change
+    /// arriving while a caption holds must be REMEMBERED, not dropped, or the
+    /// live loop stalls forever.
+    @Test("A turn change during a caption is deferred, then honored")
+    func liveTurnChangeDuringACaptionIsDeferredNotDropped() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+
+        h.speaker.autoFinishes = false
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+
+        // The opponent answers with a stone while the caption is still up.
+        h.landAndPoke(pass: false)
+        await h.settle()
+        // Held: no new cycle has started underneath the caption.
+        #expect(h.controller.currentSlide?.kind == .playedPass)
+        #expect(h.controller.phase == .awaitingMove)
+
+        // Release the narration; the deferred change now starts its cycle.
+        h.speaker.finishAll()
+        // isShowingSlides is true DURING the caption too (a caption is a
+        // slide) — wait for the next cycle's first analysis slide by kind.
+        await h.pump(until: { h.controller.currentSlide?.kind == .best })
+        #expect(h.controller.currentSlide?.kind == .best)
+    }
+
+    @Test("Skip cuts a live caption short and releases the held cycle")
+    func liveSkipCutsTheCaptionAndReleasesTheHold() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+
+        h.speaker.autoFinishes = false
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+        h.landAndPoke(pass: false)
+        await h.settle()
+        #expect(h.controller.currentSlide?.kind == .playedPass)   // still held
+
+        h.controller.skipSlide()
+        // isShowingSlides is true DURING the caption too (a caption is a
+        // slide) — wait for the next cycle's first analysis slide by kind.
+        await h.pump(until: { h.controller.currentSlide?.kind == .best })
+        #expect(h.controller.currentSlide?.kind == .best)
+    }
+
+    @Test("Pause silences a live caption instead of talking over a paused screen")
+    func livePauseCancelsACaption() async {
+        let h = LiveHarness()
+        await h.runFirstCycle()
+
+        h.speaker.autoFinishes = false
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+
+        await h.controller.pause(game: h.record)
+        #expect(h.controller.phase == .paused)
+        #expect(h.controller.currentSlide == nil)
+        #expect(h.speaker.cancelCount > 0)
+
+        // And it stays gone — a late-draining caption must not resurrect
+        // itself over the paused, interactive screen.
+        await h.settle()
+        #expect(h.controller.currentSlide == nil)
+        #expect(h.controller.phase == .paused)
+    }
+
+    /// The closing sequence, in the order it happened.
+    @Test("A closing double pass narrates the pass, then the game over")
+    func liveClosingDoublePassNarratesBothCaptions() async {
+        let h = LiveHarness(startingPassCount: 1)
+        // passCount 1 ⇒ the endgame formality: no report, answer immediately.
+        h.controller.noteTurnChanged(game: h.record)
+        await h.pump(until: { h.controller.phase == .awaitingMove })
+
+        var kinds: [BroadcastSlideKind] = []
+        h.landAndPoke(pass: true)                  // the second pass
+        for _ in 0..<20_000 {
+            if let kind = h.controller.currentSlide?.kind, kinds.last != kind {
+                kinds.append(kind)
+            }
+            if kinds.count == 2, h.controller.currentSlide == nil { break }
+            await Task.yield()
+        }
+        #expect(kinds == [.playedPass, .gameOver])
+        #expect(h.controller.phase == .idle)
+        #expect(h.speaker.spoken.contains("Black passes."))
+        #expect(h.speaker.spoken.contains("Both players passed. The game is over."))
+    }
+
+    /// The *caption hold*: once the game-over card covers the panel there is
+    /// no board left to absorb, so a covered caption holds for its narration
+    /// and nothing more. Its uncovered twin is the positive control — without
+    /// one, "it was quick" proves nothing.
+    @Test("A covered caption holds for its narration; an uncovered one dwells")
+    func liveCoveredCaptionSkipsTheDwell() async {
+        func holdCost(startingPassCount: Int) async -> TimeInterval {
+            let h = LiveHarness(startingPassCount: startingPassCount,
+                                speechEnabled: false)
+            h.controller.noteTurnChanged(game: h.record)
+            await h.pump(until: { h.controller.phase == .awaitingMove })
+            h.landAndPoke(pass: true)
+            await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+            h.recordedDelays.delays.removeAll()
+            await h.pump(until: { h.controller.currentSlide == nil })
+            return h.recordedDelays.delays.reduce(0, +)
+        }
+
+        // Starting at 0 ⇒ the pass makes it 1: visible, ONE caption, and it
+        // dwells up to the 6 s minimum-slide floor.
+        let uncovered = await holdCost(startingPassCount: 0)
+        // Starting at 1 ⇒ the pass makes it 2: the card is up. This figure
+        // covers BOTH closing captions, because the drain runs them
+        // back-to-back and never surfaces a nil slide between them — so the
+        // whole closing sequence is being compared against a single
+        // uncovered caption, and still costs a fraction of it. What remains
+        // is typing time; the dwell is gone entirely.
+        let covered = await holdCost(startingPassCount: 1)
+
+        #expect(uncovered > 4.0)
+        #expect(covered < 2.0)
+        // Comfortably inside self-play's 8 s interstitial, which the 6 s
+        // floor applied twice would have overrun.
+        #expect(covered * 2 < uncovered)
+    }
+
+    /// The covered rule is live-self-play-specific: replay has no game-over
+    /// card, so its terminal caption must keep the full dwell.
+    @Test("A replay terminal caption keeps its dwell — there is no card over it")
+    func replayTerminalCaptionStillDwells() async {
+        let delays = DelayBox()
+        let session = GameSession()
+        let record = SelfPlayGame.makeRecord()
+        session.board.width = 9
+        session.board.height = 9
+        session.player.nextColorForPlayCommand = .black
+        session.gobanState.suppressesGenMove = true
+        session.gobanState.analysisStatus = .clear
+        session.gobanState.passCount = 2
+        let controller = BroadcastController(
+            messageList: session.messageList,
+            gobanState: session.gobanState,
+            player: session.player,
+            rootWinrate: session.rootWinrate,
+            rootScore: session.rootScore,
+            generateReport: { model, _ in BroadcastControllerTests.stageFullReport(model) },
+            sleeper: { [delays] delay in
+                delays.delays.append(delay)
+                await Task.yield()
+            },
+            isSpeechEnabled: { false },
+            replayAdvance: { nil })
+
+        controller.noteTurnChanged(game: record)
+        for _ in 0..<20_000 where controller.currentSlide?.kind != .gameOver {
+            await Task.yield()
+        }
+        delays.delays.removeAll()
+        for _ in 0..<20_000 where controller.currentSlide != nil {
+            await Task.yield()
+        }
+        #expect(delays.delays.reduce(0, +) > 4.0)
+    }
+
+    /// A seeded self-play continuation enters with the SGF's trailing passes
+    /// already counted. Entry must not read that standing count as a pass
+    /// somebody just played.
+    @Test("A seeded position's trailing passes do not caption on entry")
+    func liveSeededTrailingPassesDoNotCaptionOnEntry() async {
+        let h = LiveHarness(startingPassCount: 1)
+        var sawCaption = false
+        h.controller.noteTurnChanged(game: h.record)
+        for _ in 0..<5_000 {
+            if h.controller.currentSlide?.kind == .playedPass { sawCaption = true }
+            await Task.yield()
+        }
+        #expect(!sawCaption)
+        #expect(h.controller.phase == .awaitingMove)   // the formality answered
+
+        // Positive control: the very next pass on that same position DOES
+        // caption, so the silence above is the baseline working, not a
+        // controller that simply never captions from a seeded entry.
+        h.landAndPoke(pass: true)
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+    }
+
+    /// The early gen-move means a live stone usually lands DURING the last
+    /// slide, chaining the next cycle from inside the cycle task rather than
+    /// from the turn observer. A pass on that path must caption too.
+    @Test("A pass landing mid-slideshow is still captioned")
+    func livePassLandingMidSlideshowIsCaptioned() async {
+        let h = LiveHarness()
+        h.controller.noteTurnChanged(game: h.record)
+        // The gen-move goes out as the FINAL slide starts; land the pass then,
+        // so the turn change is consumed as `moveLanded` and the cycle chains.
+        await h.pump(until: { h.sentCount("kata-search_analyze_cancellable") == 1 })
+        #expect(h.controller.isShowingSlides)         // still mid-slideshow
+        h.landAndPoke(pass: true)
+
+        await h.pump(until: { h.controller.currentSlide?.kind == .playedPass })
+        #expect(h.controller.currentSlide?.facts == ["Black passes."])
     }
 }

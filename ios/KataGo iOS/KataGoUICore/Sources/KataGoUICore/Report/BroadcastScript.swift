@@ -21,10 +21,11 @@ public enum BroadcastSlideKind: Equatable, Sendable {
     /// the LIVE hero board — frames(for:model:) is empty and currentFrame
     /// stays nil while it types.
     case comment
-    /// A pass that was actually PLAYED by the move this cycle caused — as
-    /// opposed to `.pass`, which weighs the hypothetical "what if the side to
-    /// move passed here?". Built by BroadcastController (never by
-    /// slides(from:)) and presented standalone, exactly like `.comment`.
+    /// A pass that was actually PLAYED — as opposed to `.pass`, which weighs
+    /// the hypothetical "what if the side to move passed here?". Built by
+    /// BroadcastController (never by slides(from:)) and presented standalone,
+    /// exactly like `.comment`: replay earns it inside the cycle that plays
+    /// the recorded move, live from a rise in passCount across an advance.
     case playedPass
     /// The terminal beat: both players passed, so the game is over. Built by
     /// BroadcastController, presented standalone exactly once per game.

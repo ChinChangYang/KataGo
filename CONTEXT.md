@@ -22,12 +22,16 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Live mode** — the broadcast driving a game forward; each cycle ends by asking the engine for a move.
 - **Replay mode** — the broadcast walking a recorded game; each cycle ends by playing the game's next recorded move instead of asking for one.
 - **Cycle** — one move's worth of broadcast: generate the study data for the current position, present its slides, then advance the game by one move.
-- **Slide** — one titled unit of a cycle, carrying an ordered list of fact sentences. Four kinds: *Best Move*, *Alternative*, *Playing vs Passing*, *Comment*.
-- **Playing vs Passing slide** — the slide contrasting playing the best move with passing: what passing costs, where the opponent would punish, and which areas change hands. Present whenever the position's study data includes a pass comparison.
+- **Slide** — one titled unit of a cycle, carrying an ordered list of fact sentences. Six kinds: *Best Move*, *Alternative*, *Playing vs Passing*, *Comment*, *Played pass*, *Game over*.
+- **Playing vs Passing slide** — the slide contrasting playing the best move with passing: what passing costs, where the opponent would punish, and which areas change hands. Present whenever the position's study data includes a pass comparison. It weighs a *hypothetical* pass — the side to move has not passed.
 - **Comment slide** — a slide whose facts are the human-written note attached to that move, rather than engine-derived sentences.
+- **Played-pass slide** — the slide reporting that the move the cycle just made *was* a pass. Reports what happened; the Playing vs Passing slide weighs what would happen.
+- **Game-over slide** — the terminal caption: both players have passed, so the game is over. At most one per game, and earnable again if the game returns to a live position.
 - **Beat** — one acted-out moment of a slide's board choreography, paired with the sentence it illustrates.
 - **Pass beat** — the beat in which the side to move *passes*. Distinct from a tenuki beat: passing forfeits the move, it does not relocate it.
 - **Tenuki beat** — the beat in which a player ignores the move under discussion and *plays elsewhere*.
+- **Dwell** — the pause after a slide's text has finished, giving the viewer time to absorb the board the slide acted out.
+- **Caption hold** — how long a standalone caption stays up once its text is done. Once the game-over card is up there is no board left to absorb, so a caption holds only as long as it is still being spoken, rather than taking a slide's dwell.
 - **Auto-Play Speed** — the viewer's pacing choice for a replay broadcast (Slow / Normal / Fast). A pacing profile — how fast sentences reveal and how long a slide dwells — not a per-move delay, and not a choice about which analysis is shown.
 
 ## Rules & presets

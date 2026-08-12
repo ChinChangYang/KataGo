@@ -78,14 +78,35 @@ public final class BroadcastController {
 
     private var cycleTask: Task<Void, Never>?
     private var generationTask: Task<Void, Never>?
-    /// The terminal "both players passed" caption's task. Detached from the
-    /// cycle machinery: by the time it runs there is no cycle left to run.
-    private var gameOverTask: Task<Void, Never>?
+    /// The standalone-caption drain: played-pass and game-over captions in
+    /// the order they were earned. Detached from the cycle machinery (by the
+    /// time a caption runs, the cycle that earned it is finished) but the
+    /// NEXT cycle waits it out — see `advance` and ADR 0004.
+    private var captionTask: Task<Void, Never>?
+    private var pendingCaptions: [BroadcastSlide] = []
+    /// A turn change that arrived while a caption held the screen. Replayed
+    /// when the drain finishes: dropping it would stall the live loop, which
+    /// is exactly the hazard that kept live captions out of the last round.
+    private var deferredTurnChange: GameRecord?
+    /// `gobanState.passCount` as of the position this controller last acted
+    /// on. A rise across an advance means the move that just landed WAS a
+    /// pass. Seeded self-play enters with the SGF's trailing passes already
+    /// counted, so the baseline starts from the live value, never from zero —
+    /// otherwise entry would caption a pass nobody just played.
+    private var observedPassCount: Int
     /// Whether the terminal caption has already been said for the current
     /// game. The game-over guard is RE-ENTERED (every screen poke after the
     /// second pass lands there), so the slide needs its own state to stay a
     /// once-per-game event; a cycle on a live position again clears it.
     private var didPresentGameOverSlide = false
+
+    /// True while live self-play's game-over card is up: a full-screen
+    /// dimming overlay carrying the result, which owns the screen from the
+    /// second pass onward. Replay has no such card, so its slides are never
+    /// covered.
+    private var isCoveredByGameOverCard: Bool {
+        replayAdvance == nil && gobanState.passCount >= 2
+    }
     /// The in-flight pause drain, stored so cancelAll (a Menu exit) can cancel
     /// it before its continuation re-arms analysis for a torn-down screen.
     private var pauseTask: Task<Void, Never>?
@@ -127,6 +148,9 @@ public final class BroadcastController {
         self.isSpeechEnabled = isSpeechEnabled
         self.pacing = pacing
         self.replayAdvance = replayAdvance
+        // Baseline, not zero: a seeded self-play continuation is constructed
+        // AFTER its trailing passes are counted into gobanState.
+        self.observedPassCount = gobanState.passCount
     }
 
     public var isShowingSlides: Bool { currentSlide != nil }
@@ -141,12 +165,49 @@ public final class BroadcastController {
         guard player.nextColorForPlayCommand != .unknown else { return }
         switch phase {
         case .idle, .awaitingMove:
-            startCycle(game: game)
+            guard captionTask == nil else {
+                // A caption owns the screen; the cycle it gates starts when
+                // the drain finishes. Recorded, never dropped. The pass
+                // baseline is deliberately NOT advanced here either, so a
+                // second pass landing under the first one's caption still
+                // earns its own when this change is replayed.
+                deferredTurnChange = game
+                return
+            }
+            advance(game: game)
         case .generating, .slides:
             if genMoveIssued { moveLanded = true }
         case .paused:
-            break
+            // Stepping back while paused takes passes off the board; the
+            // baseline follows it down, so the next real pass is still a rise.
+            observedPassCount = gobanState.passCount
         }
+    }
+
+    /// The single entry to "the position advanced — start whatever comes
+    /// next". Both the turn-change observer and a cycle's own chain land
+    /// here, so a pass played mid-slideshow (the early gen-move, which is the
+    /// NORMAL live path) is captioned exactly like one landing between
+    /// cycles.
+    private func advance(game: GameRecord) {
+        let previousPassCount = observedPassCount
+        observedPassCount = gobanState.passCount
+        // Live only. Replay presents its played-pass slide inside the cycle
+        // that plays the recorded move — it can straddle that synchronous
+        // advance, which live (whose pass arrives with an engine reply)
+        // cannot. Captioning here as well would say it twice.
+        if replayAdvance == nil, gobanState.passCount > previousPassCount {
+            // The passer is the side that MOVED, and by the time a live pass
+            // is observed the turn has already toggled away from it.
+            let mover = player.nextColorForPlayCommand.other
+            if mover != .unknown {
+                // Enqueued BEFORE the cycle starts, so a closing double pass
+                // narrates in the order it happened: "White passes." and then
+                // the terminal caption startCycle is about to earn.
+                enqueueCaption(Self.playedPassSlide(by: mover))
+            }
+        }
+        startCycle(game: game)
     }
 
     /// Fast-forward: end the current slide now. Past the last slide this
@@ -173,6 +234,15 @@ public final class BroadcastController {
             self.cycleTask = nil
             cycle?.cancel()
             await cycle?.value
+            // A caption is narration too: a paused broadcast that is still
+            // talking is the bug, not the feature. Drained here so the
+            // re-armed analysis below cannot race a caption's epilogue.
+            let caption = self.captionTask
+            self.captionTask = nil
+            self.pendingCaptions.removeAll()
+            self.deferredTurnChange = nil
+            caption?.cancel()
+            await caption?.value
             // A cancelAll during the drain cancels THIS task: it must not
             // mutate state (re-arm analysis, flip to .paused) after cancelAll
             // has already returned the screen to .idle.
@@ -225,8 +295,14 @@ public final class BroadcastController {
         cycleTask = nil
         generationTask?.cancel()
         generationTask = nil
-        gameOverTask?.cancel()
-        gameOverTask = nil
+        captionTask?.cancel()
+        captionTask = nil
+        pendingCaptions.removeAll()
+        deferredTurnChange = nil
+        // A restart zeroes passCount before cancelling, so re-baselining here
+        // keeps the fresh game from reading the finished game's count as "a
+        // pass just landed".
+        observedPassCount = gobanState.passCount
         // An exit during .awaitingMove must not leave the gen-move license
         // armed: a later screen's stray "play" reply would otherwise consume
         // it, bypassing the review screen's spectator protection into a
@@ -253,12 +329,12 @@ public final class BroadcastController {
         let cycle = cycleTask
         let generation = generationTask
         let pause = pauseTask
-        let gameOver = gameOverTask
+        let caption = captionTask
         cancelAll()
         await pause?.value
         await cycle?.value
         await generation?.value
-        await gameOver?.value
+        await caption?.value
     }
 
     // MARK: - Cycle
@@ -274,9 +350,9 @@ public final class BroadcastController {
             // The phase still flips to .idle SYNCHRONOUSLY, exactly as
             // before: callers read it the moment they poke the controller
             // (TVReviewScreen's "the first cycle refused to start, unwind
-            // rather than stall silently" check), and the caption is a
-            // standalone slide anyway — it types over the live board with
-            // currentFrame nil, needing no phase of its own.
+            // rather than stall silently" check), and the caption only joins
+            // the drain here — it types over the live board with currentFrame
+            // nil, needing no phase of its own.
             presentGameOverSlideOnce()
             phase = .idle
             return
@@ -317,7 +393,10 @@ public final class BroadcastController {
                 self.phase = .awaitingMove
             }
             if chain {
-                self.startCycle(game: game)
+                // Through `advance`, not straight into startCycle: the stone
+                // that landed mid-slideshow may have been a pass, and the
+                // early gen-move makes that the normal live path.
+                self.advance(game: game)
             }
         }
     }
@@ -549,15 +628,13 @@ public final class BroadcastController {
     /// from the `.pass` slide, which weighs the hypothetical "what if the side
     /// to move passed here?" — this one reports what actually happened.
     ///
-    /// Replay only, deliberately. In live mode the pass arrives with the
-    /// gen-move's reply, and the first pass then routes the next beat through
-    /// startCycle's synchronous endgame-formality branch, which answers
-    /// immediately and never opens a cycle task — there is no in-cycle moment
-    /// to type a slide in. A detached task there would type over the next
-    /// cycle's slides instead, and moving the formality branch into the cycle
-    /// task would open a window (between `phase = .awaitingMove` and the
-    /// continuation clearing `cycleTask`) in which a landing turn change is
-    /// dropped by the `cycleTask == nil` gate, stalling the live loop.
+    /// Both modes earn it, by different routes. Replay presents it inside the
+    /// cycle that plays the recorded move, straddling that synchronous
+    /// advance. Live cannot — its pass arrives with an engine reply — so
+    /// `advance` detects the pass from a rise in `gobanState.passCount` and
+    /// queues the caption on the detached drain, which the next cycle waits
+    /// out. See ADR 0004 for why the drain gates the cycle rather than the
+    /// formality branch moving inside it.
     static func playedPassSlide(by color: PlayerColor) -> BroadcastSlide {
         BroadcastSlide(kind: .playedPass,
                        title: "\(color.name) Passes",
@@ -572,21 +649,44 @@ public final class BroadcastController {
                        facts: ["Both players passed. The game is over."])
     }
 
-    /// Types the terminal caption at most once per game (see
-    /// `didPresentGameOverSlide`). The cycle machinery is finished by now —
-    /// this owns the shared slide state, so it takes the next cycle token to
-    /// keep any late-draining cycle continuation from blanking it.
+    /// Queues the terminal caption at most once per game (see
+    /// `didPresentGameOverSlide`). At a closing double pass it lands BEHIND
+    /// the played-pass caption `advance` queued a moment earlier, so the game
+    /// ends "White passes." → "Both players passed. The game is over."
     private func presentGameOverSlideOnce() {
         guard !didPresentGameOverSlide else { return }
         didPresentGameOverSlide = true
+        enqueueCaption(Self.gameOverSlide)
+    }
+
+    /// Queue a standalone caption and start — or extend — the drain. The next
+    /// cycle waits for it: `noteTurnChanged` defers while `captionTask` is
+    /// live, and the drain replays the deferred change on its way out, so the
+    /// live loop cannot stall on a dropped signal.
+    private func enqueueCaption(_ slide: BroadcastSlide) {
+        pendingCaptions.append(slide)
+        guard captionTask == nil else { return }
+        // The drain owns the shared slide state from here, so it takes the
+        // next token: a late-draining cycle continuation must not blank it.
         cycleToken += 1
         let token = cycleToken
-        // One slide, so the panel's progress dots stay hidden (they show
-        // only above a count of 1).
+        // Restart the count so a lone caption keeps the progress dots hidden
+        // (they show only above a count of 1).
         slideCount = 0
-        gameOverTask = Task { [weak self] in
+        captionTask = Task { [weak self] in
             guard let self else { return }
-            await self.presentStandalone(Self.gameOverSlide, token: token)
+            while !self.pendingCaptions.isEmpty, !Task.isCancelled {
+                await self.presentStandalone(self.pendingCaptions.removeFirst(),
+                                             token: token)
+            }
+            // A newer owner (only cancelAll can take the token mid-drain, and
+            // it nils the handle itself) means this drain is a late ghost.
+            guard self.cycleToken == token else { return }
+            self.captionTask = nil
+            self.pendingCaptions.removeAll()
+            guard !Task.isCancelled, let deferred = self.deferredTurnChange else { return }
+            self.deferredTurnChange = nil
+            self.noteTurnChanged(game: deferred)
         }
     }
 
@@ -653,6 +753,17 @@ public final class BroadcastController {
         var dwelled: TimeInterval = 0
         while dwelled < dwell || speaker?.isSpeaking == true {
             if Task.isCancelled { return }
+            // The *caption hold* (CONTEXT). Once live self-play's game-over
+            // card is up the screen belongs to it and the board behind is
+            // dimmed, so there is nothing left to absorb: hold for the
+            // narration and nothing else. Checked in the loop rather than at
+            // entry because the card can go up mid-hold — the pass that
+            // raises it may land while the PREVIOUS caption is still
+            // dwelling, which is the common case (the answer to a pass is
+            // usually the pass that ends the game). Without this the closing
+            // pair runs ~12 s against self-play's 8 s interstitial and its
+            // last words are cut off.
+            if isCoveredByGameOverCard, speaker?.isSpeaking != true { return }
             if skipRequested {
                 skipRequested = false
                 speaker?.cancelAll()
