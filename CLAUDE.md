@@ -169,4 +169,5 @@ The app uses KataGo's GTP extensions including:
 - iOS 26+
 - macOS 26+ (native, not Catalyst)
 - visionOS 26+
+- tvOS 26+ — **never a bare multi-option `Picker`**: the default style squeezes every option into one horizontal segment row and truncates the labels (11 rulesets clipped to 3 characters, 259 ranks illegible); use drill-down rows instead. Nothing on a tvOS screen may truncate or wrap — if explanatory prose does not fit one line, cut it.
 - watchOS 26+ (standalone read-only game library, synced over iCloud; no connection to the iPhone)
