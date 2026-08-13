@@ -34,6 +34,19 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Caption hold** — how long a standalone caption stays up once its text is done. Once the game-over card is up there is no board left to absorb, so a caption holds only as long as it is still being spoken, rather than taking a slide's dwell.
 - **Auto-Play Speed** — the viewer's pacing choice for a replay broadcast (Slow / Normal / Fast). A pacing profile — how fast sentences reveal and how long a slide dwells — not a per-move delay, and not a choice about which analysis is shown.
 
+## Downloads
+
+- **Catalog asset** — an item the app's built-in catalog knows how to fetch: a downloadable neural network or an opening book. Distinct from a *user-imported* network, which arrives from the file system and is never downloaded.
+- **Download** — the whole user-visible operation of bringing one catalog asset onto the device. Survives leaving the screen, leaving the app, and quitting.
+- **Transfer** — one attempt at fetching the bytes a download is still missing. A download completes through as many transfers as it takes.
+- **Partial** — the bytes of an incomplete download.
+- **Staging** — where a partial lives while it is incomplete. Never a destination: a file at its destination is, by definition, complete.
+- **Waiting** — asked for, not yet started, because another download is transferring. Distinct from *paused*: nobody stopped it.
+- **Paused** — stopped by the user. Keeps its partial and never resumes itself.
+- **Interrupted** — stopped by anything other than the user. Keeps its partial and is eligible to resume itself.
+- **Verified** — the assembled bytes matched the total size the server declared for the asset. The gate a download passes before its file may reach its destination.
+- **Downloaded** — a complete, verified asset at its destination. The only one of these states the rest of the app can observe.
+
 ## Rules & presets
 
 - **Ruleset preset** — a named ruleset (Chinese, Japanese, Korean, AGA, BGA, AGA Button, New Zealand, Tromp-Taylor, Stone Scoring, Ancient Territory, Chinese OGS/KGS) defined *entirely* by its six rule components. Komi is **not** part of a preset's identity.
