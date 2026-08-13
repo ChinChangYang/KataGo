@@ -155,20 +155,48 @@ public enum DownloadStaging {
         return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
+    /// Replaces `destination` with `source` without ever leaving neither in
+    /// place. `replaceItemAt` swaps atomically; `moveItem` is the fresh-file
+    /// case it cannot handle, since it requires something to replace.
+    /// - Returns: true when `destination` now holds `source`'s bytes.
+    private static func swapIntoPlace(source: URL, destination: URL) -> Bool {
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: destination.path) {
+                _ = try fm.replaceItemAt(destination, withItemAt: source)
+            } else {
+                try fm.moveItem(at: source, to: destination)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Replaces the partial wholesale. Used for the first chunk and whenever
-    /// the server answered a ranged request with the entire asset.
+    /// the server answered a ranged request with the entire asset. Swaps
+    /// atomically, so a failed replace leaves the previous partial (if any)
+    /// exactly as it was — the size this returns is always truthful, never a
+    /// silently-discarded partial reporting back as 0.
     /// - Returns: the partial's new size in bytes.
     @discardableResult
     public static func replacePartial(withTemp temp: URL, forKey key: String) -> Int64 {
         try? ensureDirectory()
-        let destination = partialURL(forKey: key)
-        try? FileManager.default.removeItem(at: destination)
-        try? FileManager.default.moveItem(at: temp, to: destination)
+        _ = swapIntoPlace(source: temp, destination: partialURL(forKey: key))
         return partialSize(forKey: key)
     }
 
     /// Appends one ranged chunk. Streams rather than loading the chunk into
     /// memory, so a 32 MiB chunk of a 240 MB book costs a 1 MiB buffer.
+    ///
+    /// A read failure and a clean end-of-file both end the loop the same way,
+    /// and a write failure is likewise dropped: that is deliberate, not an
+    /// oversight. A truncated append is never reported as one — it surfaces
+    /// downstream as a size mismatch when the assembled bytes are checked
+    /// against the total the server declared, and the next attempt resumes
+    /// from the partial's real offset, so the missing bytes are refetched
+    /// rather than silently skipped. The size returned below is always read
+    /// back from disk, never assumed from the chunk that was sent in.
     /// - Returns: the partial's new size in bytes.
     @discardableResult
     public static func appendChunk(from temp: URL, toKey key: String) -> Int64 {
@@ -196,17 +224,16 @@ public enum DownloadStaging {
     /// Moves a verified partial to its destination and clears the sidecar.
     /// The caller has already checked the size; this never verifies, so that
     /// there is exactly one gate and it is impossible to bypass by calling
-    /// the wrong function.
+    /// the wrong function. Swaps atomically, so a failure — e.g. no partial
+    /// staged for this key — leaves any existing destination file untouched
+    /// rather than deleting a known-good asset before its replacement is
+    /// confirmed.
     public static func install(key: String, destination: URL) -> Bool {
         prepareDestinationDirectory(for: destination)
-        let fm = FileManager.default
-        try? fm.removeItem(at: destination)
-        do {
-            try fm.moveItem(at: partialURL(forKey: key), to: destination)
-        } catch {
+        guard swapIntoPlace(source: partialURL(forKey: key), destination: destination) else {
             return false
         }
-        try? fm.removeItem(at: metadataURL(forKey: key))
+        try? FileManager.default.removeItem(at: metadataURL(forKey: key))
         return true
     }
 

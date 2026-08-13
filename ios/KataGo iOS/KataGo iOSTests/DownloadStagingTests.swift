@@ -176,4 +176,43 @@ struct DownloadStagingTests {
             #expect(found.first?.hasMetadata == false)
         }
     }
+
+    @Test func installOverAnExistingDestinationReplacesIt() throws {
+        try withTemporaryStaging { root in
+            let key = "overwrite"
+            let destination = root
+                .appendingPathComponent("dest", isDirectory: true)
+                .appendingPathComponent("asset.bin.gz")
+            try FileManager.default.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try Data(repeating: 0x11, count: 8).write(to: destination)
+
+            let temp = root.appendingPathComponent("body")
+            try Data(repeating: 0x22, count: 16).write(to: temp)
+            _ = DownloadStaging.replacePartial(withTemp: temp, forKey: key)
+
+            #expect(DownloadStaging.install(key: key, destination: destination))
+            #expect(try Data(contentsOf: destination) == Data(repeating: 0x22, count: 16))
+            #expect(DownloadStaging.partialSize(forKey: key) == 0)
+        }
+    }
+
+    @Test func aFailedInstallLeavesTheOldAssetInPlace() throws {
+        try withTemporaryStaging { root in
+            let key = "nothing-staged"
+            let destination = root
+                .appendingPathComponent("dest", isDirectory: true)
+                .appendingPathComponent("asset.bin.gz")
+            try FileManager.default.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try Data(repeating: 0x33, count: 4).write(to: destination)
+
+            // No partial was ever staged for this key, so the swap must fail —
+            // and must not have destroyed the working file on its way out.
+            #expect(!DownloadStaging.install(key: key, destination: destination))
+            #expect(try Data(contentsOf: destination) == Data(repeating: 0x33, count: 4))
+        }
+    }
 }
