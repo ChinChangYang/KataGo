@@ -12,7 +12,11 @@ import Testing
 
 /// Serialized because these tests mutate the process-global
 /// `OpeningBook._booksDirectoryOverride`; running them in parallel would race.
-/// No other suite touches that override, so serializing this suite is sufficient.
+/// One other suite touches that override — `DownloadCenterTests`, for the one
+/// test that installs a finished book — and it is safe alongside this one
+/// because its body is `@MainActor` and synchronous (so it cannot interleave
+/// with anything here) and it restores the previous value rather than nil'ing
+/// it. Any new user of the override must keep both of those properties.
 @Suite(.serialized)
 @MainActor
 struct OpeningBookTests {
