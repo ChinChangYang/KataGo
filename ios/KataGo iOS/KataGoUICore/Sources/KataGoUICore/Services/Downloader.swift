@@ -4,102 +4,55 @@
 //
 //  Created by Chin-Chang Yang on 2025/5/25.
 //
+//  TRANSITIONAL. Downloads now run through `DownloadCenter` (ADR 0005); this
+//  is a facade over it so the five consumers can move one at a time rather
+//  than in a single commit that rewrites three app targets at once. Delete it
+//  once the last consumer is gone — nothing new should be written against it.
+//
 
 import Foundation
 import SwiftUI
 
 @MainActor
 @Observable
-public class Downloader: NSObject, URLSessionDownloadDelegate {
-    public var progress: Double = 0.0
-    public var isDownloading: Bool = false
-    public var downloadedFileURL: URL?
-    private var downloadTask: URLSessionDownloadTask?
+public final class Downloader {
+
     nonisolated public let destinationURL: URL
 
-    /// Called on the MainActor after a successful download completes and
-    /// the file has been moved to `destinationURL`. Callers (e.g.
-    /// `ModelDetailView`) use this seam to hash the file and schedule a
-    /// background precompile without coupling `Downloader` to the scheduler.
-    public var onDownloadComplete: (@MainActor (URL) async -> Void)?
+    /// The real thing. Memoized by the center against `destinationURL`, so two
+    /// `Downloader`s for the same asset share one transfer — which is what
+    /// closed the duplicate-download bug that made "too slow" look like a
+    /// bandwidth problem.
+    @ObservationIgnored private let entry: Download
+
+    /// Ignored. The center pre-hashes a finished network itself, once, instead
+    /// of at three hand-wired call sites and on no book path. Kept only so the
+    /// existing assignments still compile during the migration.
+    @ObservationIgnored public var onDownloadComplete: (@MainActor (URL) async -> Void)?
+
+    public var progress: Double { entry.progress }
+
+    /// True while transferring OR queued. A paused download reads false here,
+    /// exactly as a cancelled one used to — consumers that need to tell those
+    /// apart must move to `Download.state`.
+    public var isDownloading: Bool { entry.isBusy }
+
+    public var downloadedFileURL: URL? { entry.state == .succeeded ? destinationURL : nil }
 
     public init(destinationURL: URL) {
         self.destinationURL = destinationURL
+        self.entry = DownloadCenter.shared.download(for: destinationURL)
     }
 
+    /// `async throws` is preserved for source compatibility; it neither
+    /// suspends nor throws. It never did — the old body returned as soon as
+    /// `resume()` was called.
     public func download(from sourceURL: URL) async throws {
-        progress = 0.0
-        isDownloading = true
-        downloadedFileURL = nil
-
-        let urlSession = URLSession(configuration: .default,
-                                    delegate: self,
-                                    delegateQueue: nil)
-
-        downloadTask = urlSession.downloadTask(with: sourceURL)
-        downloadTask?.resume()
+        DownloadCenter.shared.start(entry, from: sourceURL)
     }
 
+    /// Now a pause: the partial is kept and one more tap continues it.
     public func cancel() {
-        downloadTask?.cancel()
-        downloadTask = nil
-        isDownloading = false
-        progress = 0.0
-    }
-
-    nonisolated public func urlSession(_: URLSession,
-                                downloadTask: URLSessionDownloadTask,
-                                didWriteData _: Int64,
-                                totalBytesWritten: Int64,
-                                totalBytesExpectedToWrite: Int64) {
-        Task {
-            await MainActor.run {
-                progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-            }
-        }
-    }
-
-    nonisolated public func urlSession(_: URLSession,
-                                downloadTask: URLSessionDownloadTask,
-                                didFinishDownloadingTo location: URL) {
-        // A response is not a success. `URLSession` delivers 4xx, 5xx — and
-        // GitHub release assets' non-standard `618 jwt:expired`, which is
-        // neither — through this method exactly like a 200. Moving the body
-        // unconditionally installs an error page as the asset, and every
-        // `fileExists` check downstream then reads it as downloaded forever,
-        // recoverable only by deleting the file by hand.
-        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? -1
-        guard status == 200 else {
-            Task { @MainActor in
-                isDownloading = false
-                progress = 0.0
-            }
-            return
-        }
-
-        // Remove if exists
-        try? FileManager.default.removeItem(at: destinationURL)
-        // The downloaded file will be removed automatically.
-        try? FileManager.default.moveItem(at: location, to: destinationURL)
-
-        Task { @MainActor in
-            downloadedFileURL = destinationURL
-            isDownloading = false
-            // Hash the file and fire precompile now that it's at its final URL.
-            await self.onDownloadComplete?(destinationURL)
-        }
-    }
-
-    nonisolated public func urlSession(_: URLSession,
-                                task: URLSessionTask,
-                                didCompleteWithError error: (any Error)?) {
-        // This is called for both success (error == nil) and failure/cancel
-        Task { @MainActor in
-            // If canceled or failed without producing a file, mark as not downloading
-            if error != nil && downloadedFileURL == nil {
-                isDownloading = false
-                progress = 0.0
-            }
-        }
+        DownloadCenter.shared.pause(entry)
     }
 }
