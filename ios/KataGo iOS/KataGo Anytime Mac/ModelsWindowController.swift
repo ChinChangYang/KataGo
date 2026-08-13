@@ -17,9 +17,10 @@
 //      so selecting a downloaded model switches the active net + relaunches the
 //      in-process engine (P5-S0).
 //
-//  On close, the view controller cancels every in-flight `Downloader` (see
-//  `ModelsViewController.windowWillClose`), so a dismissed window never leaves a
-//  background download running.
+//  On close, the view controller stops mirroring download progress onto its
+//  rows (see `ModelsViewController.detachDownloadObservation`). The transfers
+//  themselves keep running in the app-wide download center, so a dismissed
+//  window no longer throws away a download in progress.
 //
 
 import AppKit
@@ -65,9 +66,9 @@ final class ModelsWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - NSWindowDelegate
 
-    /// Cancels any in-flight downloads before the window goes away so a dismissed
-    /// Models window never leaves a background download running.
+    /// Detaches the row mirror. Deliberately does NOT cancel: a download that
+    /// survives quitting the app should certainly survive closing a window.
     func windowWillClose(_ notification: Notification) {
-        modelsViewController.cancelAllDownloads()
+        modelsViewController.detachDownloadObservation()
     }
 }

@@ -4,10 +4,11 @@
 //
 //  The Opening Books window's content: an NSTableView of the opening-book catalog
 //  (6x6...9x9) on the left and a per-book detail pane (description + sizes) on the
-//  right. Mirrors `ModelsViewController`'s download lifecycle (one `Downloader`
-//  per in-flight row, tracked via a self-rescheduling `withObservationTracking`
-//  observer) but with the book-specific download/delete actions. No set-active /
-//  backend pane (books just apply to the matching board size when downloaded).
+//  right. Mirrors `ModelsViewController`'s download lifecycle (downloads belong
+//  to the app-wide `DownloadCenter`; this controller mirrors one onto a row via
+//  a self-rescheduling `withObservationTracking` observer) but with the
+//  book-specific download/delete actions. No set-active / backend pane (books
+//  just apply to the matching board size when downloaded).
 //
 //  `onBooksChanged` is invoked after a download finishes or a book is deleted so
 //  `MainWindowController` can re-evaluate the active game's book load + eye state.
@@ -22,7 +23,11 @@ final class OpeningBooksViewController: NSViewController {
     private let onBooksChanged: () -> Void
 
     private let books: [OpeningBook] = OpeningBook.allCases.sorted { $0.boardSize < $1.boardSize }
-    private var downloaders: [String: Downloader] = [:]
+
+    /// File names whose `Download` is currently mirrored onto a row. Emptied
+    /// when the window closes, which DETACHES the mirror — it does not stop
+    /// anything.
+    private var observedFileNames: Set<String> = []
 
     private let tableView = NSTableView()
     private let scrollView = NSScrollView()
@@ -93,12 +98,19 @@ final class OpeningBooksViewController: NSViewController {
         super.viewWillAppear()
         reloadVisibleRows()
         rebuildDetailPane()
+        attachDownloadObservation()
     }
 
     // MARK: - Helpers
 
+    private func download(for book: OpeningBook) -> Download {
+        DownloadCenter.shared.download(for: book.downloadedURL)
+    }
+
+    /// True while a transfer for this book is running or queued. A paused
+    /// download is deliberately not "downloading" — its row offers to resume.
     private func isDownloading(_ book: OpeningBook) -> Bool {
-        downloaders[book.fileName]?.isDownloading ?? false
+        download(for: book).isBusy
     }
 
     private func reloadRow(for fileName: String) {
@@ -113,59 +125,82 @@ final class OpeningBooksViewController: NSViewController {
 
     // MARK: - Download
 
+    /// Starts, or resumes, the download for `book`. The center refuses a
+    /// duplicate by construction (it keys downloads by destination), so the
+    /// guard here is about not re-arming a second observer.
     private func startDownload(_ book: OpeningBook) {
         guard !isDownloading(book),
               let sourceURL = URL(string: book.url) else { return }
-        // Downloader does not create directories.
-        _ = try? OpeningBook.ensureBooksDirectory()
 
-        let downloader = Downloader(destinationURL: book.downloadedURL)
-        downloaders[book.fileName] = downloader
-        trackDownloader(downloader, fileName: book.fileName)
-
-        Task { @MainActor in
-            try? await downloader.download(from: sourceURL)
-        }
+        let entry = download(for: book)
+        DownloadCenter.shared.start(entry, from: sourceURL)
+        track(entry, fileName: book.fileName)
         reloadRow(for: book.fileName)
     }
 
+    /// Pauses a book's transfer. The partial survives; the row's download
+    /// arrow resumes it.
     private func cancelDownload(_ book: OpeningBook) {
-        guard let downloader = downloaders[book.fileName] else { return }
-        downloader.cancel()
-        downloaders.removeValue(forKey: book.fileName)
+        let entry = download(for: book)
+        DownloadCenter.shared.pause(entry)
         reloadRow(for: book.fileName)
     }
 
-    func cancelAllDownloads() {
-        for downloader in downloaders.values {
-            downloader.cancel()
+    /// Re-attaches the row mirror to every transfer already in flight. Called
+    /// when the window appears, because the window can be closed and reopened
+    /// while a download runs.
+    func attachDownloadObservation() {
+        for book in books {
+            let entry = download(for: book)
+            guard entry.isBusy else { continue }
+            track(entry, fileName: book.fileName)
         }
-        downloaders.removeAll()
+        reloadVisibleRows()
     }
 
-    /// Self-rescheduling observation of one `Downloader` (same contract as
-    /// `ModelsViewController.trackDownloader`).
-    private func trackDownloader(_ downloader: Downloader, fileName: String) {
-        withObservationTracking {
-            _ = downloader.progress
-            _ = downloader.isDownloading
-        } onChange: { [weak self, weak downloader] in
-            Task { @MainActor in
-                guard let self, let downloader else { return }
-                guard self.downloaders[fileName] === downloader else { return }
+    /// Stops mirroring download state onto rows.
+    ///
+    /// This does NOT cancel anything. Downloads belong to the app-wide
+    /// `DownloadCenter` now and keep running with the window shut; reopening
+    /// it re-attaches and shows live progress. Cancelling on close used to be
+    /// the promise, and it was the reason a long download could not survive
+    /// tidying up your windows.
+    func detachDownloadObservation() {
+        observedFileNames.removeAll()
+    }
 
-                if downloader.isDownloading {
-                    self.reloadRow(for: fileName)
-                    self.trackDownloader(downloader, fileName: fileName)
-                } else {
-                    self.downloaders.removeValue(forKey: fileName)
+    private func track(_ entry: Download, fileName: String) {
+        guard !observedFileNames.contains(fileName) else { return }
+        observedFileNames.insert(fileName)
+        rearm(entry, fileName: fileName)
+    }
+
+    /// Self-rescheduling observation of one `Download`. Same
+    /// `withObservationTracking` contract as `MainWindowController`: the
+    /// callback fires once per change BEFORE the value commits, so we hop to a
+    /// `Task { @MainActor }` to read the committed value and RE-ARM tracking
+    /// (otherwise observation stops after the first change).
+    private func rearm(_ entry: Download, fileName: String) {
+        withObservationTracking {
+            _ = entry.receivedBytes
+            _ = entry.state
+        } onChange: { [weak self, weak entry] in
+            Task { @MainActor in
+                guard let self, let entry,
+                      self.observedFileNames.contains(fileName) else { return }
+
+                self.reloadRow(for: fileName)
+                if entry.state == .succeeded {
+                    self.observedFileNames.remove(fileName)
                     self.reloadRow(for: fileName)
                     if self.selectedBook?.fileName == fileName {
                         self.rebuildDetailPane()
                     }
                     // A finished download may make the active game's book available.
                     self.onBooksChanged()
+                    return
                 }
+                self.rearm(entry, fileName: fileName)
             }
         }
     }
@@ -256,7 +291,7 @@ extension OpeningBooksViewController: NSTableViewDelegate {
         cell.configure(
             book: book,
             isDownloaded: book.isDownloaded,
-            downloader: downloaders[book.fileName],
+            download: download(for: book),
             onDownload: { [weak self] in self?.startDownload(book) },
             onCancel: { [weak self] in self?.cancelDownload(book) },
             onDelete: { [weak self] in self?.deleteBook(book) }

@@ -13,9 +13,9 @@
 //  to `MainWindowController` so a freshly downloaded/deleted book re-evaluates the
 //  active game's book load + eye state.
 //
-//  On close it cancels every in-flight download (see
-//  `OpeningBooksViewController.cancelAllDownloads`), so a dismissed window never
-//  leaves a background download running.
+//  On close it stops mirroring download progress onto its rows (see
+//  `OpeningBooksViewController.detachDownloadObservation`); the transfers keep
+//  running in the app-wide download center.
 //
 
 import AppKit
@@ -50,6 +50,6 @@ final class OpeningBooksWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
-        booksViewController.cancelAllDownloads()
+        booksViewController.detachDownloadObservation()
     }
 }

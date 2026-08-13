@@ -8,19 +8,20 @@
 //
 //  Mirrors the iOS `ModelPickerView` / `ModelDetailView` (download/delete/
 //  set-active tri-state) and `BackendConfigSheet` (backend/board-size/tuning),
-//  reusing the SAME building blocks: `NeuralNetworkModel.allCases`, `Downloader`,
-//  `BackendSettings`, and `ConfigFormBuilder`. No logic is reimplemented.
+//  reusing the SAME building blocks: `NeuralNetworkModel.allCases`,
+//  `DownloadCenter`, `BackendSettings`, and `ConfigFormBuilder`. No logic is
+//  reimplemented.
 //
 //  Download lifecycle
 //  ------------------
-//  One `Downloader` per in-flight row, tracked in `downloaders` keyed by
-//  `fileName`. Progress is surfaced to the row via a self-rescheduling
-//  `withObservationTracking` observer (the same pattern `MainWindowController`
-//  uses), which reloads just the affected row on every `Downloader` mutation.
-//  On completion the file lands at `downloadedURL`; the row flips to its
-//  "Downloaded" state and the downloader is dropped. `cancelAllDownloads()`
-//  (called from the window controller's `windowWillClose`) cancels everything so
-//  a dismissed window never leaves a background download running.
+//  Downloads belong to the app-wide `DownloadCenter`, keyed by destination
+//  URL; this controller only mirrors one onto a row. Progress reaches the row
+//  through a self-rescheduling `withObservationTracking` observer (the same
+//  pattern `MainWindowController` uses), which reloads just the affected row.
+//  On completion the verified file lands at `downloadedURL` and the row flips
+//  to its "Downloaded" state. Closing the window calls
+//  `detachDownloadObservation()`, which stops the mirror and nothing else —
+//  the transfer keeps running and reopening the window picks it back up.
 //
 //  Set active
 //  ----------
@@ -91,9 +92,10 @@ final class ModelsViewController: NSViewController {
     /// is the built-in net). Recomputed on appear and after every download/delete.
     private var availability: [String: Bool] = [:]
 
-    /// In-flight downloads, keyed by `fileName`. Removed when the download
-    /// finishes or is cancelled.
-    private var downloaders: [String: Downloader] = [:]
+    /// File names whose `Download` is currently mirrored onto a row. Emptied
+    /// when the window closes, which DETACHES the mirror — it does not stop
+    /// anything.
+    private var observedFileNames: Set<String> = []
 
     /// Seam for the P5-T10 CoreML "Ready" badge. Empty until T10 lands; the row
     /// view already reads it, so T10 just populates this + reloads.
@@ -230,6 +232,7 @@ final class ModelsViewController: NSViewController {
         recomputeAvailability()
         reloadVisibleRows()
         updateAddRemoveEnablement()
+        attachDownloadObservation()
     }
 
     // MARK: - Availability
@@ -249,10 +252,14 @@ final class ModelsViewController: NSViewController {
         return FileManager.default.fileExists(atPath: url.path)
     }
 
-    /// True while a `Downloader` is registered AND actively downloading for the
-    /// model (a finished/cancelled download removes the entry).
+    private func download(for model: NeuralNetworkModel) -> Download? {
+        model.downloadedURL.map { DownloadCenter.shared.download(for: $0) }
+    }
+
+    /// True while a transfer for this model is running or queued. A paused
+    /// download is deliberately not "downloading" — its row offers to resume.
     private func isDownloading(_ model: NeuralNetworkModel) -> Bool {
-        downloaders[model.fileName]?.isDownloading ?? false
+        download(for: model)?.isBusy ?? false
     }
 
     // MARK: - Row reload helpers
@@ -275,90 +282,81 @@ final class ModelsViewController: NSViewController {
 
     // MARK: - Download
 
-    /// Starts (or no-ops if already running) a download for `model`, wiring a
-    /// progress observer that reloads the model's row on every `Downloader`
-    /// mutation, and a completion that pre-hashes the file (mirrors iOS) so the
-    /// first launch can build the CoreML cache key without re-hashing.
+    /// Starts, or resumes, the download for `model`. The center refuses a
+    /// duplicate by construction (it keys downloads by destination), so the
+    /// guard here is about not re-arming a second observer.
     private func startDownload(_ model: NeuralNetworkModel) {
         guard !model.builtIn,
               !isDownloading(model),
-              let destinationURL = model.downloadedURL,
+              let entry = download(for: model),
               let sourceURL = URL(string: model.url) else { return }
 
-        let downloader = Downloader(destinationURL: destinationURL)
-        downloader.onDownloadComplete = { url in
-            // Pre-hash off the main thread so the first engine launch that selects
-            // this model can construct its CoreML cache key without re-hashing on
-            // the hot path (mirrors `ModelDetailView.onAppear`).
-            Task.detached(priority: .userInitiated) {
-                _ = try? await BinFileHasher.shared.identityForDownloadedFile(url)
-            }
-        }
-        downloaders[model.fileName] = downloader
-
-        // Observe progress / completion and reflect it on the row.
-        trackDownloader(downloader, fileName: model.fileName)
-
-        Task { @MainActor in
-            try? await downloader.download(from: sourceURL)
-        }
+        DownloadCenter.shared.start(entry, from: sourceURL)
+        track(entry, fileName: model.fileName)
         reloadRow(for: model.fileName)
     }
 
-    /// Cancels and drops a model's in-flight download.
+    /// Pauses a model's transfer. The partial survives; the row's download
+    /// arrow resumes it.
     private func cancelDownload(_ model: NeuralNetworkModel) {
-        guard let downloader = downloaders[model.fileName] else { return }
-        downloader.cancel()
-        downloaders.removeValue(forKey: model.fileName)
+        guard let entry = download(for: model) else { return }
+        DownloadCenter.shared.pause(entry)
         reloadRow(for: model.fileName)
     }
 
-    /// Cancels every in-flight download (called on window close).
-    func cancelAllDownloads() {
-        for downloader in downloaders.values {
-            downloader.cancel()
+    /// Re-attaches the row mirror to every transfer already in flight. Called
+    /// when the window appears, because the window can be closed and reopened
+    /// while a download runs.
+    func attachDownloadObservation() {
+        for model in models {
+            guard let entry = download(for: model), entry.isBusy else { continue }
+            track(entry, fileName: model.fileName)
         }
-        downloaders.removeAll()
+        reloadVisibleRows()
     }
 
-    /// Self-rescheduling observation of one `Downloader`'s `progress` /
-    /// `isDownloading`. On each mutation it reloads the row; when a download stops
-    /// it recomputes availability, drops the finished downloader, and (if the
-    /// finished model is the one shown in the detail pane) refreshes that pane.
+    /// Stops mirroring download state onto rows.
     ///
-    /// Same `withObservationTracking` contract as `MainWindowController`: the
+    /// This does NOT cancel anything. Downloads belong to the app-wide
+    /// `DownloadCenter` now and keep running with the window shut; reopening
+    /// it re-attaches and shows live progress. Cancelling on close used to be
+    /// the promise, and it was the reason a long download could not survive
+    /// tidying up your windows.
+    func detachDownloadObservation() {
+        observedFileNames.removeAll()
+    }
+
+    private func track(_ entry: Download, fileName: String) {
+        guard !observedFileNames.contains(fileName) else { return }
+        observedFileNames.insert(fileName)
+        rearm(entry, fileName: fileName)
+    }
+
+    /// Self-rescheduling observation of one `Download`. Same
+    /// `withObservationTracking` contract as `MainWindowController`: the
     /// callback fires once per change BEFORE the value commits, so we hop to a
     /// `Task { @MainActor }` to read the committed value and RE-ARM tracking
-    /// (otherwise observation stops after the first change). Tracking ends
-    /// naturally once the downloader is removed from `downloaders` (a stale entry
-    /// no longer reloads any row and is GC'd when the closure releases it).
-    private func trackDownloader(_ downloader: Downloader, fileName: String) {
+    /// (otherwise observation stops after the first change).
+    private func rearm(_ entry: Download, fileName: String) {
         withObservationTracking {
-            _ = downloader.progress
-            _ = downloader.isDownloading
-        } onChange: { [weak self, weak downloader] in
+            _ = entry.receivedBytes
+            _ = entry.state
+        } onChange: { [weak self, weak entry] in
             Task { @MainActor in
-                guard let self, let downloader else { return }
-                // Only keep observing while this is still the registered downloader
-                // for the file (a cancel/replace drops it).
-                guard self.downloaders[fileName] === downloader else { return }
+                guard let self, let entry,
+                      self.observedFileNames.contains(fileName) else { return }
 
-                if downloader.isDownloading {
-                    // Mid-download progress tick: refresh the row's progress bar.
-                    self.reloadRow(for: fileName)
-                    self.trackDownloader(downloader, fileName: fileName)
-                } else {
-                    // Finished or cancelled. If the file landed, the model is now
-                    // available. Drop the downloader, recompute, and refresh.
-                    self.downloaders.removeValue(forKey: fileName)
+                self.reloadRow(for: fileName)
+                if entry.state == .succeeded {
+                    self.observedFileNames.remove(fileName)
                     self.recomputeAvailability()
                     self.reloadRow(for: fileName)
-                    // Keep the detail pane's set-active button in sync if it shows
-                    // this model.
                     if self.selectedModel?.fileName == fileName {
                         self.rebuildDetailPane()
                     }
+                    return
                 }
+                self.rearm(entry, fileName: fileName)
             }
         }
     }
@@ -678,7 +676,7 @@ extension ModelsViewController: NSTableViewDelegate {
             isActive: model.title == currentModelTitle(),
             isAvailable: availability[model.fileName] ?? false,
             isReady: readyFileNames.contains(model.fileName),
-            downloader: downloaders[model.fileName],
+            download: download(for: model),
             onDownload: { [weak self] in self?.startDownload(model) },
             onCancel: { [weak self] in self?.cancelDownload(model) },
             onDelete: { [weak self] in self?.deleteModel(model) },

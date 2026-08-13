@@ -188,12 +188,13 @@ final class ModelRowView: NSTableCellView {
     ///   - isActive: the model is the currently-active net (draws "Active").
     ///   - isAvailable: the file exists on disk (or is built-in).
     ///   - isReady: P5-T10 CoreML-cache-ready seam (unused until T10).
-    ///   - downloader: the in-flight downloader, if any (drives the progress bar).
+    ///   - download: the download for this model, if it has a destination
+    ///     (drives the progress bar and the Paused state).
     func configure(model: NeuralNetworkModel,
                    isActive: Bool,
                    isAvailable: Bool,
                    isReady: Bool,
-                   downloader: Downloader?,
+                   download: Download?,
                    onDownload: @escaping () -> Void,
                    onCancel: @escaping () -> Void,
                    onDelete: @escaping () -> Void,
@@ -209,15 +210,22 @@ final class ModelRowView: NSTableCellView {
             ? "Built-in"
             : Self.byteFormatter.string(fromByteCount: Int64(model.fileSize))
 
-        let isDownloading = downloader?.isDownloading ?? false
+        let state = download?.state ?? .idle
+        let isDownloading = download?.isBusy ?? false
+        // A paused download still has bytes on disk, and a bar frozen where it
+        // stopped is the only thing that tells the user resuming is cheap.
+        let isPaused = (state == .paused || state == .interrupted)
+            && (download?.hasPartial ?? false)
 
-        // Status text: Active > Downloaded > Not downloaded. (The P5-T10 "Ready"
-        // badge will refine the Downloaded state.)
+        // Status text: Active > Downloading > Paused > Downloaded.
         if isActive {
             statusField.stringValue = "Active"
             statusField.textColor = .systemGreen
         } else if isDownloading {
             statusField.stringValue = "Downloading…"
+            statusField.textColor = .secondaryLabelColor
+        } else if isPaused {
+            statusField.stringValue = "Paused"
             statusField.textColor = .secondaryLabelColor
         } else if isAvailable {
             statusField.stringValue = isReady ? "Ready" : "Downloaded"
@@ -227,12 +235,12 @@ final class ModelRowView: NSTableCellView {
             statusField.textColor = .secondaryLabelColor
         }
 
-        // Controls: while downloading show the progress bar + cancel; otherwise
-        // show "Set Active" (available) or a download arrow (not available).
-        progressIndicator.isHidden = !isDownloading
+        // Controls: the bar shows while downloading AND while paused; only a
+        // live transfer can be stopped.
+        progressIndicator.isHidden = !(isDownloading || isPaused)
         cancelButton.isHidden = !isDownloading
-        if isDownloading {
-            progressIndicator.doubleValue = downloader?.progress ?? 0
+        if isDownloading || isPaused {
+            progressIndicator.doubleValue = download?.progress ?? 0
         }
 
         primaryButton.isHidden = isDownloading

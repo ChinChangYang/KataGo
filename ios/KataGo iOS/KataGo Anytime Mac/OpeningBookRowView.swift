@@ -126,7 +126,7 @@ final class OpeningBookRowView: NSTableCellView {
 
     func configure(book: OpeningBook,
                    isDownloaded: Bool,
-                   downloader: Downloader?,
+                   download: Download?,
                    onDownload: @escaping () -> Void,
                    onCancel: @escaping () -> Void,
                    onDelete: @escaping () -> Void) {
@@ -136,10 +136,17 @@ final class OpeningBookRowView: NSTableCellView {
 
         titleField.stringValue = book.title
 
-        let isDownloading = downloader?.isDownloading ?? false
+        let state = download?.state ?? .idle
+        let isDownloading = download?.isBusy ?? false
+        // A paused download still has bytes on disk, and a bar frozen where it
+        // stopped is the only thing that tells the user resuming is cheap.
+        let isPaused = (state == .paused || state == .interrupted)
+            && (download?.hasPartial ?? false)
 
         if isDownloading {
             statusField.stringValue = "Downloading…"
+        } else if isPaused {
+            statusField.stringValue = "Paused"
         } else if isDownloaded {
             statusField.stringValue = "Downloaded"
         } else {
@@ -150,10 +157,12 @@ final class OpeningBookRowView: NSTableCellView {
         let bytes = isDownloaded ? (book.onDiskSize ?? book.fileSize) : book.fileSize
         sizeField.stringValue = Self.byteFormatter.string(fromByteCount: Int64(bytes))
 
-        progressIndicator.isHidden = !isDownloading
+        // Controls: the bar shows while downloading AND while paused; only a
+        // live transfer can be stopped.
+        progressIndicator.isHidden = !(isDownloading || isPaused)
         cancelButton.isHidden = !isDownloading
-        if isDownloading {
-            progressIndicator.doubleValue = downloader?.progress ?? 0
+        if isDownloading || isPaused {
+            progressIndicator.doubleValue = download?.progress ?? 0
         }
 
         // Download button only when not downloaded and not downloading.
