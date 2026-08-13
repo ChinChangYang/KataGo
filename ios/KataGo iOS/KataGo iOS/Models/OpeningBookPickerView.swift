@@ -57,7 +57,6 @@ struct OpeningBookDetailView: View {
     /// starting a second one.
     let download: Download
     @State private var isDownloaded = false
-    @Environment(BookLookup.self) private var bookLookup: BookLookup?
 
     /// `isOnDisk: false` on purpose. A book has nothing to activate, so the
     /// `.play` role is unreachable here — the Downloaded label and the trash

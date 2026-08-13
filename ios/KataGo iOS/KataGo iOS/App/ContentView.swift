@@ -60,11 +60,22 @@ struct ContentView: View {
                     session.stopRequested = true
                 }
             }
-            // A book that finishes downloading is loaded here, not in the detail
-            // view that started it: a 240 MB book routinely outlives its screen,
-            // and the old `.onChange` on the detail view simply did not run once
-            // the user had navigated away. The center's generation counter makes
-            // two finishes of the same book distinguishable.
+            // Covers a book download that outlives the opening-book picker:
+            // started there, finishing after a game session has begun. It
+            // cannot fire while the picker itself is on screen — that screen
+            // is only reachable when no model is selected, and this view is
+            // only mounted when one is, so the two never coexist. That is not
+            // a gap: there is no `BookLookup` to call before a session
+            // exists, so a book that finishes during the picker becomes
+            // usable through the paths that already cover it — the session's
+            // own `loadIfNeeded` at startup, and the eye button's
+            // availability check, which reads disk state directly.
+            //
+            // Re-reads `lastFinishedDestination` fresh rather than trusting
+            // the discarded old/new values. That is only safe because
+            // `DownloadCenter` runs one transfer at a time, so two finishes
+            // can never land in the same render frame and coalesce into a
+            // single notification here.
             .onChange(of: DownloadCenter.shared.finishedGeneration) { _, _ in
                 guard let finished = DownloadCenter.shared.lastFinishedDestination,
                       let book = OpeningBook.allCases.first(where: {
