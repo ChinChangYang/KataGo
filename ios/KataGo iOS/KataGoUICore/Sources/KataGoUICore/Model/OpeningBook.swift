@@ -121,8 +121,9 @@ extension OpeningBook {
     #endif
 
     /// `Application Support/<bundleID>/OpeningBooks/`. Large, re-downloadable
-    /// assets belong here (not Documents), and the directory is excluded from
-    /// iCloud backup by `ensureBooksDirectory()`.
+    /// assets belong here (not Documents). For the download path, the
+    /// directory is excluded from iCloud backup by
+    /// `DownloadStaging.prepareDestinationDirectory(for:)`.
     public static func booksDirectory() -> URL {
         #if DEBUG
         if let override = _booksDirectoryOverride { return override }

@@ -173,3 +173,55 @@ against the stable URL.**
   still starts without a warning, as it does today.
 - Nothing garbage-collected partials before, because none existed. The sweep
   ships with the feature rather than after it.
+
+## Amendment 2026-08-13 — transfers are chunked
+
+Decision 3 described one open-ended `Range: bytes=<offset>-` per attempt.
+Implementation showed that loses more than it saves: a `URLSessionDownloadTask`
+surrenders its bytes only when it *finishes*, so a dropped connection at 95% of
+a 240 MB book discards 228 MB — exactly the case resumability exists for — and
+the only Apple-supplied alternative, `cancel(byProducingResumeData:)`, is the
+one this ADR rejected for pinning a redirect that expires in about thirty
+minutes.
+
+The transport therefore requests fixed **32 MiB** ranged chunks in sequence,
+appending each to the partial. Everything decision 3 promised still holds — the
+request goes to the stable catalog URL, carries `If-Range`, accepts exactly 206,
+and takes its total from `Content-Range`. What changes is the bound on loss: a
+drop or a pause now costs at most one chunk instead of the whole attempt. The
+price is one extra round trip per 32 MiB — eight for the largest book, under a
+tenth of its transfer time on a healthy link.
+
+`CONTEXT.md` needs no new term: a chunk is an implementation detail of a
+*transfer*, and the glossary is implementation-free by design.
+
+## Amendment 2026-08-13 — the book-activation consequence was wrong
+
+Consequences said activation of a freshly downloaded book "sits inside
+`OpeningBookPickerView`'s `.onChange`, so it silently does not run once the
+detail view has been popped; it now always runs." That is false, and
+implementation is what exposed it.
+
+`OpeningBookPickerView()` is constructed in exactly one place in the running
+app, from `ModelPickerView`, and `ModelPickerView` is shown only when no model
+is selected. The opening-book screens therefore exist only *before* a game
+session does — never alongside one. `BookLookup` is instantiated inside
+`GameSession`. While the picker or its detail view is on screen, there is no
+session and so no `BookLookup` to call. The old `.onChange` called
+`bookLookup?.loadIfNeeded(...)` on an environment value that was nil in the
+only state that screen can be shown in. It was already a no-op — not
+something that merely stopped working once the view was popped, because it
+never ran while the view was present either. The consequence described a bug
+that did not exist, and promised a fix for it that no code could have
+delivered.
+
+What actually makes a freshly downloaded book usable is the paths that
+already covered it: the session's own `loadIfNeeded` at startup, and the eye
+button's availability check, which reads disk state directly. What the
+center's `finishedGeneration` hook genuinely adds is coverage for the case
+those paths miss — a download that outlives the picker, started there but
+finishing once a game is already running. iOS observes it in `ContentView`;
+macOS observes it in `MainWindowController`, where it also drives
+`refreshBookStateForSelectedGame()` for a book that finishes while the
+Opening Books window is closed — a case that could not arise before, because
+closing that window used to cancel the download outright.
