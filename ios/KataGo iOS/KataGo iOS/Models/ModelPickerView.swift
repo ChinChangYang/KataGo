@@ -59,55 +59,55 @@ struct ModelTrashButton: View {
 
 struct ModelDetailView: View {
     var model: NeuralNetworkModel
-    @State var downloader: Downloader
+    /// Vended by the center and memoized against the destination, so pushing
+    /// this view a second time lands on the same object instead of minting a
+    /// second concurrent transfer of the same file.
+    let download: Download
     @State var isDownloaded = false
     @State private var isShowingConfigSheet = false
     @Binding var selectedModel: NeuralNetworkModel?
 
+    private var role: DownloadButtonRole {
+        DownloadButtonRole.role(isOnDisk: isDownloaded,
+                                state: download.state,
+                                hasPartial: download.hasPartial)
+    }
+
     func downloadPlayButton(model: NeuralNetworkModel) -> some View {
         Button {
-            if isDownloaded {
+            switch role {
+            case .play:
                 selectedModel = model
-            } else if !(downloader.isDownloading) {
-                Task {
-                    if let modelURL = URL(string: model.url) {
-                        try? await downloader.download(from: modelURL)
-                    }
+            case .download, .resume:
+                if let modelURL = URL(string: model.url) {
+                    DownloadCenter.shared.start(download, from: modelURL)
                 }
-            } else {
-                downloader.cancel()
+            case .pause:
+                DownloadCenter.shared.pause(download)
             }
         } label: {
-            if isDownloaded {
-                Label("Play", systemImage: "play.fill")
-                    .labelStyle(.iconOnly)
-            } else if !(downloader.isDownloading) {
-                Label("Download", systemImage: "arrow.down")
-                    .labelStyle(.iconOnly)
-            } else {
-                Label {
-                    Text("Stop Download")
-                } icon: {
-                    Image(
-                        systemName: "stop.circle",
-                        variableValue: downloader.progress
-                    )
-                    .symbolVariableValueMode(.draw)
+            Label {
+                Text(role.actionTitle)
+            } icon: {
+                if role == .pause {
+                    Image(systemName: role.systemImageName, variableValue: download.progress)
+                        .symbolVariableValueMode(.draw)
+                } else {
+                    Image(systemName: role.systemImageName)
                 }
-                .labelStyle(.iconOnly)
             }
+            .labelStyle(.iconOnly)
         }
         .buttonStyle(.borderedProminent)
+        // Nine UI-test files tap this identifier. It must stay on ONE
+        // always-present button across every role — a button that appears and
+        // disappears takes the offline suite down with it.
         .accessibilityIdentifier("ModelDetailView.downloadPlayButton")
     }
 
     var body: some View {
         VStack {
-            Image(.loadingIcon)
-                .resizable()
-                .scaledToFit()
-                .clipShape(.circle)
-                .rotationEffect(.degrees(downloader.progress * 360))
+            DownloadProgressIcon(icon: Image(.loadingIcon), progress: download.progress)
 
             VStack(alignment: .leading) {
                 Text(model.title)
@@ -143,42 +143,28 @@ struct ModelDetailView: View {
             }
         }
         .padding()
-        .onAppear {
-            if model.builtIn {
-                isDownloaded = true
-            } else {
-                if let downloadedURL = model.downloadedURL {
-                    if FileManager.default.fileExists(atPath: downloadedURL.path) {
-                        isDownloaded = true
-                    } else {
-                        isDownloaded = false
-                    }
-                } else {
-                    isDownloaded = false
-                }
-            }
-            // Compute the downloaded file's identity hash so the
-            // first engine launch that selects this model can
-            // construct its cache key without re-hashing on the
-            // hot path. No precompile is scheduled — the cache
-            // populates lazily on first selection.
-            downloader.onDownloadComplete = { url in
-                Task.detached(priority: .userInitiated) {
-                    _ = try? await BinFileHasher.shared.identityForDownloadedFile(url)
-                }
-            }
-        }
-        .onChange(of: downloader.isDownloading) { oldValue, newValue in
-            if oldValue == true && newValue == false {
-                if FileManager.default.fileExists(atPath: downloader.destinationURL.path) {
-                    isDownloaded = true
-                }
-            }
+        .onAppear { refreshDownloadedFlag() }
+        // Explicit state, not the old `isDownloading` true->false edge: a
+        // pause takes that same edge, so the edge could never tell a stopped
+        // download from a finished one. The center pre-hashes the finished
+        // file itself, so nothing is wired here any more.
+        .onChange(of: download.state) { _, newState in
+            if newState == .succeeded { isDownloaded = true }
         }
         .sheet(isPresented: $isShowingConfigSheet) {
             BackendConfigSheet(model: model)
         }
         .navigationTitle(model.title)
+    }
+
+    private func refreshDownloadedFlag() {
+        if model.builtIn {
+            isDownloaded = true
+        } else if let downloadedURL = model.downloadedURL {
+            isDownloaded = FileManager.default.fileExists(atPath: downloadedURL.path)
+        } else {
+            isDownloaded = false
+        }
     }
 }
 
@@ -223,7 +209,7 @@ struct ModelPickerView: View {
                             NavigationLink {
                                 ModelDetailView(
                                     model: model,
-                                    downloader: Downloader(destinationURL: destinationURL),
+                                    download: DownloadCenter.shared.download(for: destinationURL),
                                     selectedModel: $selectedModel
                                 )
                             } label: {
@@ -422,8 +408,8 @@ struct ModelPickerView: View {
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
-                downloader: Downloader(
-                    destinationURL: NeuralNetworkModel.allCases[1].downloadedURL!
+                download: DownloadCenter.shared.download(
+                    for: NeuralNetworkModel.allCases[1].downloadedURL!
                 ),
                 selectedModel: $selectedModel
             )
@@ -440,8 +426,8 @@ struct ModelPickerView: View {
         var body: some View {
             ModelDetailView(
                 model: NeuralNetworkModel.allCases[1],
-                downloader: Downloader(
-                    destinationURL: NeuralNetworkModel.allCases[1].downloadedURL!
+                download: DownloadCenter.shared.download(
+                    for: NeuralNetworkModel.allCases[1].downloadedURL!
                 ),
                 selectedModel: $selectedModel
             )
