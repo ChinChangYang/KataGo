@@ -123,7 +123,18 @@ class PortraitUITestCase: XCTestCase {
     /// Spelled as a literal rather than imported from the app target, which is
     /// what every other seam in this target does — a UI test bundle cannot
     /// import the app module it drives.
-    static let baselineLaunchArguments = ["--uitest-reset-backend-settings"]
+    ///
+    /// `--uitest-disable-downloads` (kept in step with
+    /// `DownloadCenter.disableLaunchArgument`) makes the download center
+    /// inert. The download center resumes interrupted transfers at launch;
+    /// the UI suite is offline by contract — `ModelStagingUITestSupport`
+    /// exists precisely so no test has to reach the network — so the center
+    /// must never auto-resume here, rather than relying on there happening to
+    /// be no partial left on the simulator from an earlier manual run.
+    static let baselineLaunchArguments = [
+        "--uitest-reset-backend-settings",
+        "--uitest-disable-downloads",
+    ]
 }
 
 private extension UIDeviceOrientation {

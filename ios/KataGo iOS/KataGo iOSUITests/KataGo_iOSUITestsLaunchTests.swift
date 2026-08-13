@@ -33,8 +33,11 @@ final class KataGo_iOSUITestsLaunchTests: XCTestCase {
         // ⚠️ note in that file — the portrait pin would clobber XCTest's own
         // orientation sweep), so it repeats the baseline arguments here. Keep
         // it in step with `PortraitUITestCase.baselineLaunchArguments`.
+        // `--uitest-disable-downloads` keeps the download center inert here
+        // too — it resumes interrupted transfers at launch, and this suite is
+        // offline by contract.
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-reset-backend-settings"]
+        app.launchArguments += ["--uitest-reset-backend-settings", "--uitest-disable-downloads"]
         app.launch()
 
         // Insert steps here to perform after app launch but before taking a screenshot,

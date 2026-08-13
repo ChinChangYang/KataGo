@@ -114,6 +114,13 @@ struct KataGo_iOSApp: App {
                 UITestSeed.seedIfNeeded()
                 #endif
             }
+            .task {
+                // Sweeps stale partials, reattaches to whatever the background
+                // daemon finished while we were gone, and resumes what was
+                // interrupted. Paused downloads are left alone by design. A
+                // no-op under `--uitest-disable-downloads`.
+                DownloadCenter.shared.restoreOnLaunch()
+            }
     }
 
     // This (old, cross-platform SwiftUI) app target now builds for iOS only:
@@ -135,6 +142,13 @@ struct KataGo_iOSApp: App {
     }
 
     var body: some Scene {
-        scene.modelContainer(SharedModelContainer.shared)
+        scene
+            .modelContainer(SharedModelContainer.shared)
+            // The system relaunches the app when a background transfer needs
+            // attention; this is where those events are drained. The app has
+            // never had a UIApplicationDelegate and does not gain one for it.
+            .backgroundTask(.urlSession(DownloadCenter.sessionIdentifier)) {
+                await DownloadCenter.shared.awaitBackgroundURLSessionEvents()
+            }
     }
 }

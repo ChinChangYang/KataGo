@@ -72,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.focusBoardOnLaunch()
         warnIfLibraryStorageUnavailable(in: wc)
 
+        // Sweep stale partials and resume anything a previous run left
+        // interrupted. macOS needs no background-relaunch handoff — the
+        // process is either running or gone.
+        DownloadCenter.shared.restoreOnLaunch()
+
         // Proactive identity hygiene (Issue 2): assign stable, unique, non-nil
         // uuids to CloudKit-synced records so the widget's AppIntents round-trip
         // can resolve a configured game by id. The in-app game list uses a plain

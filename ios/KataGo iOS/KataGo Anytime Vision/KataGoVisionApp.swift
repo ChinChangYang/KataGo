@@ -35,6 +35,14 @@ struct KataGoVisionApp: App {
         WindowGroup {
             VisionRootView()
                 .environment(engineLaunchStatus)
+                .task {
+                    // Sweeps stale partials, reattaches to whatever the
+                    // background daemon finished while we were gone, and
+                    // resumes what was interrupted. Paused downloads are
+                    // left alone by design. A no-op under
+                    // `--uitest-disable-downloads`.
+                    DownloadCenter.shared.restoreOnLaunch()
+                }
         }
         .windowStyle(.volumetric)
         // 19x19 board footprint is ~0.46 x 0.50 m; leave headroom for stones
@@ -45,5 +53,11 @@ struct KataGoVisionApp: App {
         // explicit 3D frame and the window adopts it via .contentSize.
         .windowResizability(.contentSize)
         .modelContainer(SharedModelContainer.shared)
+        // The system relaunches the app when a background transfer needs
+        // attention; this is where those events are drained. The app has
+        // never had a UIApplicationDelegate and does not gain one for it.
+        .backgroundTask(.urlSession(DownloadCenter.sessionIdentifier)) {
+            await DownloadCenter.shared.awaitBackgroundURLSessionEvents()
+        }
     }
 }
