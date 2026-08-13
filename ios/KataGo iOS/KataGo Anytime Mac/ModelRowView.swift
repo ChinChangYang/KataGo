@@ -6,9 +6,13 @@
 //
 //    • `ModelRowView` — a view-based `NSTableCellView` for one catalog model:
 //      bold title + secondary description, file size, a status area (Active
-//      badge / Downloaded / Not downloaded), and the trailing controls
-//      (download or set-active button, an inline progress bar + cancel while
-//      downloading, and a trash button for a downloaded non-built-in model).
+//      badge / Downloading… / Paused / Downloaded / Not downloaded), and the
+//      trailing controls (a download/resume or set-active button, an inline
+//      progress bar shown while downloading OR paused, a cancel button shown
+//      only while actively downloading, and a trash button for a downloaded
+//      non-built-in model). The button and the bar are visible TOGETHER only
+//      in the Paused state, so a dedicated constraint keeps the button from
+//      running under the bar (see `primaryButtonTrailingConstraint`).
 //      Mirrors the iOS `ModelDetailView` tri-state + `ModelTrashButton`.
 //
 //    • `ModelBackendPaneView` — the per-model engine-config detail pane,
@@ -38,12 +42,26 @@ final class ModelRowView: NSTableCellView {
     private let statusField = NSTextField(labelWithString: "")
     private let progressIndicator = NSProgressIndicator()
 
-    /// The primary trailing button: "Set Active" (downloaded) or a download
-    /// arrow (not downloaded). Hidden while downloading (the cancel button +
-    /// progress bar take over).
+    /// The primary trailing button: "Set Active" (downloaded), a download
+    /// arrow (not downloaded), or the same download arrow doubling as
+    /// "resume" (paused, with bytes already on disk — tapping it re-enters
+    /// `startDownload`, which the center resumes from where it stopped).
+    /// Hidden only while actively downloading, when the cancel button +
+    /// progress bar take over; visible ALONGSIDE the progress bar while
+    /// paused (see `primaryButtonTrailingConstraint`).
     private let primaryButton = NSButton()
     private let cancelButton = NSButton()
     private let trashButton = NSButton()
+
+    /// Caps `primaryButton`'s trailing edge at the progress bar's leading
+    /// edge. Only ACTIVATED for the Paused state, the one state where both
+    /// are visible at once (`configure(...)` toggles `isActive`); left
+    /// inactive everywhere else, so it cannot change the width the button
+    /// already shipped with when downloading/downloaded/active/not-downloaded
+    /// hide the bar. Without it, `primaryButton` has no trailing constraint at
+    /// all and its label runs directly under the bar — worse, since it is
+    /// added to the view AFTER the bar, it then draws on top of it.
+    private var primaryButtonTrailingConstraint: NSLayoutConstraint!
 
     /// Byte-count formatter for the file size, matching the macOS convention
     /// (the iOS app rolls its own `humanFileSize`; `ByteCountFormatter` is the
@@ -150,6 +168,11 @@ final class ModelRowView: NSTableCellView {
         cancelButton.setContentHuggingPriority(.required, for: .horizontal)
         trashButton.setContentHuggingPriority(.required, for: .horizontal)
 
+        // Built but left INACTIVE here — `configure(...)` activates it only
+        // for the Paused state. See the property doc.
+        primaryButtonTrailingConstraint = primaryButton.trailingAnchor.constraint(
+            lessThanOrEqualTo: progressIndicator.leadingAnchor, constant: -8)
+
         NSLayoutConstraint.activate([
             titleField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             titleField.topAnchor.constraint(equalTo: topAnchor, constant: 6),
@@ -242,6 +265,11 @@ final class ModelRowView: NSTableCellView {
         if isDownloading || isPaused {
             progressIndicator.doubleValue = download?.progress ?? 0
         }
+
+        // Paused is the only state where the button and the bar are both
+        // visible at once — cap the button's width only then, so every other
+        // state's layout is byte-for-byte what it was before Paused existed.
+        primaryButtonTrailingConstraint.isActive = isPaused
 
         primaryButton.isHidden = isDownloading
         if isAvailable {

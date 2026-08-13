@@ -147,6 +147,18 @@ final class MainWindowController: NSWindowController {
     /// relaunch.
     private var lastEyeStatus = EyeStatus.opened
 
+    /// Last-seen value of `DownloadCenter.shared.finishedGeneration`, so the
+    /// download-center observer can detect a fresh finish. Needed because
+    /// closing the Opening Books window no longer cancels a download (see
+    /// `OpeningBooksViewController.detachDownloadObservation`) — that window's
+    /// own `onBooksChanged()` hook only fires while its row observer is
+    /// attached, so a book finishing with the window closed, or never opened
+    /// at all, would otherwise stay unloaded with a stale eye state. Seeded in
+    /// `installDownloadCenterObserver()`; never re-seeded on relaunch, because
+    /// `DownloadCenter` is an app-wide singleton independent of the per-window
+    /// engine session.
+    private var lastDownloadFinishedGeneration = 0
+
     /// Last-seen value of `engineLifecycle.lastLoadedModelTitle`. The
     /// (property-agnostic) `withObservationTracking` callback diffs against this
     /// to detect the `nil -> non-nil` transition that signals the engine's first
@@ -362,6 +374,16 @@ final class MainWindowController: NSWindowController {
         // handlers. Installed before the engine starts so the first book load
         // isn't missed.
         installBookStateObserver()
+
+        // Reconciles a finished book download even when the Opening Books
+        // window is closed (or never opened) at the moment it completes —
+        // `OpeningBooksViewController`'s own `onBooksChanged()` hook only
+        // fires while that window's row observer is attached, and closing the
+        // window no longer cancels the transfer. `DownloadCenter` is an
+        // app-wide singleton, so this observer is independent of the engine
+        // session and installed unconditionally, like the others, before the
+        // engine starts.
+        installDownloadCenterObserver()
 
         // Clears the crash sentinel once the engine's first GTP response lands
         // (`engineLifecycle.lastLoadedModelTitle` goes `nil -> non-nil`). Installed
@@ -1995,6 +2017,66 @@ final class MainWindowController: NSWindowController {
         // refreshBookStateForSelectedGame (which forces .opened) all mutate
         // gobanState.eyeStatus, which this observer tracks, so they all land here.
         refreshEyeToolbarItem()
+    }
+
+    // MARK: - Download center observer
+    //
+    // Reconciles a finished book download against the active game even when
+    // the Opening Books window never sees it — its own `onBooksChanged()`
+    // fires only while that window's row observer is attached
+    // (`OpeningBooksViewController.attachDownloadObservation`/
+    // `detachDownloadObservation`), and closing the window no longer cancels
+    // the transfer, so a book that finishes downloading with the window
+    // closed (or never opened at all) would otherwise stay unloaded with a
+    // stale eye state. `DownloadCenter.finishedGeneration` and
+    // `.lastFinishedDestination` are written together in the same frame on
+    // every completed download (`DownloadCenter.swift`), so this observer
+    // dedups on the generation counter and resolves the finished destination
+    // against the opening-book catalog — a finished NETWORK download has no
+    // match there and is silently ignored. Mirrors the iOS
+    // `ContentView.onChange(of: DownloadCenter.shared.finishedGeneration)`
+    // handler.
+
+    /// Seeds the snapshot from the live state and starts the self-rescheduling
+    /// observation bridge for `DownloadCenter.shared.finishedGeneration`.
+    /// Called once in `init`, independent of the engine session, since
+    /// `DownloadCenter` is an app-wide singleton.
+    private func installDownloadCenterObserver() {
+        lastDownloadFinishedGeneration = DownloadCenter.shared.finishedGeneration
+        trackDownloadCenter()
+    }
+
+    /// One observation pass: tracks `finishedGeneration`, and on change re-reads
+    /// the committed value on the main actor, reacts, then re-arms.
+    private func trackDownloadCenter() {
+        withObservationTracking {
+            _ = DownloadCenter.shared.finishedGeneration
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleDownloadCenterChange()
+                self.trackDownloadCenter()
+            }
+        }
+    }
+
+    /// Detects a fresh finish against the snapshot, resolves the finished
+    /// destination against the opening-book catalog, and — only on a match —
+    /// reconciles the active game's book load + eye state via
+    /// `refreshBookStateForSelectedGame()`, the same reconciliation the
+    /// Opening Books window's `onBooksChanged()` triggers. A finished network
+    /// download resolves to no book and is ignored.
+    private func handleDownloadCenterChange() {
+        let newGeneration = DownloadCenter.shared.finishedGeneration
+        guard newGeneration != lastDownloadFinishedGeneration else { return }
+        lastDownloadFinishedGeneration = newGeneration
+
+        if let finished = DownloadCenter.shared.lastFinishedDestination,
+           OpeningBook.allCases.contains(where: {
+               $0.downloadedURL.standardizedFileURL == finished.standardizedFileURL
+           }) {
+            refreshBookStateForSelectedGame()
+        }
     }
 
     // MARK: - Move confirmation dialogs

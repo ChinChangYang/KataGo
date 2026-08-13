@@ -97,6 +97,17 @@ final class ModelsViewController: NSViewController {
     /// anything.
     private var observedFileNames: Set<String> = []
 
+    /// Bumped by `detachDownloadObservation()`. `withObservationTracking`
+    /// registers a ONE-SHOT observer with no way to unregister it early:
+    /// closing the window only clears `observedFileNames`, so an already-armed
+    /// observer chain stays armed until the `Download` next mutates. If the
+    /// window is reopened before that mutation, `attachDownloadObservation()`
+    /// arms a SECOND chain on top of the still-live first one. Each `rearm(...)`
+    /// closure captures the generation it was armed under and bails if it no
+    /// longer matches — severing the stale chain instead of letting it run
+    /// forever alongside the fresh one.
+    private var observationGeneration = 0
+
     /// Seam for the P5-T10 CoreML "Ready" badge. Empty until T10 lands; the row
     /// view already reads it, so T10 just populates this + reloads.
     private var readyFileNames: Set<String> = []
@@ -228,9 +239,11 @@ final class ModelsViewController: NSViewController {
         super.viewWillAppear()
         // Re-check the list and availability each time the window is shown (a
         // model may have been deleted/added since the last appearance).
+        // `attachDownloadObservation()` reloads the table itself, so this does
+        // not also call `reloadVisibleRows()` — one `reloadData()` per
+        // appearance, not two.
         rebuildRows()
         recomputeAvailability()
-        reloadVisibleRows()
         updateAddRemoveEnablement()
         attachDownloadObservation()
     }
@@ -304,12 +317,17 @@ final class ModelsViewController: NSViewController {
         reloadRow(for: model.fileName)
     }
 
-    /// Re-attaches the row mirror to every transfer already in flight. Called
-    /// when the window appears, because the window can be closed and reopened
-    /// while a download runs.
+    /// Re-attaches the row mirror to every transfer not already finished.
+    /// Called when the window appears, because the window can be closed and
+    /// reopened while a download runs. Tracks anything short of `.succeeded`
+    /// — not just `.transferring`/`.waiting` — so a download sitting in
+    /// `.interrupted` behind a retry back-off (or even `.idle`) still gets an
+    /// observer; `.idle` never mutates, so arming one costs nothing, but
+    /// skipping `.interrupted` would leave a retrying download's row dead
+    /// until the next close/reopen, since attach is the only re-entry point.
     func attachDownloadObservation() {
         for model in models {
-            guard let entry = download(for: model), entry.isBusy else { continue }
+            guard let entry = download(for: model), entry.state != .succeeded else { continue }
             track(entry, fileName: model.fileName)
         }
         reloadVisibleRows()
@@ -324,26 +342,33 @@ final class ModelsViewController: NSViewController {
     /// tidying up your windows.
     func detachDownloadObservation() {
         observedFileNames.removeAll()
+        observationGeneration += 1
     }
 
     private func track(_ entry: Download, fileName: String) {
         guard !observedFileNames.contains(fileName) else { return }
         observedFileNames.insert(fileName)
-        rearm(entry, fileName: fileName)
+        rearm(entry, fileName: fileName, generation: observationGeneration)
     }
 
     /// Self-rescheduling observation of one `Download`. Same
     /// `withObservationTracking` contract as `MainWindowController`: the
     /// callback fires once per change BEFORE the value commits, so we hop to a
     /// `Task { @MainActor }` to read the committed value and RE-ARM tracking
-    /// (otherwise observation stops after the first change).
-    private func rearm(_ entry: Download, fileName: String) {
+    /// (otherwise observation stops after the first change). `generation` is
+    /// the value `observationGeneration` held when this chain was armed; a
+    /// closure that fires after a later `detachDownloadObservation()` bumped
+    /// it belongs to a chain the window already left — bail rather than re-arm
+    /// a second, permanently duplicate chain alongside whatever `attach`
+    /// starts next.
+    private func rearm(_ entry: Download, fileName: String, generation: Int) {
         withObservationTracking {
             _ = entry.receivedBytes
             _ = entry.state
         } onChange: { [weak self, weak entry] in
             Task { @MainActor in
                 guard let self, let entry,
+                      generation == self.observationGeneration,
                       self.observedFileNames.contains(fileName) else { return }
 
                 self.reloadRow(for: fileName)
@@ -356,7 +381,7 @@ final class ModelsViewController: NSViewController {
                     }
                     return
                 }
-                self.rearm(entry, fileName: fileName)
+                self.rearm(entry, fileName: fileName, generation: generation)
             }
         }
     }

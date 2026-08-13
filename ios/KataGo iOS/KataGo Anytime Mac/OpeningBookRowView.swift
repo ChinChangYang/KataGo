@@ -3,10 +3,14 @@
 //  KataGo Anytime Mac
 //
 //  A view-based NSTableCellView for one downloadable opening book: bold title,
-//  file size, a status area (Downloaded / Downloading… / Not downloaded), and
-//  trailing controls (a download button, an inline progress bar + cancel while
-//  downloading, and a trash button for a downloaded book). The AppKit analogue
-//  of the iOS `OpeningBookDetailView` tri-state + `OpeningBookTrashButton`.
+//  file size, a status area (Downloading… / Paused / Downloaded / Not
+//  downloaded), and trailing controls (a download/resume button, an inline
+//  progress bar shown while downloading OR paused, a cancel button shown only
+//  while actively downloading, and a trash button for a downloaded book). The
+//  button and the bar are visible TOGETHER only in the Paused state, so a
+//  dedicated constraint keeps the button from running under the bar (see
+//  `primaryButtonTrailingConstraint`). The AppKit analogue of the iOS
+//  `OpeningBookDetailView` tri-state + `OpeningBookTrashButton`.
 //
 
 import AppKit
@@ -22,6 +26,16 @@ final class OpeningBookRowView: NSTableCellView {
     private let primaryButton = NSButton()
     private let cancelButton = NSButton()
     private let trashButton = NSButton()
+
+    /// Caps `primaryButton`'s trailing edge at the progress bar's leading
+    /// edge. Only ACTIVATED for the Paused state, the one state where both
+    /// are visible at once (`configure(...)` toggles `isActive`); left
+    /// inactive everywhere else, so it cannot change the width the button
+    /// already shipped with when downloading/downloaded/not-downloaded hide
+    /// the bar. Without it, `primaryButton` has no trailing constraint at all
+    /// and its label runs directly under the bar — worse, since it is added
+    /// to the view AFTER the bar, it then draws on top of it.
+    private var primaryButtonTrailingConstraint: NSLayoutConstraint!
 
     private static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -97,6 +111,11 @@ final class OpeningBookRowView: NSTableCellView {
         cancelButton.setContentHuggingPriority(.required, for: .horizontal)
         trashButton.setContentHuggingPriority(.required, for: .horizontal)
 
+        // Built but left INACTIVE here — `configure(...)` activates it only
+        // for the Paused state. See the property doc.
+        primaryButtonTrailingConstraint = primaryButton.trailingAnchor.constraint(
+            lessThanOrEqualTo: progressIndicator.leadingAnchor, constant: -8)
+
         NSLayoutConstraint.activate([
             titleField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             titleField.topAnchor.constraint(equalTo: topAnchor, constant: 6),
@@ -164,6 +183,11 @@ final class OpeningBookRowView: NSTableCellView {
         if isDownloading || isPaused {
             progressIndicator.doubleValue = download?.progress ?? 0
         }
+
+        // Paused is the only state where the button and the bar are both
+        // visible at once — cap the button's width only then, so every other
+        // state's layout is byte-for-byte what it was before Paused existed.
+        primaryButtonTrailingConstraint.isActive = isPaused
 
         // Download button only when not downloaded and not downloading.
         primaryButton.isHidden = isDownloading || isDownloaded

@@ -136,7 +136,13 @@ extension OpeningBook {
     }
 
     /// Create the books directory if needed and mark it excluded-from-backup.
-    /// `Downloader` does not create directories, so call this before downloading.
+    /// No download path calls this any more — `DownloadStaging.
+    /// prepareDestinationDirectory(for:)` creates the destination directory
+    /// (and applies this same backup exclusion, scoped to exactly this
+    /// directory) itself as part of installing a finished download, which is
+    /// also what makes a download survive a relaunch with no view around to
+    /// call this first. Kept for tests and fixtures that need the directory
+    /// to exist before touching `OpeningBook` file operations directly.
     @discardableResult
     public static func ensureBooksDirectory() throws -> URL {
         let dir = booksDirectory()
