@@ -3,8 +3,8 @@
 //  KataGo AnytimeTests
 //
 //  Pins the pure detail-page state behind the visionOS model detail view —
-//  the Vision mirror of iOS ModelDetailView: the tri-state primary button
-//  (activate / download / stop-with-progress), the trash affordance for
+//  the Vision mirror of iOS ModelDetailView: the shared four-role primary
+//  button (play / download / pause / resume), the trash affordance for
 //  downloaded non-built-in nets, and the size line (empty for the
 //  built-in, humanFileSize otherwise — ported here because iOS's
 //  formatter is app-target-private).
@@ -17,20 +17,22 @@ struct VisionModelDetailStateTests {
     private func make(isBuiltIn: Bool = false,
                       fileSize: Int = 863_846_339,
                       isDownloaded: Bool = false,
-                      isDownloading: Bool = false,
+                      downloadState: DownloadState = .idle,
+                      hasPartial: Bool = false,
                       isActive: Bool = false,
                       engineIsRunning: Bool = true) -> VisionModelDetailState {
         VisionModelDetailState.make(isBuiltIn: isBuiltIn,
                                     fileSize: fileSize,
                                     isDownloaded: isDownloaded,
-                                    isDownloading: isDownloading,
+                                    downloadState: downloadState,
+                                    hasPartial: hasPartial,
                                     isActive: isActive,
                                     engineIsRunning: engineIsRunning)
     }
 
     @Test func downloadedModelOffersActivate() {
         let state = make(isDownloaded: true)
-        #expect(state.primary == .activate)
+        #expect(state.primary == .play)
         #expect(state.primarySystemImage == "play.fill")
         #expect(!state.primaryDisabled)
         #expect(state.showsTrash)
@@ -38,7 +40,7 @@ struct VisionModelDetailStateTests {
 
     @Test func builtInCountsAsDownloaded() {
         let state = make(isBuiltIn: true)
-        #expect(state.primary == .activate)
+        #expect(state.primary == .play)
         #expect(!state.showsTrash)
         #expect(state.sizeText.isEmpty)
     }
@@ -52,15 +54,21 @@ struct VisionModelDetailStateTests {
     }
 
     @Test func downloadingOffersStop() {
-        let state = make(isDownloading: true)
-        #expect(state.primary == .stopDownload)
+        let state = make(downloadState: .transferring)
+        #expect(state.primary == .pause)
         #expect(state.primarySystemImage == "stop.circle")
+        #expect(!state.primaryDisabled)
+    }
+
+    @Test func aPausedDownloadWithBytesOffersResume() {
+        let state = make(downloadState: .paused, hasPartial: true)
+        #expect(state.primary == .resume)
         #expect(!state.primaryDisabled)
     }
 
     @Test func activateDisablesForTheActiveModel() {
         let state = make(isDownloaded: true, isActive: true)
-        #expect(state.primary == .activate)
+        #expect(state.primary == .play)
         #expect(state.primaryDisabled)
     }
 
@@ -68,7 +76,7 @@ struct VisionModelDetailStateTests {
         // R8: a restart's teardown can take minutes; activation must wait
         // for phase == .running (matching the Settings pickers).
         let state = make(isDownloaded: true, engineIsRunning: false)
-        #expect(state.primary == .activate)
+        #expect(state.primary == .play)
         #expect(state.primaryDisabled)
     }
 
