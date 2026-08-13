@@ -208,11 +208,20 @@ struct DownloadButtonRoleTests {
     }
 }
 
+@MainActor
 struct DownloadKillSwitchTests {
     // The UI-test target links no package products, so `PortraitUITestCase`
     // and `KataGo_iOSUITestsLaunchTests` spell this argument as a literal.
     // If the constant ever changes, the suite silently stops being inert and
     // starts issuing real network traffic — so pin the two together here.
+    //
+    // `DownloadCenter` is `@MainActor`, so its `static let` members inherit
+    // that isolation — this struct has to carry `@MainActor` too, or the
+    // `#expect` macro expansion cannot reference `disableLaunchArgument`
+    // from a nonisolated context. (House precedent: `GhostCursorModelTests`
+    // in this same target for the same reason.) Every other struct in this
+    // file stays nonisolated on purpose — the pure decision types it tests
+    // have no isolation of their own.
     @Test func theUITestLaunchArgumentMatchesTheLiteralTheSuiteUses() {
         #expect(DownloadCenter.disableLaunchArgument == "--uitest-disable-downloads")
     }
