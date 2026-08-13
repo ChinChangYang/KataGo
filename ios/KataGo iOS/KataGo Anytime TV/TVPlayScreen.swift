@@ -298,7 +298,13 @@ struct TVPlayScreen: View {
                 // navigation, and this screen has none): the amber rule just
                 // marks where the game stands. Fills in live — the record is
                 // unlocked, so every analysed move persists a score lead.
+                //
+                // And because it fills in live, it is gated: this screen forces
+                // the eye shut for ranked play and blanks its winrate/score
+                // text to em-dashes, so an ungated chart plotted the very
+                // dictionary that text was hiding. Mirrors iOS LinePlotView.
                 TVScoreChart(gameRecord: game,
+                             hidesHistoryWhenAnalysisOff: true,
                              currentIndex: displayIndex,
                              noHistoryMessage: nil,
                              reservesSpaceWhenEmpty: true)

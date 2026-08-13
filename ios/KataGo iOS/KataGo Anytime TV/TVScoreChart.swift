@@ -2,15 +2,26 @@
 //  TVScoreChart.swift
 //  KataGo Anytime TV
 //
-//  Dual-tone score-lead chart for the review panel: Black-leading regions fill
-//  dark above the zero baseline, White-leading regions fill light below, so
-//  who's ahead reads from across the room. Data is the per-move score-lead
-//  history recorded while reviewing on iPhone/iPad/Mac (GameRecord.scoreLeads,
-//  synced via CloudKit) — the TV only reads it, never writes, so the chart
-//  stays up regardless of the analysis toggle (only live engine outputs hide
-//  with it). A wood-amber rule marks the current move (legended by the
-//  adjacent "Move N" readout) and tracks D-pad stepping. Read-only: no
-//  selection or scrubbing (a focusable chart would fight section navigation).
+//  Dual-tone score-lead chart: Black-leading regions fill dark above the zero
+//  baseline, White-leading regions fill light below, so who's ahead reads from
+//  across the room. Data is the per-move score-lead history in
+//  GameRecord.scoreLeads — synced from iPhone/iPad/Mac, and on the play screen
+//  also written by the TV itself on every move. A wood-amber rule marks the
+//  current move (legended by the adjacent "Move N" readout) and tracks D-pad
+//  stepping. Read-only: no selection or scrubbing (a focusable chart would
+//  fight section navigation).
+//
+//  `hidesHistoryWhenAnalysisOff` is REQUIRED at every call site, with no
+//  default, because the right answer differs per screen and a silent default
+//  is how the play screen shipped ungated:
+//   - Play passes true. It forces the eye shut for ranked play and blanks its
+//     winrate/score text accordingly, so an ungated chart was the one place
+//     left that told the player who was winning.
+//   - Review and self-play pass false. Review INVERTS the rule — a closed eye
+//     there is what surfaces the persisted per-move numbers as a headline
+//     directly above this chart — so hiding the plot would contradict the
+//     number printed 40 pt higher. Self-play's eye is always open while it is
+//     mounted, so the flag would be inert anyway.
 //
 
 import SwiftUI
@@ -19,6 +30,10 @@ import KataGoUICore
 
 struct TVScoreChart: View {
     let gameRecord: GameRecord
+    /// Whether a closed eye hides the recorded history. No default — see the
+    /// file header; every call site must decide.
+    let hidesHistoryWhenAnalysisOff: Bool
+    @Environment(GobanState.self) private var gobanState
     /// The move the wood-amber rule marks. The review screen passes its display
     /// index (branch-aware, so the marker tracks variation stepping); nil falls
     /// back to the record's own mainline position.
@@ -66,20 +81,21 @@ struct TVScoreChart: View {
     }
 
     var body: some View {
-        // Persisted history is valid whether or not the engine is running, so
-        // the chart ignores the analysis toggle (keeping the panel layout
-        // stable). With no usable history (the game was never stepped through
-        // with analysis on iPhone/iPad/Mac — the common state for freshly
-        // synced games), an explanatory placeholder takes the chart's place
-        // instead of leaving a hole in the panel.
         let points = self.points
-        if points.count >= 2 || noHistoryMessage != nil || reservesSpaceWhenEmpty {
+        let presentation = ScoreChartVisibility.presentation(
+            eyeStatus: gobanState.eyeStatus,
+            honorsEyeStatus: hidesHistoryWhenAnalysisOff,
+            pointCount: points.count,
+            reservesSpaceWhenEmpty: reservesSpaceWhenEmpty,
+            hasNoHistoryMessage: noHistoryMessage != nil)
+
+        if presentation != .none {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Score Lead")
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    if points.count >= 2 {
+                    if presentation == .plot {
                         Spacer(minLength: 12)
                         // The legend for the current-move rule below: same
                         // accent, directly adjacent — no color-matching at a
@@ -90,28 +106,35 @@ struct TVScoreChart: View {
                             .foregroundStyle(Color.tvWoodAccent)
                     }
                 }
-                if points.count >= 2 {
+                switch presentation {
+                case .plot:
                     // 110 (was 160): the panel also hosts the Top Moves rows
                     // now, and the trend still reads fine at this height.
                     chart(points: points)
                         .frame(height: 110)
-                } else if reservesSpaceWhenEmpty {
-                    // Reserved plot slot — same 110 pt as the live chart so
-                    // the panel height is identical before and after the
-                    // history arrives. A gray rule echoes the chart's zero
-                    // baseline so the slot reads as "chart pending", not a
-                    // hole.
+                case .hiddenByEye, .awaitingHistory:
+                    // Reserved plot slot — same 110 pt as the live chart, so
+                    // the panel height is identical whether the history is
+                    // pending or withheld, and toggling the eye mid-game does
+                    // not reflow the panel. A gray rule echoes the chart's
+                    // zero baseline so the slot reads as a chart that is not
+                    // showing, rather than a hole.
                     Rectangle()
                         .fill(.gray)
                         .frame(height: 1)
                         .frame(height: 110)
-                } else if let noHistoryMessage {
-                    Text(noHistoryMessage)
+                case .noHistoryText:
+                    // Unreachable behind a closed eye by construction: the
+                    // ladder returns .hiddenByEye first, so this sync guidance
+                    // can never appear over a game whose history exists.
+                    Text(noHistoryMessage ?? "")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         // Wrap instead of truncating to one line (same tvOS
                         // trap as the panel title).
                         .fixedSize(horizontal: false, vertical: true)
+                case .none:
+                    EmptyView()
                 }
             }
         }
@@ -179,29 +202,43 @@ struct TVScoreChart: View {
 // #Preview bodies still compile in Release, and the TVPreviewData fixtures are
 // DEBUG-only — guard the whole section or archiving fails.
 #if DEBUG
-// Dense zero-crossing history: both tones, mid-game marker.
-#Preview("Chart — dense history") {
-    TVScoreChart(gameRecord: TVPreviewData.denseAnalyzedGame())
+@MainActor
+private func chartPreview(_ game: GameRecord,
+                          hidesHistoryWhenAnalysisOff: Bool = false,
+                          eyeStatus: EyeStatus = .opened) -> some View {
+    let gobanState = GobanState()
+    gobanState.eyeStatus = eyeStatus
+    return TVScoreChart(gameRecord: game,
+                        hidesHistoryWhenAnalysisOff: hidesHistoryWhenAnalysisOff,
+                        noHistoryMessage: nil,
+                        reservesSpaceWhenEmpty: true)
+        .environment(gobanState)
         .padding(28)
         .frame(width: 500)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
+}
+
+// Dense zero-crossing history: both tones, mid-game marker.
+#Preview("Chart — dense history") {
+    chartPreview(TVPreviewData.denseAnalyzedGame())
 }
 
 // Short six-point history — the sparse-but-visible lower bound.
 #Preview("Chart — sparse history") {
-    TVScoreChart(gameRecord: TVPreviewData.openingGame())
-        .padding(28)
-        .frame(width: 500)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
+    chartPreview(TVPreviewData.openingGame())
 }
 
-// No usable history: the explanatory placeholder takes the chart's place
-// (rendered regardless of the analysis toggle — persisted data never goes
-// stale, and a constant panel layout is the point).
+// No usable history: the reserved slot holds the panel height steady.
 #Preview("Chart — no history placeholder") {
-    TVScoreChart(gameRecord: TVPreviewData.untitledFallbackGame())
-        .padding(28)
-        .frame(width: 500)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26))
+    chartPreview(TVPreviewData.untitledFallbackGame())
+}
+
+// The play screen's default state: real history underneath, eye shut, so the
+// chart shows its reserved slot and no "Move N" legend. This is the fix —
+// compare against "dense history", which is the SAME record with the eye open.
+#Preview("Chart — hidden by a closed eye") {
+    chartPreview(TVPreviewData.denseAnalyzedGame(),
+                 hidesHistoryWhenAnalysisOff: true,
+                 eyeStatus: .closed)
 }
 #endif

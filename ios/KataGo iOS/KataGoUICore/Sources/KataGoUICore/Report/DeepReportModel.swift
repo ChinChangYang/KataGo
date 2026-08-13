@@ -35,6 +35,34 @@ public enum ReportConstants {
     /// Refine's budget-escalation ceiling: presses double the probe budgets
     /// until they reach maxBudgetMultiplier × the base budgets.
     public static let maxBudgetMultiplier = 8
+
+    // MARK: - Patience (see docs/adr/0006)
+
+    /// How often a starved stage re-checks for its first usable report line.
+    public static let probePollInterval: TimeInterval = 0.1
+    /// The most extra time ONE stage may buy past its floor. Bounded per stage
+    /// as well as per cycle so a single starved stage cannot drain the pool and
+    /// leave every later section unfunded — which would just move the missing
+    /// card rather than fix it.
+    public static let probePatienceCap: TimeInterval = 2.0
+    /// The whole cycle's extra-wait allowance, shared across stages.
+    ///
+    /// Sized off the one recorded on-device tvOS measurement (12.7 inf/s ≈
+    /// 79 ms per prediction, CPU+GPU, taken with the engine QUIT): a cold
+    /// probe's first SEARCHED move needs two dependent evals, ~160 ms
+    /// uncontended, which contention and thermals push to ~0.5–0.8 s — right
+    /// on the 1.0 s floor's cliff. A 2 s cap takes the effective window to 3 s,
+    /// several times the degraded need, and 6 s of pool covers a cycle in which
+    /// three separate stages are all starved. These are QA-tunable numbers, not
+    /// load-bearing ones: the per-stage poll counts are logged precisely so
+    /// they can be corrected from a real Apple TV instead of guessed at again.
+    public static let broadcastPatiencePool: TimeInterval = 6.0
+    /// A separate, much shorter allowance that starts when THIN evidence lands
+    /// (the stage reported something, but fewer moves than it asked for).
+    /// Measured from the moment thin evidence first appeared, not from the
+    /// start of the wait — a position with exactly one sensible move must not
+    /// spend the whole cap waiting for a second that will never come.
+    public static let thinEvidencePatience: TimeInterval = 1.0
 }
 
 /// Where the report's Alternative candidate came from.

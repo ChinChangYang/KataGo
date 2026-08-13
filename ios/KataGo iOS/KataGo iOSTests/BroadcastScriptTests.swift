@@ -82,6 +82,52 @@ struct BroadcastScriptTests {
         #expect(!BroadcastScript.factsMayGrow(kind: .alternative, model: model))  // settled
     }
 
+    // Guard tests for the kind-keyed cursor (new API — these pin the intended
+    // behaviour; the regression they protect is exercised end-to-end by
+    // BroadcastControllerTests.lateAlternativeNeverRebindsOrDuplicatesThePassCard).
+
+    @Test("The cursor holds the pass card until the Alternative slot is decided")
+    func cursorHoldsPassUntilAlternativeIsDecided() {
+        let model = fullModel()
+        model.candidates = [model.candidates[0]]     // snapshot ranked one move
+        model.stage = .passProbe                     // parity probe still to come
+        #expect(BroadcastScript.nextSlide(presented: [.best], model: model)
+                == .waiting(.alternative))
+
+        // Parity fills the slot: the Alternative is presented before the pass
+        // card, in reading order, even though the pass section landed first.
+        model.candidates.append(candidate("D4"))
+        #expect(BroadcastScript.nextSlide(presented: [.best], model: model)
+                == .ready(BroadcastScript.slide(of: .alternative, from: model)!))
+    }
+
+    @Test("A decided-absent Alternative releases the pass card instead of stalling")
+    func decidedAbsentAlternativeDoesNotStallTheCursor() {
+        let model = fullModel()
+        model.candidates = [model.candidates[0]]
+        model.stage = .tenuki(0)                     // past the section probes
+        #expect(BroadcastScript.nextSlide(presented: [.best], model: model)
+                == .ready(BroadcastScript.slide(of: .pass, from: model)!))
+    }
+
+    @Test("A position with no pass comparison finishes rather than waiting forever")
+    func noPassComparisonFinishes() {
+        let model = fullModel()
+        model.passComparison = nil
+        #expect(BroadcastScript.nextSlide(presented: [.best, .alternative], model: model)
+                == .finished)
+    }
+
+    @Test("A tenuki probe that returns nothing still releases its card's grow-pin")
+    func aSilentTenukiProbeReleasesTheGrowPin() {
+        let model = fullModel()
+        model.candidates[0] = candidate("Q16")       // probe landed nothing
+        model.stage = .tenuki(0)
+        #expect(BroadcastScript.factsMayGrow(kind: .best, model: model))
+        model.stage = .tenuki(1)                     // candidate 0's probe is over
+        #expect(!BroadcastScript.factsMayGrow(kind: .best, model: model))
+    }
+
     @Test func stageSettlement() {
         #expect(DeepReportModel.Stage.complete.isSettled)
         #expect(DeepReportModel.Stage.failed("x").isSettled)

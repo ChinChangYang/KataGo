@@ -140,7 +140,11 @@ public final class BroadcastController {
         self.rootWinrate = rootWinrate
         self.rootScore = rootScore
         self.generateReport = generateReport ?? { [messageList] model, game in
-            await DeepReportGenerator(messageList: messageList)
+            // .broadcast, not .standard: an unattended slideshow can afford to
+            // wait for a starved engine (its current slide is still typing),
+            // and on Apple TV at 19x19 the fixed floors alone were dropping the
+            // Alternative and Playing-vs-Passing cards outright (ADR 0006).
+            await DeepReportGenerator(messageList: messageList, budgets: .broadcast)
                 .generate(model: model, gameRecord: game)
         }
         self.sleeper = sleeper
@@ -428,7 +432,7 @@ public final class BroadcastController {
 
         // Overlap-at-snapshot: the slideshow starts as soon as the first
         // slide's data lands (~2 s), while pass/tenuki probes continue.
-        while BroadcastScript.slides(from: model).isEmpty && !model.stage.isSettled {
+        while case .waiting = BroadcastScript.nextSlide(presented: [], model: model) {
             if Task.isCancelled {
                 generation.cancel()
                 await generation.value
@@ -442,34 +446,60 @@ public final class BroadcastController {
         // profile: pacing scales how fast a cycle is narrated, never how much
         // of it is narrated (the deleted BroadcastPacing.maxSlideCount let
         // Fast drop the Alternative and Playing-vs-Passing slides outright).
-        var index = 0
-        while !Task.isCancelled {
-            let slides = BroadcastScript.slides(from: model)
-            if index >= slides.count {
-                if model.stage.isSettled { break }
+        //
+        // The cursor is keyed on slide KIND, never on a position in the slide
+        // array. The alternative-parity stage can take model.candidates 1 → 2
+        // AFTER the pass section already landed, which inserts a card BEHIND a
+        // positional cursor: the Alternative's facts then typed under the
+        // "Playing vs. Passing" title and the pass card was presented twice
+        // while the Alternative never appeared at all.
+        var presented: Set<BroadcastSlideKind> = []
+        var slideOrdinal = 0
+        presenting: while !Task.isCancelled {
+            switch BroadcastScript.nextSlide(presented: presented, model: model) {
+            case .finished:
+                break presenting
+            case .waiting:
+                // An earlier canonical card is still being probed. Holding
+                // preserves reading order (Best → Alternative → Playing vs.
+                // Passing) even though the pass section is probed first.
+                //
+                // A skip pressed during the hold is CONSUMED here, not banked.
+                // There is nothing left on screen to skip — the outgoing card
+                // has already finished typing — and a banked press would be
+                // spent the instant the awaited card appeared, blanking it
+                // before a character was typed. That would silently delete the
+                // very card this cursor exists to guarantee. Patience makes
+                // this hold long enough to be pressed into (ADR 0006).
+                skipRequested = false
                 try? await sleeper(BroadcastConstants.pollSeconds)
                 continue
+            case .ready(let slide):
+                phase = .slides(slideOrdinal)
+                slideOrdinal += 1
+                slideNumber = slideOrdinal
+                slideCount = max(BroadcastScript.slides(from: model).count, slideCount)
+                currentSlide = slide
+                // Constraint 5: the first frame lands in the SAME synchronous
+                // block — the early-genmove await below would otherwise render
+                // the new slide's title over the previous slide's terminal frame
+                // (a stray beat caption under "Best Move …").
+                currentFrame = BroadcastScript.frames(for: slide, model: model).first
+                presented.insert(slide.kind)
+                if model.stage.isSettled
+                    && BroadcastScript.nextSlide(presented: presented, model: model) == .finished
+                    && !genMoveIssued && replayAdvance == nil {
+                    // Early gen-move (grilled decision): sent as the FINAL slide
+                    // starts, so the reply lands invisibly (hero and panel both
+                    // show report content) and the stone appears the moment the
+                    // live board returns. Generation is settled — restore() ran.
+                    // "Final" is now "no kind is left to present", not an index
+                    // comparison against a list that could still grow.
+                    await generation.value
+                    issueGenMove(game: game)
+                }
+                await present(kind: slide.kind, model: model)
             }
-            phase = .slides(index)
-            slideNumber = index + 1
-            slideCount = max(slides.count, slideCount)
-            currentSlide = slides[index]
-            // Constraint 5: the first frame lands in the SAME synchronous
-            // block — the early-genmove await below would otherwise render
-            // the new slide's title over the previous slide's terminal frame
-            // (a stray beat caption under "Best Move …").
-            currentFrame = BroadcastScript.frames(for: slides[index], model: model).first
-            if model.stage.isSettled && index == slides.count - 1
-                && !genMoveIssued && replayAdvance == nil {
-                // Early gen-move (grilled decision): sent as the FINAL slide
-                // starts, so the reply lands invisibly (hero and panel both
-                // show report content) and the stone appears the moment the
-                // live board returns. Generation is settled — restore() ran.
-                await generation.value
-                issueGenMove(game: game)
-            }
-            await present(slideIndex: index, model: model)
-            index += 1
         }
 
         if Task.isCancelled {
@@ -535,7 +565,7 @@ public final class BroadcastController {
     /// setAlternative can replace model.candidates wholesale mid-show
     /// (resume-after-Undo + forced probe) — an unfrozen rebuild could flip
     /// the Δ/PV branch and reshape the list mid-drain.
-    private func present(slideIndex: Int, model: DeepReportModel) async {
+    private func present(kind: BroadcastSlideKind, model: DeepReportModel) async {
         typedText = ""
         spokenCharactersThisSlide = 0
         var elapsed: TimeInterval = 0
@@ -544,9 +574,8 @@ public final class BroadcastController {
         var frameCursor = 0
 
         func refreshFrames() {
-            let slides = BroadcastScript.slides(from: model)
-            guard slideIndex < slides.count else { return }
-            let fresh = BroadcastScript.frames(for: slides[slideIndex], model: model)
+            guard let slide = BroadcastScript.slide(of: kind, from: model) else { return }
+            let fresh = BroadcastScript.frames(for: slide, model: model)
             if frames.isEmpty
                 || (fresh.count > frames.count
                     && Array(fresh.prefix(frames.count)) == frames) {
@@ -585,9 +614,9 @@ public final class BroadcastController {
         }
 
         while !Task.isCancelled && !skipRequested {
-            let slides = BroadcastScript.slides(from: model)
-            guard slideIndex < slides.count else { break }
-            let slide = slides[slideIndex]
+            // Re-read by KIND, never by index: this is the read that used to
+            // pick up a different card when the array grew behind the cursor.
+            guard let slide = BroadcastScript.slide(of: kind, from: model) else { break }
             let facts = slide.facts
             refreshFrames()
             if factIndex < facts.count {

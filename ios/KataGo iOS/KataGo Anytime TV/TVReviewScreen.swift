@@ -452,7 +452,15 @@ struct TVReviewScreen: View {
                 // onMoveCommand consumes the D-pad); entry from below is
                 // natural focus movement. Works with analysis off (persisted
                 // values) and on the no-history placeholder alike.
-                TVScoreChart(gameRecord: game, currentIndex: displayIndex)
+                // NOT gated on the eye, deliberately: this screen inverts the
+                // play screen's rule. Closing the eye here is what makes the
+                // persisted per-move winrate/score appear as the headline just
+                // above, so blanking the plot would contradict the number
+                // printed 40 pt higher — and it would blank the scrubber's own
+                // playhead, which is this screen's navigation affordance.
+                TVScoreChart(gameRecord: game,
+                             hidesHistoryWhenAnalysisOff: false,
+                             currentIndex: displayIndex)
                     .padding(8)
                     .overlay {
                         RoundedRectangle(cornerRadius: 12)

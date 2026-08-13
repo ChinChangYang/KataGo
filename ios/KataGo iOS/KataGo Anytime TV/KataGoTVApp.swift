@@ -4,9 +4,12 @@
 //
 //  tvOS "Review & spectate" app: browse iCloud-synced games and watch live AI
 //  analysis on the big screen. The in-process engine loads both the built-in b18
-//  net and the human-SL net, running on CoreML/NE only. The ~2.1 GB Apple TV 4K
-//  (A12) per-process memory limit is the operational constraint; Phase-0 validation
-//  predates the second net and dual-net memory validation on device is pending.
+//  net and the human-SL net, on CoreML pinned to CPU+GPU — the ANE executes zero
+//  ops for this net on Apple TV, and merely allowing it degrades throughput (see
+//  CoreMLComputeHandleLoader). The ~2.1 GB Apple TV 4K (A12) per-process memory
+//  limit is the operational constraint; dual-net memory validation on device
+//  PASSED (2026-08-14), so both nets stay resident and the designed
+//  conditional-restart fallback was never needed.
 //
 
 import SwiftUI

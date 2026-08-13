@@ -142,6 +142,149 @@ struct BroadcastControllerTests {
         #expect(f.sent("kata-search_analyze_cancellable"))
     }
 
+    /// Regression: the presentation cursor must be keyed on slide KIND.
+    ///
+    /// The probe order is snapshot → pass → alternative-parity, so a snapshot
+    /// that ranks ONE move publishes `[.best, .pass]`, and the parity stage
+    /// then inserts the Alternative at position 1 — behind a positional
+    /// cursor. That used to type the Alternative's facts under the "Playing
+    /// vs. Passing" title and present the pass card a second time, so the
+    /// Alternative never appeared at all. Observed kinds were
+    /// `[.best, .pass, .pass]`.
+    @Test("A late Alternative never rebinds or duplicates the pass card")
+    func lateAlternativeNeverRebindsOrDuplicatesThePassCard() async {
+        final class Gate { var open = false }
+        let gate = Gate()
+
+        let f = Fixture(generate: { model, _ in
+            model.sideToMove = .black
+            model.boardWidth = 9
+            model.boardHeight = 9
+            model.moveNumber = 3
+            model.position = PositionSummary(winrate: 0.6, scoreLead: 2.0, visits: 200)
+            // ONE ranked candidate, with its tenuki already in hand so the
+            // Best card's factsMayGrow pin releases and the cursor advances.
+            model.candidates = [
+                CandidateReport(vertex: "E5", visits: 120, winrate: 0.6, scoreLead: 2.0,
+                                winrateDelta: 0, scoreLeadDelta: 0, pv: ["E5", "C3"],
+                                ownershipDelta: [:],
+                                tenuki: TenukiFollowUp(vertex: "C3", winrate: 0.65,
+                                                       scoreLead: 3.0, visits: 40, pv: ["C3"])),
+            ]
+            // The pass section lands BEFORE the alternative-parity stage.
+            model.passComparison = PassComparison(punishmentVertex: "E5", winrate: 0.35,
+                                                  scoreLead: -3.0, winrateDeltaVsBest: 0.25,
+                                                  scoreLeadDeltaVsBest: 5.0,
+                                                  ownershipDelta: [:], contestedPoints: [])
+            model.stage = .passProbe
+
+            var spins = 0
+            while !gate.open && spins < 20_000 {
+                await Task.yield()
+                spins += 1
+            }
+
+            // The parity stage fills the Alternative slot, growing the card
+            // list behind whatever the cursor is doing.
+            model.candidates.append(
+                CandidateReport(vertex: "C3", visits: 60, winrate: 0.58, scoreLead: 1.5,
+                                winrateDelta: -0.02, scoreLeadDelta: -0.5, pv: ["C3"],
+                                ownershipDelta: [BoardPoint(x: 2, y: 2): -0.4],
+                                tenuki: TenukiFollowUp(vertex: "E5", winrate: 0.6,
+                                                       scoreLead: 2.0, visits: 30, pv: ["E5"])))
+            model.stage = .complete
+        })
+
+        // Sample (slideNumber, kind) so a card presented twice is visible as
+        // two entries rather than collapsing into one.
+        var observed: [(Int, BroadcastSlideKind)] = []
+        func sample() {
+            guard let kind = f.controller.currentSlide?.kind else { return }
+            let entry = (f.controller.slideNumber, kind)
+            if observed.last?.0 != entry.0 || observed.last?.1 != entry.1 {
+                observed.append(entry)
+            }
+        }
+
+        f.controller.noteTurnChanged(game: f.record)
+
+        // Let the Best card be presented and the cursor reach the point where
+        // the old code would have bound index 1 to the pass card.
+        for _ in 0..<4_000 {
+            sample()
+            if observed.count >= 1 { break }
+            await Task.yield()
+        }
+        for _ in 0..<4_000 {
+            sample()
+            await Task.yield()
+        }
+        gate.open = true
+
+        for _ in 0..<20_000 {
+            sample()
+            if f.controller.phase == .awaitingMove { break }
+            await Task.yield()
+        }
+        sample()
+
+        #expect(observed.map(\.1) == [.best, .alternative, .pass])
+        #expect(Set(observed.map(\.1)).count == observed.count)
+    }
+
+    /// A skip pressed while the cursor HOLDS for a card that has not landed
+    /// yet must not be banked: the outgoing card has already finished, so
+    /// there is nothing to skip, and a banked press would be spent the instant
+    /// the awaited card appeared — blanking it before a character was typed.
+    /// Patience (ADR 0006) makes that hold seconds long, so a viewer pressing
+    /// into it is the normal case, not a corner one.
+    @Test("A skip pressed during a hold does not blank the awaited card")
+    func skipDuringAHoldIsNotBanked() async {
+        final class Gate { var open = false }
+        let gate = Gate()
+
+        let f = Fixture(generate: { model, _ in
+            BroadcastControllerTests.stageFullReport(model)
+            // Publish Best + pass only, with the Alternative slot still being
+            // probed — the state the cursor holds in.
+            let alternative = model.candidates[1]
+            model.candidates = [model.candidates[0]]
+            model.stage = .passProbe
+
+            var spins = 0
+            while !gate.open && spins < 20_000 {
+                await Task.yield()
+                spins += 1
+            }
+            model.candidates.append(alternative)
+            model.stage = .complete
+        })
+
+        f.controller.noteTurnChanged(game: f.record)
+        // Let the Best card be presented, then skip it so the cursor reaches
+        // the hold with the Alternative still outstanding.
+        await f.pump(until: { f.controller.isShowingSlides })
+        f.controller.skipSlide()
+        // Press again while nothing is advancing — the press a real viewer
+        // makes when the screen looks stuck.
+        for _ in 0..<400 { await Task.yield() }
+        f.controller.skipSlide()
+        for _ in 0..<400 { await Task.yield() }
+        gate.open = true
+
+        var typedOnAlternative = false
+        for _ in 0..<20_000 {
+            if f.controller.currentSlide?.kind == .alternative,
+               !f.controller.typedText.isEmpty {
+                typedOnAlternative = true
+            }
+            if f.controller.phase == .awaitingMove { break }
+            await Task.yield()
+        }
+
+        #expect(typedOnAlternative)
+    }
+
     @Test("First pass: no report segment, immediate gen-move")
     func firstPassSkipsReport() async {
         let f = Fixture()

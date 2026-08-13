@@ -71,3 +71,17 @@ semantics.
   common case, and never empty unless the snapshot itself failed.
 - Cancellation semantics are unchanged and stay exact, so the pause/skip
   paths and the broadcast's teardown keep working as before.
+
+## Amendment, 2026-08-13 (see docs/adr/0006)
+
+The "unconfirmed trigger" recorded above was subsequently diagnosed, and it was
+not an error path at all: the probes waited a **fixed wall-clock window** and a
+cold search on a 19×19 Apple TV board routinely expanded no root child inside
+it, so KataGo printed nothing and the section was simply never built. The
+hazard this ADR removed was real but was not what the tester was hitting.
+
+The partial-section semantics decided here are unchanged and still correct.
+What changes is their *meaning*: probes now end on evidence within a bounded
+patience pool, so **"silent within budget" is no longer an expected outcome**.
+A missing section now indicates a genuine engine failure rather than a slow
+one — which is what makes the log line above worth reading.

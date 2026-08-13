@@ -419,7 +419,12 @@ struct TVSelfPlayScreen: View {
                 // the panel never reflows — and never pushes the board off
                 // screen — when the second score lead lands mid-game; the
                 // review screen's sync guidance would be wrong here.
-                TVScoreChart(gameRecord: game, noHistoryMessage: nil,
+                // Ungated: nobody is playing this game, so there is nothing to
+                // spoil, and the eye is open for the whole broadcast anyway
+                // (startIfNeeded opens it; only the exit path closes it).
+                TVScoreChart(gameRecord: game,
+                             hidesHistoryWhenAnalysisOff: false,
+                             noHistoryMessage: nil,
                              reservesSpaceWhenEmpty: true)
             }
             .padding(16)

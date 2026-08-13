@@ -1419,6 +1419,10 @@ git commit -m "docs: tvOS play-vs-KataGo feature notes"
 
 - [ ] **Step 4: Device gates (the user's hardware — report, do not attempt on the simulator)**
 
+> **Correction, 2026-08-14: this gate PASSED on device.** Both nets stay
+> resident; the conditional-restart fallback below was never built and is not
+> needed. The original text is kept as written.
+
 **BLOCKING ship gate — dual-net memory validation on Apple TV 4K (A12):** a full 19×19 ranked game plus a review broadcast with both nets resident, judged by vmmap "Physical footprint (peak)" with headroom against the ~2.1 GB budget (reference: two b18-class nets ≈ 1.2 GB on iPad, but tvOS runs a different shape — single CoreML server thread `[100]`, batch 2, `.cpuAndGPU`). If it FAILS: implement the designed fallback before shipping — `TVEngineController.restartEngine` grows an include-human-net parameter and the app keeps the human net resident only around ranked play (the proven Max-Board-Size restart pattern; never two engines at once).
 
 **Manual QA checklist (Apple TV):**

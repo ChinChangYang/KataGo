@@ -15,6 +15,8 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Refine** — re-running the report's probes at a doubled budget (capped), preserving the user's pick.
 - **Visits** — the number of search playouts backing a candidate's evaluation; the report's proxy for how trustworthy a candidate's numbers are.
 - **Visit parity** — the report's contract that the Alternative is always evaluated by its own forced-candidate probe, regardless of origin (engine rank, smart default, or user pick), so its visits are in the same ballpark as the Best Move's and its numbers are equally trustworthy.
+- **Evidence** — what a probe is waiting for: a reply in which the engine actually *searched* something. A reply carrying only the engine's prior guesses is not evidence; it reports the position's own numbers under another move's name.
+- **Patience pool** — the extra time one report may spend, in total, waiting for evidence past its stages' fixed budgets. A property of the occasion, not of the position: an unattended TV slideshow has patience, a report sheet a person is watching has none.
 
 ## Broadcast
 
@@ -23,7 +25,8 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Replay mode** — the broadcast walking a recorded game; each cycle ends by playing the game's next recorded move instead of asking for one.
 - **Cycle** — one move's worth of broadcast: generate the study data for the current position, present its slides, then advance the game by one move.
 - **Slide** — one titled unit of a cycle, carrying an ordered list of fact sentences. Six kinds: *Best Move*, *Alternative*, *Playing vs Passing*, *Comment*, *Played pass*, *Game over*.
-- **Playing vs Passing slide** — the slide contrasting playing the best move with passing: what passing costs, where the opponent would punish, and which areas change hands. Present whenever the position's study data includes a pass comparison. It weighs a *hypothetical* pass — the side to move has not passed.
+- **Slide cursor** — how a cycle decides which slide comes next: by *kind*, in reading order, never by position in a list that is still being built. A slide whose turn has come but whose data has not yet landed is waited for; one whose data is settled and absent is skipped.
+- **Playing vs Passing slide** — the slide contrasting playing the best move with passing: what passing costs, where the opponent would punish, and which areas change hands. Present whenever the position has a pass comparison to make — an absent one means the engine could not evaluate the position, never that the broadcast ran out of time. It weighs a *hypothetical* pass — the side to move has not passed.
 - **Comment slide** — a slide whose facts are the human-written note attached to that move, rather than engine-derived sentences.
 - **Played-pass slide** — the slide reporting that the move the cycle just made *was* a pass. Reports what happened; the Playing vs Passing slide weighs what would happen.
 - **Game-over slide** — the terminal caption: both players have passed, so the game is over. At most one per game, and earnable again if the game returns to a live position.

@@ -34,7 +34,7 @@ public struct LinePlotView: View {
     }
 
     var scoreLeadPoints: [Point] {
-        if gobanState.eyeStatus == .closed {
+        if ScoreChartVisibility.isSeriesHidden(eyeStatus: gobanState.eyeStatus) {
             return []
         } else {
             return gameRecord.scoreLeads?.keys.sorted().compactMap { key in
@@ -93,7 +93,7 @@ public struct LinePlotView: View {
     }
 
     var currentPoint: Point? {
-        if gobanState.eyeStatus == .closed {
+        if ScoreChartVisibility.isSeriesHidden(eyeStatus: gobanState.eyeStatus) {
             return nil
         } else if let selectedMove, let selectedScoreLead {
             return Point(x: selectedMove, y: selectedScoreLead)

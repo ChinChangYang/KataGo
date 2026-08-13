@@ -12,7 +12,7 @@
 
 import Foundation
 
-public enum BroadcastSlideKind: Equatable, Sendable {
+public enum BroadcastSlideKind: Hashable, Sendable {
     case best
     case alternative
     case pass
@@ -35,7 +35,7 @@ public enum BroadcastSlideKind: Equatable, Sendable {
 /// One board-plus-facts segment of the broadcast. Board content lives in the
 /// slide's frame timeline (frames(for:model:)) — the slide itself carries
 /// only identity, title, and text.
-public struct BroadcastSlide {
+public struct BroadcastSlide: Equatable {
     public let kind: BroadcastSlideKind
     public let title: String
     public let facts: [String]
@@ -193,34 +193,126 @@ public extension DeepReportModel.Stage {
         case .idle, .snapshot, .passProbe, .tenuki, .narrating: return false
         }
     }
+
+    /// Both the pass comparison and the Alternative slot are decided: no later
+    /// stage can add either, so a cursor waiting on one may stop waiting.
+    ///
+    /// runProbes' order is snapshot → pass → alternative-parity → tenuki, and
+    /// the parity stage never assigns a stage value of its own (it probes
+    /// inside the .passProbe window), so the first stage value that proves
+    /// BOTH sections final is .tenuki(_). refine() keeps the same invariant.
+    var isPastSectionProbes: Bool {
+        switch self {
+        case .tenuki, .narrating, .complete, .failed, .cancelled: return true
+        case .idle, .snapshot, .passProbe: return false
+        }
+    }
+
+    /// True once the tenuki probe for `index` has run to completion, whether
+    /// or not it produced anything. A card waiting on that candidate's
+    /// continuation fact must consult this as well as the fact itself: a probe
+    /// that returns nil leaves `candidate.tenuki` nil forever, and a pin that
+    /// watched only the fact would hold the card until generation settled.
+    func hasFinishedTenukiProbe(index: Int) -> Bool {
+        switch self {
+        case .tenuki(let running): return running > index
+        case .narrating, .complete, .failed, .cancelled: return true
+        case .idle, .snapshot, .passProbe: return false
+        }
+    }
+}
+
+/// What the presentation cursor should do next. A cycle walks
+/// `canonicalSlideOrder` and asks for this — it never indexes into a list that
+/// is still being built (see `nextSlide(presented:model:)`).
+public enum NextBroadcastSlide: Equatable {
+    /// Present this card now.
+    case ready(BroadcastSlide)
+    /// An earlier canonical card has not landed yet but still may. Hold.
+    case waiting(BroadcastSlideKind)
+    /// Every canonical kind is either presented or decided-absent.
+    case finished
 }
 
 @MainActor
 public enum BroadcastScript {
-    public static func slides(from model: DeepReportModel) -> [BroadcastSlide] {
-        var slides: [BroadcastSlide] = []
-        if let best = model.candidates.first {
-            slides.append(BroadcastSlide(
+    /// The order the viewer expects, and the report sheet's own section order.
+    /// The cursor walks THIS. It is deliberately not "the order sections
+    /// landed": the pass probe runs BEFORE the alternative-parity probe, so
+    /// arrival order routinely disagrees with reading order, and passFacts
+    /// contrasts against the best move that the Alternative card just weighed.
+    public static let canonicalSlideOrder: [BroadcastSlideKind] = [.best, .alternative, .pass]
+
+    /// The one builder per kind. Deriving a card from its KIND rather than
+    /// from a position in an array is what stops a list that grows behind the
+    /// cursor from binding one card's title to another card's facts: the
+    /// alternative-parity stage can take `candidates` 1 → 2 after the pass
+    /// section already landed, which used to renumber every later card.
+    ///
+    /// Standalone kinds are built by BroadcastController and return nil here,
+    /// so they can never enter the cursor.
+    public static func slide(of kind: BroadcastSlideKind,
+                             from model: DeepReportModel) -> BroadcastSlide? {
+        switch kind {
+        case .best:
+            guard let best = model.candidates.first else { return nil }
+            return BroadcastSlide(
                 kind: .best,
                 title: "Best Move \(best.vertex)",
                 facts: ReportNarrator.positionFacts(from: model)
                     + ReportNarrator.candidateFacts(from: model, index: 0,
-                                                    includeContinuation: false)))
-        }
-        if model.candidates.count > 1 {
-            slides.append(BroadcastSlide(
+                                                    includeContinuation: false))
+        case .alternative:
+            guard model.candidates.count > 1 else { return nil }
+            return BroadcastSlide(
                 kind: .alternative,
                 title: "Alternative \(model.candidates[1].vertex)",
                 facts: ReportNarrator.candidateFacts(from: model, index: 1,
-                                                     includeContinuation: false)))
-        }
-        if model.passComparison != nil {
-            slides.append(BroadcastSlide(
+                                                     includeContinuation: false))
+        case .pass:
+            guard model.passComparison != nil else { return nil }
+            return BroadcastSlide(
                 kind: .pass,
                 title: "Playing vs. Passing",
-                facts: ReportNarrator.passFacts(from: model, split: true)))
+                facts: ReportNarrator.passFacts(from: model, split: true))
+        case .comment, .playedPass, .gameOver:
+            return nil
         }
-        return slides
+    }
+
+    /// A card that does not exist yet but whose section is still being probed.
+    /// False once the section is decided, so a position that genuinely has no
+    /// pass comparison never holds the cycle (ADR 0003: a dropped section is
+    /// absent, and absent must not mean "wait forever").
+    public static func mayStillLand(kind: BroadcastSlideKind,
+                                    model: DeepReportModel) -> Bool {
+        guard slide(of: kind, from: model) == nil else { return false }
+        guard !model.stage.isSettled else { return false }
+        switch kind {
+        case .best, .alternative, .pass:
+            return !model.stage.isPastSectionProbes
+        case .comment, .playedPass, .gameOver:
+            return false
+        }
+    }
+
+    /// The cursor. Walks canonical order, skipping kinds already presented and
+    /// kinds decided-absent, and holds on the first kind that has not landed
+    /// yet but still may.
+    public static func nextSlide(presented: Set<BroadcastSlideKind>,
+                                 model: DeepReportModel) -> NextBroadcastSlide {
+        for kind in canonicalSlideOrder where !presented.contains(kind) {
+            if let slide = slide(of: kind, from: model) { return .ready(slide) }
+            if mayStillLand(kind: kind, model: model) { return .waiting(kind) }
+        }
+        return .finished
+    }
+
+    /// Every canonical card that has landed so far, in canonical order.
+    /// Presentation does NOT walk this — it walks `nextSlide` — but the slide
+    /// COUNT (the progress dots) and the tests still want the list form.
+    public static func slides(from model: DeepReportModel) -> [BroadcastSlide] {
+        canonicalSlideOrder.compactMap { slide(of: $0, from: model) }
     }
 
     /// The slide's board choreography, in presentation order. Derived from
@@ -420,8 +512,10 @@ public enum BroadcastScript {
         switch kind {
         case .best:
             return model.candidates.first?.tenuki == nil
+                && !model.stage.hasFinishedTenukiProbe(index: 0)
         case .alternative:
             return model.candidates.count > 1 && model.candidates[1].tenuki == nil
+                && !model.stage.hasFinishedTenukiProbe(index: 1)
         case .pass:
             return false
         case .comment, .playedPass, .gameOver:

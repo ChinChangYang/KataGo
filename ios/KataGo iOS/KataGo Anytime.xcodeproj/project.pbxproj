@@ -367,6 +367,7 @@
 		912C2B6A0A78D12EAF0B0B6B /* DetachedRecordSpikeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84528D26087D073B7F44D0F /* DetachedRecordSpikeTests.swift */; };
 		91891DBEF07F1553186F53B1 /* BoardTextParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FDA0A4527D391ED1149209 /* BoardTextParserTests.swift */; };
 		91F43CB41EF60FFB7DE17527 /* port.cc in Sources */ = {isa = PBXBuildFile; fileRef = 719D1943C021CFA501FF9CF3 /* port.cc */; };
+		91FE4C44A58F1D13CA4380EE /* ScoreChartVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B70BF3598E1EFB0BF873597 /* ScoreChartVisibilityTests.swift */; };
 		923919A38F96C31748E774F2 /* default_gtp.cfg in Resources */ = {isa = PBXBuildFile; fileRef = E18F3F752A514B9700D335E1 /* default_gtp.cfg */; };
 		927E03B4C0107D731E9907E4 /* GifPreviewTimingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B634BA3BD420241BA41CD1 /* GifPreviewTimingTests.swift */; };
 		92AF3081FDE087198819CCDC /* WatchLibraryPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98FF59F6685696E7A87A8101 /* WatchLibraryPage.swift */; };
@@ -868,6 +869,7 @@
 		F9198795138AD9BC31D2C753 /* StoneRenderPerfTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1273EBF32E596BD4360CD12F /* StoneRenderPerfTests.swift */; };
 		F979745D76CA700E059779B1 /* ostringstream.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDEE19300417942D1C2D57DA /* ostringstream.cc */; };
 		FA5430856C8BDD6E5742B95C /* StorageWriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 173B40EDB188F4C5507FD264 /* StorageWriter.cpp */; };
+		FA779A44A97DBF4BB8699E55 /* DeepReportPatienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B224E55570498D6A80126F2 /* DeepReportPatienceTests.swift */; };
 		FA97856F39DFD6A0067F7963 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A81F4103D02B5507AC828451 /* main.cpp */; };
 		FB012692B20C7765AA97DA3D /* Converter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6B854DB5E08ABE9A30321B1D /* Converter.cpp */; };
 		FB0B1590EBA7CACFEFD6379D /* arenastring.cc in Sources */ = {isa = PBXBuildFile; fileRef = BBD71F9CEBCF66E2F3E777D4 /* arenastring.cc */; };
@@ -1175,6 +1177,7 @@
 		098B90970A3612EEF180A94B /* throw_delegate.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = throw_delegate.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/throw_delegate.cc"; sourceTree = SOURCE_ROOT; };
 		0A5190F0628EA555C14C7E9F /* mlxspike.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxspike.cpp; sourceTree = "<group>"; };
 		0A85319AE10A8198A3117ADE /* mutex.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mutex.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/mutex.cc"; sourceTree = SOURCE_ROOT; };
+		0B224E55570498D6A80126F2 /* DeepReportPatienceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportPatienceTests.swift; sourceTree = "<group>"; };
 		0B40E0A9D40BE4F1BFF2939B /* arg.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arg.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/arg.cc"; sourceTree = SOURCE_ROOT; };
 		0B97CBCA2D182D04BD7662F8 /* GameRecordDraftCopyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameRecordDraftCopyTests.swift; sourceTree = "<group>"; };
 		0BFB7BA5DF019CBB7D997242 /* VisionBranchConfirmTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBranchConfirmTests.swift; sourceTree = "<group>"; };
@@ -1333,6 +1336,7 @@
 		59FF3528498B725719949971 /* chart.js */ = {isa = PBXFileReference; includeInIndex = 1; name = chart.js; path = KataGoAnytimeSafariExtIOS/Resources/chart.js; sourceTree = "<group>"; };
 		5AD3106389746904F6A9BE88 /* WatchWidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchWidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		5B0269EB029E1950EA4F042D /* SgfReplayDifferentialTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfReplayDifferentialTests.swift; sourceTree = "<group>"; };
+		5B70BF3598E1EFB0BF873597 /* ScoreChartVisibilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScoreChartVisibilityTests.swift; sourceTree = "<group>"; };
 		5BC90D2428AF82C6B40615DA /* SavedGameProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SavedGameProviderTests.swift; sourceTree = "<group>"; };
 		5C4E95A95BD9FCFF980A2DE4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = KataGoAnytimeMessages/Info.plist; sourceTree = "<group>"; };
 		5C7BF8BD587C7DDD7EB43CA5 /* seed_material.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = seed_material.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/random/internal/seed_material.cc"; sourceTree = SOURCE_ROOT; };
@@ -3321,6 +3325,8 @@
 				EF987602E6E5E2CB2C9178FE /* DownloadDecisionTests.swift */,
 				EB31F0E188D891722638FADE /* DownloadStagingTests.swift */,
 				0D5DD4B828D82F5889AC5D57 /* DownloadCenterTests.swift */,
+				5B70BF3598E1EFB0BF873597 /* ScoreChartVisibilityTests.swift */,
+				0B224E55570498D6A80126F2 /* DeepReportPatienceTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = SOURCE_ROOT;
@@ -4862,6 +4868,8 @@
 				36EB94CC6A5853DF39697C64 /* DownloadDecisionTests.swift in Sources */,
 				558B16FAE6A4BD6E70819A42 /* DownloadStagingTests.swift in Sources */,
 				1B0ABC12F41A0B99386B2DF7 /* DownloadCenterTests.swift in Sources */,
+				91FE4C44A58F1D13CA4380EE /* ScoreChartVisibilityTests.swift in Sources */,
+				FA779A44A97DBF4BB8699E55 /* DeepReportPatienceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

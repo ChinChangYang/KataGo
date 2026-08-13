@@ -36,27 +36,55 @@ public struct ReportBudgets: Sendable {
     public let pass: TimeInterval
     public let tenuki: TimeInterval
     public let candidateCount: Int
+    /// Extra wall-clock the WHOLE probe pipeline may spend waiting for
+    /// evidence past the fixed floors above (docs/adr/0006). Zero restores the
+    /// pre-patience behaviour byte for byte — same commands, same sleeper-call
+    /// sequence — which is what `.standard` keeps.
+    public let patiencePool: TimeInterval
 
     public init(snapshot: TimeInterval, pass: TimeInterval,
-                tenuki: TimeInterval, candidateCount: Int) {
+                tenuki: TimeInterval, candidateCount: Int,
+                patiencePool: TimeInterval = 0) {
         self.snapshot = snapshot
         self.pass = pass
         self.tenuki = tenuki
         self.candidateCount = candidateCount
+        self.patiencePool = patiencePool
     }
 
+    /// The iOS/macOS Deep Analysis Report: an interactive sheet with a spinner
+    /// and a human waiting, documented as a "~5 s quick report". It keeps ZERO
+    /// patience — the starvation this exists to fix is a tvOS problem (iPhone
+    /// runs ~70 visits/s, nowhere near the cliff), and slowing a hand-driven
+    /// sheet to fix a TV bug would be a straight regression.
     public static let standard = ReportBudgets(snapshot: ReportConstants.snapshotBudget,
                                                pass: ReportConstants.passBudget,
                                                tenuki: ReportConstants.tenukiBudget,
                                                candidateCount: ReportConstants.candidateCount)
 
+    /// The tvOS broadcast: an unattended slideshow whose current slide is still
+    /// typing (6 s minimum per slide) while later stages probe, so patience is
+    /// hidden rather than felt. Deliberately NOT a function of the pacing
+    /// profile: making patience a speed knob is exactly the deleted
+    /// `maxSlideCount` bug — a speed control silently deciding how much
+    /// analysis the viewer gets.
+    public static let broadcast = ReportBudgets(
+        snapshot: ReportConstants.snapshotBudget,
+        pass: ReportConstants.passBudget,
+        tenuki: ReportConstants.tenukiBudget,
+        candidateCount: ReportConstants.candidateCount,
+        patiencePool: ReportConstants.broadcastPatiencePool)
+
     /// Refine's escalated budgets: wall-clock stages scale linearly (visits
-    /// scale with time), candidateCount stays fixed.
+    /// scale with time), candidateCount stays fixed. The pool is NOT scaled —
+    /// it is an allowance for a starved engine, not a depth control, and
+    /// multiplying it by 8 would let one refine press wait a minute.
     public func scaled(by factor: Int) -> ReportBudgets {
         ReportBudgets(snapshot: snapshot * TimeInterval(factor),
                       pass: pass * TimeInterval(factor),
                       tenuki: tenuki * TimeInterval(factor),
-                      candidateCount: candidateCount)
+                      candidateCount: candidateCount,
+                      patiencePool: patiencePool)
     }
 }
 
@@ -71,6 +99,25 @@ struct ReportError: Error {
     }
 }
 
+/// How usable a stage's landed report line is. GRADED, not boolean, because
+/// "a line arrived" is not evidence that anything was searched.
+///
+/// KataGo prints prior-only entries with `visits 0` whose scoreLead is the
+/// ROOT's verbatim and whose PV is just the move itself
+/// (cpp/search/searchresults.cpp:917-937), and `filterZeroVisitMoves` cannot
+/// suppress them because it takes its buffer BY VALUE
+/// (cpp/command/gtp.cpp:746) — it filters a copy. Terminating a wait on such a
+/// line would put the position's own numbers on an Alternative card, dressed
+/// as an evaluation of a different move. That is worse than an absent card.
+private enum ProbeEvidence: Equatable {
+    /// Nothing searched yet. Wait to the full allowance.
+    case none
+    /// Something searched, but fewer moves than the stage asked for.
+    case thin
+    /// Enough. Stop now.
+    case sufficient
+}
+
 @MainActor
 public final class DeepReportGenerator {
     private let messageList: MessageList
@@ -80,6 +127,18 @@ public final class DeepReportGenerator {
     private var outstandingPlays = 0
     private var priorObserver: ((String) -> Void)?
     private var reportSideSymbol = "b"
+    /// What is left of `budgets.patiencePool` this probe session. Reset per
+    /// pipeline run, decremented by what each stage actually spends, so the
+    /// worst-case cycle is "floors + pool" — one number, rather than the
+    /// per-stage ceiling multiplied by the number of stages.
+    private var remainingPatience: TimeInterval = 0
+    /// Memoized `searchedMoveCount` input/output. The snapshot reports at
+    /// interval 50 (0.5 s) while the poll runs at 0.1 s, so 4 of every 5 polls
+    /// would otherwise re-parse a byte-identical string — two 361-float arrays
+    /// plus 8 movesOwnership blocks at 19x19, on the main actor of a device
+    /// that is already starved.
+    private var evidenceCacheLine: String?
+    private var evidenceCacheCount = 0
 
     public init(messageList: MessageList,
                 budgets: ReportBudgets = .standard,
@@ -131,6 +190,11 @@ public final class DeepReportGenerator {
                                   body: () async throws -> Void) async throws {
         collector.reset()
         outstandingPlays = 0
+        // The pool is per probe SESSION, so a broadcast cycle's worst case is
+        // "floors + pool" no matter how many stages are starved, and a refine
+        // press starts from a full pool rather than inheriting a drained one.
+        remainingPatience = budgets.patiencePool
+        evidenceCacheLine = nil
         priorObserver = session.lineObserver
         let collector = self.collector
         session.lineObserver = { line in collector.ingest(line: line) }
@@ -166,7 +230,8 @@ public final class DeepReportGenerator {
         // ownership. The ONE fatal stage (ADR 0003): no candidates means there
         // is no report, so this throw is not isolated.
         model.stage = .snapshot
-        let snapshot = try await snapshotProbe(budget: budgets.snapshot, parser: parser)
+        let snapshot = try await snapshotProbe(budget: budgets.snapshot, parser: parser,
+                                               width: width, height: height)
         let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
                                          width: width, height: height)
 
@@ -221,6 +286,108 @@ public final class DeepReportGenerator {
         // ends on the cooperative check so a cancel landing between stages
         // still aborts the whole report.
         try Task.checkCancellation()
+    }
+
+    // MARK: - The wait primitive
+
+    /// Waits for a probe stage's first USABLE report line, then stops the
+    /// analyze and reads it (docs/adr/0006).
+    ///
+    /// FLOOR FIRST, then patience. The stage's fixed budget always elapses
+    /// exactly as before; only past it does the stage keep waiting, and only
+    /// while it is still starved. Three reasons the floor stays:
+    ///
+    /// 1. A line that lands at 50 ms is worthless — on Apple TV the first
+    ///    emittable line costs about one NN eval because the search stores a
+    ///    child pointer BEFORE descending into it, so stopping there yields a
+    ///    candidate with no completed visits (see ProbeEvidence).
+    /// 2. Blast radius: whenever today's code already worked, this is provably
+    ///    inert — same commands, same sleeper-call sequence, same timings.
+    /// 3. Test seam: every scripted test feeds replies indexed by sleeper-call
+    ///    count, and with a zero pool the poll loop consumes no sleeper calls.
+    private func awaitProbeLine(stage: ReportStage,
+                                label: String,
+                                budget: TimeInterval,
+                                evidence: (String) -> ProbeEvidence) async throws -> String? {
+        try await sleeper(budget)
+        try checkEngineError()
+
+        // Poll counts are INTEGERS: accumulating 0.1 ten times is
+        // 0.9999999999999999, which would silently buy an extra poll.
+        let allowance = min(ReportConstants.probePatienceCap, remainingPatience)
+        let patiencePolls = Int((allowance / ReportConstants.probePollInterval).rounded())
+        let thinPolls = Int((ReportConstants.thinEvidencePatience
+                             / ReportConstants.probePollInterval).rounded())
+        var polls = 0
+        var pollsSinceThin: Int?
+        var quality = ProbeEvidence.none
+
+        while true {
+            quality = collector.latestLine(for: stage).map(evidence) ?? .none
+            if quality == .sufficient { break }
+            if quality == .thin, pollsSinceThin == nil { pollsSinceThin = 0 }
+            // Thin evidence gets its own, much shorter allowance, measured
+            // from when it appeared — a position with one sensible move must
+            // not spend the whole cap waiting for a second that never comes.
+            if let sinceThin = pollsSinceThin, sinceThin >= thinPolls { break }
+            if polls >= patiencePolls { break }
+            // Belt and braces: the real sleeper is Task.sleep and throws on
+            // cancel, but an injected non-throwing sleeper must not let this
+            // loop run to the ceiling after a pause or a Menu exit.
+            try Task.checkCancellation()
+            try await sleeper(ReportConstants.probePollInterval)
+            polls += 1
+            if pollsSinceThin != nil { pollsSinceThin! += 1 }
+            try checkEngineError()
+        }
+
+        let spent = TimeInterval(polls) * ReportConstants.probePollInterval
+        remainingPatience = max(0, remainingPatience - spent)
+        if patiencePolls > 0 || polls > 0 {
+            // The whole point of shipping instrumentation with the fix: these
+            // numbers say whether the pool is sized right on real hardware,
+            // which nothing in the simulator can tell us.
+            log.notice("""
+                Probe \(label, privacy: .public): waited \(polls, privacy: .public) extra polls \
+                (\(spent, privacy: .public)s of \(allowance, privacy: .public)s allowed, \
+                \(self.remainingPatience, privacy: .public)s pool left), \
+                evidence \(String(describing: quality), privacy: .public)
+                """)
+        }
+
+        send("stop", stage: nil)
+        // Let a final in-flight report line cross the pipe before reading, and
+        // judge THAT line rather than reusing the loop's verdict — a better
+        // line arriving during the grace still wins, as it always has.
+        try await sleeper(ReportConstants.stopGrace)
+        guard let line = collector.latestLine(for: stage) else { return nil }
+        // A line in which nothing was searched is not a result. Handing it back
+        // would let the caller publish the ROOT's own numbers as an evaluation
+        // of some other move — a fabricated section, which ADR 0003 is explicit
+        // is worse than an absent one.
+        guard evidence(line) != .none else {
+            log.notice("""
+                Probe \(label, privacy: .public): only prior-only entries landed; \
+                treating as silence.
+                """)
+            return nil
+        }
+        return line
+    }
+
+    /// Moves in a report line that were actually SEARCHED. Routed through
+    /// `rankedEntries` so this count can never disagree with what
+    /// `buildCandidates` will keep.
+    private func searchedMoveCount(_ line: String, parser: AnalysisLineParser,
+                                   width: Int, height: Int) -> Int {
+        if let cached = evidenceCacheLine, cached == line { return evidenceCacheCount }
+        let parsed = parser.parse(message: line)
+        let count = rankedEntries(in: parsed, width: width, height: height)
+            .filter { $0.info.visits > 0 }
+            .count
+        evidenceCacheLine = line
+        evidenceCacheCount = count
+        return count
     }
 
     /// Runs one NON-FATAL probe stage (ADR 0003): a failure drops only that
@@ -279,7 +446,8 @@ public final class DeepReportGenerator {
         let preservedSource = model.alternativeSource
 
         model.stage = .snapshot
-        let snapshot = try await snapshotProbe(budget: scaled.snapshot, parser: parser)
+        let snapshot = try await snapshotProbe(budget: scaled.snapshot, parser: parser,
+                                               width: width, height: height)
         let position = try applySnapshot(snapshot, model: model, sideToMove: sideToMove,
                                          width: width, height: height)
         // applySnapshot just replaced the candidates with the snapshot's own
@@ -506,12 +674,15 @@ public final class DeepReportGenerator {
     /// fails immediately, because repeating a command the engine just
     /// rejected only burns another budget.
     private func snapshotProbe(budget: TimeInterval,
-                               parser: AnalysisLineParser) async throws -> ParsedAnalysis {
-        if let line = try await snapshotAttempt(budget: budget) {
+                               parser: AnalysisLineParser,
+                               width: Int, height: Int) async throws -> ParsedAnalysis {
+        if let line = try await snapshotAttempt(budget: budget, parser: parser,
+                                                width: width, height: height) {
             return parser.parse(message: line)
         }
         log.notice("Snapshot probe was silent; retrying once before failing the report.")
-        guard let line = try await snapshotAttempt(budget: budget) else {
+        guard let line = try await snapshotAttempt(budget: budget, parser: parser,
+                                                   width: width, height: height) else {
             throw ReportError("The engine produced no analysis for this position.")
         }
         return parser.parse(message: line)
@@ -519,17 +690,25 @@ public final class DeepReportGenerator {
 
     /// One snapshot analyze window. nil = the engine stayed silent; throws only
     /// on a genuine engine error or cancellation.
-    private func snapshotAttempt(budget: TimeInterval) async throws -> String? {
+    ///
+    /// This is the only stage that wants MORE than one searched move: the
+    /// Alternative card exists only if the snapshot ranked at least two, so a
+    /// starved 19x19 snapshot that expands exactly one child costs a card
+    /// without failing anything.
+    private func snapshotAttempt(budget: TimeInterval,
+                                 parser: AnalysisLineParser,
+                                 width: Int, height: Int) async throws -> String? {
         collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-set-param maxVisits \(GtpCommandBuilder.unboundedMaxVisits)", stage: nil)
         send("kata-analyze interval \(ReportConstants.probeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
              stage: .snapshot)
-        try await sleeper(budget)
-        try checkEngineError()
-        send("stop", stage: nil)
-        // Let a final in-flight report line cross the pipe before reading.
-        try await sleeper(ReportConstants.stopGrace)
-        return collector.latestLine(for: .snapshot)
+        return try await awaitProbeLine(stage: .snapshot, label: "snapshot",
+                                        budget: budget) { [budgets] line in
+            let searched = self.searchedMoveCount(line, parser: parser,
+                                                  width: width, height: height)
+            if searched >= budgets.candidateCount { return .sufficient }
+            return searched > 0 ? .thin : .none
+        }
     }
 
     /// Commits a snapshot to the model: position summary, the ranked-entry +
@@ -570,12 +749,14 @@ public final class DeepReportGenerator {
         collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-analyze \(oppSymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
              stage: .passProbe)
-        try await sleeper(budget)
-        try checkEngineError()
-        send("stop", stage: nil)
-        // Let a final in-flight report line cross the pipe before reading.
-        try await sleeper(ReportConstants.stopGrace)
-        if let passLine = collector.latestLine(for: .passProbe) {
+        // One searched move IS the whole section: buildPassComparison needs
+        // rootInfo plus the top entry, nothing more.
+        let landed = try await awaitProbeLine(stage: .passProbe, label: "pass",
+                                              budget: budget) { line in
+            self.searchedMoveCount(line, parser: parser, width: width, height: height) > 0
+                ? .sufficient : .none
+        }
+        if let passLine = landed {
             let passParsed = parser.parse(message: passLine)
             model.passComparison = buildPassComparison(passParsed: passParsed,
                                                        snapshot: snapshot,
@@ -618,16 +799,18 @@ public final class DeepReportGenerator {
     private func forcedCandidateProbe(vertex: String,
                                       budget: TimeInterval,
                                       mySymbol: String,
-                                      parser: AnalysisLineParser) async throws -> ParsedAnalysis? {
+                                      parser: AnalysisLineParser,
+                                      width: Int, height: Int) async throws -> ParsedAnalysis? {
         collector.clearError()   // this probe's own error window (ADR 0003)
         send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) allow \(mySymbol) \(vertex) 1 maxmoves \(ReportConstants.probeMaxMoves) ownership true movesOwnership true rootInfo true",
              stage: .forcedCandidate)
-        try await sleeper(budget)
-        try checkEngineError()
-        send("stop", stage: nil)
-        // Let a final in-flight report line cross the pipe before reading.
-        try await sleeper(ReportConstants.stopGrace)
-        guard let line = collector.latestLine(for: .forcedCandidate) else { return nil }
+        let landed = try await awaitProbeLine(stage: .forcedCandidate,
+                                              label: "alternative-parity",
+                                              budget: budget) { line in
+            self.searchedMoveCount(line, parser: parser, width: width, height: height) > 0
+                ? .sufficient : .none
+        }
+        guard let line = landed else { return nil }
         return parser.parse(message: line)
     }
 
@@ -642,7 +825,8 @@ public final class DeepReportGenerator {
                                        width: Int, height: Int) async throws -> AnalysisInfo? {
         guard vertex != "pass",
               let parsed = try await forcedCandidateProbe(vertex: vertex, budget: budget,
-                                                          mySymbol: mySymbol, parser: parser)
+                                                          mySymbol: mySymbol, parser: parser,
+                                                          width: width, height: height)
         else { return nil }
         return rankedEntries(in: parsed, width: width, height: height)
             .first(where: { $0.vertex == vertex })?.info
@@ -660,14 +844,16 @@ public final class DeepReportGenerator {
         outstandingPlays = 1
         send("kata-analyze \(mySymbol) interval \(ReportConstants.coldProbeInterval) maxmoves \(ReportConstants.probeMaxMoves) ownership true rootInfo true",
              stage: .tenuki(index))
-        try await sleeper(budget)
-        try checkEngineError()
-        send("stop", stage: nil)
-        // Let a final in-flight report line cross the pipe before reading;
-        // the undo (which yanks the cold tree out) must still always follow,
-        // whether or not a line landed.
-        try await sleeper(ReportConstants.stopGrace)
-        let line = collector.latestLine(for: .tenuki(index))
+        // awaitProbeLine can throw (cancellation, engine error) between the
+        // `play` above and the `undo` below, exactly as the bare sleep it
+        // replaces could; the probe session's restore() still owns
+        // outstandingPlays on every exit path.
+        let line = try await awaitProbeLine(stage: .tenuki(index),
+                                            label: "tenuki \(index)",
+                                            budget: budget) { line in
+            self.searchedMoveCount(line, parser: parser, width: width, height: height) > 0
+                ? .sufficient : .none
+        }
         send("undo", stage: nil)
         outstandingPlays = 0
         guard let line else { return nil }
