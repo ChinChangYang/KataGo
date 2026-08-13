@@ -134,7 +134,7 @@ Board sizes: 2x2 to 37x37.
 """,
             url: "https://media.katagotraining.org/uploaded/networks/models_extra/fd3.bin.gz",
             fileName: "fd3.bin.gz",
-            fileSize: 271_357_345
+            fileSize: 271_365_609
         ),
         .init(
             title: "Lionffen b6c64 Network",
@@ -197,7 +197,7 @@ Board sizes: 2x2 to 37x37.
 """,
             url: "https://media.katagotraining.org/uploaded/networks/models_extra/M2-s40190750-d164645490.bin.gz",
             fileName: "m2.bin.gz",
-            fileSize: 271_357_345
+            fileSize: 271_378_684
         ),
         .init(
             title: "Strong Igo Hatsuyoron 120 Net",
