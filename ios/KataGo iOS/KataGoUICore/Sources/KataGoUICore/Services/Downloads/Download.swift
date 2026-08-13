@@ -37,6 +37,14 @@ public final class Download: Identifiable {
     /// Which retry we are on, 0-based. Reset by an explicit start or pause.
     @ObservationIgnored internal var attempt: Int = 0
 
+    /// Consecutive `TransferVerification.sizeMismatch` outcomes. Counted
+    /// separately from `attempt`: every successful chunk resets `attempt` to
+    /// 0, so the transport retry cap can never engage against a persistent
+    /// size mismatch — this one can, and it does, because each retry here
+    /// costs a whole re-download rather than one chunk. Reset by an explicit
+    /// start.
+    @ObservationIgnored internal var verificationFailures: Int = 0
+
     /// The pending back-off sleep, cancelled by a pause or a fresh start.
     @ObservationIgnored internal var retryTask: Task<Void, Never>?
 

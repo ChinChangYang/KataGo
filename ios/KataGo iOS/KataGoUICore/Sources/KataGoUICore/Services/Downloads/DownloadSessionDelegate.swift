@@ -22,7 +22,7 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
     /// What absorbing a finished chunk produced. `Sendable` so it can cross
     /// back to the main actor.
     private enum AbsorbOutcome: Sendable {
-        case absorbed(key: String, assembled: Int64, total: Int64?, etag: String?)
+        case absorbed(key: String, assembled: Int64, total: Int64?, wasRestart: Bool, etag: String?)
         case rejected(key: String, reason: String)
     }
 
@@ -51,8 +51,8 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
         Task { @MainActor [weak center] in
             guard let center, let outcome else { return }
             switch outcome {
-            case let .absorbed(key, assembled, total, etag):
-                center.absorbed(key: key, assembled: assembled, total: total, etag: etag)
+            case let .absorbed(key, assembled, total, wasRestart, etag):
+                center.absorbed(key: key, assembled: assembled, total: total, wasRestart: wasRestart, etag: etag)
             case let .rejected(key, reason):
                 center.rejected(key: key, reason: reason)
             }
@@ -63,11 +63,12 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
                     task: URLSessionTask,
                     didCompleteWithError error: (any Error)?) {
         // Success is already handled by didFinishDownloadingTo; only failures
-        // and cancellations reach the center from here.
-        guard let key = task.taskDescription, let error else { return }
-        let isCancellation = (error as NSError).code == NSURLErrorCancelled
+        // and cancellations reach the center from here. `failed` does not
+        // distinguish a cancellation from any other error — see the comment
+        // there for why.
+        guard let key = task.taskDescription, error != nil else { return }
         Task { @MainActor [weak center] in
-            center?.failed(key: key, isCancellation: isCancellation)
+            center?.failed(key: key)
         }
     }
 
@@ -112,13 +113,13 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
             let assembled = requestedOffset == 0
                 ? DownloadStaging.replacePartial(withTemp: temp, forKey: key)
                 : DownloadStaging.appendChunk(from: temp, toKey: key)
-            return .absorbed(key: key, assembled: assembled, total: total, etag: etag)
+            return .absorbed(key: key, assembled: assembled, total: total, wasRestart: false, etag: etag)
 
         case let .restart(total):
             // The server ignored our range and sent the whole asset, so
             // whatever we had is superseded rather than extended.
             let assembled = DownloadStaging.replacePartial(withTemp: temp, forKey: key)
-            return .absorbed(key: key, assembled: assembled, total: total, etag: etag)
+            return .absorbed(key: key, assembled: assembled, total: total, wasRestart: true, etag: etag)
 
         case let .fail(reason):
             // Nothing is written. The partial survives exactly as it was, so a

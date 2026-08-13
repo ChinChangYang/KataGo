@@ -52,6 +52,12 @@ public final class DownloadCenter {
     @ObservationIgnored private var queue: [String] = []
     @ObservationIgnored private var activeKey: String?
     @ObservationIgnored private var activeTask: URLSessionDownloadTask?
+    /// True when `activeKey` was reattached from a previous launch and there
+    /// is no in-process `URLSessionDownloadTask` handle for it: only
+    /// `getAllTasks` can hand one back, and a `URLSessionTask` may not cross
+    /// out of that completion, so cancelling it needs `cancelDetachedTask`
+    /// instead of `activeTask?.cancel()`.
+    @ObservationIgnored private var activeTaskIsDetached = false
     @ObservationIgnored private var pausedKeys: Set<String> = []
     @ObservationIgnored private var backgroundEvents: CheckedContinuation<Void, Never>?
     @ObservationIgnored private let sessionDelegate = DownloadSessionDelegate()
@@ -109,6 +115,7 @@ public final class DownloadCenter {
         download.retryTask?.cancel()
         download.retryTask = nil
         download.attempt = 0
+        download.verificationFailures = 0
         download.sourceURL = sourceURL
         pausedKeys.remove(download.key)
         persist(download, pausedByUser: false)
@@ -125,8 +132,13 @@ public final class DownloadCenter {
         download.attempt = 0
         if activeKey == download.key {
             pausedKeys.insert(download.key)
-            activeTask?.cancel()
+            if let activeTask {
+                activeTask.cancel()
+            } else if activeTaskIsDetached {
+                cancelDetachedTask(forKey: download.key)
+            }
             activeTask = nil
+            activeTaskIsDetached = false
             activeKey = nil
         }
         queue.removeAll { $0 == download.key }
@@ -145,8 +157,13 @@ public final class DownloadCenter {
         guard !downloadsDisabled else { return }
         session.getAllTasks { tasks in
             // Only Strings cross the boundary — never the tasks themselves.
+            // Only `.running`: a `.suspended` or `.canceling` task may never
+            // deliver a terminal callback, and one that does not would pin
+            // `activeKey` for the process lifetime and strand the queue.
+            // Treating it as interrupted instead costs at most one chunk,
+            // which is the loss budget chunking was chosen for.
             let live = Set(tasks.compactMap { task -> String? in
-                task.state == .completed ? nil : task.taskDescription
+                task.state == .running ? task.taskDescription : nil
             })
             Task { @MainActor [weak self] in
                 self?.finishRestore(liveKeys: live)
@@ -156,7 +173,7 @@ public final class DownloadCenter {
 
     public func sweepStaging() {
         let doomed = StagingSweep.keysToDiscard(DownloadStaging.scan(), now: Date())
-        for key in doomed where key != activeKey {
+        for key in doomed where key != activeKey && !queue.contains(key) {
             DownloadStaging.discardPartial(forKey: key)
         }
     }
@@ -164,12 +181,20 @@ public final class DownloadCenter {
     /// Suspends until the background session has delivered every event it
     /// woke the app up for. Driven by `Scene.backgroundTask(.urlSession(_:))`.
     public func awaitBackgroundURLSessionEvents() async {
+        #if os(macOS)
+        // macOS never relaunches an app for background session events — the
+        // only resumer of this continuation is `urlSessionDidFinishEvents`,
+        // which is compiled out on macOS. Nothing would ever call it, so
+        // return immediately rather than hang forever.
+        return
+        #else
         await withCheckedContinuation { continuation in
             // Two overlapping wake-ups: let the earlier one go rather than
             // leak a continuation, which traps at runtime.
             backgroundEvents?.resume()
             backgroundEvents = continuation
         }
+        #endif
     }
 
     // MARK: - Delegate callbacks
@@ -179,9 +204,12 @@ public final class DownloadCenter {
         download.receivedBytes = download.chunkStartOffset + bytesInChunk
     }
 
-    func absorbed(key: String, assembled: Int64, total: Int64?, etag: String?) {
-        activeKey = nil
-        activeTask = nil
+    func absorbed(key: String, assembled: Int64, total: Int64?, wasRestart: Bool, etag: String?) {
+        if activeKey == key {
+            activeKey = nil
+            activeTask = nil
+            activeTaskIsDetached = false
+        }
         guard let download = downloads[key] else {
             advanceQueue()
             return
@@ -190,10 +218,39 @@ public final class DownloadCenter {
         if let total { download.totalBytes = total }
         if let etag { download.etag = etag }
         download.attempt = 0
+
+        // A pause that landed while this chunk was being written to disk
+        // still wins. `absorb` does up to a chunk's worth of file I/O on the
+        // delegate queue before hopping here, so the user's tap can genuinely
+        // arrive first — and the cancel it issued hit a task that had already
+        // finished, so no error callback is coming to carry the pause. Keep
+        // the bytes, honour the stop.
+        if pausedKeys.remove(key) != nil {
+            download.state = .paused
+            persist(download, pausedByUser: true)
+            advanceQueue()
+            return
+        }
         persist(download, pausedByUser: false)
 
-        // A server that declared no total gave us all it was going to give.
-        guard let expected = download.totalBytes, assembled < expected else {
+        guard let expected = download.totalBytes else {
+            if wasRestart {
+                // A 200 really is the whole asset, so there is nothing left
+                // to bound and nothing left to fetch.
+                finish(download, assembledBytes: assembled)
+            } else {
+                // A 206 with `Content-Range: bytes x-y/*` legally omits the
+                // total. `TransferVerification` treats an undeclared total as
+                // "nothing to check" — correct for a whole-asset GET, wrong
+                // here, where the body legitimately ends at the range's end
+                // rather than the asset's end. Refuse instead of installing a
+                // truncated prefix as verified.
+                rejected(key: key,
+                         reason: "206 without a declared total; cannot bound the transfer")
+            }
+            return
+        }
+        guard assembled < expected else {
             finish(download, assembledBytes: assembled)
             return
         }
@@ -212,15 +269,24 @@ public final class DownloadCenter {
         // Nothing was written for a refused body, so the partial is still
         // exactly the bytes we already proved were ours.
         download.receivedBytes = DownloadStaging.partialSize(forKey: key)
+        // Same race as `absorbed`: a pause that landed during the delegate's
+        // file work must not be undone by a retry armed here.
+        if pausedKeys.remove(key) != nil {
+            download.state = .paused
+            persist(download, pausedByUser: true)
+            advanceQueue()
+            return
+        }
         download.state = .interrupted
         scheduleRetry(download)
         advanceQueue()
     }
 
-    func failed(key: String, isCancellation: Bool) {
+    func failed(key: String) {
         if activeKey == key {
             activeKey = nil
             activeTask = nil
+            activeTaskIsDetached = false
         }
         // A pause cancels its own task; that is not a failure and must not
         // arm a retry that would undo the pause.
@@ -228,6 +294,9 @@ public final class DownloadCenter {
             advanceQueue()
             return
         }
+        // Not special-cased: a system-initiated cancel (e.g. the OS tearing
+        // the app down) is a plain failure and SHOULD arm a retry below, so
+        // the transfer resumes on the next launch instead of staying stuck.
         guard let download = downloads[key] else {
             advanceQueue()
             return
@@ -258,19 +327,42 @@ public final class DownloadCenter {
         beginNextChunk(for: download)
     }
 
+    /// Cancels a transfer we inherited from a previous launch. The task is
+    /// the background session's, not ours, so it is cancelled inside
+    /// `getAllTasks` — no `URLSessionTask` crosses the isolation boundary.
+    private func cancelDetachedTask(forKey key: String) {
+        session.getAllTasks { tasks in
+            for task in tasks where task.taskDescription == key {
+                task.cancel()
+            }
+        }
+    }
+
     private func advanceQueue() {
         guard activeKey == nil else { return }
         while !queue.isEmpty {
             let next = queue.removeFirst()
             if let download = downloads[next], download.state == .waiting {
-                beginNextChunk(for: download)
-                return
+                // A bail (e.g. a corrupted sourceURL) must not stall the rest
+                // of the app-wide queue behind one unstartable download.
+                if beginNextChunk(for: download) { return }
             }
         }
     }
 
-    private func beginNextChunk(for download: Download) {
-        guard !downloadsDisabled, let sourceURL = download.sourceURL else { return }
+    /// - Returns: `true` when a transfer was started or the download was
+    ///   terminally handed to `finish`; `false` when it bailed and is left in
+    ///   a state a caller must not simply wait on (never `.waiting`).
+    @discardableResult
+    private func beginNextChunk(for download: Download) -> Bool {
+        guard !downloadsDisabled else { return false }
+        guard let sourceURL = download.sourceURL else {
+            // No source URL on record — nothing this download can do until a
+            // fresh `start` supplies one. Land it rather than leave it
+            // spinning at `.waiting` forever.
+            download.state = .interrupted
+            return false
+        }
 
         let offset = DownloadStaging.partialSize(forKey: download.key)
         download.receivedBytes = offset
@@ -278,7 +370,7 @@ public final class DownloadCenter {
 
         if let total = download.totalBytes, offset >= total {
             finish(download, assembledBytes: offset)
-            return
+            return true
         }
 
         var request = URLRequest(url: sourceURL)
@@ -299,11 +391,13 @@ public final class DownloadCenter {
         activeTask = task
         download.state = .transferring
         task.resume()
+        return true
     }
 
     private func finish(_ download: Download, assembledBytes: Int64) {
         activeKey = nil
         activeTask = nil
+        activeTaskIsDetached = false
 
         switch TransferVerification.check(assembledBytes: assembledBytes,
                                           declaredTotal: download.totalBytes) {
@@ -321,10 +415,19 @@ public final class DownloadCenter {
 
         case .sizeMismatch:
             // These bytes are not what the server promised, so they are not
-            // worth resuming from either. Throw them away and start over
-            // rather than append onto a body of unknown provenance.
+            // worth resuming from either. Throw them away and start over.
             DownloadStaging.discardPartial(forKey: download.key)
             download.receivedBytes = 0
+            download.verificationFailures += 1
+            guard download.verificationFailures <= RetryBackoff.delays.count else {
+                // Counted separately from transport retries on purpose: every
+                // successful chunk resets `attempt`, so the transport's cap
+                // can never engage here, and each of these retries costs a
+                // whole re-download.
+                download.state = .paused
+                persist(download, pausedByUser: true)
+                break
+            }
             download.state = .interrupted
             scheduleRetry(download)
         }
@@ -342,6 +445,11 @@ public final class DownloadCenter {
             return
         }
         download.attempt += 1
+        // A previous back-off sleep, if any, must not survive to fire
+        // alongside this one — two overlapping sleepers would each call
+        // `enqueue` and double-increment `attempt`, silently halving the
+        // retry budget.
+        download.retryTask?.cancel()
         download.retryTask = Task { [weak self, weak download] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled,
@@ -355,7 +463,14 @@ public final class DownloadCenter {
         for key in liveKeys {
             guard let download = rehydrate(key: key) else { continue }
             download.state = .transferring
-            if activeKey == nil { activeKey = key }
+            if activeKey == nil {
+                activeKey = key
+                // The task belongs to the background session from a previous
+                // launch; only `getAllTasks` can hand it back, and a
+                // `URLSessionTask` may not cross out of that completion. So
+                // record that our handle is missing and look it up on demand.
+                activeTaskIsDetached = true
+            }
         }
         for partial in DownloadStaging.scan() where !liveKeys.contains(partial.key) {
             guard let metadata = DownloadStaging.readMetadata(forKey: partial.key),
@@ -376,6 +491,11 @@ public final class DownloadCenter {
         download.etag = metadata.etag
         download.totalBytes = metadata.declaredTotal
         download.receivedBytes = DownloadStaging.partialSize(forKey: key)
+        // Without this, the progress bar collapses to near zero right after a
+        // relaunch and re-climbs, because `chunkProgress` would otherwise add
+        // this chunk's bytes-written on top of a zero baseline instead of the
+        // bytes already on disk.
+        download.chunkStartOffset = DownloadStaging.partialSize(forKey: key)
         downloads[key] = download
         return download
     }
