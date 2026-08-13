@@ -207,3 +207,13 @@ struct DownloadButtonRoleTests {
         #expect(DownloadButtonRole.download.actionTitle != DownloadButtonRole.resume.actionTitle)
     }
 }
+
+struct DownloadKillSwitchTests {
+    // The UI-test target links no package products, so `PortraitUITestCase`
+    // and `KataGo_iOSUITestsLaunchTests` spell this argument as a literal.
+    // If the constant ever changes, the suite silently stops being inert and
+    // starts issuing real network traffic — so pin the two together here.
+    @Test func theUITestLaunchArgumentMatchesTheLiteralTheSuiteUses() {
+        #expect(DownloadCenter.disableLaunchArgument == "--uitest-disable-downloads")
+    }
+}

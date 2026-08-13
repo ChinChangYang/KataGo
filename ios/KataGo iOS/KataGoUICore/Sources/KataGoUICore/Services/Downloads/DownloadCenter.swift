@@ -60,6 +60,11 @@ public final class DownloadCenter {
     @ObservationIgnored private var activeTaskIsDetached = false
     @ObservationIgnored private var pausedKeys: Set<String> = []
     @ObservationIgnored private var backgroundEvents: CheckedContinuation<Void, Never>?
+    /// Set when `backgroundEventsFinished()` arrives with no continuation
+    /// waiting — the events can finish before `awaitBackgroundURLSessionEvents()`
+    /// is even entered, and without this latch that completion would be
+    /// dropped and the next continuation would wait forever.
+    @ObservationIgnored private var pendingBackgroundEvents = false
     @ObservationIgnored private let sessionDelegate = DownloadSessionDelegate()
     @ObservationIgnored public let downloadsDisabled: Bool
 
@@ -188,6 +193,18 @@ public final class DownloadCenter {
         // return immediately rather than hang forever.
         return
         #else
+        // Materialise the session. On a background relaunch no scene is
+        // mounted, so nothing else in the process has touched `session` yet
+        // — and without a live delegate, nsurlsessiond has nowhere to
+        // deliver the events we were woken for.
+        _ = session
+        // The events can finish before this closure is even entered; without
+        // this latch that completion would be dropped and we would wait
+        // forever.
+        if pendingBackgroundEvents {
+            pendingBackgroundEvents = false
+            return
+        }
         await withCheckedContinuation { continuation in
             // Two overlapping wake-ups: let the earlier one go rather than
             // leak a continuation, which traps at runtime.
@@ -261,6 +278,7 @@ public final class DownloadCenter {
         if activeKey == key {
             activeKey = nil
             activeTask = nil
+            activeTaskIsDetached = false
         }
         guard let download = downloads[key] else {
             advanceQueue()
@@ -308,8 +326,12 @@ public final class DownloadCenter {
     }
 
     func backgroundEventsFinished() {
-        backgroundEvents?.resume()
-        backgroundEvents = nil
+        if let backgroundEvents {
+            backgroundEvents.resume()
+            self.backgroundEvents = nil
+        } else {
+            pendingBackgroundEvents = true
+        }
     }
 
     // MARK: - Internals
@@ -464,7 +486,6 @@ public final class DownloadCenter {
     private func finishRestore(liveKeys: Set<String>) {
         for key in liveKeys {
             guard let download = rehydrate(key: key) else { continue }
-            download.state = .transferring
             if activeKey == nil {
                 activeKey = key
                 // The task belongs to the background session from a previous
@@ -472,9 +493,27 @@ public final class DownloadCenter {
                 // `URLSessionTask` may not cross out of that completion. So
                 // record that our handle is missing and look it up on demand.
                 activeTaskIsDetached = true
+                download.state = .transferring
+            } else {
+                // Something already took the one active slot while
+                // `getAllTasks` was in flight — a fresh `start` landing
+                // before this callback ran. Leaving THIS key `.transferring`
+                // would let its next chunk (`beginNextChunk`, on the delegate
+                // callback) overwrite the active download's `activeKey`/
+                // `activeTask` bookkeeping unconditionally, after which
+                // Pause on the active download silently stops working (its
+                // `activeKey == download.key` guard would fail). Cancel this
+                // detached task and requeue instead — at most one 32 MiB
+                // chunk is lost, the same loss budget chunking was chosen
+                // for.
+                cancelDetachedTask(forKey: key)
+                download.state = .interrupted
+                download.attempt = 0
+                enqueue(download)
             }
         }
-        for partial in DownloadStaging.scan() where !liveKeys.contains(partial.key) {
+        for partial in DownloadStaging.scan()
+        where !liveKeys.contains(partial.key) && partial.key != activeKey && !queue.contains(partial.key) {
             guard let metadata = DownloadStaging.readMetadata(forKey: partial.key),
                   !metadata.pausedByUser,
                   let download = rehydrate(key: partial.key) else { continue }
