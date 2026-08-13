@@ -212,6 +212,7 @@
 		54ABA43F1DA444E4F1040D16 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E11887E12B0830C900637D44 /* KataGoSwift.framework */; };
 		54B602C8743645F1976D603E /* MMapFileReaderFactory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BC2CF6DCF3C1E8EF28EA94A2 /* MMapFileReaderFactory.cpp */; };
 		553DBC10CF58E3BB94880AA4 /* arg.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0B40E0A9D40BE4F1BFF2939B /* arg.cc */; };
+		558B16FAE6A4BD6E70819A42 /* DownloadStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB31F0E188D891722638FADE /* DownloadStagingTests.swift */; };
 		55F3DCC168CA4E457E7516A7 /* mutex.cc in Sources */ = {isa = PBXBuildFile; fileRef = 0A85319AE10A8198A3117ADE /* mutex.cc */; };
 		56BF846525895806D50F8451 /* VisionModelDetailStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85496767CF032689A724F1B3 /* VisionModelDetailStateTests.swift */; };
 		56E6C075D618CDFE21EA4E39 /* MessageListEngineOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8D0AB0899F6E787F1861AC /* MessageListEngineOwnershipTests.swift */; };
@@ -1918,6 +1919,7 @@
 		E98294CF60C54235D0A2B334 /* coded_stream.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = coded_stream.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/io/coded_stream.cc"; sourceTree = SOURCE_ROOT; };
 		EABBFC5DA34D994C2EF774C4 /* VisionGhostAppearanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionGhostAppearanceTests.swift; sourceTree = "<group>"; };
 		EAF3EAAFAA1485899058CCE1 /* stacktrace.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = stacktrace.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/debugging/stacktrace.cc"; sourceTree = SOURCE_ROOT; };
+		EB31F0E188D891722638FADE /* DownloadStagingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadStagingTests.swift; sourceTree = "<group>"; };
 		EBCB40B1DDC99591F4CC41BE /* WidgetReloadLatchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetReloadLatchTests.swift; sourceTree = "<group>"; };
 		EBD462EEF8C47A164A655604 /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		EC487969D102B8B2B1690658 /* VisionBoardSizeSettingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionBoardSizeSettingTests.swift; sourceTree = "<group>"; };
@@ -3315,6 +3317,7 @@
 				DD82E94FA6094A864971A62F /* RankCommandRearmTests.swift */,
 				78F7381C4C0AB94F90A7216F /* TVNewGameFormTests.swift */,
 				EF987602E6E5E2CB2C9178FE /* DownloadDecisionTests.swift */,
+				EB31F0E188D891722638FADE /* DownloadStagingTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = "<group>";
@@ -4854,6 +4857,7 @@
 				B6F8F9F9943CB88E38D47223 /* RankCommandRearmTests.swift in Sources */,
 				491DA77CCD86C73A7BDFC270 /* TVNewGameFormTests.swift in Sources */,
 				36EB94CC6A5853DF39697C64 /* DownloadDecisionTests.swift in Sources */,
+				558B16FAE6A4BD6E70819A42 /* DownloadStagingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

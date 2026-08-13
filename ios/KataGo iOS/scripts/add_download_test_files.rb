@@ -13,6 +13,7 @@ TARGET  = 'KataGo AnytimeTests'
 GROUP   = 'KataGo iOSTests'
 FILES   = %w[
   DownloadDecisionTests.swift
+  DownloadStagingTests.swift
 ]
 
 project = Xcodeproj::Project.open(PROJECT)
