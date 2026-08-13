@@ -395,9 +395,11 @@ public final class DownloadCenter {
     }
 
     private func finish(_ download: Download, assembledBytes: Int64) {
-        activeKey = nil
-        activeTask = nil
-        activeTaskIsDetached = false
+        if activeKey == download.key {
+            activeKey = nil
+            activeTask = nil
+            activeTaskIsDetached = false
+        }
 
         switch TransferVerification.check(assembledBytes: assembledBytes,
                                           declaredTotal: download.totalBytes) {
