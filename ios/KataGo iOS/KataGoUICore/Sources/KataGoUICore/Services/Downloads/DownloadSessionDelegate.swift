@@ -27,6 +27,13 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
     }
 
     // MARK: - URLSessionDownloadDelegate
+    //
+    // Every callback below carries its task's identifier alongside the key.
+    // The center matches on it: one download key can outlive several tasks
+    // (pause then resume creates a second while the first's cancellation is
+    // still in flight), and a callback from the dead task must not be mistaken
+    // for the live one's. An `Int` crosses the isolation boundary trivially;
+    // the task itself must not cross at all.
 
     func urlSession(_ session: URLSession,
                     downloadTask: URLSessionDownloadTask,
@@ -35,8 +42,9 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
                     totalBytesExpectedToWrite: Int64) {
         guard let key = downloadTask.taskDescription else { return }
         let written = totalBytesWritten
+        let identifier = downloadTask.taskIdentifier
         Task { @MainActor [weak center] in
-            center?.chunkProgress(key: key, bytesInChunk: written)
+            center?.chunkProgress(key: key, taskIdentifier: identifier, bytesInChunk: written)
         }
     }
 
@@ -48,13 +56,19 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
         // Hopping to an actor first and moving the file there is the classic
         // way to lose a download to a race that only shows up under load.
         let outcome = Self.absorb(temp: location, task: downloadTask)
+        let identifier = downloadTask.taskIdentifier
         Task { @MainActor [weak center] in
             guard let center, let outcome else { return }
             switch outcome {
             case let .absorbed(key, assembled, total, wasRestart, etag):
-                center.absorbed(key: key, assembled: assembled, total: total, wasRestart: wasRestart, etag: etag)
+                center.absorbed(key: key,
+                                taskIdentifier: identifier,
+                                assembled: assembled,
+                                total: total,
+                                wasRestart: wasRestart,
+                                etag: etag)
             case let .rejected(key, reason):
-                center.rejected(key: key, reason: reason)
+                center.rejected(key: key, taskIdentifier: identifier, reason: reason)
             }
         }
     }
@@ -67,8 +81,9 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
         // distinguish a cancellation from any other error — see the comment
         // there for why.
         guard let key = task.taskDescription, error != nil else { return }
+        let identifier = task.taskIdentifier
         Task { @MainActor [weak center] in
-            center?.failed(key: key)
+            center?.failed(key: key, taskIdentifier: identifier)
         }
     }
 

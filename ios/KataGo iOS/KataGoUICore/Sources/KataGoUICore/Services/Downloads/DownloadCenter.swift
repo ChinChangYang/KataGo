@@ -52,6 +52,11 @@ public final class DownloadCenter {
     @ObservationIgnored private var queue: [String] = []
     @ObservationIgnored private var activeKey: String?
     @ObservationIgnored private var activeTask: URLSessionDownloadTask?
+    /// `activeTask`'s `taskIdentifier`, or nil while the active transfer was
+    /// reattached from a previous launch and its identifier is not yet known.
+    /// Every delegate callback carries the identifier of the task it came
+    /// from and is matched against this — see `callbackIsCurrent`.
+    @ObservationIgnored private var activeTaskIdentifier: Int?
     /// True when `activeKey` was reattached from a previous launch and there
     /// is no in-process `URLSessionDownloadTask` handle for it: only
     /// `getAllTasks` can hand one back, and a `URLSessionTask` may not cross
@@ -89,8 +94,28 @@ public final class DownloadCenter {
                           delegateQueue: nil)
     }()
 
-    private init() {
+    /// The one seam between this state machine and the network: it creates,
+    /// names and starts the ranged request and returns the `taskIdentifier`
+    /// its callbacks will carry. `nil` — the production value — means the real
+    /// background session below.
+    ///
+    /// It exists because every defect this file has ever had lived in the
+    /// queue / active-slot / state transitions, and not one of them needs a
+    /// socket to reproduce: a test sets this and then drives `absorbed`,
+    /// `rejected` and `failed` by hand. A background `URLSession` ignores
+    /// `URLProtocol` stubs, so there is no other way to reach this code from a
+    /// unit test.
+    @ObservationIgnored var launchTask: ((URLRequest, String) -> Int)?
+
+    init() {
         downloadsDisabled = ProcessInfo.processInfo.arguments.contains(Self.disableLaunchArgument)
+    }
+
+    /// Internal, and taking the kill switch as a parameter, so a unit test can
+    /// build its own center instead of mutating the process-lifetime `shared`
+    /// — and so it does not inherit the host process's launch arguments.
+    init(downloadsDisabled: Bool) {
+        self.downloadsDisabled = downloadsDisabled
     }
 
     // MARK: - Vending
@@ -142,9 +167,7 @@ public final class DownloadCenter {
             } else if activeTaskIsDetached {
                 cancelDetachedTask(forKey: download.key)
             }
-            activeTask = nil
-            activeTaskIsDetached = false
-            activeKey = nil
+            clearActiveSlot()
         }
         queue.removeAll { $0 == download.key }
         download.state = .paused
@@ -216,18 +239,69 @@ public final class DownloadCenter {
 
     // MARK: - Delegate callbacks
 
-    func chunkProgress(key: String, bytesInChunk: Int64) {
-        guard activeKey == key, let download = downloads[key] else { return }
+    /// Whether a callback still belongs to the transfer this center is
+    /// running. Callbacks are matched by TASK, not by key: a `pause` followed
+    /// by a `start` of the same download cancels one task and creates another,
+    /// and the cancellation lands AFTERWARDS carrying the dead task's
+    /// identifier. Acting on it would clear the live task's bookkeeping and
+    /// arm a retry, and that retry would start a third task while the second
+    /// was still appending to the same partial — two live transfers, one
+    /// staging file. (It fails safe: the doubled bytes overshoot the declared
+    /// total, `TransferVerification` reports `.sizeMismatch` and the partial is
+    /// thrown away. It also costs a whole re-download.)
+    ///
+    /// A callback for a key that does not currently hold the active slot is
+    /// always current: there is nothing for it to be stale against, and the
+    /// background-relaunch path — where no scene mounted, so nothing is active
+    /// — depends on those callbacks being processed rather than dropped.
+    ///
+    /// Permissive for a transfer reattached from a previous launch: only
+    /// `getAllTasks` can hand back its identifier and a `URLSessionTask` may
+    /// not cross out of that completion, so the first callback to arrive
+    /// adopts it.
+    private func callbackIsCurrent(key: String, taskIdentifier: Int) -> Bool {
+        guard activeKey == key else { return true }
+        guard let current = activeTaskIdentifier else {
+            if activeTaskIsDetached { activeTaskIdentifier = taskIdentifier }
+            return true
+        }
+        return current == taskIdentifier
+    }
+
+    /// Releases the one active slot. All four fields are cleared together on
+    /// purpose: forgetting one of them — the detached flag, and now the task
+    /// identifier — has twice been the shape of a defect in this file.
+    private func clearActiveSlot() {
+        activeKey = nil
+        activeTask = nil
+        activeTaskIdentifier = nil
+        activeTaskIsDetached = false
+    }
+
+    func chunkProgress(key: String, taskIdentifier: Int, bytesInChunk: Int64) {
+        guard callbackIsCurrent(key: key, taskIdentifier: taskIdentifier),
+              activeKey == key,
+              let download = downloads[key] else { return }
         download.receivedBytes = download.chunkStartOffset + bytesInChunk
     }
 
-    func absorbed(key: String, assembled: Int64, total: Int64?, wasRestart: Bool, etag: String?) {
+    func absorbed(key: String,
+                  taskIdentifier: Int,
+                  assembled: Int64,
+                  total: Int64?,
+                  wasRestart: Bool,
+                  etag: String?) {
+        guard callbackIsCurrent(key: key, taskIdentifier: taskIdentifier) else { return }
         if activeKey == key {
-            activeKey = nil
-            activeTask = nil
-            activeTaskIsDetached = false
+            clearActiveSlot()
         }
-        guard let download = downloads[key] else {
+        // `rehydrate`, not `downloads[key]`: on a background relaunch no scene
+        // mounts, so nothing ever vended a `Download` and this used to bail —
+        // which left a COMPLETED transfer sitting in staging, uninstalled,
+        // until the next foreground launch, and issued no next chunk. The
+        // sidecar holds everything needed to rebuild the download, which is
+        // what makes ADR 0005 decision 2's handoff actually work.
+        guard let download = rehydrate(key: key) else {
             advanceQueue()
             return
         }
@@ -263,6 +337,7 @@ public final class DownloadCenter {
                 // rather than the asset's end. Refuse instead of installing a
                 // truncated prefix as verified.
                 rejected(key: key,
+                         taskIdentifier: taskIdentifier,
                          reason: "206 without a declared total; cannot bound the transfer")
             }
             return
@@ -274,13 +349,14 @@ public final class DownloadCenter {
         beginNextChunk(for: download)
     }
 
-    func rejected(key: String, reason: String) {
+    func rejected(key: String, taskIdentifier: Int, reason: String) {
+        guard callbackIsCurrent(key: key, taskIdentifier: taskIdentifier) else { return }
         if activeKey == key {
-            activeKey = nil
-            activeTask = nil
-            activeTaskIsDetached = false
+            clearActiveSlot()
         }
-        guard let download = downloads[key] else {
+        // `rehydrate` for the same reason as `absorbed`: a background relaunch
+        // has no `Download` on record and still has to issue the next chunk.
+        guard let download = rehydrate(key: key) else {
             advanceQueue()
             return
         }
@@ -295,16 +371,21 @@ public final class DownloadCenter {
             advanceQueue()
             return
         }
+        // Still queued behind another transfer: leave it alone. See `failed`
+        // for why overwriting a `.waiting` key here strands it.
+        if queue.contains(key) {
+            advanceQueue()
+            return
+        }
         download.state = .interrupted
         scheduleRetry(download)
         advanceQueue()
     }
 
-    func failed(key: String) {
+    func failed(key: String, taskIdentifier: Int) {
+        guard callbackIsCurrent(key: key, taskIdentifier: taskIdentifier) else { return }
         if activeKey == key {
-            activeKey = nil
-            activeTask = nil
-            activeTaskIsDetached = false
+            clearActiveSlot()
         }
         // A pause cancels its own task; that is not a failure and must not
         // arm a retry that would undo the pause.
@@ -315,7 +396,21 @@ public final class DownloadCenter {
         // Not special-cased: a system-initiated cancel (e.g. the OS tearing
         // the app down) is a plain failure and SHOULD arm a retry below, so
         // the transfer resumes on the next launch instead of staying stuck.
-        guard let download = downloads[key] else {
+        // `rehydrate`, not `downloads[key]`, so a background relaunch can
+        // retry a transfer no view ever vended.
+        guard let download = rehydrate(key: key) else {
+            advanceQueue()
+            return
+        }
+        // A key still sitting in the queue is left exactly as it is. Its task
+        // is already over — this callback is what says so — and it is waiting
+        // its turn, not failing. Marking it `.interrupted` here used to strand
+        // it outright: the retry armed below no-ops on `enqueue`'s
+        // `!queue.contains` guard, and when its turn came `advanceQueue` saw a
+        // state that was not `.waiting`. Reachable by pausing a transfer that
+        // another download is queued behind and resuming it before the
+        // cancellation callback lands.
+        if queue.contains(key) {
             advanceQueue()
             return
         }
@@ -361,20 +456,47 @@ public final class DownloadCenter {
     }
 
     private func advanceQueue() {
-        guard activeKey == nil else { return }
         while !queue.isEmpty {
+            // Re-checked every iteration, not just on entry: `beginNextChunk`
+            // can hand a download to `finish`, which starts the next one.
+            guard activeKey == nil else { return }
             let next = queue.removeFirst()
-            if let download = downloads[next], download.state == .waiting {
-                // A bail (e.g. a corrupted sourceURL) must not stall the rest
-                // of the app-wide queue behind one unstartable download.
-                if beginNextChunk(for: download) { return }
+            guard let download = downloads[next] else { continue }
+            // A queued entry whose state was not `.waiting` used to be dropped
+            // here without a word — a fail-silent branch that stranded a
+            // download whose retry budget had already been spent. Spell out
+            // instead which states may legitimately turn up in the queue and
+            // what each one means.
+            switch download.state {
+            case .waiting:
+                break
+            case .interrupted, .transferring, .idle:
+                // A terminal callback for a task that is already over can land
+                // while its key is still queued and demote it out of
+                // `.waiting`. It was queued in order to run, so re-mark it and
+                // run it rather than dropping it.
+                download.state = .waiting
+            case .paused, .succeeded:
+                // Neither can legitimately appear: `pause` removes its key from
+                // the queue, and a finished transfer has nothing left to fetch.
+                // Starting either would be wrong — a paused download must never
+                // resume itself, and a succeeded one would re-download an asset
+                // already installed — so drop the entry.
+                continue
             }
+            // A bail (e.g. a corrupted sourceURL) must not stall the rest
+            // of the app-wide queue behind one unstartable download.
+            if beginNextChunk(for: download) { return }
         }
     }
 
     /// - Returns: `true` when a transfer was started or the download was
-    ///   terminally handed to `finish`; `false` when it bailed and is left in
-    ///   a state a caller must not simply wait on (never `.waiting`).
+    ///   terminally handed to `finish`. `false` means one of two things: it
+    ///   bailed and is left in a state nobody may wait on (no source URL, or
+    ///   the center is disabled), or the active slot was already someone
+    ///   else's and the download was safely appended to the queue as
+    ///   `.waiting`. Either way the caller must not read `false` as "a
+    ///   transfer is now running"; `advanceQueue` moves on to the next key.
     @discardableResult
     private func beginNextChunk(for download: Download) -> Bool {
         guard !downloadsDisabled else { return false }
@@ -395,6 +517,19 @@ public final class DownloadCenter {
             return true
         }
 
+        // The one active slot is claimed here and nowhere else, and only when
+        // it is free or already this download's. Claiming it unconditionally
+        // overwrote the RUNNING transfer's bookkeeping, after which `pause` on
+        // that transfer found `activeKey != download.key`, cancelled nothing
+        // and recorded nothing: the user tapped Stop, the UI said Paused, and
+        // the bytes kept coming. A shadowed caller queues instead, which is a
+        // benign delay rather than a lost stop button.
+        guard activeKey == nil || activeKey == download.key else {
+            download.state = .waiting
+            if !queue.contains(download.key) { queue.append(download.key) }
+            return false
+        }
+
         var request = URLRequest(url: sourceURL)
         request.setValue("bytes=\(offset)-\(offset + Self.chunkSize - 1)",
                          forHTTPHeaderField: "Range")
@@ -405,22 +540,32 @@ public final class DownloadCenter {
             request.setValue(etag, forHTTPHeaderField: "If-Range")
         }
 
-        let task = session.downloadTask(with: request)
-        // Survives a background relaunch, which is how the delegate finds its
-        // way back to the right staging file when no view ever ran.
-        task.taskDescription = download.key
         activeKey = download.key
-        activeTask = task
+        if let launchTask {
+            // Test seam: no session, no socket, no task handle. `pause` finds
+            // no `activeTask` and nothing detached, so it cancels nothing —
+            // which is exactly right, since nothing is running.
+            activeTask = nil
+            activeTaskIdentifier = launchTask(request, download.key)
+        } else {
+            let task = session.downloadTask(with: request)
+            // Survives a background relaunch, which is how the delegate finds
+            // its way back to the right staging file when no view ever ran.
+            task.taskDescription = download.key
+            activeTask = task
+            activeTaskIdentifier = task.taskIdentifier
+            task.resume()
+        }
+        // We hold a real handle again, so `pause` must cancel through it
+        // rather than through `cancelDetachedTask`.
+        activeTaskIsDetached = false
         download.state = .transferring
-        task.resume()
         return true
     }
 
     private func finish(_ download: Download, assembledBytes: Int64) {
         if activeKey == download.key {
-            activeKey = nil
-            activeTask = nil
-            activeTaskIsDetached = false
+            clearActiveSlot()
         }
 
         switch TransferVerification.check(assembledBytes: assembledBytes,
@@ -448,8 +593,13 @@ public final class DownloadCenter {
                 // successful chunk resets `attempt`, so the transport's cap
                 // can never engage here, and each of these retries costs a
                 // whole re-download.
+                //
+                // No `persist` here: the partial was just discarded, so a
+                // sidecar written now would be an orphan `.partialmeta` that
+                // `scan()` — which enumerates only `.partial` — can never
+                // sweep. Nothing needs it: with no bytes on disk there is
+                // nothing to resume, and a fresh `start` writes it again.
                 download.state = .paused
-                persist(download, pausedByUser: true)
                 break
             }
             download.state = .interrupted
@@ -483,7 +633,7 @@ public final class DownloadCenter {
         }
     }
 
-    private func finishRestore(liveKeys: Set<String>) {
+    func finishRestore(liveKeys: Set<String>) {
         for key in liveKeys {
             guard let download = rehydrate(key: key) else { continue }
             if activeKey == nil {
@@ -492,8 +642,20 @@ public final class DownloadCenter {
                 // launch; only `getAllTasks` can hand it back, and a
                 // `URLSessionTask` may not cross out of that completion. So
                 // record that our handle is missing and look it up on demand.
+                // The identifier is unknown for the same reason; the first
+                // callback that arrives for this key adopts it (see
+                // `callbackIsCurrent`).
+                activeTask = nil
+                activeTaskIdentifier = nil
                 activeTaskIsDetached = true
                 download.state = .transferring
+            } else if key == activeKey {
+                // Our OWN in-process transfer: `start` landed after
+                // `getAllTasks` was asked and before its snapshot came back,
+                // so this key is both live and already holding the slot.
+                // Cancelling here would kill a transfer that is perfectly
+                // healthy.
+                continue
             } else {
                 // Something already took the one active slot while
                 // `getAllTasks` was in flight — a fresh `start` landing
@@ -517,8 +679,17 @@ public final class DownloadCenter {
             guard let metadata = DownloadStaging.readMetadata(forKey: partial.key),
                   !metadata.pausedByUser,
                   let download = rehydrate(key: partial.key) else { continue }
+            // visionOS's Info.plist allows several scenes and each one calls
+            // `restoreOnLaunch()`, so this loop can run more than once per
+            // launch. Cancel any sleeping back-off rather than leave it to
+            // fire alongside the restart below (a leaked sleeper per scene
+            // mount), and do NOT reset `attempt`: a second mount must not hand
+            // a persistently failing download a fresh retry budget. A genuine
+            // cold launch rehydrates a brand-new `Download`, whose `attempt`
+            // is already 0.
+            download.retryTask?.cancel()
+            download.retryTask = nil
             download.state = .interrupted
-            download.attempt = 0
             enqueue(download)
         }
     }
