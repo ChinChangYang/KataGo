@@ -60,6 +60,18 @@ struct ContentView: View {
                     session.stopRequested = true
                 }
             }
+            // A book that finishes downloading is loaded here, not in the detail
+            // view that started it: a 240 MB book routinely outlives its screen,
+            // and the old `.onChange` on the detail view simply did not run once
+            // the user had navigated away. The center's generation counter makes
+            // two finishes of the same book distinguishable.
+            .onChange(of: DownloadCenter.shared.finishedGeneration) { _, _ in
+                guard let finished = DownloadCenter.shared.lastFinishedDestination,
+                      let book = OpeningBook.allCases.first(where: {
+                          $0.downloadedURL.standardizedFileURL == finished.standardizedFileURL
+                      }) else { return }
+                session.bookLookup.loadIfNeeded(boardSize: book.boardSize)
+            }
             .task {
                 // Get messages from KataGo and append to the list of messages
                 await session.run(

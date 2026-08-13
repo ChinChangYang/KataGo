@@ -52,81 +52,97 @@ struct OpeningBookTrashButton: View {
 
 struct OpeningBookDetailView: View {
     let book: OpeningBook
-    @State var downloader: Downloader
+    /// Memoized by the center against the book's destination, so re-entering
+    /// this screen shows the transfer that is already running rather than
+    /// starting a second one.
+    let download: Download
     @State private var isDownloaded = false
     @Environment(BookLookup.self) private var bookLookup: BookLookup?
 
+    /// `isOnDisk: false` on purpose. A book has nothing to activate, so the
+    /// `.play` role is unreachable here — the Downloaded label and the trash
+    /// button take the button's place once the file has landed.
+    private var role: DownloadButtonRole {
+        DownloadButtonRole.role(isOnDisk: false,
+                                state: download.state,
+                                hasPartial: download.hasPartial)
+    }
+
     private var downloadButton: some View {
         Button {
-            if downloader.isDownloading {
-                downloader.cancel()
-            } else {
-                Task {
-                    // Downloader does not create directories.
-                    _ = try? OpeningBook.ensureBooksDirectory()
-                    if let url = URL(string: book.url) {
-                        try? await downloader.download(from: url)
-                    }
+            switch role {
+            case .download, .resume:
+                if let url = URL(string: book.url) {
+                    DownloadCenter.shared.start(download, from: url)
                 }
+            case .pause:
+                DownloadCenter.shared.pause(download)
+            case .play:
+                break // unreachable; see `role`
             }
         } label: {
-            if downloader.isDownloading {
-                Label {
-                    Text("Stop Download")
-                } icon: {
-                    Image(systemName: "stop.circle", variableValue: downloader.progress)
+            Label {
+                Text(role.actionTitle)
+            } icon: {
+                if role == .pause {
+                    Image(systemName: role.systemImageName, variableValue: download.progress)
                         .symbolVariableValueMode(.draw)
+                } else {
+                    Image(systemName: role.systemImageName)
                 }
-                .labelStyle(.iconOnly)
-            } else {
-                Label("Download", systemImage: "arrow.down")
-                    .labelStyle(.iconOnly)
             }
+            .labelStyle(.iconOnly)
         }
         .buttonStyle(.borderedProminent)
         .accessibilityIdentifier("OpeningBookDetailView.downloadButton")
     }
 
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                if isDownloaded {
-                    Label("Downloaded", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    if let onDisk = book.onDiskSize {
-                        Text(onDisk.humanFileSize)
+        VStack {
+            // The tester asked for the network picker's spinning icon here.
+            // Same view, same modifiers — not a second copy of them.
+            DownloadProgressIcon(icon: Image(.loadingIcon), progress: download.progress)
+
+            VStack(alignment: .leading) {
+                Text(book.title)
+                    .bold()
+
+                HStack {
+                    if isDownloaded {
+                        Label("Downloaded", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        if let onDisk = book.onDiskSize {
+                            Text(onDisk.humanFileSize)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text(book.fileSize.humanFileSize)
                             .foregroundStyle(.secondary)
+                        downloadButton
                     }
-                } else {
-                    Text(book.fileSize.humanFileSize)
-                        .foregroundStyle(.secondary)
-                    downloadButton
+
+                    Spacer()
+
+                    if isDownloaded {
+                        OpeningBookTrashButton(book: book, isDownloaded: $isDownloaded)
+                    }
                 }
+                .padding(.vertical)
 
-                Spacer()
-
-                if isDownloaded {
-                    OpeningBookTrashButton(book: book, isDownloaded: $isDownloaded)
+                ScrollView {
+                    Text(book.description)
                 }
-            }
-            .padding(.vertical)
-
-            ScrollView {
-                Text(book.description)
             }
         }
         .padding()
         .navigationTitle(book.title)
         .onAppear { isDownloaded = book.isDownloaded }
-        .onChange(of: downloader.isDownloading) { oldValue, newValue in
-            if oldValue == true && newValue == false {
-                isDownloaded = book.isDownloaded
-                // Make the just-downloaded book available immediately if it
-                // matches the active board size (no-op otherwise).
-                if isDownloaded {
-                    bookLookup?.loadIfNeeded(boardSize: book.boardSize)
-                }
-            }
+        // Explicit state, not the `isDownloading` true->false edge a pause and
+        // a completion used to share. Activation is NOT done here any more —
+        // see ContentView — because this view is often gone by the time a
+        // 240 MB book finishes.
+        .onChange(of: download.state) { _, newState in
+            if newState == .succeeded { isDownloaded = book.isDownloaded }
         }
     }
 }
@@ -139,7 +155,7 @@ struct OpeningBookPickerView: View {
                     NavigationLink {
                         OpeningBookDetailView(
                             book: book,
-                            downloader: Downloader(destinationURL: book.downloadedURL)
+                            download: DownloadCenter.shared.download(for: book.downloadedURL)
                         )
                     } label: {
                         HStack {
@@ -174,7 +190,7 @@ struct OpeningBookPickerView: View {
     NavigationStack {
         OpeningBookDetailView(
             book: OpeningBook.allCases[3],
-            downloader: Downloader(destinationURL: OpeningBook.allCases[3].downloadedURL)
+            download: DownloadCenter.shared.download(for: OpeningBook.allCases[3].downloadedURL)
         )
     }
 }
