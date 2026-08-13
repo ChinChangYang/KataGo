@@ -71,16 +71,25 @@ struct ContentView: View {
             // own `loadIfNeeded` at startup, and the eye button's
             // availability check, which reads disk state directly.
             //
-            // Re-reads `lastFinishedDestination` fresh rather than trusting
-            // the discarded old/new values. That is only safe because
-            // `DownloadCenter` runs one transfer at a time, so two finishes
-            // can never land in the same render frame and coalesce into a
-            // single notification here.
+            // Deliberately does NOT read `lastFinishedDestination`. Two
+            // finishes CAN land in one main-actor turn — `finish` ends with
+            // `advanceQueue`, which starts the next download, which
+            // short-circuits straight back to `finish` when its staged partial
+            // already covers the declared total — and that is one `.onChange`
+            // for two bumps, with the first destination overwritten. The
+            // background-relaunch path makes it likelier still, since a
+            // relaunch can leave more than one transfer complete-but-
+            // uninstalled for the next foreground launch to finish.
+            //
+            // So re-scan instead of trusting a single last-value slot: ask
+            // whether the book this game actually needs is on disk NOW.
+            // `loadIfNeeded` is a no-op when the size is already loaded or the
+            // book is missing, so this is cheap and idempotent.
             .onChange(of: DownloadCenter.shared.finishedGeneration) { _, _ in
-                guard let finished = DownloadCenter.shared.lastFinishedDestination,
-                      let book = OpeningBook.allCases.first(where: {
-                          $0.downloadedURL.standardizedFileURL == finished.standardizedFileURL
-                      }) else { return }
+                guard let config = navigationContext.selectedGameRecord?.concreteConfig,
+                      config.isBookEligible,
+                      let book = OpeningBook.book(forBoardSize: config.boardWidth),
+                      book.isDownloaded else { return }
                 session.bookLookup.loadIfNeeded(boardSize: book.boardSize)
             }
             .task {

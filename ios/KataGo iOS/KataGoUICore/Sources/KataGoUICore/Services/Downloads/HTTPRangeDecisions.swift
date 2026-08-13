@@ -12,6 +12,10 @@ import Foundation
 
 /// A parsed `Content-Range: bytes <first>-<last>/<total>` header.
 /// `total` is nil for the legal `*` form.
+///
+/// Parsing is the ONLY way to make one — there is deliberately no memberwise
+/// initializer — so `first >= 0` and `last >= first` hold for every value that
+/// exists.
 public struct ContentRangeHeader: Equatable, Sendable {
     public let first: Int64
     public let last: Int64
@@ -31,12 +35,6 @@ public struct ContentRangeHeader: Equatable, Sendable {
         self.first = first
         self.last = last
         self.total = halves[1] == "*" ? nil : Int64(halves[1])
-    }
-
-    public init(first: Int64, last: Int64, total: Int64?) {
-        self.first = first
-        self.last = last
-        self.total = total
     }
 }
 

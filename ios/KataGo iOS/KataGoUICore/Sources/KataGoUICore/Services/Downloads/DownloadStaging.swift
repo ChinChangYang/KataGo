@@ -25,8 +25,10 @@ public struct PartialMetadata: Codable, Equatable, Sendable {
     /// The stable catalog URL, never a resolved redirect — GitHub's expires in
     /// about thirty minutes.
     public var sourceURLString: String
-    /// Sent back as `If-Range` so a changed asset restarts instead of
-    /// splicing new bytes onto old ones.
+    /// The validator sent back as `If-Range` so a changed asset restarts
+    /// instead of splicing new bytes onto old ones. The response's `ETag` when
+    /// there was one, otherwise its `Last-Modified` date — `If-Range` accepts
+    /// either, and an origin with no ETag would otherwise resume unprotected.
     public var etag: String?
     /// The total the server declared. The authority for both progress and
     /// verification; the catalog's `fileSize` is not.

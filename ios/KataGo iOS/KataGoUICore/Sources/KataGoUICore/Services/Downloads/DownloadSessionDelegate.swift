@@ -119,7 +119,13 @@ final class DownloadSessionDelegate: NSObject, URLSessionDownloadDelegate, @unch
             contentRange: response?.value(forHTTPHeaderField: "Content-Range"),
             contentLength: declaredLength)
 
+        // `If-Range` accepts an entity-tag OR an HTTP-date, so an origin that
+        // sends no ETag is not a lost cause: its `Last-Modified` protects the
+        // splice just as well. Without this fallback such an origin resumed
+        // with no validator at all, which is the one way new bytes can be
+        // appended to a partial of a DIFFERENT asset.
         let etag = response?.value(forHTTPHeaderField: "ETag")
+            ?? response?.value(forHTTPHeaderField: "Last-Modified")
 
         switch decision {
         case let .append(total):

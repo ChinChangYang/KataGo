@@ -31,7 +31,9 @@ public final class Download: Identifiable {
     /// The total the server declared, or nil until the first response.
     public internal(set) var totalBytes: Int64?
 
-    /// Sent back as `If-Range` so a changed asset restarts cleanly.
+    /// Sent back as `If-Range` so a changed asset restarts cleanly. The
+    /// server's `ETag` when it sent one, otherwise its `Last-Modified` date —
+    /// `If-Range` accepts either.
     @ObservationIgnored internal var etag: String?
 
     /// Which retry we are on, 0-based. Reset by an explicit start or pause.

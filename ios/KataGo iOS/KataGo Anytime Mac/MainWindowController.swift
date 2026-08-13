@@ -2028,14 +2028,12 @@ final class MainWindowController: NSWindowController {
     // `detachDownloadObservation`), and closing the window no longer cancels
     // the transfer, so a book that finishes downloading with the window
     // closed (or never opened at all) would otherwise stay unloaded with a
-    // stale eye state. `DownloadCenter.finishedGeneration` and
-    // `.lastFinishedDestination` are written together in the same frame on
-    // every completed download (`DownloadCenter.swift`), so this observer
-    // dedups on the generation counter and resolves the finished destination
-    // against the opening-book catalog — a finished NETWORK download has no
-    // match there and is silently ignored. Mirrors the iOS
+    // stale eye state. This observer dedups on `finishedGeneration` and then
+    // re-reads disk state, rather than filtering on
+    // `lastFinishedDestination` — a single slot that a coalesced pair of
+    // finishes overwrites (see `handleDownloadCenterChange`). Mirrors the iOS
     // `ContentView.onChange(of: DownloadCenter.shared.finishedGeneration)`
-    // handler.
+    // handler, which re-scans for the same reason.
 
     /// Seeds the snapshot from the live state and starts the self-rescheduling
     /// observation bridge for `DownloadCenter.shared.finishedGeneration`.
@@ -2060,23 +2058,26 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    /// Detects a fresh finish against the snapshot, resolves the finished
-    /// destination against the opening-book catalog, and — only on a match —
-    /// reconciles the active game's book load + eye state via
-    /// `refreshBookStateForSelectedGame()`, the same reconciliation the
-    /// Opening Books window's `onBooksChanged()` triggers. A finished network
-    /// download resolves to no book and is ignored.
+    /// Detects a fresh finish against the snapshot and reconciles the active
+    /// game's book load + eye state via `refreshBookStateForSelectedGame()`,
+    /// the same reconciliation the Opening Books window's `onBooksChanged()`
+    /// triggers.
+    ///
+    /// Deliberately does NOT read `lastFinishedDestination` to decide whether
+    /// the finish was a book: two finishes CAN land in one main-actor turn
+    /// (`finish` ends with `advanceQueue`, which starts the next download,
+    /// which short-circuits straight back to `finish` when its staged partial
+    /// already covers the declared total), and only the last destination
+    /// survives. `refreshBookStateForSelectedGame()` re-reads disk state
+    /// itself and is a no-op for the selected game's size when nothing
+    /// changed, so running it on every bump — including a finished network,
+    /// which has no book to reconcile — is both cheaper and more truthful than
+    /// filtering on a value that can be overwritten.
     private func handleDownloadCenterChange() {
         let newGeneration = DownloadCenter.shared.finishedGeneration
         guard newGeneration != lastDownloadFinishedGeneration else { return }
         lastDownloadFinishedGeneration = newGeneration
-
-        if let finished = DownloadCenter.shared.lastFinishedDestination,
-           OpeningBook.allCases.contains(where: {
-               $0.downloadedURL.standardizedFileURL == finished.standardizedFileURL
-           }) {
-            refreshBookStateForSelectedGame()
-        }
+        refreshBookStateForSelectedGame()
     }
 
     // MARK: - Move confirmation dialogs

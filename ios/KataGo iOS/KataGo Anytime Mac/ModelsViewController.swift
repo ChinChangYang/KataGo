@@ -25,7 +25,7 @@
 //
 //  Set active
 //  ----------
-//  Choosing a downloaded model (the row's "Set Active" button, or double-click)
+//  Choosing a downloaded model (the row's Play button, or double-click)
 //  calls `onSetActive`, which the window controller routes to
 //  `MainWindowController.relaunch(model:)` (set active + in-process relaunch).
 //

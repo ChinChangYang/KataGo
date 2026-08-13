@@ -41,10 +41,18 @@ public final class DownloadCenter {
     /// link), small enough that a drop or a pause never costs more than that.
     static let chunkSize: Int64 = 32 * 1024 * 1024
 
-    /// The destination of the download that most recently succeeded, paired
-    /// with a counter so a consumer can react to two finishes of the same
-    /// asset. This is how a freshly downloaded opening book gets activated
-    /// even when the detail view that started it has been popped.
+    /// `finishedGeneration` counts completed installs; observing it is how a
+    /// freshly downloaded opening book gets activated even when the detail
+    /// view that started it has been popped.
+    ///
+    /// `lastFinishedDestination` is informational — a last-value slot, and NOT
+    /// a queue. Two finishes can land in one main-actor turn (`finish` ends
+    /// with `advanceQueue`, which starts the next download, which
+    /// short-circuits straight back to `finish` when its staged partial
+    /// already covers the declared total), so one of the two destinations is
+    /// overwritten before any observer runs. Consumers must therefore re-scan
+    /// disk for what they care about rather than dispatch on this value; both
+    /// the iOS and the macOS hook do.
     public private(set) var lastFinishedDestination: URL?
     public private(set) var finishedGeneration: Int = 0
 
@@ -533,9 +541,10 @@ public final class DownloadCenter {
         var request = URLRequest(url: sourceURL)
         request.setValue("bytes=\(offset)-\(offset + Self.chunkSize - 1)",
                          forHTTPHeaderField: "Range")
-        // If-Range only matters once we have bytes to protect. Sending the
-        // ETag we were given means a changed asset comes back 200 (whole
-        // body) instead of splicing new bytes onto old ones.
+        // If-Range only matters once we have bytes to protect. Sending back
+        // the validator the server gave us — its ETag, or its Last-Modified
+        // date when it sent no ETag — means a changed asset comes back 200
+        // (whole body) instead of splicing new bytes onto old ones.
         if offset > 0, let etag = download.etag {
             request.setValue(etag, forHTTPHeaderField: "If-Range")
         }

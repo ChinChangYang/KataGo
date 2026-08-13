@@ -4,7 +4,8 @@
 //
 //  A view-based NSTableCellView for one downloadable opening book: bold title,
 //  file size, a status area (Downloading… / Paused / Downloaded / Not
-//  downloaded), and trailing controls (a download/resume button, an inline
+//  downloaded), and trailing controls (a primary button labelled from the
+//  shared `DownloadButtonRole` — Download or Resume Download, an inline
 //  progress bar shown while downloading OR paused, a cancel button shown only
 //  while actively downloading, and a trash button for a downloaded book). The
 //  button and the bar are visible TOGETHER only in the Paused state, so a
@@ -157,10 +158,17 @@ final class OpeningBookRowView: NSTableCellView {
 
         let state = download?.state ?? .idle
         let isDownloading = download?.isBusy ?? false
+        // One shared rule for what the button is, the same one iOS and
+        // visionOS ask. Re-deriving it by hand here is what left this button
+        // telling VoiceOver "Download" where iOS says "Resume Download".
+        let role = DownloadButtonRole.role(isOnDisk: isDownloaded,
+                                           state: state,
+                                           hasPartial: download?.hasPartial ?? false)
         // A paused download still has bytes on disk, and a bar frozen where it
         // stopped is the only thing that tells the user resuming is cheap.
-        let isPaused = (state == .paused || state == .interrupted)
-            && (download?.hasPartial ?? false)
+        // That is exactly `.resume`, so read it off the role rather than
+        // spelling the rule out a second time.
+        let isPaused = (role == .resume)
 
         if isDownloading {
             statusField.stringValue = "Downloading…"
@@ -189,11 +197,13 @@ final class OpeningBookRowView: NSTableCellView {
         // state's layout is byte-for-byte what it was before Paused existed.
         primaryButtonTrailingConstraint.isActive = isPaused
 
-        // Download button only when not downloaded and not downloading.
+        // Download button only when not downloaded and not downloading — a
+        // book is never "played" from this row (the board's eye button loads
+        // it), so the `.play` role is simply not shown.
         primaryButton.isHidden = isDownloading || isDownloaded
-        primaryButton.image = NSImage(systemSymbolName: "arrow.down",
-                                      accessibilityDescription: "Download")
-        primaryButton.title = "  Download"
+        primaryButton.image = NSImage(systemSymbolName: role.systemImageName,
+                                      accessibilityDescription: role.actionTitle)
+        primaryButton.title = "  " + role.actionTitle
         primaryButton.imagePosition = .imageLeading
 
         trashButton.isHidden = !(isDownloaded && !isDownloading)

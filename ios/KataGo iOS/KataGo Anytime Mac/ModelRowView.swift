@@ -7,12 +7,14 @@
 //    • `ModelRowView` — a view-based `NSTableCellView` for one catalog model:
 //      bold title + secondary description, file size, a status area (Active
 //      badge / Downloading… / Paused / Downloaded / Not downloaded), and the
-//      trailing controls (a download/resume or set-active button, an inline
-//      progress bar shown while downloading OR paused, a cancel button shown
-//      only while actively downloading, and a trash button for a downloaded
-//      non-built-in model). The button and the bar are visible TOGETHER only
-//      in the Paused state, so a dedicated constraint keeps the button from
-//      running under the bar (see `primaryButtonTrailingConstraint`).
+//      trailing controls (a primary button whose label, glyph and routing all
+//      come from the shared `DownloadButtonRole` — Play / Download / Resume
+//      Download — an inline progress bar shown while downloading OR paused, a
+//      cancel button shown only while actively downloading, and a trash button
+//      for a downloaded non-built-in model). The button and the bar are
+//      visible TOGETHER only in the Paused state, so a dedicated constraint
+//      keeps the button from running under the bar (see
+//      `primaryButtonTrailingConstraint`).
 //      Mirrors the iOS `ModelDetailView` tri-state + `ModelTrashButton`.
 //
 //    • `ModelBackendPaneView` — the per-model engine-config detail pane,
@@ -42,10 +44,13 @@ final class ModelRowView: NSTableCellView {
     private let statusField = NSTextField(labelWithString: "")
     private let progressIndicator = NSProgressIndicator()
 
-    /// The primary trailing button: "Set Active" (downloaded), a download
-    /// arrow (not downloaded), or the same download arrow doubling as
-    /// "resume" (paused, with bytes already on disk — tapping it re-enters
-    /// `startDownload`, which the center resumes from where it stopped).
+    /// The primary trailing button. Its label, glyph and action all come from
+    /// `DownloadButtonRole`: "Play" (downloaded — makes this the active net),
+    /// "Download" (nothing on disk), or "Resume Download" (stopped with bytes
+    /// already on disk — tapping it re-enters `startDownload`, which the
+    /// center resumes from where it stopped). Download and Resume share a
+    /// glyph and must NOT share a label; that difference is the whole reason
+    /// the role lives in one place.
     /// Hidden only while actively downloading, when the cancel button +
     /// progress bar take over; visible ALONGSIDE the progress bar while
     /// paused (see `primaryButtonTrailingConstraint`).
@@ -62,6 +67,11 @@ final class ModelRowView: NSTableCellView {
     /// all and its label runs directly under the bar — worse, since it is
     /// added to the view AFTER the bar, it then draws on top of it.
     private var primaryButtonTrailingConstraint: NSLayoutConstraint!
+
+    /// The role `configure(...)` last rendered. `primaryTapped` dispatches on
+    /// it rather than sniffing the button's own title, which stops the routing
+    /// from depending on label text.
+    private var primaryRole: DownloadButtonRole = .download
 
     /// Byte-count formatter for the file size, matching the macOS convention
     /// (the iOS app rolls its own `humanFileSize`; `ByteCountFormatter` is the
@@ -235,10 +245,18 @@ final class ModelRowView: NSTableCellView {
 
         let state = download?.state ?? .idle
         let isDownloading = download?.isBusy ?? false
+        // One shared rule for what the button is, the same one iOS and
+        // visionOS ask. Re-deriving it by hand here is what left the macOS
+        // paused button telling VoiceOver "Download" where iOS says "Resume
+        // Download" — the distinction `DownloadButtonRole` exists to keep.
+        let role = DownloadButtonRole.role(isOnDisk: isAvailable,
+                                           state: state,
+                                           hasPartial: download?.hasPartial ?? false)
         // A paused download still has bytes on disk, and a bar frozen where it
         // stopped is the only thing that tells the user resuming is cheap.
-        let isPaused = (state == .paused || state == .interrupted)
-            && (download?.hasPartial ?? false)
+        // That is exactly `.resume`, so read it off the role rather than
+        // spelling the rule out a second time.
+        let isPaused = (role == .resume)
 
         // Status text: Active > Downloading > Paused > Downloaded.
         if isActive {
@@ -272,20 +290,14 @@ final class ModelRowView: NSTableCellView {
         primaryButtonTrailingConstraint.isActive = isPaused
 
         primaryButton.isHidden = isDownloading
-        if isAvailable {
-            primaryButton.image = NSImage(systemSymbolName: "play.fill",
-                                          accessibilityDescription: "Set active")
-            primaryButton.title = "  Set Active"
-            primaryButton.imagePosition = .imageLeading
-            // Disable the set-active button for the already-active model.
-            primaryButton.isEnabled = !isActive
-        } else {
-            primaryButton.image = NSImage(systemSymbolName: "arrow.down",
-                                          accessibilityDescription: "Download")
-            primaryButton.title = "  Download"
-            primaryButton.imagePosition = .imageLeading
-            primaryButton.isEnabled = true
-        }
+        primaryRole = role
+        primaryButton.image = NSImage(systemSymbolName: role.systemImageName,
+                                      accessibilityDescription: role.actionTitle)
+        primaryButton.title = "  " + role.actionTitle
+        primaryButton.imagePosition = .imageLeading
+        // Disable the activate button for the already-active model; every
+        // other role is always tappable.
+        primaryButton.isEnabled = !(role == .play && isActive)
 
         // Trash: only a downloaded, non-built-in model that isn't downloading.
         trashButton.isHidden = !(isAvailable && !model.builtIn && !isDownloading)
@@ -300,13 +312,18 @@ final class ModelRowView: NSTableCellView {
     }
 
     @objc private func primaryTapped() {
-        // Primary acts as download (unavailable) or set-active (available); the
-        // owning controller's closure already encodes which, keyed off the same
-        // availability the cell rendered.
-        if primaryButton.title.contains("Download") {
-            onDownload?()
-        } else {
+        // Dispatch on the role the cell rendered, not on its label text: two
+        // of the four roles now say "Download" in their title.
+        switch primaryRole {
+        case .play:
             onSetActive?()
+        case .download, .resume:
+            onDownload?()
+        case .pause:
+            // Unreachable: the button is hidden while a transfer is running or
+            // queued, and `cancelButton` takes over. Routed anyway so the
+            // switch says what the role means rather than swallowing it.
+            onCancel?()
         }
     }
 
