@@ -766,7 +766,7 @@ final class MainWindowController: NSWindowController {
     /// needs it too. Originally only `performSelectGame(_:)` used this gate;
     /// `discardDraftAndReload` and `newGame`'s sheet completion called `load`
     /// straight through, which sent GTP into a mid-teardown engine during a
-    /// relaunch (Models window ▸ Set Active) — the exact race F14 exists to
+    /// relaunch (Models window ▸ Play) — the exact race F14 exists to
     /// prevent, just reached from a door that wasn't watching for it. Giving
     /// every game-loading call site the same gate, rather than gating each
     /// menu item's `validateMenuItem` on `isEngineReady` and hoping nothing new
@@ -861,7 +861,7 @@ final class MainWindowController: NSWindowController {
     ///
     /// That guard only holds once the sheet has been ANSWERED, though: the
     /// sheet is window-modal, the menu bar stays live under it, and Models ▸
-    /// Set Active produces another engine-ready edge. `isOfferingDraftRestore`
+    /// Play produces another engine-ready edge. `isOfferingDraftRestore`
     /// covers the window in between — two sheets would otherwise queue, and
     /// answering Restore then Discard would clear the mirror belonging to the
     /// draft the first sheet had just restored.
@@ -1323,7 +1323,7 @@ final class MainWindowController: NSWindowController {
 
     /// Opens (or brings forward) the native Models window. Reached through the
     /// responder chain from the Window-menu "Manage Models…" item (and, later,
-    /// the P5-T6 toolbar dropdown). The window's "Set Active" path routes back
+    /// the P5-T6 toolbar dropdown). The window's "Play" path routes back
     /// into `relaunch(model:)` to switch the active net + relaunch the engine;
     /// the "Active" badge reads the live `modelSelection.currentModel`.
     @objc func showModelsWindow(_ sender: Any?) {
@@ -3980,7 +3980,7 @@ extension MainWindowController: NSToolbarItemValidation {
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         // Active-model dropdown: always enabled; opportunistically refresh its
         // displayed title so it tracks the live selection even when the model was
-        // changed elsewhere (Models window "Set Active", crash recovery).
+        // changed elsewhere (Models window "Play", crash recovery).
         if item.itemIdentifier == .activeModel {
             refreshActiveModelToolbarItem()
             return true

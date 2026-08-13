@@ -115,7 +115,7 @@ public final class DownloadCenter {
     /// unit test.
     @ObservationIgnored var launchTask: ((URLRequest, String) -> Int)?
 
-    init() {
+    private init() {
         downloadsDisabled = ProcessInfo.processInfo.arguments.contains(Self.disableLaunchArgument)
     }
 
@@ -267,6 +267,21 @@ public final class DownloadCenter {
     /// `getAllTasks` can hand back its identifier and a `URLSessionTask` may
     /// not cross out of that completion, so the first callback to arrive
     /// adopts it.
+    ///
+    /// That adoption has a narrow residual: `restoreOnLaunch` filters
+    /// `liveKeys` to `.running` tasks only, so a task left `.canceling` by a
+    /// `pause` the process did not outlive is excluded from the snapshot —
+    /// but still has a completion queued in the daemon. If that stale
+    /// completion arrives before the adopted (live) task's first callback,
+    /// its identifier is adopted instead, and the slot is then cleared for
+    /// the wrong task. It fails safe the same way the stale-callback case
+    /// above does: the live task keeps writing after its identifier was
+    /// dropped, the overshoot trips `TransferVerification`'s `.sizeMismatch`,
+    /// and the partial is discarded rather than installed wrong. Restricting
+    /// adoption to `chunkProgress` — where a progress callback proves the
+    /// adopting task is actually alive, rather than merely first to arrive —
+    /// would close most of this; not done here because it is a behaviour
+    /// change and this residual already fails safe.
     private func callbackIsCurrent(key: String, taskIdentifier: Int) -> Bool {
         guard activeKey == key else { return true }
         guard let current = activeTaskIdentifier else {
@@ -324,7 +339,13 @@ public final class DownloadCenter {
         // arrive first — and the cancel it issued hit a task that had already
         // finished, so no error callback is coming to carry the pause. Keep
         // the bytes, honour the stop.
-        if pausedKeys.remove(key) != nil {
+        //
+        // `download.state == .paused` catches the same stop arriving in a
+        // FRESH process: `pausedKeys` is always empty there, but `rehydrate`
+        // above already seeded `.paused` from the sidecar. This has to run
+        // BEFORE `persist(download, pausedByUser: false)` below, or that call
+        // clears the very flag being checked.
+        if pausedKeys.remove(key) != nil || download.state == .paused {
             download.state = .paused
             persist(download, pausedByUser: true)
             advanceQueue()
@@ -372,8 +393,11 @@ public final class DownloadCenter {
         // exactly the bytes we already proved were ours.
         download.receivedBytes = DownloadStaging.partialSize(forKey: key)
         // Same race as `absorbed`: a pause that landed during the delegate's
-        // file work must not be undone by a retry armed here.
-        if pausedKeys.remove(key) != nil {
+        // file work must not be undone by a retry armed here. And the same
+        // fresh-process case as `absorbed`: `pausedKeys` is empty right after
+        // a relaunch, but `rehydrate` above already seeded `.paused` from the
+        // sidecar when that is what it found there.
+        if pausedKeys.remove(key) != nil || download.state == .paused {
             download.state = .paused
             persist(download, pausedByUser: true)
             advanceQueue()
@@ -407,6 +431,16 @@ public final class DownloadCenter {
         // `rehydrate`, not `downloads[key]`, so a background relaunch can
         // retry a transfer no view ever vended.
         guard let download = rehydrate(key: key) else {
+            advanceQueue()
+            return
+        }
+        // Same fresh-process case as `absorbed`/`rejected`: the `pausedKeys`
+        // check above cannot see a pause that predates this process, but
+        // `rehydrate` just seeded `.paused` from the sidecar when that is
+        // what it found there. Honour it — keep the partial, keep the pause,
+        // arm no retry.
+        if download.state == .paused {
+            persist(download, pausedByUser: true)
             advanceQueue()
             return
         }
@@ -717,6 +751,15 @@ public final class DownloadCenter {
         // this chunk's bytes-written on top of a zero baseline instead of the
         // bytes already on disk.
         download.chunkStartOffset = DownloadStaging.partialSize(forKey: key)
+        // Seed from the sidecar the way `download(for:)` already does. A
+        // callback reaching `rehydrate` means it landed in a fresh process —
+        // the only place a paused download gets rebuilt rather than read from
+        // `downloads` — and `pausedKeys` is empty there. Without this, a
+        // download the user explicitly stopped comes back `.idle`, the
+        // `absorbed`/`rejected`/`failed` callbacks below have no pause to see,
+        // and an explicit Stop is silently undone: `absorbed` even persists
+        // `pausedByUser: false`, erasing the pause from the sidecar too.
+        download.state = metadata.pausedByUser ? .paused : .interrupted
         downloads[key] = download
         return download
     }
