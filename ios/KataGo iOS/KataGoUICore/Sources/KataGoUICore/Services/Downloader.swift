@@ -62,6 +62,21 @@ public class Downloader: NSObject, URLSessionDownloadDelegate {
     nonisolated public func urlSession(_: URLSession,
                                 downloadTask: URLSessionDownloadTask,
                                 didFinishDownloadingTo location: URL) {
+        // A response is not a success. `URLSession` delivers 4xx, 5xx — and
+        // GitHub release assets' non-standard `618 jwt:expired`, which is
+        // neither — through this method exactly like a 200. Moving the body
+        // unconditionally installs an error page as the asset, and every
+        // `fileExists` check downstream then reads it as downloaded forever,
+        // recoverable only by deleting the file by hand.
+        let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? -1
+        guard status == 200 else {
+            Task { @MainActor in
+                isDownloading = false
+                progress = 0.0
+            }
+            return
+        }
+
         // Remove if exists
         try? FileManager.default.removeItem(at: destinationURL)
         // The downloaded file will be removed automatically.
