@@ -1,16 +1,42 @@
 import Observation
 
-/// Observable bridge between the engine-launch path (which crosses the
-/// C++/Swift boundary on a non-MainActor thread) and `LoadingView`'s
-/// secondary status string. Producers must hop to MainActor before
-/// writing — see spec round 2 §LoadingView status string.
+/// Observable bridge between the Core ML compile path (which crosses the
+/// C++/Swift boundary on a non-MainActor thread) and the launch screens'
+/// secondary caption. Producers must hop to MainActor before calling — the
+/// registration seam in `CoreMLComputeHandleLoader` does that for them.
+///
+/// The state is a **count, not a flag**. Increments and decrements commute, so
+/// a release that lands late — after the next compile has already begun —
+/// cannot blank a caption that is currently true. A single assignable field
+/// offers no such guarantee, and the stale-clear it allowed is one of the two
+/// bugs ADR 0007 fixes.
+///
+/// The count is **process-wide, not per-launch**: a compile abandoned by a
+/// launch the user backed out of is still real work, is still counted, and can
+/// therefore light the caption on a later launch that has nothing of its own to
+/// compile. That is true rather than precise, which is the trade ADR 0007 makes.
 @MainActor @Observable
 public final class EngineLaunchStatus {
-    public enum Phase: Equatable, Sendable {
-        case idle
-        case compilingMissFirstLaunch    // "Compiling Core ML model — first launch only"
-        case awaitingPrecompile          // "Finishing Core ML compile…"
-    }
-    public var phase: Phase = .idle
+    /// Core ML compiles currently in flight. Private so the only way to move it
+    /// is the balanced `compileBegan()` / `compileEnded()` pair.
+    private var activeCompiles = 0
+
+    /// True while at least one Core ML compile is running. The launch screens
+    /// show their compile caption on exactly this, and on nothing else.
+    public var isCompiling: Bool { activeCompiles > 0 }
+
     public init() {}
+
+    public func compileBegan() {
+        activeCompiles += 1
+    }
+
+    /// Clamped at zero. The launch-timeout path abandons a compile it cannot
+    /// cancel (`CoreMLComputeHandleLoader.loadCoreMLHandleWithBridgeTimeout`),
+    /// so that compile's release can arrive long after everything else has
+    /// settled. Without the clamp it would drive the count negative and silence
+    /// the *next* real compile.
+    public func compileEnded() {
+        activeCompiles = max(0, activeCompiles - 1)
+    }
 }

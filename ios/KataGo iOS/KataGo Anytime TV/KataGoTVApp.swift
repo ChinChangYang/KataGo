@@ -39,9 +39,7 @@ struct KataGoTVApp: App {
 
         // Wire the engine-launch status updater seam so TVLoadingView can
         // show a secondary caption during cache-miss compiles.
-        registerEngineLaunchStatusUpdater { phase in
-            await MainActor.run { status.phase = phase }
-        }
+        registerEngineLaunchStatusUpdater(status)
     }
 
     var body: some Scene {

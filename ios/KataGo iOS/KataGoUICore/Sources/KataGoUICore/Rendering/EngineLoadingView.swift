@@ -117,13 +117,11 @@ public struct EngineLoadingView: View {
         }
     }
 
-    /// Core ML compile-status caption. `nil` on the MLX/GPU default path
-    /// (`.idle`), where the ticking headline already reads "Loading…".
+    /// Core ML compile caption. `nil` unless a compile is genuinely running —
+    /// on the MLX/GPU path, and on any cache hit, the ticking headline already
+    /// reads "Loading…". It makes no claim about whether the compile will
+    /// recur, because it would be false: see ADR 0007.
     private var secondaryLine: String? {
-        switch status.phase {
-        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
-        case .awaitingPrecompile:       "Finishing Core ML compile…"
-        case .idle:                     nil
-        }
+        status.isCompiling ? "Compiling Core ML model…" : nil
     }
 }

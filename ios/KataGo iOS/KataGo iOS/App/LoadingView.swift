@@ -106,12 +106,10 @@ struct LoadingView: View {
         }
     }
 
+    /// Core ML compile caption. Shown only while a compile is genuinely
+    /// running — a cache hit says nothing — and it makes no claim about
+    /// whether the compile will recur, because it would be false: see ADR 0007.
     private var secondaryLine: String? {
-        switch launchStatus.phase {
-        case .compilingMissFirstLaunch: "Compiling Core ML model — first launch only"
-        case .awaitingPrecompile:       "Finishing Core ML compile…"
-        case .idle:                     nil
-        @unknown default:               nil
-        }
+        launchStatus.isCompiling ? "Compiling Core ML model…" : nil
     }
 }

@@ -26,9 +26,7 @@ struct KataGoVisionApp: App {
         // any engine launch, and force the engine stack to link.
         registerCoreMLBridge()
 
-        registerEngineLaunchStatusUpdater { phase in
-            await MainActor.run { status.phase = phase }
-        }
+        registerEngineLaunchStatusUpdater(status)
     }
 
     var body: some Scene {

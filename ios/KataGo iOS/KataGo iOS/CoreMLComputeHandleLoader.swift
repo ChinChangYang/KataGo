@@ -54,12 +54,18 @@ public func loadCoreMLHandle(
     let cache = CoreMLModelCache.shared
     await cache.start()
 
-    // Report compilation status for the duration of the cache lookup.
-    // On a cache hit this clears quickly; on a miss it persists until
-    // compilation finishes, giving the user a meaningful caption in
-    // LoadingView (Task 25).
-    await reportLaunchStatus(.compilingMissFirstLaunch)
-    defer { Task { await reportLaunchStatus(.idle) } }
+    // Compile caption: raised INSIDE the miss callback, so a cache hit — the
+    // overwhelmingly common case — says nothing at all, and released here at
+    // function scope, because the compile is not the last thing the user waits
+    // for. After the callback returns, the cache still moves the compiled model
+    // into place and rewrites its index, and `MLModel(contentsOf:)` below still
+    // builds the ANE program. A callback-scoped caption would go dark two
+    // thirds of the way through the wait. See ADR 0007.
+    //
+    // A count rather than a flag: the corrupt-hit retry below can run the miss
+    // callback twice, and a flag would leak a raise.
+    let compileSpan = CompileReportSpan()
+    defer { compileSpan.drain() }
 
     let sourceFileName = (coremlModelPath as NSString).lastPathComponent
     for attempt in 0..<2 {
@@ -68,12 +74,14 @@ public func loadCoreMLHandle(
             priority: .userInitiated,
             sourceFileName: sourceFileName,
             missCallback: {
-                return try await convertOnCooperativePool(
-                    coremlModelPath: coremlModelPath,
-                    boardX: nnXLen, boardY: nnYLen,
-                    useFP16: useFP16, optimizeMask: optimizeMask,
-                    maxBatchSize: Int32(maxBatchSize),
-                    serverThreadIdx: Int32(serverThreadIdx))
+                return try await reportingCompile(in: compileSpan) {
+                    try await convertOnCooperativePool(
+                        coremlModelPath: coremlModelPath,
+                        boardX: nnXLen, boardY: nnYLen,
+                        useFP16: useFP16, optimizeMask: optimizeMask,
+                        maxBatchSize: Int32(maxBatchSize),
+                        serverThreadIdx: Int32(serverThreadIdx))
+                }
             })
         do {
             let config = MLModelConfiguration()
@@ -213,6 +221,16 @@ public func loadCoreMLHandleWithBridgeTimeout(
         }
         if secondary.wait(timeout: .now() + .seconds(60)) == .timedOut {
             // Truly hung. Cancel and fall through to legacy direct-compile.
+            //
+            // Deliberately does NOT clear the compile caption. `cancel()`
+            // cannot stop the abandoned compile — it runs in a detached task
+            // inside the cache actor whose only cancellation checks are
+            // post-compile — and the legacy path below re-converts and
+            // recompiles from scratch. A compile really is running here, so
+            // clearing would make the caption go dark mid-compile: the exact
+            // defect ADR 0007 removes. The abandoned compile's own release
+            // settles the count if it ever unwinds, and `compileEnded()`
+            // clamps at zero so a late one cannot silence the next compile.
             task.cancel()
             return createCoreMLComputeHandle(
                 coremlModelPath: coremlModelPath,
@@ -283,23 +301,93 @@ public func registerDownloadedHasher(
     katagoDownloadedHasher = hasher
 }
 
-// MARK: - Engine-launch status updater seam (Task 25)
+// MARK: - Compile-reporting seam (Task 25; reshaped by ADR 0007)
 
-/// Process-wide engine-launch status updater. The main app target sets
-/// this at launch (Task 25 wires `EngineLaunchStatus.phase = ...`).
-/// Off-MainActor; the producer hops to MainActor inside the closure.
-nonisolated(unsafe) private var engineLaunchStatusUpdater:
-    ((EngineLaunchStatus.Phase) async -> Void)? = nil
+/// Where Core ML compile begin/end events go. Production uses `.global`, which
+/// forwards to whatever `registerEngineLaunchStatusUpdater` installed; tests
+/// inject a recorder so they never touch that process-wide global, which has no
+/// unregister and would leak across an app-hosted suite.
+public struct CompileReporter: Sendable {
+    let began: @Sendable () async -> Void
+    let ended: @Sendable () async -> Void
 
-/// Register a closure that receives `EngineLaunchStatus.Phase` updates
-/// from the cache-loading path. Mirrors `registerDownloadedHasher` and
-/// `registerCoreMLBridge` — call once at app launch from the main target.
-public func registerEngineLaunchStatusUpdater(
-    _ updater: @escaping @Sendable (EngineLaunchStatus.Phase) async -> Void
-) {
-    engineLaunchStatusUpdater = updater
+    public init(began: @escaping @Sendable () async -> Void,
+                ended: @escaping @Sendable () async -> Void) {
+        self.began = began
+        self.ended = ended
+    }
+
+    public static let global = CompileReporter(
+        began: { await engineCompileReporter?.began() },
+        ended: { await engineCompileReporter?.ended() })
 }
 
-private func reportLaunchStatus(_ phase: EngineLaunchStatus.Phase) async {
-    await engineLaunchStatusUpdater?(phase)
+/// Process-wide reporter. The main app target sets this at launch.
+/// Off-MainActor; the closures hop to MainActor themselves.
+nonisolated(unsafe) private var engineCompileReporter: CompileReporter? = nil
+
+/// Wire the launch screens' status object to the compile-reporting seam.
+/// Mirrors `registerDownloadedHasher` and `registerCoreMLBridge` — call once at
+/// app launch from the main target, before any engine launch.
+public func registerEngineLaunchStatusUpdater(_ status: EngineLaunchStatus) {
+    engineCompileReporter = CompileReporter(
+        began: { await status.compileBegan() },
+        ended: { await status.compileEnded() })
+}
+
+/// The compile-caption raises made by ONE handle load.
+///
+/// Exists because the raise and the release belong to different scopes: the
+/// raise must happen inside the cache's miss callback (so a hit stays silent),
+/// while the release must wait for the whole load (so the caption covers the
+/// index write and the ANE program build that follow the compile). See ADR 0007.
+public final class CompileReportSpan: @unchecked Sendable {
+    private let reporter: CompileReporter
+    private let lock = NSLock()
+    private var outstanding = 0
+
+    public init(_ reporter: CompileReporter = .global) {
+        self.reporter = reporter
+    }
+
+    /// Record and report one raise. Called from the cooperative pool, so the
+    /// bookkeeping uses a scoped `withLock` — `lock()`/`unlock()` are
+    /// unavailable in an async context.
+    public func began() async {
+        lock.withLock { outstanding += 1 }
+        await reporter.began()
+    }
+
+    /// Balance every raise this span made. Call exactly once, from a
+    /// function-scope `defer` in the enclosing load — `defer` bodies cannot
+    /// `await`, which is why this is synchronous and hands off to a `Task`.
+    /// The returned task exists so tests can await the releases; production
+    /// call sites discard it.
+    @discardableResult
+    public func drain() -> Task<Void, Never> {
+        let pending = lock.withLock {
+            let n = outstanding
+            outstanding = 0
+            return n
+        }
+        let reporter = self.reporter
+        return Task {
+            for _ in 0..<pending { await reporter.ended() }
+        }
+    }
+}
+
+/// Run the work that genuinely constitutes a compile, with the caption raised.
+///
+/// The raise is registered with `span` rather than released here: a throwing
+/// `body` must still leave a balanced span, and the enclosing load's `defer`
+/// is what balances it. `convertOnCooperativePool` does throw on converter
+/// failure, and that failure returns promptly — so without this the caption
+/// would pin on for the life of the process under a *failed* engine launch.
+public func reportingCompile<T>(
+    in span: CompileReportSpan,
+    _ body: () async throws -> T
+) async rethrows -> T {
+    await span.began()
+    return try await body()
 }

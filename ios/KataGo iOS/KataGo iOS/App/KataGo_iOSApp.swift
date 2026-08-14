@@ -57,9 +57,7 @@ struct KataGo_iOSApp: App {
 
         // Wire the engine-launch status updater seam so LoadingView can
         // show a secondary caption during cache-miss compiles.
-        registerEngineLaunchStatusUpdater { phase in
-            await MainActor.run { status.phase = phase }
-        }
+        registerEngineLaunchStatusUpdater(status)
     }
 
     @ViewBuilder

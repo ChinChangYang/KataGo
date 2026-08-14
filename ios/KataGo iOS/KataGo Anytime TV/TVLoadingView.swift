@@ -5,8 +5,8 @@
 //  Engine-loading screen matching the iOS LoadingView design: a ticking
 //  "Loading engine…" headline, a secondary Core ML compile-status line
 //  (EngineLaunchStatus), and the spinning circular KataGo icon. tvOS
-//  adaptations: the rotation repeats forever (a first-launch Core ML
-//  compile outlasts iOS's single 20 s turn), there is no tap-to-spin
+//  adaptations: the rotation repeats forever (a cold Core ML compile
+//  outlasts iOS's single 20 s turn), there is no tap-to-spin
 //  (nothing focusable on the remote), the secondary line is .title3 for
 //  10-foot legibility, and Reduce Motion pins the icon.
 //
@@ -42,7 +42,7 @@ struct TVLoadingView: View {
 
 #Preview("Loading view — compiling") {
     let status = EngineLaunchStatus()
-    let _ = status.phase = .compilingMissFirstLaunch
+    let _ = status.compileBegan()
     TVLoadingView(caption: "Loading engine")
         .environment(status)
 }

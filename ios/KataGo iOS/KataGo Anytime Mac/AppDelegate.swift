@@ -52,9 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // is the Mac target's own `CoreMLComputeHandleLoader` seam — the same
         // file that already vends `registerCoreMLBridge`/`registerDownloadedHasher`.
         let engineLaunchStatus = EngineLaunchStatus()
-        registerEngineLaunchStatusUpdater { phase in
-            await MainActor.run { engineLaunchStatus.phase = phase }
-        }
+        registerEngineLaunchStatusUpdater(engineLaunchStatus)
 
         NSApp.mainMenu = buildMainMenu()
         let wc = MainWindowController(modelContainer: modelContainer,

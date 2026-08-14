@@ -112,18 +112,28 @@ struct CoreMLRoutingProbeEnvironment: Sendable {
             await CoreMLModelCache.shared.start()
             let inputs = target.inputs
             let sourceFileName = (inputs.sourcePath as NSString).lastPathComponent
+            // The probe's compiles are captioned too, for the same reason `run()`
+            // outlives the sheet: the user's next action is usually Play, so the
+            // engine launch that follows JOINS this compile through
+            // `inFlight[digest]` and never enters its own miss callback. Without
+            // this raise the launch screen would sit silent through the one
+            // compile most likely to be running. See ADR 0007.
+            let compileSpan = CompileReportSpan()
+            defer { compileSpan.drain() }
             guard let pinned = try? await CoreMLModelCache.shared.urlForKey(
                 digest: target.digest,
                 priority: .userInitiated,
                 sourceFileName: sourceFileName,
                 missCallback: {
-                    try await convertOnCooperativePool(
-                        coremlModelPath: inputs.sourcePath,
-                        boardX: inputs.nnXLen, boardY: inputs.nnYLen,
-                        useFP16: inputs.useFP16,
-                        optimizeMask: inputs.requireExactNNLen,
-                        maxBatchSize: Int32(inputs.maxBatchSize),
-                        serverThreadIdx: 0)
+                    try await reportingCompile(in: compileSpan) {
+                        try await convertOnCooperativePool(
+                            coremlModelPath: inputs.sourcePath,
+                            boardX: inputs.nnXLen, boardY: inputs.nnYLen,
+                            useFP16: inputs.useFP16,
+                            optimizeMask: inputs.requireExactNNLen,
+                            maxBatchSize: Int32(inputs.maxBatchSize),
+                            serverThreadIdx: 0)
+                    }
                 })
             else { return nil }
             // `deviceUsageCounts` never throws, so the pin cannot be stranded
