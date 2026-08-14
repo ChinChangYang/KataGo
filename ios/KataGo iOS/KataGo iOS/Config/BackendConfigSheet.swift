@@ -50,7 +50,7 @@ struct BackendConfigSheet: View {
                     case .mlxGPU:
                         Text("MLX/GPU: responsive, with no compilation step.")
                     case .coremlNE:
-                        Text("CoreML / Neural Engine: most power-efficient. The first launch for a board size takes time to compile.")
+                        Text("CoreML / Neural Engine: most power-efficient. The engine compiles a Core ML model for each network it loads, and again after an app or system update — that can take a while.")
                     case .mux:
                         Text("Runs the GPU and Neural Engine in parallel for the best throughput, at the cost of higher memory. Takes effect on the next load.")
                     }
@@ -230,7 +230,7 @@ struct BackendConfigSheet: View {
             }
             Text("Core ML runs on the Neural Engine, falling back to the CPU for operations it cannot place there. The GPU path is MLX/GPU, a separate backend. When most operations fall back to the CPU, MLX/GPU is often faster.")
             if routingProbe.readiness == .needsCompile, routingProbe.phase == .idle {
-                Text("This network has not been compiled for Core ML at this board size yet. Checking compiles it first, which can take a while — the result is reused the next time the engine loads it.")
+                Text("This network has not been compiled for Core ML at this board size yet. Checking compiles it first, which can take a while.")
             }
             #if targetEnvironment(simulator)
             Text("The Simulator has no Neural Engine, so every operation falls back to the CPU here regardless of the network. Run on a device for real routing.")

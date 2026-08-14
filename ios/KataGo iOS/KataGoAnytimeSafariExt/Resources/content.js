@@ -670,7 +670,7 @@
             const friendly = {
                 boardTooLarge: "Boards larger than 19×19 aren't supported yet.",
                 busy: "Another game is being analyzed — try again in a moment.",
-                warmingUp: "Preparing the neural network (first run takes a few minutes)…",
+                warmingUp: "Starting the analysis engine…",
                 sgfParse: "This game's SGF could not be read.",
                 engineDown: "The analysis engine stopped — press Analyze to retry.",
             };

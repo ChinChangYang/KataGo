@@ -3,9 +3,10 @@
 //  KataGo Anytime TV
 //
 //  Owner of the tvOS engine lifecycle: the initial launch and the in-process
-//  "Restart Engine" recovery. Apple TV runs a single fixed backend —
-//  CoreML/Neural Engine (`EngineDeviceAssignments.platformMux` == [100] on
-//  tvOS) — so there is no backend to pick and no benchmark. The GTP engine is
+//  "Restart Engine" recovery. Apple TV runs a single fixed backend — Core ML
+//  (`EngineDeviceAssignments.platformMux` == [100] on tvOS), pinned to
+//  CPU+GPU because the Neural Engine never takes this net — so there is no
+//  backend to pick. The GTP engine is
 //  a one-shot blocking thread; "restart" = GTP "quit" → old thread ends →
 //  park the read loop → spawn a new thread → re-run the version handshake (the
 //  sole reader while it runs) → resume the read loop. The quit sequencing

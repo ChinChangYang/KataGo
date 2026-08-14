@@ -60,3 +60,11 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Default game** — the game a platform creates without the user choosing anything (first launch, quick New Game, fallback after deleting the last game). An even default game uses the Tromp-Taylor preset with its suggested komi 7.5, identically on every platform and peripheral surface (photo import, Messages).
 - **Handicap default** — the ruleset a new game with handicap stones receives when the user has not chosen one: the Chinese preset, whose white handicap bonus compensates White one point per free stone (Tromp-Taylor compensates nothing). The default follows the handicap only while *untouched*; an explicit ruleset choice always wins and never flips back.
 - **Untouched rules** — rules the user has neither picked from the preset list nor edited knob-by-knob. Only untouched rules retarget themselves when the handicap changes. Rules identical to the default count as untouched: indistinguishable states are treated the same.
+
+## Core ML compilation
+
+- **Compile** — turning a neural network into a model the Neural Engine or GPU can actually run. Minutes of work on a phone, and the only reason the launch screen has anything to say beyond "Loading".
+- **Compile key** — everything that identifies one compiled model: which network, the *NN buffer size*, the numeric precision, the identity-mask optimisation, the batch-size bounds, the converter's own version, and the operating system's major version. Two loads share a compiled model only when every one of these agrees — so a new app build and a new OS release each invalidate every compiled model, exactly as a different network does.
+- **Cache miss** — no compiled model exists for the current compile key. The only condition under which the app may say it is compiling.
+- **Recompile** — a compile that happens because the compile key changed, because the compiled model was evicted to stay within the cache's bounds, or because the user cleared the cache. Ordinary, not exceptional: the app never describes compiling as a one-time event.
+- **NN buffer size** — the largest board the running engine can evaluate, fixed when the engine launches (the *Max Board Size* setting). Distinct from the board size of any particular game, which may be smaller — a 9×9 game on a 19×19 engine compiles nothing new.

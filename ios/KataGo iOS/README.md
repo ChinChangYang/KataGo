@@ -207,7 +207,7 @@ The Apple TV app reviews, spectates, **and plays ranked games against KataGo**:
 - **Self-play** — watch KataGo play itself endlessly; an idle attract mode starts a demo game on its own.
 - **Settings → Diagnostics** — restart the engine, re-download the library from iCloud, run a CoreML benchmark across all four `MLComputeUnits` configurations, and toggle a live memory overlay.
 
-The TV app runs the built-in 18-block network and the human-SL network (for ranked play) on the Neural Engine, and limits downloadable nets to 100 MB or less.
+The TV app runs the built-in 18-block network and the human-SL network (for ranked play) through Core ML on the CPU and GPU — Apple TV's Neural Engine never takes this network — and limits downloadable nets to 100 MB or less.
 
 ## KataGo Anytime on Apple Watch
 

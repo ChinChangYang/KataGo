@@ -3,8 +3,8 @@
 //  KataGo Anytime TV
 //
 //  TV-local persisted settings (UserDefaults). Apple TV runs a single fixed
-//  CoreML/Neural Engine backend with no benchmark, so the only persisted
-//  preference is the sound-effects toggle.
+//  Core ML backend (pinned to CPU+GPU) with no picker, so the only preference
+//  this store holds is the sound-effects toggle.
 //
 
 import Foundation

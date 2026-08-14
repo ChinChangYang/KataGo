@@ -349,7 +349,7 @@ struct TVRootView: View {
     private func startEngineIfNeeded() {
         guard !engineStarted, !isRunningInPreview else { return }
         engineStarted = true
-        // Apple TV runs a single fixed CoreML/Neural Engine backend.
+        // Apple TV runs a single fixed Core ML backend, pinned to CPU+GPU.
         engineController.configure(session: session, engineLifecycle: engineLifecycle)
         engineController.startInitial()
     }

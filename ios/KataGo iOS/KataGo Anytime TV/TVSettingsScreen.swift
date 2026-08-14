@@ -2,9 +2,11 @@
 //  TVSettingsScreen.swift
 //  KataGo Anytime TV
 //
-//  Settings + recovery for the TV app. Apple TV runs a single fixed
-//  CoreML/Neural Engine backend (no picker, no benchmark), so this screen is:
-//  an engine restart, a "Re-download Library from iCloud" reset (arms
+//  Settings + recovery for the TV app. Apple TV runs a single fixed Core ML
+//  backend, pinned to CPU+GPU because the Neural Engine never takes this net
+//  (see CoreMLComputeHandleLoader), so there is no backend picker and this
+//  screen is: an engine restart, a Core ML benchmark, a "Re-download Library
+//  from iCloud" reset (arms
 //  TVStoreReset and exits — the wipe happens next launch before the container
 //  opens), the sound-effects toggle, and a diagnostics footer showing the
 //  store mode and engine state.
@@ -240,7 +242,11 @@ struct TVSettingsScreen: View {
                 benchmarkControl
                 Toggle("Memory Overlay (top-right corner)", isOn: $showMemoryOverlay)
                 VStack(alignment: .leading, spacing: 8) {
-                    diagnosticRow("Engine", "CoreML / Neural Engine — \(phaseText)")
+                    // `phaseText` is TVEngineController's lifecycle phase, not
+                    // the Core ML compile status. "pinned" describes the
+                    // configuration the loader sets, which is the honest claim:
+                    // the timeout fallback can still end up elsewhere.
+                    diagnosticRow("Engine", "Core ML (CPU + GPU, pinned) — \(phaseText)")
                     diagnosticRow("Library store", storeModeText)
                 }
                 .font(.callout)
