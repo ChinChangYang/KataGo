@@ -14,6 +14,7 @@
 import Testing
 import KataGoUICore
 import GoRulesKit
+import KataGoAnalysisKit
 
 struct GoRulesKitDifferentialTests {
     struct Scenario: CustomStringConvertible {
@@ -89,6 +90,68 @@ struct GoRulesKitDifferentialTests {
     private func snapshot(of board: GoBoard) -> (black: Set<String>, white: Set<String>) {
         (black: Set(board.gtpVertices(of: .black)),
          white: Set(board.gtpVertices(of: .white)))
+    }
+
+    // MARK: - Tolerant refusals
+
+    // SgfReplay refuses exactly what KataGo's tolerant `play` refuses: an
+    // occupied point, an off-board point, and single-stone suicide. These pin
+    // the two rejections a recorded game can actually contain against the C++
+    // board, which rejects the same move — CompactSgf::playMovesTolerant
+    // throws on it, which is how the rejection is observable from here.
+    //
+    // Only the Swift replay can carry on past it, and that asymmetry is the
+    // point: the engine is fed the record move by move and simply never
+    // receives a refused move, so it stays on the position the replay draws.
+    // Handing the whole SGF to the C++ parser instead loses the game from the
+    // refusal onward, which is why `loadsgf` is not how the board is drawn.
+
+    @Test func refusedOccupiedPointAgreesWithCppTolerantPlay() throws {
+        try expectRefusal(
+            in: "(;FF[4]GM[1]SZ[9]KM[7];B[cc];W[gg];B[cc];W[dd])",
+            at: 2, "replayed occupied point")
+    }
+
+    @Test func refusedSingleStoneSuicideAgreesWithCppTolerantPlay() throws {
+        // A lone Black stone into the corner between two White stones has no
+        // liberty and captures nothing.
+        try expectRefusal(
+            in: "(;FF[4]GM[1]SZ[9]KM[7]AW[ah][bi];B[ai];W[gg])",
+            at: 0, "single-stone suicide")
+    }
+
+    private func expectRefusal(in sgf: String, at refusedIndex: Int, _ label: String) throws {
+        let scan = try #require(SgfHeaderScan(sgf: sgf), "scan failed for \(label)")
+        var replay = SgfReplay(scan: scan)
+        let frames = SgfHelper(sgf: sgf).gifFrames()
+        try #require(frames.count == replay.moveCount + 1,
+                     "frame count mismatch for \(label)")
+
+        // Up to and including the refused index both sides replayed the same
+        // accepted moves, so the boards match.
+        for index in 0...refusedIndex {
+            let position = replay.position(at: index)
+            #expect(Set(frames[index].blackStones) == Set(position.blackVertices),
+                    "black mismatch at \(index): \(label)")
+            #expect(Set(frames[index].whiteStones) == Set(position.whiteVertices),
+                    "white mismatch at \(index): \(label)")
+        }
+
+        // Past it the C++ SGF replay has thrown and degraded to nothing, while
+        // the Swift replay skipped the move and kept the position.
+        for index in frames.indices where index > refusedIndex {
+            #expect(frames[index].blackStones.isEmpty && frames[index].whiteStones.isEmpty,
+                    "C++ replay should have given up at \(index): \(label)")
+        }
+        let afterRefusal = replay.position(at: refusedIndex + 1)
+        let beforeRefusal = replay.position(at: refusedIndex)
+        #expect(afterRefusal.blackVertices == beforeRefusal.blackVertices,
+                "refused move changed the board: \(label)")
+        #expect(afterRefusal.whiteVertices == beforeRefusal.whiteVertices,
+                "refused move changed the board: \(label)")
+        #expect(afterRefusal.toMove == beforeRefusal.toMove,
+                "refused move changed the turn: \(label)")
+        #expect(replay.refusedIndices == [refusedIndex], "refusals mismatch: \(label)")
     }
 }
 

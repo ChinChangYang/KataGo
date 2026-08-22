@@ -45,6 +45,28 @@ private:
     PlayerCpp _player;
 };
 
+/// What an SGF root node does to a point before the first move: place a Black
+/// stone (AB), place a White stone (AW), or clear the point (AE).
+enum class PlacementColorCpp {
+    empty,
+    black,
+    white
+};
+
+/// One root setup placement, with 0-based coordinates whose origin is the
+/// TOP-LEFT (x right, y down) — the same convention as MoveCpp.
+class PlacementCpp {
+public:
+    PlacementCpp(const int x, const int y, const PlacementColorCpp color);
+    int getX() const SWIFT_COMPUTED_PROPERTY;
+    int getY() const SWIFT_COMPUTED_PROPERTY;
+    PlacementColorCpp getColor() const SWIFT_COMPUTED_PROPERTY;
+private:
+    int _x;
+    int _y;
+    PlacementColorCpp _color;
+};
+
 class RulesCpp {
 public:
     RulesCpp(const int koRule,
@@ -108,6 +130,14 @@ public:
     int getXSize() const SWIFT_COMPUTED_PROPERTY;
     int getYSize() const SWIFT_COMPUTED_PROPERTY;
     unsigned long getMovesSize() const SWIFT_COMPUTED_PROPERTY;
+    /// The root node's AB/AW/AE placements, expanded from compressed point
+    /// ranges, in the order the engine accumulates them (AB, then AW, then
+    /// AE) — the position the engine is set up with before any move is
+    /// played. Empty for an invalid SGF or an undecodable placement list.
+    /// Placements on nodes AFTER the root are deliberately not reported: the
+    /// engine's own CompactSgf refuses such records outright.
+    unsigned long getPlacementsSize() const SWIFT_COMPUTED_PROPERTY;
+    PlacementCpp getPlacementAt(const int index) const;
     bool isValidMoveIndex(const int index) const;
     bool isValidCommentIndex(const int index) const;
     MoveCpp getMoveAt(const int index) const;
@@ -124,8 +154,10 @@ private:
     int _xSize;
     int _ySize;
     vector<MoveCpp> moves;
+    vector<PlacementCpp> placements;
     vector<string> comments;
     void traverseSgf(const void* sgf);
+    void collectPlacements(const void* sgf);
     void traverseSgfHelper(const void* sgf);
     /// Shared main-line replay backing both getFinalPosition and getFrameAt.
     /// `turnIdx < 0` (or beyond the move count) means the final position.

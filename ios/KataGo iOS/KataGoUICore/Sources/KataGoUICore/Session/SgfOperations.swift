@@ -14,6 +14,9 @@ public final class SgfOperations {
     public init(sgf: String) { self.helper = SgfHelper(sgf: sgf) }
     public func getMove(at index: Int) -> Move? { helper.getMove(at: index) }
     public func getComment(at index: Int) -> String? { helper.getComment(at: index) }
+    /// The SGF root's setup stones and removals (AB/AW/AE) — the position the
+    /// engine is set up with before the first move. See `SgfHelper.placements()`.
+    public func placements() -> [Placement] { helper.placements() }
     public var moveSize: Int? { helper.moveSize }
     public var xSize: Int { helper.xSize }
     public var ySize: Int { helper.ySize }

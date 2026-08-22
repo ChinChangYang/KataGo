@@ -167,7 +167,12 @@ let package = Package(
         ),
         .target(
             name: "KataGoUICore",
-            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit"],
+            // GoRulesKit is here for SgfReplay: the record position every
+            // platform draws is replayed in pure Swift, so the board never
+            // waits for the engine. The edge is one-way — GoRulesKit stays
+            // bridge-free, so the Messages extension and the watch keep
+            // linking it without CKataGoBridge/MLX.
+            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit", "GoRulesKit"],
             resources: [
                 .process("Resources")
             ],

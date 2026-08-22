@@ -42,6 +42,29 @@ public struct Move {
 }
 
 
+/// One setup instruction from an SGF root node: a Black stone (`AB`), a White
+/// stone (`AW`), or a cleared point (`AE`). Coordinates are 0-based with the
+/// origin at the TOP-LEFT (x right, y down), matching `Location`. This is the
+/// position the engine is set up with before the first move is played, and
+/// the seed the engine-free replay starts from.
+public struct Placement: Sendable, Equatable {
+    public enum Kind: Sendable, Equatable {
+        case black
+        case white
+        case removal
+    }
+
+    public let x: Int
+    public let y: Int
+    public let kind: Kind
+
+    public init(x: Int, y: Int, kind: Kind) {
+        self.x = x
+        self.y = y
+        self.kind = kind
+    }
+}
+
 public struct Rules {
     public let koRule: KoRule
     public let scoringRule: ScoringRule
@@ -147,6 +170,25 @@ public class SgfHelper {
         let location = moveCpp.pass ? Location() : Location(x: Int(moveCpp.x), y: Int(moveCpp.y))
         let player: Player = (moveCpp.player == PlayerCpp.black) ? .black : .white
         return Move(location: location, player: player)
+    }
+
+    /// The root node's `AB`/`AW`/`AE` setup, compressed point ranges expanded,
+    /// in the order the engine accumulates them (AB, then AW, then AE). Empty
+    /// for an invalid SGF, and for placements on nodes after the root — the
+    /// engine's own parser refuses those records outright.
+    public func placements() -> [Placement] {
+        (0..<Int(sgfCpp.placementsSize)).map { index in
+            let placement = sgfCpp.getPlacementAt(Int32(index))
+            let kind: Placement.Kind
+            if placement.color == PlacementColorCpp.black {
+                kind = .black
+            } else if placement.color == PlacementColorCpp.white {
+                kind = .white
+            } else {
+                kind = .removal
+            }
+            return Placement(x: Int(placement.x), y: Int(placement.y), kind: kind)
+        }
     }
 
     public func getComment(at index: Int) -> String? {

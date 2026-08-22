@@ -58,6 +58,24 @@ PlayerCpp MoveCpp::getPlayer() const {
     return _player;
 }
 
+PlacementCpp::PlacementCpp(const int x, const int y, const PlacementColorCpp color) {
+    this->_x = x;
+    this->_y = y;
+    this->_color = color;
+}
+
+int PlacementCpp::getX() const {
+    return _x;
+}
+
+int PlacementCpp::getY() const {
+    return _y;
+}
+
+PlacementColorCpp PlacementCpp::getColor() const {
+    return _color;
+}
+
 SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0) {
     try {
         sgf = Sgf::parse(str).release();
@@ -66,9 +84,36 @@ SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0) {
             _xSize = size.x;
             _ySize = size.y;
             traverseSgf(sgf);
+            collectPlacements(sgf);
         }
     } catch (...) {
         sgf = NULL;
+    }
+}
+
+void SgfCpp::collectPlacements(const void* sgf) {
+    placements.clear();
+    // Kept in its OWN try: a malformed AB/AW/AE value makes getPlacements
+    // throw, and that must degrade to "this SGF has no setup stones" rather
+    // than invalidating the whole parse (which is what letting it reach the
+    // constructor's catch would do).
+    try {
+        vector<Move> rootPlacements;
+        ((Sgf*)sgf)->getPlacements(rootPlacements, _xSize, _ySize);
+        for (size_t i = 0; i < rootPlacements.size(); ++i) {
+            Loc loc = rootPlacements[i].loc;
+            PlacementColorCpp color = PlacementColorCpp::empty;
+            if (rootPlacements[i].pla == P_BLACK) {
+                color = PlacementColorCpp::black;
+            } else if (rootPlacements[i].pla == P_WHITE) {
+                color = PlacementColorCpp::white;
+            }
+            placements.push_back(PlacementCpp(Location::getX(loc, _xSize),
+                                              Location::getY(loc, _xSize),
+                                              color));
+        }
+    } catch (...) {
+        placements.clear();
     }
 }
 
@@ -142,6 +187,17 @@ int SgfCpp::getYSize() const {
 
 unsigned long SgfCpp::getMovesSize() const {
     return moves.size();
+}
+
+unsigned long SgfCpp::getPlacementsSize() const {
+    return placements.size();
+}
+
+PlacementCpp SgfCpp::getPlacementAt(const int index) const {
+    if ((index >= 0) && (index < placements.size())) {
+        return placements[index];
+    }
+    return PlacementCpp(-1, -1, PlacementColorCpp::empty);
 }
 
 bool SgfCpp::isValidMoveIndex(const int index) const {
