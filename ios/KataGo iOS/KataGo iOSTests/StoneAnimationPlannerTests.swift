@@ -245,6 +245,48 @@ struct StoneAnimationPlannerTests {
                                                  removals: 1) == .immediately)
     }
 
+    // MARK: - Record-owned display
+
+    @Test func recordDrivenDiffWhileNotReadyStillRenders() {
+        // The board is record-owned: the stone diff now arrives with the
+        // `printsgf` reply, BEFORE the engine's showboard acknowledgement — so
+        // while `stones.isReady` is still false. The planner must resolve it
+        // exactly as before (it has no notion of readiness, and must not grow
+        // one): the stone flies in and clicks on landing.
+        var planner = StoneAnimationPlanner()
+        planner.expect(.place(p))
+
+        let effect = planner.resolve(additions: [p], removals: [])
+        #expect(effect == .flyIn(p))
+        #expect(StoneAnimationPlanner.soundCue(effect: effect,
+                                               additions: 1,
+                                               removals: 0,
+                                               isInitialSync: false) == .playAfterFlyIn)
+    }
+
+    @Test func playThenAckThenRecordSequence() {
+        // One played move, in the order the new command sequence produces it:
+        // the play site queues the intent, the record update draws the stone,
+        // and the LATER showboard acknowledgement re-syncs an unchanged board.
+        // That trailing empty diff must neither re-click nor disturb the queue.
+        var planner = StoneAnimationPlanner()
+        planner.expect(.place(p))
+
+        #expect(planner.resolve(additions: [p], removals: []) == .flyIn(p))
+        #expect(planner.pending.isEmpty)
+
+        let ackEffect = planner.resolve(additions: [], removals: [])
+        #expect(ackEffect == .none)
+        #expect(planner.pending.isEmpty)
+        #expect(StoneAnimationPlanner.soundCue(effect: ackEffect,
+                                               additions: 0,
+                                               removals: 0,
+                                               isInitialSync: false) == .none)
+        #expect(StoneAnimationPlanner.captureCue(effect: ackEffect,
+                                                 additions: 0,
+                                                 removals: 0) == nil)
+    }
+
     @Test func emptyDiffLeavesThePreviousCaptureCueStanding() {
         // showboard writes the stone lists before its "B/W stones captured"
         // lines, so the counter can be observed on a later, empty sync of

@@ -57,9 +57,15 @@ struct GobanStateOwnershipPersistenceTests {
         // winRates, incl. withAnimation) short-circuit, isolating the ownership
         // write + cap under test.
 
+        // The persist gate now also demands that the engine is in sync AND that
+        // these numbers were collected for the index being written — the state
+        // a real analysed move is in when `maybeUpdateAnalysisData` runs.
+        stones.isReady = true
+
         let moveCount = 200
         for index in 0..<moveCount {
             gameRecord.currentIndex = index
+            analysis.collectedForKey = gobanState.recordPositionKey(gameRecord: gameRecord)
             gobanState.maybeUpdateAnalysisData(
                 gameRecord: gameRecord, analysis: analysis, board: board, stones: stones)
         }

@@ -428,6 +428,19 @@ public class GobanState {
         }
     }
 
+    /// The identity of the position this state is currently displaying, or nil
+    /// when there is nothing to display. Built from the same three sources the
+    /// board reads — the active line's SGF, its index, and whether that line is
+    /// a branch — so an equal key means an identical board.
+    public func recordPositionKey(gameRecord: GameRecord?) -> RecordPositionKey? {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord) else { return nil }
+        return RecordPositionKey(recordID: gameRecord?.persistentModelID,
+                                 sgf: sgf,
+                                 index: currentIndex,
+                                 isBranchActive: isBranchActive)
+    }
+
     public func maybeUpdateAnalysisData(
         gameRecord: GameRecord,
         analysis: Analysis,
@@ -435,6 +448,15 @@ public class GobanState {
         stones: Stones,
         all: Bool = true
     ) {
+        // Per-index analysis is only ever written for a position that is BOTH
+        // acknowledged by the engine and the one these numbers were collected
+        // for. Navigating twice before an ack arrives used to stamp the first
+        // position's win rate onto the second index.
+        guard stones.isReady,
+              analysis.collectedForKey == recordPositionKey(gameRecord: gameRecord) else {
+            return
+        }
+
         if isEditing && (analysisStatus != .clear) {
             let currentIndex = gameRecord.currentIndex
 
@@ -583,8 +605,12 @@ public class GobanState {
 
         play(turn: turn, move: move, messageList: messageList, stones: stones)
         player.toggleNextColorForPlayCommand()
-        sendShowBoardCommand(messageList: messageList)
+        // `printsgf` BEFORE `showboard`: the record owns the board, so the
+        // reply that updates the record (and therefore puts the stone on
+        // screen) has to land before the sync ack that says the engine caught
+        // up. GTP replies are FIFO, so ordering the sends orders the replies.
         messageList.appendAndSend(command: "printsgf")
+        sendShowBoardCommand(messageList: messageList)
         audioModel.playPlaySound(soundEffect: soundEffect)
 
         clearPendingMove()
@@ -638,8 +664,9 @@ public class GobanState {
 
         play(turn: turn, move: aiMove, messageList: messageList, stones: stones)
         player.toggleNextColorForPlayCommand()
-        sendShowBoardCommand(messageList: messageList)
+        // `printsgf` before `showboard` — see `playPendingHumanMove`.
         messageList.appendAndSend(command: "printsgf")
+        sendShowBoardCommand(messageList: messageList)
         audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
@@ -1043,25 +1070,6 @@ public class GobanState {
         }
     }
 
-    /// Resets the visible board to a blank `width`×`height` grid. Mutates only
-    /// the shared `BoardSize`/`Stones` model objects (no SwiftUI view code), so
-    /// it lives here in the package rather than in the iOS view. Used by
-    /// `loadGame` when switching to a game whose board size differs from the
-    /// previous one, so the old stones don't linger while the new SGF loads.
-    @MainActor
-    private func placeLoadingBoard(width: Int, height: Int, board: BoardSize, stones: Stones) {
-        withAnimation {
-            board.width = CGFloat(width)
-            board.height = CGFloat(height)
-            stones.blackPoints.removeAll()
-            stones.whitePoints.removeAll()
-            stones.moveOrder.removeAll()
-            stones.blackStonesCaptured = 0
-            stones.whiteStonesCaptured = 0
-            stones.isReady = false
-        }
-    }
-
     /// Decides the editing (unlock) state after a board (re)load. A brand-new
     /// default game starts unlocked for immediate play; a committed-branch
     /// reload requests unlock (replacing the original game is an explicit edit);
@@ -1083,14 +1091,21 @@ public class GobanState {
     /// Reloads the board for a newly selected game, mirroring the previous
     /// `GameSplitView.processChange(oldGameRecord:newGameRecord:)` exactly. The
     /// iOS-only thumbnail render stays in the view's `onChange` wrapper.
+    ///
+    /// The switched game's position is projected SYNCHRONOUSLY here, so it is
+    /// on screen before the engine has been told anything. The `previous`
+    /// parameter is gone with `placeLoadingBoard`: the projector always
+    /// publishes the new game's own size, so there is nothing left to compare
+    /// the old game against.
     @MainActor
     public func loadGame(gameRecord newGameRecord: GameRecord?,
-                         previous oldGameRecord: GameRecord?,
                          player: Turn,
                          bookLookup: BookLookup,
                          messageList: MessageList,
                          board: BoardSize,
-                         stones: Stones) {
+                         stones: Stones,
+                         analysis: Analysis,
+                         projector: RecordPositionProjector) {
         player.nextColorForPlayCommand = .unknown
         // Consume the one-shot unlock intent set by commitBranch up front, so it
         // can never leak into a later, unrelated game load.
@@ -1117,25 +1132,46 @@ public class GobanState {
             clearAutoPlayStep()
             isEditing = Self.editingAfterLoad(sgf: newGameRecord.sgf,
                                               unlockRequested: unlockRequested)
-            let currentIndex = newGameRecord.currentIndex
             let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
-            newGameRecord.currentIndex = sgfHelper.moveSize ?? 0
+            let moveCount = sgfHelper.moveSize ?? 0
+            // Where the game must END UP: the saved cursor, clamped into the
+            // record's own move range. A record saved past its move count (a
+            // re-imported or truncated SGF) would otherwise sit off the end.
+            let targetIndex = min(max(newGameRecord.currentIndex, 0), moveCount)
 
-            // Guarantee a stones-ready false→true edge for EVERY switch. This
-            // load always ends with `showboard`, whose reply sets
-            // `isReady = true` — but without this reset a switch to a game
-            // saved at its tip (no undos, same board size) leaves `isReady`
-            // true throughout, the equal-value write fires no observation, and
-            // the stones-ready handlers (persist + widget reload) never run.
-            // A `? ` error reply restores it via `resetPendingStatesOnError`.
+            // The engine is not in sync with anything yet.
             stones.isReady = false
+            // Loading a game ALWAYS invalidates what was on screen, so clear
+            // here rather than leaning on the projector's key-change rule: a
+            // host whose own driver already projected this key would make that
+            // rule a no-op, and the previous game's win rate would survive the
+            // switch.
+            analysis.clear()
+
+            // Show the switched game AT ONCE — engine-free. The key is built
+            // by hand rather than read back from the record because the engine
+            // recipe below parks `currentIndex` at the tip while it feeds; the
+            // record settles on `targetIndex`, which is what this key names, so
+            // the host's own key observer sees no further change.
+            projector.project(key: RecordPositionKey(recordID: newGameRecord.persistentModelID,
+                                                     sgf: newGameRecord.sgf,
+                                                     index: targetIndex,
+                                                     isBranchActive: isBranchActive),
+                              into: stones,
+                              board: board,
+                              analysis: analysis,
+                              gobanState: self)
+
+            // Engine recipe (unchanged in this commit): `loadsgf` lands the
+            // engine at the tip, then `undo` walks it back to the target.
+            newGameRecord.currentIndex = moveCount
 
             maybeLoadSgf(
                 gameRecord: newGameRecord,
                 messageList: messageList
             )
 
-            while newGameRecord.currentIndex > currentIndex {
+            while newGameRecord.currentIndex > targetIndex {
                 newGameRecord.undo()
                 undo(messageList: messageList, stones: stones)
             }
@@ -1147,12 +1183,6 @@ public class GobanState {
             config.hasButton = sgfHelper.rules.hasButton
             config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
             config.komi = sgfHelper.rules.komi
-
-            if let oldGameRecord,
-               oldGameRecord.concreteConfig.boardWidth != config.boardWidth ||
-                oldGameRecord.concreteConfig.boardHeight != config.boardHeight {
-                placeLoadingBoard(width: config.boardWidth, height: config.boardHeight, board: board, stones: stones)
-            }
 
             messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText, multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton, whiteHandicapBonus: config.whiteHandicapBonusRuleText))
             messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))

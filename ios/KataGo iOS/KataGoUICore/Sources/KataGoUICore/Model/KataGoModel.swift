@@ -16,11 +16,21 @@ public class BoardSize {
     public var height: CGFloat = 19
 
     public func locationToMove(location: Location) -> String? {
+        BoardSize.locationToMove(location: location,
+                                 width: Int(width),
+                                 height: Int(height))
+    }
+
+    /// The GTP vertex an SGF `Location` names on a `width`×`height` board, or
+    /// nil when it falls outside. Static so callers that hold plain sizes —
+    /// `RecordStoneCache`, which writes the per-index move cache from a record
+    /// and its replayed position — need not build a `BoardSize` to ask.
+    public static func locationToMove(location: Location, width: Int, height: Int) -> String? {
         guard !location.pass else { return "pass" }
         let x = location.x
-        let y = Int(height) - location.y
+        let y = height - location.y
 
-        guard (1...Int(height)).contains(y), (0..<Int(width)).contains(x) else { return nil }
+        guard (1...height).contains(y), (0..<width).contains(x) else { return nil }
 
         return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
     }
@@ -142,7 +152,20 @@ public class Stones: Equatable {
     public var moveOrder: [BoardPoint: Character] = [:]
     public var blackStonesCaptured: Int = 0
     public var whiteStonesCaptured: Int = 0
-    public var isReady: Bool = true
+    /// Whether the ENGINE is in sync with the position on screen — it has
+    /// acknowledged the record position with a `showboard` reply. It is NOT
+    /// "are there stones to draw": the board is record-owned and always draws,
+    /// engine or no engine. Only in-sync positions collect analysis, accept
+    /// stone taps, step auto-play and persist per-index analysis.
+    ///
+    /// Starts false: nothing has acknowledged anything yet, and a true default
+    /// would open the tap gate against an engine that is still loading.
+    public var isReady: Bool = false
+    /// Bumped by `RecordPositionProjector` every time it publishes a position.
+    /// Drives everything that must react to "the board changed" rather than to
+    /// "the engine caught up" — the placement haptic, for one. Compared for
+    /// inequality only, so its wrap-around is harmless.
+    public var positionGeneration: Int = 0
 
     public static func == (lhs: Stones, rhs: Stones) -> Bool {
         lhs.blackPoints == rhs.blackPoints &&
@@ -209,6 +232,13 @@ public class Analysis {
     public var info: [BoardPoint: AnalysisInfo] = [:]
     public var ownershipUnits: [OwnershipUnit] = []
     public var visitsPerSecond: Double = 0
+    /// The position these numbers were collected for — the projector's
+    /// `currentKey` at the moment the `info` lines landed. Nil means "nothing
+    /// collected yet". `GobanState.maybeUpdateAnalysisData` refuses to persist
+    /// analysis into an index this does not match, so navigating away before
+    /// the engine answers can never stamp the old position's numbers onto the
+    /// new one.
+    public var collectedForKey: RecordPositionKey?
 
     @ObservationIgnored private var lastRootVisits: Int?
     @ObservationIgnored private var sessionStartVisits: Int?
@@ -315,6 +345,7 @@ public class Analysis {
         info = [:]
         ownershipUnits = []
         visitsPerSecond = 0
+        collectedForKey = nil
         lastRootVisits = nil
         sessionStartVisits = nil
         sessionStartTime = nil

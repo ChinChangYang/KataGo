@@ -32,6 +32,9 @@ import KataGoUICore
 struct TVPlayScreen: View {
     let game: GameRecord
 
+    /// The session itself, for `session.recordPosition` — the one projector
+    /// that turns the record's SGF into the board this screen draws.
+    @Environment(GameSession.self) private var session
     @Environment(GobanState.self) private var gobanState
     @Environment(Turn.self) private var player
     @Environment(BookLookup.self) private var bookLookup
@@ -233,6 +236,14 @@ struct TVPlayScreen: View {
                 dismiss()
             }
         }
+        // The board is record-owned: publish the record position whenever it
+        // moves — a played move, a scrub, a game switch — without waiting for
+        // the engine. Keyed on THIS SCREEN'S game, not on
+        // `navigationContext.selectedGameRecord`: on tvOS the selection is a
+        // write-target that these screens deliberately park at nil while a
+        // reload or a variation teardown is in flight, and following it would
+        // blank a board the user is still looking at.
+        .recordPositionSync(session: session, gameRecord: game)
         .onAppear {
             loadIfNeeded()
             controllerInput.pushHandler(controllerToken) { event in
@@ -551,9 +562,10 @@ struct TVPlayScreen: View {
         // persisting. The one-shot seam is exactly for a reload that should
         // land unlocked; loadGame consumes it.
         gobanState.unlockEditingOnReload = true
-        gobanState.loadGame(gameRecord: game, previous: nil, player: player,
+        gobanState.loadGame(gameRecord: game, player: player,
                             bookLookup: bookLookup, messageList: messageList,
-                            board: board, stones: stones)
+                            board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
         // AFTER the load (loadGame can rewrite eyeStatus when a book game
         // loads). Ranked-play defaults: engine ON, overlay OFF — see this
         // file's header for why `.clear` is never an option here.

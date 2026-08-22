@@ -216,12 +216,12 @@ public struct StoneView: View {
         // pass point — so it must stay transparent to hit testing.
         .allowsHitTesting(false)
 
-        // Removing the canvas when the board empties lets the animated clear
-        // in `placeLoadingBoard` fade the stones out on a game switch, as the
-        // per-stone views' removal transitions used to. Per-move updates set
-        // the arrays with `.none`, so normal play still swaps instantly. The
-        // haptic stays on the always-present wrapper: a new game becomes
-        // ready with zero stones on the board.
+        // Removing the canvas when the board empties lets the stones fade out
+        // when a switch publishes an empty board, as the per-stone views'
+        // removal transitions used to. Per-move updates set the arrays with
+        // `.none`, so normal play still swaps instantly. The haptic stays on
+        // the always-present wrapper: a new game projects zero stones and must
+        // still buzz.
         let layer = Group {
             if !blackPoints.isEmpty || !whitePoints.isEmpty {
                 canvas
@@ -234,9 +234,11 @@ public struct StoneView: View {
         // valid SensoryFeedback case there.
         return layer
 #else
+        // The stone lands when the RECORD moves, not when the engine catches
+        // up: the board is record-owned, so the buzz rides the projection.
         return layer
-            .sensoryFeedback(.impact, trigger: stones.isReady) { wasReady, isReady in
-                !wasReady && isReady && gobanState.hapticFeedback
+            .sensoryFeedback(.impact, trigger: stones.positionGeneration) { old, new in
+                old != new && gobanState.hapticFeedback
             }
 #endif
     }

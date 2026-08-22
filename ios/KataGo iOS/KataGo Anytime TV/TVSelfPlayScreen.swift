@@ -63,6 +63,9 @@ struct TVSelfPlayScreen: View {
         #endif
     }
 
+    /// The session itself, for `session.recordPosition` — the one projector
+    /// that turns the record's SGF into the board this screen draws.
+    @Environment(GameSession.self) private var session
     @Environment(GobanState.self) private var gobanState
     @Environment(Turn.self) private var player
     @Environment(BookLookup.self) private var bookLookup
@@ -337,6 +340,14 @@ struct TVSelfPlayScreen: View {
                     dismiss()
                 }
             }
+        // The board is record-owned: publish the record position whenever it
+        // moves — a played move, a scrub, a game switch — without waiting for
+        // the engine. Keyed on THIS SCREEN'S game, not on
+        // `navigationContext.selectedGameRecord`: on tvOS the selection is a
+        // write-target that these screens deliberately park at nil while a
+        // reload or a variation teardown is in flight, and following it would
+        // blank a board the user is still looking at.
+        .recordPositionSync(session: session, gameRecord: game)
         .onAppear {
             startIfNeeded()
             controllerInput.pushHandler(controllerToken) { event in
@@ -632,9 +643,10 @@ struct TVSelfPlayScreen: View {
         // Never rewind this game (a rewound editing position would trip the
         // AI-overwrite confirmation instead of playing).
         gobanState.unlockEditingOnReload = true
-        gobanState.loadGame(gameRecord: newGame, previous: nil, player: player,
+        gobanState.loadGame(gameRecord: newGame, player: player,
                             bookLookup: bookLookup, messageList: messageList,
-                            board: board, stones: stones)
+                            board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
 
         // Keep the system screensaver from covering the demo (spectating is
         // lean-back, input-free viewing — the video-app pattern).
@@ -699,9 +711,10 @@ struct TVSelfPlayScreen: View {
         // the one-shot unlock (see startIfNeeded: a Max-Board-Size-clamped
         // demo would otherwise load locked and branch-route every printsgf).
         gobanState.unlockEditingOnReload = true
-        gobanState.loadGame(gameRecord: next, previous: finished, player: player,
+        gobanState.loadGame(gameRecord: next, player: player,
                             bookLookup: bookLookup, messageList: messageList,
-                            board: board, stones: stones)
+                            board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
 
         // BoardView stays mounted across the swap, so its onAppear kick never
         // re-fires — and the new game's showboard may report the SAME side to
@@ -962,6 +975,7 @@ private struct TVSelfPlayPreviewHost: View {
 
     var body: some View {
         TVSelfPlayScreen(route: SelfPlayRoute(entry: .manual), previewGame: game)
+            .environment(session)
             .environment(session.stones)
             .environment(session.messageList)
             .environment(session.board)

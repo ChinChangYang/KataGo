@@ -35,6 +35,9 @@ struct ContentView: View {
                 aiMove: $aiMove,
                 maxBoardLength: maxBoardLength
             )
+            // The session itself, so `GameSplitView` can drive the record
+            // position through `session.recordPosition` (the one projector).
+            .environment(session)
             .environment(session.stones)
             .environment(session.messageList)
             .environment(session.board)

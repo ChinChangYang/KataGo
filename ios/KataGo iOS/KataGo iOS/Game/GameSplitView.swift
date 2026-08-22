@@ -43,6 +43,7 @@ struct GameSplitView: View {
     @State private var reopeningCameraAfterRetry = false
 #endif
 
+    @Environment(GameSession.self) var session
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
     @Environment(BoardSize.self) var board
@@ -236,12 +237,19 @@ struct GameSplitView: View {
             detailView
         }
         .modifier(GlobalPreferenceSync(gobanState: gobanState))
+        // The board is record-owned: this publishes the position and runs
+        // everything that must happen the moment the RECORD moves, engine or
+        // no engine.
+        .recordPositionSync(session: session,
+                            gameRecord: navigationContext.selectedGameRecord) { position, key in
+            processRecordPositionChange(position: position, key: key)
+        }
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
             createThumbnail(for: oldGameRecord)
-            // Reloading here raced ahead of the engine: the switched game's
-            // sgf/stones land with the showboard reply, so arm the latch and
-            // reload from `processStonesReadyChange` instead. Deselection has
-            // nothing to await — fire immediately (the historical behavior).
+            // Reloading here would race the load: the switched game's position
+            // and its per-index cache land with the projection, so arm the
+            // latch and reload from `processRecordPositionChange` instead.
+            // Deselection has nothing to await — fire immediately.
             switch widgetReloadLatch.gameSwitched(hasNewGame: newGameRecord != nil) {
             case .fireNow:
                 try? modelContext.save()
@@ -249,7 +257,21 @@ struct GameSplitView: View {
             case .armed:
                 break
             }
-            processChange(oldGameRecord: oldGameRecord, newGameRecord: newGameRecord)
+            processChange(newGameRecord: newGameRecord)
+            // Run the switch's own record-changed side effects HERE, next to
+            // the arm above, instead of relying on which `.onChange` SwiftUI
+            // fires first: if `recordPositionSync` happened to run before this
+            // handler, it would have found the latch unarmed and the widget
+            // would keep showing the previous game. Re-running them is free —
+            // the cache write and the projection are both no-ops for a key
+            // that has already landed, and the latch is one-shot.
+            // Deselection is excluded: `loadGame(nil)` publishes nothing, so
+            // the projector still holds the outgoing game's position, and the
+            // latch already fired (`.fireNow`). The modifier clears the board.
+            if newGameRecord != nil, let position = session.recordPosition.currentPosition {
+                processRecordPositionChange(position: position,
+                                            key: session.recordPosition.currentKey)
+            }
         }
         .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
             processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
@@ -462,41 +484,37 @@ struct GameSplitView: View {
         }
     }
 
+    /// The engine caught up. Everything that used to hang off this edge —
+    /// the per-index stone cache, the book walk, the widget reload — moved to
+    /// `processRecordPositionChange`, which does not wait for the engine. What
+    /// is left genuinely needs the ack: auto-play may only step once the
+    /// engine has acknowledged the move it just played. (C3 moves this too,
+    /// onto the sync gate.)
     private func processStonesReadyChange(oldValue: Bool, newValue: Bool) {
         if !oldValue && newValue,
-           let gameRecord = navigationContext.selectedGameRecord {
+           let gameRecord = navigationContext.selectedGameRecord,
+           let advanced = gobanState.autoPlayAdvancedIndex() {
+            gameRecord.currentIndex = advanced
+        }
+    }
 
-            let currentIndex = gameRecord.currentIndex
+    /// The record position changed: cache it for the widget, walk the opening
+    /// book to it, and flush a pending game-switch widget reload. All
+    /// engine-free — this runs as soon as the record moves.
+    private func processRecordPositionChange(position: RecordPosition, key: RecordPositionKey?) {
+        if let key, let gameRecord = navigationContext.selectedGameRecord {
+            RecordStoneCache.write(position: position, key: key, into: gameRecord)
+        }
 
-            // `refillString` (not `toString`) so an empty side stays present-but-empty
-            // ("") rather than dropping the key (`dict[i] = nil` removes it) — matching
-            // the SGF-import path and keeping GameEntity.lastIndex on the displayed move.
-            gameRecord.blackStones?[currentIndex] = BoardPoint.refillString(
-                stones.blackPoints,
-                width: Int(board.width),
-                height: Int(board.height)
-            )
+        // Sync book state after undo/forward/backward
+        syncBookState()
 
-            gameRecord.whiteStones?[currentIndex] = BoardPoint.refillString(
-                stones.whitePoints,
-                width: Int(board.width),
-                height: Int(board.height)
-            )
-
-            if let advanced = gobanState.autoPlayAdvancedIndex() {
-                gameRecord.currentIndex = advanced
-            }
-
-            // Sync book state after undo/forward/backward
-            syncBookState()
-
-            // A game switch armed the latch; the switched game's state is now
-            // written above, so flush the App Group store and reload the
-            // widgets. Per-move edges find the latch unarmed — no reload.
-            if widgetReloadLatch.consumeDataLanded() {
-                try? modelContext.save()
-                WidgetCenter.shared.reloadAllTimelines()
-            }
+        // A game switch armed the latch; the switched game's position has now
+        // been published and cached, so flush the App Group store and reload
+        // the widgets. Per-move changes find the latch unarmed — no reload.
+        if widgetReloadLatch.consumeDataLanded() {
+            try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
@@ -832,10 +850,11 @@ struct GameSplitView: View {
         navigationContext.selectedGameRecord = result.gameRecord
     }
 
-    private func processChange(oldGameRecord: GameRecord?, newGameRecord: GameRecord?) {
-        gobanState.loadGame(gameRecord: newGameRecord, previous: oldGameRecord,
+    private func processChange(newGameRecord: GameRecord?) {
+        gobanState.loadGame(gameRecord: newGameRecord,
                             player: player, bookLookup: bookLookup,
-                            messageList: messageList, board: board, stones: stones)
+                            messageList: messageList, board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
     }
 
     private func processChange(oldWaitingForAnalysis: Bool,
@@ -899,7 +918,7 @@ struct GameSplitView: View {
     private func processChange(oldBranchStateSgf: String, newBranchStateSgf: String) {
         if (oldBranchStateSgf.isActiveSgf) &&
             (!newBranchStateSgf.isActiveSgf) {
-            processChange(oldGameRecord: nil, newGameRecord: navigationContext.selectedGameRecord)
+            processChange(newGameRecord: navigationContext.selectedGameRecord)
         }
     }
 

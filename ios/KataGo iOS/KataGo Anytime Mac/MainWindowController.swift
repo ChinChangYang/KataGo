@@ -107,11 +107,17 @@ final class MainWindowController: NSWindowController {
     private var lastIsAutoPlaying = false
     private var lastStonesReady = false
 
-    /// One-shot "reload widgets when the switched game's stones land" latch —
-    /// same mechanism as iOS `GameSplitView`. Armed in `selectGame(_:)`,
-    /// consumed at the end of `handleStonesReadyChange()`. The Mac previously
-    /// never reloaded on a plain sidebar switch at all.
+    /// One-shot "reload widgets when the switched game's position lands" latch
+    /// — same mechanism as iOS `GameSplitView`. Armed in `selectGame(_:)`,
+    /// consumed at the end of `handleRecordPositionChange()`. The Mac
+    /// previously never reloaded on a plain sidebar switch at all.
     private var widgetReloadLatch = WidgetReloadLatch()
+
+    /// Last-seen identity of the displayed record position, so the
+    /// record-position observer can tell a real move/navigation/switch from
+    /// the many unrelated mutations `withObservationTracking` also reports.
+    /// Seeded in `installRecordPositionObserver()` and re-seeded on relaunch.
+    private var lastRecordPositionKey: RecordPositionKey?
     /// Detects the `true -> false` transition of `gobanState.isEditing` that iOS
     /// reacts to (`onChange(of: isEditing)` -> `processIsEditingChange`): leaving
     /// edit mode must cancel any in-flight auto-play.
@@ -364,6 +370,14 @@ final class MainWindowController: NSWindowController {
         // analysis observer instead, keyed off `waitingForAnalysis`.) Installed
         // before the engine starts so the first stones-ready transition isn't missed.
         installAutoPlayObserver()
+
+        // The board is record-owned, so the AppKit host needs the stand-in for
+        // the iOS `recordPositionSync` modifier: publish the record position
+        // and run the engine-free side effects (per-index stone cache, book
+        // walk, widget reload, draft notice) the moment the record moves.
+        // Installed before the engine starts so the launch load's projection
+        // is not missed.
+        installRecordPositionObserver()
 
         // Keeps the opening-book lookup walked to the current position so the
         // `.book` overlay (rendered by the hosted `BoardView`) reflects the right
@@ -688,15 +702,22 @@ final class MainWindowController: NSWindowController {
     /// ready-path (`performSelectGame(_:)`) and the deferred-path drain
     /// (`applyPendingSelection`) share one call site — and so that the draft
     /// can be re-derived here, once, for every board load in the app.
+    ///
+    /// `previous` is no longer consulted: it existed only so `loadGame` could
+    /// blank the board when the size changed, and the projector now always
+    /// publishes the new game's own size. The parameter stays on this seam
+    /// (and on `loadDeferringUntilReady`) because eight call sites thread it
+    /// through; retiring it is a tidy-up, not part of this change.
     func load(game: GameRecord?, previous: GameRecord?) {
         session.gobanState.loadGame(
             gameRecord: game,
-            previous: previous,
             player: session.player,
             bookLookup: session.bookLookup,
             messageList: session.messageList,
             board: session.board,
-            stones: session.stones
+            stones: session.stones,
+            analysis: session.analysis,
+            projector: session.recordPosition
         )
         // `loadGame` re-derives `isEditing` from the loaded SGF, so the draft
         // has to be re-derived with it. The `isEditing` observer cannot cover
@@ -1276,6 +1297,10 @@ final class MainWindowController: NSWindowController {
         lastIsAutoPlaying = gobanState.isAutoPlaying
         lastStonesReady = session.stones.isReady
         lastIsEditing = gobanState.isEditing
+        // Re-seed the displayed-position key so the relaunch's own reload does
+        // not read as a position change (the board never moved).
+        lastRecordPositionKey = gobanState.recordPositionKey(
+            gameRecord: navigationContext.selectedGameRecord)
         // Re-seed the branch-reload snapshot too, so a relaunch's fresh engine
         // (which reloads the board itself) doesn't spuriously fire the reload
         // observer on an unrelated `branchSgf` value carried across the relaunch.
@@ -1852,10 +1877,12 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    /// Port of `GameSplitView.processStonesReadyChange` (iOS lines 268-293).
-    /// Persists the just-settled stones into the record at the current index and,
-    /// when an auto-play step just played, advances `currentIndex`. Ends by
-    /// re-syncing the opening-book state (P6-T5), exactly as iOS does (line 291).
+    /// Port of `GameSplitView.processStonesReadyChange`. Everything that used
+    /// to hang off this edge — the per-index stone cache, the book walk, the
+    /// widget reload, the draft notice — moved to
+    /// `handleRecordPositionChange()`, which does not wait for the engine.
+    /// What is left genuinely needs the acknowledgement: auto-play may only
+    /// step once the engine has acknowledged the move it just played.
     ///
     /// CAVEAT (softened): the auto-play advance ASSIGNS the absolute target
     /// recorded at the play site (`autoPlayAdvancedIndex`) instead of
@@ -1866,43 +1893,82 @@ final class MainWindowController: NSWindowController {
     /// raced duplicate play is rejected by the engine, and its "? illegal
     /// move" reset supplies that edge).
     private func handleStonesReadyChange() {
-        let gobanState = session.gobanState
-        guard let gameRecord = navigationContext.selectedGameRecord else { return }
+        guard let gameRecord = navigationContext.selectedGameRecord,
+              let advanced = session.gobanState.autoPlayAdvancedIndex() else { return }
+        gameRecord.currentIndex = advanced
+    }
 
-        let currentIndex = gameRecord.currentIndex
+    // MARK: - Record-position observer (the AppKit `recordPositionSync`)
+    //
+    // The board is record-owned: the position it draws is replayed from the
+    // record's SGF, never from the engine's `showboard`. iOS mounts the
+    // `recordPositionSync` modifier for that; an `NSWindowController` has no
+    // SwiftUI body, so the same job is done with the house
+    // `withObservationTracking` pattern (one-shot, re-armed on every callback,
+    // committed values read on the main actor).
 
-        // `refillString` (not `toString`) so an empty side stays present-but-empty
-        // ("") rather than dropping the key (`dict[i] = nil` removes it) — matching
-        // the SGF-import path and keeping GameEntity.lastIndex on the displayed move.
-        gameRecord.blackStones?[currentIndex] = BoardPoint.refillString(
-            session.stones.blackPoints,
-            width: Int(session.board.width),
-            height: Int(session.board.height)
-        )
+    /// Seeds the key snapshot from the live state and starts the
+    /// self-rescheduling observation bridge for the displayed record position.
+    /// Called once in `init`.
+    private func installRecordPositionObserver() {
+        lastRecordPositionKey = session.gobanState.recordPositionKey(
+            gameRecord: navigationContext.selectedGameRecord)
+        trackRecordPosition()
+    }
 
-        gameRecord.whiteStones?[currentIndex] = BoardPoint.refillString(
-            session.stones.whitePoints,
-            width: Int(session.board.width),
-            height: Int(session.board.height)
-        )
+    /// One observation pass: touches everything the position key is built from
+    /// so a change to any of them fires, then re-reads the committed values on
+    /// the main actor, reacts, and re-arms.
+    private func trackRecordPosition() {
+        withObservationTracking {
+            // The selection itself, the active branch line, and — through the
+            // selected record — the mainline SGF and cursor.
+            let record = navigationContext.selectedGameRecord
+            _ = session.gobanState.branchSgf
+            _ = session.gobanState.branchIndex
+            _ = record?.sgf
+            _ = record?.currentIndex
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleRecordPositionChange()
+                self.trackRecordPosition()
+            }
+        }
+    }
 
-        if let advanced = gobanState.autoPlayAdvancedIndex() {
-            gameRecord.currentIndex = advanced
+    /// Publishes the record position and runs the engine-free side effects.
+    /// Mirrors iOS `GameSplitView.processRecordPositionChange`.
+    private func handleRecordPositionChange() {
+        let key = session.gobanState.recordPositionKey(
+            gameRecord: navigationContext.selectedGameRecord)
+        // The tracked properties change for reasons the board does not care
+        // about (a rules edit, a comment); only a genuinely different position
+        // is worth publishing.
+        guard key != lastRecordPositionKey else { return }
+        lastRecordPositionKey = key
+
+        // Idempotent when `loadGame` already projected this key — the side
+        // effects below still run, which is what a game switch needs.
+        let position = session.projectRecordPosition(key: key)
+
+        if let key, let gameRecord = navigationContext.selectedGameRecord {
+            RecordStoneCache.write(position: position, key: key, into: gameRecord)
         }
 
-        // Sync book state after undo/forward/backward (mirrors iOS line 291).
+        // Sync book state after undo/forward/backward (mirrors iOS).
         syncBookState()
 
-        // A game switch armed the latch; the switched game's state is now
-        // written above, so flush the App Group store and reload the widgets.
-        // Per-move edges find the latch unarmed — no reload (mirrors iOS).
+        // A game switch armed the latch; the switched game's position has now
+        // been published and cached, so flush the App Group store and reload
+        // the widgets. Per-move changes find the latch unarmed — no reload.
         if widgetReloadLatch.consumeDataLanded() {
             try? modelContainer.mainContext.save()
             WidgetCenter.shared.reloadAllTimelines()
         }
 
-        // Every played move, undo and analysis update lands here, so this is
-        // the one place that has to tell the draft its content may have moved.
+        // Every played move, undo and navigation lands here, so this is the one
+        // place that has to tell the draft its content may have moved.
         draftController.noteChanged()
     }
 

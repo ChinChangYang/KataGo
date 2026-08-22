@@ -44,6 +44,25 @@ struct WidgetReloadLatchTests {
         #expect(!consume)
     }
 
+    @Test func latchFiresOnFirstProjectionAfterSwitch() {
+        // The trigger is no longer the engine's stones-ready edge: the board is
+        // record-owned, so the switched game's position is PROJECTED (and
+        // cached into the record) as soon as the record loads, engine or no
+        // engine. That first projection is what must flush the App Group store
+        // and reload the widgets — and every later projection of the same
+        // switch (a re-render, a played move) must not.
+        var latch = WidgetReloadLatch()
+        let action = latch.gameSwitched(hasNewGame: true)
+        let firstProjection = latch.consumeDataLanded()
+        let laterProjection = latch.consumeDataLanded()
+        let afterAMove = latch.consumeDataLanded()
+
+        #expect(action == .armed)
+        #expect(firstProjection)
+        #expect(!laterProjection)
+        #expect(!afterAMove)
+    }
+
     @Test func reArm_worksAcrossCycles() {
         // Rapid A→B→C switching: each completed switch fires exactly once.
         var latch = WidgetReloadLatch()

@@ -433,27 +433,15 @@ struct VisionRootView: View {
                             width: Int(session.board.width),
                             height: Int(session.board.height))
         }
-        // Persist the DISPLAYED position into the record whenever a board
-        // diff lands (iOS processStonesReadyChange parity, minus iOS-only
-        // auto-play/book concerns). The Saved Game widget renders
+        // The board is record-owned: publish the position the record holds and
+        // persist it into that record. The Saved Game widget renders
         // blackStones/whiteStones[currentIndex]; without this hook a game
         // played on Vision has empty stone dictionaries and its widget shows
-        // a bare board.
-        .onChange(of: session.stones.isReady) { oldValue, newValue in
-            guard !oldValue, newValue,
-                  let gameRecord = navigationContext.selectedGameRecord
-            else { return }
-            // `refillString` (not `toString`) so an empty side stays
-            // present-but-empty rather than dropping the key, keeping
-            // GameEntity.lastIndex on the displayed move (iOS parity).
-            gameRecord.blackStones?[gameRecord.currentIndex] =
-                BoardPoint.refillString(session.stones.blackPoints,
-                                        width: Int(session.board.width),
-                                        height: Int(session.board.height))
-            gameRecord.whiteStones?[gameRecord.currentIndex] =
-                BoardPoint.refillString(session.stones.whitePoints,
-                                        width: Int(session.board.width),
-                                        height: Int(session.board.height))
+        // a bare board. Engine-free — it no longer waits for a showboard.
+        .recordPositionSync(session: session,
+                            gameRecord: navigationContext.selectedGameRecord) { position, key in
+            guard let key, let gameRecord = navigationContext.selectedGameRecord else { return }
+            RecordStoneCache.write(position: position, key: key, into: gameRecord)
         }
         // Widget/URL taps. Latch only open-game links (visionOS has no SGF
         // import or Messages spool) and funnel every delivery window through
@@ -677,8 +665,7 @@ struct VisionRootView: View {
     }
 
     /// Games-list deletion (single or bulk). The replacement is decided and
-    /// MOUNTED before anything dies: switchGame passes the outgoing record
-    /// into loadGame as `previous`, so the doomed open game must stay alive
+    /// MOUNTED before anything dies: the doomed open game must stay alive
     /// until the new one is loaded (the Mac dangling-record pitfall) — only
     /// then bulkDelete. Fallout order rides the root @Query's reverse
     /// lastModificationDate sort (the same "newest" boot's fetch resolves).
@@ -1357,15 +1344,15 @@ struct VisionRootView: View {
         session.sendInitialCommands(config: record.concreteConfig)
         record.currentIndex = SgfOperations(sgf: record.sgf).moveSize ?? 0
 
-        let previous = navigationContext.selectedGameRecord
         navigationContext.selectedGameRecord = record
         session.gobanState.loadGame(gameRecord: record,
-                                    previous: previous,
                                     player: session.player,
                                     bookLookup: session.bookLookup,
                                     messageList: session.messageList,
                                     board: session.board,
-                                    stones: session.stones)
+                                    stones: session.stones,
+                                    analysis: session.analysis,
+                                    projector: session.recordPosition)
         // A load echo: this reads back the SGF just loaded from `record`, so it
         // syncs the record without stamping it as modified. Boot routes through
         // here too (resolveAndMountCurrentGame), so this covers the cold launch

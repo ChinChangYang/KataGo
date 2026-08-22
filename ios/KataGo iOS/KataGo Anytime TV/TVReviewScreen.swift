@@ -33,6 +33,9 @@ struct TVReviewScreen: View {
     /// visible stack is Search.
     var onContinueLive: ((SelfPlaySeed) -> Void)? = nil
 
+    /// The session itself, for `session.recordPosition` — the one projector
+    /// that turns the record's SGF into the board this screen draws.
+    @Environment(GameSession.self) private var session
     @Environment(GobanState.self) private var gobanState
     @Environment(Turn.self) private var player
     @Environment(BookLookup.self) private var bookLookup
@@ -334,6 +337,14 @@ struct TVReviewScreen: View {
                 dismiss()
             }
         }
+        // The board is record-owned: publish the record position whenever it
+        // moves — a played move, a scrub, a game switch — without waiting for
+        // the engine. Keyed on THIS SCREEN'S game, not on
+        // `navigationContext.selectedGameRecord`: on tvOS the selection is a
+        // write-target that these screens deliberately park at nil while a
+        // reload or a variation teardown is in flight, and following it would
+        // blank a board the user is still looking at.
+        .recordPositionSync(session: session, gameRecord: game)
         .onAppear {
             loadIfNeeded()
             controllerInput.pushHandler(controllerToken) { event in
@@ -701,9 +712,10 @@ struct TVReviewScreen: View {
         gobanState.suppressesGenMove = true
         gobanState.forcesBranchOnPlay = true
         navigationContext.selectedGameRecord = nil
-        gobanState.loadGame(gameRecord: game, previous: nil, player: player,
+        gobanState.loadGame(gameRecord: game, player: player,
                             bookLookup: bookLookup, messageList: messageList,
-                            board: board, stones: stones)
+                            board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
         // CRITICAL: review is ALWAYS locked. loadGame unlocks a game whose
         // SGF equals GameRecord.defaultSgf (a never-played synced game), and
         // an unlocked game routes picks through the EDITING path — which
@@ -823,9 +835,10 @@ struct TVReviewScreen: View {
         // A late printsgf from the variation's last pick must not find a
         // writable selection while the branch is being torn down.
         navigationContext.selectedGameRecord = nil
-        gobanState.loadGame(gameRecord: game, previous: nil, player: player,
+        gobanState.loadGame(gameRecord: game, player: player,
                             bookLookup: bookLookup, messageList: messageList,
-                            board: board, stones: stones)
+                            board: board, stones: stones,
+                            analysis: analysis, projector: session.recordPosition)
         // Same review lock as loadIfNeeded — loadGame re-evaluates the
         // defaultSgf unlock on every reload.
         gobanState.isEditing = false
@@ -1264,6 +1277,7 @@ private struct TVReviewPreviewHost: View {
 
     var body: some View {
         TVReviewScreen(game: game, previewSkipsLoad: skipsLoad)
+            .environment(session)
             .environment(session.stones)
             .environment(session.messageList)
             .environment(session.board)

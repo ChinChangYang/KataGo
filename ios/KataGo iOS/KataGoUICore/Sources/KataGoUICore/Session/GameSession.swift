@@ -30,6 +30,12 @@ public final class GameSession {
     public let rootWinrate = Winrate()
     public let rootScore = Score()
     public let bookLookup = BookLookup()
+    /// The one writer of the displayed board. Every driver of this session —
+    /// the SwiftUI `recordPositionSync` modifier, macOS's
+    /// `trackRecordPosition`, and `GobanState.loadGame` — projects through
+    /// this instance, so they share both the replay cache and the key that
+    /// says what is currently on screen.
+    public let recordPosition = RecordPositionProjector()
 
     /// Drives the message loop's termination. Set to `true` by the host when it
     /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
@@ -81,6 +87,18 @@ public final class GameSession {
     /// keep the default in-process bridge.
     public func useEngine(_ engine: KataGoEngineIO) {
         self.engine = engine
+    }
+
+    /// Publishes `key`'s record position into this session's display models.
+    /// Convenience over `recordPosition.project(...)` so hosts do not have to
+    /// name all four models at every call site.
+    @discardableResult
+    public func projectRecordPosition(key: RecordPositionKey?) -> RecordPosition {
+        recordPosition.project(key: key,
+                               into: stones,
+                               board: board,
+                               analysis: analysis,
+                               gobanState: gobanState)
     }
 
     // MARK: - Initialization
@@ -213,8 +231,8 @@ public final class GameSession {
                 gobanState.resetPendingStatesOnError(stones: stones)
             }
 
-            // Collect board information
-            await maybeCollectBoard(message: line)
+            // Collect the engine-in-sync acknowledgement
+            await maybeCollectSync(message: line)
 
             // Collect analysis information
             await maybeCollectAnalysis(message: line)
@@ -269,19 +287,30 @@ public final class GameSession {
 
     /// Drops a half-parsed showboard block (a game switch can race the read
     /// loop mid-block). The block's remaining lines then fall through the
-    /// isShowingBoard guard as ordinary messages, so the old game's stones
-    /// and "Next player" line can never land after the switch's reset.
-    /// showBoardCount bookkeeping is unaffected: the block's "= MoveNum"
-    /// was already consumed.
+    /// isShowingBoard guard as ordinary messages, so a superseded navigation's
+    /// "Next player" line — and, crucially, its trailing `stones.isReady = true`
+    /// — can never land after the switch reset it to false. It no longer
+    /// protects any STONE write: the board is record-owned and `showboard` does
+    /// not write stones any more. showBoardCount bookkeeping is unaffected: the
+    /// block's "= MoveNum" was already consumed.
     public func abortInFlightBoardCollection() {
         isShowingBoard = false
         boardText = []
     }
 
-    func maybeCollectBoard(message: String) async {
+    /// Consumes a `showboard` block as the ENGINE-IN-SYNC acknowledgement it
+    /// now is: the side to move and `stones.isReady`, nothing else. Stones,
+    /// board size, capture counts and move numbers all come from the record
+    /// via `RecordPositionProjector`.
+    ///
+    /// A block is only entered when `consumeShowBoardResponse` returns true —
+    /// i.e. when `showBoardCount` reached 0 — so an intermediate block from a
+    /// superseded navigation falls through as ordinary lines and can never
+    /// flip the turn or claim sync.
+    func maybeCollectSync(message: String) async {
         // Check if the board is not currently being shown
         guard isShowingBoard else {
-            // If the message indicates a new move number
+            // If this is the LAST outstanding showboard's move-number line
             if gobanState.consumeShowBoardResponse(response: message) {
                 // Reset the board text for a new position
                 boardText = []
@@ -294,9 +323,11 @@ public final class GameSession {
 
         // If the message indicates which player's turn it is
         if message.hasPrefix("Next player") {
-            // Parse the current board state
-            parseBoardPoints(boardText: boardText)
-
+#if DEBUG
+            // Diagnostic only, never a mutation: a self-heal here would hide
+            // exactly the bug it is meant to expose.
+            logEngineRecordDivergence(boardText: boardText)
+#endif
             // Determine the next player color based on the message content
             player.nextColorForPlayCommand = message.contains("Black") ? .black : .white
             // Set the next player's color from showing board
@@ -306,58 +337,26 @@ public final class GameSession {
         // Append the current message to the board text
         boardText.append(message)
 
-        // Check for captured black stones in the message
-        if let match = message.firstMatch(of: /B stones captured: (\d+)/),
-           let blackStonesCaptured = Int(match.1),
-           stones.blackStonesCaptured != blackStonesCaptured {
-            withAnimation {
-                // Update the count of captured black stones
-                stones.blackStonesCaptured = blackStonesCaptured
-            }
-        }
-
-        // Check for the end of the board show with captured white stones
+        // The trailing capture line ends the block: the engine has now caught
+        // up with the position the record already put on screen.
         if message.hasPrefix("W stones captured") {
             // Set the flag to stop showing the board
             isShowingBoard = false
-            // Capture the count of white stones captured
-            if let match = message.firstMatch(of: /W stones captured: (\d+)/),
-               let whiteStonesCaptured = Int(match.1),
-               stones.whiteStonesCaptured != whiteStonesCaptured {
-                withAnimation {
-                    // Update the count of captured white stones
-                    stones.whiteStonesCaptured = whiteStonesCaptured
-                }
-            }
-
             stones.isReady = true
         }
     }
 
-    // Parses the board text to extract and classify positions of stones and moves
-    func parseBoardPoints(boardText: [String]) {
+#if DEBUG
+    /// Logs one line when the engine's `showboard` ASCII disagrees with the
+    /// stones the record projected. The record wins by design — this is how a
+    /// feed bug becomes visible instead of silently drawing the wrong board.
+    private func logEngineRecordDivergence(boardText: [String]) {
         let parsed = BoardTextParser.parse(boardText)
-
-        withAnimation(.none) {
-            self.stones.blackPoints = parsed.blackStones
-            self.stones.whitePoints = parsed.whiteStones
-            self.adjustBoardDimensionsIfNeeded(width: parsed.width, height: parsed.height)
-        } completion: {
-            withAnimation(.spring) {
-                self.stones.moveOrder = parsed.moveOrder
-            }
-        }
+        guard Set(parsed.blackStones) != Set(stones.blackPoints)
+                || Set(parsed.whiteStones) != Set(stones.whitePoints) else { return }
+        printError("engine/record divergence: engine B=\(parsed.blackStones.count) W=\(parsed.whiteStones.count) \(Int(parsed.width))x\(Int(parsed.height)); record B=\(stones.blackPoints.count) W=\(stones.whitePoints.count) \(Int(board.width))x\(Int(board.height))")
     }
-
-    // Adjusts the board dimensions if they differ from the current settings
-    private func adjustBoardDimensionsIfNeeded(width: CGFloat, height: CGFloat) {
-        // Check if the new dimensions differ from the current dimensions
-        if width != board.width || height != board.height {
-            analysis.clear() // Clear previous analysis data to reset
-            board.width = width // Update the board's width
-            board.height = height // Update the board's height
-        }
-    }
+#endif
 
     func maybeCollectAnalysis(message: String) async {
         // Deep Report probes own the info stream: the report collector reads it
@@ -377,6 +376,10 @@ public final class GameSession {
                 analysis.info = parsed.info
                 analysis.ownershipUnits = parsed.ownershipUnits
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
+                // Stamp the position these numbers belong to — the one the
+                // session is displaying right now. `maybeUpdateAnalysisData`
+                // refuses to persist them into any other index.
+                analysis.collectedForKey = recordPosition.currentKey
 
                 if let rootVisits {
                     analysis.updateVisitsPerSecond(rootVisits: rootVisits, at: sampleTime)
