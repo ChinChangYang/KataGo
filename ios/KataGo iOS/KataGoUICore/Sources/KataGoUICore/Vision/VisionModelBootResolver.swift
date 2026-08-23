@@ -31,13 +31,17 @@ public enum VisionModelBootResolver {
         let builtIn = NeuralNetworkModel.builtInModel ?? NeuralNetworkModel.allCases[0]
         switch RecoveryDecision.decide(pendingLoadModelTitle: pendingLoadModelTitle,
                                        selectedModelTitle: selectedModelTitle,
-                                       isDebug: isDebug) {
-        case .showPicker:
-            // RecoveryDecision checks the sentinel before the Debug clause,
-            // so a surviving sentinel means the chooser even in Debug; a
-            // clean Debug/empty-selection boot stays headless on the
-            // built-in (Mac parity — and the sim QA tooling boots to the
-            // board).
+                                       isDebug: isDebug,
+                                       builtInTitle: builtIn.title) {
+        case .failedLastLaunch:
+            // Release, and the sentinel survived: the chooser, never a
+            // relaunch of the net whose load just died.
+            return .chooseModel
+        case .presentPicker:
+            // A Debug launch. visionOS has no picker screen, so a surviving
+            // sentinel still means the chooser here, while a clean
+            // Debug/empty-selection boot stays headless on the built-in
+            // (Mac parity — and the sim QA tooling boots to the board).
             if !pendingLoadModelTitle.isEmpty {
                 return .chooseModel
             }

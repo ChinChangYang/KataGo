@@ -96,9 +96,10 @@ class PortraitUITestCase: XCTestCase {
     /// one axis over. `BackendConfigSheetUITests` must persist a *smaller* Max
     /// Board Size to prove the picker works, and an `abort()` before it can put
     /// the value back leaves the engine launching with a 13x13 NN buffer — at
-    /// which point `GobanView` swaps every 19x19 board for the "Too large board
-    /// size" placeholder and new games are created at 13x13, for every class
-    /// that runs afterwards and every run after that. That state lives in
+    /// which point every 19x19 board comes up *Held* ("Board larger than Max
+    /// Board Size 13"), which shuts the command gate, so the board never reports
+    /// in sync and `waitForBoardInSync` fails; new games are also created at
+    /// 13x13, for every class that runs afterwards and every run after that. That state lives in
     /// `UserDefaults`, not on the device, so nothing clears it on its own. The
     /// durable answer is again the next process: each launch states its own
     /// precondition rather than trusting the previous one to have cleaned up.

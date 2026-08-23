@@ -14,7 +14,7 @@ import SwiftData
 ///
 /// The methods here were moved verbatim from `ContentView`; the only changes
 /// are `self.`-qualification of session-owned members and replacing the loop's
-/// `quitStatus` checks with `!stopRequested`. View/app-only collaborators
+/// old `quitStatus` checks with `!stopRequested`. View/app-only collaborators
 /// (`NavigationContext`, `AudioModel`, the `aiMove` binding, `gameRecords`,
 /// `modelContext`, `EngineLifecycle`) are passed in as parameters rather than
 /// owned here.
@@ -43,7 +43,7 @@ public final class GameSession {
     public let engineStatus = EngineStatus()
 
     /// Drives the message loop's termination. Set to `true` by the host when it
-    /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
+    /// wants `run()` to stop: a teardown, or a restart about to respawn.
     public var stopRequested = false
 
     /// Out-of-band tap on every raw engine reply line, invoked from
@@ -130,8 +130,8 @@ public final class GameSession {
     /// reply line, clears the crash-loop sentinel via `EngineLifecycle` on a
     /// `= ` prefix, then sends the initial GTP commands for `config`.
     ///
-    /// Returns the version line so the host can surface it (the iOS app binds
-    /// it into `LoadingView`).
+    /// Returns the version line so the host can surface it (it lands on
+    /// `engineStatus.engineVersion`, which the Settings sheet reads).
     @discardableResult
     public func initialize(
         selectedModelTitle: String,
@@ -555,6 +555,15 @@ public final class GameSession {
         // Deep Report probes own the info stream: the report collector reads it
         // via lineObserver; the live Analysis/edge machinery must not see it.
         guard !gobanState.reportGenerationActive else { return }
+        // Only from an engine we are still talking to. `info` lines outlive the
+        // moment they were asked for: a search keeps streaming for a second or
+        // more after the gate shuts (a restart's teardown, or a board the engine
+        // cannot hold going *Held*), and every one of those lines would be
+        // stamped `collectedForKey = recordPosition.currentKey` — i.e. filed
+        // against the position on screen, which is precisely the position they
+        // do NOT describe. `showBoardCount == 0` cannot catch it, because the
+        // fresh-engine reset zeroes that counter on the way down.
+        guard messageList.isAcceptingCommands else { return }
         guard gobanState.showBoardCount == 0 else { return }
         if message.starts(with: /info/) {
             let sampleTime = ProcessInfo.processInfo.systemUptime

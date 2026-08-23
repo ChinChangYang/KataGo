@@ -8,7 +8,6 @@
 import SwiftUI
 import KataGoUICore
 import UniformTypeIdentifiers
-import WidgetKit
 
 extension Int {
     var humanFileSize: String {
@@ -170,8 +169,8 @@ struct ModelDetailView: View {
 
 struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
-    @Environment(\.modelContext) private var modelContext
     @Environment(CoreMLCacheReadiness.self) private var readiness
+    @Environment(\.dismiss) private var dismiss
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -266,6 +265,17 @@ struct ModelPickerView: View {
                 }
             }
             .navigationTitle("Select a Model")
+            .toolbar {
+                // The picker is a sheet over a live board now, so it needs a
+                // labelled way out. Swipe-to-dismiss is the only other one, and
+                // it is invisible to Voice Control and VoiceOver — a user who
+                // opened this from Settings ▸ Change model and changed their
+                // mind had no control to speak or focus.
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("ModelPickerView.done")
+                }
+            }
         }
         .task {
             reloadCustomRecords()
@@ -300,31 +310,14 @@ struct ModelPickerView: View {
         } message: {
             Text(importErrorMessage ?? "")
         }
-        .onOpenURL { url in
-            if FileOpenClassifier.isImage(url) {
-                // The root `.onOpenURL` already latched the image bytes (read at
-                // receipt so they can't go stale). Selecting the built-in model
-                // launches the engine so `GameSplitView` can mount and present
-                // the recognition sheet — mirroring the SGF-import selection
-                // below. No bytes are read or cleaned up here (the root owns it).
-                if selectedModel == nil,
-                   let builtInModel = NeuralNetworkModel.builtInModel {
-                    selectedModel = builtInModel
-                }
-                return
-            }
-            if let result = GameRecord.importGameRecord(from: url, in: modelContext) {
-                if result.isNew {
-                    modelContext.insert(result.gameRecord)
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-                if selectedModel == nil,
-                   let builtInModel = NeuralNetworkModel.builtInModel {
-                    selectedModel = builtInModel
-                }
-                FileOpenClassifier.cleanUpInboxFile(at: url)
-            }
-        }
+        // No `.onOpenURL` here any more. It existed to answer a file/image open
+        // that arrived while the picker was the ONLY thing on screen: it
+        // imported the record and then selected the built-in net purely so the
+        // board would mount and could present the sheet. `GameSplitView` is
+        // mounted from the first frame now and owns every import, so this
+        // handler could only ever duplicate it — and its side effect (launching
+        // a net the user did not choose) is exactly the thing the Absent state
+        // exists to avoid.
     }
 
     @ViewBuilder

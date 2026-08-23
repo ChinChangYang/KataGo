@@ -826,13 +826,20 @@ public class TopUIState {
         selectedGameIDs.removeAll()
     }
 
-    /// Drives the app's quit lifecycle (was a `@State` binding threaded down to
-    /// the toolbar's `QuitButton`). Now that quitting is triggered by tapping
-    /// the Model/Version row in the Configurations sheet — which only sees
-    /// `TopUIState` through the environment, not the binding — the status lives
-    /// here. `ContentView` observes it to stop the session loop. iOS/visionOS
-    /// only; inert on macOS (which never mutates it).
-    public var quitStatus: QuitStatus = .none
+    /// Presents the model picker over the (always-mounted) board. Owned by
+    /// `TopUIState` rather than by the root view's own `@State` because three
+    /// unrelated places ask for it: the launch decision (DEBUG), the engine
+    /// status line's "Choose model" button, and Global Settings ▸ Change model.
+    /// iOS only; nothing else mutates it.
+    public var presentingModelPicker = false
+
+    /// Global Settings asked for the picker and is about to dismiss itself.
+    /// Two flags rather than one because presenting a sheet in the same
+    /// transaction that dismisses another one gets DROPPED: the settings
+    /// sheet's `onDismiss` reads this and only then sets
+    /// `presentingModelPicker` (the same present-after-dismiss hop
+    /// `GameSplitView` uses between the camera cover and the photo sheet).
+    public var requestingModelPicker = false
 
     /// The currently-loaded model's friendly name (e.g. "Official KataGo
     /// Network"). Surfaced in the Configurations sheet now that the launch

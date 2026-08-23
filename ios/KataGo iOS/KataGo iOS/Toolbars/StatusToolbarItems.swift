@@ -18,6 +18,9 @@ struct StatusToolbarItems: View {
     @Environment(Analysis.self) var analysis
     @Environment(Stones.self) var stones
     @Environment(BookLookup.self) var bookLookup
+    /// Optional: a host that injects no status (macOS) reads as ready, which is
+    /// the pre-existing behaviour verbatim.
+    @Environment(EngineStatus.self) var engineStatus: EngineStatus?
 
     var gameRecord: GameRecord
 
@@ -25,10 +28,29 @@ struct StatusToolbarItems: View {
         return gameRecord.concreteConfig
     }
 
-    var isFunctional: Bool {
+    /// Whether the navigation buttons act.
+    ///
+    /// `showBoardCount == 0` — "the engine has acknowledged the position" —
+    /// used to be part of this. It was reasonable when the board could not be
+    /// drawn until the engine answered; now the board is record-owned and the
+    /// cursor moves without asking anyone, so a pending ack must not freeze
+    /// Forward/Backward (a launching engine acks nothing at all, which would
+    /// grey the row out for the whole launch). What remains are the two states
+    /// that would corrupt the record if the cursor moved under them.
+    static func isFunctional(gobanState: GobanState, config: Config, player: Turn) -> Bool {
         !gobanState.shouldGenMove(config: config, player: player)
         && !gobanState.isAutoPlaying
-        && (gobanState.showBoardCount == 0)
+    }
+
+    /// The analysis toggle needs an engine that can answer. Held counts as
+    /// "cannot": the engine is up but refuses this board's size, so there is
+    /// nothing for the toggle to start.
+    static func isAnalysisToggleEnabled(engineStatus: EngineStatus?) -> Bool {
+        engineStatus?.isReady ?? true
+    }
+
+    var isFunctional: Bool {
+        Self.isFunctional(gobanState: gobanState, config: config, player: player)
     }
 
     var spacing: CGFloat {
@@ -89,6 +111,10 @@ struct StatusToolbarItems: View {
             )
             .foregroundStyle((gobanState.analysisStatus == .clear) ? .red : .primary)
             .contentTransition(.symbolEffect(.replace))
+            // Navigation never waits for the engine; analysis has nothing to
+            // do without one. Disabled rather than silently inert, so the
+            // button says what the status line already says.
+            .disabled(!Self.isAnalysisToggleEnabled(engineStatus: engineStatus))
 
             createButton(
                 action: eyeAction,

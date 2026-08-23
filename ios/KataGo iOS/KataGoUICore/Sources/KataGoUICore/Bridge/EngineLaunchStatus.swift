@@ -42,9 +42,9 @@ public final class EngineLaunchStatus {
 
     /// The secondary caption every launch surface shows: the ADR 0007 string
     /// while a compile is genuinely running, and nothing otherwise. Hoisted
-    /// here (from two byte-identical copies in `EngineLoadingView` and the iOS
-    /// `LoadingView`) so the launch screens and the inline engine-status line
-    /// cannot spell it three different ways.
+    /// here (from two byte-identical copies in `EngineLoadingView` and the
+    /// since-deleted iOS `LoadingView`) so the remaining launch screens and the
+    /// inline engine-status line cannot spell it three different ways.
     public var compileCaption: String? {
         isCompiling ? EngineStatusText.compilingCaption : nil
     }

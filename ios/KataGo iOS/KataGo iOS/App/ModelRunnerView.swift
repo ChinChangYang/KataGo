@@ -5,151 +5,134 @@
 //  Created by Chin-Chang Yang on 2025/5/19.
 //
 
-import OSLog
 import SwiftUI
 import KataGoUICore
 
-private let recoveryLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "KataGo Anytime",
-    category: "engine.recovery"
-)
-
+/// The app's root. It used to be a two-way switch — model picker OR board —
+/// which is why the board could not exist before a model did.
+///
+/// It no longer switches anything: `ContentView` (and therefore the whole board
+/// tree) mounts on the first frame, with no engine, no model and possibly no
+/// game. The picker is a SHEET over it, and the engine comes and goes
+/// underneath through `AppEngineController`. What is left here is the wiring:
+/// the objects whose lifetime must span every engine (session, controller,
+/// lifecycle, the top-level UI state), the launch decision, and the one place
+/// that turns "the user picked a net" into "launch or relaunch".
 struct ModelRunnerView: View {
-    @State private var selectedModel: NeuralNetworkModel? = nil
-    @State private var katagoThread: Thread?
+    /// The net the user has chosen. Nil means *Absent* — a real, displayable
+    /// state now, not a screen.
+    @State private var selectedModel: NeuralNetworkModel?
     @State private var engineLifecycle = EngineLifecycle()
+    @State private var controller = AppEngineController()
+    /// Born here, not in `ContentView`: the session outlives every engine, and
+    /// `ContentView` is never unmounted any more.
+    @State private var session = GameSession()
+    @State private var navigationContext = NavigationContext()
+    @State private var topUIState = TopUIState()
     @State private var hasDecidedRecovery = false
-    @State private var launchedMaxBoardLength: Int = 19
-    @AppStorage("ModelRunnerView.selectedModelTitle") private var selectedModelTitle = ""
-    @AppStorage("ModelRunnerView.pendingLoadModelTitle") private var pendingLoadModelTitle = ""
 
     var body: some View {
-        Group {
-            if selectedModel != nil {
-                ContentView(
-                    selectedModel: $selectedModel,
-                    engineLifecycle: engineLifecycle,
-                    maxBoardLength: launchedMaxBoardLength
-                )
-            } else {
-                ModelPickerView(
-                    selectedModel: $selectedModel
-                )
-            }
+        @Bindable var topUIState = topUIState
+
+        ContentView(session: session,
+                    controller: controller,
+                    navigationContext: navigationContext,
+                    topUIState: topUIState)
+        .sheet(isPresented: $topUIState.presentingModelPicker) {
+            ModelPickerView(selectedModel: $selectedModel)
+                // The sheet is presented from HERE, above every environment
+                // injection `ContentView` makes into the board tree, so the
+                // one value the picker needs — whether an engine is running,
+                // which gates the Core ML routing probe and Clear Cache — is
+                // handed over explicitly.
+                .environment(session.engineStatus)
         }
         .onAppear {
-            // Guard against re-appearance (e.g. scene lifecycle transitions)
-            // re-triggering the recovery log and auto-restore.
-            guard !hasDecidedRecovery else { return }
-            hasDecidedRecovery = true
-
-            #if DEBUG
-            let isDebug = true
-            #else
-            let isDebug = false
-            #endif
-
-            switch RecoveryDecision.decide(
-                pendingLoadModelTitle: pendingLoadModelTitle,
-                selectedModelTitle: selectedModelTitle,
-                isDebug: isDebug
-            ) {
-            case .autoRestore(let title):
-                selectedModel = NeuralNetworkModel.allAvailable.first { $0.title == title }
-            case .showPicker:
-                // An incomplete prior load (orphaned sentinel) lands here too:
-                // we force the picker rather than auto-restoring, so the user
-                // re-chooses after a possible OOM. No banner is shown; the
-                // stale sentinel is overwritten when the user next picks a model.
-                if !pendingLoadModelTitle.isEmpty {
-                    recoveryLogger.error(
-                        "Previous launch did not finish loading model: \(pendingLoadModelTitle, privacy: .public). Showing model picker."
-                    )
-                }
-            }
+            configureAndDecideRecovery()
         }
         .onChange(of: selectedModel) { _, newValue in
             guard let newValue else { return }
-
-            let modelPath: String?
-            if newValue.builtIn {
-                modelPath = Bundle.main.path(forResource: "default_model", ofType: "bin.gz")
-            } else {
-                modelPath = newValue.downloadedURL?.path()
-            }
-
-            guard let modelPath else {
-                selectedModel = nil
-                return
-            }
-
-            // Arm the crash sentinel BEFORE starting the engine thread. If the
-            // engine OOM-crashes before `ContentView` sees its first GTP
-            // response, this value survives the process death and the next
-            // launch will show the picker (no banner) instead of restarting
-            // the same crash. `reset()` first so the observer re-fires even
-            // if the user picked the same model twice in a row.
-            engineLifecycle.reset()
-            pendingLoadModelTitle = newValue.title
-            UserDefaults.standard.synchronize()
-
-            var settings = BackendSettings(model: newValue)
-            launchedMaxBoardLength = settings.effectiveMaxBoardLength
-            let backend = settings.backend
-            let tunerFull = settings.tunerFull
-            let reTune = settings.reTune
-            startKataGoThread(
-                modelPath: modelPath,
-                deviceAssignments: settings.deviceAssignments,
-                numSearchThreads: settings.numSearchThreads,
-                maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
-                requireExactNNLen: settings.requireExactNNLen,
-                tunerFull: tunerFull,
-                reTune: reTune
-            )
-            // One-shot: consume a pending re-tune so it fires exactly once. Only
-            // a backend that runs an MLX/GPU server thread (.mlxGPU or .mux) reads
-            // the Winograd tuner flags, so the re-tune is consumed only then.
-            if reTune && (backend == .mlxGPU || backend == .mux) {
-                settings.reTune = false
-            }
+            // CONSUME the choice. `selectedModel` is a momentary intent, not a
+            // record of what is running — `controller.activeModel` is that.
+            // Clearing it is what makes choosing the SAME net again register as
+            // a change, and "Play on the running model restarts it" (settled
+            // design, decision 10) depends on exactly that: the picker is
+            // reachable with a live engine now, so re-picking it is the natural
+            // way to apply a changed backend or Max Board Size.
+            selectedModel = nil
+            // Then dismiss: the picker's job is done, and leaving it up over a
+            // board that is already relaunching just hides the status line that
+            // explains the wait.
+            topUIState.presentingModelPicker = false
+            controller.start(model: newValue)
         }
         .onChange(of: engineLifecycle.lastLoadedModelTitle) { _, newValue in
             guard let newValue else { return }
-            selectedModelTitle = newValue
-            pendingLoadModelTitle = ""
+            controller.noteLoadSucceeded(title: newValue)
         }
     }
 
-    private func startKataGoThread(modelPath: String,
-                                   deviceAssignments: [Int],
-                                   numSearchThreads: Int,
-                                   maxBoardSizeForNNBuffer: Int,
-                                   requireExactNNLen: Bool,
-                                   tunerFull: Bool,
-                                   reTune: Bool) {
-        let katagoThread = Thread {
-            KataGoHelper.runGtp(modelPath: modelPath,
-                                deviceAssignments: deviceAssignments,
-                                numSearchThreads: numSearchThreads,
-                                maxBoardSizeForNNBuffer: maxBoardSizeForNNBuffer,
-                                requireExactNNLen: requireExactNNLen,
-                                tunerFull: tunerFull,
-                                reTune: reTune)
+    /// Wire the controller and run the launch decision, exactly once.
+    ///
+    /// Guarded against re-appearance (scene lifecycle transitions) so a
+    /// backgrounded-and-restored app does not relaunch its engine or re-present
+    /// the picker over a board the user is using.
+    private func configureAndDecideRecovery() {
+        guard !hasDecidedRecovery else { return }
+        hasDecidedRecovery = true
 
-            Task {
-                await MainActor.run {
-                    withAnimation {
-                        selectedModel = nil
-                    }
-                }
+        controller.configure(session: session,
+                             engineLifecycle: engineLifecycle,
+                             navigationContext: navigationContext)
+
+        // The two ways out the inline status line offers. They live here
+        // because this is the only view that owns both the picker's
+        // presentation and the controller. Bound to locals so the escaping
+        // closure holds the two objects rather than a copy of this struct.
+        let topUIState = self.topUIState
+        let controller = self.controller
+        session.engineStatus.onAction = { action in
+            switch action {
+            case .chooseModel:
+                topUIState.presentingModelPicker = true
+            case .retry:
+                controller.retry()
             }
         }
 
-        // Expand the stack size to resolve a stack overflow problem
-        katagoThread.stackSize = 4096 * 256
-        katagoThread.start()
+        #if DEBUG
+        let isDebug = true
+        #else
+        let isDebug = false
+        #endif
 
-        self.katagoThread = katagoThread
+        switch RecoveryDecision.decide(
+            pendingLoadModelTitle: controller.pendingLoadTitle,
+            selectedModelTitle: controller.persistedSelectionTitle,
+            isDebug: isDebug,
+            builtInTitle: NeuralNetworkModel.builtInModel?.title ?? ""
+        ) {
+        case .autoRestore(let title):
+            guard let model = NeuralNetworkModel.allAvailable.first(where: { $0.title == title })
+                    ?? NeuralNetworkModel.builtInModel else {
+                controller.presentAbsent()
+                return
+            }
+            // Assigning `selectedModel` drives the launch through the one
+            // `onChange` above, so auto-restore and a user tap take the same
+            // path — including the missing-file fallback.
+            selectedModel = model
+
+        case .presentPicker:
+            // The board mounts in Absent and the picker comes up over it.
+            // `presentAbsent` also seeds the status line's "Choose model"
+            // button, so the picker stays reachable from the board itself if
+            // this presentation is ever dropped.
+            controller.presentAbsent()
+            topUIState.presentingModelPicker = true
+
+        case .failedLastLaunch(let title):
+            controller.presentFailedLastLaunch(title: title)
+        }
     }
 }

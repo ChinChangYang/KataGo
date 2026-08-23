@@ -13,6 +13,15 @@ struct CoreMLCacheFooterView: View {
     @State private var auxBytes: Int64 = 0
     @State private var showConfirm = false
     @State private var clearing = false
+    /// Optional so a surface that injects no status keeps today's behaviour.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+
+    /// The picker is a sheet over a live board now, so Clear Cache can be
+    /// reached while an engine is running off the very artifacts it would
+    /// delete. Offered only when nothing is using them.
+    private var canClear: Bool {
+        AppEngineController.allowsHeavyCoreMLWork(engineStatus?.availability)
+    }
 
     // Read the caps from the cache itself rather than restating them. These
     // used to be literals and drifted from the actor's actual eviction caps,
@@ -40,8 +49,14 @@ struct CoreMLCacheFooterView: View {
                     Button("Clear Cache") { showConfirm = true }
                         .buttonStyle(.bordered)
                         .tint(.secondary)
-                        .disabled(clearing)
+                        .disabled(clearing || !canClear)
                 }
+            }
+            if totalCount > 0, !canClear {
+                Text("Clearing is available when no engine is running.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 12)

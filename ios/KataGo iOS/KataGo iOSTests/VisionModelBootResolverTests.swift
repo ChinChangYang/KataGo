@@ -40,7 +40,9 @@ struct VisionModelBootResolverTests {
     }
 
     @Test func survivingSentinelShowsTheChooserEvenInDebug() {
-        // RecoveryDecision checks the sentinel before the Debug clause.
+        // RecoveryDecision answers `.presentPicker` for every Debug launch;
+        // visionOS has no picker screen, so the resolver re-reads the sentinel
+        // and shows the chooser rather than booting into a crash it just saw.
         let resolution = VisionModelBootResolver.resolve(
             pendingLoadModelTitle: official.title,
             selectedModelTitle: "",

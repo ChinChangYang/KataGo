@@ -37,54 +37,52 @@ struct GobanView: View {
     var body: some View {
         Group {
             if let gameRecord = navigationContext.selectedGameRecord {
-                if (gameRecord.concreteConfig.boardWidth <= maxBoardLength) &&
-                    (gameRecord.concreteConfig.boardHeight <= maxBoardLength) {
-                    GobanItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
-                        .toolbar {
-                            // iPad only: iPhone's compact top-left belongs to the
-                            // back button.
-                            if UIDevice.current.userInterfaceIdiom == .pad {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    Button(action: toggleBoardFullScreen) {
-                                        Label(
-                                            gobanState.isBoardFullScreen ? "Exit Full Screen" : "Full Screen",
-                                            systemImage: gobanState.isBoardFullScreen
-                                                ? "arrow.down.right.and.arrow.up.left"
-                                                : "arrow.up.left.and.arrow.down.right"
-                                        )
-                                        .labelStyle(.iconOnly)
-                                    }
-                                    .contentTransition(.symbolEffect(.replace))
-                                    .id(toolbarUuid)
+                // A board bigger than the engine's Max Board Size used to
+                // REPLACE the board with a "Too large board size" placeholder.
+                // It no longer does: the board is record-owned and draws
+                // regardless of what any engine can hold, so the size mismatch
+                // is reported the same way every other engine state is — as the
+                // inline *Held* line over a board the user can still read,
+                // scrub and navigate. `AppEngineController.applyHeldStatus`
+                // raises it; the feed refuses the record on its own
+                // (`GobanState.boardFitsEngine`), so nothing here has to gate.
+                GobanItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
+                    .toolbar {
+                        // iPad only: iPhone's compact top-left belongs to the
+                        // back button.
+                        if UIDevice.current.userInterfaceIdiom == .pad {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(action: toggleBoardFullScreen) {
+                                    Label(
+                                        gobanState.isBoardFullScreen ? "Exit Full Screen" : "Full Screen",
+                                        systemImage: gobanState.isBoardFullScreen
+                                            ? "arrow.down.right.and.arrow.up.left"
+                                            : "arrow.up.left.and.arrow.down.right"
+                                    )
+                                    .labelStyle(.iconOnly)
                                 }
+                                .contentTransition(.symbolEffect(.replace))
+                                .id(toolbarUuid)
                             }
+                        }
 
-                            ToolbarItem(placement: .principal) {
-                                HStack {
-                                    // A real Button (not Text + tap gesture) so
-                                    // Voice Control / VoiceOver can invoke the
-                                    // rename editor; .plain keeps the title look.
-                                    Button {
-                                        isEditorPresented = true
-                                    } label: {
-                                        Text(gameRecord.name)
-                                            .bold()
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityInputLabels([gameRecord.name, "Rename Game", "Game Name"])
-                                    .id(toolbarUuid)
+                        ToolbarItem(placement: .principal) {
+                            HStack {
+                                // A real Button (not Text + tap gesture) so
+                                // Voice Control / VoiceOver can invoke the
+                                // rename editor; .plain keeps the title look.
+                                Button {
+                                    isEditorPresented = true
+                                } label: {
+                                    Text(gameRecord.name)
+                                        .bold()
                                 }
+                                .buttonStyle(.plain)
+                                .accessibilityInputLabels([gameRecord.name, "Rename Game", "Game Name"])
+                                .id(toolbarUuid)
                             }
                         }
-                } else {
-                    ContentUnavailableView("Too large board size \(gameRecord.concreteConfig.boardWidth)x\(gameRecord.concreteConfig.boardHeight) to run with this neural network.\nPlease select other neural networks.", systemImage: "rectangle.portrait.and.arrow.forward")
-                        .toolbar {
-                            ToolbarItem {
-                                PlusMenuView(gameRecord: nil, maxBoardLength: maxBoardLength)
-                                    .id(toolbarUuid)
-                            }
-                        }
-                }
+                    }
             } else {
                 ContentUnavailableView("Select a game", systemImage: "sidebar.left")
                     .toolbar {

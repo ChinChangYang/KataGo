@@ -15,6 +15,16 @@ struct BackendConfigSheet: View {
     @State private var reTune: Bool
     @State private var routingProbe: CoreMLRoutingProbe
     @Environment(\.dismiss) private var dismiss
+    /// Optional so a surface that injects no status keeps today's behaviour.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+
+    /// The probe COMPILES a network on a cache miss. That was free when this
+    /// sheet was only reachable with the engine stopped; it is not free now
+    /// that the picker is a sheet over a live board, where the compile would
+    /// contend with the running engine for the same Neural Engine.
+    private var canProbe: Bool {
+        AppEngineController.allowsHeavyCoreMLWork(engineStatus?.availability)
+    }
 
     /// The Winograd autotuner only runs on an MLX/GPU server thread, so the
     /// tuning controls are only relevant when the selected backend uses the GPU.
@@ -166,7 +176,7 @@ struct BackendConfigSheet: View {
                     }
                 }
             }
-            .disabled(routingProbe.phase == .running)
+            .disabled(routingProbe.phase == .running || !canProbe)
             .accessibilityIdentifier("CoreMLRouting.checkButton")
 
             switch routingProbe.phase {
@@ -229,6 +239,9 @@ struct BackendConfigSheet: View {
                 Text("Measured at \(boardLength)x\(boardLength).")
             }
             Text("Core ML runs on the Neural Engine, falling back to the CPU for operations it cannot place there. The GPU path is MLX/GPU, a separate backend. When most operations fall back to the CPU, MLX/GPU is often faster.")
+            if !canProbe {
+                Text("Checking is available when no engine is running — it may have to compile the network, which would compete with the engine for the Neural Engine.")
+            }
             if routingProbe.readiness == .needsCompile, routingProbe.phase == .idle {
                 Text("This network has not been compiled for Core ML at this board size yet. Checking compiles it first, which can take a while.")
             }

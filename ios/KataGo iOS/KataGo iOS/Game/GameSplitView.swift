@@ -13,7 +13,6 @@ import GobanRecogKit
 import WidgetKit
 
 struct GameSplitView: View {
-    @Binding var selectedModel: NeuralNetworkModel?
     let sgfType = UTType("ccy.KataGo-iOS.sgf")!
 
     @Binding var aiMove: String?

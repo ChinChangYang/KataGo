@@ -1419,21 +1419,22 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Launch-time crash recovery (P5-T5)
     //
-    // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch
-    // (ModelRunnerView.swift lines 41-70) + the `lastLoadedModelTitle` clear
-    // (lines 115-119), adapted for AppKit. iOS has a picker screen at launch;
-    // macOS does not, so where iOS would `.showPicker` / show a banner, the Mac
-    // app falls back to launching the BUILT-IN net (never re-launching a model
-    // that apparently just crashed).
+    // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch + the
+    // `lastLoadedModelTitle` clear, adapted for AppKit. iOS presents a model
+    // picker over its (always-mounted) board; macOS has neither picker nor
+    // inline status yet, so where iOS would `.presentPicker` or report a
+    // `.failedLastLaunch`, the Mac app falls back to launching the BUILT-IN net
+    // (never re-launching a model that apparently just crashed).
     //
     // Ordering is the crux: the decision reads `pendingLoadModelTitle` /
     // `selectedModelTitle` reflecting the PREVIOUS run, and must run BEFORE
     // `startEngineAndSession()` arms `pendingLoadModelTitle` for THIS run. So
     // `init` calls `decideRecovery()` (not `startEngineAndSession()` directly):
-    //   • `.autoRestore` -> launch the last-good model immediately.
-    //   • `.showPicker` (fresh install / DEBUG, OR an incomplete prior load) ->
-    //     launch the safe built-in net; never auto-relaunch a model that may
-    //     have OOM'd. No alert is shown.
+    //   • `.autoRestore` -> launch the last-good model immediately (and, on a
+    //     fresh Release install, the built-in net it resolves to).
+    //   • `.presentPicker` (DEBUG) / `.failedLastLaunch` (an incomplete prior
+    //     load) -> launch the safe built-in net; never auto-relaunch a model
+    //     that may have OOM'd. No alert is shown.
 
     /// Runs the launch-time recovery decision exactly once and launches the
     /// engine. Guarded by `hasDecidedRecovery` so scene/relaunch transitions
@@ -1457,19 +1458,24 @@ final class MainWindowController: NSWindowController {
         switch RecoveryDecision.decide(
             pendingLoadModelTitle: pending,
             selectedModelTitle: selected,
-            isDebug: isDebug
+            isDebug: isDebug,
+            builtInTitle: NeuralNetworkModel.builtInModel?.title ?? ""
         ) {
         case .autoRestore:
             // `modelSelection.currentModel` already resolves the active model
-            // from `selectedModelTitle`, so a normal launch restores it.
+            // from `selectedModelTitle` — and falls back to the built-in net
+            // when nothing is persisted, which is exactly the Release
+            // fresh-install case the decision now spells as
+            // `.autoRestore(builtInTitle)`.
             startEngineAndSession()
 
-        case .showPicker:
-            // Fresh install / DEBUG, OR an incomplete prior load (the sentinel
-            // survived process death). macOS has no launch picker, so fall back
-            // to the safe built-in net — never auto-relaunch the model that may
-            // have OOM'd. No alert is shown. Launching the built-in net re-arms
-            // and then clears the sentinel via the normal lifecycle.
+        case .presentPicker, .failedLastLaunch:
+            // DEBUG, OR an incomplete prior load (the sentinel survived process
+            // death). macOS has no launch picker and no inline way out yet
+            // (C6), so both fall back to the safe built-in net — never
+            // auto-relaunch the model that may have OOM'd. No alert is shown.
+            // Launching the built-in net re-arms and then clears the sentinel
+            // via the normal lifecycle.
             if !pending.isEmpty {
                 recoveryLogger.error(
                     "Previous launch did not finish loading model: \(pending, privacy: .public). Falling back to the built-in network."

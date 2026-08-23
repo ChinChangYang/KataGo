@@ -170,7 +170,16 @@ struct PlusMenuView: View {
                 #endif
             }
         }
-        .sheet(isPresented: $showingGlobalSettings) {
+        .sheet(isPresented: $showingGlobalSettings, onDismiss: {
+            // Global Settings ▸ Change model only flags intent: the model
+            // picker is presented by the app root, ABOVE this sheet, and
+            // presenting it in the same transaction that dismisses this one
+            // gets dropped. Raise it now that this screen has actually gone.
+            if topUIState.requestingModelPicker {
+                topUIState.requestingModelPicker = false
+                topUIState.presentingModelPicker = true
+            }
+        }) {
             NavigationStack {
                 // Board size rides along for the Voice Control help screen's
                 // spoken examples; nil record (nothing selected) falls back to

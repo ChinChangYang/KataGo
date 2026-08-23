@@ -809,14 +809,9 @@ struct GlobalSettingsView: View {
     @State private var showOwnership = Config.defaultShowOwnership
     @State private var showWinrateBar = Config.defaultShowWinrateBar
     @State private var largeThumbnails = false
-    @State private var confirmingQuit = false
     @Environment(GobanState.self) private var gobanState
     @Environment(ThumbnailModel.self) private var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
-    /// Injected by `ContentView` alongside every other session model, and read
-    /// here only to route `quit` through the LIFECYCLE path — the one that
-    /// bypasses the command gate and still echoes into the transcript.
-    @Environment(GameSession.self) private var session
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -983,28 +978,27 @@ struct GlobalSettingsView: View {
 
             // Model name + engine version, surfaced app-wide here (relocated
             // from the per-game Settings screen — they never depended on the
-            // selected game). Both are populated during engine initialization
-            // (ContentView) and ride TopUIState in via the environment, so they
-            // appear whenever an engine is running. Tapping either row quits the
-            // engine and returns to the model picker (the old standalone toolbar
-            // Quit button). Developer Mode (the raw GTP console) lives here too,
-            // as the last row — a power/engine tool that no longer belongs at
-            // the top level of the "More" menu.
+            // selected game). Both are mirrored from the engine handshake onto
+            // TopUIState, which rides in via the environment.
+            //
+            // Tapping either row used to QUIT the engine, behind a destructive
+            // confirmation, because returning to the model picker meant tearing
+            // the board down. The picker is a sheet over a board that never
+            // goes away, so the action is simply "Change model": no dialog, and
+            // nothing is destroyed. The Model row renders even when no engine
+            // is running (Absent) — that is precisely when the user most needs
+            // a way into the picker.
             Section("Engine") {
-                if let modelName = topUIState.modelName {
-                    LabeledContent("Model", value: modelName)
-                        .contentShape(Rectangle())
-                        .onTapGesture { confirmingQuit = true }
-                        // Stable handle for the quit-confirmation trigger (UI tests
-                        // reach quit via Global Settings ▸ Engine now that the sidebar
-                        // Quit button is gone).
-                        .accessibilityIdentifier("GlobalSettingsView.quitEngineRow")
-                        // The tap gesture is invisible to Voice Control/VoiceOver;
-                        // expose the row as a button with a speakable quit name.
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { confirmingQuit = true }
-                        .accessibilityInputLabels(["Quit Engine", "Model"])
-                }
+                LabeledContent("Model", value: topUIState.modelName ?? "None")
+                    .contentShape(Rectangle())
+                    .onTapGesture { requestModelPicker() }
+                    // Stable handle the UI suites tap to reach the picker.
+                    .accessibilityIdentifier("GlobalSettingsView.changeModelRow")
+                    // The tap gesture is invisible to Voice Control/VoiceOver;
+                    // expose the row as a button with a speakable name.
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { requestModelPicker() }
+                    .accessibilityInputLabels(["Change Model", "Model"])
 
                 if let version = topUIState.engineVersionDisplay {
                     VStack(alignment: .leading, spacing: 2) {
@@ -1015,11 +1009,11 @@ struct GlobalSettingsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
-                    .onTapGesture { confirmingQuit = true }
+                    .onTapGesture { requestModelPicker() }
                     // See the Model row above.
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { confirmingQuit = true }
-                    .accessibilityInputLabels(["Quit Engine", "Version"])
+                    .accessibilityAction { requestModelPicker() }
+                    .accessibilityInputLabels(["Change Model", "Version"])
                 }
 
                 NavigationLink {
@@ -1038,35 +1032,18 @@ struct GlobalSettingsView: View {
             }
         }
         .navigationTitle("Global Settings")
-        .confirmationDialog(
-            "Are you sure you want to quit? This will close KataGo model and go back to the model selection screen.",
-            isPresented: $confirmingQuit,
-            titleVisibility: .visible
-        ) {
-            Button("Quit", role: .destructive) { quitEngine() }
-            Button("Cancel", role: .cancel) { }
-        }
     }
 
-    /// Tear down the engine and return to the model picker. Same sequence the
-    /// old toolbar `QuitButton` ran, now driving `topUIState.quitStatus`
-    /// (observed by `ContentView` to stop the session loop). `dismiss()` closes
-    /// this screen; the real return-to-picker is engine-driven (`"quit"` ends
-    /// `runGtp`, whose thread closure sets `selectedModel = nil` and unmounts the
-    /// whole tree, sheet included).
-    private func quitEngine() {
-        topUIState.quitStatus = .quitting
-        // A lifecycle command: the gate must not be able to swallow the one
-        // command that brings the engine down.
-        session.sendLifecycleCommand("quit")
-        Task {
-            // Wait until all messages are consumed.
-            try? await Task.sleep(for: .seconds(1))
-            // False the condition of the consumer's loop.
-            topUIState.quitStatus = .quitted
-            // An additional message to terminate the consumer.
-            KataGoHelper.sendMessage("\n")
-        }
+    /// Ask for the model picker, then get out of its way.
+    ///
+    /// The picker is presented by the app root, above this sheet — and
+    /// presenting a sheet in the same transaction that dismisses another one
+    /// gets DROPPED. So this only flags intent; the settings sheet's own
+    /// `onDismiss` (in `PlusMenuView`) raises the picker once this screen has
+    /// actually gone. Same present-after-dismiss hop `GameSplitView` uses
+    /// between the camera cover and the photo-import sheet.
+    private func requestModelPicker() {
+        topUIState.requestingModelPicker = true
         dismiss()
     }
 }

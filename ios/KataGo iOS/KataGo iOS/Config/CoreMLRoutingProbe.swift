@@ -29,11 +29,17 @@
 //  * A cache miss converts through `CoreMLModelCache.urlForKey` with the
 //    engine's own miss callback, so the probed bytes ARE the engine's bytes
 //    and the work warms the cache for a subsequent switch to CoreML/NE.
-//  * `run()` is deliberately NOT cancelled when the sheet is dismissed: on
-//    iOS this sheet is only reachable from the model picker with the engine
-//    stopped, so the user's very next action is usually Play, which wants
-//    that exact artifact. Cancelling would discard 30s of work and then make
-//    them wait for it again.
+//  * `run()` is deliberately NOT cancelled when the sheet is dismissed: the
+//    user's very next action is usually Play, which wants that exact
+//    artifact. Cancelling would discard 30s of work and then make them wait
+//    for it again.
+//  * The probe is only OFFERED while no engine is running
+//    (`AppEngineController.allowsHeavyCoreMLWork`, wired in
+//    `BackendConfigSheet`). This sheet used to be reachable only from a model
+//    picker that owned the whole screen with the engine stopped, so the
+//    compile it may trigger had the Neural Engine to itself. The picker is a
+//    sheet over a live board now — the board never waits for the engine — so
+//    that guarantee has to be stated rather than assumed.
 //
 
 import CoreML

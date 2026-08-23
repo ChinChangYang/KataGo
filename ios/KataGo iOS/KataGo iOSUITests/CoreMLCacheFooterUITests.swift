@@ -81,7 +81,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
-        waitForEngineThenQuit(in: app, label: "built-in")
+        waitForEngineThenChangeModel(in: app, label: "built-in")
         waitForPicker(in: app, title: builtInTitle)
 
         let afterStep1 = readMainStats(in: app)
@@ -97,7 +97,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
         tapModelRow(in: app, title: lionffenTitle)
         launchStagedModel(in: app)
-        waitForEngineThenQuit(in: app, label: "Lionffen")
+        waitForEngineThenChangeModel(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
         let afterStep2 = readMainStats(in: app)
@@ -120,8 +120,16 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // Populate the cache by launching the built-in engine once.
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)
-        waitForEngineThenQuit(in: app, label: "built-in")
-        waitForPicker(in: app, title: builtInTitle)
+        waitForBoardInSync(app)
+
+        // Relaunch before clearing. "Clear Cache" is deliberately unavailable
+        // while an engine is running — the picker is a sheet over a live board
+        // now, and deleting the compiled artifacts an engine loaded from is not
+        // something the app offers. A fresh Debug launch comes up with no
+        // engine (Absent) and the picker already presented, holding the cache
+        // the previous launch filled.
+        app.terminate()
+        app.launch()
 
         // Verify the Clear Cache button exists (totalCount > 0).
         revealClearCacheButton(in: app)
@@ -186,10 +194,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
 
-        // The goban (GameSplitView) is on screen once the "Lock" toolbar button exists.
-        let lockButton = app.buttons["Lock"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
-                      "Goban (Lock button) did not appear after launching the built-in engine")
+        // The board draws before the engine is ready; this test is about what a
+        // RUNNING engine puts on it, so wait for the engine to be in sync rather
+        // than for a toolbar button whose label depends on the record's lock
+        // state (see `waitForEngineThenChangeModel`).
+        waitForBoardInSync(app)
 
         // Analysis text: AnalysisView renders winrate % labels per candidate move
         // (default "All" mode shows winrate + visits + score).
@@ -220,9 +229,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
 
-        let lockButton = app.buttons["Lock"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
-                      "Goban (Lock button) did not appear after launching the built-in engine")
+        // The board draws before the engine is ready; this test is about what a
+        // RUNNING engine puts on it, so wait for the engine to be in sync rather
+        // than for a toolbar button whose label depends on the record's lock
+        // state (see `waitForEngineThenChangeModel`).
+        waitForBoardInSync(app)
 
         // Quiet the board before opening the sheet and toggling a switch. Analysis
         // runs continuously after launch and keeps the app non-idle, so a
@@ -329,9 +340,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         tapModelRow(in: app, title: builtInTitle)
         tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
 
-        let lockButton = app.buttons["Lock"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 240),
-                      "Goban (Lock button) did not appear after launching the built-in engine")
+        // The board draws before the engine is ready; this test is about what a
+        // RUNNING engine puts on it, so wait for the engine to be in sync rather
+        // than for a toolbar button whose label depends on the record's lock
+        // state (see `waitForEngineThenChangeModel`).
+        waitForBoardInSync(app)
 
         // Open "More" → "Settings".
         let moreButton = app.buttons["More"].firstMatch
@@ -537,23 +550,26 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     }
 
     /// After tapping play, the engine launches and the goban (GameSplitView)
-    /// appears. Quitting the engine (return to the model picker) now lives in
-    /// Global Settings ▸ Engine: tapping the Model row raises a confirmation
-    /// dialog whose destructive "Quit" tears down the engine — commit f9c85d85
-    /// removed the old sidebar-toolbar Quit button. Reach it via the board
-    /// "More" ▸ "Settings" menu, which opens Global Settings directly (the same
-    /// path the passing display-preferences / licenses tests use).
+    /// appears. Getting back to the model picker is now "Change model": the
+    /// board never goes away, so there is nothing to quit — Global Settings ▸
+    /// Engine ▸ Model dismisses itself and the picker comes up as a sheet over
+    /// the same board. No confirmation dialog: nothing is destroyed.
+    ///
+    /// Reach it via the board "More" ▸ "Settings" menu, which opens Global
+    /// Settings directly (the same path the passing display-preferences /
+    /// licenses tests use).
     @MainActor
-    private func waitForEngineThenQuit(in app: XCUIApplication, label: String) {
-        // Wait for the goban detail. The "Lock" toolbar button is the most
-        // reliable signal that GameSplitView is on screen.
-        let lockButton = app.buttons["Lock"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
-                      "Goban (Lock button) did not appear after launching \(label) engine")
-
-        // The goban is on screen before the engine is — this class is about
-        // what a fully launched engine leaves in the cache, so wait for the
-        // engine itself, not just for the board that no longer depends on it.
+    private func waitForEngineThenChangeModel(in app: XCUIApplication, label: String) {
+        // Wait for the board AND for the engine to have caught up with it.
+        //
+        // This used to wait for the "Lock" toolbar button as a proxy for "the
+        // goban is on screen". That proxy is unusable: the SAME button is
+        // labelled "Unlock" whenever the open record is a pristine New Game
+        // (`GobanState.editingAfterLoad` unlocks a default-SGF game), and which
+        // record the launch auto-selects depends on what earlier suites left in
+        // the simulator's store. `Board.sync` is the board's own signal, added
+        // for exactly this — it exists iff `BoardView` is mounted, and its value
+        // says whether the engine agrees with it.
         waitForBoardInSync(app)
 
         // Board "More" → "Settings" (opens Global Settings directly).
@@ -566,36 +582,22 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings sheet not shown (\(label))")
 
-        // Engine ▸ Model row raises the quit confirmation. It sits near the
-        // bottom of the (long) Global Settings list, so scroll it into view.
-        let quitRow = app.descendants(matching: .any)
-            .matching(identifier: "GlobalSettingsView.quitEngineRow").firstMatch
-        reveal(app, quitRow, by: { app.swipeUp() })
-        XCTAssertTrue(quitRow.waitForExistence(timeout: 10),
-                      "Quit engine row not found in Global Settings (\(label))")
-        quitRow.tap()
-
-        // Confirmation dialog renders as a sheet on iPhone. Tap the
-        // destructive "Quit" inside it.
-        let dialogQuit = app.sheets.buttons["Quit"]
-        if dialogQuit.waitForExistence(timeout: 5) {
-            dialogQuit.tap()
-        } else {
-            // Fallback for compact rendering where the dialog hosts the
-            // Quit button under the app root.
-            let allQuit = app.buttons.matching(identifier: "Quit")
-            XCTAssertGreaterThanOrEqual(allQuit.count, 1,
-                                        "Quit confirmation button not found (\(label))")
-            allQuit.element(boundBy: allQuit.count - 1).tap()
-        }
+        // Engine ▸ Model row. It sits near the bottom of the (long) Global
+        // Settings list, so scroll it into view.
+        let changeModelRow = app.descendants(matching: .any)
+            .matching(identifier: "GlobalSettingsView.changeModelRow").firstMatch
+        reveal(app, changeModelRow, by: { app.swipeUp() })
+        XCTAssertTrue(changeModelRow.waitForExistence(timeout: 10),
+                      "Change model row not found in Global Settings (\(label))")
+        changeModelRow.tap()
     }
 
-    /// The picker has reappeared once any model row is visible again.
+    /// The picker sheet is up once any model row is visible.
     @MainActor
     private func waitForPicker(in app: XCUIApplication, title: String) {
         let row = app.staticTexts[title]
         XCTAssertTrue(row.waitForExistence(timeout: 60),
-                      "Picker did not reappear after Quit")
+                      "Model picker did not appear after Change model")
     }
 
     @MainActor

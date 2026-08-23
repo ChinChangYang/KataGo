@@ -92,7 +92,13 @@ public final class EngineStatus {
     public var engineVersion: String?
 
     /// What a status button does. Wiring, not observable UI state.
-    @ObservationIgnored public var onAction: ((EngineStatusAction) -> Void)?
+    ///
+    /// Explicitly `@MainActor` in the TYPE, not merely by inheritance: a host
+    /// assigns a closure that touches its engine controller and its UI state,
+    /// and an inherited-isolation closure compiles clean and traps if anything
+    /// ever calls it off the main actor. `perform(_:)` is the only caller and
+    /// is itself `@MainActor`, so stating it costs nothing and removes the trap.
+    @ObservationIgnored public var onAction: (@MainActor (EngineStatusAction) -> Void)?
 
     public var isReady: Bool { availability == .ready }
 

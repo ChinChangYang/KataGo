@@ -41,6 +41,17 @@ struct KataGo_iOSApp: App {
         // initializer and `ModelRunnerView` reads the values as it starts the
         // engine.
         BackendSettingsResetUITestSupport.resetIfNeeded()
+
+        // DEBUG-only, and a no-op without its launch argument: seed a short
+        // committed game for the Export GIF test. HERE, in init(), and not in a
+        // `.task` — the seed refreshes its own `lastModificationDate` so it wins
+        // the recency race and becomes the game the launch auto-selects (the
+        // game list pre-fills its search filter with the SELECTED game's name,
+        // so a seed that loses that race is filtered out of the list entirely).
+        // The board now mounts on the first frame and resolves that selection in
+        // its own `.task`, which a sibling `.task` on the App is not ordered
+        // against — so the seed has to be in place before any view exists.
+        UITestSeed.seedIfNeeded()
         #endif
 
         // Register the cache-aware CoreML bridge (Task 19) before any view
@@ -55,8 +66,8 @@ struct KataGo_iOSApp: App {
         // can compute their `sourceIdentity` for cache-key construction.
         registerDownloadedHasher(BinFileHasher.shared.identityForDownloadedFile)
 
-        // Wire the engine-launch status updater seam so LoadingView can
-        // show a secondary caption during cache-miss compiles.
+        // Wire the engine-launch status updater seam so the inline engine
+        // status can show a secondary caption during cache-miss compiles.
         registerEngineLaunchStatusUpdater(status)
     }
 
@@ -68,17 +79,17 @@ struct KataGo_iOSApp: App {
             .environment(deepLinkRouter)
             .onOpenURL { url in
                 // Capture externally-opened content at the always-mounted root so
-                // it survives a cold launch — the model picker / loading screen
-                // have no handler for it, and `GameSplitView`'s own `.onOpenURL`
-                // is not mounted yet. `open-game` deep links latch a game id;
-                // image file-opens latch the DECODED BYTES (read at receipt — the
-                // URL's sandbox extension may not survive until GameSplitView
-                // mounts). `ContentView.initializationTask` (cold) and
-                // `GameSplitView`'s `.onChange` handlers (warm + a mount-time
-                // `initial: true` drain) apply the pending id / image. SGF
-                // file-import URLs and the Messages `import-sgf` links are left
-                // to fall through to the ModelPickerView / GameSplitView SGF
-                // handlers.
+                // it survives a cold launch — a URL can be delivered before
+                // `GameSplitView` has mounted its own `.onOpenURL`. `open-game`
+                // deep links latch a game id; image file-opens latch the DECODED
+                // BYTES (read at receipt — the URL's sandbox extension may not
+                // survive until GameSplitView mounts). `ContentView`'s
+                // engine-free seeding (cold) and `GameSplitView`'s `.onChange`
+                // handlers (warm + a mount-time `initial: true` drain) apply the
+                // pending id / image. SGF file-import URLs and the Messages
+                // `import-sgf` links fall through to GameSplitView's SGF
+                // handlers, which are mounted from the first frame now — the
+                // model picker's own copy of them is gone.
                 if let id = GameDeepLink.gameID(from: url) {
                     deepLinkRouter.pendingGameID = id
                 } else if GameDeepLink.importSgfFileName(from: url) == nil,
@@ -104,13 +115,6 @@ struct KataGo_iOSApp: App {
                 } catch {
                     NSLog("repairStoredIdentities failed: \(error)")
                 }
-            }
-            .task {
-                // DEBUG-only: seed a short game so the Export GIF UI test has a
-                // game with moves. No-op unless its launch argument is present.
-                #if DEBUG
-                UITestSeed.seedIfNeeded()
-                #endif
             }
             .task {
                 // Sweeps stale partials, reattaches to whatever the background
