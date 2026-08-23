@@ -16,16 +16,13 @@ final class InspectorViewController: NSTabViewController {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
-    let readiness: BoardReadiness
 
     init(session: GameSession,
          navigationContext: NavigationContext,
-         audioModel: AudioModel,
-         readiness: BoardReadiness) {
+         audioModel: AudioModel) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
-        self.readiness = readiness
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -39,8 +36,7 @@ final class InspectorViewController: NSTabViewController {
         let chart = NSTabViewItem(
             viewController: ChartMovesSplitViewController(
                 session: session,
-                navigationContext: navigationContext,
-                readiness: readiness
+                navigationContext: navigationContext
             )
         )
         chart.label = "Chart"
@@ -51,8 +47,7 @@ final class InspectorViewController: NSTabViewController {
             viewController: NSHostingController(
                 rootView: CommentsTabView(
                     session: session,
-                    navigationContext: navigationContext,
-                    readiness: readiness
+                    navigationContext: navigationContext
                 )
             )
         )
@@ -85,15 +80,12 @@ final class InspectorViewController: NSTabViewController {
 final class ChartMovesSplitViewController: NSSplitViewController {
     private let session: GameSession
     private let navigationContext: NavigationContext
-    private let readiness: BoardReadiness
     private var didSetInitialDivider = false
 
     init(session: GameSession,
-         navigationContext: NavigationContext,
-         readiness: BoardReadiness) {
+         navigationContext: NavigationContext) {
         self.session = session
         self.navigationContext = navigationContext
-        self.readiness = readiness
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -109,8 +101,7 @@ final class ChartMovesSplitViewController: NSSplitViewController {
             viewController: NSHostingController(
                 rootView: ChartPaneView(
                     session: session,
-                    navigationContext: navigationContext,
-                    readiness: readiness
+                    navigationContext: navigationContext
                 )
             )
         )
@@ -121,8 +112,7 @@ final class ChartMovesSplitViewController: NSSplitViewController {
             viewController: NSHostingController(
                 rootView: MovesPaneView(
                     session: session,
-                    navigationContext: navigationContext,
-                    readiness: readiness
+                    navigationContext: navigationContext
                 )
             )
         )

@@ -11,10 +11,6 @@ final class MainSplitViewController: NSSplitViewController {
     let navigationContext: NavigationContext
     let audioModel: AudioModel
     let libraryStore: LibraryStore
-    let readiness: BoardReadiness
-    /// Drives the board pane's pre-ready status caption (P5-T9). Threaded down to
-    /// `BoardViewController` alongside `readiness`.
-    let engineLaunchStatus: EngineLaunchStatus
     /// Weak to avoid a retain cycle: the window controller owns this split VC
     /// (as its window's `contentViewController`). The sidebar routes selection
     /// back through it via `selectGame`.
@@ -41,15 +37,11 @@ final class MainSplitViewController: NSSplitViewController {
          navigationContext: NavigationContext,
          audioModel: AudioModel,
          libraryStore: LibraryStore,
-         readiness: BoardReadiness,
-         engineLaunchStatus: EngineLaunchStatus,
          windowController: MainWindowController) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
         self.libraryStore = libraryStore
-        self.readiness = readiness
-        self.engineLaunchStatus = engineLaunchStatus
         self.windowController = windowController
         super.init(nibName: nil, bundle: nil)
     }
@@ -82,9 +74,7 @@ final class MainSplitViewController: NSSplitViewController {
         let boardVC = BoardViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel,
-            readiness: readiness,
-            engineLaunchStatus: engineLaunchStatus
+            audioModel: audioModel
         )
         // Force the board VC's view to load now and remember it, so the window
         // controller can make it the window's `initialFirstResponder` (it's a
@@ -102,14 +92,13 @@ final class MainSplitViewController: NSSplitViewController {
         boardItem.minimumThickness = 480
 
         // Inspector — collapsible trailing pane (macOS 14+ has a dedicated API).
-        // Tabbed Chart/Comments/Moves/Info inspector (Phase 4); routes through the
-        // same readiness gate + collaborators as the board host.
+        // Tabbed Chart/Comments/Moves/Info inspector (Phase 4); takes the same
+        // collaborators as the board host, and — like it — waits for nothing.
         let inspectorItem: NSSplitViewItem
         let inspectorVC = InspectorViewController(
             session: session,
             navigationContext: navigationContext,
-            audioModel: audioModel,
-            readiness: readiness
+            audioModel: audioModel
         )
         if #available(macOS 14.0, *) {
             inspectorItem = NSSplitViewItem(inspectorWithViewController: inspectorVC)

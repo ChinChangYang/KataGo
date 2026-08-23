@@ -4,16 +4,16 @@
 //
 //  Shared pre-engine-ready loading screen: a ticking "Loading…" headline, an
 //  optional Core ML compile-status caption (`EngineLaunchStatus`), and a slowly
-//  spinning circular app icon (pinned when Reduce Motion is on). Extracted from
-//  the byte-identical macOS `EngineLaunchStatusView` and tvOS `TVLoadingView` so
+//  spinning circular app icon (pinned when Reduce Motion is on). It exists so
 //  the dot ticker, rotation, and caption logic live in ONE place; each platform
-//  wraps this with its own caption text, secondary font, icon asset, and icon
+//  wraps it with its own caption text, secondary font, icon asset, and icon
 //  sizing.
 //
-//  The iOS `LoadingView` is intentionally NOT built on this: it has a
-//  Timer-typed, version-aware headline ("Entering…" vs "Loading…"), a
-//  tap-to-spin easter egg, and a UI-test-referenced accessibility identifier
-//  that genuinely diverge.
+//  Its remaining users are visionOS (`VisionRootView`) and tvOS
+//  (`TVLoadingView`). iOS and macOS no longer have a loading SCREEN at all —
+//  their boards mount on the first frame and report engine availability inline
+//  through `EngineStatusView` — so the macOS `EngineLaunchStatusView` and the
+//  iOS `LoadingView` this was extracted from are both gone.
 //
 
 import SwiftUI

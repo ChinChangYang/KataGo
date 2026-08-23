@@ -10,28 +10,27 @@
 import SwiftUI
 import KataGoUICore
 
-/// Tracks whether the engine session has finished its initial handshake +
-/// board load, so the board pane can defer mounting the live `BoardView`.
-///
-/// This matters because `BoardView.onAppear` sends a `showboard` (and resets
-/// `nextColorForPlayCommand` to `.unknown`). On macOS the board host is built in
-/// `MainWindowController.init`, so without this gate `onAppear` fires BEFORE the
-/// engine is initialized: that premature `showboard` is dispatched ahead of the
-/// GTP handshake, its `= MoveNum` response is lost, and `showBoardCount` is left
-/// stuck at 1 — which permanently gates `GameSession.maybeCollectAnalysis` off
-/// (`guard showBoardCount == 0`), so the analysis overlay never populates. iOS
-/// dodges this by only mounting the board once `isInitialized` is set (after
-/// `session.initialize()`); this is the AppKit equivalent of that gate.
-@MainActor
-@Observable
-final class BoardReadiness {
-    var isEngineReady = false
-}
-
 /// SwiftUI bridge that hosts the package's `BoardView`. It injects exactly the
 /// `@Environment` objects `BoardView` and its subviews
 /// (`StoneView`/`AnalysisView`/`WinrateBarView`/`BookAnalysisView`/
-/// `MoveNumberView`/`BoardLineView`) read; nothing more.
+/// `MoveNumberView`/`BoardLineView`/`EngineStatusView`) read; nothing more.
+///
+/// The board never waits for the engine. It mounts as soon as a game is
+/// selected — the position it draws is replayed from that record's SGF, which
+/// needs no engine at all — and whether anything can ANALYSE it is a state,
+/// carried by the inline `EngineStatusView` inside `BoardView`
+/// (`.environment(session.engineStatus)` below). The engine-readiness gate that
+/// used to replace this whole pane with a spinner until the GTP handshake
+/// landed is gone, and so is the premature-`showboard` hazard that justified it
+/// (`GobanState.resyncOnAppear` now asks nothing of an engine that is not
+/// ready, and `MessageList`'s command gate drops what it cannot deliver).
+///
+/// `EngineLaunchStatus` is deliberately NOT injected. On macOS the Core ML
+/// compile happens inside the `katago-engine` CHILD process, and there is no
+/// helper -> app channel to report it (ADR 0007); the app's own
+/// `EngineLaunchStatus` therefore never leaves `.idle`, and injecting it would
+/// only promise a compile caption that can never arrive. `BoardView` reads it
+/// optionally, so the macOS line says "Loading engine…" and nothing more.
 ///
 /// `NavigationContext` is needed to resolve the currently-selected `GameRecord`
 /// (which `BoardView.init` requires); `AudioModel` is an environment dependency
@@ -42,14 +41,6 @@ struct MacBoardHostView: View {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
-    /// Gates the live board so `BoardView.onAppear` only fires once the engine is
-    /// initialized (see `BoardReadiness`); until then the pane shows a spinner.
-    let readiness: BoardReadiness
-    /// Drives the pre-ready status caption (P5-T9): while the board is gated off,
-    /// the spinner shows a phase-specific message (CoreML compile progress, or a
-    /// generic MLX/GPU "Loading…"). `@Observable`, so reading `.phase` in `body`
-    /// keeps the caption live as the launch path advances it.
-    let engineLaunchStatus: EngineLaunchStatus
 
     /// `BoardView` takes a `FocusState<Bool>.Binding` for its comment field.
     /// Phase 1 has no comment editor on macOS, so this is a private focus state
@@ -58,7 +49,7 @@ struct MacBoardHostView: View {
 
     var body: some View {
         Group {
-            if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
+            if let gameRecord = navigationContext.selectedGameRecord {
                 // The interaction overlay is Z-stacked ON TOP of BoardView so it
                 // is the single native input handler (left-click play /
                 // right-click menu / hover). It replicates BoardView's
@@ -78,6 +69,12 @@ struct MacBoardHostView: View {
                         .environment(session.bookLookup)
                         .environment(session.messageList)
                         .environment(audioModel)
+                        // Engine availability, shown inline over the board:
+                        // "Loading engine…" during a launch, the failure reason
+                        // + Retry after a helper exit, "Board larger than Max
+                        // Board Size N" while held. Renders nothing at all once
+                        // the engine is ready.
+                        .environment(session.engineStatus)
 
                     MacBoardInteractionLayer(gameRecord: gameRecord)
                         // The same environment objects the overlay reads
@@ -90,29 +87,24 @@ struct MacBoardHostView: View {
                         .environment(session.stones)
                         .environment(session.messageList)
                         .environment(session.analysis)
+                        // The status line is drawn INSIDE `BoardView`, i.e.
+                        // UNDER this overlay — and this overlay owns every
+                        // click in the board area (its `Color.clear` is
+                        // hit-testable edge to edge). So when the status offers
+                        // a way out (Retry), stand aside, or that button could
+                        // never be clicked. Nothing is lost: a board whose
+                        // engine is failed or absent refuses plays anyway
+                        // (`stones.isReady` is false), so the only thing given
+                        // up is the right-click menu, for exactly as long as
+                        // the button is up. A plain "Loading engine…" carries
+                        // no actions and leaves the overlay live.
+                        .allowsHitTesting(session.engineStatus.actions.isEmpty)
                 }
             } else {
-                EngineLaunchStatusView(
-                    engineLaunchStatus: engineLaunchStatus
-                )
+                // No game selected — not an engine state, so no status line:
+                // there is simply nothing to draw.
+                Color.clear
             }
         }
-    }
-}
-
-/// Pre-ready board-pane loading screen — the spinning circular KataGo icon, a
-/// ticking "Loading…" headline, and an optional Core ML compile-status caption.
-/// A thin macOS wrapper over the shared `EngineLoadingView`: the icon scales to
-/// 80% of the board pane's smaller side (`.proportional`) and the caption uses
-/// `.caption` for a window pane.
-private struct EngineLaunchStatusView: View {
-    let engineLaunchStatus: EngineLaunchStatus
-
-    var body: some View {
-        EngineLoadingView(caption: "Loading",
-                          secondaryFont: .caption,
-                          icon: Image(.loadingIcon),
-                          iconSizing: .proportional(0.8),
-                          status: engineLaunchStatus)
     }
 }

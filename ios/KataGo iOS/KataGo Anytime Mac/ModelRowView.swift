@@ -427,6 +427,16 @@ final class ModelBackendPaneView: NSView {
         // Max board size — drives the engine-wide NN buffer geometry (both the
         // GPU and ANE server threads convert/allocate to this size) and the size
         // the Winograd tuner optimizes for.
+        //
+        // SPAWN-TIME ONLY on macOS, deliberately: changing it here writes the
+        // per-model setting and nothing else, so the running engine keeps the
+        // buffer it launched with until the next load (the "Changes apply when
+        // this model is next loaded" note at the foot of this pane covers it).
+        // visionOS/tvOS quit and respawn the engine on this setting; macOS does
+        // not, because a relaunch here would tear down an engine the user is
+        // mid-analysis on with no warning. Until the next load, a board bigger
+        // than the LAUNCHED cap is reported as *Held* on the board's status
+        // line — never as a lost board.
         let sizeOptions = BoardSizeChoice.allCases.map { $0.label }
         stack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Max Board Size"))
         let sizeIndex = BoardSizeChoice.allCases.firstIndex(of: settings.mlxBoardSize) ?? 0

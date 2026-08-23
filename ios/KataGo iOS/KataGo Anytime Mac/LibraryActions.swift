@@ -54,8 +54,8 @@ extension MainWindowController: LibraryActionsDelegate {
                 untitled.concreteConfig.rule = configRuleIndex
                 let record = self.draftController.openUntitled(untitled)
                 self.navigationContext.selectedGameRecord = record
-                // Unlock BEFORE the load, not after. ⌘N stays enabled during an
-                // engine relaunch, and a relaunch defers the load — so an
+                // Unlock BEFORE the load, not after. ⌘N stays enabled while a
+                // Deep Report is probing, and that defers the load — so an
                 // `isEditing = true` written after it would never run for the
                 // deferred case, and any board that isn't 19x19 / komi 7 /
                 // default rules would come back locked, close the untitled
@@ -66,10 +66,10 @@ extension MainWindowController: LibraryActionsDelegate {
                 // be right before the load, never after it.
                 self.session.gobanState.isEditing = true
                 // The board really does change here, so unlike unlocking an
-                // existing game this DOES need a load — through the same F14
-                // gate `performSelectGame` uses, since an ungated load would
-                // reach a mid-teardown engine (`loadDeferringUntilReady`'s doc
-                // comment).
+                // existing game this DOES need a load — through the same gate
+                // `performSelectGame` uses. With no engine yet (a ⌘N during the
+                // launch) the load still PROJECTS the new game; only its feed
+                // is dropped, and the handshake re-states it.
                 self.loadDeferringUntilReady(record, previous: previous)
                 self.libraryStore.refetch()
                 self.refreshDraftChrome()

@@ -27,9 +27,13 @@ final class MainWindowController: NSWindowController {
 
     /// Observable engine-launch status (created + wired by the `AppDelegate`,
     /// which registers the `registerEngineLaunchStatusUpdater` seam against it).
-    /// Held here so P5-T9 can surface its caption in the board pane during a
-    /// cache-miss CoreML compile. Mirrors the iOS `engineLaunchStatus` plumbed
-    /// from `KataGo_iOSApp` into `ContentView`.
+    ///
+    /// Deliberately NOT surfaced on macOS, and not injected into the board's
+    /// environment. The Core ML compile happens inside the `katago-engine`
+    /// CHILD process, which has no channel back to the app (ADR 0007), so this
+    /// object never leaves `.idle` here — the inline engine status says
+    /// "Loading engine…" and makes no claim about compiling. Held so the
+    /// registered seam has a stable owner for the window's lifetime.
     let engineLaunchStatus: EngineLaunchStatus
 
     /// Backs the Library sidebar's list of persisted games (fetch + observe).
@@ -162,6 +166,12 @@ final class MainWindowController: NSWindowController {
     /// engine session.
     private var lastDownloadFinishedGeneration = 0
 
+    /// Last-seen value of `session.engineStatus.availability`, so the
+    /// (property-agnostic) `withObservationTracking` callback can tell a real
+    /// engine transition from an unrelated mutation. Seeded in
+    /// `installEngineAvailabilityObserver()` and re-seeded on relaunch.
+    private var lastEngineAvailability = EngineAvailability.launching
+
     /// Last-seen value of `engineLifecycle.lastLoadedModelTitle`. The
     /// (property-agnostic) `withObservationTracking` callback diffs against this
     /// to detect the `nil -> non-nil` transition that signals the engine's first
@@ -217,34 +227,29 @@ final class MainWindowController: NSWindowController {
     /// monitor (not just the menu key equivalents) is needed.
     private var boardShortcutMonitor: Any?
 
-    /// Gates the board pane until the engine session has finished its initial
-    /// handshake + board load (see `BoardReadiness`). Without this, the hosted
-    /// `BoardView.onAppear` fires at `init` time — before the engine exists — and
-    /// its premature `showboard` desyncs `showBoardCount`, gating analysis off.
-    let boardReadiness = BoardReadiness()
-
-    /// F14/F14b: serializes game selections against engine readiness at the
-    /// shared `selectGame(_:)` chokepoint. A cold launch can deliver a selection
-    /// before the engine subprocess finishes its GTP handshake — via a widget
-    /// `katago-anytime://` deep link (F14) OR an `.sgf` file-open from Finder
-    /// (F14b) — and `loadGame`'s feed/rules/`kata-analyze` would be dropped.
-    /// The gate stashes the pending load until `boardReadiness.isEngineReady`
-    /// flips true (drained by `applyPendingSelection`); when ready it is a
-    /// transparent pass-through.
+    /// Serializes game selections against a running Deep Report at the shared
+    /// `selectGame(_:)` chokepoint. The modal report sheet doesn't block
+    /// external events, so a Finder SGF-open or a widget deep link could
+    /// otherwise interleave a feed and analyze commands with in-flight probe
+    /// traffic. `selectGame(_:)` folds `gobanState.reportGenerationActive` into
+    /// its `isReady` check; `trackReportGeneration`'s `true -> false` edge
+    /// drains the gate.
     ///
-    /// Also reused while a Deep Report is probing (`gobanState.reportGenerationActive`):
-    /// the modal report sheet doesn't block external events, so a Finder SGF-open
-    /// or widget deep link could otherwise interleave a feed and analyze commands
-    /// with in-flight probe traffic. `selectGame(_:)` folds that flag into the
-    /// same `isReady` check; `trackReportGeneration`'s `true -> false` edge drains
-    /// the gate exactly like the engine-ready path.
+    /// It no longer defers on ENGINE readiness (F14/F14b). It used to, because
+    /// a selection arriving mid-handshake had its GTP silently dropped — but a
+    /// deferred selection also meant a deferred DISPLAY, i.e. a cold-launch
+    /// deep link that showed nothing until the model finished loading. The
+    /// display now switches at once, the feed is dropped by `MessageList`'s
+    /// command gate, and `GobanState.engineSyncGate` remembers the debt so the
+    /// handshake's `resyncEngineAfterHandshake` pays it against whatever is
+    /// selected by then (latest wins).
     private var selectionGate = ReadinessGate<PendingSelection>()
 
-    /// A game selection awaiting the engine-ready signal. Holds only the target:
-    /// the deferred drain does not need the prior game (the board mounts fresh and
-    /// re-syncs via `showboard`, so `loadGame`'s cosmetic resize-preload is moot),
-    /// and not retaining it avoids reading a record that may have been deleted in
-    /// the pre-ready window.
+    /// A game selection awaiting the report to finish. Holds only the target:
+    /// the deferred drain does not need the prior game (the projector always
+    /// publishes the new game's own size, so `loadGame`'s cosmetic
+    /// resize-preload is moot), and not retaining it avoids reading a record
+    /// that may have been deleted in the deferred window.
     private struct PendingSelection {
         let game: GameRecord?
     }
@@ -304,8 +309,6 @@ final class MainWindowController: NSWindowController {
             navigationContext: navigationContext,
             audioModel: audioModel,
             libraryStore: libraryStore,
-            readiness: boardReadiness,
-            engineLaunchStatus: engineLaunchStatus,
             windowController: self
         )
         w.contentViewController = splitVC
@@ -406,6 +409,27 @@ final class MainWindowController: NSWindowController {
         // engine starts for consistency with the other observers, though a report
         // cannot start until well after launch.
         installReportGenerationObserver()
+
+        // Re-decides *Held* on every engine transition. Installed before the
+        // engine starts so the first `.launching -> .ready` edge is not missed.
+        installEngineAvailabilityObserver()
+
+        // What the status line's Retry button does. Set once: `EngineStatus`
+        // is owned by the session, which outlives every engine.
+        session.engineStatus.onAction = { [weak self] action in
+            guard let self, action == .retry else { return }
+            // The net that failed is still the active selection, so this
+            // relaunches exactly what the user last chose — which is what
+            // "Retry" means. `relaunch` is reachable from `.failed` (it has no
+            // readiness guard of its own; the guard is on the model dropdown).
+            self.relaunch(model: self.modelSelection.currentModel)
+        }
+
+        // Put a game on the board NOW, before the engine exists. The board is
+        // record-owned, so this needs nothing but the SGF — and running it
+        // ahead of `decideRecovery()` means the board is up even when the
+        // engine never starts at all.
+        seedInitialGame()
 
         // Run the launch-time crash-recovery decision ONCE, BEFORE arming the
         // sentinel / launching the engine — it must read the PREVIOUS run's
@@ -664,9 +688,10 @@ final class MainWindowController: NSWindowController {
 
     /// Switches the board to a game chosen from the Library sidebar. Mirrors the
     /// iOS `GameSplitView.processChange` flow via the reusable
-    /// `GobanState.loadGame`. The initial launch load stays in
-    /// `initializeSession`; this only runs for genuine post-launch row changes
-    /// (identity-different from the currently-selected game). Only reached
+    /// `GobanState.loadGame`. The initial launch load is `seedInitialGame()`,
+    /// which runs in `init` before any engine exists; this only runs for
+    /// genuine post-launch row changes (identity-different from the
+    /// currently-selected game). Only reached
     /// through the `selectGame(_:)` chokepoint above, which resolves an open
     /// draft first — by the time this runs there is nothing left to abandon.
     private func performSelectGame(_ game: GameRecord?) {
@@ -689,8 +714,9 @@ final class MainWindowController: NSWindowController {
             break
         }
 
-        // F14/F14b gate, factored into `loadDeferringUntilReady` so every other
-        // path that loads a game — not just a sidebar click — shares it.
+        // The Deep Report gate, factored into `loadDeferringUntilReady` so
+        // every other path that loads a game — not just a sidebar click —
+        // shares it.
         loadDeferringUntilReady(game, previous: previous)
     }
 
@@ -727,72 +753,68 @@ final class MainWindowController: NSWindowController {
     /// always means a detached draft is taking the writes. See
     /// `DraftEditingSync` for why this is a rule over the state rather than a
     /// pair of edge handlers.
+    ///
+    /// The two-pass loop itself lives on `DraftEditingSync.settle`, so the test
+    /// that pins an engine-free load drives the same loop this does.
     private func syncDraftToEditingState() {
-        // Two passes at most: `.closeStale` is the only action that leaves
-        // anything still to decide, and because it clears the draft the second
-        // pass cannot return it again.
-        if applyDraftEditingSync() { applyDraftEditingSync() }
+        DraftEditingSync.settle(inputs: { self.draftEditingInputs },
+                                apply: { self.applyDraftEditingSync($0) })
     }
 
-    /// Applies one step of the rule. Returns whether it may have left more to
-    /// do.
-    @discardableResult
-    private func applyDraftEditingSync() -> Bool {
-        let gobanState = session.gobanState
+    /// Everything `DraftEditingSync` looks at, read from the LIVE state. Read
+    /// afresh between passes, which is what lets `.closeStale` be followed by a
+    /// decision that sees the draft actually gone.
+    private var draftEditingInputs: DraftEditingSync.Inputs {
         let selected = navigationContext.selectedGameRecord
-
-        switch DraftEditingSync.decide(
-            isEditing: gobanState.isEditing,
+        return DraftEditingSync.Inputs(
+            isEditing: session.gobanState.isEditing,
             hasDraft: draftController.draft != nil,
             isDirty: draftController.isDirty,
             draftStandsForSelection: draftController.isDraftRecord(selected),
-            hasSelection: selected != nil
-        ) {
+            hasSelection: selected != nil)
+    }
+
+    /// Applies one step of the rule.
+    private func applyDraftEditingSync(_ action: DraftEditingSync) {
+        switch action {
         case .none:
-            return false
+            break
         case .closeStale:
             draftController.close()
-            return true
         case .unlock:
-            gobanState.isEditing = true
-            return false
+            session.gobanState.isEditing = true
         case .open:
-            guard let origin = selected else { return false }
+            guard let origin = navigationContext.selectedGameRecord else { return }
             // No `loadGame`: the content is identical, so the engine and board
             // must not move — only object identity changes, and from here every
             // existing write path writes into the clone.
             navigationContext.selectedGameRecord = draftController.open(origin: origin)
-            return false
         }
     }
 
-    /// F14/F14b: never drive `loadGame`'s GTP before the engine subprocess has
-    /// finished its handshake. On a cold launch a selection can arrive
-    /// mid-handshake (widget deep link or .sgf file-open); defer the load
-    /// until `isEngineReady` (drained by `applyPendingSelection`). When ready,
-    /// the gate is a transparent pass-through and the load runs synchronously
-    /// with the real `previous` (the resize-preload it enables is wanted here).
+    /// Defer a board load while a Deep Report is probing: an external trigger
+    /// (widget deep link, Finder .sgf open) can arrive mid-report — the modal
+    /// sheet doesn't block them — and would interleave a feed and analyze
+    /// commands with the report's probe traffic. Drained by
+    /// `applyPendingSelection` on the report's `true -> false` edge (see
+    /// `trackReportGeneration`).
     ///
-    /// Also defer while a Deep Report is probing: the same external triggers
-    /// can arrive mid-report (the modal sheet doesn't block them), which would
-    /// interleave a feed and analyze commands with the report's probe traffic.
-    /// Drained by `applyPendingSelection` on the report's `true -> false` edge
-    /// (see `trackReportGeneration`), same as the engine-ready path.
+    /// That is now the ONLY reason to defer. Engine readiness is no longer one:
+    /// the board never waits for the engine, so a selection that lands
+    /// mid-handshake switches the display immediately and its GTP is dropped by
+    /// `MessageList`'s command gate, which records the debt on
+    /// `GobanState.engineSyncGate` for the handshake to pay.
     ///
     /// `internal`, not `private`: `LibraryActions.newGame` (a separate file)
     /// needs it too. Originally only `performSelectGame(_:)` used this gate;
     /// `discardDraftAndReload` and `newGame`'s sheet completion called `load`
-    /// straight through, which sent GTP into a mid-teardown engine during a
-    /// relaunch (Models window ▸ Play) — the exact race F14 exists to
-    /// prevent, just reached from a door that wasn't watching for it. Giving
-    /// every game-loading call site the same gate, rather than gating each
-    /// menu item's `validateMenuItem` on `isEngineReady` and hoping nothing new
-    /// calls `load` without also remembering that check, keeps the guarantee
-    /// in the one place a future call site would naturally look for it.
+    /// straight through. Giving every game-loading call site the same gate,
+    /// rather than gating each menu item's `validateMenuItem` and hoping
+    /// nothing new calls `load` without also remembering that check, keeps the
+    /// guarantee in the one place a future call site would naturally look for it.
     func loadDeferringUntilReady(_ game: GameRecord?, previous: GameRecord?) {
         guard selectionGate.request(PendingSelection(game: game),
-                                    isReady: boardReadiness.isEngineReady
-                                        && !session.gobanState.reportGenerationActive) != nil
+                                    isReady: !session.gobanState.reportGenerationActive) != nil
         else {
             // The board has not moved, but the SELECTION already has, so the
             // draft is re-derived now rather than when the gate drains: a clean
@@ -810,41 +832,44 @@ final class MainWindowController: NSWindowController {
     func selectGame(byID id: UUID) {
         // F5: fall back to the most-recent game when the deep-linked game was
         // deleted (a widget can lag the store), instead of silently doing nothing.
-        // Engine-readiness deferral (F14) is handled by `selectGame(_:)` at the
-        // shared chokepoint.
+        // A cold-launch deep link opens the game AT ONCE — engine-free — and is
+        // fed to the engine at the handshake; the only remaining deferral (a
+        // running Deep Report) is handled by `selectGame(_:)` at the shared
+        // chokepoint.
         guard let match = GameRecord.resolveDeepLinkTarget(id: id, container: modelContainer)
         else { return }
         selectGame(match)
     }
 
-    /// F14/F14b drain: applies a game selection that arrived before the engine
-    /// was ready. Called right after `boardReadiness.isEngineReady` flips true
-    /// (initial launch AND every relaunch), on the main actor — so once the
-    /// engine can serve GTP there is no window where a stashed selection is left
-    /// unloaded. Also called by `trackReportGeneration`'s `true -> false` edge, so
-    /// a selection deferred behind a running Deep Report is applied the moment the
-    /// report finishes (or aborts).
+    /// Drain: applies a game selection that arrived while a Deep Report was
+    /// probing. Called by `trackReportGeneration`'s `true -> false` edge, so a
+    /// deferred selection is applied the moment the report finishes (or
+    /// aborts).
+    ///
+    /// It is no longer called on the engine-ready edge — nothing defers on
+    /// engine readiness any more (see `loadDeferringUntilReady`). The
+    /// handshake's own equivalent is `GobanState.resyncEngineAfterHandshake`,
+    /// which feeds the LIVE selection rather than replaying an old one.
     @MainActor
     private func applyPendingSelection() {
-        // Every call into this function lands on an engine-ready edge (see the
-        // doc comment above), which is exactly when a crash-recovered draft
-        // mirror should be offered — so this runs via `defer`, unconditionally
-        // on every call, rather than as a plain trailing statement. A trailing
+        // A report ending is one of the two moments a crash-recovered draft
+        // mirror may be offered (the other is the engine-ready edge, in
+        // `initializeSession`) — so this runs via `defer`, unconditionally on
+        // every call, rather than as a plain trailing statement. A trailing
         // statement would sit after the early-return guard below and so would
-        // be skipped on the common case (an engine-ready edge with no deferred
-        // selection, e.g. a plain launch or a post-model-switch relaunch), and
-        // it must not be nested inside `resolveDraft`'s completion either: that
-        // continuation runs asynchronously behind a Save · Discard · Cancel
-        // sheet when a draft is open, or not at all if the user cancels.
+        // be skipped whenever nothing was deferred, and it must not be nested
+        // inside `resolveDraft`'s completion either: that continuation runs
+        // asynchronously behind a Save · Discard · Cancel sheet when a draft is
+        // open, or not at all if the user cancels.
         defer { offerDraftRestoreIfNeeded() }
 
         guard let pending = selectionGate.drainWhenReady() else { return }
-        // The target may have been deleted during the pre-ready window (e.g. a
-        // delete-replacement on a cold launch, or a CloudKit remote delete). Rather
-        // than load nothing, re-resolve to the most-recent game — the F5 fallback
-        // that `resolveDeepLinkTarget` applies at deep-link time but that was not
-        // re-applied here. `previous: nil`: the board mounts fresh and re-syncs via
-        // showboard, so the resize-preload is unnecessary on the drain path.
+        // The target may have been deleted while the report ran (a CloudKit
+        // remote delete, or a delete-replacement). Rather than load nothing,
+        // re-resolve to the most-recent game — the F5 fallback that
+        // `resolveDeepLinkTarget` applies at deep-link time but that was not
+        // re-applied here. `previous: nil`: the projector always publishes the
+        // new game's own size, so the resize-preload is unnecessary here.
         let fetched = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
         let target = GameRecord.resolveDrainTarget(
             stashed: pending.game,
@@ -866,10 +891,12 @@ final class MainWindowController: NSWindowController {
     /// silently reattaching itself to a saved game is exactly the class of
     /// surprise this whole feature exists to remove.
     ///
-    /// Called (via `defer`) from `applyPendingSelection`, i.e. on every
-    /// engine-ready edge, because Restore selects a game and that drives GTP.
-    /// Safe to call repeatedly in one session: the `draftController.draft ==
-    /// nil` guard alone is what stops a second offer while a draft is open.
+    /// Called on the engine-ready edge (`initializeSession`) and, via `defer`,
+    /// whenever a Deep Report releases the selection gate — Restore selects a
+    /// game, and offering it against a live engine means the restored position
+    /// is fed rather than dropped. Safe to call repeatedly in one session: the
+    /// `draftController.draft == nil` guard alone is what stops a second offer
+    /// while a draft is open.
     /// Discard clears the mirror immediately; Restore does not (it opens a
     /// draft over the recovered content instead, and that draft's own edits
     /// reschedule the mirror write, same as any other draft) — but either way
@@ -926,8 +953,8 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Deep Report selection gating
     //
-    // Extends the F14/F14b `selectionGate` (`ReadinessGate` at the shared
-    // `selectGame(_:)` chokepoint) to also cover a Deep Report in flight: the
+    // The `selectionGate` (`ReadinessGate` at the shared `selectGame(_:)`
+    // chokepoint) exists for exactly one case now — a Deep Report in flight: the
     // report's sheet is modal to user interaction but does NOT block external
     // events (a Finder SGF-open or widget deep link can still call `selectGame(_:)`
     // while probes are running), which would interleave a feed and analyze commands
@@ -977,6 +1004,155 @@ final class MainWindowController: NSWindowController {
         lastReportGenerationActive = newValue
     }
 
+    // MARK: - Engine availability observer + the Held rule
+    //
+    // Engine availability is a STATE the board displays, never a screen that
+    // replaces it. `EngineStatusView` (inside the hosted `BoardView`) renders
+    // it; the window controller only has to keep the one state the board's own
+    // size decides — *Held* — in step with the engine and the record.
+
+    /// Seeds the availability snapshot from the live session and starts the
+    /// self-rescheduling observation bridge. Called once in `init`.
+    private func installEngineAvailabilityObserver() {
+        lastEngineAvailability = session.engineStatus.availability
+        trackEngineAvailability()
+    }
+
+    /// One observation pass: tracks the engine's availability, and on change
+    /// re-reads the committed value on the main actor, reacts, then re-arms
+    /// (one-shot).
+    private func trackEngineAvailability() {
+        withObservationTracking {
+            _ = session.engineStatus.availability
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleEngineAvailabilityChange()
+                self.trackEngineAvailability()
+            }
+        }
+    }
+
+    /// Whether the board on screen is one the engine can take depends on the
+    /// engine's state as much as on the board's size, so every availability
+    /// edge re-decides Held.
+    ///
+    /// `applyHeldStatus` refreshes `lastEngineAvailability` itself (it has to —
+    /// its own write lands while observation is un-armed and produces no
+    /// callback), so this only has to filter out the passes where nothing moved.
+    private func handleEngineAvailabilityChange() {
+        guard session.engineStatus.availability != lastEngineAvailability else { return }
+        applyHeldStatus()
+    }
+
+    /// Feeds the engine the position the board is showing, and re-arms analysis
+    /// off the answer.
+    ///
+    /// The turn is PARKED at `.unknown` first, exactly as `GobanState.loadGame`
+    /// does before its own feed. Analysis re-arms off the turn EDGE
+    /// (`BoardView.onChange(of: player.nextColorForPlayCommand)`), and a
+    /// relaunch does not change whose move it is — so without the park the
+    /// showboard reply would restate the colour the board already held, no edge
+    /// would fire, and a perfectly healthy fresh engine would sit there
+    /// analysing nothing.
+    ///
+    /// The park is UNDONE when no feed went out. A shut gate (still launching,
+    /// or Held), no selection, a record the replay could not read, or a board
+    /// this engine cannot hold all leave `resyncEngineAfterHandshake` sending
+    /// nothing — and a turn parked at `.unknown` with nothing able to resolve it
+    /// is worse than no park at all: the edge that re-arms analysis would never
+    /// fire again, so analysis would stay off until the next game switch.
+    ///
+    /// "Did a feed go out" is read from `showBoardCount`, because the feed ENDS
+    /// in the `showboard` whose reply is the in-sync acknowledgement — the very
+    /// reply that resolves the park. Observing the effect beats re-deriving
+    /// `resyncEngineAfterHandshake`'s preconditions here, which would be a
+    /// second copy of them to keep in step.
+    private func resyncEngineToRecord() {
+        guard session.messageList.isAcceptingCommands,
+              let gameRecord = navigationContext.selectedGameRecord else { return }
+        let parkedFrom = session.player.nextColorForPlayCommand
+        let showBoardsBefore = session.gobanState.showBoardCount
+        session.player.nextColorForPlayCommand = .unknown
+        session.gobanState.resyncEngineAfterHandshake(
+            gameRecord: gameRecord,
+            messageList: session.messageList,
+            stones: session.stones,
+            projector: session.recordPosition)
+        if session.gobanState.showBoardCount == showBoardsBefore {
+            session.player.nextColorForPlayCommand = parkedFrom
+        }
+    }
+
+    /// Re-decides *Held* — "this board is larger than the running engine's Max
+    /// Board Size" — from the projected board size, the cap the running engine
+    /// LAUNCHED with, and the current availability.
+    ///
+    /// Held is a status, not a screen: the record position keeps drawing, and
+    /// navigation keeps working. What changes is that the engine must not be
+    /// fed. `GobanState.loadGame` already refuses an oversized record
+    /// (`boardFitsEngine`), but `forwardMoves`/`backwardMoves` do not check
+    /// board size at all — so scrubbing one would push `play` after `play` at
+    /// an engine that was never told this board exists, and its `?` refusals
+    /// would then force `stones.isReady = true`, i.e. claim a sync that does
+    /// not exist. Shutting the command gate for the duration closes that, and
+    /// reuses the launching-engine machinery rather than adding a second one.
+    ///
+    /// The size comes from the PROJECTED position (`session.board`), which the
+    /// projector writes from the record's SGF — the same source the feed sizes
+    /// itself from. Reading `Config.boardWidth` instead would let the two
+    /// disagree on an imported record whose config was never updated, and then
+    /// the status line would call a board fine that the feed refuses.
+    private func applyHeldStatus() {
+        let engineStatus = session.engineStatus
+        // Whatever this decides, the observer's snapshot must end up agreeing
+        // with it. `withObservationTracking` is UN-ARMED while this runs — the
+        // callback that led here fires once and re-arms only afterwards — so a
+        // write below produces no callback of its own, and the other two call
+        // sites (the record-position observer, the handshake) never went
+        // through the callback at all. A snapshot left behind would make the
+        // next genuine edge look like one already handled, and Held would stop
+        // being re-decided.
+        defer { lastEngineAvailability = engineStatus.availability }
+        let current = engineStatus.availability
+        // Zero when nothing is selected: the projector keeps the outgoing
+        // game's size, and "no game" is not "too large".
+        let hasGame = navigationContext.selectedGameRecord != nil
+        let next = EngineHeldRule.decide(
+            current: current,
+            boardWidth: hasGame ? Int(session.board.width) : 0,
+            boardHeight: hasGame ? Int(session.board.height) : 0,
+            maxBoardLength: launchedMaxBoardLength)
+        // Assign only on a real change: an `@Observable` write invalidates
+        // every reader even when the value is identical, and this runs on
+        // every game switch and every engine transition.
+        guard next != current else { return }
+        engineStatus.availability = next
+
+        switch next {
+        case .held:
+            // Stop the search FIRST, while a command can still mean something.
+            // The engine is still running `kata-analyze` for the PREVIOUS
+            // position and nothing else will halt it: the ordinary `stop` goes
+            // through `appendAndSend`, which is about to start dropping, and
+            // `loadGame` returned at its `boardFitsEngine` guard without
+            // sending anything at all. A lifecycle command precisely because
+            // the gate must not be able to swallow it.
+            session.sendLifecycleCommand("stop")
+            session.messageList.isAcceptingCommands = false
+            // Nothing the engine holds relates to what is on screen any more.
+            session.gobanState.resetForFreshEngine(stones: session.stones)
+        case .ready:
+            // The board fits again (a smaller game was opened, or the engine
+            // relaunched with a bigger buffer). Reopen and re-state the whole
+            // position from scratch — board size, rules, setup, every move.
+            session.messageList.isAcceptingCommands = true
+            resyncEngineToRecord()
+        default:
+            break
+        }
+    }
+
     // MARK: - Engine launch + session loop
 
     /// Mirrors the iOS launch (`ModelRunnerView` engine thread + `ContentView`
@@ -1002,10 +1178,21 @@ final class MainWindowController: NSWindowController {
             guard let builtIn = NeuralNetworkModel.builtInModel,
                   let builtInPath = Bundle.main.path(forResource: "default_model", ofType: "bin.gz") else {
                 assertionFailure("Built-in model not bundled in the Mac target's Resources.")
+                session.engineStatus.availability = .failed(
+                    reason: "The built-in network is missing from this build.")
                 return
             }
+            // Say so. The engine that comes up is NOT the one the user chose,
+            // and the note survives into `.ready` (a perfectly working engine
+            // running the wrong net is exactly what has to be reported).
+            session.engineStatus.note =
+                "\(model.title) was removed — using the built-in network"
             model = builtIn
             modelPath = builtInPath
+        } else {
+            // A previous launch's fallback note must not outlive the launch
+            // that earned it.
+            session.engineStatus.note = nil
         }
 
         guard let modelPath else { return } // unreachable — fallback set it above.
@@ -1037,8 +1224,12 @@ final class MainWindowController: NSWindowController {
 
         // The engine helper failed to spawn. Do NOT start the session loop — it
         // would drive the uninitialized in-process bridge and hang. Surface the
-        // failure instead; the app stays responsive.
+        // failure instead; the app stays responsive, and the board — which
+        // needs no engine to draw the record — stays on screen behind the
+        // alert with the failure named on it.
         guard engineStarted else {
+            session.endEngineSession(
+                .failed(reason: "KataGo Anytime couldn’t launch its engine helper."))
             presentEngineStartFailureAlert()
             return
         }
@@ -1051,11 +1242,14 @@ final class MainWindowController: NSWindowController {
         }
 
         let context = modelContainer.mainContext
+        // Insurance for the relaunch path (and for a store emptied while the
+        // app ran): `seedInitialGame()` already selected a game at launch, and
+        // this keeps its own selection when there is one.
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
-        let selected = ensureSelectedGameRecord(gameRecords: gameRecords, context: context)
+        _ = ensureSelectedGameRecord(gameRecords: gameRecords, context: context)
 
         sessionTask = Task { @MainActor in
-            await initializeSession(model: model, selected: selected, context: context)
+            await initializeSession(model: model, context: context)
         }
     }
 
@@ -1084,6 +1278,12 @@ final class MainWindowController: NSWindowController {
         // Remember the cap the engine is actually launching with, so the New Game
         // dialog can't offer a board this engine would fatally reject.
         launchedMaxBoardLength = maxBoardSizeForNNBuffer
+        // Same number, in the two places that gate on it at RUN time: the
+        // status line (what *Held* reports) and the feed itself, which refuses
+        // a record this engine cannot hold. Set here, at the spawn, because
+        // this is the first moment the number is true.
+        session.engineStatus.launchedMaxBoardLength = maxBoardSizeForNNBuffer
+        session.gobanState.engineMaxBoardLength = maxBoardSizeForNNBuffer
         // The parent resolves the bundled human-SL model + GTP config and passes
         // absolute paths to the child (the child's own Bundle.main is the app).
         let humanModelPath = Bundle.main.path(forResource: "b18c384nbt-humanv0", ofType: "bin.gz") ?? ""
@@ -1155,51 +1355,80 @@ final class MainWindowController: NSWindowController {
         return newGame
     }
 
+    /// Puts a game on the board BEFORE any engine exists.
+    ///
+    /// The board is record-owned — its position is replayed from the record's
+    /// own SGF — so a selection plus `load(game:)` is the whole of it. `load`
+    /// is exactly what the launch used to run only AFTER the GTP handshake,
+    /// which is why this pane sat on a spinner for the entire model load.
+    ///
+    /// The feed `loadGame` builds is offered to a command gate that is still
+    /// shut; `MessageList` drops it (and says so in the transcript) and
+    /// `GobanState.engineSyncGate` records the debt, which
+    /// `resyncEngineAfterHandshake` pays against whatever is selected by then.
+    private func seedInitialGame() {
+        let context = modelContainer.mainContext
+        let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
+        let selected = ensureSelectedGameRecord(gameRecords: gameRecords, context: context)
+        load(game: selected, previous: nil)
+    }
+
+    /// The handshake and everything that follows it, for one engine launch.
+    ///
+    /// `handshake`, deliberately, and NOT `session.initialize` — which is
+    /// `handshake` plus `sendInitialCommands(config:)`. Two reasons, and the
+    /// first is a bug:
+    ///
+    ///  1. `sendInitialCommands` states the SELECTED GAME's board size, and it
+    ///     ran before anything had asked whether this engine can hold that
+    ///     board. An iCloud-synced 37x37 record against a 19 NN buffer would
+    ///     be announced as `rectangular_boardsize 37 37` to the very engine
+    ///     that must never hear it — before `applyHeldStatus` got a word in.
+    ///  2. It is redundant here anyway. `EngineFeed.openingCommands` — what the
+    ///     feed below sends — is a strict superset: board size (taken from the
+    ///     SGF, which is the record's own authority on its geometry, not from a
+    ///     `Config` that may disagree), `clear_board`, the rules bundle, komi,
+    ///     `friendlyPassOk false`, playout-doubling advantage, wide root noise,
+    ///     the symmetric human-SL bundle, the setup stones, and the moves.
+    ///
+    /// So macOS states the engine's whole world exactly once, in the feed, and
+    /// only for a board the engine can actually take.
     private func initializeSession(model: NeuralNetworkModel,
-                                   selected: GameRecord,
                                    context: ModelContext) async {
-        // Mirror `ContentView.initializationTask`: handshake → initial commands.
-        await session.initialize(
+        // Until this returns the command gate is shut: the board has been
+        // showing the record position since `seedInitialGame`, and everything
+        // it wanted to tell the engine was dropped and remembered.
+        await session.handshake(
             selectedModelTitle: model.title,
-            engineLifecycle: engineLifecycle,
-            config: selected.concreteConfig
+            engineLifecycle: engineLifecycle
         )
 
-        selected.updateToLatestVersion()
-        if selected.concreteConfig.isBookEligible {
-            session.bookLookup.loadIfNeeded(boardSize: selected.concreteConfig.boardWidth)
-        }
+        // The engine that just came up may be smaller than the board on screen.
+        // Settled BEFORE anything is sent, so an oversized board is never
+        // mentioned to an engine that would abort on it.
+        applyHeldStatus()
 
-        // `load(game:)` -> `loadGame` projects the record position onto the
-        // board and then FEEDS the engine that position move by move (board
-        // size, rules, setup stones, one `play` per accepted move), which
-        // replaces the `loadsgf` + `showboard` + `printsgf` echo this used to
-        // send by hand.
-        load(game: selected, previous: nil)
+        // Pay the debt: feed the LIVE selection at the LIVE cursor. Latest
+        // wins — during the handshake the user may have switched games,
+        // scrubbed, or both, and every one of those sends was dropped. A
+        // no-op while Held (the gate is shut) or with nothing selected, which
+        // is exactly the case where the engine must be told nothing at all.
+        resyncEngineToRecord()
+
+        // Engine-ready edge: offer a draft mirror left behind by a crash, so a
+        // restored position reaches an engine that can be told about it.
+        offerDraftRestoreIfNeeded()
 
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
 
-        // Drain one line (the iOS app does a single `messaging` then sleeps) and
-        // then enter the steady-state loop.
-        await session.messaging(
-            gameRecords: gameRecords,
-            modelContext: context,
-            navigationContext: navigationContext,
-            audioModel: audioModel,
-            aiMove: aiMoveBox.binding
-        )
-
-        // The engine handshake + initial board load are done. Mount the live
-        // board now (mirrors iOS setting `isInitialized` after `initialize()`):
-        // `BoardView.onAppear` then sends its `showboard` while the run loop below
-        // is active to consume the response, so `showBoardCount` stays balanced
-        // and the `nextColorForPlayCommand` change drives the first analyze.
-        boardReadiness.isEngineReady = true
-
-        // F14/F14b: the engine can now serve GTP — apply any game selection that
-        // arrived during the (async) handshake before driving the run loop.
-        applyPendingSelection()
-
+        // Straight into the steady-state loop. There used to be one standalone
+        // `messaging()` first, copied from an iOS launch that no longer exists;
+        // `run()` is `while !stopRequested { messaging() }`, so it is the same
+        // thing minus two hazards. A launch that ends HELD sends the engine
+        // nothing at all, so that lone read would park on a helper that has not
+        // been asked anything — and a launch whose engine had already been
+        // declared gone would have had its `.failed` overwritten by that read's
+        // own `.expected` EOF classification.
         await session.run(
             gameRecords: gameRecords,
             modelContext: context,
@@ -1228,39 +1457,65 @@ final class MainWindowController: NSWindowController {
     /// Ordering:
     ///   1. `stopRequested = true` first, so `messaging`'s per-line guard skips
     ///      the engine's quit-response lines and `run()` exits on its next check.
-    ///   2. `sendCommand("quit")` + `terminate()` → the child exits and EOFs its
-    ///      stdout, unblocking the consumer's suspended `getMessageLine`.
-    ///   3. `await sessionTask` → guarantees the old `run()` loop finished before
+    ///   2. `sendCommand("quit")` → the child is told to go. This MUST precede
+    ///      step 3: `endEngineSession` shuts the command gate, and while the
+    ///      `quit` itself bypasses that gate (it is written to the subprocess
+    ///      directly), keeping the order stated here is what makes "the engine
+    ///      was asked to stop, THEN declared gone" true of every teardown.
+    ///   3. `endEngineSession(.launching)` → the session state that claims an
+    ///      engine exists comes down at once, so the ~3.5s `terminate()`
+    ///      escalation below is not a window in which a sidebar click can push
+    ///      GTP at a quitting child.
+    ///   4. `terminate()` → the child exits and EOFs its stdout, unblocking the
+    ///      consumer's suspended `getMessageLine`.
+    ///   5. `await sessionTask` → guarantees the old `run()` loop finished before
     ///      a new engine is injected (no two concurrent loops on one session).
-    ///   4. Reset all per-launch state and re-seed the observer snapshots so the
-    ///      existing `withObservationTracking` observers don't fire spurious
-    ///      transitions against stale `lastX` values on the fresh engine.
+    ///   6. Reset the remaining per-launch state and re-seed the observer
+    ///      snapshots so the existing `withObservationTracking` observers don't
+    ///      fire spurious transitions against stale `lastX` values on the fresh
+    ///      engine.
     private func stopEngineAndSession() async {
         // (1) End the GTP message loop. `messaging`'s `if !stopRequested` guard
         // and `run`'s `while !stopRequested` both collapse on this.
         session.stopRequested = true
 
-        // (2) Ask the engine to quit, then force the child down. Closing its
-        // stdin (and SIGTERM if needed) makes the child exit, which EOFs its
-        // stdout — that is what unblocks the run loop's suspended
-        // `getMessageLine` (no in-process "\n" nudge needed out-of-process).
-        // terminate() is synchronous (brief), so run it OFF the main actor to
-        // keep the UI responsive and to let the run loop's main-actor
-        // continuation make progress once EOF arrives.
+        // (2) Ask the engine to quit — BEFORE the session is declared gone.
         engineProcess?.sendCommand("quit")
+
+        // (3) The engine is on its way out, so nothing may still behave as
+        // though one is there. `endEngineSession` shuts the command gate,
+        // abandons any handshake still waiting on the dying child, and drops
+        // every signal claiming the board and the engine agree
+        // (`stones.isReady`, `showBoardCount`, the pending move) — which is
+        // also what stops the old run loop from collecting the quitting
+        // engine's trailing output as if it described the board on screen.
+        //
+        // `.launching`, not a failure: this exit is one we ASKED for, and the
+        // relaunch sets `.launching` again a moment later anyway. The run
+        // loop's own EOF branch usually classifies it identically first
+        // (`GameSession.noteEngineExit` reads `stopRequested`, raised in step
+        // 1); this covers the case where it exited on the flag instead, and is
+        // idempotent either way. The board does NOT come down for any of it.
+        session.endEngineSession(.launching)
+
+        // (4) Force the child down. Closing its stdin (and SIGTERM if needed)
+        // makes the child exit, which EOFs its stdout — that is what unblocks
+        // the run loop's suspended `getMessageLine` (no in-process "\n" nudge
+        // needed out-of-process). terminate() is synchronous (brief), so run it
+        // OFF the main actor to keep the UI responsive and to let the run
+        // loop's main-actor continuation make progress once EOF arrives.
         if let engine = engineProcess {
             await Task.detached { engine.terminate() }.value
         }
 
-        // (3) Await the old run loop's completion before wiring a new engine —
+        // (5) Await the old run loop's completion before wiring a new engine —
         // `GameSession` is reused across relaunch, so the old loop (which reads
         // through `session.engine`) must finish first. The child's EOF lets it
         // observe `stopRequested` and exit; this Task then completes.
         await sessionTask?.value
         sessionTask = nil
 
-        // (4) Reset for the next launch.
-        boardReadiness.isEngineReady = false
+        // (6) Reset for the next launch.
         session.stopRequested = false
         engineLifecycle.reset()
         engineProcess = nil
@@ -1306,6 +1561,12 @@ final class MainWindowController: NSWindowController {
         // reseed convention (in practice always false — a report doesn't survive
         // an engine relaunch).
         lastReportGenerationActive = gobanState.reportGenerationActive
+        // And the engine's own state. The teardown just wrote `.launching`, so
+        // without this the availability observer would read the relaunch's
+        // `.launching -> .ready` edge against a stale `.ready` snapshot and
+        // skip it — which is the edge that re-decides Held for the fresh
+        // engine's (possibly different) Max Board Size.
+        lastEngineAvailability = session.engineStatus.availability
     }
 
     /// Switches the active model and relaunches the engine in-process. Records
@@ -1315,12 +1576,19 @@ final class MainWindowController: NSWindowController {
     /// `BackendSettings` (P5-T2). This makes `relaunch(.builtIn)` and
     /// `relaunch(otherDownloadedNet)` both genuinely switch.
     ///
-    /// `startEngineAndSession()` re-runs the FULL init (handshake →
-    /// showboard/printsgf → messaging → run) and re-gates
-    /// `boardReadiness.isEngineReady` true after init, so the board re-mounts and
-    /// analysis re-arms exactly as on first launch. A fresh `initializeSession`
-    /// Task is started there, after `stopEngineAndSession()` has confirmed the old
-    /// `run()` loop ended — so there are never two concurrent `run()` loops.
+    /// `startEngineAndSession()` re-runs the FULL init (handshake → resync →
+    /// messaging → run). The board does NOT come down for any of it: it keeps
+    /// drawing the record position, the status line says "Loading engine…",
+    /// and `resyncEngineAfterHandshake` re-states that position to the new
+    /// engine. A fresh `initializeSession` Task is started there, after
+    /// `stopEngineAndSession()` has confirmed the old `run()` loop ended — so
+    /// there are never two concurrent `run()` loops.
+    ///
+    /// Deliberately UNGUARDED on engine readiness: this is also the Retry
+    /// action on the status line's `.failed` state, and refusing to relaunch a
+    /// dead engine would leave the only way out disabled. The re-entrancy
+    /// guard lives on the callers that can be triggered mid-launch
+    /// (`selectActiveModel`).
     ///
     /// NOTE: arming/clearing the crash sentinel (`pendingLoadModelTitle`) around
     /// this launch is P5-T4's job; this method only records the selection.
@@ -1421,10 +1689,12 @@ final class MainWindowController: NSWindowController {
     //
     // Port of the iOS `ModelRunnerView` `.onAppear` recovery branch + the
     // `lastLoadedModelTitle` clear, adapted for AppKit. iOS presents a model
-    // picker over its (always-mounted) board; macOS has neither picker nor
-    // inline status yet, so where iOS would `.presentPicker` or report a
-    // `.failedLastLaunch`, the Mac app falls back to launching the BUILT-IN net
-    // (never re-launching a model that apparently just crashed).
+    // picker over its (always-mounted) board; macOS has no picker — the net is
+    // chosen from the Models window — so where iOS would `.presentPicker` or
+    // report a `.failedLastLaunch`, the Mac app falls back to launching the
+    // BUILT-IN net (never re-launching a model that apparently just crashed).
+    // The board is up throughout either way, and a launch that then FAILS is
+    // reported inline with a Retry button rather than by a screen.
     //
     // Ordering is the crux: the decision reads `pendingLoadModelTitle` /
     // `selectedModelTitle` reflecting the PREVIOUS run, and must run BEFORE
@@ -1471,9 +1741,9 @@ final class MainWindowController: NSWindowController {
 
         case .presentPicker, .failedLastLaunch:
             // DEBUG, OR an incomplete prior load (the sentinel survived process
-            // death). macOS has no launch picker and no inline way out yet
-            // (C6), so both fall back to the safe built-in net — never
-            // auto-relaunch the model that may have OOM'd. No alert is shown.
+            // death). macOS has no launch picker, so both fall back to the safe
+            // built-in net — never auto-relaunch the model that may have OOM'd.
+            // No alert is shown; the Models window is how a user picks another.
             // Launching the built-in net re-arms and then clears the sentinel
             // via the normal lifecycle.
             if !pending.isEmpty {
@@ -1894,6 +2164,11 @@ final class MainWindowController: NSWindowController {
         // Idempotent when `loadGame` already projected this key — the side
         // effects below still run, which is what a game switch needs.
         let position = session.projectRecordPosition(key: key)
+
+        // The new position may be a board this engine cannot take (an
+        // iCloud-synced 37x37 record against a 19 NN buffer). Decided here,
+        // straight after the projection that settled `session.board`.
+        applyHeldStatus()
 
         if let key, let gameRecord = navigationContext.selectedGameRecord {
             RecordStoneCache.write(position: position, key: key, into: gameRecord)
@@ -2993,9 +3268,11 @@ final class MainWindowController: NSWindowController {
     }
 
     /// Shared by Revert and the exit sheet's Discard button. Loads through
-    /// `loadDeferringUntilReady`, not `load` directly: Revert stays enabled the
-    /// whole time a draft is open, including mid-relaunch, and an ungated
-    /// `load` would send GTP into an engine that is mid-teardown.
+    /// `loadDeferringUntilReady`, not `load` directly, so a Revert that lands
+    /// while a Deep Report is probing waits for it rather than interleaving a
+    /// feed with the report's probes. (Mid-relaunch is no longer a hazard here:
+    /// the command gate is shut for the whole teardown, so the load's GTP is
+    /// dropped and re-owed rather than pushed at a dying engine.)
     func discardDraftAndReload() {
         let previous = navigationContext.selectedGameRecord
         let origin = draftController.resolvedRecord(previous)
@@ -3504,9 +3781,7 @@ final class MainWindowController: NSWindowController {
 
             let board = MacBoardHostView(session: self.session,
                                          navigationContext: self.navigationContext,
-                                         audioModel: self.audioModel,
-                                         readiness: self.boardReadiness,
-                                         engineLaunchStatus: self.engineLaunchStatus)
+                                         audioModel: self.audioModel)
                 .frame(width: 760, height: 800)
             let renderer = ImageRenderer(content: board)
             renderer.scale = 2
@@ -3539,19 +3814,20 @@ final class MainWindowController: NSWindowController {
         waitForEngineReadyThenRunAutoPlayTest()
     }
 
-    /// Polls `boardReadiness.isEngineReady` via the same self-rescheduling
-    /// `withObservationTracking` style used elsewhere; once ready, starts the test
-    /// after a short settle delay. (A one-shot observer is enough: `isEngineReady`
-    /// only ever flips `false -> true` once.)
+    /// Polls `session.engineStatus.isReady` via the same self-rescheduling
+    /// `withObservationTracking` style used elsewhere; once ready, starts the
+    /// test after a short settle delay. Re-arms on every availability change
+    /// rather than once, because availability is no longer a one-way flag (a
+    /// launch, a Held board and a helper crash all move it).
     private func waitForEngineReadyThenRunAutoPlayTest() {
-        if boardReadiness.isEngineReady {
+        if session.engineStatus.isReady {
             DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
                 self?.runAutoPlayTest()
             }
             return
         }
         withObservationTracking {
-            _ = boardReadiness.isEngineReady
+            _ = session.engineStatus.availability
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.waitForEngineReadyThenRunAutoPlayTest()
@@ -3592,19 +3868,19 @@ final class MainWindowController: NSWindowController {
         waitForEngineReadyThenRunRelaunchTest()
     }
 
-    /// Polls `boardReadiness.isEngineReady` via the same one-shot
+    /// Polls `session.engineStatus.isReady` via the same self-rescheduling
     /// `withObservationTracking` style used by the auto-play test; once ready,
     /// starts the relaunch test after an ~8s settle delay so the first engine's
     /// analysis is flowing before we tear it down.
     private func waitForEngineReadyThenRunRelaunchTest() {
-        if boardReadiness.isEngineReady {
+        if session.engineStatus.isReady {
             DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
                 self?.runRelaunchTest()
             }
             return
         }
         withObservationTracking {
-            _ = boardReadiness.isEngineReady
+            _ = session.engineStatus.availability
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.waitForEngineReadyThenRunRelaunchTest()
@@ -3623,12 +3899,17 @@ final class MainWindowController: NSWindowController {
         relaunch(model: builtIn)
 
         // ~12s after kicking the relaunch, report whether the SECOND engine
-        // reached "GTP ready" (ready=true) with analysis live again
-        // (analysisInfo>0) and a balanced showboard count (showBoardCount=0).
+        // reached "GTP ready" (ready=true) AND whether the FEED reached the
+        // engine: `inSync` is the record position's acknowledgement
+        // (`stones.isReady`) and `showBoardCount=0` says no ack is still
+        // outstanding. Both matter now — a relaunch no longer re-mounts the
+        // board, so "ready" alone would not prove the engine was ever told
+        // which position it is looking at.
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
             guard let self else { return }
             let gobanState = self.session.gobanState
-            print("KATAGO_RELAUNCH ready=\(self.boardReadiness.isEngineReady) " +
+            print("KATAGO_RELAUNCH ready=\(self.session.engineStatus.isReady) " +
+                  "inSync=\(self.session.stones.isReady) " +
                   "analysisInfo=\(self.session.analysis.info.count) " +
                   "showBoardCount=\(gobanState.showBoardCount) " +
                   "nextColor=\(self.session.player.nextColorForPlayCommand)")
@@ -3653,19 +3934,19 @@ final class MainWindowController: NSWindowController {
         waitForEngineReadyThenRunAIPlayTest()
     }
 
-    /// Polls `boardReadiness.isEngineReady` via the same one-shot
+    /// Polls `session.engineStatus.isReady` via the same self-rescheduling
     /// `withObservationTracking` style used by the other DEBUG self-tests; once
     /// ready, starts the test after an ~8s settle delay so the first engine's
     /// analysis is flowing before we enable AI play.
     private func waitForEngineReadyThenRunAIPlayTest() {
-        if boardReadiness.isEngineReady {
+        if session.engineStatus.isReady {
             DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
                 self?.runAIPlayTest()
             }
             return
         }
         withObservationTracking {
-            _ = boardReadiness.isEngineReady
+            _ = session.engineStatus.availability
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.waitForEngineReadyThenRunAIPlayTest()
@@ -3931,7 +4212,7 @@ extension MainWindowController: NSMenuItemValidation {
         // menu rebuild (availability), but additionally disable ALL switching while
         // a launch is in flight so the user can't trigger a re-entrant relaunch.
         case #selector(selectActiveModel(_:)):
-            return menuItem.isEnabled && boardReadiness.isEngineReady
+            return menuItem.isEnabled && session.engineStatus.isReady
         // "Manage Models…" is always available.
         case #selector(showModelsWindow(_:)):
             return true
@@ -4246,12 +4527,14 @@ extension MainWindowController: NSToolbarDelegate {
 
     /// Switches the active network from the toolbar dropdown. Resolves the chosen
     /// model from the menu item's `representedObject` and relaunches the engine via
-    /// `relaunch(model:)`. Guarded on `boardReadiness.isEngineReady` to avoid a
-    /// re-entrant relaunch while a launch is already in flight.
+    /// `relaunch(model:)`. Guarded on `session.engineStatus.isReady` to avoid a
+    /// re-entrant relaunch while a launch is already in flight. (Retry from the
+    /// board's status line does NOT go through here — a failed engine has to be
+    /// relaunchable, and `relaunch(model:)` carries no readiness guard.)
     @objc func selectActiveModel(_ sender: NSMenuItem) {
         guard let model = sender.representedObject as? NeuralNetworkModel else { return }
         // Don't switch mid-launch (avoids re-entrant teardown/relaunch).
-        guard boardReadiness.isEngineReady else { return }
+        guard session.engineStatus.isReady else { return }
         // No-op if it's already the active net.
         guard model.title != modelSelection.currentModel.title else { return }
         relaunch(model: model)

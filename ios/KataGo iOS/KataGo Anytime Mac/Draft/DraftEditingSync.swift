@@ -44,6 +44,44 @@ enum DraftEditingSync: Equatable {
     /// write from here has to land in a detached clone.
     case open
 
+    /// Everything the rule looks at, in one value, so the driver below can
+    /// re-read it between passes without five separate closures.
+    struct Inputs: Equatable {
+        var isEditing: Bool
+        var hasDraft: Bool
+        var isDirty: Bool
+        var draftStandsForSelection: Bool
+        var hasSelection: Bool
+    }
+
+    /// Whether this action leaves anything still to decide. Only `.closeStale`
+    /// does — and because it clears the draft, the pass after it cannot return
+    /// it again, which is what bounds the driver at two passes.
+    var leavesMoreToDecide: Bool { self == .closeStale }
+
+    /// Drives the rule to a fixed point: decide, apply, and — if the action
+    /// left more to decide — decide once more against the state the action just
+    /// produced.
+    ///
+    /// THE loop, in one place. `MainWindowController.syncDraftToEditingState()`
+    /// and the test that pins an engine-free load both drive this, so a test
+    /// that passes can no longer be testing a loop the app does not run.
+    static func settle(inputs: () -> Inputs, apply: (DraftEditingSync) -> Void) {
+        for _ in 0..<2 {
+            let action = decide(inputs())
+            apply(action)
+            guard action.leavesMoreToDecide else { return }
+        }
+    }
+
+    static func decide(_ inputs: Inputs) -> DraftEditingSync {
+        decide(isEditing: inputs.isEditing,
+               hasDraft: inputs.hasDraft,
+               isDirty: inputs.isDirty,
+               draftStandsForSelection: inputs.draftStandsForSelection,
+               hasSelection: inputs.hasSelection)
+    }
+
     /// `draftStandsForSelection` is object identity — while a draft is open the
     /// selected record IS the draft's detached clone.
     ///

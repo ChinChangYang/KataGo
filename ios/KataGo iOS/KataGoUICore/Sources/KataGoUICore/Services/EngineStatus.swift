@@ -176,6 +176,46 @@ public enum EngineStatusText {
     }
 }
 
+/// Whether the board on screen is one the RUNNING engine can be fed.
+///
+/// Pure, and deliberately narrow: only `.ready` may become `.held` and only
+/// `.held` may become `.ready`. Every other availability is a statement about
+/// the ENGINE (loading, failed, no model chosen) that a board size must never
+/// overwrite — opening a 37x37 record mid-launch would otherwise replace
+/// "Loading engine…" with a board-size complaint that nothing takes back.
+///
+/// Idempotent, so a host may re-apply it from an observer that its own write
+/// re-fires.
+///
+/// NOTE: `AppEngineController.heldAvailability` (iOS) is the same rule, written
+/// before this shared home existed. Folding it in is a follow-up; until then
+/// the two must be changed together.
+public enum EngineHeldRule {
+    /// - Parameters:
+    ///   - boardWidth/boardHeight: the PROJECTED record position's size (what
+    ///     the feed sizes itself from), not `Config`'s — an imported record
+    ///     whose config was never updated would otherwise be called fine here
+    ///     and then refused by the feed. Zero means "no game selected", which
+    ///     is not "too large".
+    ///   - maxBoardLength: the Max Board Size the running engine LAUNCHED with.
+    public static func decide(current: EngineAvailability,
+                              boardWidth: Int,
+                              boardHeight: Int,
+                              maxBoardLength: Int) -> EngineAvailability {
+        let unknownBoard = boardWidth <= 0 || boardHeight <= 0
+        let fits = unknownBoard
+            || (boardWidth <= maxBoardLength && boardHeight <= maxBoardLength)
+        switch current {
+        case .ready where !fits:
+            return .held(maxBoardLength: maxBoardLength)
+        case .held where fits:
+            return .ready
+        default:
+            return current
+        }
+    }
+}
+
 /// Why the engine stopped. The restart paths (model switch, Max Board Size,
 /// Quit) ask for it and must stay silent; anything else is a failure the user
 /// has to be told about.

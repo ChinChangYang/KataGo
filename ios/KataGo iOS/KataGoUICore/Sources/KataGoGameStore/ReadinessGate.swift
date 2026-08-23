@@ -3,13 +3,13 @@ import Foundation
 /// Defers an action until a subsystem signals it is ready, so the action never
 /// runs against a not-yet-ready dependency.
 ///
-/// On macOS the KataGo engine is a subprocess that finishes its GTP handshake
-/// asynchronously. A cold launch can deliver a game selection — via a widget
-/// `katago-anytime://` deep link (F14) OR an `.sgf` file-open from Finder (F14b)
-/// — before `boardReadiness.isEngineReady` flips true, and the resulting
-/// `loadsgf`/rule/`kata-analyze` commands would be sent to a not-yet-ready
-/// engine and dropped. The gate stashes the payload until the subsystem is
-/// ready; the caller drains it once readiness is signalled.
+/// It was written for the macOS engine handshake and is now used for two
+/// things: the macOS window controller defers a game selection while a Deep
+/// Report is probing (an external trigger must not interleave a feed with the
+/// report's `kata-analyze` traffic), and `GobanState.engineSyncGate` remembers
+/// that a position change could not be sent because no engine was accepting
+/// commands. In both cases the gate stashes the payload; the caller drains it
+/// once readiness is signalled, and the newest request wins.
 ///
 /// Generic over `Payload` so the pure defer/drain logic is unit-testable with a
 /// trivial value type while the macOS app uses it with a game-selection payload.

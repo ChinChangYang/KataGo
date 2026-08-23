@@ -32,6 +32,23 @@ public final class GameRecord {
     public static let defaultSgf = makeDefaultSgf(boardSize: 19)
     public static let defaultName = "New Game"
 
+    /// Whether a game whose SGF is `sgf` should come up UNLOCKED (editable).
+    ///
+    /// A game nobody has played a move in yet is editable, so a brand-new game
+    /// is ready to take its first stone; anything with a history is locked
+    /// until the user says otherwise. `unlockRequested` is the one-shot intent
+    /// `GobanState.commitBranch` sets so the line just committed stays open.
+    ///
+    /// It lives here, in the bridge-free store beside `defaultSgf`, rather than
+    /// on `GobanState`, because two very different things depend on it: the
+    /// board's lock state, and — on macOS — whether a DRAFT is opened over the
+    /// record (`DraftEditingSync`, whose test target cannot link the engine).
+    /// One rule, one place, so those two can never disagree about what a load
+    /// leaves behind.
+    public static func editingAfterLoad(sgf: String, unlockRequested: Bool) -> Bool {
+        sgf == defaultSgf || unlockRequested
+    }
+
     public static func makeDefaultSgf(boardSize: Int) -> String {
         "(;FF[4]GM[1]SZ[\(boardSize)]PB[]PW[]HA[0]KM[\(Config.komiText(Config.defaultKomi))]RU[\(defaultRuleString)])"
     }

@@ -5,9 +5,15 @@
 //  Phase 4 Task 1: SwiftUI bridges that host the package's `LinePlotView`,
 //  `MovesListView`, and `CommentView` inside the AppKit Inspector tabs (via
 //  `NSHostingController`), fed from the engine-driven `GameSession`. Analogous
-//  to `MacBoardHostView`: each gates on `navigationContext.selectedGameRecord
-//  != nil && readiness.isEngineReady` (else a spinner) and injects exactly the
-//  `@Environment` objects the wrapped view reads — nothing more.
+//  to `MacBoardHostView`: each mounts as soon as a game is SELECTED (else a
+//  spinner) and injects exactly the `@Environment` objects the wrapped view
+//  reads — nothing more.
+//
+//  None of the three waits for the engine any more. The chart, the move list
+//  and the comment field are all read off the record — the same SGF the board
+//  replays — so gating them on a GTP handshake only hid data that was already
+//  there. The spinner is now what "nothing is selected" looks like, and
+//  nothing else.
 //
 
 import SwiftUI
@@ -23,10 +29,9 @@ import KataGoUICore
 struct ChartPaneView: View {
     let session: GameSession
     let navigationContext: NavigationContext
-    let readiness: BoardReadiness
 
     var body: some View {
-        if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
+        if let gameRecord = navigationContext.selectedGameRecord {
             LinePlotView(gameRecord: gameRecord)
                 .environment(session.gobanState)
                 .environment(session.board)
@@ -50,10 +55,9 @@ struct ChartPaneView: View {
 struct MovesPaneView: View {
     let session: GameSession
     let navigationContext: NavigationContext
-    let readiness: BoardReadiness
 
     var body: some View {
-        if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
+        if let gameRecord = navigationContext.selectedGameRecord {
             MovesListView(gameRecord: gameRecord)
                 .environment(session.gobanState)
                 .environment(session.board)
@@ -76,12 +80,11 @@ struct MovesPaneView: View {
 struct CommentsTabView: View {
     let session: GameSession
     let navigationContext: NavigationContext
-    let readiness: BoardReadiness
 
     @FocusState private var commentIsFocused: Bool
 
     var body: some View {
-        if let gameRecord = navigationContext.selectedGameRecord, readiness.isEngineReady {
+        if let gameRecord = navigationContext.selectedGameRecord {
             CommentView(gameRecord: gameRecord)
                 .focused($commentIsFocused)
                 .environment(session.gobanState)

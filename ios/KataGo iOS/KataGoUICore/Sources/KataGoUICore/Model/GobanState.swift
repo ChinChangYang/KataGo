@@ -1227,7 +1227,10 @@ public class GobanState {
     /// reload requests unlock (replacing the original game is an explicit edit);
     /// any other loaded game starts locked.
     static func editingAfterLoad(sgf: String, unlockRequested: Bool) -> Bool {
-        sgf == GameRecord.defaultSgf || unlockRequested
+        // The rule itself lives in the bridge-free store, because the macOS
+        // draft machinery decides from it too and its test target cannot link
+        // this module. See `GameRecord.editingAfterLoad`.
+        GameRecord.editingAfterLoad(sgf: sgf, unlockRequested: unlockRequested)
     }
 
     /// Reads and clears the one-shot unlock-on-reload intent set by

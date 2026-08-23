@@ -9,21 +9,13 @@ final class BoardViewController: NSViewController {
     let session: GameSession
     let navigationContext: NavigationContext
     let audioModel: AudioModel
-    let readiness: BoardReadiness
-    /// Drives the pre-ready board-pane status caption (P5-T9). Threaded down from
-    /// the window controller alongside `readiness`.
-    let engineLaunchStatus: EngineLaunchStatus
 
     init(session: GameSession,
          navigationContext: NavigationContext,
-         audioModel: AudioModel,
-         readiness: BoardReadiness,
-         engineLaunchStatus: EngineLaunchStatus) {
+         audioModel: AudioModel) {
         self.session = session
         self.navigationContext = navigationContext
         self.audioModel = audioModel
-        self.readiness = readiness
-        self.engineLaunchStatus = engineLaunchStatus
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -34,9 +26,7 @@ final class BoardViewController: NSViewController {
             rootView: MacBoardHostView(
                 session: session,
                 navigationContext: navigationContext,
-                audioModel: audioModel,
-                readiness: readiness,
-                engineLaunchStatus: engineLaunchStatus
+                audioModel: audioModel
             )
         )
         addChild(host)

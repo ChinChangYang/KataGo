@@ -114,11 +114,12 @@ struct GameDeepLinkResolveTests {
     }
 }
 
-/// F14/F14b: a game selection arriving before the engine is ready (macOS cold
-/// launch — a widget deep link OR an .sgf file-open, where the engine subprocess
-/// handshakes asynchronously) must be deferred, not applied straight through to
-/// GTP, then drained once ready. The shared `selectGame(_:)` chokepoint uses
-/// this gate so both entry points are covered by one mechanism.
+/// Defer-then-drain, in the abstract. The board no longer waits for the engine
+/// on any platform, so a selection arriving mid-handshake is applied at once and
+/// its GTP is dropped by `MessageList`'s command gate — but the gate itself is
+/// still what two live users lean on: `GobanState.engineSyncGate` remembers that
+/// a position change could not be sent, and the macOS `selectionGate` defers a
+/// selection while a Deep Report is probing. Last request wins in both.
 struct ReadinessGateTests {
     @Test func request_whenReady_appliesImmediatelyAndStashesNothing() {
         var gate = ReadinessGate<UUID>()
@@ -192,12 +193,11 @@ struct ReadinessGateTests {
     }
 }
 
-/// Tier-3 H/J: when a deferred deep-link selection is drained (macOS engine
-/// becomes ready, or the initial board load after the handshake), the target may
-/// have been deleted during the pre-ready window. The drain must fall back to the
-/// most-recent game (mirroring `resolveDeepLinkTarget`) instead of loading
-/// nothing. The decision is a pure function so it is unit-testable apart from the
-/// macOS-only wiring.
+/// Tier-3 H/J: when a deferred selection is drained (on macOS, once a running
+/// Deep Report releases the gate), the target may have been deleted while it
+/// waited. The drain must fall back to the most-recent game (mirroring
+/// `resolveDeepLinkTarget`) instead of loading nothing. The decision is a pure
+/// function so it is unit-testable apart from the macOS-only wiring.
 struct GameDrainTargetTests {
     @MainActor private func rec(_ name: String) -> GameRecord {
         let r = GameRecord(config: Config()); r.name = name; r.uuid = UUID(); return r
