@@ -91,4 +91,99 @@ struct VisionBoardSizeSettingTests {
         #expect(make(isActiveModel: true).showsEngineStatusFooter)
         #expect(!make(isActiveModel: false).showsEngineStatusFooter)
     }
+
+    /// Changing the ACTIVE model's Max Board Size quits and respawns the engine
+    /// — and the board does not go anywhere while that happens. It used to: the
+    /// volume was gated on a `.booting` phase the restart set, so the user's
+    /// game vanished for the minutes a teardown can take. Now the restart only
+    /// moves the ENGINE's availability, and the goban keeps drawing (and keeps
+    /// stepping) under a status line that says what is going on.
+    @Test func restartKeepsBoardMountedAndFlagsLaunching() {
+        #expect(make(isActiveModel: true).restartsEngineOnChange)
+
+        let duringRestart = VisionEngineChrome.make(hasMountedGame: true,
+                                                    isGeometryRenderable: true,
+                                                    availability: .launching)
+        #expect(duringRestart.showsBoard)
+        #expect(duringRestart.allowsNavigation)
+        // …but nothing may be SENT at an engine that is being replaced.
+        #expect(!duringRestart.allowsEngineCommands)
+
+        // And when it lands, everything comes back with no remount.
+        let afterRestart = VisionEngineChrome.make(hasMountedGame: true,
+                                                   isGeometryRenderable: true,
+                                                   availability: .ready)
+        #expect(afterRestart.showsBoard)
+        #expect(afterRestart.allowsEngineCommands)
+    }
+}
+
+//
+//  The volume's own rule: what is drawn, and what may be driven, at each engine
+//  availability. Pinned here because it is the whole point of the change — a
+//  regression would put a loading screen back in front of the goban.
+//
+struct VisionEngineChromeTests {
+    private func chrome(hasMountedGame: Bool = true,
+                        isGeometryRenderable: Bool = true,
+                        availability: EngineAvailability = .ready) -> VisionEngineChrome {
+        VisionEngineChrome.make(hasMountedGame: hasMountedGame,
+                                isGeometryRenderable: isGeometryRenderable,
+                                availability: availability)
+    }
+
+    @Test func theBoardDrawsAtEveryEngineAvailability() {
+        for availability: EngineAvailability in [.launching,
+                                                 .ready,
+                                                 .absent,
+                                                 .failed(reason: "boom"),
+                                                 .held(maxBoardLength: 19)] {
+            #expect(chrome(availability: availability).showsBoard)
+            #expect(chrome(availability: availability).allowsNavigation)
+        }
+    }
+
+    @Test func onlyAReadyEngineTakesCommands() {
+        #expect(chrome(availability: .ready).allowsEngineCommands)
+        for availability: EngineAvailability in [.launching,
+                                                 .absent,
+                                                 .failed(reason: "boom"),
+                                                 // Held is UP but refuses this
+                                                 // board's size: there is
+                                                 // nothing to start.
+                                                 .held(maxBoardLength: 19)] {
+            #expect(!chrome(availability: availability).allowsEngineCommands)
+        }
+    }
+
+    @Test func newGameIsOfferedWhileHeldButNotWhileTheEngineIsAway() {
+        // Held is the one command-sending exception: the engine is UP and can
+        // take a smaller board, so starting one is the natural way out of a
+        // hold. Greying out the control that rescues the user would have left
+        // them stuck on the 37x37 record that caused it.
+        #expect(chrome(availability: .held(maxBoardLength: 19)).allowsNewGame)
+        #expect(chrome(availability: .ready).allowsNewGame)
+        // Everything else still waits: there is no engine to take the new game.
+        #expect(!chrome(availability: .launching).allowsNewGame)
+        #expect(!chrome(availability: .absent).allowsNewGame)
+        #expect(!chrome(availability: .failed(reason: "boom")).allowsNewGame)
+        // …and the analysis/AI controls stay off even while Held.
+        #expect(!chrome(availability: .held(maxBoardLength: 19)).allowsEngineCommands)
+    }
+
+    @Test func nothingIsDrawnWithoutAMountedGame() {
+        let none = chrome(hasMountedGame: false)
+        #expect(!none.showsBoard)
+        #expect(!none.allowsNavigation)
+        #expect(!none.allowsEngineCommands)
+        #expect(!none.allowsNewGame)
+    }
+
+    @Test func unrenderableGeometryIsTheOneRealGate() {
+        // Outside 2...37 there is no bundled board asset — the one thing a
+        // ready engine cannot rescue.
+        let unsupported = chrome(isGeometryRenderable: false)
+        #expect(!unsupported.showsBoard)
+        #expect(!unsupported.allowsEngineCommands)
+    }
 }

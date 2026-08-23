@@ -1364,6 +1364,10 @@ public class GobanState {
                    config: config,
                    messageList: messageList,
                    stones: stones,
+                   // Already parked at the top of this function, unconditionally:
+                   // the record changed, so the turn is stale whether or not the
+                   // feed goes out.
+                   player: nil,
                    projector: projector)
     }
 
@@ -1383,15 +1387,23 @@ public class GobanState {
     /// in-sync acknowledgement.
     ///
     /// Analysis is not requested here. It re-arms itself off the turn change:
-    /// the load parked `nextColorForPlayCommand` at `.unknown`, and this
-    /// showboard's "Next player" line resolves it to a colour, which the hosts'
-    /// turn-change hook turns into `handleTurnChange`.
+    /// the turn is parked at `.unknown`, and this showboard's "Next player" line
+    /// resolves it to a colour, which the hosts' turn-change hook turns into
+    /// `handleTurnChange`.
+    ///
+    /// - Parameter player: parked at `.unknown` immediately before the feed goes
+    ///   out — and ONLY then. Pass nil when the caller has already parked for
+    ///   its own reasons (`loadGame` does: the record changed, so the turn is
+    ///   stale whether or not a feed follows). A park that no `showboard` will
+    ///   ever resolve is worse than no park at all — the edge that re-arms
+    ///   analysis would simply never fire again.
     @MainActor
     public func syncEngine(to targetIndex: Int,
                            sgf: String,
                            config: Config,
                            messageList: MessageList,
                            stones: Stones,
+                           player: Turn?,
                            projector: RecordPositionProjector) {
         // Reuse the replay the board was just drawn from — same instance, so
         // the feed inherits its checkpoints and its discovered refusals.
@@ -1400,6 +1412,9 @@ public class GobanState {
         }
         guard let commands, !commands.isEmpty else { return }
         stones.isReady = false
+        // After the decision to feed, before the feed: this park is resolved by
+        // the `showboard` two lines below, and by nothing else.
+        player?.nextColorForPlayCommand = .unknown
         messageList.appendAndSend(commands: commands)
         sendShowBoardCommand(messageList: messageList)
     }
@@ -1419,10 +1434,19 @@ public class GobanState {
     /// sends was dropped. Latest selection wins — replaying the first dropped
     /// request would put the engine on a position nobody is looking at.
     ///
+    /// The turn is parked at `.unknown` as part of the feed (`syncEngine`), and
+    /// only when a feed actually goes out. That park is load-bearing: a relaunch
+    /// does not change whose move it is, analysis re-arms only off the turn
+    /// EDGE, and without the park the fresh engine's `showboard` would restate
+    /// the colour the board already held — no edge, no analysis, on a perfectly
+    /// healthy engine.
+    ///
+    /// - Parameter player: the session's turn, parked as described above.
     /// - Returns: the drained request, if one was owed (diagnostics/tests).
     @MainActor
     @discardableResult
     public func resyncEngineAfterHandshake(gameRecord: GameRecord?,
+                                           player: Turn,
                                            messageList: MessageList,
                                            stones: Stones,
                                            projector: RecordPositionProjector) -> EngineSyncRequest? {
@@ -1443,6 +1467,7 @@ public class GobanState {
                    config: gameRecord.concreteConfig,
                    messageList: messageList,
                    stones: stones,
+                   player: player,
                    projector: projector)
         return drained
     }

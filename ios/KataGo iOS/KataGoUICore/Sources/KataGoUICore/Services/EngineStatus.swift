@@ -187,9 +187,10 @@ public enum EngineStatusText {
 /// Idempotent, so a host may re-apply it from an observer that its own write
 /// re-fires.
 ///
-/// NOTE: `AppEngineController.heldAvailability` (iOS) is the same rule, written
-/// before this shared home existed. Folding it in is a follow-up; until then
-/// the two must be changed together.
+/// One rule, four hosts: iOS (`AppEngineController.applyHeldStatus`), macOS
+/// (`MainWindowController.applyHeldStatus`) and visionOS
+/// (`VisionEngineController.applyHeldStatus`) all decide Held here. tvOS still
+/// has its own `boardFits` gate.
 public enum EngineHeldRule {
     /// - Parameters:
     ///   - boardWidth/boardHeight: the PROJECTED record position's size (what

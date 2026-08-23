@@ -145,6 +145,7 @@ struct GobanStateFreshEngineTests {
         fixture.session.messageList.isAcceptingCommands = true
         let drained = fixture.session.gobanState.resyncEngineAfterHandshake(
             gameRecord: live,
+            player: fixture.session.player,
             messageList: fixture.session.messageList,
             stones: fixture.session.stones,
             projector: fixture.session.recordPosition)
@@ -168,6 +169,7 @@ struct GobanStateFreshEngineTests {
         fixture.session.messageList.isAcceptingCommands = true
         _ = fixture.session.gobanState.resyncEngineAfterHandshake(
             gameRecord: record,
+            player: fixture.session.player,
             messageList: fixture.session.messageList,
             stones: fixture.session.stones,
             projector: fixture.session.recordPosition)
@@ -185,6 +187,7 @@ struct GobanStateFreshEngineTests {
 
         _ = fixture.session.gobanState.resyncEngineAfterHandshake(
             gameRecord: record,
+            player: fixture.session.player,
             messageList: fixture.session.messageList,
             stones: fixture.session.stones,
             projector: fixture.session.recordPosition)
@@ -213,6 +216,93 @@ struct GobanStateFreshEngineTests {
         #expect(record.currentIndex == 2)
         #expect(fixture.engine.sentCommands.isEmpty)
         #expect(fixture.session.gobanState.engineSyncGate.pending?.index == 2)
+    }
+
+    // MARK: - The turn park
+
+    /// A relaunch does not change whose move it is — and analysis re-arms ONLY
+    /// off the turn EDGE (the hosts' `onChange(of: player.nextColorForPlayCommand)`).
+    /// Without a park, the feed's `showboard` reply would restate the colour the
+    /// board already held, no edge would fire, and a perfectly healthy fresh
+    /// engine would sit there analysing nothing.
+    ///
+    /// So: park at `.unknown` as part of the feed, and let the ack resolve it.
+    @Test func aResyncParksTheTurnSoTheAckReArmsAnalysis() async throws {
+        let fixture = try makeFixture()
+        let record = insert(GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 2),
+                            in: fixture)
+        load(record, in: fixture)                       // dropped: no engine yet
+        // The side to move BEFORE the relaunch — and, after two moves, the same
+        // side the fresh engine will report. Without the park this value never
+        // changes and no edge ever fires.
+        fixture.session.player.nextColorForPlayCommand = .black
+
+        fixture.session.messageList.isAcceptingCommands = true
+        fixture.session.gobanState.resyncEngineAfterHandshake(
+            gameRecord: record,
+            player: fixture.session.player,
+            messageList: fixture.session.messageList,
+            stones: fixture.session.stones,
+            projector: fixture.session.recordPosition)
+
+        #expect(fixture.session.player.nextColorForPlayCommand == .unknown)
+        #expect(fixture.engine.sentCommands.last == "showboard")
+
+        // The ack lands: the SAME side to move as before the relaunch, and it is
+        // an edge because the park made it one.
+        for line in ["= MoveNum: 2 HASH: 0123456789ABCDEF",
+                     "Next player: Black",
+                     "B stones captured: 0",
+                     "W stones captured: 0"] {
+            await fixture.session.maybeCollectSync(message: line)
+        }
+        #expect(fixture.session.player.nextColorForPlayCommand == .black)
+        #expect(fixture.session.stones.isReady)
+    }
+
+    /// A park nothing can resolve is worse than no park at all: the edge that
+    /// re-arms analysis would never fire again. So when the resync sends
+    /// nothing — a shut gate — the turn is left exactly where it was.
+    @Test func aResyncThatSendsNothingLeavesTheTurnAlone() throws {
+        let fixture = try makeFixture()
+        let record = insert(GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 2),
+                            in: fixture)
+        load(record, in: fixture)
+        fixture.session.player.nextColorForPlayCommand = .black
+
+        // Still launching: the gate is shut, so nothing goes out.
+        fixture.session.gobanState.resyncEngineAfterHandshake(
+            gameRecord: record,
+            player: fixture.session.player,
+            messageList: fixture.session.messageList,
+            stones: fixture.session.stones,
+            projector: fixture.session.recordPosition)
+
+        #expect(fixture.engine.sentCommands.isEmpty)
+        #expect(fixture.session.player.nextColorForPlayCommand == .black)
+    }
+
+    /// The Held case, which is the one that bit macOS: the engine is up and
+    /// accepting, but this board is larger than its NN buffer, so the feed is
+    /// refused. The turn must survive that too.
+    @Test func aResyncRefusedForBoardSizeLeavesTheTurnAlone() throws {
+        let fixture = try makeFixture()
+        fixture.session.messageList.isAcceptingCommands = true
+        fixture.session.gobanState.engineMaxBoardLength = 9
+        let record = insert(GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 2),
+                            in: fixture)
+        load(record, in: fixture)
+        fixture.session.player.nextColorForPlayCommand = .white
+
+        fixture.session.gobanState.resyncEngineAfterHandshake(
+            gameRecord: record,
+            player: fixture.session.player,
+            messageList: fixture.session.messageList,
+            stones: fixture.session.stones,
+            projector: fixture.session.recordPosition)
+
+        #expect(fixture.engine.sentCommands.isEmpty)
+        #expect(fixture.session.player.nextColorForPlayCommand == .white)
     }
 
     // MARK: - onAppear

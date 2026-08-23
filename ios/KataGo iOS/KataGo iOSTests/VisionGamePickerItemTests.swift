@@ -3,9 +3,10 @@
 //  KataGo AnytimeTests
 //
 //  Pins the pure row-model behind the visionOS ornament's Games picker:
-//  selectability (bundled 3D asset AND fits the launched engine's NN buffer)
-//  and the "date · size" detail line. Size is optimistic when unknown — the
-//  openGame handler re-derives it from the SGF and gates authoritatively.
+//  selectability (a bundled 3D asset — nothing else) and the "date · size"
+//  detail line, plus the two captions an over-cap board carries. Such a board
+//  still OPENS: it draws and reports *Held*. Size is optimistic when unknown —
+//  the openGame handler re-derives it from the SGF and gates authoritatively.
 //
 
 import Foundation
@@ -38,13 +39,14 @@ struct VisionGamePickerItemTests {
         #expect(make(width: 37, height: 37, maxBoardLength: 37).isSelectable)
     }
 
-    @Test func sizeOverEngineCapNeedsTheSetting() {
-        // Renders fine but exceeds the launched NN buffer: not selectable,
-        // and the row carries the raise-the-setting caption.
+    @Test func sizeOverEngineCapStillOpensAndNeedsTheSetting() {
+        // Renders fine but exceeds the launched NN buffer: the row OPENS —
+        // the board draws and the status line reports Held — and carries the
+        // raise-the-setting caption as the way out.
         let blocked = make(width: 25, height: 25, maxBoardLength: 19)
-        #expect(!blocked.isSelectable)
+        #expect(blocked.isSelectable)
         #expect(blocked.needsLargerBoardSetting)
-        #expect(!make(width: 19, height: 19, maxBoardLength: 13).isSelectable)
+        #expect(make(width: 19, height: 19, maxBoardLength: 13).isSelectable)
         #expect(make(width: 13, height: 13, maxBoardLength: 13).isSelectable)
 
         let raised = make(width: 25, height: 25, maxBoardLength: 37)
@@ -65,7 +67,7 @@ struct VisionGamePickerItemTests {
         // setting — switching the neural net is the exit.
         let blocked = make(width: 25, height: 25,
                            maxBoardLength: 19, modelBoardCap: 19)
-        #expect(!blocked.isSelectable)
+        #expect(blocked.isSelectable)
         #expect(!blocked.needsLargerBoardSetting)
         #expect(blocked.needsDifferentNet)
 

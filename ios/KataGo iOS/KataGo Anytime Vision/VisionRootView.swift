@@ -30,7 +30,6 @@ struct VisionRootView: View {
     @State private var navigationContext = NavigationContext()
     @State private var audioModel = AudioModel()
     @State private var aiMove: String? = nil
-    @State private var isReady = false
     @State private var ghost = GhostCursorModel()
     @State private var sceneModel = VisionBoardSceneModel()
     @State private var controllerInput = VisionControllerInput()
@@ -48,11 +47,34 @@ struct VisionRootView: View {
         captureSoundHooks(engineEventHooks(bootChrome))
     }
 
+    /// What the volume draws and what it lets the user drive, at this engine
+    /// availability. The shared rule (`VisionEngineChrome`) so the boot, every
+    /// restart and every failure answer it identically — and so a regression
+    /// that puts a loading screen back in front of the goban fails a test.
+    ///
+    /// `.unsupportedBoard` is the one genuine gate left (no bundled asset for
+    /// that size, so nothing CAN be drawn). A board that renders but is larger
+    /// than the engine's NN buffer is *Held* — drawn, with the status saying
+    /// why analysis is off.
+    private var chrome: VisionEngineChrome {
+        let renderable: Bool
+        if case .unsupportedBoard = shell.phase { renderable = false } else { renderable = true }
+        return VisionEngineChrome.make(
+            hasMountedGame: navigationContext.selectedGameRecord != nil,
+            isGeometryRenderable: renderable,
+            availability: session.engineStatus.availability)
+    }
+
+    /// Whether the goban is on screen — for as long as a game is mounted and
+    /// its geometry is renderable, through boot, the model chooser, every
+    /// restart and every failure.
+    private var isBoardMounted: Bool { chrome.showsBoard }
+
     /// The volumetric content, every ornament, and the boot/run-loop
     /// infrastructure.
     private var bootChrome: some View {
         Group {
-            if case .ready = shell.phase {
+            if isBoardMounted {
                 readyContent
             } else {
                 Color.clear
@@ -72,15 +94,16 @@ struct VisionRootView: View {
         // ornament content root (ornaments are separately hosted
         // hierarchies, so the root application alone may not cover them).
         .handlesGameControllerEvents(matching: .gamepad)
-        // Phase messaging (loading/blocked) lives in a front-anchored glass
+        // Engine status and the branch cards live in a front-anchored glass
         // ornament: plain 2D content inside a volumetric window lies flat on
         // the base plate, where it is unreadable (nearly edge-on and unlit) —
-        // ornaments always face the viewer, like the settings card.
+        // ornaments always face the viewer, like the settings card. It sits
+        // OVER the goban; it never replaces it.
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0.5, y: 0.55, z: 1)),
                   contentAlignment: .center) {
             Group {
                 switch shell.phase {
-                case .ready:
+                case .booting, .ready:
                     // The whole branch chooser/confirm flow renders HERE as
                     // glass cards (never as .confirmationDialog — an
                     // ornament-hosted dialog's button dismissal blanks the
@@ -127,18 +150,22 @@ struct VisionRootView: View {
                             onCancel: {
                                 session.gobanState.confirmingBranchDiscard = false
                             })
+                    } else if case .held(let maxBoardLength) =
+                                session.engineStatus.availability {
+                        // Held gets its own card rather than the one-line status:
+                        // it is the only engine state with a real remedy, and
+                        // which remedy depends on the net (raise the setting vs
+                        // switch nets). The board is drawn behind it.
+                        boardTooLargeCard(maxBoardLength: maxBoardLength)
+                            .frame(width: 460)
+                            .padding(20)
+                            .glassBackgroundEffect()
+                    } else {
+                        // Launching / Failed (+ Retry) / a built-in-fallback
+                        // note. Renders NOTHING once the engine is ready — that
+                        // is what makes it a status line and not a screen.
+                        engineStatusCard
                     }
-                case .booting:
-                    // Shared spinning-icon loading view (iOS/Mac/TV parity). It
-                    // sizes via GeometryReader, so the ornament must bound it.
-                    EngineLoadingView(caption: "Loading engine",
-                                      secondaryFont: .callout,
-                                      icon: Image(.loadingIcon),
-                                      iconSizing: .fixed(220),
-                                      status: engineLaunchStatus)
-                        .frame(width: 460, height: 420)
-                        .padding(20)
-                        .glassBackgroundEffect()
                 case .choosingModel:
                     // iOS picker design: a surviving load sentinel defers the
                     // launch to the user. The regular Models card doubles as
@@ -148,17 +175,17 @@ struct VisionRootView: View {
                                          readiness: cacheReadiness,
                                          isBootChooser: true,
                                          onActivate: { model in
-                                             shell.phase = .booting
+                                             // Dismiss the chooser. The board is
+                                             // already up behind it (the resolver
+                                             // ran before this card appeared), so
+                                             // this is `.ready` unless there was
+                                             // nothing to mount.
+                                             shell.phase = isBoardMounted ? .ready : .booting
                                              launchEngine(model: model)
                                          },
                                          onDismiss: {})
                 case .unsupportedBoard(let width, let height):
                     unsupportedBoardView(width: width, height: height)
-                        .frame(width: 460)
-                        .padding(20)
-                        .glassBackgroundEffect()
-                case .boardTooLarge(let width, let height):
-                    boardTooLargeView(width: width, height: height)
                         .frame(width: 460)
                         .padding(20)
                         .glassBackgroundEffect()
@@ -168,15 +195,15 @@ struct VisionRootView: View {
             // events on each content root too (see the root modifier).
             .handlesGameControllerEvents(matching: .gamepad)
         }
-        // Hidden while `.booting` (initial boot has isReady false; a
-        // Max-Board-Size restart re-enters .booting with isReady true) so no
-        // pinch can send commands at a down engine. The Models card stays
-        // up — its gear view shows the restart progress and the disabled
-        // picker.
+        // Up for as long as the board is. The ornament disables its own
+        // command-SENDING controls while the engine is unavailable (the
+        // sparkle, the Human/AI chips); Games, the lock slot and the two cards
+        // it opens are engine-free and stay live — navigation never waits.
         .ornament(attachmentAnchor: .scene(.bottomFront), contentAlignment: .center) {
-            if isReady, shell.phase != .booting {
+            if isBoardMounted {
                 VisionControlOrnament(
                     session: session,
+                    isEngineReady: chrome.allowsEngineCommands,
                     shell: shell,
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
@@ -193,30 +220,43 @@ struct VisionRootView: View {
         // Settings and the controller legend share the right anchor — one
         // closure, settings first, and the shell's toggle helpers keep the
         // flags mutually exclusive.
+        //
+        // None of these waits for the engine, and the Models card in particular
+        // MUST NOT: it is where a failed launch is retried and where another net
+        // is chosen. The one control in here that touches a running engine —
+        // the model detail's Max Board Size picker — gates itself on
+        // `engine.canRestartNow` (VisionBoardSizeSetting.pickerDisabled).
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 1, y: 0.5, z: 1)),
                   contentAlignment: .leading) {
             Group {
-                if isReady, shell.showingSettings {
+                if shell.showingSettings {
                     VisionSettingsOrnament(shell: shell,
                                            engine: engineController,
                                            onShowModels: { shell.presentModels() },
                                            onShowLicenses: { shell.presentLicenses() },
                                            onDismiss: { shell.showingSettings = false })
-                } else if isReady, shell.showingLicenses {
+                } else if shell.showingLicenses {
                     VisionLicensesOrnament(onDismiss: { shell.showingLicenses = false })
-                } else if isReady, shell.showingModels {
+                } else if shell.showingModels {
                     VisionModelsOrnament(engine: engineController,
                                          readiness: cacheReadiness,
                                          onActivate: { activateModel($0) },
                                          onMaxBoardSizeRestart: { restartEngineForMaxBoardSize() },
                                          onDismiss: { shell.showingModels = false })
-                } else if isReady, shell.showingControllerHelp {
+                } else if shell.showingControllerHelp {
                     VisionControllerLegend {
                         shell.showingControllerHelp = false
                     }
-                } else if isReady, shell.showingNewGamePanel, shell.phase != .booting {
+                } else if shell.showingNewGamePanel {
                     VisionNewGamePanel(
                         maxBoardLength: engineController.maxBoardLength,
+                        // Creating a game is a command-sender, and it is sized
+                        // by a buffer a launching engine has not settled yet.
+                        // Only the Create button is gated — a card whose close
+                        // button was disabled with it could not be dismissed —
+                        // and Held is deliberately allowed through: a smaller
+                        // board is the way out of a hold.
+                        canCreateGame: chrome.allowsNewGame,
                         onCreate: { width, height in
                             shell.showingNewGamePanel = false
                             startNewGame(width: width, height: height)
@@ -228,9 +268,13 @@ struct VisionRootView: View {
         }
         .ornament(attachmentAnchor: .scene(UnitPoint3D(x: 0, y: 0.5, z: 1)),
                   contentAlignment: .trailing) {
-            if isReady, shell.showingGameList, shell.phase != .booting {
+            if shell.showingGameList {
+                // Opening a game is navigation: it needs no engine, so the list
+                // stays live through a launch. Only its New Game menu is gated,
+                // for the same reason the Custom panel's Create is.
                 VisionGameListOrnament(
                     gameRecords: gameRecords,
+                    canCreateGame: chrome.allowsNewGame,
                     maxBoardLength: engineController.maxBoardLength,
                     modelBoardCap: engineController.activeModel.nnLen,
                     navigationContext: navigationContext,
@@ -255,7 +299,8 @@ struct VisionRootView: View {
         .onAppear {
             engineController.configure(session: session,
                                        engineLifecycle: engineLifecycle,
-                                       modelSelection: modelSelection)
+                                       modelSelection: modelSelection,
+                                       navigationContext: navigationContext)
             // Resolve the boot model BEFORE startInitial arms the crash
             // sentinel — the resolver must see the PREVIOUS run's sentinel,
             // not this run's (iOS ModelRunnerView / Mac decideRecovery
@@ -283,7 +328,18 @@ struct VisionRootView: View {
                 recoveryLogger.error(
                     "Previous launch did not finish loading model: \(modelSelection.pendingLoadModelTitle, privacy: .public). Presenting the model chooser."
                 )
+                // The board comes up anyway, behind the chooser: it needs no
+                // engine, and a volume showing nothing at all would be a worse
+                // answer to "which net?" than one showing the user's game.
+                // The volume gate reads the SELECTION, not the phase, so
+                // `.choosingModel` can own the front ornament regardless — and
+                // it must: the chooser is the only way to get an engine at all.
+                // A record the volume cannot draw leaves the selection nil (the
+                // resolver never mounts it), so the goban simply stays empty.
+                resolveAndMountCurrentGame()
                 shell.phase = .choosingModel
+                // Absent, not Launching: nothing is loading until the user picks.
+                session.endEngineSession(.absent)
             }
             // The chooser's green cache-ready checkmarks need this before
             // any engine exists (idempotent; engine-independent).
@@ -297,13 +353,15 @@ struct VisionRootView: View {
         }
         // The GTP read loop — parses board/analysis lines into the models.
         // Must not run concurrently with the handshake (the bridge's sole
-        // reader), so it arms only once initialization finished. `isReady`
-        // stays true across a Max-Board-Size restart: `session.run` exits on
+        // reader), so it arms only once the FIRST handshake has landed.
+        //
+        // Keyed on a generation that bumps exactly once, so a restart does not
+        // re-key (and therefore cancel) this task: `session.run` exits on
         // `stopRequested`, and `noteRunLoopExited` parks this loop until the
-        // restarted engine's handshake completes (TVRootView's discipline —
-        // without the park, the exited `run` would busy-spin here).
-        .task(id: isReady) {
-            guard isReady else { return }
+        // restarted engine's handshake completes (without the park, the exited
+        // `run` would busy-spin here).
+        .task(id: engineController.readLoopGeneration) {
+            guard engineController.readLoopGeneration > 0 else { return }
             while !Task.isCancelled {
                 await session.run(gameRecords: gameRecords,
                                   modelContext: modelContext,
@@ -402,7 +460,7 @@ struct VisionRootView: View {
         // idempotent, same accepted double-reload as iOS/Mac.
         .onChange(of: session.gobanState.branchSgf) { oldValue, newValue in
             guard oldValue.isActiveSgf, !newValue.isActiveSgf,
-                  isReady, shell.phase == .ready,
+                  isBoardMounted,
                   let record = navigationContext.selectedGameRecord
             else { return }
             switchGame(to: record)
@@ -506,7 +564,10 @@ struct VisionRootView: View {
     // MARK: - Controller events
 
     private func handleControllerEvent(_ event: ControllerEvent) {
-        guard isReady, shell.phase == .ready else { return }
+        // A mounted board is all this needs. Stepping, jumping and the ghost are
+        // record-owned; the two events that DO need an engine (play, pass) check
+        // `stones.isReady` for themselves.
+        guard isBoardMounted else { return }
         let width = Int(session.board.width)
         let height = Int(session.board.height)
 
@@ -568,24 +629,28 @@ struct VisionRootView: View {
         ghost.reset()
     }
 
-    /// Games-picker entry point: same board gate as boot, then the shared
-    /// switch path. A stale printsgf reply from the old game landing after
-    /// the selection swap would be written into the new record (one-reply
-    /// window, identical exposure to the iOS sidebar switch) — our own
-    /// printsgf self-heals the SGF, so this is accepted for v1.
+    /// Games-picker entry point: the geometry gate, then the shared switch
+    /// path. A stale printsgf reply from the old game landing after the
+    /// selection swap would be written into the new record (one-reply window,
+    /// identical exposure to the iOS sidebar switch) — our own printsgf
+    /// self-heals the SGF, so this is accepted for v1.
+    ///
+    /// A board LARGER than the engine's buffer is no longer refused here: it
+    /// mounts, draws, and reports *Held* (`switchGame` decides that, and shuts
+    /// the command gate so the engine is never told this board exists).
     private func openGame(_ record: GameRecord) {
         guard record.persistentModelID
                 != navigationContext.selectedGameRecord?.persistentModelID
         else { return }
 
         // Re-derive width/height from the SGF: the picker row's stored size
-        // may be nil or stale, and only this gate is authoritative. A blocked
-        // board must never reach the engine (fatal on first analysis past the
-        // NN buffer; no renderable geometry outside 2...37).
+        // may be nil or stale, and only this gate is authoritative. There is no
+        // geometry to render outside 2...37, which is the one thing the volume
+        // genuinely cannot show.
         record.updateToLatestVersion()
         let config = record.concreteConfig
-        guard let blocked = blockedPhase(width: config.boardWidth,
-                                         height: config.boardHeight) else {
+        guard let blocked = unsupportedPhase(width: config.boardWidth,
+                                             height: config.boardHeight) else {
             switchGame(to: record)
             shell.phase = .ready
             return
@@ -596,19 +661,21 @@ struct VisionRootView: View {
     }
 
     /// Applies a latched open-game deep link through the same gated path as
-    /// the Games picker. Applying is allowed from the blocked phases too
-    /// (`.unsupportedBoard`/`.boardTooLarge`): like the picker, a widget tap
-    /// must be a way out of them — only an in-flight boot keeps the latch.
+    /// the Games picker. Applying is allowed from `.unsupportedBoard` too:
+    /// like the picker, a widget tap must be a way out of it. Only the frames
+    /// before a selection exists at all keep the latch.
     private func applyPendingDeepLink() {
-        let isBooting = shell.phase == .booting || shell.phase == .choosingModel
+        // The only thing a tap waits for is a resolved selection — never the
+        // engine. `resolveAndMountCurrentGame` consumes the latch itself on a
+        // cold launch, so applying before it ran would race that consumption.
+        let hasSelection = navigationContext.selectedGameRecord != nil
         let disposition = VisionDeepLinkFlow.disposition(
             hasPending: deepLinkRouter.pendingGameID != nil,
-            isReady: isReady,
-            isBooting: isBooting)
+            hasResolvedSelection: hasSelection)
         #if DEBUG
-        NSLog("VisionDeepLink apply pending=%@ isReady=%d isBooting=%d disposition=%@",
+        NSLog("VisionDeepLink apply pending=%@ hasSelection=%d disposition=%@",
               deepLinkRouter.pendingGameID?.uuidString ?? "nil",
-              isReady ? 1 : 0, isBooting ? 1 : 0, String(describing: disposition))
+              hasSelection ? 1 : 0, String(describing: disposition))
         #endif
         switch disposition {
         case .nothingPending, .keepLatched:
@@ -638,16 +705,14 @@ struct VisionRootView: View {
         openGame(match)
     }
 
-    /// The blocked phase for a board, or nil when it can mount: outside the
-    /// renderable 2...37 range -> unsupported; renderable but over the
-    /// launched NN buffer -> too large (raise Max Board Size in Settings).
-    private func blockedPhase(width: Int, height: Int) -> VisionGameShell.Phase? {
+    /// The blocking phase for a board, or nil when it can mount. Only ONE
+    /// thing blocks now: a size outside the renderable 2...37 range, for which
+    /// no board asset exists. Size against the engine's NN buffer used to block
+    /// here too; it is *Held* instead — the board draws and the status says why
+    /// analysis is off.
+    private func unsupportedPhase(width: Int, height: Int) -> VisionGameShell.Phase? {
         guard visionBoardIsSupported(width: width, height: height) else {
             return .unsupportedBoard(width: width, height: height)
-        }
-        guard boardFits(width: width, height: height,
-                        maxBoardLength: engineController.maxBoardLength) else {
-            return .boardTooLarge(width: width, height: height)
         }
         return nil
     }
@@ -687,18 +752,21 @@ struct VisionRootView: View {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// openGame's gate for a replacement the user did not pick: mount when
-    /// the board fits, else silence the stream and surface the blocked
-    /// phase — clearing the selection first, so the doomed record is never
-    /// left selected (the Games list stays up as the way out).
+    /// openGame's gate for a replacement the user did not pick: mount when the
+    /// board is renderable, else silence the stream and surface the unsupported
+    /// card — clearing the selection first, so the doomed record is never left
+    /// selected (the Games list stays up as the way out).
     private func mountReplacement(_ record: GameRecord) {
         record.updateToLatestVersion()
         let config = record.concreteConfig
-        if let blocked = blockedPhase(width: config.boardWidth,
-                                      height: config.boardHeight) {
+        if let blocked = unsupportedPhase(width: config.boardWidth,
+                                          height: config.boardHeight) {
             session.messageList.appendAndSend(command: "stop")
             navigationContext.selectedGameRecord = nil
             shell.phase = blocked
+            // Nothing is selected any more, so nothing can be "too large":
+            // release a Held left over from the record that just went away.
+            engineController.applyHeldStatus()
             return
         }
         switchGame(to: record)
@@ -706,7 +774,7 @@ struct VisionRootView: View {
     }
 
     /// Deleting the whole library: create and mount a fresh game sized to
-    /// the engine cap (resolveAndMountCurrentGame's create arm — always
+    /// the engine buffer (resolveAndMountCurrentGame's create arm — always
     /// mountable, no gate needed).
     private func createAndMountFreshGame() {
         let created = GameRecord.createGameRecord(
@@ -839,7 +907,12 @@ struct VisionRootView: View {
         // expectStoneAnimation(.remove) derivation below — a clamped undo must
         // not enqueue a phantom remove-intent a later unrelated diff could
         // consume.
-        guard session.stones.isReady, !isAITurn,
+        // Deliberately NOT gated on `stones.isReady` ("the engine acknowledged
+        // this position"). The cursor is record-owned: it moves whether or not
+        // an engine is listening, and the `undo` this sends is dropped by the
+        // gate and repaid in full by the handshake's resync. Waiting for the ack
+        // would freeze X/L1 for the whole of a launch or a restart.
+        guard !isAITurn,
               session.gobanState.canStepBackward(gameRecord: gameRecord) else { return }
         // The tip stone flies off (nothing to animate after a pass); derive
         // it before undoIndex moves the cursor. Same derivation as the ghost
@@ -869,7 +942,8 @@ struct VisionRootView: View {
             stones: session.stones,
             all: false
         )
-        guard session.stones.isReady, !isAITurn else { return }
+        // Engine-free, exactly like the undo above.
+        guard !isAITurn else { return }
         // The recorded next stone flies in; stepping over a pass diffs no
         // stone, so its click plays here (the commit-time sound it had).
         if let next = session.gobanState.getNextMove(gameRecord: gameRecord) {
@@ -966,7 +1040,7 @@ struct VisionRootView: View {
             stones: session.stones,
             all: false
         )
-        guard session.stones.isReady, !isAITurn else { return }
+        guard !isAITurn else { return }
         sceneModel.clearStoneAnimationIntents()
         session.gobanState.backwardMoves(limit: nil,
                                          gameRecord: gameRecord,
@@ -987,7 +1061,7 @@ struct VisionRootView: View {
             stones: session.stones,
             all: false
         )
-        guard session.stones.isReady, !isAITurn else { return }
+        guard !isAITurn else { return }
         sceneModel.clearStoneAnimationIntents()
         // A jump whose remaining tail is all passes (finished games end
         // pass-pass) diffs no stones, so the scene-driven batch click never
@@ -1023,19 +1097,27 @@ struct VisionRootView: View {
         }
     }
 
-    private func boardTooLargeView(width: Int, height: Int) -> some View {
-        // A capped net (nnLen below the board) can never be raised far
-        // enough — the honest exit is switching the neural net, and both
-        // controls live in Settings.
+    /// The *Held* card: the board on screen is larger than the running engine's
+    /// NN buffer, so the engine is never told about it and analysis is off.
+    ///
+    /// This is the one engine state that keeps a card of its own rather than the
+    /// one-line status, because it is the one with a real remedy — and WHICH
+    /// remedy depends on the net: a capped net (nnLen below this board) can
+    /// never be raised far enough, so the honest exit there is switching nets.
+    /// Both controls live behind Settings ▸ Neural Net. The goban is drawn
+    /// behind this card the whole time; the game is fully navigable.
+    private func boardTooLargeCard(maxBoardLength: Int) -> some View {
+        let width = Int(session.board.width)
+        let height = Int(session.board.height)
         let cap = engineController.activeModel.nnLen
         let raisable = boardFits(width: width, height: height, maxBoardLength: cap)
         return ContentUnavailableView {
             Label("Board Too Large", systemImage: "square.grid.3x3.square")
         } description: {
             if raisable {
-                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(engineController.maxBoardLength)×\(engineController.maxBoardLength)). Raise Max Board Size under Settings ▸ Neural Net, then reopen the game.")
+                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(maxBoardLength)×\(maxBoardLength)). Analysis is off until you raise Max Board Size under Settings ▸ Neural Net.")
             } else {
-                Text("This game uses a \(width)×\(height) board, larger than the current neural net supports (\(cap)×\(cap)). Switch the neural net in Settings, then reopen the game.")
+                Text("This game uses a \(width)×\(height) board, larger than the current neural net supports (\(cap)×\(cap)). Analysis is off until you switch the neural net in Settings.")
             }
         } actions: {
             Button("Open Settings") {
@@ -1043,6 +1125,24 @@ struct VisionRootView: View {
                 shell.showingControllerHelp = false
                 shell.showingNewGamePanel = false
             }
+        }
+    }
+
+    /// Engine availability as a LINE over the visible board: Launching (with
+    /// ADR 0007's compile caption when a compile is genuinely running), Failed
+    /// with its reason and a Retry button, or a note like "⟨net⟩ was removed —
+    /// using the built-in network". A ready engine renders nothing at all, so
+    /// the ornament collapses and the goban is unobstructed.
+    @ViewBuilder
+    private var engineStatusCard: some View {
+        if session.engineStatus.availability != .ready
+            || session.engineStatus.note != nil {
+            EngineStatusView(status: session.engineStatus,
+                             launchStatus: engineLaunchStatus,
+                             style: .ornament)
+                .frame(width: 460)
+                .padding(20)
+                .glassBackgroundEffect()
         }
     }
 
@@ -1072,38 +1172,50 @@ struct VisionRootView: View {
         session.gobanState.analysisInformation = shell.analysisInformation
         session.gobanState.showOwnership = shell.showOwnership
 
+        // THE BOARD FIRST. Mounting is engine-free: `loadGame` replays the
+        // record's own SGF onto the goban, and the feed it offers is dropped by
+        // the still-shut command gate and remembered as a debt. So the user is
+        // looking at their game within the first frames, while the net is still
+        // loading behind it.
+        if resolveAndMountCurrentGame() {
+            shell.phase = .ready
+        }
+
         // Blocks on the engine's `version` reply (i.e. until the net has
         // finished loading). The title must be the booted net's: it is what
         // markFirstResponse hands the lastLoadedModelTitle observer to
         // persist as the last-good selection.
-        _ = await session.handshake(
+        let reply = await session.handshake(
             selectedModelTitle: engineController.activeModel.title,
             engineLifecycle: engineLifecycle
         )
-        engineController.noteInitialHandshakeComplete()
-
-        if resolveAndMountCurrentGame() {
-            // One collection round (the printsgf reply) before the run loop
-            // arms, mirroring ContentView.initializationTask. Boot-only: after
-            // a restart the live read loop already owns the bridge, and a
-            // second reader would corrupt it.
-            await session.messaging(
-                gameRecords: gameRecords,
-                modelContext: modelContext,
-                navigationContext: navigationContext,
-                audioModel: audioModel,
-                aiMove: $aiMove
-            )
-            shell.phase = .ready
+        if reply == nil {
+            // `handshake` already ended the session `.failed` with its reason
+            // and seeded the Retry action; the phase is what lets Retry through.
+            // The read loop is left unarmed — there is nothing to read, and a
+            // reader would eat the retry handshake's reply. The board stays
+            // exactly where it is, with the failure reported over it.
+            engineController.noteInitialHandshakeFailed()
+        } else {
+            engineController.noteInitialHandshakeComplete()
+            // Held BEFORE the debt is paid, and before any other command: a
+            // board larger than this engine's NN buffer must never be described
+            // to it — `NNEvaluator::evaluate` aborts the process on the first
+            // analysis past the buffer. Going Held shuts the gate, so the resync
+            // below sends nothing at all and the board reports why analysis is
+            // off. (There are no separate "initial commands" to worry about:
+            // the feed states board size, rules, komi and every move itself.)
+            engineController.applyHeldStatus()
+            // Pay the debt: feed the engine the position on screen NOW — the
+            // user may have switched games or scrubbed while the model loaded,
+            // and latest selection wins.
+            engineController.resyncAfterHandshake()
         }
-
-        isReady = true
 
         // One-shot drain for a deep link delivered mid-boot: after
         // resolveAndMountCurrentGame consumed a (possibly nil) latch but
-        // before the ready handshake above, onOpenURL can still land — the
-        // iOS Release-only cold-launch race, closed the same way here. Must
-        // run AFTER `.ready`/`isReady` so the disposition gate opens.
+        // before the handshake returned, onOpenURL can still land — the iOS
+        // Release-only cold-launch race, closed the same way here.
         applyPendingDeepLink()
 
         // onChange(of: isConnected) never fires for a controller that was
@@ -1119,16 +1231,16 @@ struct VisionRootView: View {
     }
 
     /// Resolve the game to mount — the current selection, else the newest
-    /// synced record, else a fresh default sized to the engine cap — gate it
-    /// against the launched NN buffer, and mount it via the shared switch
-    /// path. Shared by boot and the Max-Board-Size restart; the caller owns
-    /// `isReady`, `.ready`, and any boot-only messaging round. Returns false
-    /// with the blocked phase set when the board cannot mount.
+    /// synced record, else a fresh default sized to the engine buffer — check
+    /// that its geometry is renderable, and mount it via the shared switch
+    /// path. The caller owns `.ready`. Returns false with `.unsupportedBoard`
+    /// set when there is nothing that can be drawn.
     ///
-    /// The gate runs BEFORE any engine load: a too-large board must never be
-    /// fed to the engine — it fatally aborts on the first analysis of a board
-    /// larger than its NN buffer, and unsupported sizes have no 3D asset to
-    /// render.
+    /// Runs BEFORE the handshake: the board is record-owned, so there is
+    /// nothing here that needs an engine. A board too large for the engine's
+    /// buffer mounts like any other and reports *Held* — `switchGame` decides
+    /// that and shuts the command gate, so such a board is never described to
+    /// the engine (it aborts fatally on the first analysis past its buffer).
     @discardableResult
     private func resolveAndMountCurrentGame() -> Bool {
         // A deep link latched before or during boot (a widget tap on a cold
@@ -1158,8 +1270,8 @@ struct VisionRootView: View {
         record.updateToLatestVersion()
 
         let config = record.concreteConfig
-        if let blocked = blockedPhase(width: config.boardWidth,
-                                      height: config.boardHeight) {
+        if let blocked = unsupportedPhase(width: config.boardWidth,
+                                          height: config.boardHeight) {
             shell.phase = blocked
             return false
         }
@@ -1168,42 +1280,36 @@ struct VisionRootView: View {
         return true
     }
 
-    /// The model detail's gear view changed the ACTIVE model's Max Board
-    /// Size (already persisted): quit → respawn the engine with the new NN
-    /// buffer behind the loading view, then re-gate and re-mount the current
-    /// game. `.booting` hides the board and the command-sending ornaments;
-    /// the read loop parks itself in `noteRunLoopExited` while the engine is
-    /// down. On failure the phase stays `.booting` and the gear view shows
-    /// the failure text.
+    /// The model detail's gear view changed the ACTIVE model's Max Board Size
+    /// (already persisted): quit → respawn the engine with the new NN buffer.
+    ///
+    /// The BOARD DOES NOT MOVE. `shell.phase` is not touched, the game stays
+    /// mounted, and L1/R1/L2/R2 keep stepping through it while the engine is
+    /// down (their sends are dropped and repaid by the resync). What the user
+    /// sees is the status card over the goban: Launching, then nothing — or
+    /// Failed with a Retry button if the restart gives up anywhere. The
+    /// controller re-decides Held (the buffer just changed) and re-feeds the
+    /// position itself once the new engine answers; the read loop parks in
+    /// `noteRunLoopExited` in the meantime.
     private func restartEngineForMaxBoardSize() {
-        Task {
-            shell.phase = .booting
-            guard await engineController.restartEngine() else { return }
-            if resolveAndMountCurrentGame() {
-                shell.phase = .ready
-            }
-        }
+        Task { await engineController.restartEngine() }
     }
 
     /// Models-card activation: the Max-Board-Size restart flow with a model
-    /// swap — quit → respawn with the new net behind the loading card, then
-    /// re-gate and re-mount the current game. A board over the new net's
-    /// effective buffer (its own per-model Max Board Size, clamped to its
-    /// nnLen) lands in .boardTooLarge; the Settings picker then edits the
-    /// NEW model's key, so raising it there is a working exit. Persistence
-    /// happens via the lastLoadedModelTitle observer once the handshake
-    /// lands — an activation that dies mid-load leaves the sentinel armed
-    /// and the next boot falls back to the built-in.
+    /// swap — quit → respawn with the new net, board never leaving the screen.
+    /// A board over the new net's effective buffer (its own per-model Max Board
+    /// Size, clamped to its nnLen) reports *Held*; the Settings picker then
+    /// edits the NEW model's key, so raising it there is a working exit.
+    /// Persistence happens via the lastLoadedModelTitle observer once the
+    /// handshake lands — an activation that dies mid-load leaves the sentinel
+    /// armed and the next boot falls back to the built-in.
+    ///
+    /// Allowed from a FAILED engine too (`canRestart`), which is how the Models
+    /// card doubles as the way out of a launch that never came up.
     private func activateModel(_ model: NeuralNetworkModel) {
-        guard engineController.phase == .running,
+        guard engineController.canRestartNow,
               model.title != engineController.activeModel.title else { return }
-        Task {
-            shell.phase = .booting
-            guard await engineController.restartEngine(loading: model) else { return }
-            if resolveAndMountCurrentGame() {
-                shell.phase = .ready
-            }
-        }
+        Task { await engineController.restartEngine(loading: model) }
     }
 
     #if DEBUG
@@ -1343,6 +1449,14 @@ struct VisionRootView: View {
                                     stones: session.stones,
                                     analysis: session.analysis,
                                     projector: session.recordPosition)
+        // Held, decided HERE and synchronously — between the projection that
+        // settled the new board size and the post-execution commands below.
+        // An observer would fire a runloop too late, and those commands (a
+        // `kata-analyze` among them) would already have gone out for a board
+        // this engine was never told about. Entering Held sends `stop`, shuts
+        // the command gate and resets; leaving it reopens the gate and re-states
+        // the whole position.
+        engineController.applyHeldStatus()
         // No `printsgf` echo: the record is the source of the position now, so
         // reading it back out of the engine would only risk overwriting it (and
         // re-sorting the library) with what the engine happened to hold.

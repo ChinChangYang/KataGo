@@ -2,7 +2,13 @@
 //  VisionOrnamentViews.swift
 //  KataGo Anytime Vision
 //
-//  The volume's control ornament: player chips (pinch to flip Human⇄AI),
+//  The volume's control ornament: it is up for as long as the BOARD is, which
+//  is now from the first frames of a launch onward. The controls that send GTP
+//  commands (the analysis sparkle, the Human/AI chips) disable themselves while
+//  the engine is unavailable; Games, the lock slot, Settings and the controller
+//  legend are engine-free and stay live throughout.
+//
+//  Contents: player chips (pinch to flip Human⇄AI),
 //  the Games toggle (shows/hides the left-side game-list ornament, whose
 //  header carries New Game), the analysis sparkle (run/pause/off), the lock
 //  slot (iOS TopToolbarView parity: Lock/Unlock off-branch, red Deactivate
@@ -27,6 +33,9 @@ import KataGoGameStore
 
 struct VisionControlOrnament: View {
     let session: GameSession
+    /// `VisionEngineChrome.allowsEngineCommands` — only the controls that SEND
+    /// GTP read it. Everything else here is engine-free and stays live.
+    let isEngineReady: Bool
     let shell: VisionGameShell
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
@@ -76,6 +85,10 @@ struct VisionControlOrnament: View {
                 // running = animated variable-color sparkle, paused = static
                 // sparkle, off = red slashed sparkle. Overlay VISIBILITY is on
                 // the controller's B button (no eye button here).
+                // Analysis needs an engine that can answer. Held counts as
+                // "cannot": it is up, but it refuses this board's size, so there
+                // is nothing for the toggle to start (iOS
+                // StatusToolbarItems.isAnalysisToggleEnabled).
                 Button(action: onSparkle) {
                     Label {
                         Text("Toggle Analysis")
@@ -90,6 +103,7 @@ struct VisionControlOrnament: View {
                                  ? AnyShapeStyle(.red)
                                  : AnyShapeStyle(.primary))
                 .contentTransition(.symbolEffect(.replace))
+                .disabled(!isEngineReady)
 
                 lockSlotButton
 
@@ -214,6 +228,9 @@ struct VisionControlOrnament: View {
             }
         }
         .buttonStyle(.plain)
+        // Flipping a side rewrites the human-SL bundle and re-arms the search —
+        // all of it commands, and all of it dropped while the engine is away.
+        .disabled(!isEngineReady)
         .accessibilityLabel("\(color == .black ? "Black" : "White"): \(isAI ? "AI" : "Human"). Tap to switch.")
     }
 }
@@ -435,6 +452,11 @@ struct VisionSettingsOrnament: View {
 /// (the shell's toggle helpers keep the three mutually exclusive).
 struct VisionNewGamePanel: View {
     let maxBoardLength: Int
+    /// `VisionEngineChrome.allowsNewGame`. Only the Create button reads it:
+    /// making a game feeds the engine, and the steppers are bounded by a buffer
+    /// a launching engine has not settled yet. The card itself stays usable so
+    /// it can always be dismissed.
+    let canCreateGame: Bool
     let onCreate: (Int, Int) -> Void
     let onDismiss: () -> Void
 
@@ -444,9 +466,11 @@ struct VisionNewGamePanel: View {
     private var sizeCap: Int { max(2, min(37, maxBoardLength)) }
 
     init(maxBoardLength: Int,
+         canCreateGame: Bool,
          onCreate: @escaping (Int, Int) -> Void,
          onDismiss: @escaping () -> Void) {
         self.maxBoardLength = maxBoardLength
+        self.canCreateGame = canCreateGame
         self.onCreate = onCreate
         self.onDismiss = onDismiss
         let initial = min(19, max(2, min(37, maxBoardLength)))
@@ -487,6 +511,7 @@ struct VisionNewGamePanel: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!canCreateGame)
         }
         .frame(width: 380)
         .padding(20)
@@ -505,6 +530,11 @@ struct VisionNewGamePanel: View {
 /// remaining game, else a fresh one).
 struct VisionGameListOrnament: View {
     let gameRecords: [GameRecord]
+    /// `VisionEngineChrome.allowsNewGame`. Opening a game never waits for the
+    /// engine — the board is record-owned. CREATING one does: it is a
+    /// command-sender, and it is sized by a buffer a launching engine has not
+    /// settled yet. Only the + menu reads this.
+    let canCreateGame: Bool
     let maxBoardLength: Int
     /// The active net's nnLen — the largest value Max Board Size can reach.
     /// Rows over it caption "switch the net", not "raise the setting".
@@ -571,6 +601,7 @@ struct VisionGameListOrnament: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .disabled(!canCreateGame)
                 .accessibilityLabel("New Game")
             }
             if !gameRecords.isEmpty {

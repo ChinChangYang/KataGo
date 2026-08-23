@@ -124,7 +124,10 @@ private struct VisionModelDetailView: View {
             downloadState: download.state,
             hasPartial: download.hasPartial,
             isActive: !isBootChooser && model.title == engine.activeModel.title,
-            engineIsRunning: isBootChooser || engine.phase == .running)
+            // A FAILED engine can be replaced: activating another net is one of
+            // the two ways out of a launch that never came up (Retry is the
+            // other), so this asks "can a restart begin?", not "is one running?".
+            engineIsRunning: isBootChooser || engine.canRestartNow)
     }
 
     var body: some View {
@@ -257,7 +260,9 @@ private struct VisionModelBoardSizeView: View {
             nnLen: model.nnLen,
             isActiveModel: !isBootChooser && model.title == engine.activeModel.title,
             isBootChooser: isBootChooser,
-            engineIsRunning: engine.phase == .running)
+            // Same reasoning as the Activate button: a failed engine may be
+            // relaunched with a different buffer, and that restart is a way out.
+            engineIsRunning: engine.canRestartNow)
     }
 
     var body: some View {

@@ -357,7 +357,9 @@ final class AppEngineController {
     func applyHeldStatus(boardWidth: Int, boardHeight: Int) {
         guard let session else { return }
         let current = session.engineStatus.availability
-        let next = Self.heldAvailability(
+        // The rule itself lives in the package (`EngineHeldRule`), shared with
+        // macOS/visionOS/tvOS: one board-size answer, one place to change it.
+        let next = EngineHeldRule.decide(
             current: current,
             boardWidth: boardWidth,
             boardHeight: boardHeight,
@@ -509,27 +511,6 @@ final class AppEngineController {
         }
     }
 
-    /// Held applies to a READY engine and to nothing else: a launching, absent
-    /// or failed engine has a more important thing to say, and overwriting it
-    /// would take its Retry / Choose model buttons with it.
-    static func heldAvailability(current: EngineAvailability,
-                                 boardWidth: Int,
-                                 boardHeight: Int,
-                                 maxBoardLength: Int) -> EngineAvailability {
-        // A 0-sized board is "no game selected", not "too large".
-        let unknownBoard = boardWidth <= 0 || boardHeight <= 0
-        let fits = unknownBoard
-            || (boardWidth <= maxBoardLength && boardHeight <= maxBoardLength)
-        switch current {
-        case .ready where !fits:
-            return .held(maxBoardLength: maxBoardLength)
-        case .held where fits:
-            return .ready
-        default:
-            return current
-        }
-    }
-
     // MARK: - Spawn / teardown
 
     private static func fileExists(_ model: NeuralNetworkModel) -> Bool {
@@ -661,10 +642,16 @@ final class AppEngineController {
     /// as a debt; this is where the debt is paid, from the LIVE record at the
     /// LIVE cursor (the user may have switched games twice while the model
     /// loaded — latest selection wins).
+    ///
+    /// The seam parks the turn as part of the feed, which is what re-arms
+    /// analysis: a relaunch does not change whose move it is, so without the
+    /// park the fresh engine's `showboard` would restate the colour the board
+    /// already held and no turn edge would fire.
     private func resyncAfterHandshake() {
         guard let session else { return }
         session.gobanState.resyncEngineAfterHandshake(
             gameRecord: navigationContext?.selectedGameRecord,
+            player: session.player,
             messageList: session.messageList,
             stones: session.stones,
             projector: session.recordPosition)

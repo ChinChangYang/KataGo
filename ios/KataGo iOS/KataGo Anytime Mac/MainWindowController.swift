@@ -1048,40 +1048,23 @@ final class MainWindowController: NSWindowController {
     /// Feeds the engine the position the board is showing, and re-arms analysis
     /// off the answer.
     ///
-    /// The turn is PARKED at `.unknown` first, exactly as `GobanState.loadGame`
-    /// does before its own feed. Analysis re-arms off the turn EDGE
-    /// (`BoardView.onChange(of: player.nextColorForPlayCommand)`), and a
-    /// relaunch does not change whose move it is — so without the park the
+    /// The turn is PARKED at `.unknown` as part of the feed — inside the shared
+    /// seam, which parks only when a feed actually goes out. Analysis re-arms
+    /// off the turn EDGE (`BoardView.onChange(of: player.nextColorForPlayCommand)`),
+    /// and a relaunch does not change whose move it is: without the park the
     /// showboard reply would restate the colour the board already held, no edge
     /// would fire, and a perfectly healthy fresh engine would sit there
-    /// analysing nothing.
-    ///
-    /// The park is UNDONE when no feed went out. A shut gate (still launching,
-    /// or Held), no selection, a record the replay could not read, or a board
-    /// this engine cannot hold all leave `resyncEngineAfterHandshake` sending
-    /// nothing — and a turn parked at `.unknown` with nothing able to resolve it
-    /// is worse than no park at all: the edge that re-arms analysis would never
-    /// fire again, so analysis would stay off until the next game switch.
-    ///
-    /// "Did a feed go out" is read from `showBoardCount`, because the feed ENDS
-    /// in the `showboard` whose reply is the in-sync acknowledgement — the very
-    /// reply that resolves the park. Observing the effect beats re-deriving
-    /// `resyncEngineAfterHandshake`'s preconditions here, which would be a
-    /// second copy of them to keep in step.
+    /// analysing nothing. This used to be a local park-then-un-park here; the
+    /// seam owns it now, so iOS and visionOS get the same behaviour for free.
     private func resyncEngineToRecord() {
         guard session.messageList.isAcceptingCommands,
               let gameRecord = navigationContext.selectedGameRecord else { return }
-        let parkedFrom = session.player.nextColorForPlayCommand
-        let showBoardsBefore = session.gobanState.showBoardCount
-        session.player.nextColorForPlayCommand = .unknown
         session.gobanState.resyncEngineAfterHandshake(
             gameRecord: gameRecord,
+            player: session.player,
             messageList: session.messageList,
             stones: session.stones,
             projector: session.recordPosition)
-        if session.gobanState.showBoardCount == showBoardsBefore {
-            session.player.nextColorForPlayCommand = parkedFrom
-        }
     }
 
     /// Re-decides *Held* — "this board is larger than the running engine's Max

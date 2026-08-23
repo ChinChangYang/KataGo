@@ -97,37 +97,10 @@ struct AppEngineControllerTests {
     }
 
     // MARK: - Held
-
-    @Test func aBoardBiggerThanTheEngineHoldsAReadyEngine() {
-        #expect(AppEngineController.heldAvailability(current: .ready,
-                                                     boardWidth: 37,
-                                                     boardHeight: 37,
-                                                     maxBoardLength: 19)
-                == .held(maxBoardLength: 19))
-    }
-
-    @Test func aBoardThatFitsReleasesTheHold() {
-        #expect(AppEngineController.heldAvailability(current: .held(maxBoardLength: 19),
-                                                     boardWidth: 19,
-                                                     boardHeight: 19,
-                                                     maxBoardLength: 19)
-                == .ready)
-    }
-
-    @Test func heldNeverOverwritesLaunchingAbsentOrFailed() {
-        // Held answers "this engine cannot take THIS board". An engine that is
-        // still loading, absent or dead has a more important thing to say, and
-        // overwriting it would lose the Retry / Choose model buttons with it.
-        for availability: EngineAvailability in [.launching,
-                                                 .absent,
-                                                 .failed(reason: "boom")] {
-            #expect(AppEngineController.heldAvailability(current: availability,
-                                                         boardWidth: 37,
-                                                         boardHeight: 37,
-                                                         maxBoardLength: 19)
-                    == availability)
-        }
-    }
+    //
+    // The rule itself moved to the package (`EngineHeldRule`, pinned by
+    // `EngineHeldRuleTests`) and `AppEngineController.heldAvailability` — its
+    // duplicate — is gone. Nothing iOS-specific is left to pin here.
 
     // MARK: - Timeouts
 
@@ -208,15 +181,6 @@ struct AppEngineControllerTests {
         // compiled artifacts are still in use.
         #expect(!AppEngineController.allowsHeavyCoreMLWork(.held(maxBoardLength: 19)))
     }
-
-    @Test func anUnknownBoardSizeIsNeverHeld() {
-        // No game selected: there is no board to refuse.
-        #expect(AppEngineController.heldAvailability(current: .ready,
-                                                     boardWidth: 0,
-                                                     boardHeight: 0,
-                                                     maxBoardLength: 19)
-                == .ready)
-    }
 }
 
 /// A mutable flag the poll predicate can read. A plain `var` captured by the
@@ -224,4 +188,106 @@ struct AppEngineControllerTests {
 @MainActor
 private final class SettlingFlag {
     var value = false
+}
+
+//
+//  The same three decisions, as the SHARED rules the other in-process hosts
+//  use (`EngineRestartRules`, KataGoUICore). They are pinned here, beside their
+//  iOS twin, because the controllers that use them — visionOS
+//  `VisionEngineController`, tvOS `TVEngineController` — live in app targets no
+//  test bundle links, so a rule left inside one of them is a rule nothing can
+//  test. Each has a failure mode that is invisible from the outside: a restart
+//  wedged in `.stopping` forever, a Retry that is refused, or an engine that
+//  comes up with nobody reading its replies.
+//
+@MainActor
+struct EngineRestartRulesTests {
+
+    // MARK: - The teardown waits are bounded
+
+    @Test func aWaitThatSettlesReturnsTrue() async {
+        let settled = await EngineRestartRules.untilSettled(
+            timeout: 5, pollInterval: .milliseconds(10)) { true }
+        #expect(settled)
+    }
+
+    @Test func aWaitThatNeverSettlesGivesUpAtItsDeadline() async {
+        // A `CheckedContinuation` cannot observe cancellation, and
+        // `withTaskGroup` awaits its remaining children after `cancelAll()` —
+        // so parking on one would hold a restart in `.stopping` forever, with
+        // no phase, no status and no Retry. It has to time out on its own.
+        let start = Date()
+        let settled = await EngineRestartRules.untilSettled(
+            timeout: 0.3, pollInterval: .milliseconds(10)) { false }
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(!settled)
+        #expect(elapsed >= 0.3)
+        #expect(elapsed < 5, "the wait ran long past its own deadline")
+    }
+
+    @Test func aPartyThatSettlesLateIsStillObserved() async {
+        // The ordinary case: an engine thread that takes a while to tear down.
+        let box = SettlingFlag()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            box.value = true
+        }
+        let settled = await EngineRestartRules.untilSettled(
+            timeout: 5, pollInterval: .milliseconds(10)) { box.value }
+        #expect(settled)
+    }
+
+    @Test func aCancelledWaitGivesUpAtOnce() async {
+        // The caller's own bound has to be able to end this, or a 240 s thread
+        // wait would outlive the restart that started it.
+        let start = Date()
+        let task = Task { @MainActor in
+            await EngineRestartRules.untilSettled(
+                timeout: 240, pollInterval: .milliseconds(10)) { false }
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+        task.cancel()
+        let settled = await task.value
+        #expect(!settled)
+        #expect(Date().timeIntervalSince(start) < 5)
+    }
+
+    // MARK: - When a restart may begin
+
+    @Test func aRestartIsAllowedFromRunningAndFromFailed() {
+        #expect(EngineRestartRules.canRestart(from: .running))
+        // That clause IS the Retry button. Without it a failed launch would be
+        // terminal and the only way back would be to quit the app.
+        #expect(EngineRestartRules.canRestart(from: .failed))
+    }
+
+    @Test func aRestartIsRefusedMidTransitionAndBeforeTheBoot() {
+        // Interrupting an in-flight handshake breaks the bridge's sole-reader
+        // rule; `.idle` means the boot has not run, which is not a restart.
+        #expect(!EngineRestartRules.canRestart(from: .starting))
+        #expect(!EngineRestartRules.canRestart(from: .stopping))
+        #expect(!EngineRestartRules.canRestart(from: .idle))
+    }
+
+    // MARK: - Arming the read loop
+
+    @Test func aRestartArmsTheReadLoopWhenTheBootNeverDid() {
+        // The bug this exists for: a BOOT handshake that fails deliberately
+        // leaves the read loop unarmed (a reader would eat the retry's
+        // `version` reply), so generation stays 0. The Retry that follows then
+        // spawns an engine, opens the gate and sends the feed — and if nothing
+        // arms a loop, NOTHING reads the replies: the board never reports in
+        // sync, plays are refused, no analysis ever arrives, and the status
+        // line claims all is well.
+        #expect(EngineRestartRules.shouldArmReadLoop(generation: 0))
+    }
+
+    @Test func aRestartNeverReKeysALoopThatAlreadyExists() {
+        // The host keys its read loop on this generation, so bumping it would
+        // CANCEL the parked reader rather than resume it — the restart's own
+        // `readLoopPark.resume()` is what belongs on this path.
+        #expect(!EngineRestartRules.shouldArmReadLoop(generation: 1))
+        #expect(!EngineRestartRules.shouldArmReadLoop(generation: 7))
+    }
 }

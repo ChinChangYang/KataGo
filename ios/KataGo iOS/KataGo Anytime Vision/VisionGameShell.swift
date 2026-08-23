@@ -6,29 +6,34 @@
 import Foundation
 import KataGoUICore
 
-/// Volume-level UI state that lives outside GobanState: the boot/gating
-/// phase, card visibility (controller help, settings, game list), and the
-/// persisted Vision-local preferences (board orientation, analysis label
-/// mode, ownership overlay).
+/// Volume-level UI state that lives outside GobanState: what the front
+/// ornament has to say, card visibility (controller help, settings, game
+/// list), and the persisted Vision-local preferences (board orientation,
+/// analysis label mode, ownership overlay).
 @Observable
 @MainActor
 final class VisionGameShell {
+    /// What the FRONT ornament shows — no longer a gate on the volume. The
+    /// board is record-owned and renders as soon as a game is mounted,
+    /// through boot, model loads and restarts alike; engine state is the
+    /// status line inside this ornament, not a screen in place of the goban.
+    /// The one true gate left is `.unsupportedBoard`, because there is no
+    /// geometry to draw.
     enum Phase: Equatable {
+        /// Pre-mount: the very first frames, before a record has been
+        /// resolved. Nothing to draw yet — not "the engine is loading".
         case booting
         /// A surviving load sentinel: no engine runs; the Models card
         /// presents front-center as a neutral chooser (iOS picker design)
-        /// and the pick boots the engine.
+        /// and the pick boots the engine. The board is up behind it.
         case choosingModel
+        /// A game is mounted and the front ornament has nothing of its own
+        /// to say (the engine status line may still be showing there).
         case ready
         /// The selected game's board is outside the renderable 2...37 range.
         /// The game is never loaded into the engine — the ornament's New
-        /// Game menu is the exit.
+        /// Game menu, the Games list and a widget tap are the exits.
         case unsupportedBoard(width: Int, height: Int)
-        /// The board renders fine but exceeds the launched NN buffer — the
-        /// engine would fatally abort on its first analysis. The exit is
-        /// raising Max Board Size behind the model detail's gear (Settings ▸
-        /// Neural Net), which restarts the engine and re-mounts this game.
-        case boardTooLarge(width: Int, height: Int)
     }
 
     var phase: Phase = .booting

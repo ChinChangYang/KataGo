@@ -4,10 +4,13 @@
 //
 //  Pure row model for the visionOS ornament's Games picker, built from a
 //  GameRecord's cheap stored fields (no SGF parse, no engine). A row is
-//  selectable when its board has a bundled 3D asset AND fits the launched
-//  engine's NN buffer; an unknown size stays selectable (optimistic) — the
-//  openGame handler re-derives the size from the SGF and gates
-//  authoritatively before any engine load.
+//  selectable when its board has a bundled 3D asset — that is the only thing
+//  the volume genuinely cannot draw. A board that renders but exceeds the
+//  launched NN buffer IS selectable: it opens, draws, and reports *Held*
+//  (the engine is simply never fed it), and the row's caption says which of
+//  the two exits applies. An unknown size stays selectable (optimistic) —
+//  the openGame handler re-derives the size from the SGF and gates
+//  authoritatively.
 //
 
 import Foundation
@@ -44,7 +47,9 @@ public struct VisionGamePickerItem: Equatable, Sendable {
                                  maxBoardLength: maxBoardLength)
             let raisable = boardFits(width: width, height: height,
                                      maxBoardLength: modelBoardCap)
-            isSelectable = supported && fits
+            // Size is NOT part of selectability any more: over-cap boards open
+            // and report Held. Geometry still is — there is no asset to draw.
+            isSelectable = supported
             needsLargerBoardSetting = supported && !fits && raisable
             needsDifferentNet = supported && !fits && !raisable
         } else {

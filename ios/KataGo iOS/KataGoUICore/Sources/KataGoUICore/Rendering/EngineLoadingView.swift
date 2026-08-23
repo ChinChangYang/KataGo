@@ -9,11 +9,11 @@
 //  wraps it with its own caption text, secondary font, icon asset, and icon
 //  sizing.
 //
-//  Its remaining users are visionOS (`VisionRootView`) and tvOS
-//  (`TVLoadingView`). iOS and macOS no longer have a loading SCREEN at all —
-//  their boards mount on the first frame and report engine availability inline
-//  through `EngineStatusView` — so the macOS `EngineLaunchStatusView` and the
-//  iOS `LoadingView` this was extracted from are both gone.
+//  Its ONE remaining user is tvOS (`TVLoadingView`). iOS, macOS and visionOS
+//  no longer have a loading SCREEN at all — their boards mount on the first
+//  frame and report engine availability inline through `EngineStatusView` — so
+//  the macOS `EngineLaunchStatusView`, the iOS `LoadingView` this was extracted
+//  from, and the visionOS boot ornament are all gone.
 //
 
 import SwiftUI
