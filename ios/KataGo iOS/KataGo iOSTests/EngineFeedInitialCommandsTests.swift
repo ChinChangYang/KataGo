@@ -2,18 +2,21 @@
 //  EngineFeedInitialCommandsTests.swift
 //  KataGo iOSTests
 //
-//  macOS launches its engine with the FEED and nothing else — it calls
-//  `GameSession.handshake` rather than `initialize`, so `sendInitialCommands`
-//  never runs there. It does that because `sendInitialCommands` states the
-//  selected game's board size before anything has asked whether the engine can
-//  hold that board: an iCloud-synced 37x37 record would be announced to a
-//  19-buffer engine, which aborts the whole helper on its first analysis.
+//  Every platform launches its engine with the FEED and nothing else. It used
+//  to be launched with a fixed bundle of config commands as well
+//  (`GameSession.sendInitialCommands`, now DELETED): board size, the rules,
+//  komi, friendly-pass, playout doubling, wide root noise, and the symmetric
+//  human-SL profile pair. That bundle had to go, because it stated the selected
+//  game's board size before anything had asked whether the engine could hold
+//  that board — an iCloud-synced 37x37 record announced to a 19-buffer engine
+//  aborts the whole helper on its first analysis.
 //
-//  That is only safe while the feed really does say everything the initial
-//  commands said. This pins that invariant. If someone adds a command to
-//  `sendInitialCommands` and not to `EngineFeed.openingCommands`, macOS would
-//  otherwise silently stop sending it, and the symptom (an engine quietly
-//  running with the wrong rule or profile) is nearly untraceable.
+//  Deleting it is only safe while the feed really does say everything the
+//  bundle said. `preFeedBundle` below is that bundle, transcribed verbatim from
+//  the deleted method, and these tests pin `EngineFeed.openingCommands` as a
+//  strict superset of it. If someone drops a command from the feed, the symptom
+//  (an engine quietly running with the wrong rule or profile) is nearly
+//  untraceable — this is what catches it instead.
 //
 
 import Testing
@@ -23,12 +26,35 @@ import GoRulesKit
 @MainActor
 struct EngineFeedInitialCommandsTests {
 
-    private func initialCommands(config: Config) -> [String] {
-        let session = GameSession.accepting()
-        let engine = RecordingEngine()
-        session.useEngine(engine)
-        session.sendInitialCommands(config: config)
-        return engine.sent
+    /// The pre-feed bundle: exactly what `GameSession.sendInitialCommands`
+    /// sent, in its order, before it was deleted. A reference list rather than
+    /// a call, because the thing it is a reference to no longer exists — and a
+    /// reference the feed is checked against is the whole point of the suite.
+    private func preFeedBundle(config: Config) -> [String] {
+        var commands = [
+            GtpCommandBuilder.boardSizeCommand(width: config.boardWidth,
+                                               height: config.boardHeight)
+        ]
+        commands.append(contentsOf: GtpCommandBuilder.ruleCommandsBundle(
+            ko: config.koRuleText,
+            scoring: config.scoringRuleText,
+            tax: config.taxRuleText,
+            multiStoneSuicide: config.multiStoneSuicideLegal,
+            hasButton: config.hasButton,
+            whiteHandicapBonus: config.whiteHandicapBonusRuleText))
+        commands.append(GtpCommandBuilder.komiCommand(config.komi))
+        // Disabled to avoid a memory shortage problem.
+        commands.append("kata-set-rule friendlyPassOk false")
+        commands.append(
+            GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
+        commands.append(
+            GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
+        commands.append(contentsOf: GtpCommandBuilder.symmetricHumanAnalysisCommands(
+            humanSLProfile: config.effectiveHumanProfileForBlack,
+            humanProfileForWhite: config.effectiveHumanProfileForWhite,
+            humanRatioForBlack: config.humanRatioForBlack,
+            humanRatioForWhite: config.humanRatioForWhite))
+        return commands
     }
 
     private func feedCommands(config: Config) -> [String] {
@@ -39,9 +65,9 @@ struct EngineFeedInitialCommandsTests {
     }
 
     /// The superset claim, on the default config.
-    @Test func theFeedStatesEverythingTheInitialCommandsDid() {
+    @Test func theFeedStatesEverythingThePreFeedBundleDid() {
         let config = Config()
-        let missing = initialCommands(config: config).filter {
+        let missing = preFeedBundle(config: config).filter {
             !feedCommands(config: config).contains($0)
         }
         #expect(missing.isEmpty, "the feed never states: \(missing)")
@@ -67,13 +93,13 @@ struct EngineFeedInitialCommandsTests {
         config.playoutDoublingAdvantage = 1.5
         config.analysisWideRootNoise = 0.25
 
-        let missing = initialCommands(config: config).filter {
+        let missing = preFeedBundle(config: config).filter {
             !feedCommands(config: config).contains($0)
         }
         #expect(missing.isEmpty, "the feed never states: \(missing)")
     }
 
-    /// The feed says two things the initial commands never did, and both matter
+    /// The feed says two things the pre-feed bundle never did, and both matter
     /// to a relaunch: it re-states the board size from the RECORD (not from a
     /// `Config` that may disagree with the SGF) and it clears the board first,
     /// because `set_free_handicap` refuses a non-empty one.

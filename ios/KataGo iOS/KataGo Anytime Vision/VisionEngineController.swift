@@ -327,29 +327,21 @@ final class VisionEngineController {
         // reader even when the value is identical, and this runs on every game
         // switch and every engine transition.
         guard next != current else { return }
-        engineStatus.availability = next
 
+        // The rule decides THAT it happens; the session owns WHAT happens
+        // (`holdEngineSession` / `releaseEngineHold`), shared with iOS, macOS
+        // and tvOS. Four hand-written copies of the effect is how three of them
+        // ended up skipping `abortInFlightBoardCollection` — which strands a
+        // half-read `showboard` block and kills analysis until a relaunch.
         switch next {
-        case .held:
-            // Stop the search FIRST, while a command can still mean something.
-            // The engine is still running `kata-analyze` for the PREVIOUS
-            // position and nothing else will halt it: the ordinary `stop` goes
-            // through `appendAndSend`, which is about to start dropping, and
-            // `loadGame` returned at its `boardFitsEngine` guard without sending
-            // anything at all. A lifecycle command precisely because the gate
-            // must not be able to swallow it.
-            session.sendLifecycleCommand("stop")
-            session.messageList.isAcceptingCommands = false
-            // Nothing the engine holds relates to what is on screen any more.
-            session.gobanState.resetForFreshEngine(stones: session.stones)
+        case .held(let maxBoardLength):
+            session.holdEngineSession(maxBoardLength: maxBoardLength)
         case .ready:
-            // The board fits again (a smaller game was opened, or the engine
-            // relaunched with a bigger buffer). Reopen and re-state the whole
-            // position from scratch — board size, rules, setup, every move.
-            session.messageList.isAcceptingCommands = true
-            resyncAfterHandshake()
+            session.releaseEngineHold(gameRecord: navigationContext?.selectedGameRecord)
         default:
-            break
+            // Unreachable — `EngineHeldRule` only ever moves `.ready ↔ .held`,
+            // and an unchanged verdict returned above.
+            engineStatus.availability = next
         }
     }
 

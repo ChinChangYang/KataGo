@@ -105,7 +105,7 @@ public final class GameSession {
     }
 
     /// Routes this session's GTP I/O — reads happen here, sends go through
-    /// `messageList` — through `engine`. Call BEFORE `initialize`. The macOS app
+    /// `messageList` — through `engine`. Call BEFORE `handshake`. The macOS app
     /// uses this to drive a per-window `katago-engine` subprocess; iOS/visionOS
     /// keep the default in-process bridge.
     public func useEngine(_ engine: KataGoEngineIO) {
@@ -126,41 +126,11 @@ public final class GameSession {
 
     // MARK: - Initialization
 
-    /// Engine version/first-response handshake. Sends `version`, reads the
-    /// reply line, clears the crash-loop sentinel via `EngineLifecycle` on a
-    /// `= ` prefix, then sends the initial GTP commands for `config`.
-    ///
-    /// Returns the version line so the host can surface it (it lands on
-    /// `engineStatus.engineVersion`, which the Settings sheet reads).
-    ///
-    /// NOTE: **no host calls this any more.** Every platform now calls
-    /// `handshake` on its own and lets `EngineFeed.openingCommands` configure
-    /// the engine, because `sendInitialCommands` states a board size before
-    /// anything has decided whether the engine can hold it (`EngineHeldRule`)
-    /// — and the feed is a strict superset of it, pinned by
-    /// `EngineFeedInitialCommandsTests`. This pairing survives only as the
-    /// subject of `GameSessionInitializeClearTests`; delete it together with
-    /// those three call sites.
-    @discardableResult
-    public func initialize(
-        selectedModelTitle: String,
-        engineLifecycle: EngineLifecycle,
-        config: Config?,
-        timeoutSeconds: Double = GameSession.defaultHandshakeTimeout
-    ) async -> String? {
-        let version = await handshake(
-            selectedModelTitle: selectedModelTitle,
-            engineLifecycle: engineLifecycle,
-            timeoutSeconds: timeoutSeconds
-        )
-        sendInitialCommands(config: config)
-        return version
-    }
-
-    /// The version/first-response exchange alone — no config commands. The iOS
-    /// host calls this directly so it can resolve WHICH game seeds the engine
-    /// AFTER the blocking version read: that read spans the engine's model
-    /// load (seconds), which is also the window where the system delivers a
+    /// The version/first-response exchange — the whole of what a host asks a
+    /// fresh engine before the feed states the position. It is called directly
+    /// so the host can resolve WHICH game seeds the engine AFTER the blocking
+    /// version read: that read spans the engine's model load (seconds), which
+    /// is also the window where the system delivers a
     /// cold-launch `open-game` URL. Reading `DeepLinkRouter.pendingGameID`
     /// before this await raced the URL delivery and lost on the Release
     /// auto-restore path (Debug always shows the model picker, masking it).
@@ -251,7 +221,14 @@ public final class GameSession {
             messageList.messages.append(Message(text: line))
         }
 
-        if Task.isCancelled, reply == nil {
+        // A cancellation and an EOF can land in the same slice: the loop breaks
+        // on the EOF, and the cancellation is observed a line later. "Did not
+        // answer in time" would then overwrite the one thing this handshake
+        // actually learned — that the engine is GONE — with a statement about
+        // patience. The EOF reason wins; only a handshake that ran out of
+        // nothing but time gets the timeout wording.
+        if Task.isCancelled, reply == nil,
+           giveUpReason != EngineExitDisposition.defaultReason {
             giveUpReason = "The engine did not answer in time."
         }
 
@@ -354,20 +331,64 @@ public final class GameSession {
         }
     }
 
-    /// The initial GTP commands for `config` (board size, rules, komi, human
-    /// profiles). Public so the iOS host can send them separately after a
-    /// `handshake()`-then-resolve sequence; `initialize` bundles both.
-    public func sendInitialCommands(config: Config?) {
-        // If a config is not available, initialize KataGo with a default config.
-        let config = config ?? Config()
-        messageList.appendAndSend(command: GtpCommandBuilder.boardSizeCommand(width: config.boardWidth, height: config.boardHeight))
-        messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText, multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton, whiteHandicapBonus: config.whiteHandicapBonusRuleText))
-        messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
-        // Disable friendly pass to avoid a memory shortage problem
-        messageList.appendAndSend(command: "kata-set-rule friendlyPassOk false")
-        messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
-        messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
-        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.effectiveHumanProfileForBlack, humanProfileForWhite: config.effectiveHumanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
+    // MARK: - Held
+
+    /// The record on screen is larger than the running engine's NN buffer, so
+    /// the engine must stop being talked to — WITHOUT the session ending.
+    ///
+    /// One implementation for all four hosts (`EngineHeldRule` decides *that*
+    /// it happens; this is *what* happens), because every step here is
+    /// load-bearing and a host that forgot one had no way to notice:
+    ///
+    ///   1. `stop` FIRST, while a command can still mean something. The engine
+    ///      is still running `kata-analyze` for the PREVIOUS position and
+    ///      nothing else will halt it — the ordinary `stop` goes through
+    ///      `appendAndSend`, which is about to start dropping, and `loadGame`
+    ///      returns at its `boardFitsEngine` guard without sending at all. A
+    ///      lifecycle command precisely because the gate must not swallow it.
+    ///   2. Drop any half-read `showboard` block. This is the one three of the
+    ///      four hosts used to miss: `maybeCollectSync` is a two-state machine,
+    ///      and a hold that leaves it "inside a block" makes the NEXT
+    ///      acknowledgement's `= MoveNum` line arrive as board text —
+    ///      `consumeShowBoardResponse` never runs, `showBoardCount` never
+    ///      returns to 0, and analysis and taps stay dead until a relaunch.
+    ///   3. Shut the command gate. `forwardMoves`/`backwardMoves` do not check
+    ///      board size, so scrubbing an oversized record would otherwise push
+    ///      `play` after `play` at an engine that was never told this board
+    ///      exists, and its `?` refusals would claim a sync that does not exist.
+    ///   4. `resetForFreshEngine` — nothing the engine holds relates to what is
+    ///      on screen any more.
+    ///
+    /// The availability write is last, so no observer can see a `.held` status
+    /// over a gate that is still open.
+    public func holdEngineSession(maxBoardLength: Int) {
+        sendLifecycleCommand("stop")
+        abortInFlightBoardCollection()
+        messageList.isAcceptingCommands = false
+        gobanState.resetForFreshEngine(stones: stones)
+        engineStatus.availability = .held(maxBoardLength: maxBoardLength)
+    }
+
+    /// The board fits again (a smaller game was opened, a screen was left, or
+    /// the engine relaunched with a bigger buffer). Reopen the gate and
+    /// re-state the whole position from scratch — board size, rules, setup,
+    /// every move — from the LIVE record at the LIVE cursor.
+    ///
+    /// - Parameters:
+    ///   - gameRecord: the record the board is showing. Nil feeds nothing.
+    ///   - feeds: whether leaving the hold should re-state the position. False
+    ///     only where the caller is about to state it anyway (tvOS
+    ///     `noteBoardMounted`, whose next breath is `loadGame`) — feeding from
+    ///     both would put the same bundle on the wire twice.
+    public func releaseEngineHold(gameRecord: GameRecord?, feeds: Bool = true) {
+        engineStatus.availability = .ready
+        messageList.isAcceptingCommands = true
+        guard feeds else { return }
+        gobanState.resyncEngineAfterHandshake(gameRecord: gameRecord,
+                                              player: player,
+                                              messageList: messageList,
+                                              stones: stones,
+                                              projector: recordPosition)
     }
 
     // MARK: - Message loop

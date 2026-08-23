@@ -169,7 +169,6 @@ extension GameRecord {
         return created
     }
 
-
     // MARK: - SgfOperations-based factory + import
 
     public class func createGameRecord(

@@ -861,7 +861,7 @@ public class TopUIState {
         guard let engineVersion else { return nil }
         var cleaned = engineVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         // A GTP failure reply ("? …") means the version handshake produced no
-        // version (mirrors GameSession.initialize's "= " success gate), so
+        // version (mirrors GameSession.handshake's "= " success gate), so
         // show nothing rather than leaking the raw error text.
         if cleaned.hasPrefix("?") {
             return nil

@@ -85,6 +85,65 @@ struct HeldAnalysisGuardTests {
         #expect(!session.stones.isReady)
     }
 
+    /// One complete showboard reply, in the order KataGo prints it.
+    private static let showboardBlock = [
+        "= MoveNum: 2 HASH: 0123456789ABCDEF",
+        "   A B C",
+        " 3 . O .",
+        " 2 X 1 .",
+        " 1 . . .",
+        "Next player: White",
+        "Rules: {\"ko\":\"POSITIONAL\"}",
+        "B stones captured: 0",
+        "W stones captured: 0",
+    ]
+
+    /// The Held edge shuts the gate mid-block, and the block it interrupts must
+    /// not survive it.
+    ///
+    /// `maybeCollectSync` is a two-state machine: the `= MoveNum` line is the
+    /// LAST outstanding showboard's acknowledgement, and once consumed the
+    /// collector is "inside a block" until the trailing capture line. A hold
+    /// that leaves that flag set means the NEXT engine's first `= MoveNum` is
+    /// eaten as board text — `consumeShowBoardResponse` never runs,
+    /// `showBoardCount` never returns to 0, and `maybeCollectAnalysis`
+    /// (gated on it) is dead until the app is relaunched.
+    @Test func aHoldMidBlockDoesNotStrandTheSyncCounter() async {
+        let session = GameSession.accepting()
+        let engine = RecordingEngine()
+        session.useEngine(engine)
+        session.engineStatus.availability = .ready
+
+        let controller = AppEngineController()
+        controller.configure(session: session,
+                             engineLifecycle: EngineLifecycle(),
+                             navigationContext: NavigationContext())
+
+        // A showboard is outstanding and its block has begun arriving.
+        session.gobanState.showBoardCount = 1
+        for line in Self.showboardBlock.prefix(3) {
+            await session.maybeCollectSync(message: line)
+        }
+        #expect(session.gobanState.showBoardCount == 0)
+
+        // The record on screen goes oversized, then fits again.
+        controller.applyHeldStatus(boardWidth: 37, boardHeight: 37)
+        #expect(session.engineStatus.availability == .held(maxBoardLength: 19))
+        controller.applyHeldStatus(boardWidth: 19, boardHeight: 19)
+        #expect(session.engineStatus.availability == .ready)
+
+        // The re-feed's own showboard, answered in full by the live engine.
+        session.gobanState.showBoardCount = 1
+        for line in Self.showboardBlock {
+            await session.maybeCollectSync(message: line)
+        }
+
+        #expect(session.gobanState.showBoardCount == 0,
+                "the ack after a hold was eaten as board text — analysis is dead until a relaunch")
+        #expect(session.stones.isReady,
+                "the board never reported in sync with the engine that took it back")
+    }
+
     @Test func aBoardThatFitsIsNeverHeldAndNothingIsStopped() {
         let session = GameSession.accepting()
         let engine = RecordingEngine()

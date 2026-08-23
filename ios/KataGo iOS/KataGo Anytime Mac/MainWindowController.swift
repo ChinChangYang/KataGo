@@ -67,6 +67,12 @@ final class MainWindowController: NSWindowController {
     /// so the old loop must finish before the new engine is wired in.
     private var sessionTask: Task<Void, Never>?
 
+    /// True from the moment `relaunch(model:)` is accepted until the
+    /// teardown/spawn pair it started has finished. The in-process controllers
+    /// use their `Phase` for this; macOS has no phase, so it needs the flag —
+    /// see `relaunch(model:)` and `EngineRestartRules.shouldBeginRelaunch`.
+    private var isRelaunching = false
+
     /// Persisted model-selection store (same `ModelRunnerView.*` UserDefaults keys
     /// as iOS). `startEngineAndSession()` reads `currentModel` to decide which net
     /// to launch; `relaunch(model:)` writes the user's choice via `setActiveModel`.
@@ -341,7 +347,7 @@ final class MainWindowController: NSWindowController {
         // Install before the engine starts so the first `true -> false`
         // `waitingForAnalysis` transition isn't missed. That first analyze is
         // kicked downstream of the hosted `BoardView`'s `showboard` round-trip:
-        // `maybeCollectBoard` sets `player.nextColorForPlayCommand`, and
+        // `maybeCollectSync` sets `player.nextColorForPlayCommand`, and
         // `BoardView.onChange(of:)` then calls `maybeRequestAnalysis`, which
         // flips `waitingForAnalysis` true; the engine's first `info` line flips
         // it back to false (parsed in `GameSession.maybeCollectAnalysis`).
@@ -1110,29 +1116,22 @@ final class MainWindowController: NSWindowController {
         // every reader even when the value is identical, and this runs on
         // every game switch and every engine transition.
         guard next != current else { return }
-        engineStatus.availability = next
 
+        // The rule decides THAT it happens; the session owns WHAT happens
+        // (`holdEngineSession` / `releaseEngineHold`), shared with iOS,
+        // visionOS and tvOS. Four hand-written copies of the effect is how
+        // three of them ended up skipping `abortInFlightBoardCollection` —
+        // which strands a half-read `showboard` block and kills analysis until
+        // a relaunch.
         switch next {
-        case .held:
-            // Stop the search FIRST, while a command can still mean something.
-            // The engine is still running `kata-analyze` for the PREVIOUS
-            // position and nothing else will halt it: the ordinary `stop` goes
-            // through `appendAndSend`, which is about to start dropping, and
-            // `loadGame` returned at its `boardFitsEngine` guard without
-            // sending anything at all. A lifecycle command precisely because
-            // the gate must not be able to swallow it.
-            session.sendLifecycleCommand("stop")
-            session.messageList.isAcceptingCommands = false
-            // Nothing the engine holds relates to what is on screen any more.
-            session.gobanState.resetForFreshEngine(stones: session.stones)
+        case .held(let maxBoardLength):
+            session.holdEngineSession(maxBoardLength: maxBoardLength)
         case .ready:
-            // The board fits again (a smaller game was opened, or the engine
-            // relaunched with a bigger buffer). Reopen and re-state the whole
-            // position from scratch — board size, rules, setup, every move.
-            session.messageList.isAcceptingCommands = true
-            resyncEngineToRecord()
+            session.releaseEngineHold(gameRecord: navigationContext.selectedGameRecord)
         default:
-            break
+            // Unreachable — `EngineHeldRule` only ever moves `.ready ↔ .held`,
+            // and an unchanged verdict returned above.
+            engineStatus.availability = next
         }
     }
 
@@ -1358,21 +1357,22 @@ final class MainWindowController: NSWindowController {
 
     /// The handshake and everything that follows it, for one engine launch.
     ///
-    /// `handshake`, deliberately, and NOT `session.initialize` — which is
-    /// `handshake` plus `sendInitialCommands(config:)`. Two reasons, and the
-    /// first is a bug:
+    /// `handshake` and then the FEED — never a fixed bundle of config commands
+    /// first. macOS was the platform that proved the bundle wrong (it is now
+    /// deleted everywhere), for two reasons, and the first is a bug:
     ///
-    ///  1. `sendInitialCommands` states the SELECTED GAME's board size, and it
-    ///     ran before anything had asked whether this engine can hold that
-    ///     board. An iCloud-synced 37x37 record against a 19 NN buffer would
-    ///     be announced as `rectangular_boardsize 37 37` to the very engine
-    ///     that must never hear it — before `applyHeldStatus` got a word in.
-    ///  2. It is redundant here anyway. `EngineFeed.openingCommands` — what the
+    ///  1. The bundle stated the SELECTED GAME's board size, and it ran before
+    ///     anything had asked whether this engine can hold that board. An
+    ///     iCloud-synced 37x37 record against a 19 NN buffer would be announced
+    ///     as `rectangular_boardsize 37 37` to the very engine that must never
+    ///     hear it — before `applyHeldStatus` got a word in.
+    ///  2. It was redundant anyway. `EngineFeed.openingCommands` — what the
     ///     feed below sends — is a strict superset: board size (taken from the
     ///     SGF, which is the record's own authority on its geometry, not from a
     ///     `Config` that may disagree), `clear_board`, the rules bundle, komi,
     ///     `friendlyPassOk false`, playout-doubling advantage, wide root noise,
-    ///     the symmetric human-SL bundle, the setup stones, and the moves.
+    ///     the symmetric human-SL bundle, the setup stones, and the moves
+    ///     (pinned by `EngineFeedInitialCommandsTests`).
     ///
     /// So macOS states the engine's whole world exactly once, in the feed, and
     /// only for a board the engine can actually take.
@@ -1440,11 +1440,12 @@ final class MainWindowController: NSWindowController {
     /// Ordering:
     ///   1. `stopRequested = true` first, so `messaging`'s per-line guard skips
     ///      the engine's quit-response lines and `run()` exits on its next check.
-    ///   2. `sendCommand("quit")` → the child is told to go. This MUST precede
-    ///      step 3: `endEngineSession` shuts the command gate, and while the
-    ///      `quit` itself bypasses that gate (it is written to the subprocess
-    ///      directly), keeping the order stated here is what makes "the engine
-    ///      was asked to stop, THEN declared gone" true of every teardown.
+    ///   2. `sendLifecycleCommand("quit")` → the child is told to go, and the
+    ///      transcript says so. This MUST precede step 3: `endEngineSession`
+    ///      shuts the command gate, and while the `quit` itself bypasses that
+    ///      gate (that is what "lifecycle command" means), keeping the order
+    ///      stated here is what makes "the engine was asked to stop, THEN
+    ///      declared gone" true of every teardown.
     ///   3. `endEngineSession(.launching)` → the session state that claims an
     ///      engine exists comes down at once, so the ~3.5s `terminate()`
     ///      escalation below is not a window in which a sidebar click can push
@@ -1463,7 +1464,24 @@ final class MainWindowController: NSWindowController {
         session.stopRequested = true
 
         // (2) Ask the engine to quit — BEFORE the session is declared gone.
-        engineProcess?.sendCommand("quit")
+        //
+        // Through the SESSION, so the Developer-Mode transcript echoes it like
+        // every other command: a teardown that leaves no trace is a teardown
+        // nobody can debug. `sendLifecycleCommand` writes to the same
+        // subprocess (`session.engine` IS `engineProcess` once
+        // `startKataGoThread` wired it in) and bypasses the command gate, which
+        // is exactly what a teardown must not be blocked by.
+        //
+        // Identity-checked rather than assumed: before the first spawn — or
+        // after one that failed — `session.engine` is still the unused
+        // in-process bridge, and a `quit` written into that process-global
+        // input buffer would sit there waiting for an engine that has not
+        // started yet.
+        if let engineProcess, session.engine === engineProcess {
+            session.sendLifecycleCommand("quit")
+        } else {
+            engineProcess?.sendCommand("quit")
+        }
 
         // (3) The engine is on its way out, so nothing may still behave as
         // though one is there. `endEngineSession` shuts the command gate,
@@ -1569,15 +1587,32 @@ final class MainWindowController: NSWindowController {
     ///
     /// Deliberately UNGUARDED on engine readiness: this is also the Retry
     /// action on the status line's `.failed` state, and refusing to relaunch a
-    /// dead engine would leave the only way out disabled. The re-entrancy
-    /// guard lives on the callers that can be triggered mid-launch
-    /// (`selectActiveModel`).
+    /// dead engine would leave the only way out disabled.
+    ///
+    /// It IS guarded on re-entrancy. Readiness is not the same question: a
+    /// relaunch spends most of its life with the engine unready, and the three
+    /// ways in here (Retry, the Models window's Play, the toolbar dropdown)
+    /// are not all covered by the dropdown's own `isReady` check — Retry is
+    /// reachable precisely when the engine is NOT ready, and the Models window
+    /// switches nets with no readiness check at all. Two overlapping calls
+    /// would run two teardown/spawn pairs against one session: two `run()`
+    /// loops on one transport, and `engineProcess` replaced underneath the
+    /// teardown still waiting on it. `EngineRestartRules.shouldBeginRelaunch`
+    /// is the decision, so it is pinned by a test this target cannot host.
     ///
     /// NOTE: arming/clearing the crash sentinel (`pendingLoadModelTitle`) around
     /// this launch is P5-T4's job; this method only records the selection.
     func relaunch(model: NeuralNetworkModel) {
+        guard EngineRestartRules.shouldBeginRelaunch(isRelaunchInFlight: isRelaunching) else { return }
+        isRelaunching = true
         modelSelection.setActiveModel(model)
         Task { @MainActor in
+            // `defer` rather than a trailing assignment: `startEngineAndSession`
+            // is synchronous but starts its own handshake Task, and anything
+            // that throws or returns early below must still release the guard —
+            // a stuck flag would make the app permanently un-relaunchable, with
+            // Retry silently doing nothing.
+            defer { isRelaunching = false }
             await stopEngineAndSession()
             startEngineAndSession()
         }
@@ -1745,7 +1780,7 @@ final class MainWindowController: NSWindowController {
     //
     // Port of the iOS `ModelRunnerView.onChange(of: engineLifecycle.lastLoadedModelTitle)`
     // (lines 115-119): when the engine's first GTP response lands,
-    // `GameSession.initialize` calls `engineLifecycle.markFirstResponse(...)`,
+    // `GameSession.handshake` calls `engineLifecycle.markFirstResponse(...)`,
     // which sets `lastLoadedModelTitle`. On that `nil -> non-nil` transition we
     // record the title as the last-good selection and CLEAR the crash sentinel.
     // Same self-rescheduling `withObservationTracking` pattern (and gotchas) as

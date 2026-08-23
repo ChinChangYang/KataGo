@@ -246,4 +246,23 @@ struct EngineRestartRulesTests {
         #expect(!EngineRestartRules.shouldArmReadLoop(generation: 1))
         #expect(!EngineRestartRules.shouldArmReadLoop(generation: 7))
     }
+
+    // MARK: - The macOS relaunch guard
+
+    /// macOS has no `Phase`: `MainWindowController.relaunch(model:)` is a
+    /// synchronous method that starts a Task, reachable from Retry, the Models
+    /// window's Play and the toolbar dropdown. Two overlapping calls would run
+    /// two teardown/spawn pairs against ONE session — two `run()` loops on one
+    /// transport, and `engineProcess` replaced underneath the teardown still
+    /// waiting on it. There is no Mac unit target that can host a window
+    /// controller, so the decision lives here.
+    @Test func aRelaunchIsRefusedWhileAnotherIsInFlight() {
+        #expect(!EngineRestartRules.shouldBeginRelaunch(isRelaunchInFlight: true))
+    }
+
+    @Test func aRelaunchIsAllowedWhenNoneIsInFlight() {
+        // Including from a FAILED engine: that is the status line's Retry, and
+        // readiness is deliberately not part of this question.
+        #expect(EngineRestartRules.shouldBeginRelaunch(isRelaunchInFlight: false))
+    }
 }

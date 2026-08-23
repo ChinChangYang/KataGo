@@ -65,7 +65,7 @@ board displays, never a screen that replaces it.**
    writer of `Stones.blackPoints/whitePoints/moveOrder/*Captured` and
    `BoardSize.width/height`; `showboard` ASCII never populates a stone again.
    `maybeCollectBoard` is now `maybeCollectSync`
-   (`Session/GameSession.swift:507`) and does exactly one thing: consume the
+   (`Session/GameSession.swift:527`) and does exactly one thing: consume the
    `= MoveNum` acknowledgement and the `Next player` line. Replay stays tolerant
    — exactly KataGo's `play` legality (`BoardHistory::isLegalTolerant`,
    `cpp/game/boardhistory.cpp:887`): only occupied points, off-board points and
@@ -114,8 +114,9 @@ board displays, never a screen that replaces it.**
    immediately and engine-free: haptics and sound (via
    `Stones.positionGeneration`, `:168`, which `StoneView:240` triggers on), the
    per-index `blackStones`/`whiteStones` cache the widget reads
-   (`RecordStoneCache.write`, `Session/RecordStoneCache.swift:30`), the widget
-   reload latch, opening-book sync, and the macOS draft's `noteChanged`. One
+   (`RecordStoneCache.write`, `Session/RecordStoneCache.swift:41`, which
+   refuses a key naming a different record), the widget reload latch,
+   opening-book sync, and the macOS draft's `noteChanged`. One
    driver per host: `View.recordPositionSync(...)` on iOS/tvOS,
    `trackRecordPosition()` (`withObservationTracking`) on macOS, an explicit
    call on visionOS.
@@ -131,13 +132,13 @@ board displays, never a screen that replaces it.**
    returns whether the command went out and logs
    `> (dropped — engine unavailable) …` when it did not. Lifecycle commands —
    `version`, `stop`, `quit` — bypass the gate through
-   `GameSession.sendLifecycleCommand` (`Session/GameSession.swift:281`), because
+   `GameSession.sendLifecycleCommand` (`Session/GameSession.swift:257`), because
    they are how the engine is torn down and must never be swallowed by the state
    they are trying to change. `sendShowBoardCommand` counts only showboards
    actually sent: an incremented-but-unsent counter would pin `showBoardCount > 0`
    forever and the board would never report in sync again.
    `maybeCollectSync`, `maybeResetPendingStatesOnError` and `maybeCollectAnalysis`
-   (`:563`) are all gated on the same flag, so a dying engine's trailing output
+   (`:583`) are all gated on the same flag, so a dying engine's trailing output
    cannot claim sync or file analysis against a board it does not hold.
 
 7. **Availability is a five-state value with one vocabulary.**
@@ -156,13 +157,25 @@ board displays, never a screen that replaces it.**
    Max Board Size renders normally and the line says "Board larger than Max Board
    Size N". `EngineHeldRule.decide` (`Services/EngineStatus.swift:204`) is the
    one rule, shared by all four hosts (`AppEngineController.applyHeldStatus`
-   `KataGo iOS/App/AppEngineController.swift:372`;
-   `MainWindowController.applyHeldStatus` `:1089`;
+   `KataGo iOS/App/AppEngineController.swift:384`;
+   `MainWindowController.applyHeldStatus` `:1095`;
    `VisionEngineController.applyHeldStatus` `:311`;
    `TVEngineController.applyHeldStatus` `:389`). It only ever moves
-   `.ready ↔ .held` and is idempotent. Entering Held sends `stop` as a lifecycle
-   command **first**, then shuts the gate and runs `resetForFreshEngine`; leaving
-   it reopens the gate and re-states the whole position. Shutting the gate is
+   `.ready ↔ .held` and is idempotent. The EFFECT is shared too, and lives where
+   the session's other lifecycle edges do:
+   `GameSession.holdEngineSession(maxBoardLength:)`
+   (`Session/GameSession.swift:363`) sends `stop` as a lifecycle command
+   **first**, then drops any half-read `showboard` block
+   (`abortInFlightBoardCollection`), shuts the gate, runs `resetForFreshEngine`,
+   and writes the status last; `releaseEngineHold(gameRecord:feeds:)` (`:382`)
+   reopens the gate and re-states the whole position through
+   `resyncEngineAfterHandshake` — with `feeds: false` for tvOS's
+   `noteBoardMounted`, whose next breath is a `loadGame` that states it anyway.
+   The hosts decide and delegate; they no longer each spell the effect out.
+   Three of the four hand-written copies skipped the abort, and that strands
+   `maybeCollectSync` mid-block: the next engine's `= MoveNum` line is eaten as
+   board text, `showBoardCount` never returns to 0, and analysis and taps stay
+   dead until a relaunch. Shutting the gate is
    load-bearing: `forwardMoves`/`backwardMoves` do not check board size, so
    scrubbing an oversized record would otherwise push `play` after `play` at an
    engine that was never told this board exists. This replaced iOS `GobanView`'s
@@ -174,7 +187,7 @@ board displays, never a screen that replaces it.**
    `VisionRootView.swift:713`).
 
 9. **The handshake is bounded, cancellation-aware and the sole reader.**
-   `GameSession.handshake` (`Session/GameSession.swift:172`) shuts the gate,
+   `GameSession.handshake` (`Session/GameSession.swift:141`) shuts the gate,
    resets for a fresh engine, clears the pending output, sends `version` as a
    lifecycle command and then loops over `getMessageLine(timeoutSeconds:)`
    (`Bridge/KataGoEngineIO.swift:32`, with a default that falls back to the
@@ -184,10 +197,13 @@ board displays, never a screen that replaces it.**
    running and reading — but does not clear the crash sentinel, because it is not
    a successful model load. This is behaviour-preserving: before the gate existed,
    a `? ` version reply fell through the `= ` check and the host sent normally
-   anyway. The budget is `defaultHandshakeTimeout = 660` (`:96`), the Core ML
+   anyway. When an EOF and a cancellation land in the same slice, the EOF's
+   reason wins: "The engine stopped." is what this handshake actually learned,
+   and "did not answer in time" would replace it with a statement about
+   patience. The budget is `defaultHandshakeTimeout = 660` (`:96`), the Core ML
    loader's own 600 s + 60 s launch fallback. **Every restart gets the same 660 s**
    on every platform (`AppEngineController.restartHandshakeTimeout:428`,
-   `VisionEngineController:386`, `TVEngineController:463`): the Core ML cache key
+   `VisionEngineController:378`, `TVEngineController:459`): the Core ML cache key
    carries `boardXLen`/`boardYLen`, so a Max Board Size change misses the cache by
    construction and pays a full conversion plus compile.
 
@@ -195,17 +211,21 @@ board displays, never a screen that replaces it.**
     (`Services/EngineRestartRules.swift:17`) owns `untilSettled` (`:33`, a
     deadline-checked, cancellation-observing poll — a `CheckedContinuation` never
     observes cancellation, so the previous wrapper was decoration),
-    `canRestart(from:)` (`:62`, which allows `.failed` so Retry works) and
-    `shouldArmReadLoop(generation:)` (`:82`, which arms a read loop a failed boot
-    never armed, and resumes rather than re-keys one that already exists).
+    `canRestart(from:)` (`:62`, which allows `.failed` so Retry works),
+    `shouldBeginRelaunch(isRelaunchInFlight:)` (`:86`, macOS's stand-in for a
+    `Phase`) and `shouldArmReadLoop(generation:)` (`:103`, which arms a read loop
+    a failed boot never armed, and resumes rather than re-keys one that already
+    exists).
     `stopRequested` is raised **before** the `quit` so a death during the drain
     window is not reported to the user as a crash; `stop`/`quit` are sent only
     when the engine thread is actually running, because a `quit` written into the
     process-global input buffer with nothing draining it would be the first line
     the *replacement* engine reads. A thread that returns is classified by
-    `EngineExitDisposition.decide(fatalError:stopWasRequested:)` (`:237`) and
-    handed to `GameSession.noteEngineExit` (`:328`) **before** any stop flag
-    moves.
+    `EngineExitDisposition.decide(fatalError:stopWasRequested:)`
+    (`Services/EngineStatus.swift:237` — the disposition lives with the rest of
+    the status vocabulary, not in `EngineRestartRules`) and handed to
+    `GameSession.noteEngineExit` (`Session/GameSession.swift:304`) **before**
+    any stop flag moves.
 
 11. **Latest selection wins.** A feed offered while the gate is shut is dropped,
     logged, and recorded as a debt on `GobanState.engineSyncGate`
@@ -213,11 +233,15 @@ board displays, never a screen that replaces it.**
     handshake's tail pays it by feeding the **live** record at the **live**
     cursor (`resyncEngineAfterHandshake`, `:1448`), which is also the right
     answer when the user switched games mid-launch.
-    `sendInitialCommands` is no longer called by any host:
-    `EngineFeed.openingCommands` is a strict superset of it (pinned by
-    `EngineFeedInitialCommandsTests`), and stating a default 19×19 board before
-    anything had decided Held is the exact sequence that aborts a helper on its
-    first evaluation.
+    `GameSession.sendInitialCommands` — the fixed bundle of config commands
+    every host used to send after its handshake — is DELETED, together with the
+    `initialize` convenience that paired it with the handshake. Stating a
+    default 19×19 board before anything had decided Held is the exact sequence
+    that aborts a helper on its first evaluation, and
+    `EngineFeed.openingCommands` says everything that bundle said.
+    `EngineFeedInitialCommandsTests` still pins the superset claim: it carries
+    the deleted bundle transcribed as its reference list, which is what stops a
+    command being dropped from the feed unnoticed.
 
 12. **`loadGame` honours the saved index everywhere** (`:1255`). iOS launch used
     to open at the tip only because the `loadsgf` echo reset the cursor. tvOS
@@ -292,6 +316,19 @@ board displays, never a screen that replaces it.**
   over every fixture, but no production run has confirmed it. The mitigation is
   the DEBUG-only divergence log, which prints one line and changes nothing —
   deliberately no self-heal.
+- **The move-number markers are re-derived, and a `B;B` record moves them.**
+  The digits `showboard` used to print now come from `SgfReplay.Position`'s
+  `lastThreeMoves` (`SgfReplay.swift:51`), which mirrors `Board::printBoard`:
+  the last three ACCEPTED move points, oldest first, a point that appears twice
+  keeping its oldest digit, and passes and refused moves marking nothing. The
+  window is kept over the history `Search::makeMove` maintains — and that
+  history is CLEARED whenever the mover is not the side the engine expected
+  (`setPlayerAndClearHistory`, `cpp/search/search.cpp`), so a colour repeat
+  starts a fresh window containing only the repeating move. The upshot: the
+  markers are identical to the old showboard-derived ones on every ordinary
+  record, and differ only where a record plays the same colour twice in a row.
+  Argued and tested, not observed against a live engine.
+
 - **A mixed AB/AW record with `PL[W]` at index 0 analyses for Black.**
   `set_position` leaves Black to move and the feed does not pass a colour. Known
   gap; stage 2 can state it explicitly. `SgfReplay.toMove` ignores `PL[]` for the
@@ -384,6 +421,24 @@ board displays, never a screen that replaces it.**
   this change — but wrapping text on a 10-foot UI is against the tvOS rule, and
   moving it into the side panel would mean a tvOS string outside
   `EngineStatusText`. Flagged, not fixed.
+- **The macOS model dropdown is disabled while Held.** Its validation is
+  `menuItem.isEnabled && session.engineStatus.isReady`, and *Held* is not
+  *Ready* — so the toolbar cannot switch nets on a board the running engine
+  cannot hold. The Models window's Play still can (it carries no readiness
+  check, deliberately: it is also how a failed engine is replaced), and that is
+  the way out of a Held launch on macOS.
+
+- **A second macOS relaunch is rejected, not queued.**
+  `MainWindowController.relaunch(model:)` is reachable from three places that
+  can fire while one is already tearing down — the status line's Retry, the
+  Models window's Play, the toolbar dropdown — and two overlapping calls would
+  run two teardown/spawn pairs against one session (two `run()` loops on one
+  transport, `engineProcess` replaced underneath the teardown still waiting on
+  it). An `isRelaunching` flag, decided by
+  `EngineRestartRules.shouldBeginRelaunch`, drops the second call for the
+  duration of the first. The in-process controllers answer the same question
+  with their `Phase`; macOS has none, which is why it needs the flag.
+
 - **Max Board Size means something slightly different per platform.** iOS,
   visionOS and tvOS restart the engine in the background with the board visible;
   macOS applies it at spawn time only, deliberately — a relaunch there would
@@ -425,9 +480,11 @@ board displays, never a screen that replaces it.**
   user who dismisses the failure has a permanently silent engine.
 - **Developer-Mode commands typed while the engine is unavailable are dropped**,
   with a transcript line, never queued or replayed.
-- **`GameSession.initialize` has no production caller left.** Every host now
-  calls `handshake` and lets the feed configure the engine; `initialize` survives
-  for three test call sites.
+- **`GameSession.initialize` and `sendInitialCommands` are gone.** Every host
+  calls `handshake` and lets the feed configure the engine, so the pair had no
+  production caller left; the tests that were their last three call sites now
+  target `handshake` (`GameSessionInitializeClearTests`) and a transcribed
+  reference list (`EngineFeedInitialCommandsTests`).
 - **Neither macOS nor visionOS nor tvOS has automated coverage of its host
   wiring.** There is no Mac UI-test target and no Vision or TV test bundle, so
   the boot / restart / Held choreography on those three is pinned only by the

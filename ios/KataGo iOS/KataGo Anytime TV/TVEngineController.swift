@@ -140,11 +140,12 @@ final class TVEngineController {
 
     /// The boot handshake, and everything that depends on it landing.
     ///
-    /// It calls `handshake` rather than `initialize`: `sendInitialCommands`
-    /// would state a DEFAULT 19x19 board before anything had asked whether this
-    /// engine can hold one (a Max Board Size of 9 launches a 9 buffer), and the
-    /// feed re-states board size, rules, komi and the human profiles anyway —
-    /// pinned by `EngineFeedInitialCommandsTests`.
+    /// It calls `handshake` and then the FEED, never a fixed bundle of config
+    /// commands first: such a bundle stated a DEFAULT 19x19 board before
+    /// anything had asked whether this engine can hold one (a Max Board Size of
+    /// 9 launches a 9 buffer), and the feed states board size, rules, komi and
+    /// the human profiles anyway — pinned by
+    /// `EngineFeedInitialCommandsTests`.
     private func completeInitialHandshake() async {
         guard let session, let engineLifecycle else { return }
         // The BOOT handshake keeps the full `defaultHandshakeTimeout`: a cold
@@ -400,30 +401,26 @@ final class TVEngineController {
         // every reader even when the value is identical, and this runs on every
         // screen entry and every engine transition.
         guard next != current else { return }
-        engineStatus.availability = next
 
+        // The rule decides THAT it happens; the session owns WHAT happens
+        // (`holdEngineSession` / `releaseEngineHold`), shared with iOS, macOS
+        // and visionOS. Four hand-written copies of the effect is how three of
+        // them ended up skipping `abortInFlightBoardCollection` — which strands
+        // a half-read `showboard` block and kills analysis until a relaunch.
         switch next {
-        case .held:
-            // Stop the search FIRST, while a command can still mean something.
-            // The engine is still running `kata-analyze` for the PREVIOUS
-            // position and nothing else will halt it: the ordinary `stop` goes
-            // through `appendAndSend`, which is about to start dropping, and
-            // `loadGame` returns at its `boardFitsEngine` guard without sending
-            // anything at all. A lifecycle command precisely because the gate
-            // must not be able to swallow it.
-            session.sendLifecycleCommand("stop")
-            session.messageList.isAcceptingCommands = false
-            // Nothing the engine holds relates to what is on screen any more.
-            session.gobanState.resetForFreshEngine(stones: session.stones)
+        case .held(let maxBoardLength):
+            session.holdEngineSession(maxBoardLength: maxBoardLength)
         case .ready:
-            // The board fits again (a smaller game was opened, the screen was
-            // left, or the engine relaunched with a bigger buffer). Reopen and
-            // re-state the whole position from scratch — board size, rules,
-            // setup, every move.
-            session.messageList.isAcceptingCommands = true
-            if feedsOnRelease { resyncAfterHandshake() }
+            // The mounted board first, the navigation selection second — the
+            // same order `resyncAfterHandshake` uses, and for the same reason
+            // (the review and play screens park the selection at nil).
+            session.releaseEngineHold(
+                gameRecord: mountedGame ?? navigationContext?.selectedGameRecord,
+                feeds: feedsOnRelease)
         default:
-            break
+            // Unreachable — `EngineHeldRule` only ever moves `.ready ↔ .held`,
+            // and an unchanged verdict returned above.
+            engineStatus.availability = next
         }
     }
 

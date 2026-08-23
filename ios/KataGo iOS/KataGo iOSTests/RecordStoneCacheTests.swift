@@ -14,6 +14,7 @@
 
 import Testing
 import Foundation
+import SwiftData
 @testable import KataGoUICore
 
 @MainActor
@@ -118,5 +119,46 @@ struct RecordStoneCacheTests {
 
         #expect(record.moves?[1] == "D6")
         #expect(record.moves?[2] == nil)    // there is no third move to name
+    }
+
+    /// Every caller pairs a key from the PROJECTOR with a record from the
+    /// HOST's selection, and a game switch moves those two one at a time. A
+    /// write under a mismatched pair stamps the outgoing game's position into
+    /// the incoming game's cache — at the outgoing game's index — and the
+    /// widget then renders that as the incoming game's board. Refused.
+    @Test func aKeyThatNamesAnotherRecordIsRefused() throws {
+        let container = try ModelContainer(
+            for: SharedModelContainer.schema,
+            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
+                                               isStoredInMemoryOnly: true)
+        )
+        let mine = GameRecord.createGameRecord(sgf: Self.sgf)
+        let other = GameRecord.createGameRecord(sgf: Self.sgf)
+        container.mainContext.insert(mine)
+        container.mainContext.insert(other)
+
+        let (published, _) = position(at: 2)
+        let foreignKey = RecordPositionKey(recordID: other.persistentModelID,
+                                           sgf: Self.sgf, index: 2, isBranchActive: false)
+
+        #expect(!RecordStoneCache.write(position: published, key: foreignKey, into: mine))
+        #expect(mine.blackStones?[2] == nil)
+        #expect(mine.moves?[1] == nil)
+
+        // The same key against the record it actually names still writes.
+        let ownKey = RecordPositionKey(recordID: mine.persistentModelID,
+                                       sgf: Self.sgf, index: 2, isBranchActive: false)
+        #expect(RecordStoneCache.write(position: published, key: ownKey, into: mine))
+        #expect(mine.blackStones?[2] == "C7")
+    }
+
+    /// A nil id is not a mismatch: an unsaved record has no persistent identity
+    /// yet, and every projector key built before one exists carries nil.
+    @Test func aKeyWithNoRecordIDStillWrites() {
+        let record = GameRecord.createGameRecord(sgf: Self.sgf)
+        let (published, key) = position(at: 2)
+
+        #expect(key.recordID == nil)
+        #expect(RecordStoneCache.write(position: published, key: key, into: record))
     }
 }

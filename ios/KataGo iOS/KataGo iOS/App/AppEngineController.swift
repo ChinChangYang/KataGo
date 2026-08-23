@@ -214,9 +214,12 @@ final class AppEngineController {
         // 2. The board must stop claiming the engine agrees with it the instant
         //    the user asks for a different one, not seconds later when the
         //    handshake finally runs. `endEngineSession` shuts the command gate,
-        //    clears `stones.isReady` and says *Launching*, all synchronously.
+        //    clears `stones.isReady` and says *Launching*, all synchronously —
+        //    and it runs immediately AFTER the teardown pair goes out, the same
+        //    order visionOS, tvOS and macOS use. (The pair bypasses the gate
+        //    either way, so the order is about one thing only: every host
+        //    tearing an engine down in the same sequence.)
         session.stopRequested = true
-        session.endEngineSession(.launching)
 
         // Stop any streaming search, then quit — but ONLY when there is an
         // engine to receive them. `sendCommand` writes into the process-global
@@ -230,7 +233,11 @@ final class AppEngineController {
             // is exactly what a teardown must not be blocked by.
             session.sendLifecycleCommand("stop")
             session.sendLifecycleCommand("quit")
+            session.endEngineSession(.launching)
+            // Give the loop a second to drain replies before it is nudged.
             try? await Task.sleep(for: .seconds(1))
+        } else {
+            session.endEngineSession(.launching)
         }
 
         // Wait for the read loop to stop reading — the handshake below has to be
@@ -369,6 +376,11 @@ final class AppEngineController {
     /// refusals would end up claiming the board was in sync. Shutting the gate
     /// routes every one of those sends down the path a launching engine
     /// already uses — dropped, logged, and remembered as a debt.
+    ///
+    /// The rule and the EFFECT are both shared: `EngineHeldRule` decides that
+    /// it happens, `GameSession.holdEngineSession`/`releaseEngineHold` are what
+    /// happens. Four hand-written copies of the effect is how three of them
+    /// ended up skipping `abortInFlightBoardCollection`.
     func applyHeldStatus(boardWidth: Int, boardHeight: Int) {
         guard let session else { return }
         let current = session.engineStatus.availability
@@ -383,28 +395,16 @@ final class AppEngineController {
         // every reader even when the value is identical, and this runs on every
         // game switch, board resize and engine transition.
         guard next != current else { return }
-        session.engineStatus.availability = next
 
         switch next {
-        case .held:
-            // Stop the search FIRST, while the gate is still open enough for a
-            // lifecycle command to mean something. The engine is still running
-            // a `kata-analyze` for the PREVIOUS position; nothing else will
-            // halt it (the ordinary `stop` goes through `appendAndSend`, which
-            // is about to start dropping, and `loadGame` returned at its
-            // `boardFitsEngine` guard without sending anything at all).
-            session.sendLifecycleCommand("stop")
-            session.messageList.isAcceptingCommands = false
-            // Nothing the engine holds relates to what is on screen any more.
-            session.gobanState.resetForFreshEngine(stones: session.stones)
+        case .held(let maxBoardLength):
+            session.holdEngineSession(maxBoardLength: maxBoardLength)
         case .ready:
-            // The board fits again (a smaller game was opened, or the engine
-            // relaunched with a bigger buffer). Reopen and re-state the whole
-            // position from scratch — board size, rules, setup, every move.
-            session.messageList.isAcceptingCommands = true
-            resyncAfterHandshake()
+            session.releaseEngineHold(gameRecord: navigationContext?.selectedGameRecord)
         default:
-            break
+            // Unreachable — `EngineHeldRule` only ever moves `.ready ↔ .held`,
+            // and an unchanged verdict returned above.
+            session.engineStatus.availability = next
         }
     }
 

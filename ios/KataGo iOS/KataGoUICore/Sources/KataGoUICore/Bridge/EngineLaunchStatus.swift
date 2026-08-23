@@ -1,9 +1,9 @@
 import Observation
 
 /// Observable bridge between the Core ML compile path (which crosses the
-/// C++/Swift boundary on a non-MainActor thread) and the launch screens'
-/// secondary caption. Producers must hop to MainActor before calling — the
-/// registration seam in `CoreMLComputeHandleLoader` does that for them.
+/// C++/Swift boundary on a non-MainActor thread) and the inline engine status
+/// line's secondary caption. Producers must hop to MainActor before calling —
+/// the registration seam in `CoreMLComputeHandleLoader` does that for them.
 ///
 /// The state is a **count, not a flag**. Increments and decrements commute, so
 /// a release that lands late — after the next compile has already begun —
@@ -21,8 +21,8 @@ public final class EngineLaunchStatus {
     /// is the balanced `compileBegan()` / `compileEnded()` pair.
     private var activeCompiles = 0
 
-    /// True while at least one Core ML compile is running. The launch screens
-    /// show their compile caption on exactly this, and on nothing else.
+    /// True while at least one Core ML compile is running. The status line
+    /// shows its compile caption on exactly this, and on nothing else.
     public var isCompiling: Bool { activeCompiles > 0 }
 
     public init() {}
@@ -41,11 +41,12 @@ public final class EngineLaunchStatus {
     }
 
     /// The secondary caption every launch surface shows: the ADR 0007 string
-    /// while a compile is genuinely running, and nothing otherwise. Hoisted
-    /// here (from two byte-identical copies in the since-deleted
-    /// `EngineLoadingView` and iOS `LoadingView`) so no surface can spell it
-    /// differently. There is no loading SCREEN left on any platform — the one
-    /// reader is now the inline engine-status line.
+    /// while a compile is genuinely running, and nothing otherwise. It lives
+    /// here, next to the count that decides it, so no surface can spell it
+    /// differently. There is no loading SCREEN left on any platform (ADR 0008)
+    /// — the one reader is the inline engine-status line, which asks
+    /// `EngineStatusText.decide(availability:isCompiling:note:)` for its words
+    /// and gets exactly this string back for a *Launching* engine.
     public var compileCaption: String? {
         isCompiling ? EngineStatusText.compilingCaption : nil
     }

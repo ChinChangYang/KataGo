@@ -98,6 +98,75 @@ struct GameSessionShowboardTests {
         #expect(session.stones.isReady)
     }
 
+    // MARK: - The shared Held seam
+
+    /// `holdEngineSession` is `abortInFlightBoardCollection` plus the gate,
+    /// plus the fresh-engine reset — and the abort is the part four hand-written
+    /// host copies used to miss. Without it the collector stays "inside a
+    /// block", so the NEXT acknowledgement's `= MoveNum` line is eaten as board
+    /// text: `showBoardCount` never returns to 0 and `maybeCollectAnalysis`,
+    /// gated on it, is dead until the app relaunches.
+    @Test func aHoldMidBlockLetsTheNextAckReturnTheCountToZero() async {
+        let session = GameSession.accepting()
+        let engine = RecordingEngine()
+        session.useEngine(engine)
+        session.engineStatus.availability = .ready
+        seedRecordPosition(session)
+
+        // A showboard is outstanding, and its block has begun arriving.
+        session.gobanState.showBoardCount = 1
+        for line in Self.block(nextPlayer: "White").prefix(3) {
+            await session.maybeCollectSync(message: line)
+        }
+        #expect(session.gobanState.showBoardCount == 0)
+
+        session.holdEngineSession(maxBoardLength: 19)
+        #expect(session.engineStatus.availability == .held(maxBoardLength: 19))
+        #expect(engine.sent.contains("stop"))
+        #expect(!session.messageList.isAcceptingCommands)
+
+        session.releaseEngineHold(gameRecord: nil)
+        #expect(session.engineStatus.availability == .ready)
+        #expect(session.messageList.isAcceptingCommands)
+
+        // The re-feed's own showboard, answered in full.
+        session.gobanState.showBoardCount = 1
+        for line in Self.block(nextPlayer: "Black") {
+            await session.maybeCollectSync(message: line)
+        }
+
+        #expect(session.gobanState.showBoardCount == 0,
+                "the ack after a hold was eaten as board text — analysis is dead until a relaunch")
+        #expect(session.stones.isReady)
+        #expect(session.player.nextColorForPlayCommand == .black)
+    }
+
+    /// The block a hold interrupted must not be able to finish afterwards: its
+    /// trailing lines belong to a position the engine no longer holds.
+    @Test func theInterruptedBlockCannotClaimSyncAfterTheHold() async {
+        let session = GameSession.accepting()
+        let engine = RecordingEngine()
+        session.useEngine(engine)
+        session.engineStatus.availability = .ready
+        seedRecordPosition(session)
+
+        session.gobanState.showBoardCount = 1
+        let lines = Self.block(nextPlayer: "White")
+        for line in lines.prefix(3) {
+            await session.maybeCollectSync(message: line)
+        }
+        session.holdEngineSession(maxBoardLength: 19)
+        session.releaseEngineHold(gameRecord: nil)
+
+        // The dying block's tail arrives after the release.
+        for line in lines.dropFirst(3) {
+            await session.maybeCollectSync(message: line)
+        }
+
+        #expect(!session.stones.isReady)
+        #expect(session.player.nextColorForPlayCommand != .white)
+    }
+
     @Test func abortingAnInFlightBlockKeepsItFromClaimingSync() async {
         // A game switch lands mid-block. The rest of the superseded block must
         // not flip `isReady` true for the game that just started loading.

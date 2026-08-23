@@ -69,6 +69,36 @@ final class PendingReplyEngine: KataGoEngineIO, @unchecked Sendable {
     nonisolated func clearPendingOutput() {}
 }
 
+/// The same exited child, but it cancels the handshake AT THE MOMENT the
+/// handshake observes the EOF — `hasReachedEOF` is read from inside the EOF
+/// branch, so the cancellation flag is raised after the branch has already
+/// recorded its reason and before the post-loop cancellation check reads it.
+/// That is the interleaving a `withTimeout` wrapper produces when the helper
+/// dies just as the wrapper gives up, and it must not turn "The engine stopped."
+/// into a statement about patience.
+final class EOFCancellingEngine: KataGoEngineIO, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _handshake: Task<String?, Never>?
+
+    /// Wire the handshake's own task in. The test does this before awaiting,
+    /// and a `@MainActor` `Task { }` cannot start until the test suspends, so
+    /// the read below always finds it.
+    var handshake: Task<String?, Never>? {
+        get { lock.withLock { _handshake } }
+        set { lock.withLock { _handshake = newValue } }
+    }
+
+    nonisolated func sendCommand(_ command: String) {}
+    nonisolated func getMessageLine() -> String { "" }
+    nonisolated func getMessageLine(timeoutSeconds: Double) -> String { "" }
+    nonisolated func sendMessage(_ message: String) {}
+    nonisolated var hasReachedEOF: Bool {
+        handshake?.cancel()
+        return true
+    }
+    nonisolated func clearPendingOutput() {}
+}
+
 /// A transport whose child has already exited: every read is "" and
 /// `hasReachedEOF` is true. Only the macOS subprocess can be in this state —
 /// the in-process bridge never EOFs.
@@ -288,6 +318,28 @@ struct GameSessionHandshakeTests {
                 == .failed(reason: EngineExitDisposition.defaultReason))
     }
 
+    /// An EOF and a cancellation in the same slice: the EOF is what the
+    /// handshake actually LEARNED (the engine is gone), and it must survive the
+    /// cancellation wording, which only knows that time ran out.
+    @Test func anEOFThatRacesCancellationStillReportsTheEngineStopped() async {
+        let engine = EOFCancellingEngine()
+        let session = GameSession()
+        session.useEngine(engine)
+
+        let handshake = Task {
+            await session.handshake(selectedModelTitle: "TestModel",
+                                    engineLifecycle: EngineLifecycle(),
+                                    timeoutSeconds: 5)
+        }
+        engine.handshake = handshake
+        let version = await handshake.value
+
+        #expect(version == nil)
+        #expect(session.engineStatus.availability
+                == .failed(reason: EngineExitDisposition.defaultReason),
+                "the EOF reason was overwritten by the cancellation's timeout wording")
+    }
+
     // MARK: - How an exit is classified
 
     /// The macOS relaunch path (`stopEngineAndSession`) sets `stopRequested`
@@ -408,7 +460,7 @@ struct GameSessionHandshakeTests {
     ///
     /// Behaviour-preserving: before the gate existed, a `? ` version reply fell
     /// through the `hasPrefix("= ")` check and the host went straight on to
-    /// `sendInitialCommands`/`loadGame`, which sent normally. The one thing the
+    /// its config commands and `loadGame`, which sent normally. The one thing the
     /// `= ` path does that this one must NOT is clear the OOM crash-loop
     /// sentinel: a `?` is not a successful model load.
     @Test func aQuestionMarkReplyOpensTheGateButLeavesTheSentinelArmed() async {

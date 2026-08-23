@@ -66,6 +66,27 @@ public enum EngineRestartRules {
         }
     }
 
+    /// Whether a relaunch may BEGIN, given whether one is already in flight.
+    ///
+    /// The in-process controllers answer this with their `Phase` (`canRestart`
+    /// above), which they move synchronously before awaiting anything. macOS
+    /// has no such phase — `MainWindowController.relaunch(model:)` is a
+    /// synchronous method that starts a `Task`, and it is reachable from three
+    /// places that can fire while an earlier relaunch is still tearing down:
+    /// the status line's Retry, the Models window's Play, and the toolbar
+    /// dropdown. Two overlapping calls would run two
+    /// `stopEngineAndSession()`/`startEngineAndSession()` pairs against ONE
+    /// session — two `run()` loops on one transport, and an `engineProcess`
+    /// replaced underneath the teardown that is still waiting on it.
+    ///
+    /// Rejected, not queued: the second caller's model would be the same net in
+    /// the common case (Retry double-tapped), and the in-flight relaunch is
+    /// already bringing an engine up. A genuinely different choice is one more
+    /// click away once it lands.
+    public static func shouldBeginRelaunch(isRelaunchInFlight: Bool) -> Bool {
+        !isRelaunchInFlight
+    }
+
     /// Whether a successful (re)start has to ARM the host's read loop, given the
     /// generation it is keyed on. Zero means no loop was ever started.
     ///

@@ -26,11 +26,23 @@ public enum RecordStoneCache {
     /// Skips entirely while a branch is active: a branch is a scratch line that
     /// is never saved, and its indices are numbered from the divergence point,
     /// so writing them would corrupt the mainline's cache.
+    ///
+    /// Skips too when the key describes a DIFFERENT record than the one handed
+    /// in. Every caller reads the record and the key from two places (a host's
+    /// selection and the projector's `currentKey`), and a game switch moves
+    /// them one at a time — so the pairing is an assumption, not a guarantee.
+    /// Writing under it would stamp the outgoing game's position into the
+    /// incoming game's cache at the outgoing game's index, which the widget
+    /// then renders as that game's board. Refused rather than corrected: this
+    /// is a caller bug, and a silent repair would hide it. A nil id on either
+    /// side is not a mismatch — an unsaved record has no persistent identity
+    /// yet, and the nil-key path publishes an empty board on purpose.
     @discardableResult
     public static func write(position: RecordPosition,
                              key: RecordPositionKey,
                              into record: GameRecord) -> Bool {
         guard !key.isBranchActive else { return false }
+        if let keyID = key.recordID, keyID != record.persistentModelID { return false }
         let index = key.index
         var wrote = false
 

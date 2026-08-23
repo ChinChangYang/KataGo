@@ -2,7 +2,7 @@
 //  GameSessionInitializeClearTests.swift
 //  KataGo iOSTests
 //
-//  Verifies that GameSession.initialize() drains stale, buffered output from a
+//  Verifies that GameSession.handshake() drains stale, buffered output from a
 //  prior in-process engine run BEFORE reading the `version` reply.
 //
 //  What the drain protects is NOT a board mount — the board never waits for the
@@ -77,10 +77,10 @@ final class NoClearQueueEngine: KataGoEngineIO, @unchecked Sendable {
 
 @MainActor
 struct GameSessionInitializeClearTests {
-    /// With the fix, `initialize()` clears the stale region first, so the
+    /// With the fix, `handshake()` clears the stale region first, so the
     /// blocking read returns the GENUINE version reply and markFirstResponse
     /// fires on it.
-    @Test func initializeClearsStaleOutputBeforeVersionRead() async {
+    @Test func handshakeClearsStaleOutputBeforeVersionRead() async {
         // Stale lines a prior run left behind: a kata-analyze `info` line, the
         // bare `= ` reply to `quit` (the sentinel-poisoning line), and the `\n`
         // nudge injected by the quit teardown (an empty line).
@@ -92,10 +92,9 @@ struct GameSessionInitializeClearTests {
         session.useEngine(engine)
         let lifecycle = EngineLifecycle()
 
-        let version = await session.initialize(
+        let version = await session.handshake(
             selectedModelTitle: "TestModel",
-            engineLifecycle: lifecycle,
-            config: nil
+            engineLifecycle: lifecycle
         )
 
         #expect(version == "= 1.16.3")
@@ -116,10 +115,9 @@ struct GameSessionInitializeClearTests {
         session.useEngine(engine)
         let lifecycle = EngineLifecycle()
 
-        let version = await session.initialize(
+        let version = await session.handshake(
             selectedModelTitle: "TestModel",
-            engineLifecycle: lifecycle,
-            config: nil
+            engineLifecycle: lifecycle
         )
 
         #expect(version == "= stale-poison")
@@ -178,9 +176,12 @@ final class GatedVersionEngine: KataGoEngineIO, @unchecked Sendable {
 @MainActor
 struct GameSessionHandshakeSplitTests {
     /// `handshake` must complete the version/first-response exchange WITHOUT
-    /// sending any config commands — those move to `sendInitialCommands`,
-    /// called after the host resolves which game seeds the engine.
-    @Test func handshakeSendsNoConfigCommandsUntilSendInitialCommands() async {
+    /// sending any config commands. Configuring the engine is the FEED's job
+    /// (`EngineFeed.openingCommands`, sent once the host has resolved which
+    /// game seeds it and whether the engine can hold that board) — a handshake
+    /// that stated a board size would announce a 37x37 record to a 19-buffer
+    /// engine before `EngineHeldRule` got a word in.
+    @Test func handshakeSendsNoConfigCommands() async {
         let engine = RecordingQueueEngine(live: ["= 1.16.3"])
         let session = GameSession()
         session.useEngine(engine)
@@ -193,30 +194,8 @@ struct GameSessionHandshakeSplitTests {
 
         #expect(version == "= 1.16.3")
         #expect(lifecycle.lastLoadedModelTitle == "TestModel")
-        #expect(!engine.sentCommands.contains { $0.hasPrefix("rectangular_boardsize") || $0.hasPrefix("komi") })
-
-        session.sendInitialCommands(config: Config())
-
-        #expect(engine.sentCommands.contains { $0.hasPrefix("rectangular_boardsize") })
-        #expect(engine.sentCommands.contains { $0.hasPrefix("komi") })
-    }
-
-    /// The `initialize` convenience (used by the macOS/tvOS hosts and the
-    /// tests above) must stay behavior-identical: handshake + config commands.
-    @Test func initializeStillSendsConfigCommands() async {
-        let engine = RecordingQueueEngine(live: ["= 1.16.3"])
-        let session = GameSession()
-        session.useEngine(engine)
-
-        let version = await session.initialize(
-            selectedModelTitle: "TestModel",
-            engineLifecycle: EngineLifecycle(),
-            config: Config()
-        )
-
-        #expect(version == "= 1.16.3")
-        #expect(engine.sentCommands.contains { $0.hasPrefix("rectangular_boardsize") })
-        #expect(engine.sentCommands.contains { $0.hasPrefix("komi") })
+        #expect(engine.sentCommands == ["version"],
+                "the handshake sent more than the one command it is: \(engine.sentCommands)")
     }
 
     /// The regression itself: a pending id set while the handshake's blocking
