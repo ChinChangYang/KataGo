@@ -2,12 +2,19 @@
 //  TVRootView.swift
 //  KataGo Anytime TV
 //
-//  Root of the tvOS review/spectate app. Launches the in-process engine (built-in
-//  b18 net, tvOS CoreML/NE config), does the GTP version handshake once, then
-//  hosts a TabView with two tabs: Library (a NavigationStack — game grid →
-//  read-only review / self-play drill-downs) and Settings. The GTP message loop
-//  (`session.run`) stays active at the root so analysis streams while a game is
-//  open.
+//  Root of the tvOS review/spectate app. Hosts the TabView — Library (a
+//  NavigationStack: game grid → read-only review / self-play drill-downs),
+//  Search, and Settings — from the FIRST FRAME, and launches the in-process
+//  engine (built-in b18 net, tvOS Core ML config) underneath it.
+//
+//  The library never waits for the engine. `TVEngineController` owns the launch
+//  and reports it through `session.engineStatus`, which this view injects; the
+//  review and play screens render that one short line
+//  (`EngineStatusView(.tvLine)`) in their analysis slot until the engine
+//  acknowledges the position. The GTP message loop (`session.run`) stays active
+//  at the root so analysis streams while a game is open — but it arms only once
+//  the first handshake has landed, because the handshake must be the bridge's
+//  sole reader while it runs.
 //
 
 import SwiftUI
@@ -87,7 +94,6 @@ struct TVRootView: View {
     @State private var controllerInput = TVControllerInput()
     @Environment(\.scenePhase) private var scenePhase
     @State private var aiMove: String? = nil
-    @State private var isReady = false
     @State private var engineStarted = false
     // NavigationPath (not [GameRecord]) so the self-play route can coexist
     // with game records in the Library tab's stack.
@@ -113,169 +119,170 @@ struct TVRootView: View {
     private let isRunningInPreview =
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 
-    init(isReady: Bool = false) {
-        // Previews inject `isReady: true` to render the post-handshake branch
-        // (NavigationStack + library) without an engine. The app always starts
-        // false and flips when the GTP version handshake completes.
-        _isReady = State(initialValue: isReady)
-    }
-
     var body: some View {
-        Group {
-            if isReady {
-                TabView(selection: $selectedTab) {
-                    NavigationStack(path: $libraryPath) {
-                        TVLibraryView()
-                            .navigationDestination(for: GameRecord.self) { game in
-                                TVGameDestinationView(game: game, onContinueLive: { seed in
-                                    libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                })
-                            }
-                            .navigationDestination(for: SelfPlayRoute.self) { route in
-                                TVSelfPlayScreen(route: route)
-                                    .toolbar(.hidden, for: .tabBar)
-                            }
-                            .navigationDestination(for: NewGameRoute.self) { _ in
-                                TVNewGameScreen(onStart: { record in
-                                    libraryPath.removeLast()      // replace the form with the game
-                                    libraryPath.append(record)    // classifier routes it to TVPlayScreen
-                                })
-                                .toolbar(.hidden, for: .tabBar)
-                            }
+        // The TabView mounts on the FIRST FRAME — there is no engine-ready gate
+        // in front of it any more. The library, Search and Settings are all
+        // engine-free; the two game screens draw the record position and report
+        // the engine as a line in their own analysis slot.
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $libraryPath) {
+                TVLibraryView()
+                    .navigationDestination(for: GameRecord.self) { game in
+                        TVGameDestinationView(game: game, onContinueLive: { seed in
+                            libraryPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                        })
                     }
-                    .tabItem { Label("Library", systemImage: "square.grid.2x2") }
-                    .tag(TVTab.library)
+                    .navigationDestination(for: SelfPlayRoute.self) { route in
+                        TVSelfPlayScreen(route: route)
+                            .toolbar(.hidden, for: .tabBar)
+                    }
+                    .navigationDestination(for: NewGameRoute.self) { _ in
+                        TVNewGameScreen(onStart: { record in
+                            libraryPath.removeLast()      // replace the form with the game
+                            libraryPath.append(record)    // classifier routes it to TVPlayScreen
+                        })
+                        .toolbar(.hidden, for: .tabBar)
+                    }
+            }
+            .tabItem { Label("Library", systemImage: "square.grid.2x2") }
+            .tag(TVTab.library)
 
-                    // Search is its own tab so tvOS renders its full-screen
-                    // keyboard there instead of pinning it above the Library
-                    // grid. Selecting a result pushes review inside this stack —
-                    // which therefore needs the SelfPlayRoute destination too,
-                    // or the live handoff silently no-ops for a game opened
-                    // from Search.
-                    NavigationStack(path: $searchPath) {
-                        TVSearchView()
-                            .navigationDestination(for: GameRecord.self) { game in
-                                TVGameDestinationView(game: game, onContinueLive: { seed in
-                                    searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
-                                })
-                            }
-                            .navigationDestination(for: SelfPlayRoute.self) { route in
-                                TVSelfPlayScreen(route: route)
-                                    .toolbar(.hidden, for: .tabBar)
-                            }
+            // Search is its own tab so tvOS renders its full-screen
+            // keyboard there instead of pinning it above the Library
+            // grid. Selecting a result pushes review inside this stack —
+            // which therefore needs the SelfPlayRoute destination too,
+            // or the live handoff silently no-ops for a game opened
+            // from Search.
+            NavigationStack(path: $searchPath) {
+                TVSearchView()
+                    .navigationDestination(for: GameRecord.self) { game in
+                        TVGameDestinationView(game: game, onContinueLive: { seed in
+                            searchPath.append(SelfPlayRoute(entry: .manual, seed: seed))
+                        })
                     }
-                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                    .tag(TVTab.search)
+                    .navigationDestination(for: SelfPlayRoute.self) { route in
+                        TVSelfPlayScreen(route: route)
+                            .toolbar(.hidden, for: .tabBar)
+                    }
+            }
+            .tabItem { Label("Search", systemImage: "magnifyingglass") }
+            .tag(TVTab.search)
 
-                    // Review and Self-Play stay drill-downs inside the Library
-                    // tab (they rely on @Environment(\.dismiss) + the attract/
-                    // manual exit contract), so only Search and Settings are
-                    // sibling tabs. `.toolbar(.hidden, for: .tabBar)` on every
-                    // pushed game screen keeps the persistent tab bar from
-                    // overlapping the hero board.
-                    NavigationStack {
-                        TVSettingsScreen()
-                    }
-                    .tabItem { Label("Settings", systemImage: "gearshape") }
-                    .tag(TVTab.settings)
-                }
-                // Inject the session's engine-driven models so the shared
-                // BoardView / analysis views resolve them via @Environment.
-                // Hosted on the TabView so BOTH tabs resolve them — the Library
-                // drill-downs AND the Settings screen's engine views.
-                .environment(session.stones)
-                .environment(session.messageList)
-                .environment(session.board)
-                .environment(session.player)
-                .environment(session.analysis)
-                .environment(session.gobanState)
-                .environment(session.rootWinrate)
-                .environment(session.rootScore)
-                .environment(session.bookLookup)
-                .environment(audioModel)
-                .environment(navigationContext)
-                .environment(syncMonitor)
-                .environment(attractMode)
-                .environment(engineController)
-                .environment(controllerInput)
-                // The session itself (not just its sub-models): shared board /
-                // analysis views resolve it via @Environment.
-                .environment(session)
-                // Idle-attract signals. Interaction detail (focus movement)
-                // is reported by TVLibraryView; the root owns the structural
-                // signals: which tab is showing, navigation depth, scene phase.
-                // Attract may only start while idling at the Library tab's root
-                // grid — never over a pushed screen or the Settings tab.
-                .onChange(of: libraryPath.count) { _, _ in
-                    // NavigationPath is not Equatable — observe its count.
-                    refreshAttractIdle()
-                }
-                .onChange(of: selectedTab) { _, _ in
-                    refreshAttractIdle()
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    attractMode.sceneIsActive = (phase == .active)
-                    refreshAttractIdle()
-                }
-                .task {
-                    // Wire the push closure and start the first countdown once
-                    // the library exists (this branch is engine-ready-gated).
-                    // Attract always runs on the Library tab, so select it first.
-                    attractMode.startAttract = {
-                        selectedTab = .library
-                        libraryPath.append(SelfPlayRoute(entry: .attract))
-                    }
-                    guard !isRunningInPreview else { return }
-                    refreshAttractIdle()
-                }
-                // Analysis stop lifecycle. tvOS has no per-game host controller
-                // (iOS uses GameSplitView, macOS MainWindowController), so the
-                // "stop" that halts the continuously-streaming kata-analyze lives
-                // here at the always-alive root. Without it the fanless Apple TV
-                // would keep running NN search forever after the user turns
-                // analysis off or backs out to the library.
-                .onChange(of: session.gobanState.analysisStatus) { _, newValue in
-                    // User toggled analysis off (TVReviewScreen sets .clear) —
-                    // but never while the broadcast's licensed gen-move is in
-                    // flight; see GobanState.shouldStopEngineOnAnalysisClear.
-                    if newValue == .clear,
-                       session.gobanState.shouldStopEngineOnAnalysisClear {
-                        session.messageList.appendAndSend(command: "stop")
-                    }
-                }
-                .onChange(of: session.gobanState.waitingForAnalysis) { oldValue, newValue in
-                    // Leaving the review screen pauses analysis (BoardView's
-                    // onDisappear → maybePauseAnalysis sets .pause and arms
-                    // waitingForAnalysis); the next streamed line drives this
-                    // true→false edge, at which point we stop the engine.
-                    if oldValue, !newValue, session.gobanState.analysisStatus == .pause {
-                        session.messageList.appendAndSend(command: "stop")
-                    }
-                }
-                .task {
-                    guard !isRunningInPreview else { return }
-                    // The GTP read loop — parses board/analysis lines into the
-                    // models. Runs for the app's lifetime; across an engine
-                    // restart (the Settings "Restart Engine" recovery) it exits
-                    // (stopRequested) and PARKS in the controller until the
-                    // new engine's handshake — which must be the bridge's
-                    // sole reader — completes, then reads again.
-                    while !Task.isCancelled {
-                        await session.run(gameRecords: gameRecords,
-                                          modelContext: modelContext,
-                                          navigationContext: navigationContext,
-                                          audioModel: audioModel,
-                                          aiMove: $aiMove)
-                        await engineController.noteRunLoopExited()
-                    }
-                }
-            } else {
-                TVLoadingView(caption: "Loading engine")
+            // Review and Self-Play stay drill-downs inside the Library
+            // tab (they rely on @Environment(\.dismiss) + the attract/
+            // manual exit contract), so only Search and Settings are
+            // sibling tabs. `.toolbar(.hidden, for: .tabBar)` on every
+            // pushed game screen keeps the persistent tab bar from
+            // overlapping the hero board.
+            NavigationStack {
+                TVSettingsScreen()
+            }
+            .tabItem { Label("Settings", systemImage: "gearshape") }
+            .tag(TVTab.settings)
+        }
+        // Inject the session's engine-driven models so the shared
+        // BoardView / analysis views resolve them via @Environment.
+        // Hosted on the TabView so BOTH tabs resolve them — the Library
+        // drill-downs AND the Settings screen's engine views.
+        .environment(session.stones)
+        .environment(session.messageList)
+        .environment(session.board)
+        .environment(session.player)
+        .environment(session.analysis)
+        .environment(session.gobanState)
+        .environment(session.rootWinrate)
+        .environment(session.rootScore)
+        .environment(session.bookLookup)
+        .environment(audioModel)
+        .environment(navigationContext)
+        .environment(syncMonitor)
+        .environment(attractMode)
+        .environment(engineController)
+        .environment(controllerInput)
+        // The session itself (not just its sub-models): shared board /
+        // analysis views resolve it via @Environment.
+        .environment(session)
+        // Engine availability, read as an OPTIONAL
+        // `@Environment(EngineStatus.self)` by the two game screens (and by the
+        // shared BoardView, which deliberately renders no inline pill on tvOS —
+        // the side panels carry the one line this platform can afford).
+        .environment(session.engineStatus)
+        // Idle-attract signals. Interaction detail (focus movement)
+        // is reported by TVLibraryView; the root owns the structural
+        // signals: which tab is showing, navigation depth, scene phase.
+        // Attract may only start while idling at the Library tab's root
+        // grid — never over a pushed screen or the Settings tab.
+        .onChange(of: libraryPath.count) { _, _ in
+            // NavigationPath is not Equatable — observe its count.
+            refreshAttractIdle()
+        }
+        .onChange(of: selectedTab) { _, _ in
+            refreshAttractIdle()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            attractMode.sceneIsActive = (phase == .active)
+            refreshAttractIdle()
+        }
+        .task {
+            // Wire the push closure and start the first countdown.
+            // Attract always runs on the Library tab, so select it first.
+            attractMode.startAttract = {
+                selectedTab = .library
+                libraryPath.append(SelfPlayRoute(entry: .attract))
+            }
+            guard !isRunningInPreview else { return }
+            refreshAttractIdle()
+        }
+        // Analysis stop lifecycle. tvOS has no per-game host controller
+        // (iOS uses GameSplitView, macOS MainWindowController), so the
+        // "stop" that halts the continuously-streaming kata-analyze lives
+        // here at the always-alive root. Without it the fanless Apple TV
+        // would keep running NN search forever after the user turns
+        // analysis off or backs out to the library.
+        .onChange(of: session.gobanState.analysisStatus) { _, newValue in
+            // User toggled analysis off (TVReviewScreen sets .clear) —
+            // but never while the broadcast's licensed gen-move is in
+            // flight; see GobanState.shouldStopEngineOnAnalysisClear.
+            if newValue == .clear,
+               session.gobanState.shouldStopEngineOnAnalysisClear {
+                session.messageList.appendAndSend(command: "stop")
             }
         }
-        // Diagnostics memory readout — floats over both the loading and ready
-        // branches so it's visible on every screen (and can catch the CoreML
-        // model-load spike if enabled before the engine starts/restarts).
+        .onChange(of: session.gobanState.waitingForAnalysis) { oldValue, newValue in
+            // Leaving the review screen pauses analysis (BoardView's
+            // onDisappear → maybePauseAnalysis sets .pause and arms
+            // waitingForAnalysis); the next streamed line drives this
+            // true→false edge, at which point we stop the engine.
+            if oldValue, !newValue, session.gobanState.analysisStatus == .pause {
+                session.messageList.appendAndSend(command: "stop")
+            }
+        }
+        // The GTP read loop — parses board/analysis lines into the models.
+        // Runs for the app's lifetime; across an engine restart (Settings ▸
+        // Restart Engine, a Max Board Size change, Retry) it exits
+        // (stopRequested) and PARKS in the controller until the new engine's
+        // handshake — which must be the bridge's SOLE reader — completes, then
+        // reads again.
+        //
+        // It must not run concurrently with that FIRST handshake either, so it
+        // arms only once one has landed: the generation bumps exactly once, and
+        // keying on it means a restart does not re-key (and therefore cancel)
+        // this task. A Retry after a FAILED boot is the case that needs the
+        // arming — that boot never started a loop at all.
+        .task(id: engineController.readLoopGeneration) {
+            guard !isRunningInPreview, engineController.readLoopGeneration > 0 else { return }
+            while !Task.isCancelled {
+                await session.run(gameRecords: gameRecords,
+                                  modelContext: modelContext,
+                                  navigationContext: navigationContext,
+                                  audioModel: audioModel,
+                                  aiMove: $aiMove)
+                await engineController.noteRunLoopExited()
+            }
+        }
+        // Diagnostics memory readout — floats over every screen (and can catch
+        // the Core ML model-load spike if enabled before the engine
+        // starts/restarts).
         .overlay(alignment: .topTrailing) {
             if showMemoryOverlay {
                 TVMemoryOverlay()
@@ -303,23 +310,11 @@ struct TVRootView: View {
             session.gobanState.continuousAnalysisUsesConfigInterval = true
 
             // Start the sync monitor at launch, in parallel with the engine
-            // handshake — the grace window and account check tick behind
-            // "Loading engine…", so by the time the library appears the
-            // empty-state verdict already has a head start.
+            // handshake — the grace window and account check tick while the
+            // engine loads, so the library's empty-state verdict is settled
+            // long before anything needs it.
             guard !isRunningInPreview else { return }
             syncMonitor.start()
-        }
-        .task {
-            guard !isReady, !isRunningInPreview else { return }
-            // Blocks on the engine's `version` reply (i.e. until the b18 net has
-            // finished loading), then sends the default board setup.
-            _ = await session.initialize(
-                selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
-                engineLifecycle: engineLifecycle,
-                config: nil)
-            // Handshake done: clear the crash sentinel armed before the spawn.
-            engineController.noteInitialHandshakeComplete()
-            isReady = true
         }
     }
 
@@ -341,7 +336,9 @@ struct TVRootView: View {
         guard !engineStarted, !isRunningInPreview else { return }
         engineStarted = true
         // Apple TV runs a single fixed Core ML backend, pinned to CPU+GPU.
-        engineController.configure(session: session, engineLifecycle: engineLifecycle)
+        engineController.configure(session: session,
+                                   engineLifecycle: engineLifecycle,
+                                   navigationContext: navigationContext)
         engineController.startInitial()
     }
 }
@@ -351,17 +348,19 @@ struct TVRootView: View {
 // #Preview bodies still compile in Release, and the TVPreviewData fixtures are
 // DEBUG-only — guard the whole section or archiving fails.
 #if DEBUG
-// The pre-handshake branch: spinning icon + caption while the engine loads the
-// net. The preview guard keeps the real engine from launching in the canvas.
-#Preview("Root — engine loading") {
+// An empty library, which is what a first launch shows while the engine is
+// still loading behind it — there is no pre-handshake branch to preview any
+// more. The preview guard keeps the real engine from launching in the canvas.
+#Preview("Root — empty library") {
     TVRootView()
         .environment(EngineLaunchStatus())
         .modelContainer(TVPreviewData.container(games: []))
 }
 
-// The post-handshake branch: NavigationStack + library, no engine.
+// The library itself, no engine.
 #Preview("Root — library") {
-    TVRootView(isReady: true)
+    TVRootView()
+        .environment(EngineLaunchStatus())
         .modelContainer(TVPreviewData.container(games: [
             TVPreviewData.openingGame(),
             TVPreviewData.smallBoardGame(),

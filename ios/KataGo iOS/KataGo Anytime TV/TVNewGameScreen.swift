@@ -170,14 +170,21 @@ struct TVNewGameScreen: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Color.tvWoodAccent)
-        .disabled(form.sgf == nil || engine.phase != .running)
+        // Engine-FREE, deliberately: creating the record and opening its board
+        // are pure record work (the SGF is written by the form, the board is
+        // replayed from it), so a game can be started while the net is still
+        // loading — the analysis line on the new board then reports the launch
+        // — and while the engine is *Held* on a board too large for it, where
+        // starting a smaller game is the way out of the hold. `canStart` is the
+        // form's own rule, pinned by TVNewGameFormTests.
+        .disabled(!form.canStart)
     }
 
     private func startGame() {
         // Guard again, independent of the button's `.disabled`: a stale focus
-        // press or a screenshot-tool synthetic press must not slip through if
-        // the engine dropped out of `.running` between renders.
-        guard engine.phase == .running, let sgf = form.sgf else { return }
+        // press or a screenshot-tool synthetic press must not slip through on
+        // a form that cannot produce an SGF.
+        guard let sgf = form.sgf else { return }
         let record = GameRecord.createGameRecord(sgf: sgf, name: form.suggestedName)
         form.apply(to: record.concreteConfig)
         modelContext.insert(record)

@@ -266,6 +266,45 @@ struct BroadcastReplayTests {
         #expect(f.controller.phase == .awaitingMove)
     }
 
+    /// The replay steps the record by FEEDING the engine (`forwardMoves`), so
+    /// a cycle that has parked in `.awaitingMove` must not take another step
+    /// while the engine is unavailable — a restart, a crash, or a Max Board
+    /// Size change. The board itself keeps drawing (it is record-owned); what
+    /// holds is the replay, until the engine acknowledges the position again.
+    ///
+    /// This pins the composition the tvOS review screen relies on: the
+    /// controller never advances itself, and the driver's decision
+    /// (`TVAutoPlayPolicy.tick`) reads the same `stones.isReady` that
+    /// `endEngineSession` clears.
+    @Test("A parked replay holds while the engine is unavailable")
+    func replayHoldsWhileEngineUnavailable() async {
+        let counter = Counter()
+        let f = Fixture(replayAdvance: { counter.advances += 1; return nil })
+        f.session.stones.isReady = true
+        f.controller.noteTurnChanged(game: f.record)
+        await f.pump(until: { f.controller.phase == .awaitingMove })
+        #expect(counter.advances == 1)
+
+        // The engine goes away: the gate shuts and every signal that claims
+        // the engine agrees with the board is dropped, `stones.isReady` first.
+        f.session.endEngineSession(.launching)
+        #expect(!f.session.stones.isReady)
+
+        // What TVReviewScreen.continueReplay asks on the .awaitingMove edge
+        // and again on every stones.isReady change.
+        #expect(TVAutoPlayPolicy.tick(hasNextMove: true,
+                                      isBranchActive: false,
+                                      stonesReady: f.session.stones.isReady,
+                                      recordedGameIsFinished: false,
+                                      boardFitsEngine: true,
+                                      thermalState: .nominal) == .hold)
+
+        // And nothing steps on its own while it holds.
+        for _ in 0..<500 { await Task.yield() }
+        #expect(counter.advances == 1)
+        #expect(f.controller.phase == .awaitingMove)
+    }
+
     @Test("A synced comment shows as a frameless Comment slide, typed and spoken")
     func commentSlideShowsOverLiveBoard() async {
         let counter = Counter()

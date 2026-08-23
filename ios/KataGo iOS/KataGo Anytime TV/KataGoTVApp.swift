@@ -37,8 +37,9 @@ struct KataGoTVApp: App {
         // engine launch (mirrors the iOS app), and force the engine stack to link.
         registerCoreMLBridge()
 
-        // Wire the engine-launch status updater seam so TVLoadingView can
-        // show a secondary caption during cache-miss compiles.
+        // Wire the engine-launch status updater seam so the game screens'
+        // one-line engine status can say "Compiling Core ML model…" during a
+        // cache-miss compile instead of the plainer "Loading engine…".
         registerEngineLaunchStatusUpdater(status)
     }
 

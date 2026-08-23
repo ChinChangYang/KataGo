@@ -48,6 +48,13 @@ struct TVPlayScreen: View {
     @Environment(Analysis.self) private var analysis
     @Environment(TVEngineController.self) private var engine
     @Environment(TVControllerInput.self) private var controllerInput
+    /// Engine availability, read OPTIONALLY (a preview that injects none reads
+    /// as ready). Its one short line takes the panel's analysis slot until the
+    /// engine acknowledges the position.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+    /// Whether a Core ML compile is part of the wait — the tvLine spends its
+    /// one line on the more informative caption when it is.
+    @Environment(EngineLaunchStatus.self) private var launchStatus: EngineLaunchStatus?
     @Environment(\.dismiss) private var dismiss
 
     /// This screen's slot in the controller's LIFO handler stack.
@@ -85,35 +92,16 @@ struct TVPlayScreen: View {
     private var isGameOver: Bool { gobanState.passCount >= 2 }
 
     var body: some View {
-        // Gate on the size the RUNNING engine was launched with: a board larger
-        // than its NN buffer aborts the whole app on the first evaluation (see
-        // `boardFits`). The too-large branch never runs `loadIfNeeded()`, so no
-        // oversized board or analysis request ever reaches the engine.
-        if let gameConfig = game.config,
-           boardFits(width: gameConfig.boardWidth,
-                     height: gameConfig.boardHeight,
-                     maxBoardLength: engine.maxBoardLength) {
-            playContent
-        } else {
-            tooLargeView
-        }
-    }
-
-    /// The board is too large for the current Max Board Size. tvOS has no
-    /// neural-network picker, so the remedy points at Settings ▸ Board Size.
-    /// The Go Back button is load-bearing beyond convenience: with zero
-    /// focusable elements the tvOS focus engine can wedge and swallow the Menu
-    /// press, dead-ending the screen — and the explicit onExitCommand
-    /// reproduces the default pop even if it wedges again.
-    private var tooLargeView: some View {
-        ContentUnavailableView {
-            Label("Board Too Large", systemImage: "rectangle.portrait.and.arrow.forward")
-        } description: {
-            Text("This \(config.boardWidth)×\(config.boardHeight) game is larger than the current Max Board Size (\(engine.maxBoardLength)×\(engine.maxBoardLength)). Raise Max Board Size in the Settings tab, then reopen the game.")
-        } actions: {
-            Button("Go Back") { dismiss() }
-        }
-        .onExitCommand { dismiss() }
+        // A board larger than the running engine's NN buffer is a *Held*
+        // status, not a screen: the record position draws, the panel's analysis
+        // slot says "Board larger than Max Board Size N", and the engine is
+        // never told this board exists. `noteBoardMounted` (in `loadIfNeeded`,
+        // BEFORE anything is sent) decides that and shuts the command gate.
+        //
+        // Play stays refused there for a different reason: a move can only be
+        // submitted from an in-sync board (`stones.isReady`), which a held
+        // engine never grants.
+        playContent
     }
 
     // MARK: - Content
@@ -259,6 +247,9 @@ struct TVPlayScreen: View {
             if navigationContext.selectedGameRecord === game {
                 navigationContext.selectedGameRecord = nil
             }
+            // Release *Held* with the board that caused it, identity-guarded
+            // for the same reason as the line above.
+            engine.noteBoardDismissed(game)
             // Stop the stream on the way out (the root's waitingForAnalysis
             // observer turns the .pause into a GTP "stop").
             gobanState.maybePauseAnalysis()
@@ -293,15 +284,11 @@ struct TVPlayScreen: View {
                 // reflows the panel. Overlay visible ⇒ the live engine outputs;
                 // hidden ⇒ the per-move values recorded into this game (valid
                 // for the displayed position), or an em-dash when none exist.
-                Text(winRateText)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                analysisHeadline
                 Text("Score \(scoreText)")
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Text("Move \(displayIndex) — \(player.nextColorForPlayCommand == .black ? "Black" : "White") to play")
+                Text(moveAndTurnText)
                     .font(.body)
                     .foregroundStyle(.secondary)
 
@@ -502,6 +489,50 @@ struct TVPlayScreen: View {
         return game.scoreLeads?[displayIndex]
     }
 
+    /// The analysis slot's headline: the engine's ONE short line while it is
+    /// not ready (loading, failed, or *Held*), the win rate once it is.
+    ///
+    /// Replacing rather than adding: a win rate is an engine output, and while
+    /// nothing can analyse this position the live numbers read 0% — a wrong
+    /// answer where the reason belongs. Never the raw failure reason (no length
+    /// bound, and this screen may not truncate); Settings carries that.
+    @ViewBuilder
+    private var analysisHeadline: some View {
+        if let engineStatus, !engineStatus.isReady {
+            EngineStatusView(status: engineStatus,
+                             launchStatus: launchStatus,
+                             style: .tvLine)
+                // Stand in for the win rate's own height (a 34 pt rounded line
+                // measures ~40 pt) so the panel does not reflow when the engine
+                // lands. Pinned on THIS branch only: the win-rate branch keeps
+                // its natural layout, because the panel's 1000 pt budget is
+                // already tight enough to clip if anything below it grows.
+                .frame(height: 40, alignment: .leading)
+        } else {
+            // Always rendered at fixed metrics so the display toggle never
+            // reflows the panel. Overlay visible ⇒ the live engine outputs;
+            // hidden ⇒ the per-move values recorded into this game (valid for
+            // the displayed position), or an em-dash when none exist.
+            Text(winRateText)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    /// Where the game stands, and whose move it is as the ENGINE last reported
+    /// it. `.unknown` — parked between a position change and the `showboard`
+    /// that answers it, and for as long as there is no engine to answer at all
+    /// — says so instead of defaulting to White.
+    private var moveAndTurnText: String {
+        switch player.nextColorForPlayCommand {
+        case .black: return "Move \(displayIndex) — Black to play"
+        case .white: return "Move \(displayIndex) — White to play"
+        case .unknown: return "Move \(displayIndex) — waiting for the engine"
+        }
+    }
+
     private var winRateText: String {
         let winrate: Float
         if isAnalysisVisible {
@@ -540,6 +571,16 @@ struct TVPlayScreen: View {
         // BEFORE the load: the engine's play replies and printsgf echoes must
         // land in THIS record (GameSession routes by selectedGameRecord).
         navigationContext.selectedGameRecord = game
+        // Register this board with the engine controller BEFORE anything is
+        // sent: a board larger than the running engine's NN buffer becomes
+        // *Held* here, which shuts the command gate so nothing this entry does
+        // can reach an engine that would abort on it — and a restart while this
+        // screen is up knows which record to re-feed when its handshake lands.
+        // The size comes from the RECORD's SGF, never from `Config`.
+        let sgfHelper = SgfOperations(sgf: game.sgf)
+        engine.noteBoardMounted(game,
+                                width: sgfHelper.xSize,
+                                height: sgfHelper.ySize)
         // Land at the tip — a tvOS PRODUCT rule, not an engine recipe. tvOS
         // renders no overwrite dialog, and continuing a game means continuing
         // from its last move: a record synced mid-review
@@ -548,7 +589,7 @@ struct TVPlayScreen: View {
         // gen-move reply would latch confirmingAIOverwrite with nothing on
         // screen to confirm it, and the game would park before the user played
         // a move. Every other platform honours the saved cursor.
-        game.currentIndex = SgfOperations(sgf: game.sgf).moveSize ?? 0
+        game.currentIndex = sgfHelper.moveSize ?? 0
         // A game the user plays is theirs to edit: editingAfterLoad only
         // auto-unlocks the 19×19 defaultSgf, so a 9×9 or an already-played game
         // would land LOCKED and every move would branch-route — never

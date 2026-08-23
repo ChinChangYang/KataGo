@@ -78,6 +78,14 @@ struct TVSelfPlayScreen: View {
     @Environment(Analysis.self) private var analysis
     @Environment(TVEngineController.self) private var engine
     @Environment(TVControllerInput.self) private var controllerInput
+    /// Engine availability, read OPTIONALLY (a preview that injects none reads
+    /// as ready). Its one short line takes the panel's analysis slot until the
+    /// engine acknowledges the position — this screen can be entered while the
+    /// net is still loading (attract mode fires after 60 s idle, which a cold
+    /// Core ML compile easily outlasts).
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+    /// Whether a Core ML compile is part of the wait.
+    @Environment(EngineLaunchStatus.self) private var launchStatus: EngineLaunchStatus?
     @Environment(\.dismiss) private var dismiss
 
     /// This screen's slot in the controller's LIFO handler stack. Pushed over
@@ -412,15 +420,11 @@ struct TVSelfPlayScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(winRateText)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                analysisHeadline
                 Text("Score \(scoreText)")
                     .font(.body.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Text("Move \(game.currentIndex) — \(player.nextColorForPlayCommand == .black ? "Black" : "White") to play")
+                Text(moveAndTurnText(at: game.currentIndex))
                     .font(.body)
                     .foregroundStyle(.secondary)
 
@@ -536,6 +540,44 @@ struct TVSelfPlayScreen: View {
                                              : stones.whiteStonesCaptured)
     }
 
+    /// The analysis slot's headline: the engine's ONE short line while it is
+    /// not ready (loading, failed, or *Held* on a board too large for it), the
+    /// live win rate once it is. Replacing rather than adding, because a win
+    /// rate IS an engine output — while nothing can analyse this position the
+    /// number reads 0%, a wrong answer where the reason belongs. (The review
+    /// and play screens carry the identical slot.)
+    @ViewBuilder
+    private var analysisHeadline: some View {
+        if let engineStatus, !engineStatus.isReady {
+            EngineStatusView(status: engineStatus,
+                             launchStatus: launchStatus,
+                             style: .tvLine)
+                // Stand in for the win rate's own height (a 34 pt rounded line
+                // measures ~40 pt) so the panel does not reflow when the engine
+                // lands; the win-rate branch keeps its natural layout, because
+                // the 1000 pt budget clips if anything below it grows.
+                .frame(height: 40, alignment: .leading)
+        } else {
+            Text(winRateText)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    /// Where the game stands, and whose move it is as the ENGINE last reported
+    /// it. `.unknown` — parked between a position change and the `showboard`
+    /// that answers it, and for as long as there is no engine to answer at all
+    /// — says so instead of defaulting to White.
+    private func moveAndTurnText(at index: Int) -> String {
+        switch player.nextColorForPlayCommand {
+        case .black: return "Move \(index) — Black to play"
+        case .white: return "Move \(index) — White to play"
+        case .unknown: return "Move \(index) — waiting for the engine"
+        }
+    }
+
     private var winRateText: String {
         let b = Int((rootWinrate.black * 100).rounded())
         return "Black \(b)%   White \(100 - b)%"
@@ -594,6 +636,15 @@ struct TVSelfPlayScreen: View {
             return
         }
         game = newGame
+        // Register this board with the engine controller BEFORE anything is
+        // sent, exactly as the review and play screens do. A demo board is
+        // clamped to `maxBoardLength` at creation and a seeded continuation is
+        // refused above the cap (TVReviewScreen's handoff), so *Held* should
+        // never trigger here — but "should never" is not a reason to leave the
+        // controller blind: without this it would decide Held from a stale (or
+        // zero) size after a Max Board Size restart, and this screen would show
+        // no status at all while the engine ignored it.
+        registerBoard(newGame)
 
         // This screen is the player, not a spectator of a synced record —
         // and entry is always un-paused. Picks play directly into the
@@ -657,6 +708,16 @@ struct TVSelfPlayScreen: View {
         // that fires the turn observer.
     }
 
+    /// Tell the engine controller which board is on screen and how big it is.
+    /// The size comes from the RECORD's SGF, never from `Config` — the same
+    /// rule the review and play screens follow.
+    private func registerBoard(_ record: GameRecord) {
+        let sgfHelper = SgfOperations(sgf: record.sgf)
+        engine.noteBoardMounted(record,
+                                width: sgfHelper.xSize,
+                                height: sgfHelper.ySize)
+    }
+
     private func scheduleRestart() {
         guard restartTask == nil else { return }
         restartTask = Task {
@@ -687,6 +748,7 @@ struct TVSelfPlayScreen: View {
             return
         }
         game = next
+        registerBoard(next)
         navigationContext.selectedGameRecord = next
         gobanState.passCount = 0
         // A paused game can still end (two picked passes) — the next game
@@ -757,6 +819,10 @@ struct TVSelfPlayScreen: View {
         }
 
         if let game {
+            // Release the mounted board (identity-guarded inside) before the
+            // record goes away, so a later restart re-decides Held from
+            // "nothing is showing" rather than from a discarded game.
+            engine.noteBoardDismissed(game)
             TVSampleGameStore.discard(game)
         }
         game = nil

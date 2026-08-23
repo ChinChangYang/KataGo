@@ -171,6 +171,28 @@ struct TVNewGameFormTests {
         #expect(flipped.humanProfileForBlack == "3k")
     }
 
+    /// Creating the record and opening its board is ENGINE-FREE: the form
+    /// writes an SGF and inserts a `GameRecord`, and the board draws it from
+    /// the record. The Start button therefore gates on the form alone —
+    /// nothing about the engine — so a game can be started while the net is
+    /// still loading, and while the engine is *Held* on a board too large for
+    /// it (starting a smaller one is the way out of that hold).
+    @Test("Start Game gates on the form alone, never on the engine")
+    func startGameIsEngineFree() {
+        // Every form the screen can produce — including the ones a small NN
+        // buffer or an odd size yields — is startable, because nothing about
+        // the engine takes part in the decision. The form's only input that
+        // could ever refuse is its own SGF factory.
+        for cap in [2, 9, 13, 19, 37] {
+            var form = TVNewGameForm(maxBoardLength: cap)
+            #expect(form.canStart, "a \(cap)-capped form must be startable")
+            form.setSize(width: 2, height: 37)     // clamps to the cap
+            #expect(form.canStart)
+            form.setHandicap(9)                    // ignored where unavailable
+            #expect(form.canStart)
+        }
+    }
+
     @Test("suggested name carries the rank")
     func suggestedName() {
         var form = TVNewGameForm(maxBoardLength: 37)

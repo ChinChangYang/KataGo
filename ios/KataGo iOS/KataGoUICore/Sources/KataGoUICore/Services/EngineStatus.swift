@@ -188,9 +188,11 @@ public enum EngineStatusText {
 /// re-fires.
 ///
 /// One rule, four hosts: iOS (`AppEngineController.applyHeldStatus`), macOS
-/// (`MainWindowController.applyHeldStatus`) and visionOS
-/// (`VisionEngineController.applyHeldStatus`) all decide Held here. tvOS still
-/// has its own `boardFits` gate.
+/// (`MainWindowController.applyHeldStatus`), visionOS
+/// (`VisionEngineController.applyHeldStatus`) and tvOS
+/// (`TVEngineController.applyHeldStatus`, fed by the board each game screen
+/// registers) all decide Held here. No platform has a board-too-large SCREEN
+/// left.
 public enum EngineHeldRule {
     /// - Parameters:
     ///   - boardWidth/boardHeight: the PROJECTED record position's size (what

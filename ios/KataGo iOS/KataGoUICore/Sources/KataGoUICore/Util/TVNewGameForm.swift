@@ -87,6 +87,13 @@ public struct TVNewGameForm: Equatable {
                            ruleString: ruleString, handicap: handicap)
     }
 
+    /// Whether Start Game may be pressed. The form alone decides: creating the
+    /// record and drawing its board are ENGINE-FREE (the SGF is written here,
+    /// the board is replayed from the record), so a game can be started while
+    /// the net is still loading — and while the engine is *Held* on a board it
+    /// cannot serve, where starting a smaller game is the way out of the hold.
+    public var canStart: Bool { sgf != nil }
+
     public var suggestedName: String {
         rankProfile == "AI" ? "vs KataGo" : "vs KataGo \(rankProfile)"
     }

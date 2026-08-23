@@ -50,15 +50,46 @@ public enum TVAutoPlayPolicy {
     ///    of a game that call executes zero moves but still emits `showboard`
     ///    plus a kata-analyze restart, so a driver that leaned on it being a
     ///    no-op would spam GTP forever.
+    ///
+    /// - Parameter boardFitsEngine: whether the RUNNING engine's NN buffer can
+    ///   hold this board. Only the live handoff reads it — see `continuesLive`.
     public static func tick(hasNextMove: Bool,
                             isBranchActive: Bool,
                             stonesReady: Bool,
                             recordedGameIsFinished: Bool,
+                            boardFitsEngine: Bool,
                             thermalState: ProcessInfo.ThermalState) -> TVAutoPlayTick {
         if isBranchActive { return .stop(.branchActive) }
         if SelfPlayAttract.shouldStop(thermalState: thermalState) { return .stop(.thermal) }
         guard stonesReady else { return .hold }
-        guard hasNextMove else { return .finish(continuesLive: !recordedGameIsFinished) }
+        guard hasNextMove else {
+            return .finish(continuesLive: continuesLive(
+                recordedGameIsFinished: recordedGameIsFinished,
+                boardFitsEngine: boardFitsEngine))
+        }
         return .advance
+    }
+
+    /// Whether reaching the end of the recorded moves is worth handing off to a
+    /// live AI continuation.
+    ///
+    /// Two reasons not to, and they are different in kind:
+    ///
+    ///  * the recorded game already ENDED — continuing it would seed the engine
+    ///    with a position it answers by passing twice (the original rule);
+    ///  * the board does not FIT the running engine. The continuation creates a
+    ///    new record from the reviewed SGF, so its size is the reviewed size and
+    ///    nothing downstream can shrink it (`TVSampleGameStore.newSelfPlayGame(seed:)`
+    ///    cannot clamp a seeded position without changing it). A board over the
+    ///    NN buffer is a board the engine aborts on, and the continuation screen
+    ///    exists only to have the engine play — so there is nothing to hand off
+    ///    to. The replay stops on the final position instead, under the *Held*
+    ///    line the review panel is already showing.
+    ///
+    /// Public and separate because `startAutoPlay` asks it directly on the
+    /// "already parked at the last move" path, which never goes through `tick`.
+    public static func continuesLive(recordedGameIsFinished: Bool,
+                                     boardFitsEngine: Bool) -> Bool {
+        !recordedGameIsFinished && boardFitsEngine
     }
 }

@@ -56,11 +56,15 @@ enum TVSampleGameStore {
     /// the SAME private in-memory container as the demo — so a continuation of
     /// a CloudKit-synced game can never itself reach iCloud.
     ///
-    /// Deliberately no `maxBoardLength` clamp: `createGameRecord` only swaps in
-    /// a smaller default board when the SGF IS `defaultSgf`, and a seeded SGF
-    /// never is. The reviewed board already passed `TVReviewScreen`'s
-    /// `boardFits` gate, which is what keeps an oversized board away from the
-    /// engine.
+    /// It CANNOT clamp: the seed carries a reviewed position, and shrinking its
+    /// board would change that position (`createGameRecord` only swaps in a
+    /// smaller default board when the SGF IS `defaultSgf`, which a seeded SGF
+    /// never is). So the CALLER refuses instead — `TVAutoPlayPolicy.continuesLive`
+    /// returns false for a board the running engine cannot hold, and
+    /// `TVReviewScreen` never asks for the handoff. That check replaced the
+    /// review screen's old board-too-large SCREEN, which used to make an
+    /// oversized record unreachable; the record now opens and reports *Held*,
+    /// so this path is the one that had to learn the rule.
     static func newSelfPlayGame(seed: SelfPlaySeed) -> GameRecord? {
         guard let container else { return nil }
         let record = SelfPlayGame.makeRecord(seed: seed)

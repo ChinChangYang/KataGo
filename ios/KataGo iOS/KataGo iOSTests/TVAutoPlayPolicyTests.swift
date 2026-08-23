@@ -12,11 +12,13 @@ struct TVAutoPlayPolicyTests {
                       isBranchActive: Bool = false,
                       stonesReady: Bool = true,
                       recordedGameIsFinished: Bool = false,
+                      boardFitsEngine: Bool = true,
                       thermalState: ProcessInfo.ThermalState = .nominal) -> TVAutoPlayTick {
         TVAutoPlayPolicy.tick(hasNextMove: hasNextMove,
                               isBranchActive: isBranchActive,
                               stonesReady: stonesReady,
                               recordedGameIsFinished: recordedGameIsFinished,
+                              boardFitsEngine: boardFitsEngine,
                               thermalState: thermalState)
     }
 
@@ -64,5 +66,33 @@ struct TVAutoPlayPolicyTests {
     /// An unready board must not be mistaken for the end of the game.
     @Test func endOfGameIsOnlyReportedOnceTheBoardIsSettled() {
         #expect(tick(hasNextMove: false, stonesReady: false) == .hold)
+    }
+
+    /// The live continuation seeds a NEW game from the reviewed position and
+    /// hands it to the engine to play on. A board the running engine cannot
+    /// hold (a 37x37 record on a 19 buffer — *Held*, which the review screen
+    /// renders happily) must therefore never become one: the seeded record is
+    /// created from the reviewed SGF, so nothing downstream can shrink it, and
+    /// the engine would be handed a board it aborts on. The replay simply stops
+    /// on the final position instead.
+    @Test func anOversizedBoardNeverHandsOffToALiveContinuation() {
+        #expect(tick(hasNextMove: false, boardFitsEngine: false)
+                == .finish(continuesLive: false))
+        // ...and the two reasons compose: a finished game does not continue
+        // either way.
+        #expect(tick(hasNextMove: false, recordedGameIsFinished: true, boardFitsEngine: false)
+                == .finish(continuesLive: false))
+    }
+
+    /// The same decision, reachable on its own: `startAutoPlay` asks it
+    /// directly when the user presses Play/Pause while already parked at the
+    /// last recorded move, and that path never goes through `tick`.
+    @Test func theContinuesLiveRuleIsOneRuleForBothCallers() {
+        #expect(TVAutoPlayPolicy.continuesLive(recordedGameIsFinished: false,
+                                               boardFitsEngine: true))
+        #expect(!TVAutoPlayPolicy.continuesLive(recordedGameIsFinished: true,
+                                                boardFitsEngine: true))
+        #expect(!TVAutoPlayPolicy.continuesLive(recordedGameIsFinished: false,
+                                                boardFitsEngine: false))
     }
 }

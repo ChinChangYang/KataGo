@@ -99,16 +99,30 @@ public struct BoardView: View {
     /// doing. Nothing is added to the view tree when neither applies, so a
     /// ready engine on a readable record renders — and hit-tests — exactly as
     /// before.
+    ///
+    /// tvOS is the one platform that does NOT take the engine line here: it has
+    /// a 10-foot side panel with an analysis slot of its own, and the inline
+    /// pill would put a wrapping caption — and a focusable Retry button — on top
+    /// of the hero board. `TVReviewScreen`/`TVPlayScreen` render
+    /// `EngineStatusView(style: .tvLine)` in that panel instead.
     @ViewBuilder
     private var engineStatusOverlay: some View {
+        // tvOS never shows the engine line here (see above), so on that platform
+        // the overlay carries the record line alone.
+#if os(tvOS)
+        let showsEngineStatus = false
+#else
         let showsEngineStatus = engineStatus.map { !$0.isReady || $0.note != nil } ?? false
+#endif
         if showsEngineStatus || gobanState.isRecordUnreadable {
             VStack(spacing: 6) {
+#if !os(tvOS)
                 if let engineStatus, showsEngineStatus {
                     EngineStatusView(status: engineStatus,
                                      launchStatus: launchStatus,
                                      style: .inline)
                 }
+#endif
                 if gobanState.isRecordUnreadable {
                     UnreadableRecordView()
                 }

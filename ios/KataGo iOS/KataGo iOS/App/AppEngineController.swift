@@ -49,6 +49,17 @@ final class AppEngineController {
         case running
         case stopping
         case failed(String)
+
+        /// The shared vocabulary `EngineRestartRules.canRestart` decides on.
+        var kind: EngineRestartRules.PhaseKind {
+            switch self {
+            case .idle: return .idle
+            case .starting: return .starting
+            case .running: return .running
+            case .stopping: return .stopping
+            case .failed: return .failed
+            }
+        }
     }
 
     private(set) var phase: Phase = .idle
@@ -225,12 +236,13 @@ final class AppEngineController {
         // Wait for the read loop to stop reading — the handshake below has to be
         // the bridge's only reader.
         //
-        // These two waits are POLLED, not parked on a continuation. A
-        // `CheckedContinuation` cannot observe cancellation, and `withTimeout`
-        // cannot rescue it either: `withTaskGroup` awaits its remaining children
-        // after `cancelAll()`, so a wait that never resumes would hold the whole
-        // restart in `.stopping` forever — no phase, no status, no Retry. A
-        // deadline-checked poll gives up on its own and reports it.
+        // These two waits are POLLED (`EngineRestartRules.untilSettled`), not
+        // parked on a continuation. A `CheckedContinuation` cannot observe
+        // cancellation, and `withTimeout` cannot rescue it either:
+        // `withTaskGroup` awaits its remaining children after `cancelAll()`, so
+        // a wait that never resumes would hold the whole restart in `.stopping`
+        // forever — no phase, no status, no Retry. A deadline-checked poll
+        // gives up on its own and reports it.
         guard await waitForReadLoopPark(timeout: Self.readLoopParkTimeout) else {
             return fail("The engine did not shut down.")
         }
@@ -289,7 +301,10 @@ final class AppEngineController {
         }
 
         phase = .running
-        if readLoopGeneration == 0 {
+        // Arm the read loop when the BOOT handshake never did (a Retry after a
+        // failed launch), resume it otherwise — arming an existing one would
+        // re-key the host's `.task(id:)` and cancel the parked reader.
+        if EngineRestartRules.shouldArmReadLoop(generation: readLoopGeneration) {
             readLoopGeneration = 1
         } else {
             readLoopPark?.resume()
@@ -334,8 +349,8 @@ final class AppEngineController {
         // `cout` stays redirected to the bridge for the life of the process, so
         // this reaches the reader even with no engine left to produce output.
         KataGoHelper.sendMessage("\n")
-        return await Self.waitUntilSettled(timeout: timeout,
-                                           pollInterval: .milliseconds(50)) { [weak self] in
+        return await EngineRestartRules.untilSettled(timeout: timeout,
+                                                     pollInterval: .milliseconds(50)) { [weak self] in
             self?.readLoopParked ?? true
         }
     }
@@ -414,42 +429,12 @@ final class AppEngineController {
 
     // MARK: - Pure decisions
 
-    /// Waits until `isSettled()` reports true, or gives up after `timeout`
-    /// seconds. Returns whether it settled.
-    ///
-    /// POLLED on purpose. The obvious implementation — park on a
-    /// `CheckedContinuation` and let the party that settles resume it — cannot
-    /// be bounded: a continuation never observes cancellation, and wrapping it
-    /// in a task group does not help, because a group awaits its remaining
-    /// children after `cancelAll()`. One party that never settles would then
-    /// hang the caller forever. `Task.sleep` DOES observe cancellation, so this
-    /// shape is bounded twice over: by its own deadline and by the caller's.
-    static func waitUntilSettled(timeout: Double,
-                                 pollInterval: Duration,
-                                 isSettled: @MainActor () -> Bool) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !isSettled() {
-            guard !Task.isCancelled, Date() < deadline else { return false }
-            do {
-                try await Task.sleep(for: pollInterval)
-            } catch {
-                return false
-            }
-        }
-        return true
-    }
-
-    /// Whether a restart may begin from `phase`.
-    ///
-    /// `.failed` is included deliberately: that is the status line's Retry
-    /// button. Without it a failed launch would be terminal and the only way
-    /// back would be to relaunch the app.
+    /// Whether a restart may begin from `phase` — `EngineRestartRules.canRestart`
+    /// over the phase's shared kind, so the rule (and its `.failed` = the status
+    /// line's Retry button clause) lives in one place for all three in-process
+    /// controllers and is pinned by tests an app target cannot host.
     static func canRestart(from phase: Phase) -> Bool {
-        switch phase {
-        case .running: return true
-        case .failed: return true
-        case .idle, .starting, .stopping: return false
-        }
+        EngineRestartRules.canRestart(from: phase.kind)
     }
 
     /// The net to actually launch, and what (if anything) the status line has
@@ -603,8 +588,8 @@ final class AppEngineController {
 
     /// Waits for `MainCmds::gtp` to return. True when it did, false on timeout.
     private func waitForEngineThreadExit(timeout: Double) async -> Bool {
-        await Self.waitUntilSettled(timeout: timeout,
-                                    pollInterval: .milliseconds(100)) { [weak self] in
+        await EngineRestartRules.untilSettled(timeout: timeout,
+                                              pollInterval: .milliseconds(100)) { [weak self] in
             !(self?.engineThreadRunning ?? false)
         }
     }
@@ -679,7 +664,7 @@ final class AppEngineController {
     /// returns; it is a bound only when the operation honours cancellation.
     /// `GameSession.handshake` does (its read loop checks `Task.isCancelled` and
     /// carries the same deadline). The teardown waits do not, which is why they
-    /// poll (`waitUntilSettled`) instead of coming through here.
+    /// poll (`EngineRestartRules.untilSettled`) instead of coming through here.
     private func withTimeout<T: Sendable>(
         seconds: Double,
         operation: @escaping @MainActor () async -> T

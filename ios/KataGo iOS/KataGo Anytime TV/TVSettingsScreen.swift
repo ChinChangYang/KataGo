@@ -19,6 +19,9 @@ struct TVSettingsScreen: View {
     @Environment(TVEngineController.self) private var engine
     @Environment(GobanState.self) private var gobanState
     @Environment(TVControllerInput.self) private var controllerInput
+    /// Read OPTIONALLY, like every other reader of it: a preview that injects
+    /// none simply shows the phase.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
 
     @AppStorage("TVSettings.soundEffects") private var soundEffects = true
     @AppStorage(NarrationSpeechSetting.defaultsKey) private var spokenNarration
@@ -84,12 +87,19 @@ struct TVSettingsScreen: View {
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text(engine.phase == .running ? "Restart Engine" : engineStatusText)
+                    Text(engineStatusText)
+                        // Nothing on a tvOS screen may wrap: an engine failure
+                        // reason has no length bound, so it shrinks instead.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
                 .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.bordered)
-            .disabled(engine.phase != .running)
+            // Enabled from `.failed` too — this button IS the way back from a
+            // launch that never came up (the same path the status line's Retry
+            // takes). Only a restart already in flight refuses another.
+            .disabled(!engine.canRestartNow)
 
             Button {
                 confirmingReset = true
@@ -126,13 +136,17 @@ struct TVSettingsScreen: View {
         }
     }
 
+    /// The Recovery button's label. tvOS has ONE engine vocabulary — the
+    /// headlines come from `EngineStatusText`, the same source as the one line
+    /// the game screens show — and this screen is the one place the raw failure
+    /// reason may appear, because it is where a failure is acted on.
     private var engineStatusText: String {
         switch engine.phase {
         case .idle: return "Engine not started"
-        case .starting: return "Engine starting…"
+        case .starting: return "\(EngineStatusText.loadingHeadline)…"
         case .running: return "Restart Engine"
-        case .stopping: return "Engine stopping…"
-        case .failed(let reason): return "Engine failed: \(reason)"
+        case .stopping: return "Stopping engine…"
+        case .failed(let reason): return "\(EngineStatusText.failedHeadline): \(reason)"
         }
     }
 
@@ -146,10 +160,12 @@ struct TVSettingsScreen: View {
                 }
             }
             .pickerStyle(.segmented)
-            // Mirror the Restart button: block changes while the engine is
-            // mid-cycle, since a change triggers restartEngine (which requires
-            // .running) — prevents overlapping restarts.
-            .disabled(engine.phase != .running)
+            // Mirror the Restart button: a change triggers `restartEngine`, so
+            // it is offered exactly when a restart may begin. That INCLUDES a
+            // failed engine (relaunching it with a different buffer is a fix)
+            // and a *held* one, whose phase is `.running` — raising this is the
+            // remedy the held line on the board points at.
+            .disabled(!engine.canRestartNow)
             .onChange(of: boardSize) { _, newValue in
                 var settings = BackendSettings(model: Self.engineModel)
                 settings.mlxBoardSize = newValue
@@ -282,7 +298,11 @@ struct TVSettingsScreen: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.bordered)
-            .disabled(isBenchmarkRunning || engine.phase != .running)
+            // Same rule as the other two engine controls: the benchmark runs
+            // INSIDE `restartEngine`'s downtime window, so it is offered
+            // exactly when a restart may begin — a failed engine included,
+            // where measuring the box is a diagnostic rather than a luxury.
+            .disabled(isBenchmarkRunning || !engine.canRestartNow)
 
             benchmarkResults
 
@@ -341,13 +361,25 @@ struct TVSettingsScreen: View {
         }
     }
 
+    /// The diagnostics footer's engine row. Same vocabulary, lower case: this
+    /// is a fact list, not a control.
     private var phaseText: String {
         switch engine.phase {
         case .idle: return "not started"
         case .starting: return "starting"
-        case .running: return "running"
+        case .running: return engineStatus.map { availabilityText($0.availability) } ?? "running"
         case .stopping: return "stopping"
         case .failed(let reason): return "failed (\(reason))"
+        }
+    }
+
+    /// What a RUNNING engine is doing for the board — the distinction the phase
+    /// alone cannot make, and the one a viewer reporting a problem needs: an
+    /// engine that is up but *held* analyses nothing, on purpose.
+    private func availabilityText(_ availability: EngineAvailability) -> String {
+        switch availability {
+        case .held(let maxBoardLength): return "running (held: board over \(maxBoardLength))"
+        default: return "running"
         }
     }
 

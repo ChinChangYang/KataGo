@@ -72,8 +72,12 @@ public struct EngineStatusView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 // Nothing on a tvOS screen may wrap or truncate; the strings
-                // are fixed and short precisely so this never has to.
+                // are fixed and short precisely so this never has to. The
+                // scale factor is the belt to that braces: `lineLimit(1)`
+                // alone TRUNCATES, so at an accessibility text size the line
+                // shrinks rather than losing its tail.
                 .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .accessibilityIdentifier(status.availability.accessibilityIdentifier
                                          ?? Self.noteIdentifier)
         }

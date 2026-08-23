@@ -115,56 +115,12 @@ struct AppEngineControllerTests {
                 == GameSession.defaultHandshakeTimeout)
     }
 
-    // MARK: - The teardown waits are bounded, and give up rather than hang
-
-    @Test func aWaitThatSettlesReturnsTrue() async {
-        let settled = await AppEngineController.waitUntilSettled(
-            timeout: 5, pollInterval: .milliseconds(10)) { true }
-        #expect(settled)
-    }
-
-    @Test func aReadLoopThatNeverParksGivesUpInsteadOfHanging() async {
-        // The failure this pins: a `CheckedContinuation` cannot observe
-        // cancellation, and `withTaskGroup` awaits its remaining children after
-        // `cancelAll()` — so parking on one would hold a restart in `.stopping`
-        // forever, with no phase, no status and no Retry. It has to time out on
-        // its own.
-        let start = Date()
-        let settled = await AppEngineController.waitUntilSettled(
-            timeout: 0.3, pollInterval: .milliseconds(10)) { false }
-        let elapsed = Date().timeIntervalSince(start)
-
-        #expect(!settled)
-        #expect(elapsed >= 0.3)
-        #expect(elapsed < 5, "the wait ran long past its own deadline")
-    }
-
-    @Test func anEngineThreadThatExitsLateIsStillObserved() async {
-        // The ordinary case: the party settles part-way through the wait.
-        let box = SettlingFlag()
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(60))
-            box.value = true
-        }
-        let settled = await AppEngineController.waitUntilSettled(
-            timeout: 5, pollInterval: .milliseconds(10)) { box.value }
-        #expect(settled)
-    }
-
-    @Test func aCancelledWaitGivesUpAtOnce() async {
-        // The caller's own bound has to be able to end this, or a 240 s thread
-        // wait would outlive the restart that started it.
-        let start = Date()
-        let task = Task { @MainActor in
-            await AppEngineController.waitUntilSettled(
-                timeout: 240, pollInterval: .milliseconds(10)) { false }
-        }
-        try? await Task.sleep(for: .milliseconds(50))
-        task.cancel()
-        let settled = await task.value
-        #expect(!settled)
-        #expect(Date().timeIntervalSince(start) < 5)
-    }
+    // MARK: - The teardown waits
+    //
+    // `waitUntilSettled` moved to the package (`EngineRestartRules.untilSettled`,
+    // pinned by `EngineRestartRulesTests` at the bottom of this file) and this
+    // controller's private twin is gone. The four tests that lived here were
+    // verbatim duplicates of those.
 
     // MARK: - Heavy Core ML work in a picker that now sits over a live engine
 
