@@ -67,7 +67,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Engine position** — the position the engine has been fed. Never displayed; it exists so analysis has something to analyse.
 - **Feed** — telling the engine the record's moves one at a time. A move the engine would refuse is skipped, exactly as the replay skipped it.
 - **In sync** — the engine has acknowledged the record position. Analysis is collected, and stones may be played, only while in sync.
-- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size). A state the board displays; never a screen that replaces it.
+- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state the board displays; never a screen that replaces it.
 
 ## Core ML compilation
 

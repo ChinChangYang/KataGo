@@ -132,6 +132,15 @@ public final class GameSession {
     ///
     /// Returns the version line so the host can surface it (it lands on
     /// `engineStatus.engineVersion`, which the Settings sheet reads).
+    ///
+    /// NOTE: **no host calls this any more.** Every platform now calls
+    /// `handshake` on its own and lets `EngineFeed.openingCommands` configure
+    /// the engine, because `sendInitialCommands` states a board size before
+    /// anything has decided whether the engine can hold it (`EngineHeldRule`)
+    /// — and the feed is a strict superset of it, pinned by
+    /// `EngineFeedInitialCommandsTests`. This pairing survives only as the
+    /// subject of `GameSessionInitializeClearTests`; delete it together with
+    /// those three call sites.
     @discardableResult
     public func initialize(
         selectedModelTitle: String,

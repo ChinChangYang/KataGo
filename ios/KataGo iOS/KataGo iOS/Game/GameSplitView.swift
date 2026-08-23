@@ -293,8 +293,10 @@ struct GameSplitView: View {
         }
         .task {
             // A cold launch can drop the Messages extension's `import-sgf`
-            // URL (this view is not mounted while the loading screens run),
-            // but the spool FILE survives — drain whatever is queued.
+            // URL: this view now mounts on the first frame, but the URL can
+            // still be delivered to the App root before this view's own
+            // `.onOpenURL` exists. The spool FILE survives either way — drain
+            // whatever is queued.
             drainMessagesHandoffSpool(preferring: nil)
         }
         .onChange(of: deepLinkRouter.pendingGameID, initial: true) { _, _ in

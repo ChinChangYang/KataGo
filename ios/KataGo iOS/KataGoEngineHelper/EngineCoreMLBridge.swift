@@ -33,8 +33,11 @@ private func katagocoreml_convert_to_temp(
 private func katagocoreml_free_string(_ s: UnsafePointer<CChar>?)
 
 /// Cache-aware compute-handle loader for the headless engine subprocess.
-/// Mirrors the app target's `loadCoreMLHandle`, minus the LoadingView status
-/// reporting. One-shot corrupt-hit retry around `MLModel(contentsOf:)`.
+/// Mirrors the app target's `loadCoreMLHandle`, minus the `EngineLaunchStatus`
+/// compile reporting — there is no channel from this subprocess back to the
+/// Mac app, which is why macOS shows "Loading engine…" with no compile caption
+/// (ADR 0007, restated in ADR 0008). One-shot corrupt-hit retry around
+/// `MLModel(contentsOf:)`.
 private func loadCoreMLHandle(
     coremlModelPath: String,
     serverThreadIdx: Int,

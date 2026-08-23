@@ -22,12 +22,14 @@ public struct PendingImageImport: Equatable {
 
 /// Holds the game id of a pending `open-game` deep link.
 ///
-/// The root `.onOpenURL` (mounted from the first frame, even while the model
-/// picker or loading screen is showing) stores the requested id here.
-/// `ContentView.initializationTask` reads it to pick the initial game, and a
-/// warm app applies it via `GameSplitView`'s `.onChange`. This closes the gap
-/// where a cold-launch deep link was delivered before `GameSplitView`'s own
+/// The root `.onOpenURL` (mounted from the first frame, above the model-picker
+/// sheet and independent of the engine) stores the requested id here.
+/// `ContentView.seedInitialGame` reads it to pick the initial game, and a warm
+/// app applies it via `GameSplitView`'s `.onChange`. This closes the gap where a
+/// cold-launch deep link was delivered before `GameSplitView`'s own
 /// `.onOpenURL` existed and was lost to the default most-recent selection.
+/// Nothing here waits for the engine: the linked game is drawn from its record
+/// at once and fed to the engine when the handshake completes (ADR 0008).
 @Observable
 public class DeepLinkRouter {
     public var pendingGameID: UUID?

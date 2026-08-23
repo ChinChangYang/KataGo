@@ -71,7 +71,7 @@ The app uses a [`NavigationSplitView`](https://developer.apple.com/documentation
 - A **sidebar** titled **Games** lists your saved games as thumbnails — searchable, with swipe-to-delete, and a **Select** mode for bulk deletion.
 - The **detail** view shows the Go board for the selected game.
 
-On a fresh launch (when no model has been chosen yet) the first screen is the **model picker**, followed by a loading screen while the engine initializes, and then the split view. On **iPad** a Full-Screen button hides the info pane and sidebar so the board fills the display.
+The board comes up first, on every launch. Your last game's stones, the move numbers and every navigation control are there immediately; the engine loads in the background and reports itself as a line over the board — "Loading engine…" (with "Compiling Core ML model…" underneath while a compile is genuinely running), a failure with a **Retry**, or nothing at all once it is ready. Analysis, stone taps and the board-size editor are the only things that wait for it. Debug builds present the **model picker** as a sheet over that already-mounted board; release builds restore your last network, or launch the built-in one. On **iPad** a Full-Screen button hides the info pane and sidebar so the board fills the display.
 
 ### Playing and Reviewing
 
@@ -150,7 +150,7 @@ App-wide preferences in five groups:
 
 ### Engine
 
-Shows the running **Model** and engine **Version**; tapping either (and confirming) quits the engine and returns to the model picker. This section also hosts **Developer Mode**, a raw [GTP command](https://github.com/ChinChangYang/KataGo/blob/ios-dev/docs/GTP_Extensions.md) console with a scrolling message log and a text field for commands such as `list_commands`.
+Shows the running **Model** (or "None" when nothing is loaded) and engine **Version**; tapping either opens **Change model** — the picker comes up as a sheet over the board, and choosing a network restarts the engine in place. Nothing is torn down and no game is closed. This section also hosts **Developer Mode**, a raw [GTP command](https://github.com/ChinChangYang/KataGo/blob/ios-dev/docs/GTP_Extensions.md) console with a scrolling message log and a text field for commands such as `list_commands`.
 
 ![GTP Console Screenshot](docs/screenshots/CommandView.png)
 
@@ -171,8 +171,8 @@ The Vision Pro app is a separate target (`KataGo Anytime Vision`) — not the iP
 
 - **A game controller plays the moves.** The left stick or D-pad glides a ghost stone across the board, **A** plays it, **Y** passes, **B** shows/hides the analysis overlay, **X**/**L1** step back and **R1** steps forward (hold **L1** or **R1** to repeat), and **L2**/**R2** jump to the start and end of the game. Until a controller connects the app says **Connect a controller to play**; a mapping legend appears automatically the first time one does. Pinch works on the flat ornaments — menus, the game list, settings — but not on the board itself.
 - **Ornaments** ring the volume: a bottom-front bar with the player chips (pinch one to flip that side between Human and AI), a Games toggle, the analysis sparkle, a Settings gear, and the controller legend. The Games ornament lists your iCloud-synced games and carries **New Game** — 9x9 / 13x13 / 19x19 quick sizes plus a **Custom** card with width and height steppers for any rectangle.
-- **Settings** (right-side card) holds Analysis information (Winrate / Score / All / None), Show ownership, a board orientation toggle between **tabletop and standing**, the neural-net picker, and **Max Board Size**; changing the last one quits and respawns the engine with a new neural-net buffer.
-- The engine runs **in-process on CoreML/ANE only** — the GPU belongs to the 90 Hz compositor. A game larger than the launched Max Board Size refuses to load and points you at that setting.
+- **Settings** (right-side card) holds Analysis information (Winrate / Score / All / None), Show ownership, a board orientation toggle between **tabletop and standing**, the neural-net picker, and **Max Board Size**; changing the last one restarts the engine with a new neural-net buffer **in the background** — the goban stays on screen and L1/R1 keep stepping through the game while it reloads.
+- The engine runs **in-process on CoreML/ANE only** — the GPU belongs to the 90 Hz compositor. A game larger than the launched Max Board Size still opens and draws; a card over the goban explains that analysis is off until you raise Max Board Size (or switch to a network that allows a larger one). Only a board outside the 2x2–37x37 range the 3D geometry covers is refused outright.
 
 The Saved Game widget and `katago-anytime://` deep links work here too.
 
@@ -194,7 +194,7 @@ Everything is reachable from the menu bar: File (New Game, Import, Share, Export
 A new game (⌘N) has no library row until you save it. Switching games,
 closing the window or quitting with unsaved changes asks first.
 
-Under the hood the Mac app runs the engine in the sandboxed `katago-engine` subprocess described in [Inference Backends](#inference-backends), so an engine crash never takes the app down.
+Under the hood the Mac app runs the engine in the sandboxed `katago-engine` subprocess described in [Inference Backends](#inference-backends), so an engine crash never takes the app down. The board and all three inspector tabs mount as soon as a game is selected — they never wait for the helper to finish loading. While it loads, a "Loading engine…" line sits over the board; if the helper dies, that line says so and offers **Retry**, and analysis resumes on the same position once it comes back.
 
 ## KataGo Anytime on Apple TV
 
@@ -206,6 +206,8 @@ The Apple TV app reviews, spectates, **and plays ranked games against KataGo**:
 - **Review** — step through a game read-only with a live **Top Moves** list; clicking a candidate move plays it out as a variation.
 - **Self-play** — watch KataGo play itself endlessly; an idle attract mode starts a demo game on its own.
 - **Settings → Diagnostics** — restart the engine, re-download the library from iCloud, run a CoreML benchmark across all four `MLComputeUnits` configurations, and toggle a live memory overlay.
+
+The library appears immediately on launch — browsing, Search, Settings and New Game all work while the engine is still loading, and the side panel of a game carries a one-line engine status until it is ready. A game larger than the current Max Board Size still draws; the panel says so instead of the game refusing to open.
 
 The TV app runs the built-in 18-block network and the human-SL network (for ranked play) through Core ML on the CPU and GPU — Apple TV's Neural Engine never takes this network — and limits downloadable nets to 100 MB or less.
 

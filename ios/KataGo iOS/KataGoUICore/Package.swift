@@ -74,11 +74,19 @@ let package = Package(
         // tvOS/watchOS) never enters those platforms' link graphs.
         .library(name: "GobanRecogKit", type: .static, targets: ["GobanRecogKit"]),
         // Bridge-free pure-Swift Go rules engine (captures, ko/superko,
-        // suicide, finished-game scoring, iMessage wire codec). Exists for
-        // processes that cannot link the C++ engine: the Messages extension
-        // links ONLY this + KataGoGameStore. The iOS app links it too so the
-        // engine-linked test target can differential-test it against the
-        // C++ board via -bundle_loader.
+        // suicide, finished-game scoring, whole-record replay, iMessage wire
+        // codec). Two kinds of client:
+        //   - processes that cannot link the C++ engine at all — the Messages
+        //     extension links ONLY this + KataGoGameStore, and the watch app
+        //     replays its boards with `SgfReplay`;
+        //   - KataGoUICore itself, and therefore every app, because the board
+        //     is drawn from the RECORD (ADR 0008): `RecordPositionProjector`
+        //     replays the game's SGF through `SgfReplay` rather than waiting
+        //     for the engine's `showboard`.
+        // The edge is one-way (KataGoUICore -> GoRulesKit), which is what keeps
+        // GoRulesKit bridge-free for the first kind of client. The iOS app also
+        // links it directly so the engine-linked test target can
+        // differential-test it against the C++ board via -bundle_loader.
         .library(name: "GoRulesKit", type: .static, targets: ["GoRulesKit"]),
         // Foundation-only kata-analyze tier: the analysis-line parser, its
         // value types (BoardPoint/Coordinate/AnalysisInfo/OwnershipUnit/

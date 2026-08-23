@@ -14,7 +14,7 @@ description: Build/launch/drive recipe for verifying KataGo Anytime changes end-
    xcrun simctl launch <UDID> chinchangyang.KataGo-iOS.tw --uitest-seed-gif-game
    ```
    `--uitest-seed-gif-game` (DEBUG-only, `UITestSeed.swift`) idempotently seeds a 6-move 19×19 game "UITest GIF Game" and makes it the newest → auto-selected at launch. `--uitest-seed-rect-game` seeds a 13×9 game.
-3. Debug builds always show the "Select a Model" picker first: tap the checked "Built-in KataGo Network" row → its detail page → the blue ▶ button. Engine boot + CoreML load ≈ 30–60 s warm.
+3. Debug builds present the "Select a Model" picker **as a sheet over an already-mounted board** (the board never waits for the engine — ADR 0008): tap the checked "Built-in KataGo Network" row → its detail page → the blue ▶ button. Engine boot + CoreML load ≈ 30–60 s warm; while it runs, a "Loading engine…" line sits over the board and navigation already works. Swipe the sheet away instead and you get a live board with no engine at all and an "EngineStatus.absent" line. To wait for the engine in a script or a UI test, wait for the hidden `Board.sync` element to read `inSync` (`PortraitUITestCase.waitForBoardInSync`) — the old "wait for the Forward to End button" sentinel proves nothing now, because that button exists before the engine does.
 4. Drive with computer-use on the Simulator window; `xcrun simctl io <UDID> screenshot out.png` gives pixel-exact captures.
 5. Deep Report lives in the top-right ⋯ menu → "This Game ▸" → "Deep Report".
 

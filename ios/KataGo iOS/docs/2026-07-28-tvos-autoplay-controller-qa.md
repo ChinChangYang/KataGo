@@ -68,8 +68,9 @@ the next one needs. Tick items as you go and note the build number you tested.
    is the real-TV, real-distance confirmation.)*
 3. **Speed.** Settings ▸ Playback ▸ Auto-Play Speed ▸ **Fast**, go back into
    Game U, press Play/Pause: the cadence is visibly quicker (**0.7 s**, vs
-   3.0 s for Slow). The engine must **not** restart — no loading screen, no
-   re-analysis pause, Top Moves keep updating throughout.
+   3.0 s for Slow). The engine must **not** restart — the side panel's engine
+   status line must stay absent (a restart would put "Loading engine…" there),
+   no re-analysis pause, Top Moves keep updating throughout.
 4. **Timeline click stops it.** While replaying, click the timeline left or
    right: Auto-Play stops on the **first** click (pill back to play glyph), and
    that click also steps exactly one move. *(Verified in Simulator.)*
