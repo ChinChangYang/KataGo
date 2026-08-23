@@ -121,7 +121,11 @@ public struct EngineLoadingView: View {
     /// on the MLX/GPU path, and on any cache hit, the ticking headline already
     /// reads "Loading…". It makes no claim about whether the compile will
     /// recur, because it would be false: see ADR 0007.
+    ///
+    /// The string itself lives on `EngineLaunchStatus`, shared with the iOS
+    /// launch screen and the inline `EngineStatusView`, so the three cannot
+    /// drift apart.
     private var secondaryLine: String? {
-        status.isCompiling ? "Compiling Core ML model…" : nil
+        status.compileCaption
     }
 }

@@ -120,6 +120,22 @@ public final class KataGoEngineProcess: @unchecked Sendable {
         return lines.isEmpty ? "" : lines.removeFirst()
     }
 
+    /// Bounded `getMessageLine`: returns "" if no complete line arrives within
+    /// `timeoutSeconds`. Used by the engine handshake, which must be able to
+    /// give up on a child that never answers instead of parking a reader on it
+    /// forever.
+    public func getMessageLine(timeoutSeconds: Double) -> String {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while lines.isEmpty && !reachedEOF {
+            // `wait(until:)` returns false once the deadline passes without a
+            // signal — that is the timeout, and "" is how it is reported.
+            if !condition.wait(until: deadline) { break }
+        }
+        return lines.isEmpty ? "" : lines.removeFirst()
+    }
+
     /// Whether the child process is still running.
     public var isRunning: Bool { started && process.isRunning }
 

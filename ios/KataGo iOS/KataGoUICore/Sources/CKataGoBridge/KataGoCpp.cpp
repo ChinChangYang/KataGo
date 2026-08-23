@@ -79,7 +79,17 @@ public:
     //
     // Reads the buffer directly rather than through the istream. Safe because
     // this streambuf never calls setg(), so there is no get area to keep in
-    // sync — uflow() is the only other reader, and no caller mixes the two.
+    // sync: uflow() consumes exactly the characters getline() asks for and
+    // never reads ahead, so it can strand nothing here for this reader to lose,
+    // and vice versa. Both take the same mutex.
+    //
+    // The app DOES use both, in different phases: the engine handshake reads
+    // through here (so it can give up on an engine that never answers instead
+    // of parking a reader on the process-global buffer, where it would eat the
+    // next engine's `version` reply), and the steady-state message loop reads
+    // through getline(). They never run at the same time — the handshake is the
+    // sole reader by construction, and every host parks its read loop across a
+    // relaunch.
     bool readLine(std::string& out, double timeoutSeconds) {
         std::unique_lock<std::mutex> lock(m);
         const auto deadline = std::chrono::steady_clock::now()

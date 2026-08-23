@@ -93,8 +93,10 @@ final class TVEngineController {
         // Stop any streaming search, then quit. Mirror the iOS timing: give
         // the loop a second to drain replies, flip its condition, then push a
         // fake line through the bridge to unpark a blocked getline.
-        session.messageList.appendAndSend(command: "stop")
-        session.messageList.appendAndSend(command: "quit")
+        // Lifecycle commands: they go straight to the transport, because the
+        // command gate is exactly what a teardown must not be blocked by.
+        session.sendLifecycleCommand("stop")
+        session.sendLifecycleCommand("quit")
         try? await Task.sleep(for: .seconds(1))
         let exited: Void? = await withTimeout(seconds: 10) { [weak self] in
             await withCheckedContinuation { continuation in
@@ -135,11 +137,14 @@ final class TVEngineController {
         session.stopRequested = false
         phase = .starting
 
+        // The handshake carries the SAME 120 s deadline as the wrapper — see
+        // VisionEngineController for why the wrapper alone is not a bound.
         let handshake: Bool? = await withTimeout(seconds: 120) {
             _ = await session.initialize(
                 selectedModelTitle: NeuralNetworkModel.builtInModel?.title ?? "",
                 engineLifecycle: engineLifecycle,
-                config: nil)
+                config: nil,
+                timeoutSeconds: 120)
             return true
         }
 

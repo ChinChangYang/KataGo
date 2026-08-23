@@ -172,7 +172,13 @@ public final class RecordPositionProjector {
         // A nil key (nothing selected) and a record the parser rejects both
         // publish an empty board at the size already on screen — never a 0x0
         // or 1x1 grid derived from a failed parse.
-        let position = key.flatMap { resolve($0) }
+        let resolved = key.flatMap { resolve($0) }
+        // A record that could not be replayed draws nothing and gets no feed,
+        // so the board would otherwise sit at an empty grid with nothing
+        // explaining why. Say so. A NIL key is not unreadable — it is "nothing
+        // is selected", which is not a defect.
+        gobanState.isRecordUnreadable = (key != nil && resolved == nil)
+        let position = resolved
             ?? RecordPosition.empty(width: Int(board.width), height: Int(board.height))
 
         let sizeChanged = board.width != CGFloat(position.width)

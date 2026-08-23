@@ -6,11 +6,43 @@
 //
 
 import SwiftUI
+import SwiftData
 import GoRulesKit
+
+/// "The engine owes this position a feed." Stashed by `GobanState` whenever a
+/// send was DROPPED because no engine was listening, and drained by
+/// `resyncEngineAfterHandshake` once one is.
+///
+/// The payload is diagnostic: the resync always feeds the LIVE selection at the
+/// LIVE index, because the user may have switched games four times while the
+/// model compiled. What the payload proves is that a feed is owed at all.
+public struct EngineSyncRequest: Equatable, Sendable {
+    public let recordID: PersistentIdentifier?
+    public let index: Int
+
+    public init(recordID: PersistentIdentifier?, index: Int) {
+        self.recordID = recordID
+        self.index = index
+    }
+}
 
 @Observable
 public class GobanState {
     public init() {}
+
+    /// Deferred engine feeds. `ReadinessGate` is reused verbatim from the macOS
+    /// cold-launch deep-link path (`KataGoGameStore/ReadinessGate.swift`): last
+    /// request wins, and draining is one-shot so a later readiness cycle cannot
+    /// replay it.
+    public var engineSyncGate = ReadinessGate<EngineSyncRequest>()
+
+    /// True when the record on screen is one the C++ SGF parser rejected: no
+    /// position could be replayed from it, so the board shows an empty grid and
+    /// the engine is fed nothing. A RECORD state, not an engine state — hence a
+    /// flag here rather than a sixth `EngineAvailability` case. Written by
+    /// `RecordPositionProjector`, the one thing that knows whether a projection
+    /// succeeded.
+    public var isRecordUnreadable = false
 
     public var waitingForAnalysis = false
     public var requestingClearAnalysis = false
@@ -147,8 +179,12 @@ public class GobanState {
         // zero — which is the condition that says "the engine has not caught up
         // yet", so every later ack would be treated as an intermediate one and
         // the board would never report in sync again.
-        guard messageList.isAcceptingCommands else { return }
-        messageList.appendAndSend(command: "showboard")
+        //
+        // The decision is `appendAndSend`'s return value, NOT a pre-flight
+        // check on the gate: going through it is what puts the drop in the
+        // transcript, and a showboard that vanished with no trace is exactly
+        // the drop hardest to diagnose later ("the board never went in sync").
+        guard messageList.appendAndSend(command: "showboard") else { return }
         showBoardCount = showBoardCount + 1
     }
 
@@ -919,6 +955,15 @@ public class GobanState {
             messageList: messageList,
             player: player
         )
+
+        // Navigation moves the board whether or not an engine can hear about
+        // it. When it could not, record the debt so the handshake's resync
+        // re-states the position the board actually ended on.
+        if !messageList.isAcceptingCommands {
+            noteEngineSendDropped(recordID: gameRecord.persistentModelID,
+                                  index: getCurrentIndex(gameRecord: gameRecord)
+                                      ?? gameRecord.currentIndex)
+        }
     }
 
     public func matchesNextRecordedMove(turn: String, move: String, gameRecord: GameRecord, board: BoardSize) -> Bool {
@@ -1091,6 +1136,15 @@ public class GobanState {
             messageList: messageList,
             player: player
         )
+
+        // Navigation moves the board whether or not an engine can hear about
+        // it. When it could not, record the debt so the handshake's resync
+        // re-states the position the board actually ended on.
+        if !messageList.isAcceptingCommands {
+            noteEngineSendDropped(recordID: gameRecord.persistentModelID,
+                                  index: getCurrentIndex(gameRecord: gameRecord)
+                                      ?? gameRecord.currentIndex)
+        }
     }
 
     public func go(to targetIndex: Int,
@@ -1293,7 +1347,14 @@ public class GobanState {
             $0.trailingPassCount(at: targetIndex)
         } ?? 0
 
-        guard messageList.isAcceptingCommands else { return }
+        guard messageList.isAcceptingCommands else {
+            // The board switched; the engine could not be told. Record the debt
+            // so the handshake's resync knows a feed is owed (it will feed the
+            // LIVE selection, which may be a different game by then).
+            noteEngineSendDropped(recordID: newGameRecord.persistentModelID,
+                                  index: targetIndex)
+            return
+        }
         guard boardFitsEngine(width: sgfHelper.xSize, height: sgfHelper.ySize) else { return }
         syncEngine(to: targetIndex,
                    sgf: newGameRecord.sgf,
@@ -1338,6 +1399,79 @@ public class GobanState {
         stones.isReady = false
         messageList.appendAndSend(commands: commands)
         sendShowBoardCommand(messageList: messageList)
+    }
+
+    /// Records that a position change could not be sent to the engine.
+    /// Last request wins — the gate keeps only the newest.
+    func noteEngineSendDropped(recordID: PersistentIdentifier?, index: Int) {
+        _ = engineSyncGate.request(EngineSyncRequest(recordID: recordID, index: index),
+                                   isReady: false)
+    }
+
+    /// The engine came up. Feed it the position the board is showing NOW.
+    ///
+    /// The gate is drained for its diagnostic payload, but the feed is built
+    /// from the LIVE record at the LIVE cursor: while the model was loading the
+    /// user may have switched games, scrubbed, or both, and every one of those
+    /// sends was dropped. Latest selection wins — replaying the first dropped
+    /// request would put the engine on a position nobody is looking at.
+    ///
+    /// - Returns: the drained request, if one was owed (diagnostics/tests).
+    @MainActor
+    @discardableResult
+    public func resyncEngineAfterHandshake(gameRecord: GameRecord?,
+                                           messageList: MessageList,
+                                           stones: Stones,
+                                           projector: RecordPositionProjector) -> EngineSyncRequest? {
+        // Only drain once we can actually act: draining while still unavailable
+        // would throw the debt away and leave the engine permanently unfed.
+        guard messageList.isAcceptingCommands else { return engineSyncGate.pending }
+        let drained = engineSyncGate.drainWhenReady()
+
+        guard let gameRecord else { return drained }
+        let sgf = getSgf(gameRecord: gameRecord) ?? gameRecord.sgf
+        let sgfHelper = SgfOperations(sgf: sgf)
+        guard boardFitsEngine(width: sgfHelper.xSize, height: sgfHelper.ySize) else { return drained }
+        let moveCount = sgfHelper.moveSize ?? 0
+        let targetIndex = min(max(getCurrentIndex(gameRecord: gameRecord) ?? 0, 0), moveCount)
+
+        syncEngine(to: targetIndex,
+                   sgf: sgf,
+                   config: gameRecord.concreteConfig,
+                   messageList: messageList,
+                   stones: stones,
+                   projector: projector)
+        return drained
+    }
+
+    /// `BoardView.onAppear`: re-park the turn at `.unknown` and ask the engine
+    /// where it stands, so the turn edge re-arms analysis (the iPhone push-pop
+    /// restore after `maybePauseAnalysis` is exactly this path).
+    ///
+    /// Against an engine that is not ready it is a NO-OP — parking the turn with
+    /// nothing able to resolve it would leave the board waiting on a `showboard`
+    /// that was dropped.
+    public func resyncOnAppear(engineReady: Bool, player: Turn, messageList: MessageList) {
+        guard engineReady else { return }
+        player.nextColorForPlayCommand = .unknown
+        sendShowBoardCommand(messageList: messageList)
+    }
+
+    /// Everything that claims the ENGINE agrees with the board, back to zero,
+    /// because a fresh engine agrees with nothing. Called on every handshake and
+    /// on every teardown.
+    ///
+    /// Deliberately touches nothing the board DRAWS: stones, board size and the
+    /// cursor are record-owned and survive an engine that comes and goes.
+    public func resetForFreshEngine(stones: Stones) {
+        showBoardCount = 0
+        waitingForAnalysis = false
+        clearPendingMove()
+        stones.isReady = false
+        passCount = 0
+        // The tvOS broadcast's one-shot gen-move license belongs to the engine
+        // that was asked; a new engine must not inherit permission to play.
+        broadcastGenMovePending = false
     }
 
     /// One auto-play replay step: move the cursor onto the next recorded move

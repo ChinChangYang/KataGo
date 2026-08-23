@@ -12,7 +12,7 @@ struct GameSessionReportModeTests {
     private let infoLine = "info move Q16 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 order 0 pv Q16"
 
     @Test func reportModeBypassesLiveAnalysis() async {
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.board.width = 19
         session.board.height = 19
         session.gobanState.reportGenerationActive = true
@@ -25,7 +25,7 @@ struct GameSessionReportModeTests {
     }
 
     @Test func normalModeStillCollects() async {
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.board.width = 19
         session.board.height = 19
         session.gobanState.waitingForAnalysis = true

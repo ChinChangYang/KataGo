@@ -47,7 +47,7 @@ struct GameSessionShowboardTests {
     }
 
     @Test func theAckSetsInSyncAndTheSideToMoveButNeverTheStones() async {
-        let session = GameSession()
+        let session = GameSession.accepting()
         seedRecordPosition(session)
         session.gobanState.showBoardCount = 1
 
@@ -74,7 +74,7 @@ struct GameSessionShowboardTests {
         // Two showboards outstanding: the first block belongs to a navigation
         // the second one supersedes. Its "Next player" must not flip the turn
         // and its trailing line must not claim the engine is in sync.
-        let session = GameSession()
+        let session = GameSession.accepting()
         seedRecordPosition(session)
         session.player.nextColorForPlayCommand = .black
         session.player.nextColorFromShowBoard = .black
@@ -101,7 +101,7 @@ struct GameSessionShowboardTests {
     @Test func abortingAnInFlightBlockKeepsItFromClaimingSync() async {
         // A game switch lands mid-block. The rest of the superseded block must
         // not flip `isReady` true for the game that just started loading.
-        let session = GameSession()
+        let session = GameSession.accepting()
         seedRecordPosition(session)
         session.gobanState.showBoardCount = 1
 

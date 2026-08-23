@@ -174,6 +174,22 @@ struct ReadinessGateTests {
         #expect(gate.pending == 7)
         #expect(gate.drainWhenReady() == 7)
     }
+
+    /// The second user of the gate: `GobanState.engineSyncGate`, which defers
+    /// "the engine owes this position a feed" while the engine is down. Same
+    /// mechanism, different payload — and the same last-request-wins rule, which
+    /// is what makes the LIVE selection the one that gets fed.
+    @Test func worksWithEngineSyncRequestPayload() {
+        var gate = ReadinessGate<EngineSyncRequest>()
+        let stale = EngineSyncRequest(recordID: nil, index: 3)
+        let live = EngineSyncRequest(recordID: nil, index: 42)
+
+        #expect(gate.request(stale, isReady: false) == nil)
+        #expect(gate.request(live, isReady: false) == nil)
+        #expect(gate.pending == live)
+        #expect(gate.drainWhenReady() == live)
+        #expect(gate.drainWhenReady() == nil)
+    }
 }
 
 /// Tier-3 H/J: when a deferred deep-link selection is drained (macOS engine

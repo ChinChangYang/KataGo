@@ -36,6 +36,11 @@ public final class GameSession {
     /// this instance, so they share both the replay cache and the key that
     /// says what is currently on screen.
     public let recordPosition = RecordPositionProjector()
+    /// Engine availability, as the board displays it. Owned here because the
+    /// handshake and the message loop are the only things that know whether an
+    /// engine is listening; hosts inject it with `.environment(session.engineStatus)`
+    /// and read it back as an OPTIONAL `@Environment(EngineStatus.self)`.
+    public let engineStatus = EngineStatus()
 
     /// Drives the message loop's termination. Set to `true` by the host when it
     /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
@@ -68,6 +73,32 @@ public final class GameSession {
 
     private var isShowingBoard = false
     private var boardText: [String] = []
+
+    /// Set by `endEngineSession` so an in-flight `handshake` stops waiting for
+    /// an engine that is already gone, instead of sitting out the (multi-minute)
+    /// launch timeout. Cleared by each `handshake` on entry.
+    /// `@ObservationIgnored` — control flow, not observable UI state.
+    @ObservationIgnored private var handshakeAbandoned = false
+
+    /// How long the handshake waits for the engine's `version` reply.
+    /// 660 s is the Core ML loader's own launch fallback (600 s + 60 s,
+    /// `CoreMLComputeHandleLoader.loadCoreMLHandleWithBridgeTimeout`), which
+    /// bounds the longest work a launch can legitimately be doing: a cold
+    /// compile of two networks. Every BOOT handshake uses it; iOS and macOS
+    /// previously had no bound at all.
+    ///
+    /// The visionOS/tvOS RESTART paths pass 120 explicitly, to match the
+    /// `withTimeout(seconds: 120)` they already wrap the call in. That wrapper
+    /// is not a bound on its own: it cancels the child task, and a task group
+    /// still awaits a cancelled child — so `restartEngine` cannot return until
+    /// this loop does. The loop therefore honours `Task.isCancelled`, and the
+    /// two agree on the same deadline so neither can outlive the other.
+    public static let defaultHandshakeTimeout: Double = 660
+
+    /// How long each individual read blocks. The loop re-checks the deadline
+    /// and the abandon flag between reads, so this is the granularity at which
+    /// a dead engine is noticed — not a poll of the engine itself.
+    private static let handshakeReadInterval: Double = 0.5
 
     public init() {
         messageList.session = self
@@ -105,11 +136,13 @@ public final class GameSession {
     public func initialize(
         selectedModelTitle: String,
         engineLifecycle: EngineLifecycle,
-        config: Config?
+        config: Config?,
+        timeoutSeconds: Double = GameSession.defaultHandshakeTimeout
     ) async -> String? {
         let version = await handshake(
             selectedModelTitle: selectedModelTitle,
-            engineLifecycle: engineLifecycle
+            engineLifecycle: engineLifecycle,
+            timeoutSeconds: timeoutSeconds
         )
         sendInitialCommands(config: config)
         return version
@@ -122,31 +155,135 @@ public final class GameSession {
     /// cold-launch `open-game` URL. Reading `DeepLinkRouter.pendingGameID`
     /// before this await raced the URL delivery and lost on the Release
     /// auto-restore path (Debug always shows the model picker, masking it).
+    /// - Parameter timeoutSeconds: how long to wait for the reply before
+    ///   declaring the launch failed. Defaults to `defaultHandshakeTimeout`.
+    /// - Returns: the reply line, or nil when the engine never answered (a
+    ///   timeout, or a teardown that abandoned this handshake).
     @discardableResult
     public func handshake(
         selectedModelTitle: String,
-        engineLifecycle: EngineLifecycle
+        engineLifecycle: EngineLifecycle,
+        timeoutSeconds: Double = GameSession.defaultHandshakeTimeout
     ) async -> String? {
+        // A launch is in progress, and — until it lands — nothing may be sent.
+        engineStatus.availability = .launching
+        messageList.isAcceptingCommands = false
+        // A fresh engine agrees with nothing: drop every signal that says the
+        // PREVIOUS one did, before this one is asked anything. A leftover
+        // outstanding-ack count in particular would keep the board from ever
+        // reporting in sync again.
+        gobanState.resetForFreshEngine(stones: stones)
+        abortInFlightBoardCollection()
+        handshakeAbandoned = false
+
         // Discard any stale output the transport buffered from a PRIOR engine
         // run before this fresh handshake. The in-process bridge's output buffer
-        // is process-global and survives a relaunch (Quit → re-select a model),
+        // is process-global and survives a relaunch (Quit -> re-select a model),
         // so it holds leftover `kata-analyze` "info" lines, the `=` reply to
-        // `quit`, and the "\n" nudge from QuitButton. Without this, the blocking
-        // `getMessageLine()` below returns one of those stale lines IMMEDIATELY
-        // instead of waiting for the relaunched engine's real `version` reply —
-        // mounting the board before the model finishes loading (the empty-board
-        // flash on second entry), and letting a stale `= ` line wrongly fire
-        // `markFirstResponse` (clearing the OOM crash-loop sentinel). No-op for
-        // the subprocess transport, which gets a fresh stream per process.
+        // `quit`, and the newline nudge from QuitButton. Without this, the read
+        // below returns one of those stale lines IMMEDIATELY instead of waiting
+        // for the relaunched engine's real `version` reply — mounting the board
+        // before the model finishes loading (the empty-board flash on second
+        // entry), and letting a stale `= ` line wrongly fire `markFirstResponse`
+        // (clearing the OOM crash-loop sentinel). No-op for the subprocess
+        // transport, which gets a fresh stream per engine run.
         engine.clearPendingOutput()
         messageList.messages.append(Message(text: "Initializing..."))
-        messageList.appendAndSend(command: "version")
+        // A lifecycle command: it goes to the transport directly, because the
+        // gate it would otherwise face is — by construction — shut right now.
+        sendLifecycleCommand("version")
 
         let engine = self.engine
-        let version = await Task.detached {
-            // Get a message line from KataGo
-            return engine.getMessageLine()
-        }.value
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        var reply: String? = nil
+        var giveUpReason = "The engine did not answer."
+
+        // A BOUNDED loop rather than one unbounded read. An unbounded read
+        // cannot notice that the engine thread died mid-launch, and — worse —
+        // it stays parked on the process-global bridge, where it would eat the
+        // NEXT engine's `version` reply and wedge the relaunch forever.
+        //
+        // Cancellation is honoured because a caller's own bound (visionOS and
+        // tvOS wrap the restart handshake in `withTimeout(seconds: 120)`) is
+        // only real if this loop stops: a task group awaits its cancelled
+        // child, so the wrapper cannot return before this does.
+        while !handshakeAbandoned, !Task.isCancelled {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { break }
+            let slice = min(Self.handshakeReadInterval, remaining)
+            let line = await Task.detached {
+                engine.getMessageLine(timeoutSeconds: slice)
+            }.value
+            if handshakeAbandoned { break }
+            if Task.isCancelled { break }
+            if line.isEmpty {
+                // "" is "nothing yet" for every transport — except a subprocess
+                // whose child has exited, where it means the engine is gone.
+                if engine.hasReachedEOF {
+                    // The helper died mid-launch. Say what happened, not that
+                    // it was slow — this is the string macOS users see.
+                    giveUpReason = EngineExitDisposition.defaultReason
+                    break
+                }
+                // A transport with no timed primitive falls back to the
+                // unbounded read, which can return "" immediately; without this
+                // the loop would spin hot for the whole timeout. Noise next to
+                // the half-second slice a real timed read already consumed.
+                try? await Task.sleep(for: .milliseconds(20))
+                continue
+            }
+            if line.hasPrefix("= ") || line.hasPrefix("? ") {
+                reply = line
+                break
+            }
+            // Anything else is output the drain above did not catch. Keep it in
+            // the transcript — it is the only record of a misbehaving launch —
+            // and keep reading for the actual reply.
+            messageList.messages.append(Message(text: line))
+        }
+
+        if Task.isCancelled, reply == nil {
+            giveUpReason = "The engine did not answer in time."
+        }
+
+        guard let reply else {
+            // An abandoned handshake already has its cause recorded by whoever
+            // abandoned it (a thread exit, an EOF observed by the message loop);
+            // every other way out has to name itself.
+            if !handshakeAbandoned {
+                endEngineSession(.failed(reason: giveUpReason))
+            }
+            return nil
+        }
+
+        beginEngineSession(version: reply,
+                           modelTitle: selectedModelTitle,
+                           engineLifecycle: engineLifecycle)
+        return reply
+    }
+
+    /// Send a command that must reach the engine even while the command gate is
+    /// shut: `version` (the handshake itself) and the `stop`/`quit` pair every
+    /// restart path uses to bring an engine down. Everything else goes through
+    /// `MessageList.appendAndSend`, which drops while unavailable.
+    ///
+    /// The transcript still shows these, in the same shape as any other command
+    /// — a teardown that leaves no trace is a teardown nobody can debug.
+    public func sendLifecycleCommand(_ command: String) {
+        messageList.appendCommandEcho(command)
+        engine.sendCommand(command)
+    }
+
+    /// The engine answered: it takes commands, and the board's status line
+    /// reports Ready (i.e. reports nothing).
+    public func beginEngineSession(version: String,
+                                   modelTitle: String,
+                                   engineLifecycle: EngineLifecycle) {
+        messageList.isAcceptingCommands = true
+        engineStatus.availability = .ready
+        engineStatus.actions = []
+        engineStatus.modelTitle = modelTitle
+        engineStatus.engineVersion = version
 
         // Crash-loop recovery signal: the first line Swift sees from KataGo is
         // the engine's reply to `version`, which proves model loading finished
@@ -157,11 +294,55 @@ public final class GameSession {
         // `cout` before the GTP loop would need to re-validate this check.
         // Long-term fix: run the engine out-of-process via XPC so a crash
         // can't take the app down at all.
+        //
+        // A `? ` reply proves the loop is running too, so it opens the gate —
+        // but it is NOT a successful load, so the sentinel stays armed.
         if version.hasPrefix("= ") {
-            engineLifecycle.markFirstResponse(modelTitle: selectedModelTitle)
+            engineLifecycle.markFirstResponse(modelTitle: modelTitle)
         }
+    }
 
-        return version
+    /// The engine process/thread ended. Ends the session the way the exit
+    /// deserves: a restart WE asked for (model switch, Max Board Size, Quit —
+    /// all of which set `stopRequested` before sending `quit`) is *expected* and
+    /// offers no Retry, because nothing went wrong; anything else is a failure
+    /// the user has to be told about.
+    ///
+    /// Expected exits land in `.launching`, not `.ready`: the gate is shut
+    /// either way, and every expected exit is either followed by a relaunch
+    /// (which sets `.launching` itself a moment later) or by the app going away.
+    /// Leaving `.ready` standing over a shut gate would be the worse lie.
+    ///
+    /// - Parameter fatalError: `KataGoHelper.takeLastFatalError()` on the
+    ///   in-process paths; nil where no such channel exists (the macOS
+    ///   subprocess EOF).
+    public func noteEngineExit(fatalError: String?) {
+        switch EngineExitDisposition.decide(fatalError: fatalError,
+                                            stopWasRequested: stopRequested) {
+        case .expected:
+            endEngineSession(.launching)
+        case .failed(let reason):
+            endEngineSession(.failed(reason: reason))
+        }
+    }
+
+    /// The engine is gone (a failed launch, a crash, a teardown). Shuts the
+    /// command gate, abandons any handshake still waiting on it, and drops every
+    /// signal that claims the board and the engine agree.
+    ///
+    /// `actions` is seeded with `.retry` on a failure — the one way out every
+    /// platform has. A host may add `.chooseModel` where a picker exists.
+    public func endEngineSession(_ availability: EngineAvailability) {
+        handshakeAbandoned = true
+        messageList.isAcceptingCommands = false
+        abortInFlightBoardCollection()
+        gobanState.resetForFreshEngine(stones: stones)
+        engineStatus.availability = availability
+        if case .failed = availability {
+            engineStatus.actions = [.retry]
+        } else {
+            engineStatus.actions = []
+        }
     }
 
     /// The initial GTP commands for `config` (board size, rules, komi, human
@@ -200,6 +381,9 @@ public final class GameSession {
         // in-process bridge never reports EOF (its global buffer has no EOF), so
         // iOS/visionOS are unaffected. A normal blank GTP line is NOT EOF.
         if line.isEmpty && engine.hasReachedEOF {
+            // Classify BEFORE flipping our own stop flag, or a helper that
+            // crashed on its own would read as a teardown we asked for.
+            noteEngineExit(fatalError: nil)
             stopRequested = true
             return
         }
@@ -219,9 +403,7 @@ public final class GameSession {
             lineObserver?(line)
 
             // Handle GTP error responses by resetting all pending states
-            if line.hasPrefix("? ") {
-                gobanState.resetPendingStatesOnError(stones: stones)
-            }
+            maybeResetPendingStatesOnError(message: line)
 
             // Collect the engine-in-sync acknowledgement
             await maybeCollectSync(message: line)
@@ -277,6 +459,20 @@ public final class GameSession {
 
     // MARK: - Collectors
 
+    /// A `? ` reply clears everything waiting on an answer that will never come
+    /// — but only from an engine we are still talking to.
+    ///
+    /// `resetPendingStatesOnError` forces `stones.isReady = true`, i.e. "the
+    /// engine holds this position". A `?` from a dying helper, or one arriving
+    /// while a relaunch is in flight, holds nothing — and letting it claim sync
+    /// is exactly how analysis ends up collected for a board the engine never
+    /// saw.
+    func maybeResetPendingStatesOnError(message: String) {
+        guard message.hasPrefix("? ") else { return }
+        guard messageList.isAcceptingCommands else { return }
+        gobanState.resetPendingStatesOnError(stones: stones)
+    }
+
     /// Drops a half-parsed showboard block (a game switch can race the read
     /// loop mid-block). The block's remaining lines then fall through the
     /// isShowingBoard guard as ordinary messages, so a superseded navigation's
@@ -300,6 +496,11 @@ public final class GameSession {
     /// superseded navigation falls through as ordinary lines and can never
     /// flip the turn or claim sync.
     func maybeCollectSync(message: String) async {
+        // Only an engine we are still talking to can acknowledge anything. A
+        // block still draining out of a dying helper, or one arriving while a
+        // relaunch is in flight, must never claim the board is in sync with it.
+        guard messageList.isAcceptingCommands else { return }
+
         // Check if the board is not currently being shown
         guard isShowingBoard else {
             // If this is the LAST outstanding showboard's move-number line

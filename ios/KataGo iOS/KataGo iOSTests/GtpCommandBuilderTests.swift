@@ -166,7 +166,7 @@ struct GtpCommandBuilderTests {
 struct ConfigEngineSyncTests {
     @Test func setKomiUpdatesConfigAndEnqueuesKomiCommand() {
         let config = Config()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         ConfigEngineSync.setKomi(6.5, config: config, messageList: messageList)
         #expect(config.komi == 6.5)
         #expect(messageList.messages.last?.text == "> \(GtpCommandBuilder.komiCommand(6.5))")
@@ -180,7 +180,7 @@ struct ConfigEngineSyncTests {
         let config = Config()
         let gobanState = GobanState()
         let player = Turn()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
 
         // White is an AI running a human-style profile, and it's White's turn.
         config.humanProfileForWhite = "5k"
@@ -205,7 +205,7 @@ struct ConfigEngineSyncTests {
         let config = Config()
         let gobanState = GobanState()
         let player = Turn()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
 
         // White is currently Human but has a human-style profile configured; White to move.
         config.humanProfileForWhite = "5k"
@@ -230,7 +230,7 @@ struct ConfigEngineSyncTests {
         config.blackMaxTime = 2.0
         let gobanState = GobanState()
         let player = Turn()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
 
         ConfigEngineSync.setBlackMaxTime(2.0, config: config, gobanState: gobanState,
                                          player: player, messageList: messageList)
@@ -246,7 +246,7 @@ struct ConfigEngineSyncTests {
         config.blackMaxTime = 2.0
         let gobanState = GobanState()
         let player = Turn()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
 
         ConfigEngineSync.setBlackMaxTime(0, config: config, gobanState: gobanState,
                                          player: player, messageList: messageList)
@@ -270,7 +270,7 @@ struct ConfigEngineSyncTests {
         gobanState.waitingForAnalysis = false  // mid-stream
         let player = Turn()
         player.nextColorForPlayCommand = .black
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
 
         // Tap Black's label → Human (0.5 → 0): White stays AI, Black (human) to move, hidden.
         ConfigEngineSync.setBlackMaxTime(0, config: config, gobanState: gobanState,

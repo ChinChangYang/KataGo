@@ -574,11 +574,13 @@ public class MessageList {
     /// `quit` — deliberately bypass this by going through
     /// `GameSession.engine.sendCommand` directly.
     ///
-    /// Defaults TRUE in this commit: the hosts still gate their board behind
-    /// the handshake, so nothing can send early yet, and a default of false
-    /// here would silently swallow every command. The handshake wiring — and
-    /// the flip to false — belong to the commit that removes those gates.
-    public var isAcceptingCommands = true
+    /// Defaults FALSE: a session that has handshaken with nothing has, by
+    /// definition, no engine to send to. `GameSession.handshake` is the ONLY
+    /// thing that opens it (on the `= ` reply, via `beginEngineSession`), and
+    /// `endEngineSession` is the only thing that shuts it again — which is what
+    /// keeps `BoardView.onAppear` from `showboard`ing into a pre-loop buffer
+    /// and the tap gate from opening against a still-loading net.
+    public var isAcceptingCommands = false
 
     /// Back-reference to the owning `GameSession`. `appendAndSend` routes
     /// commands through `session?.engine` so `GameSession` is the sole engine
@@ -600,20 +602,47 @@ public class MessageList {
         messages.append(Message(text: "> \(command)"))
     }
 
-    public func appendAndSend(command: String) {
+    /// Echo a command into the transcript WITHOUT sending it. The one caller is
+    /// `GameSession.sendLifecycleCommand`, which writes to the transport itself
+    /// so `version`/`stop`/`quit` bypass the gate — the transcript still has to
+    /// show them, and it must show them in the same shape as everything else.
+    public func appendCommandEcho(_ command: String) {
+        append(command: command)
+    }
+
+    /// - Returns: whether the command actually reached the engine. Callers that
+    ///   keep bookkeeping about what the engine was told — `sendShowBoardCommand`
+    ///   above all — must branch on this, because a dropped command changes
+    ///   nothing on the engine side.
+    @discardableResult
+    public func appendAndSend(command: String) -> Bool {
         guard isAcceptingCommands else {
             // Logged, not silent: a dropped command is exactly the kind of
             // thing that shows up much later as "the engine is on the wrong
             // position", and the transcript is where that gets diagnosed.
+            //
+            // Dropped, never buffered: the in-process bridge's command buffer
+            // is process-global and would replay a stale burst into the NEXT
+            // engine; the macOS pipe throws the write away anyway. The resync
+            // after the handshake re-states the LIVE position instead.
             messages.append(Message(text: "> (dropped — engine unavailable) \(command)"))
-            return
+            return false
         }
         append(command: command)
         session?.engine.sendCommand(command)
+        return true
     }
 
-    public func appendAndSend(commands: [String]) {
-        commands.forEach(appendAndSend)
+    /// - Returns: whether EVERY command reached the engine. A partial send is
+    ///   possible only if the gate shuts mid-bundle.
+    @discardableResult
+    public func appendAndSend(commands: [String]) -> Bool {
+        var allSent = true
+        for command in commands {
+            let sent = appendAndSend(command: command)
+            allSent = allSent && sent
+        }
+        return allSent
     }
 }
 

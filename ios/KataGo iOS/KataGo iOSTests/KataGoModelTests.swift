@@ -469,18 +469,18 @@ struct KataGoModelTests {
     // MARK: - MessageList Tests
 
     @Test func testMessageListDefaultInitialization() async throws {
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         #expect(messageList.messages.isEmpty)
     }
 
     @Test func testMessageListShrinkEmpty() async throws {
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         messageList.shrink()
         #expect(messageList.messages.isEmpty)
     }
 
     @Test func testMessageListShrinkUnderLimit() async throws {
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         for _ in 1..<MessageList.defaultMaxMessageLines {
             messageList.messages.append(Message(text: "Test"))
         }
@@ -489,7 +489,7 @@ struct KataGoModelTests {
     }
 
     @Test func testMessageListShrinkAtLimit() async throws {
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         for _ in 1...MessageList.defaultMaxMessageLines {
             messageList.messages.append(Message(text: "Test"))
         }
@@ -498,7 +498,7 @@ struct KataGoModelTests {
     }
 
     @Test func testMessageListShrinkOverLimit() async throws {
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         for _ in 1...(MessageList.defaultMaxMessageLines + 10) {
             messageList.messages.append(Message(text: "Test"))
         }
@@ -540,7 +540,7 @@ struct KataGoModelTests {
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList()
+            messageList: MessageList.accepting()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
@@ -555,7 +555,7 @@ struct KataGoModelTests {
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList()
+            messageList: MessageList.accepting()
         )
 
         #expect(gobanState.waitingForAnalysis == false)
@@ -661,7 +661,7 @@ struct KataGoModelTests {
         gobanState.maybeRequestAnalysis(
             config: config,
             nextColorForPlayCommand: .black,
-            messageList: MessageList()
+            messageList: MessageList.accepting()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
@@ -675,7 +675,7 @@ struct KataGoModelTests {
 
         gobanState.maybeRequestAnalysis(
             config: config,
-            messageList: MessageList()
+            messageList: MessageList.accepting()
         )
 
         #expect(gobanState.waitingForAnalysis == true)
@@ -767,14 +767,14 @@ struct KataGoModelTests {
 
     @Test func testIsPendingMoveStaleImmediatelyAfterSend() async throws {
         let gobanState = GobanState()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
         #expect(gobanState.isPendingMoveStale == false)
     }
 
     @Test func testIsPendingMoveStaleAfterTimeout() async throws {
         let gobanState = GobanState()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
         // Artificially set timestamp beyond GobanState.pendingMoveTimeout
         gobanState.pendingMoveTimestamp = Date().addingTimeInterval(-6.0)
@@ -783,7 +783,7 @@ struct KataGoModelTests {
 
     @Test func testIsPendingMoveStaleAfterClear() async throws {
         let gobanState = GobanState()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
         gobanState.clearPendingMove()
         #expect(gobanState.isPendingMoveStale == false)

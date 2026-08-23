@@ -33,6 +33,12 @@ final class SubprocessKataGoEngine: KataGoEngineIO, @unchecked Sendable {
     // MARK: KataGoEngineIO
     func sendCommand(_ command: String) { process.sendCommand(command) }
     func getMessageLine() -> String { process.getMessageLine() }
+    /// Bounded read, backed by the child's own condition variable — so the
+    /// macOS handshake can give up on a helper that never answers instead of
+    /// leaving a reader parked on its stdout.
+    func getMessageLine(timeoutSeconds: Double) -> String {
+        process.getMessageLine(timeoutSeconds: timeoutSeconds)
+    }
     /// No-op: the child's reader unblocks naturally on stdout EOF when it exits,
     /// so the in-process "\n" nudge is unnecessary out-of-process.
     func sendMessage(_ message: String) {}

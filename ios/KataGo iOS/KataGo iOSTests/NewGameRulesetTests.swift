@@ -197,7 +197,7 @@ struct NewGameRulesetTests {
     /// sequence (six kata-set-rule + komi — never kata-set-rules).
     @Test @MainActor func applyRulesetJapanese() {
         let config = Config()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         ConfigEngineSync.applyRuleset(.japanese, config: config, messageList: messageList)
         #expect(config.koRule == .simple)
         #expect(config.scoringRule == .territory)
@@ -221,7 +221,7 @@ struct NewGameRulesetTests {
     /// Task-1 array fix guarantees) — and area komi 7.5.
     @Test @MainActor func applyRulesetChineseSendsWhbN() {
         let config = Config()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         ConfigEngineSync.applyRuleset(.chinese, config: config, messageList: messageList)
         #expect(config.whiteHandicapBonusRule == .n)
         #expect(config.komi == 7.5)
@@ -233,7 +233,7 @@ struct NewGameRulesetTests {
     @Test @MainActor func applyRulesetCustomIsNoOp() {
         let config = Config()
         let before = config.rule
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         ConfigEngineSync.applyRuleset(.custom, config: config, messageList: messageList)
         #expect(messageList.messages.isEmpty)
         #expect(config.rule == before)

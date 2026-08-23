@@ -74,7 +74,7 @@ struct BroadcastReplayTests {
 
     @MainActor
     private struct Fixture {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record: GameRecord
         let controller: BroadcastController
         let speaker = FakeSpeaker()
@@ -377,7 +377,7 @@ struct BroadcastReplayTests {
     /// to capture a session it doesn't own yet), so this wires one by hand.
     @MainActor
     private final class ReplayPassHarness {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record: GameRecord
         let speaker = FakeSpeaker()
         var controller: BroadcastController!
@@ -497,7 +497,7 @@ struct BroadcastReplayTests {
 
     @Test("The replay flag silences asymmetric human-SL turn commands")
     func suppressionFlagSilencesAsymmetricSends() {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record = SelfPlayGame.makeRecord()
         let config = record.concreteConfig
         config.blackMaxTime = 1.0

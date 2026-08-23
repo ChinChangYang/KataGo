@@ -52,7 +52,7 @@ struct GameSessionOpeningSendsNoPrintsgfTests {
         try container.mainContext.save()
 
         let engine = RecordingQueueEngine(live: [])
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.useEngine(engine)
         let navigation = NavigationContext()
         navigation.selectedGameRecord = record

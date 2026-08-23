@@ -32,7 +32,7 @@ struct GobanStateAutoPlayTests {
         let container = try ModelContainer(for: SharedModelContainer.schema,
                                            configurations: SharedModelContainer.inMemoryConfig())
         let engine = RecordingQueueEngine(live: [])
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.useEngine(engine)
         session.gobanState.isAutoPlaying = true
         let record = GameRecord.createGameRecord(sgf: sgf, currentIndex: currentIndex)

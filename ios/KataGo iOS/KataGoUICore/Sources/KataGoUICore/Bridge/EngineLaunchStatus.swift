@@ -39,4 +39,13 @@ public final class EngineLaunchStatus {
     public func compileEnded() {
         activeCompiles = max(0, activeCompiles - 1)
     }
+
+    /// The secondary caption every launch surface shows: the ADR 0007 string
+    /// while a compile is genuinely running, and nothing otherwise. Hoisted
+    /// here (from two byte-identical copies in `EngineLoadingView` and the iOS
+    /// `LoadingView`) so the launch screens and the inline engine-status line
+    /// cannot spell it three different ways.
+    public var compileCaption: String? {
+        isCompiling ? EngineStatusText.compilingCaption : nil
+    }
 }

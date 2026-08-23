@@ -111,7 +111,7 @@ struct DeepReportGeneratorTests {
 
     @MainActor
     struct Fixture {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let engine = ReportProbeEngine()
         let record: GameRecord
         let model = DeepReportModel()

@@ -18,7 +18,7 @@ struct GobanStateResumeAnalysisTests {
 
     @MainActor
     private func makeSession() -> (GameSession, ReportProbeEngine) {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let engine = ReportProbeEngine()
         session.useEngine(engine)
         session.board.width = 2

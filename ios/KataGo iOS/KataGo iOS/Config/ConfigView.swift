@@ -813,6 +813,10 @@ struct GlobalSettingsView: View {
     @Environment(GobanState.self) private var gobanState
     @Environment(ThumbnailModel.self) private var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
+    /// Injected by `ContentView` alongside every other session model, and read
+    /// here only to route `quit` through the LIFECYCLE path — the one that
+    /// bypasses the command gate and still echoes into the transcript.
+    @Environment(GameSession.self) private var session
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -1052,7 +1056,9 @@ struct GlobalSettingsView: View {
     /// whole tree, sheet included).
     private func quitEngine() {
         topUIState.quitStatus = .quitting
-        KataGoHelper.sendCommand("quit")
+        // A lifecycle command: the gate must not be able to swallow the one
+        // command that brings the engine down.
+        session.sendLifecycleCommand("quit")
         Task {
             // Wait until all messages are consumed.
             try? await Task.sleep(for: .seconds(1))

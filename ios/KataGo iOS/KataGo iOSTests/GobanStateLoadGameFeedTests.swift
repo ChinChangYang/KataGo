@@ -30,7 +30,7 @@ struct GobanStateLoadGameFeedTests {
         let container = try ModelContainer(for: SharedModelContainer.schema,
                                            configurations: SharedModelContainer.inMemoryConfig())
         let engine = RecordingQueueEngine(live: [])
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.useEngine(engine)
         return Fixture(session: session, engine: engine, container: container)
     }

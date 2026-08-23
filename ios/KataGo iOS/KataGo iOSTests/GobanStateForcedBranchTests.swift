@@ -31,7 +31,7 @@ struct GobanStateForcedBranchTests {
         let analysis = Analysis()
         let board = BoardSize()
         let stones = Stones()
-        let messageList = MessageList()
+        let messageList = MessageList.accepting()
         let player = Turn()
         let audioModel = AudioModel()
 

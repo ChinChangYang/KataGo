@@ -31,7 +31,7 @@ struct GameSessionCollectSgfReviewGuardTests {
         let sgfBefore = record.sgf
         let dateBefore = record.lastModificationDate
 
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.gobanState.forcesBranchOnPlay = true
         let navigation = NavigationContext()
         navigation.selectedGameRecord = record
@@ -52,7 +52,7 @@ struct GameSessionCollectSgfReviewGuardTests {
         let record = GameRecord.createGameRecord(name: "Synced game")
         container.mainContext.insert(record)
 
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.gobanState.forcesBranchOnPlay = true
         session.gobanState.branchSgf = record.sgf
         session.gobanState.branchIndex = 0
@@ -75,7 +75,7 @@ struct GameSessionCollectSgfReviewGuardTests {
         let record = GameRecord.createGameRecord(name: "Editing game")
         container.mainContext.insert(record)
 
-        let session = GameSession()
+        let session = GameSession.accepting()
         let navigation = NavigationContext()
         navigation.selectedGameRecord = record
 

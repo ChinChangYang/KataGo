@@ -3,11 +3,15 @@
 //  KataGo iOSTests
 //
 //  Verifies that GameSession.initialize() drains stale, buffered output from a
-//  prior in-process engine run BEFORE reading the `version` reply. Without this,
-//  a re-entry after Quit returns a stale line immediately (instead of blocking
-//  for the freshly-relaunched engine), mounting the board before the model
-//  finishes loading — and a stale `= ` line wrongly fires markFirstResponse,
-//  clearing the OOM crash-loop sentinel.
+//  prior in-process engine run BEFORE reading the `version` reply.
+//
+//  What the drain protects is NOT a board mount — the board never waits for the
+//  engine and draws the record position regardless. It protects the two things
+//  a stale line can forge: the IN-SYNC SIGNAL (a leftover `= ` read as this
+//  engine's `version` reply opens the command gate against a model that is
+//  still loading, and everything sent through it is lost) and the CRASH
+//  SENTINEL (`markFirstResponse` clears the OOM sentinel on a `= ` prefix, so a
+//  stale one reports a load that never finished as successful).
 //
 
 import Testing

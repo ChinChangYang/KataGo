@@ -29,7 +29,7 @@ struct GameSessionAutoPlayPlayLineGuardTests {
 
     @Test("While auto-playing, a stray gen-move play line is dropped")
     func autoPlayDropsStrayPlayLine() {
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.gobanState.isAutoPlaying = true
         session.player.nextColorForPlayCommand = .black
         let box = AIMoveBox()
@@ -44,7 +44,7 @@ struct GameSessionAutoPlayPlayLineGuardTests {
 
     @Test("Not auto-playing: the play line is processed as before")
     func normalPlayLineStillProcessed() {
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.player.nextColorForPlayCommand = .black
         let box = AIMoveBox()
 

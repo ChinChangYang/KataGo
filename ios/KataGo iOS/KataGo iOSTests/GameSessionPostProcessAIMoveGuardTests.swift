@@ -28,7 +28,7 @@ struct GameSessionPostProcessAIMoveGuardTests {
 
     @MainActor
     private struct Fixture {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let navigation = NavigationContext()
         let audioModel = AudioModel()
         let record: GameRecord

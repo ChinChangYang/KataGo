@@ -18,6 +18,18 @@ public protocol KataGoEngineIO: AnyObject, Sendable {
     /// Block until the next output line is available; returns it without the
     /// trailing newline. Returns "" at end-of-output (see `hasReachedEOF`).
     func getMessageLine() -> String
+    /// Bounded `getMessageLine`: returns "" if no complete line arrives within
+    /// `timeoutSeconds`, instead of blocking indefinitely.
+    ///
+    /// The unbounded read is right for the steady-state message loop, which
+    /// drives a live engine. It is wrong for the HANDSHAKE, which reads from an
+    /// engine that may never answer: a blocked reader there cannot notice that
+    /// the engine thread has already exited, and — worse — it stays parked on
+    /// the process-global bridge and eats the NEXT engine's `version` reply.
+    /// "" means "nothing yet"; the caller's own deadline decides when to give
+    /// up. Default: the unbounded read, so a transport with no timed primitive
+    /// still conforms (and still blocks — documented, not silently broken).
+    func getMessageLine(timeoutSeconds: Double) -> String
     /// Inject a raw message into the read side (used by the in-process bridge to
     /// nudge a blocked reader during teardown). A no-op for transports whose
     /// reader unblocks naturally on EOF.
@@ -39,6 +51,9 @@ public protocol KataGoEngineIO: AnyObject, Sendable {
 
 public extension KataGoEngineIO {
     func clearPendingOutput() {}
+    /// Falls back to the unbounded read. Correct but not bounded: a transport
+    /// that has no timed primitive simply blocks, exactly as it did before.
+    func getMessageLine(timeoutSeconds: Double) -> String { getMessageLine() }
 }
 
 /// In-process transport backed by the global `KataGoHelper` C++ bridge. Inherently
@@ -49,6 +64,9 @@ public final class InProcessKataGoEngine: KataGoEngineIO, @unchecked Sendable {
     public init() {}
     public func sendCommand(_ command: String) { KataGoHelper.sendCommand(command) }
     public func getMessageLine() -> String { KataGoHelper.getMessageLine() }
+    public func getMessageLine(timeoutSeconds: Double) -> String {
+        KataGoHelper.getMessageLine(timeoutSeconds: timeoutSeconds)
+    }
     public func sendMessage(_ message: String) { KataGoHelper.sendMessage(message) }
     public var hasReachedEOF: Bool { false }
     public func clearPendingOutput() { KataGoHelper.clearOutputBuffer() }

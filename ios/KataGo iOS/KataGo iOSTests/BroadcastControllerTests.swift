@@ -43,7 +43,7 @@ struct BroadcastControllerTests {
 
     @MainActor
     private struct Fixture {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record: GameRecord
         let controller: BroadcastController
 
@@ -871,7 +871,7 @@ struct BroadcastControllerTests {
     /// the self-play screen used to see `isGameOver` on the closing poke.
     @MainActor
     private final class LiveHarness {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record: GameRecord
         let speaker = FakeSpeaker()
         let recordedDelays = DelayBox()
@@ -1131,7 +1131,7 @@ struct BroadcastControllerTests {
     @Test("A replay terminal caption keeps its dwell — there is no card over it")
     func replayTerminalCaptionStillDwells() async {
         let delays = DelayBox()
-        let session = GameSession()
+        let session = GameSession.accepting()
         let record = SelfPlayGame.makeRecord()
         session.board.width = 9
         session.board.height = 9

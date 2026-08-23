@@ -31,7 +31,7 @@ final class RecordingEngine: KataGoEngineIO, @unchecked Sendable {
 @MainActor
 struct MessageListEngineOwnershipTests {
     @Test func appendAndSendRoutesThroughSessionEngine() {
-        let session = GameSession()
+        let session = GameSession.accepting()
         let engine = RecordingEngine()
         session.useEngine(engine)
         session.messageList.appendAndSend(command: "version")

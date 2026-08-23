@@ -35,7 +35,7 @@ struct TurnChangeRearmTests {
             currentIndex: 1)
         container.mainContext.insert(record)
         let engine = RecordingQueueEngine(live: [])
-        let session = GameSession()
+        let session = GameSession.accepting()
         session.useEngine(engine)
         let navigation = NavigationContext()
         navigation.selectedGameRecord = record

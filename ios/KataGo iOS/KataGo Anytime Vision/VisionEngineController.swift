@@ -102,8 +102,10 @@ final class VisionEngineController {
         // Stop any streaming search, then quit. Give the loop a second to
         // drain replies, flip its condition, then push a fake line through
         // the bridge to unpark a blocked getline.
-        session.messageList.appendAndSend(command: "stop")
-        session.messageList.appendAndSend(command: "quit")
+        // Lifecycle commands: they go straight to the transport, because the
+        // command gate is exactly what a teardown must not be blocked by.
+        session.sendLifecycleCommand("stop")
+        session.sendLifecycleCommand("quit")
         try? await Task.sleep(for: .seconds(1))
         let exited: Void? = await withTimeout(seconds: 10) { [weak self] in
             await withCheckedContinuation { continuation in
@@ -145,10 +147,16 @@ final class VisionEngineController {
 
         // The handshake title is what markFirstResponse persists as the
         // last-good selection — it must be the net this engine loads.
+        // The handshake carries the SAME 120 s deadline as the wrapper. The
+        // wrapper alone is not a bound: it cancels its child, and a task group
+        // still awaits a cancelled child, so this could not return until the
+        // handshake did. The handshake honours cancellation too — belt and
+        // braces, and neither can outlive the other.
         let handshake: Bool? = await withTimeout(seconds: 120) { [self] in
             _ = await session.handshake(
                 selectedModelTitle: activeModel.title,
-                engineLifecycle: engineLifecycle)
+                engineLifecycle: engineLifecycle,
+                timeoutSeconds: 120)
             return true
         }
 

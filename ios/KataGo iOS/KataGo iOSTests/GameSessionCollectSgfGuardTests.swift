@@ -33,7 +33,7 @@ struct GameSessionCollectSgfGuardTests {
     @Test("Empty library + nil selection: nothing is created")
     func nothingIsCreatedFromAReply() throws {
         let container = try makeInMemoryContainer()
-        let session = GameSession()
+        let session = GameSession.accepting()
         let navigation = NavigationContext()
 
         session.maybeCollectSgf(message: Self.printsgfReply,
@@ -52,7 +52,7 @@ struct GameSessionCollectSgfGuardTests {
         let demo = GameRecord.createGameRecord(name: "Demo")
         demoContainer.mainContext.insert(demo)
 
-        let session = GameSession()
+        let session = GameSession.accepting()
         let navigation = NavigationContext()
         navigation.selectedGameRecord = demo
 
@@ -75,7 +75,7 @@ struct GameSessionCollectSgfGuardTests {
         let container = try makeInMemoryContainer()
         let existing = GameRecord.createGameRecord(name: "Existing")
         container.mainContext.insert(existing)
-        let session = GameSession()
+        let session = GameSession.accepting()
         let navigation = NavigationContext()
 
         session.maybeCollectSgf(message: Self.printsgfReply,

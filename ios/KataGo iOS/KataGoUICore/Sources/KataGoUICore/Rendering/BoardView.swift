@@ -18,6 +18,14 @@ public struct BoardView: View {
     @Environment(BookLookup.self) var bookLookup
     @Environment(Winrate.self) var rootWinrate
     @Environment(Score.self) var rootScore
+    /// Engine availability, read OPTIONALLY: a host that has not been converted
+    /// injects nothing, and nil means "behave exactly as before" (ready).
+    /// Deliberately not an `@Entry` environment key — a `@MainActor` default
+    /// value in the nonisolated `EnvironmentValues` context is a Swift 6 error.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+    /// Also optional: macOS does not inject one (its engine is a subprocess
+    /// with no compile-status channel back to the app — ADR 0007's gap).
+    @Environment(EngineLaunchStatus.self) private var launchStatus: EngineLaunchStatus?
     var gameRecord: GameRecord
     /// When false, the board is display-only: taps never place a stone (used by
     /// the tvOS review/spectate screen, which has no pointer). Phase 2's casual-
@@ -80,6 +88,36 @@ public struct BoardView: View {
 
     var shouldShowWinrateBar: Bool {
         gobanState.showWinrateBar && (gobanState.eyeStatus == .opened || (gobanState.eyeStatus == .book && bookLookup.isInBook))
+    }
+
+    /// The inline engine-availability line, where the visits/s readout and the
+    /// winrate bar already live — never a screen that replaces the board.
+    ///
+    /// Two independent lines, because they answer different questions: the
+    /// engine one ("nothing can analyse this yet") and the record one ("this
+    /// game could not be read at all"), which is true whatever the engine is
+    /// doing. Nothing is added to the view tree when neither applies, so a
+    /// ready engine on a readable record renders — and hit-tests — exactly as
+    /// before.
+    @ViewBuilder
+    private var engineStatusOverlay: some View {
+        let showsEngineStatus = engineStatus.map { !$0.isReady || $0.note != nil } ?? false
+        if showsEngineStatus || gobanState.isRecordUnreadable {
+            VStack(spacing: 6) {
+                if let engineStatus, showsEngineStatus {
+                    EngineStatusView(status: engineStatus,
+                                     launchStatus: launchStatus,
+                                     style: .inline)
+                }
+                if gobanState.isRecordUnreadable {
+                    UnreadableRecordView()
+                }
+            }
+            .padding(.top, 8)
+            // Only a status with a way out may take a touch; otherwise the line
+            // must not steal a tap meant for the point underneath it.
+            .allowsHitTesting(engineStatus?.actions.isEmpty == false)
+        }
     }
 
     public var body: some View {
@@ -234,9 +272,18 @@ public struct BoardView: View {
                 }
 #endif
             }
+            .overlay(alignment: .top) {
+                engineStatusOverlay
+            }
             .onAppear {
-                player.nextColorForPlayCommand = .unknown
-                gobanState.sendShowBoardCommand(messageList: messageList)
+                // Re-park the turn and ask the engine where it stands — but only
+                // when there IS an engine. Against an unavailable one this is a
+                // no-op, so the `.unknown` park is never left with nothing able
+                // to resolve it. A host that injects no status reads as ready,
+                // which is the pre-existing behaviour verbatim.
+                gobanState.resyncOnAppear(engineReady: engineStatus?.isReady ?? true,
+                                          player: player,
+                                          messageList: messageList)
             }
             .onChange(of: config.maxAnalysisMoves) { _, _ in
                 gobanState.maybeRequestAnalysis(
