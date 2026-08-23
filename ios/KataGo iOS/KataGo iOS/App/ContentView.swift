@@ -142,15 +142,15 @@ struct ContentView: View {
         // reading `pendingGameID` before it raced the asynchronous URL delivery
         // and lost on the Release auto-restore path (Debug always shows the
         // model picker, which masked the race). With no pending deep link this
-        // resolves to the most-recently-modified game (unchanged). Resolve it
-        // once and use it for the engine config, the selection, the book-compat
-        // check, and the SGF load so they all agree on one game.
-        let initialGame = GameRecord.resolveInitialSelection(
+        // resolves to the most-recently-modified game, and on a genuinely empty
+        // library it CREATES the first game — engine-free, where a `printsgf`
+        // reply used to birth it. A deep link that arrives after this point is
+        // drained by `GameSplitView`'s `pendingGameID` observer.
+        let initialGame = GameRecord.resolveOrCreateInitialSelection(
             pendingGameID: deepLinkRouter.pendingGameID,
             container: modelContext.container
         )
         deepLinkRouter.pendingGameID = nil
-        session.sendInitialCommands(config: initialGame?.concreteConfig)
 
         // Surface the model name + engine version in the Configurations sheet.
         // The launch screen used to linger for a few seconds just to show
@@ -160,21 +160,30 @@ struct ContentView: View {
         topUIState.engineVersion = version
 
         navigationContext.selectedGameRecord = initialGame
-        navigationContext.selectedGameRecord?.updateToLatestVersion()
-        if let cfg = initialGame?.concreteConfig, cfg.isBookEligible {
-            session.bookLookup.loadIfNeeded(boardSize: cfg.boardWidth)
+        initialGame.updateToLatestVersion()
+        let initialConfig = initialGame.concreteConfig
+        if initialConfig.isBookEligible {
+            session.bookLookup.loadIfNeeded(boardSize: initialConfig.boardWidth)
         }
 
-        session.gobanState.maybeLoadSgf(
-            gameRecord: navigationContext.selectedGameRecord,
-            messageList: session.messageList
-        )
-
-        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
-        // A load echo: this reads back the SGF just loaded from the record, so
-        // it must sync without stamping the game as modified (launching the app
-        // is not editing the game it happens to open).
-        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
+        // The one seeding path: `loadGame` projects the record position (the
+        // board is drawn before the engine is told anything) and then FEEDS the
+        // engine that position move by move — board size, rules, setup stones
+        // and one `play` per accepted move. It subsumes `sendInitialCommands`,
+        // `loadsgf` and the `printsgf` echo, and it honours the record's saved
+        // cursor instead of parking at the tip.
+        //
+        // Called directly rather than left to `GameSplitView`'s selection
+        // observer: that observer is not `initial:`, and the view is not
+        // mounted yet.
+        session.gobanState.loadGame(gameRecord: initialGame,
+                                    player: session.player,
+                                    bookLookup: session.bookLookup,
+                                    messageList: session.messageList,
+                                    board: session.board,
+                                    stones: session.stones,
+                                    analysis: session.analysis,
+                                    projector: session.recordPosition)
         await session.messaging(
             gameRecords: gameRecords,
             modelContext: modelContext,

@@ -188,6 +188,12 @@ struct RuleConfigView: View {
             // printsgf would overwrite the branch with it, while the saved SGF
             // keeps the old size — destroying the branch and desyncing the
             // config from the record.
+            //
+            // It is also locked until the engine is in sync (`stones.isReady`).
+            // The board itself never waits for the engine, but resizing does:
+            // this editor's onDisappear sends `boardsize` + `printsgf`, and a
+            // printsgf answered by an engine that has not been fed this game
+            // would overwrite the record with the engine's idea of it.
             ConfigIntItem(title: "Board width", value: $boardWidth, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
                     boardWidth = config.boardWidth
@@ -198,7 +204,7 @@ struct RuleConfigView: View {
                         isBoardSizeChanged = true
                     }
                 }
-                .disabled(gobanState.isBranchActive)
+                .disabled(gobanState.isBranchActive || !stones.isReady)
 
             ConfigIntItem(title: "Board height", value: $boardHeight, minValue: 2, maxValue: maxBoardLength)
                 .onAppear {
@@ -210,10 +216,14 @@ struct RuleConfigView: View {
                         isBoardSizeChanged = true
                     }
                 }
-                .disabled(gobanState.isBranchActive)
+                .disabled(gobanState.isBranchActive || !stones.isReady)
 
             if gobanState.isBranchActive {
                 Text("Board size can't be changed while a branch is active.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if !stones.isReady {
+                Text("Board size can't be changed until the engine is ready.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -663,17 +673,22 @@ struct CommentConfigView: View {
 struct SgfConfigView: View {
     var gameRecord: GameRecord
     @State var sgf: String = ""
+    @Environment(GameSession.self) var session
     @Environment(Turn.self) var player
     @Environment(GobanState.self) var gobanState
     @Environment(MessageList.self) var messageList
+    @Environment(BoardSize.self) var board
+    @Environment(Stones.self) var stones
+    @Environment(Analysis.self) var analysis
+    @Environment(BookLookup.self) var bookLookup
 
     var body: some View {
         List {
             // Read-only while a branch is active: onDisappear would write the
-            // pasted SGF into the record, but maybeLoadSgf is branch-aware and
-            // would reload the BRANCH into the engine instead of the pasted
-            // game, desyncing the board from the record until the branch is
-            // deactivated.
+            // pasted SGF into the record and reload it, but the reload is
+            // branch-aware and would put the BRANCH back on the board instead
+            // of the pasted game, desyncing the board from the record until the
+            // branch is deactivated.
             if gobanState.isBranchActive {
                 Text("Deactivate the branch to edit the SGF.")
                     .font(.footnote)
@@ -691,37 +706,31 @@ struct SgfConfigView: View {
                 }
                 .onDisappear {
                     if sgf != gameRecord.sgf {
+                        // The pasted SGF becomes the record, and `loadGame`
+                        // does the rest: it projects the new position onto the
+                        // board at once and feeds the engine the whole opening
+                        // bundle — board size, rules, komi, setup stones and
+                        // one `play` per move. The hand-rolled loadsgf + rules
+                        // + showboard + printsgf sequence that used to live
+                        // here was a second, drifting copy of exactly that.
                         let config = gameRecord.concreteConfig
-                        let sgfHelper = SgfHelper(sgf: sgf)
+                        let sgfHelper = SgfOperations(sgf: sgf)
                         config.boardWidth = sgfHelper.xSize
                         config.boardHeight = sgfHelper.ySize
-                        config.koRule = sgfHelper.rules.koRule
-                        config.scoringRule = sgfHelper.rules.scoringRule
-                        config.taxRule = sgfHelper.rules.taxRule
-                        config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
-                        config.hasButton = sgfHelper.rules.hasButton
-                        config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
-                        config.komi = sgfHelper.rules.komi
                         gameRecord.sgf = sgf
+                        // Land on the pasted game's last move: a cursor left
+                        // over from the previous SGF means nothing here.
+                        gameRecord.currentIndex = sgfHelper.moveSize ?? 0
                         player.nextColorForPlayCommand = .unknown
 
-                        gobanState.maybeLoadSgf(
-                            gameRecord: gameRecord,
-                            messageList: messageList
-                        )
-
-                        messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(
-                            ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText,
-                            multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton,
-                            whiteHandicapBonus: config.whiteHandicapBonusRuleText))
-                        messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
-                        messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
-                        messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
-                        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
-                            humanSLProfile: config.effectiveHumanProfileForBlack, humanProfileForWhite: config.effectiveHumanProfileForWhite,
-                            humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
-                        gobanState.sendShowBoardCommand(messageList: messageList)
-                        messageList.appendAndSend(command: "printsgf")
+                        gobanState.loadGame(gameRecord: gameRecord,
+                                            player: player,
+                                            bookLookup: bookLookup,
+                                            messageList: messageList,
+                                            board: board,
+                                            stones: stones,
+                                            analysis: analysis,
+                                            projector: session.recordPosition)
                     }
                 }
         }

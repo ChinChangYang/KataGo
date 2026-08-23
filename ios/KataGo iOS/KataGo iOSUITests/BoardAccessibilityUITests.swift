@@ -43,10 +43,9 @@ final class BoardAccessibilityUITests: PortraitUITestCase {
             }
         }
 
-        // Engine init + on-the-fly CoreML conversion is slow on the simulator.
-        let forwardEnd = app.buttons["Forward to End"]
-        XCTAssertTrue(forwardEnd.waitForExistence(timeout: 360),
-                      "Board did not appear (engine never finished launching)")
+        // The board draws before the engine is ready, so wait for the ENGINE
+        // to be in sync with it rather than for a toolbar button to exist.
+        waitForBoardInSync(app)
 
         // A fresh New Game gives a deterministic empty Human-vs-Human 19x19
         // board (the auto-selected game may persist an AI-vs-AI configuration

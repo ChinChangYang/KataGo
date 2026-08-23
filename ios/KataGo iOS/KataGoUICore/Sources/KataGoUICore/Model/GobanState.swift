@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import GoRulesKit
 
 @Observable
 public class GobanState {
@@ -23,16 +24,17 @@ public class GobanState {
     public var isShownBoard: Bool = false
     public var eyeStatus = EyeStatus.opened
     public var isAutoPlaying: Bool = false
-    public private(set) var isAutoPlayed: Bool = false
-    /// Auto-play replay: the absolute index the record will sit at once the
-    /// current step's showboard round-trips. The advance site assigns this
-    /// (never increments) so spurious stones.isReady edges — e.g. the
-    /// "? illegal move" reply of a raced duplicate play arriving via
-    /// resetPendingStatesOnError — are idempotent and can't skip a move.
-    /// private(set): both flags move only through recordAutoPlayStep /
-    /// clearAutoPlayStep, so no play site can resurrect increment semantics.
-    @ObservationIgnored public private(set) var autoPlayTargetIndex: Int? = nil
     public var passCount: Int = 0
+    /// The largest board length the RUNNING engine can serve — its Max Board
+    /// Size / NN buffer. `loadGame` refuses to feed a record wider or taller
+    /// than this (the engine aborts fatally on the first analysis of an
+    /// oversized board); the board itself still draws, because the board never
+    /// waits for the engine.
+    ///
+    /// nil = not known yet, which is treated as "fits": C4 wires the launched
+    /// value in from `EngineStatus.launchedMaxBoardLength`, and until then
+    /// nothing must start refusing to feed.
+    public var engineMaxBoardLength: Int? = nil
     /// When true, a side whose config says "engine plays" (maxTime > 0) still
     /// gets plain continuous analysis instead of a gen-move — the whole screen
     /// is a spectator. The tvOS review screen sets it (a synced game configured
@@ -79,22 +81,6 @@ public class GobanState {
     /// write a synced record (variations are discarded silently on exit).
     /// Defaults false so the iOS/macOS mainline-step behavior is unchanged.
     public var forcesBranchOnPlay = false
-    /// Armed immediately before a `printsgf` whose reply only re-states what
-    /// the record already holds. Two paths load the record's own SGF into the
-    /// engine and then read it straight back out: the cold-launch sync
-    /// (iOS/macOS/visionOS) and the visionOS game switch. `maybeCollectSgf`
-    /// consumes this to skip the `lastModificationDate` stamp — opening a game
-    /// is not modifying it, and stamping there re-sorted the library on every
-    /// launch. The visible damage was via a widget/Shortcut deep link, which
-    /// selects an arbitrary older game: viewing it floated it to the top of the
-    /// library ahead of games the user had actually played.
-    ///
-    /// Consumed by ANY `printsgf` reply, whichever arm handles it, so the latch
-    /// can never outlive the send that armed it and eat a later real move's
-    /// stamp. GTP replies are FIFO, so a move's `printsgf` queued behind a
-    /// launch echo still finds the latch clear by the time its own reply lands.
-    /// Arm it through `sendLoadEchoPrintSgf` rather than setting it directly.
-    public var nextSgfReplyIsLoadEcho = false
     /// True while a Deep Analysis Report is probing the engine. GameSession
     /// bypasses live-analysis collection for `info` lines (probe replies are
     /// consumed via `lineObserver` by the report's collector instead), so the
@@ -155,6 +141,13 @@ public class GobanState {
     @ObservationIgnored private var lastPlayedVertexCacheResult: String? = nil
 
     public func sendShowBoardCommand(messageList: MessageList) {
+        // Count only the showboards that actually go out. `appendAndSend` drops
+        // commands while the engine is unavailable, and an uncounted-but-
+        // incremented showboard would leave `showBoardCount` permanently above
+        // zero — which is the condition that says "the engine has not caught up
+        // yet", so every later ack would be treated as an intermediate one and
+        // the board would never report in sync again.
+        guard messageList.isAcceptingCommands else { return }
         messageList.appendAndSend(command: "showboard")
         showBoardCount = showBoardCount + 1
     }
@@ -170,29 +163,6 @@ public class GobanState {
         } else {
             return false
         }
-    }
-
-    /// Auto-play replay, play site: the step just sent `play` for the move at
-    /// `nextIndex - 1`; once its showboard round-trips, the record must sit at
-    /// `nextIndex`.
-    public func recordAutoPlayStep(nextIndex: Int) {
-        isAutoPlayed = true
-        autoPlayTargetIndex = nextIndex
-    }
-
-    public func clearAutoPlayStep() {
-        isAutoPlayed = false
-        autoPlayTargetIndex = nil
-    }
-
-    /// Auto-play replay, advance site: the absolute index to assign on a
-    /// stones.isReady edge, or nil when the edge is not an auto-play step.
-    /// Assignment (not increment) keeps spurious extra edges — a raced
-    /// duplicate play's "? illegal move" reset, or a doubled showboard —
-    /// idempotent, so they can never skip an SGF move's `play`.
-    public func autoPlayAdvancedIndex() -> Int? {
-        guard isAutoPlayed else { return nil }
-        return autoPlayTargetIndex
     }
 
     func getRequestAnalysisCommands(config: Config, nextColorForPlayCommand: PlayerColor?) -> [String] {
@@ -536,6 +506,29 @@ public class GobanState {
         }
     }
 
+    /// The side to move changed: re-establish that side's human-SL profile,
+    /// ask for whatever should stream next (the gen-move bundle on an AI turn,
+    /// otherwise continuous analysis), and clear stale overlay data when
+    /// nothing will stream.
+    ///
+    /// Extracted from `BoardView`'s `.onChange(of: player.nextColorForPlayCommand)`
+    /// so the visionOS root — which never mounts `BoardView` and had to carry a
+    /// hand-copied duplicate of the same three calls — runs the same code. This
+    /// is also the path that re-arms analysis after a game load: the load parks
+    /// the turn at `.unknown`, and the feed's `showboard` reply resolves it to a
+    /// colour, which lands here.
+    public func handleTurnChange(to newColor: PlayerColor,
+                                 config: Config,
+                                 messageList: MessageList) {
+        maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newColor,
+                                                 config: config,
+                                                 messageList: messageList)
+        maybeRequestAnalysis(config: config,
+                             nextColorForPlayCommand: newColor,
+                             messageList: messageList)
+        maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newColor)
+    }
+
     public func sendCheckMoveCommand(turn: String, move: String, messageList: MessageList) {
         pendingMoveTurn = turn
         pendingMoveVertex = move
@@ -781,38 +774,97 @@ public class GobanState {
         isBranchActive ? branchSgf : gameRecord?.sgf
     }
 
-    public func maybeLoadSgf(gameRecord: GameRecord?, messageList: MessageList) {
-        if let sgf = getSgf(gameRecord: gameRecord) {
-            // Use the temporary directory, not Documents: tvOS has no writable
-            // Documents container, so a Documents write throws and `loadsgf`
-            // would never be sent — leaving the engine on an empty board (the
-            // review board then shows no stones and exit-variation desyncs).
-            // temporaryDirectory is writable on every platform and is the same
-            // scratch location KataGoHelper uses for its tvOS config.
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent("temp.sgf")
-            do {
-                try sgf.write(to: file, atomically: false, encoding: .utf8)
-                let path = file.path(percentEncoded: false)
-                messageList.appendAndSend(command: "loadsgf \(path)")
-            } catch {
-                printError("maybeLoadSgf: failed to write temp SGF for loadsgf: \(error)")
-            }
-        }
-    }
-
-    /// Reads the just-loaded game back out of the engine, arming
-    /// `nextSgfReplyIsLoadEcho` so the reply syncs the record without stamping
-    /// it as modified. Keeps the arm adjacent to the send so the two cannot
-    /// drift apart; every other `printsgf` sender (a played move, a rules or
-    /// board-size change, a pasted SGF) deliberately sends the plain command
-    /// and does stamp.
-    public func sendLoadEchoPrintSgf(messageList: MessageList) {
-        nextSgfReplyIsLoadEcho = true
-        messageList.appendAndSend(command: "printsgf")
-    }
-
     public func getCurrentIndex(gameRecord: GameRecord?) -> Int? {
         isBranchActive ? branchIndex : gameRecord?.currentIndex
+    }
+
+    // MARK: - Engine feed accounting
+    //
+    // The engine is fed move by move (`EngineFeed`), so navigation has to know
+    // which recorded moves it was actually GIVEN: a move the replay refused —
+    // an occupied point, an off-board point, a single-stone suicide — was never
+    // sent, so there is no `play` to repeat and no `undo` to take it back. The
+    // index still moves, because the display counts it.
+
+    /// The replay behind the record's index space, cached for the SGF it was
+    /// built from.
+    ///
+    /// Deliberately a SECOND instance from `RecordPositionProjector`'s: the
+    /// navigation methods below are nonisolated and cannot touch the main-actor
+    /// projector. Both are built by `RecordReplayBuilder.replay(from:)` out of
+    /// the same C++ parse, so they are identical by construction — decision 3
+    /// asks for one PARSER, not one instance.
+    @ObservationIgnored private var feedReplaySgf: String? = nil
+    @ObservationIgnored private var feedReplay: SgfReplay? = nil
+
+    /// The `play` the engine was given for the recorded move at `index` — turn
+    /// and vertex — or nil when the replay refused it.
+    ///
+    /// THE one predicate. Everything that has to agree about which indices the
+    /// engine holds goes through it: the forward step that sends a `play`, the
+    /// auto-play step, and the backward walk that decides how many `undo`s to
+    /// take back. The vertex comes from the REPLAY, never from `BoardSize`, so
+    /// the send and the bookkeeping cannot disagree — a `BoardSize` that lagged
+    /// the record used to silence the `play` while the refusal accounting still
+    /// counted the move as sent, which is one `undo` too many and permanent
+    /// board/engine skew.
+    ///
+    /// `operations` lets a caller that has already parsed the SGF hand the
+    /// parse over instead of paying for a second one.
+    public func engineMove(sgf: String,
+                           at index: Int,
+                           operations: SgfOperations? = nil) -> (turn: String, vertex: String)? {
+        withFeedReplay(sgf: sgf, operations: operations) {
+            EngineFeed.playArguments(replay: &$0, at: index)
+        } ?? nil
+    }
+
+    /// Whether the engine was given the recorded move at `index`.
+    ///
+    /// True for a record the parser rejects: an unreadable SGF has no refusals
+    /// to honour, and refusing to feed it would be a silent behaviour change
+    /// where there is nothing to gain — so the nil-replay case answers the way
+    /// the pre-feed code behaved.
+    public func isMoveFedToEngine(sgf: String, at index: Int, operations: SgfOperations? = nil) -> Bool {
+        guard index >= 0 else { return false }
+        guard feedReplay(forSgf: sgf, operations: operations) != nil else { return true }
+        return engineMove(sgf: sgf, at: index, operations: operations) != nil
+    }
+
+    /// Runs `body` on the cached replay for `sgf` and writes back whatever it
+    /// memoized (`SgfReplay` is a value type). Nil when the record cannot be
+    /// parsed. The navigation-side twin of
+    /// `RecordPositionProjector.withReplay(for:_:)`.
+    private func withFeedReplay<T>(sgf: String,
+                                   operations: SgfOperations?,
+                                   _ body: (inout SgfReplay) -> T) -> T? {
+        guard var replay = feedReplay(forSgf: sgf, operations: operations) else { return nil }
+        let result = body(&replay)
+        feedReplaySgf = sgf
+        feedReplay = replay
+        return result
+    }
+
+    /// Whether an `undo` would actually take back the move the cursor is
+    /// standing on — i.e. the engine was given the recorded move at
+    /// `currentIndex - 1`. Callers that send `undo` themselves (the
+    /// backward-frame toolbar button) gate on this, exactly as they already
+    /// gate on `canStepBackward`.
+    public func isStepBackwardFedToEngine(gameRecord: GameRecord?) -> Bool {
+        guard let sgf = getSgf(gameRecord: gameRecord),
+              let currentIndex = getCurrentIndex(gameRecord: gameRecord),
+              currentIndex > 0 else { return false }
+        return isMoveFedToEngine(sgf: sgf, at: currentIndex - 1)
+    }
+
+    private func feedReplay(forSgf sgf: String, operations: SgfOperations?) -> SgfReplay? {
+        if feedReplaySgf == sgf, let feedReplay { return feedReplay }
+        guard let built = RecordReplayBuilder.replay(from: operations ?? SgfOperations(sgf: sgf)) else {
+            return nil
+        }
+        feedReplaySgf = sgf
+        feedReplay = built
+        return built
     }
 
     public func backwardMoves(
@@ -830,18 +882,35 @@ public class GobanState {
         // Never rewind below the branch floor (the divergence); off-branch it is
         // 0, so mainline rewind is unchanged.
         let floor = navigationFloor(gameRecord: gameRecord)
+        let startIndex = getCurrentIndex(gameRecord: gameRecord)
         var movesExecuted = 0
 
+        // The cursor first: it steps over every recorded index, refused or not,
+        // because the display counted them all.
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
             currentIndex > floor,
             sgfHelper.getMove(at: currentIndex - 1) != nil {
             undoIndex(gameRecord: gameRecord)
-            undo(messageList: messageList, stones: stones)
-            player.toggleNextColorForPlayCommand()
 
             movesExecuted += 1
             if let limit = limit, movesExecuted >= limit {
                 break
+            }
+        }
+
+        // Then exactly as many `undo`s as the engine has moves to give back
+        // across the span just walked. `EngineFeed.undoCount` is the same rule
+        // the feed used to decide what to SEND, so the two can never disagree
+        // about how many moves the engine is holding. A record the parser
+        // rejects has no refusals to honour, so it falls back to one undo per
+        // index — what the pre-feed code did.
+        if let startIndex, let endIndex = getCurrentIndex(gameRecord: gameRecord), startIndex > endIndex {
+            let undos = withFeedReplay(sgf: sgf, operations: sgfHelper) {
+                EngineFeed.undoCount(replay: &$0, from: startIndex, to: endIndex)
+            } ?? (startIndex - endIndex)
+            for _ in 0..<undos {
+                undo(messageList: messageList, stones: stones)
+                player.toggleNextColorForPlayCommand()
             }
         }
 
@@ -862,6 +931,13 @@ public class GobanState {
         return nextMoveString == move && nextTurn == turn
     }
 
+    /// Steps the mainline cursor over the recorded move the player just
+    /// reproduced. Only reachable off-branch, so the cursor IS
+    /// `gameRecord.currentIndex`.
+    ///
+    /// The `play` is skipped for an index the replay refused: the engine never
+    /// received that move, so re-sending it here would put the engine one move
+    /// ahead of the board it is meant to be analysing.
     public func playMainlineStep(
         turn: String,
         move: String,
@@ -871,8 +947,14 @@ public class GobanState {
         player: Turn,
         audioModel: AudioModel
     ) {
-        play(turn: turn, move: move, messageList: messageList, stones: stones)
-        player.toggleNextColorForPlayCommand()
+        let index = gameRecord.currentIndex
+        let fed = getSgf(gameRecord: gameRecord).map {
+            isMoveFedToEngine(sgf: $0, at: index)
+        } ?? true
+        if fed {
+            play(turn: turn, move: move, messageList: messageList, stones: stones)
+            player.toggleNextColorForPlayCommand()
+        }
         gameRecord.currentIndex += 1
         sendShowBoardCommand(messageList: messageList)
         audioModel.playPlaySound(soundEffect: soundEffect)
@@ -948,6 +1030,15 @@ public class GobanState {
         return vertex
     }
 
+    /// Steps the cursor forward, feeding the engine each recorded move the
+    /// replay accepted.
+    ///
+    /// - Parameter board: no longer read. The played vertex comes from the
+    ///   replay (see `engineMove`), which is what makes the send and the undo
+    ///   bookkeeping one rule. Kept on the signature because eleven call sites
+    ///   across five app targets pass it, and `go(to:)` threads it through;
+    ///   dropping it is a mechanical cleanup for a commit that is already
+    ///   touching those hosts.
     public func forwardMoves(
         limit: Int?,
         gameRecord: GameRecord,
@@ -965,22 +1056,29 @@ public class GobanState {
         var movesExecuted = 0
 
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
-              let nextMove = sgfHelper.getMove(at: currentIndex) {
-            if let move = board.locationToMove(location: nextMove.location) {
-                if isBranchActive {
-                    branchIndex += 1
-                } else {
-                    gameRecord.currentIndex += 1
-                }
+              sgfHelper.getMove(at: currentIndex) != nil {
+            // The cursor advances FIRST and unconditionally. A move the replay
+            // refused still occupies an index (the board skipped it and moved
+            // on), and the old `if let move = …` shape could not advance past a
+            // vertex it could not name — it spun forever on one.
+            if isBranchActive {
+                branchIndex += 1
+            } else {
+                gameRecord.currentIndex += 1
+            }
 
-                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                play(turn: nextPlayer, move: move, messageList: messageList, stones: stones)
+            // Turn AND vertex from `engineMove`, i.e. from the replay — the same
+            // source `backwardMoves` counts undos from, so a forward step and
+            // the undo that reverses it can never disagree about whether the
+            // engine was given this index.
+            if let move = engineMove(sgf: sgf, at: currentIndex, operations: sgfHelper) {
+                play(turn: move.turn, move: move.vertex, messageList: messageList, stones: stones)
                 player.toggleNextColorForPlayCommand()
+            }
 
-                movesExecuted += 1
-                if let limit = limit, movesExecuted >= limit {
-                    break
-                }
+            movesExecuted += 1
+            if let limit = limit, movesExecuted >= limit {
+                break
             }
         }
 
@@ -1088,15 +1186,14 @@ public class GobanState {
         return requested
     }
 
-    /// Reloads the board for a newly selected game, mirroring the previous
-    /// `GameSplitView.processChange(oldGameRecord:newGameRecord:)` exactly. The
-    /// iOS-only thumbnail render stays in the view's `onChange` wrapper.
+    /// Reloads the board for a newly selected game.
     ///
     /// The switched game's position is projected SYNCHRONOUSLY here, so it is
-    /// on screen before the engine has been told anything. The `previous`
-    /// parameter is gone with `placeLoadingBoard`: the projector always
-    /// publishes the new game's own size, so there is nothing left to compare
-    /// the old game against.
+    /// on screen before the engine has been told anything — the board never
+    /// waits for the engine. The engine is then FED that same position move by
+    /// move (`syncEngine(to:)`), which is why the record's saved cursor is
+    /// honoured everywhere now: there is no `loadsgf` echo left to reset it and
+    /// no undo loop that has to start from the tip.
     @MainActor
     public func loadGame(gameRecord newGameRecord: GameRecord?,
                          player: Turn,
@@ -1116,81 +1213,182 @@ public class GobanState {
             bookLookup.resetToRoot()
         }
 
-        if let newGameRecord {
-            let bookConfig = newGameRecord.concreteConfig
-            if bookConfig.isBookEligible {
-                bookLookup.loadIfNeeded(boardSize: bookConfig.boardWidth)
-            }
-            // Drop book view unless this board has a downloaded book (it may
-            // still be loading; the overlay gates on the book being in-book).
-            if eyeStatus == .book,
-               !(bookConfig.isBookEligible && bookLookup.isAvailable(forBoardSize: bookConfig.boardWidth)) {
-                eyeStatus = .opened
-            }
-            newGameRecord.updateToLatestVersion()
-            isAutoPlaying = false
-            clearAutoPlayStep()
-            isEditing = Self.editingAfterLoad(sgf: newGameRecord.sgf,
-                                              unlockRequested: unlockRequested)
-            let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
-            let moveCount = sgfHelper.moveSize ?? 0
-            // Where the game must END UP: the saved cursor, clamped into the
-            // record's own move range. A record saved past its move count (a
-            // re-imported or truncated SGF) would otherwise sit off the end.
-            let targetIndex = min(max(newGameRecord.currentIndex, 0), moveCount)
+        guard let newGameRecord else { return }
 
-            // The engine is not in sync with anything yet.
-            stones.isReady = false
-            // Loading a game ALWAYS invalidates what was on screen, so clear
-            // here rather than leaning on the projector's key-change rule: a
-            // host whose own driver already projected this key would make that
-            // rule a no-op, and the previous game's win rate would survive the
-            // switch.
-            analysis.clear()
-
-            // Show the switched game AT ONCE — engine-free. The key is built
-            // by hand rather than read back from the record because the engine
-            // recipe below parks `currentIndex` at the tip while it feeds; the
-            // record settles on `targetIndex`, which is what this key names, so
-            // the host's own key observer sees no further change.
-            projector.project(key: RecordPositionKey(recordID: newGameRecord.persistentModelID,
-                                                     sgf: newGameRecord.sgf,
-                                                     index: targetIndex,
-                                                     isBranchActive: isBranchActive),
-                              into: stones,
-                              board: board,
-                              analysis: analysis,
-                              gobanState: self)
-
-            // Engine recipe (unchanged in this commit): `loadsgf` lands the
-            // engine at the tip, then `undo` walks it back to the target.
-            newGameRecord.currentIndex = moveCount
-
-            maybeLoadSgf(
-                gameRecord: newGameRecord,
-                messageList: messageList
-            )
-
-            while newGameRecord.currentIndex > targetIndex {
-                newGameRecord.undo()
-                undo(messageList: messageList, stones: stones)
-            }
-            let config = newGameRecord.concreteConfig
-            config.koRule = sgfHelper.rules.koRule
-            config.scoringRule = sgfHelper.rules.scoringRule
-            config.taxRule = sgfHelper.rules.taxRule
-            config.multiStoneSuicideLegal = sgfHelper.rules.multiStoneSuicideLegal
-            config.hasButton = sgfHelper.rules.hasButton
-            config.whiteHandicapBonusRule = sgfHelper.rules.whiteHandicapBonusRule
-            config.komi = sgfHelper.rules.komi
-
-            messageList.appendAndSend(commands: GtpCommandBuilder.ruleCommandsBundle(ko: config.koRuleText, scoring: config.scoringRuleText, tax: config.taxRuleText, multiStoneSuicide: config.multiStoneSuicideLegal, hasButton: config.hasButton, whiteHandicapBonus: config.whiteHandicapBonusRuleText))
-            messageList.appendAndSend(command: GtpCommandBuilder.komiCommand(config.komi))
-            messageList.appendAndSend(command: GtpCommandBuilder.playoutDoublingAdvantageCommand(config.playoutDoublingAdvantage))
-            messageList.appendAndSend(command: GtpCommandBuilder.analysisWideRootNoiseCommand(config.analysisWideRootNoise))
-            messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(humanSLProfile: config.effectiveHumanProfileForBlack, humanProfileForWhite: config.effectiveHumanProfileForWhite, humanRatioForBlack: config.humanRatioForBlack, humanRatioForWhite: config.humanRatioForWhite))
-            sendShowBoardCommand(messageList: messageList)
+        let bookConfig = newGameRecord.concreteConfig
+        if bookConfig.isBookEligible {
+            bookLookup.loadIfNeeded(boardSize: bookConfig.boardWidth)
         }
+        // Drop book view unless this board has a downloaded book (it may
+        // still be loading; the overlay gates on the book being in-book).
+        if eyeStatus == .book,
+           !(bookConfig.isBookEligible && bookLookup.isAvailable(forBoardSize: bookConfig.boardWidth)) {
+            eyeStatus = .opened
+        }
+        newGameRecord.updateToLatestVersion()
+        isAutoPlaying = false
+        isEditing = Self.editingAfterLoad(sgf: newGameRecord.sgf,
+                                          unlockRequested: unlockRequested)
+        let sgfHelper = SgfOperations(sgf: newGameRecord.sgf)
+        let moveCount = sgfHelper.moveSize ?? 0
+        // Where the game must END UP: the saved cursor, clamped into the
+        // record's own move range. A record saved past its move count (a
+        // re-imported or truncated SGF) would otherwise sit off the end.
+        let targetIndex = min(max(newGameRecord.currentIndex, 0), moveCount)
+        // Settle the cursor before anything reads it. Assign only on a real
+        // change: SwiftData dirties (and re-uploads) a record written even to
+        // its existing value.
+        if newGameRecord.currentIndex != targetIndex {
+            newGameRecord.currentIndex = targetIndex
+        }
+
+        // The engine is not in sync with anything yet.
+        stones.isReady = false
+        // Loading a game ALWAYS invalidates what was on screen, so clear
+        // here rather than leaning on the projector's key-change rule: a
+        // host whose own driver already projected this key would make that
+        // rule a no-op, and the previous game's win rate would survive the
+        // switch.
+        analysis.clear()
+
+        // Show the switched game AT ONCE — engine-free.
+        projector.project(key: RecordPositionKey(recordID: newGameRecord.persistentModelID,
+                                                 sgf: newGameRecord.sgf,
+                                                 index: targetIndex,
+                                                 isBranchActive: isBranchActive),
+                          into: stones,
+                          board: board,
+                          analysis: analysis,
+                          gobanState: self)
+
+        // The record is the authority on its own rules; adopt them before the
+        // feed states them to the engine.
+        //
+        // Each assignment is guarded. `Config` is its own @Model, and SwiftData
+        // dirties (then saves, then exports to CloudKit) a model written even to
+        // the value it already holds — so writing all seven unconditionally
+        // pushed an identical Config to iCloud every time a game was opened,
+        // which is the same churn the retired `printsgf` load echo caused.
+        let config = newGameRecord.concreteConfig
+        let rules = sgfHelper.rules
+        if config.koRule != rules.koRule { config.koRule = rules.koRule }
+        if config.scoringRule != rules.scoringRule { config.scoringRule = rules.scoringRule }
+        if config.taxRule != rules.taxRule { config.taxRule = rules.taxRule }
+        if config.multiStoneSuicideLegal != rules.multiStoneSuicideLegal {
+            config.multiStoneSuicideLegal = rules.multiStoneSuicideLegal
+        }
+        if config.hasButton != rules.hasButton { config.hasButton = rules.hasButton }
+        if config.whiteHandicapBonusRule != rules.whiteHandicapBonusRule {
+            config.whiteHandicapBonusRule = rules.whiteHandicapBonusRule
+        }
+        if config.komi != rules.komi { config.komi = rules.komi }
+
+        // The pass counter is a running one, so a game resumed on a pass has to
+        // be seeded from the position we are standing on. Refused moves are
+        // looked through — the engine never saw them, so they do not break a
+        // run of passes. Reset first: the previous game's count must never
+        // survive a switch, not even when the new record cannot be replayed.
+        passCount = 0
+        passCount = projector.withReplay(for: newGameRecord.sgf) {
+            $0.trailingPassCount(at: targetIndex)
+        } ?? 0
+
+        guard messageList.isAcceptingCommands else { return }
+        guard boardFitsEngine(width: sgfHelper.xSize, height: sgfHelper.ySize) else { return }
+        syncEngine(to: targetIndex,
+                   sgf: newGameRecord.sgf,
+                   config: config,
+                   messageList: messageList,
+                   stones: stones,
+                   projector: projector)
+    }
+
+    /// Whether the running engine can serve a board this big. Unknown
+    /// (`engineMaxBoardLength == nil`) counts as "fits" — see the property.
+    /// A 0-sized record (the parser rejected it) never fits: there is no board
+    /// to state to the engine.
+    public func boardFitsEngine(width: Int, height: Int) -> Bool {
+        guard width > 0, height > 0 else { return false }
+        guard let cap = engineMaxBoardLength else { return true }
+        return width <= cap && height <= cap
+    }
+
+    /// Feeds the engine the record position at `targetIndex`: a reset to the
+    /// record's own board size, its rules, its setup stones, then one `play`
+    /// per ACCEPTED recorded move, then the `showboard` whose reply is the
+    /// in-sync acknowledgement.
+    ///
+    /// Analysis is not requested here. It re-arms itself off the turn change:
+    /// the load parked `nextColorForPlayCommand` at `.unknown`, and this
+    /// showboard's "Next player" line resolves it to a colour, which the hosts'
+    /// turn-change hook turns into `handleTurnChange`.
+    @MainActor
+    public func syncEngine(to targetIndex: Int,
+                           sgf: String,
+                           config: Config,
+                           messageList: MessageList,
+                           stones: Stones,
+                           projector: RecordPositionProjector) {
+        // Reuse the replay the board was just drawn from — same instance, so
+        // the feed inherits its checkpoints and its discovered refusals.
+        let commands = projector.withReplay(for: sgf) { replay in
+            EngineFeed.openingCommands(replay: &replay, config: config, targetIndex: targetIndex)
+        }
+        guard let commands, !commands.isEmpty else { return }
+        stones.isReady = false
+        messageList.appendAndSend(commands: commands)
+        sendShowBoardCommand(messageList: messageList)
+    }
+
+    /// One auto-play replay step: move the cursor onto the next recorded move
+    /// and tell the engine about it.
+    ///
+    /// The cursor advances IMMEDIATELY — the board is record-owned, so the
+    /// stone is on screen before the engine answers, and the step no longer
+    /// hangs off a `stones.isReady` edge that could double-fire or go missing.
+    /// A move the replay refused is skipped in the feed and stepped over in the
+    /// same call, so the loop cannot stall on one waiting for a turn change
+    /// that will never come. Clears `isAutoPlaying` when the record runs out,
+    /// which is what ends the loop.
+    public func autoPlayStep(
+        gameRecord: GameRecord,
+        messageList: MessageList,
+        player: Turn,
+        stones: Stones,
+        audioModel: AudioModel?
+    ) {
+        // ONE index space: the record's own SGF and its own cursor. Auto-play
+        // always runs with the branch deactivated (both hosts call
+        // `deactivateBranch()` on the `isAutoPlaying` true edge), so the
+        // branch-aware `getSgf`/`getCurrentIndex` pair would answer identically
+        // — but reading the SGF through the branch while writing
+        // `gameRecord.currentIndex` directly is two spaces on paper, and the
+        // day a caller starts auto-play on a branch it would replay the wrong
+        // line into the record.
+        let sgf = gameRecord.sgf
+        let sgfHelper = SgfOperations(sgf: sgf)
+        var played = false
+
+        while sgfHelper.getMove(at: gameRecord.currentIndex) != nil {
+            let index = gameRecord.currentIndex
+            gameRecord.currentIndex = index + 1
+
+            if let move = engineMove(sgf: sgf, at: index, operations: sgfHelper) {
+                play(turn: move.turn, move: move.vertex, messageList: messageList, stones: stones)
+                player.toggleNextColorForPlayCommand()
+                played = true
+                break
+            }
+            // A refused move produces no `play`, so no turn change, so nothing
+            // would ever wake the loop again — step straight onto the next one.
+        }
+
+        guard played else {
+            isAutoPlaying = false
+            return
+        }
+        sendShowBoardCommand(messageList: messageList)
+        audioModel?.playPlaySound(soundEffect: soundEffect)
     }
 }
 

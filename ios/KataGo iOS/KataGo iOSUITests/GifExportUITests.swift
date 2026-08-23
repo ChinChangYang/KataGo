@@ -112,9 +112,9 @@ final class GifExportUITests: PortraitUITestCase {
             let play = app.buttons["ModelDetailView.downloadPlayButton"]
             if play.waitForExistence(timeout: 15) { play.tap() }
         }
-        // Board-ready sentinel; engine + on-the-fly CoreML conversion is slow.
-        XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 360),
-                      "Board did not appear (engine never finished launching)")
+        // Engine-ready sentinel: the board itself draws before the engine is
+        // up, so a toolbar button existing proves nothing any more.
+        waitForBoardInSync(app)
 
         // Reveal the Games list (leading nav-bar button), then open the seed.
         let back = app.navigationBars.buttons.element(boundBy: 0)

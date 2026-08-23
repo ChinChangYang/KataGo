@@ -351,17 +351,9 @@ struct VisionRootView: View {
             guard oldValue != newValue,
                   let config = navigationContext.selectedGameRecord?.concreteConfig
             else { return }
-            session.gobanState.maybeSendAsymmetricHumanAnalysisCommands(
-                nextColorForPlayCommand: newValue,
-                config: config,
-                messageList: session.messageList)
-            session.gobanState.maybeRequestAnalysis(
-                config: config,
-                nextColorForPlayCommand: newValue,
-                messageList: session.messageList)
-            session.gobanState.maybeRequestClearAnalysisData(
-                config: config,
-                nextColorForPlayCommand: newValue)
+            session.gobanState.handleTurnChange(to: newValue,
+                                                config: config,
+                                                messageList: session.messageList)
         }
         // Stone-animation intent hooks — rationale on each method.
         .onChange(of: aiMove) { _, newValue in
@@ -1071,7 +1063,6 @@ struct VisionRootView: View {
         // on this platform the placement sound is scene-driven — the scene
         // model cues it when the flying stone lands, not at GTP commit time
         // (the pass paths, which never diff a stone, click for themselves).
-        session.autoCreatesGameOnEmptyLibrary = false
         session.gobanState.verticalFlip = false
         session.gobanState.continuousAnalysisUsesConfigInterval = true
         session.gobanState.analysisStatus = .run
@@ -1134,10 +1125,10 @@ struct VisionRootView: View {
     /// `isReady`, `.ready`, and any boot-only messaging round. Returns false
     /// with the blocked phase set when the board cannot mount.
     ///
-    /// The gate runs BEFORE any engine load: a too-large board must never
-    /// reach maybeLoadSgf — the engine fatally aborts on the first analysis
-    /// of a board larger than its NN buffer, and unsupported sizes have no
-    /// 3D asset to render.
+    /// The gate runs BEFORE any engine load: a too-large board must never be
+    /// fed to the engine — it fatally aborts on the first analysis of a board
+    /// larger than its NN buffer, and unsupported sizes have no 3D asset to
+    /// render.
     @discardableResult
     private func resolveAndMountCurrentGame() -> Bool {
         // A deep link latched before or during boot (a widget tap on a cold
@@ -1319,10 +1310,11 @@ struct VisionRootView: View {
     /// picker (the caller owns the gate and the phase). loadGame is the
     /// central reload entry (used by macOS selectGame and tvOS review): it
     /// deactivates any branch, clears pending moves, resets the player to
-    /// .unknown, and reloads the SGF. Pre-setting currentIndex to the move
-    /// count makes loadGame's undo loop a no-op, so the engine lands at the
-    /// tip (Vision's consistent landing spot; L1/R1 step through history
-    /// from there, and a play on a locked synced game forms a branch).
+    /// .unknown, projects the record position onto the board, and feeds the
+    /// engine that position move by move. The game opens at its SAVED cursor:
+    /// the old pre-set-to-tip was an engine recipe (it made the `loadsgf` undo
+    /// loop a no-op), and Vision renders the overwrite dialog, so there is no
+    /// product reason to move the user's cursor on their behalf.
     ///
     /// Stale-reply safety: switching mid-genmove cancels the running search,
     /// which prints the literal "play cancelled" (dropped by
@@ -1341,8 +1333,6 @@ struct VisionRootView: View {
         // remount click).
         sceneModel.prepareForGameSwitch()
         session.abortInFlightBoardCollection()
-        session.sendInitialCommands(config: record.concreteConfig)
-        record.currentIndex = SgfOperations(sgf: record.sgf).moveSize ?? 0
 
         navigationContext.selectedGameRecord = record
         session.gobanState.loadGame(gameRecord: record,
@@ -1353,18 +1343,14 @@ struct VisionRootView: View {
                                     stones: session.stones,
                                     analysis: session.analysis,
                                     projector: session.recordPosition)
-        // A load echo: this reads back the SGF just loaded from `record`, so it
-        // syncs the record without stamping it as modified. Boot routes through
-        // here too (resolveAndMountCurrentGame), so this covers the cold launch
-        // as well as a switch. Opening a game must not re-sort the library —
-        // and iOS parity demands it, since switching games there ends with
-        // `showboard` and never stamps.
-        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
+        // No `printsgf` echo: the record is the source of the position now, so
+        // reading it back out of the engine would only risk overwriting it (and
+        // re-sorting the library) with what the engine happened to hold.
         session.gobanState.sendPostExecutionCommands(config: record.concreteConfig,
                                                      messageList: session.messageList,
                                                      player: session.player)
-        // The switch still moves `record.currentIndex` to the tip (above), which
-        // changes the position a widget configured for this game displays.
+        // A configured widget shows the game's current position, and the switch
+        // is what makes that position the live one.
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

@@ -118,6 +118,52 @@ class PortraitUITestCase: XCTestCase {
         return app
     }
 
+    /// Blocks until the board is showing a position the ENGINE has caught up
+    /// with, or fails the test.
+    ///
+    /// Replaces "wait for the `Forward to End` button to exist". That worked
+    /// while the board was mounted only after the engine finished loading —
+    /// the button's appearance WAS the engine's readiness. The board no longer
+    /// waits for the engine, so the button now appears while the model is still
+    /// compiling, and any test that then drives the board would be racing the
+    /// engine.
+    ///
+    /// Two conditions, both required:
+    ///   * `Board.sync` reads `"inSync"` — the hidden element `BoardView`
+    ///     publishes from `Stones.isReady`, i.e. the engine acknowledged the
+    ///     position on screen.
+    ///   * no `EngineStatus.` element is on screen — the engine is not
+    ///     launching, absent, failed, or held back by a too-large board.
+    ///
+    /// The default timeout matches the old sentinel's: a cold simulator launch
+    /// includes an on-the-fly Core ML conversion.
+    @MainActor
+    @discardableResult
+    func waitForBoardInSync(_ app: XCUIApplication,
+                            timeout: TimeInterval = 360,
+                            file: StaticString = #filePath,
+                            line: UInt = #line) -> Bool {
+        let sentinel = app.otherElements["Board.sync"]
+        let inSync = XCTNSPredicateExpectation(
+            predicate: NSPredicate { element, _ in
+                (element as? XCUIElement)?.value as? String == "inSync"
+            },
+            object: sentinel)
+        guard XCTWaiter().wait(for: [inSync], timeout: timeout) == .completed else {
+            XCTFail("Board never reported in sync with the engine "
+                    + "(Board.sync = \(String(describing: sentinel.value)))",
+                    file: file, line: line)
+            return false
+        }
+
+        let status = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "EngineStatus."))
+        XCTAssertEqual(status.count, 0,
+                       "An engine status is still on screen after the board reported in sync",
+                       file: file, line: line)
+        return true
+    }
+
     /// Arguments `makeApp()` adds to every launch.
     ///
     /// Spelled as a literal rather than imported from the app target, which is

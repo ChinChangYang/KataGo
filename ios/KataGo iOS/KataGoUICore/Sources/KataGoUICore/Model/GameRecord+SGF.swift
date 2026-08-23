@@ -145,6 +145,31 @@ extension GameRecord {
         return newGameRecord
     }
 
+    // MARK: - Cold-launch selection
+
+    /// The cold-launch selection, creating the first game when the store is
+    /// empty.
+    ///
+    /// Splitting the create out of `resolveInitialSelection` keeps that one a
+    /// pure query (the deep-link tests read it that way) while giving the iOS
+    /// launch path a record it can hand straight to `loadGame`. The board is
+    /// engine-free now, so first launch can no longer wait for a `printsgf`
+    /// reply to birth the first game — which is what the retired auto-create
+    /// arm in `GameSession.maybeCollectSgf` used to do. Mirrors
+    /// `MainWindowController.ensureSelectedGameRecord`, which has always
+    /// created the macOS first game this way.
+    @MainActor
+    public class func resolveOrCreateInitialSelection(pendingGameID: UUID?,
+                                                      container: ModelContainer) -> GameRecord {
+        if let existing = resolveInitialSelection(pendingGameID: pendingGameID, container: container) {
+            return existing
+        }
+        let created = createGameRecord()
+        container.mainContext.insert(created)
+        return created
+    }
+
+
     // MARK: - SgfOperations-based factory + import
 
     public class func createGameRecord(
@@ -342,7 +367,16 @@ extension GameRecord {
 
         let sgfHelper = SgfOperations(sgf: sgf)
 
-        width = sgfHelper.xSize
-        height = sgfHelper.ySize
+        // Assign only on a real change. SwiftData dirties a record when a
+        // property is set even to its existing value, and a dirtied record is
+        // saved and exported to CloudKit — so writing these two unconditionally
+        // pushed an otherwise identical record to iCloud on every launch and
+        // every game switch, which is what `loadGame` calls this from.
+        if width != sgfHelper.xSize {
+            width = sgfHelper.xSize
+        }
+        if height != sgfHelper.ySize {
+            height = sgfHelper.ySize
+        }
     }
 }

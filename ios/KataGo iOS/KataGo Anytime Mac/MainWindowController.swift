@@ -97,15 +97,12 @@ final class MainWindowController: NSWindowController {
     /// SGF. Seeded in `installBranchReloadObserver()` and re-seeded on relaunch.
     private var lastBranchSgf: String = .inActiveSgf
 
-    /// Last-seen values of the two properties the auto-play observer watches.
+    /// Last-seen value of the property the auto-play observer watches.
     /// `lastIsAutoPlaying` lets the (property-agnostic) `withObservationTracking`
     /// callback detect either edge of `gobanState.isAutoPlaying` (it reacts to ANY
-    /// `old != new`, matching iOS's `onChange(of: isAutoPlaying)`); `lastStonesReady`
-    /// detects the `false -> true` transition of `session.stones.isReady` that iOS
-    /// reacts to (`onChange(of: stones.isReady)`). Seeded from the live state in
-    /// `installAutoPlayObserver()`.
+    /// `old != new`, matching iOS's `onChange(of: isAutoPlaying)`). Seeded from
+    /// the live state in `installAutoPlayObserver()`.
     private var lastIsAutoPlaying = false
-    private var lastStonesReady = false
 
     /// One-shot "reload widgets when the switched game's position lands" latch
     /// — same mechanism as iOS `GameSplitView`. Armed in `selectGame(_:)`,
@@ -230,14 +227,14 @@ final class MainWindowController: NSWindowController {
     /// shared `selectGame(_:)` chokepoint. A cold launch can deliver a selection
     /// before the engine subprocess finishes its GTP handshake — via a widget
     /// `katago-anytime://` deep link (F14) OR an `.sgf` file-open from Finder
-    /// (F14b) — and `loadGame`'s `loadsgf`/rules/`kata-analyze` would be dropped.
+    /// (F14b) — and `loadGame`'s feed/rules/`kata-analyze` would be dropped.
     /// The gate stashes the pending load until `boardReadiness.isEngineReady`
     /// flips true (drained by `applyPendingSelection`); when ready it is a
     /// transparent pass-through.
     ///
     /// Also reused while a Deep Report is probing (`gobanState.reportGenerationActive`):
     /// the modal report sheet doesn't block external events, so a Finder SGF-open
-    /// or widget deep link could otherwise interleave `loadsgf`/analyze commands
+    /// or widget deep link could otherwise interleave a feed and analyze commands
     /// with in-flight probe traffic. `selectGame(_:)` folds that flag into the
     /// same `isReady` check; `trackReportGeneration`'s `true -> false` edge drains
     /// the gate exactly like the engine-ready path.
@@ -363,12 +360,11 @@ final class MainWindowController: NSWindowController {
         installBranchReloadObserver()
 
         // Port of the iOS auto-play machinery (the Chart tab's wand button drives
-        // `gobanState.isAutoPlaying`). iOS reacts via two `GameSplitView`
-        // `.onChange` handlers (`onChange(of: isAutoPlaying)` +
-        // `onChange(of: stones.isReady)`); this observer is their AppKit stand-in.
-        // (The per-move stepping branch — iOS lines 495-525 — lives in the EXISTING
-        // analysis observer instead, keyed off `waitingForAnalysis`.) Installed
-        // before the engine starts so the first stones-ready transition isn't missed.
+        // `gobanState.isAutoPlaying`). iOS reacts via the `GameSplitView`
+        // `.onChange(of: isAutoPlaying)` / `.onChange(of: isEditing)` handlers;
+        // this observer is their AppKit stand-in. (The per-move stepping branch
+        // lives in the EXISTING analysis observer instead, keyed off
+        // `waitingForAnalysis`.)
         installAutoPlayObserver()
 
         // The board is record-owned, so the AppKit host needs the stand-in for
@@ -382,8 +378,8 @@ final class MainWindowController: NSWindowController {
         // Keeps the opening-book lookup walked to the current position so the
         // `.book` overlay (rendered by the hosted `BoardView`) reflects the right
         // node. Reacts to the book `isLoaded` false->true edge and the
-        // `eyeStatus -> .book` edge (P6-T5); the stones-ready sync lives in the
-        // auto-play observer's `handleStonesReadyChange()`. Mirrors the iOS
+        // `eyeStatus -> .book` edge (P6-T5); the per-position sync lives in
+        // `handleRecordPositionChange()`. Mirrors the iOS
         // `GameSplitView` `processBookLoadedChange` / `processEyeStatusChange`
         // handlers. Installed before the engine starts so the first book load
         // isn't missed.
@@ -779,7 +775,7 @@ final class MainWindowController: NSWindowController {
     ///
     /// Also defer while a Deep Report is probing: the same external triggers
     /// can arrive mid-report (the modal sheet doesn't block them), which would
-    /// interleave `loadsgf`/analyze commands with the report's probe traffic.
+    /// interleave a feed and analyze commands with the report's probe traffic.
     /// Drained by `applyPendingSelection` on the report's `true -> false` edge
     /// (see `trackReportGeneration`), same as the engine-ready path.
     ///
@@ -934,7 +930,7 @@ final class MainWindowController: NSWindowController {
     // `selectGame(_:)` chokepoint) to also cover a Deep Report in flight: the
     // report's sheet is modal to user interaction but does NOT block external
     // events (a Finder SGF-open or widget deep link can still call `selectGame(_:)`
-    // while probes are running), which would interleave `loadsgf`/analyze commands
+    // while probes are running), which would interleave a feed and analyze commands
     // with the report's `kata-analyze` probe traffic. `selectGame(_:)` folds
     // `!gobanState.reportGenerationActive` into the gate's `isReady` check; this
     // observer drains the gate on the report's `true -> false` edge, mirroring the
@@ -1174,14 +1170,12 @@ final class MainWindowController: NSWindowController {
             session.bookLookup.loadIfNeeded(boardSize: selected.concreteConfig.boardWidth)
         }
 
-        session.gobanState.maybeLoadSgf(
-            gameRecord: selected,
-            messageList: session.messageList
-        )
-        session.gobanState.sendShowBoardCommand(messageList: session.messageList)
-        // A load echo (see ContentView.initializationTask): syncs the record
-        // from the engine without stamping it as modified.
-        session.gobanState.sendLoadEchoPrintSgf(messageList: session.messageList)
+        // `load(game:)` -> `loadGame` projects the record position onto the
+        // board and then FEEDS the engine that position move by move (board
+        // size, rules, setup stones, one `play` per accepted move), which
+        // replaces the `loadsgf` + `showboard` + `printsgf` echo this used to
+        // send by hand.
+        load(game: selected, previous: nil)
 
         let gameRecords = (try? GameRecord.fetchGameRecords(container: modelContainer)) ?? []
 
@@ -1295,7 +1289,6 @@ final class MainWindowController: NSWindowController {
         lastConfirmingBranchReplace = gobanState.confirmingBranchReplace
         lastConfirmingBranchDiscard = gobanState.confirmingBranchDiscard
         lastIsAutoPlaying = gobanState.isAutoPlaying
-        lastStonesReady = session.stones.isReady
         lastIsEditing = gobanState.isEditing
         // Re-seed the displayed-position key so the relaunch's own reload does
         // not read as a position change (the board never moved).
@@ -1659,13 +1652,11 @@ final class MainWindowController: NSWindowController {
                 // the NEXT position's analysis is re-armed by the hosted
                 // `BoardView.onChange(of: player.nextColorForPlayCommand)` (fired by
                 // the `toggleNextColorForPlayCommand()` below) -> `maybeRequestAnalysis`.
-                // That next `info` line is the next `true -> false` edge, and the
-                // `sendShowBoardCommand` round-trip's `stones.isReady` false->true edge
-                // is what the auto-play observer turns into an ASSIGNMENT of the
-                // target recorded at the play site (`recordAutoPlayStep` /
-                // `autoPlayAdvancedIndex` — absolute, so a spurious extra edge
-                // re-assigns the same value instead of skipping a move). The
-                // terminal `getMove` miss sets `isAutoPlaying = false`, ending the loop.
+                // That next `info` line is the next `true -> false` edge. The
+                // ADVANCE itself no longer waits for anything: `autoPlayStep`
+                // moves `currentIndex` and plays in the same call, so no
+                // `stones.isReady` edge can be missed or doubled. The terminal
+                // `getMove` miss sets `isAutoPlaying = false`, ending the loop.
                 if gobanState.isAutoPlaying,
                    !session.analysis.info.isEmpty,
                    session.stones.isReady {
@@ -1676,28 +1667,13 @@ final class MainWindowController: NSWindowController {
                         stones: session.stones
                     )
 
-                    // forward move
-                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-
-                    if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
-                       let move = session.board.locationToMove(location: nextMove.location) {
-                        let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-
-                        gobanState.play(
-                            turn: nextPlayer,
-                            move: String(move),
-                            messageList: session.messageList,
-                            stones: session.stones
-                        )
-
-                        session.player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand(messageList: session.messageList)
-                        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
-                        gobanState.recordAutoPlayStep(nextIndex: gameRecord.currentIndex + 1)
-                    } else {
-                        gobanState.isAutoPlaying = false
-                        gobanState.clearAutoPlayStep()
-                    }
+                    gobanState.autoPlayStep(
+                        gameRecord: gameRecord,
+                        messageList: session.messageList,
+                        player: session.player,
+                        stones: session.stones,
+                        audioModel: audioModel
+                    )
                 }
             }
         }
@@ -1730,17 +1706,13 @@ final class MainWindowController: NSWindowController {
     //     any branch, rewind to the game start, install the "AI" profile, and send
     //     post-execution commands. On becoming FALSE — clear analysis, restore the
     //     human profile, and forward to recover `currentIndex`.
-    //   • `processStonesReadyChange` (iOS lines 268-293): on `stones.isReady`
-    //     going `false -> true` with a selected game, persist the current stones
-    //     into the record and, when an auto-play step just landed, bump
-    //     `currentIndex`. (iOS's `syncBookState()` is a Phase 6 concern — see TODO.)
     //
     // Same `withObservationTracking` gotchas as the other observers: `onChange`
     // fires ONCE per tracked-property change, BEFORE the mutation commits, and
     // doesn't say which property changed. So we hop to `Task { @MainActor }`, read
-    // LIVE committed values, react, update both snapshots, and re-register tracking
+    // LIVE committed values, react, update the snapshots, and re-register tracking
     // (it's one-shot). iOS's `onChange(of: isAutoPlaying)` reacts to either edge
-    // (`old != new`); `onChange(of: stones.isReady)` only to `false -> true`.
+    // (`old != new`).
     //
     // Re-entrancy: handler (1)'s TRUE branch mutates `analysisStatus`/`eyeStatus`
     // (both tracked by OTHER observers) and the stones via `undo`. None of those
@@ -1751,11 +1723,10 @@ final class MainWindowController: NSWindowController {
     // guarantees the cycle stops. See the orchestrator notes for the full trace.
 
     /// Seeds the snapshots from the live state and starts the self-rescheduling
-    /// observation bridge for `isAutoPlaying` + `stones.isReady`. Called once in
+    /// observation bridge for `isAutoPlaying` + `isEditing`. Called once in
     /// `init`, right after `installConfirmationObserver()`.
     private func installAutoPlayObserver() {
         lastIsAutoPlaying = session.gobanState.isAutoPlaying
-        lastStonesReady = session.stones.isReady
         lastIsEditing = session.gobanState.isEditing
         trackAutoPlay()
     }
@@ -1766,7 +1737,6 @@ final class MainWindowController: NSWindowController {
         withObservationTracking {
             // Touch each property so a change to any fires `onChange`.
             _ = session.gobanState.isAutoPlaying
-            _ = session.stones.isReady
             _ = session.gobanState.isEditing
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -1782,7 +1752,6 @@ final class MainWindowController: NSWindowController {
     private func handleAutoPlayChange() {
         let gobanState = session.gobanState
         let newIsAutoPlaying = gobanState.isAutoPlaying
-        let newStonesReady = session.stones.isReady
 
         // iOS `onChange(of: gobanState.isAutoPlaying)` -> `processIsAutoPlayingChange`
         // reacts to ANY change (it reads the live `isAutoPlaying` rather than the
@@ -1791,18 +1760,11 @@ final class MainWindowController: NSWindowController {
             handleIsAutoPlayingChange()
         }
 
-        // iOS `onChange(of: stones.isReady)` -> `processStonesReadyChange` reacts
-        // only on the `false -> true` transition.
-        if newStonesReady && !lastStonesReady {
-            handleStonesReadyChange()
-        }
-
         // iOS `onChange(of: gobanState.isEditing)` -> `processIsEditingChange`:
         // leaving edit mode cancels auto-play (parity + safety — guarantees the
         // loop can't be left running with no edit session). iOS lines 351-356.
         if !gobanState.isEditing && lastIsEditing {
             gobanState.isAutoPlaying = false
-            gobanState.clearAutoPlayStep()
         }
 
         // The draft rides along, but NOT on the edge: it is re-derived from the
@@ -1812,7 +1774,6 @@ final class MainWindowController: NSWindowController {
         syncDraftToEditingState()
 
         lastIsAutoPlaying = gobanState.isAutoPlaying
-        lastStonesReady = session.stones.isReady
         lastIsEditing = gobanState.isEditing
     }
 
@@ -1830,25 +1791,22 @@ final class MainWindowController: NSWindowController {
             gobanState.eyeStatus = .opened
             gobanState.deactivateBranch()
 
-            // Rewind to the start of the game (mirrors iOS's `while ... undo()`).
-            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-            while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
-                gameRecord.undo()
-                gobanState.undo(messageList: session.messageList, stones: session.stones)
-                session.player.toggleNextColorForPlayCommand()
-            }
-
-            // auto-play analysis by best AI profile
+            // auto-play analysis by best AI profile. BEFORE the rewind, which
+            // ends with `sendPostExecutionCommands` (mirrors iOS).
             if let humanSLModel = HumanSLModel(profile: "AI") {
                 session.messageList.appendAndSend(commands: humanSLModel.commands)
                 session.messageList.appendAndSend(command: "kata-set-param playoutDoublingAdvantage 0")
                 session.messageList.appendAndSend(command: "kata-set-param analysisWideRootNoise 0")
             }
 
-            gobanState.sendPostExecutionCommands(
-                config: gameRecord.concreteConfig,
+            // Rewind to the start of the game through the shared path, which
+            // only `undo`s the moves the engine was actually fed.
+            gobanState.backwardMoves(
+                limit: nil,
+                gameRecord: gameRecord,
                 messageList: session.messageList,
-                player: session.player
+                player: session.player,
+                stones: session.stones
             )
         } else {
             gobanState.analysisStatus = .clear
@@ -1875,27 +1833,6 @@ final class MainWindowController: NSWindowController {
                     stones: session.stones)
             }
         }
-    }
-
-    /// Port of `GameSplitView.processStonesReadyChange`. Everything that used
-    /// to hang off this edge — the per-index stone cache, the book walk, the
-    /// widget reload, the draft notice — moved to
-    /// `handleRecordPositionChange()`, which does not wait for the engine.
-    /// What is left genuinely needs the acknowledgement: auto-play may only
-    /// step once the engine has acknowledged the move it just played.
-    ///
-    /// CAVEAT (softened): the auto-play advance ASSIGNS the absolute target
-    /// recorded at the play site (`autoPlayAdvancedIndex`) instead of
-    /// incrementing, so a dropped or doubled `stones.isReady` edge re-assigns
-    /// the same value rather than skipping or double-advancing. The historical
-    /// hazard — a missed edge permanently mis-indexing later
-    /// `scoreLeads`/`winRates` writes — now self-heals on the next edge (a
-    /// raced duplicate play is rejected by the engine, and its "? illegal
-    /// move" reset supplies that edge).
-    private func handleStonesReadyChange() {
-        guard let gameRecord = navigationContext.selectedGameRecord,
-              let advanced = session.gobanState.autoPlayAdvancedIndex() else { return }
-        gameRecord.currentIndex = advanced
     }
 
     // MARK: - Record-position observer (the AppKit `recordPositionSync`)
@@ -1978,10 +1915,10 @@ final class MainWindowController: NSWindowController {
     // The hosted `BoardView` already RENDERS the book overlay + win-rate bar when
     // `gobanState.eyeStatus == .book`; this just keeps `session.bookLookup` walked
     // to the current position so that overlay reflects the right book node. iOS
-    // calls it from three places — stones-ready, the book `isLoaded` false->true
-    // edge, and the `eyeStatus -> .book` edge — and so do we (the stones-ready
-    // call is in `handleStonesReadyChange()`; the two edges are dedicated
-    // observers below). `withAnimation` is dropped: there is no SwiftUI animation
+    // calls it from three places — the record position changing, the book
+    // `isLoaded` false->true edge, and the `eyeStatus -> .book` edge — and so do
+    // we (the position call is in `handleRecordPositionChange()`; the two edges
+    // are dedicated observers below). `withAnimation` is dropped: there is no SwiftUI animation
     // transaction in an `NSWindowController`, and `syncFromMoves` is a pure data
     // walk — the overlay animates from the hosted SwiftUI side regardless.
 

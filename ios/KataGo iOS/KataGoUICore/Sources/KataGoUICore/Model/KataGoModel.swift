@@ -564,6 +564,22 @@ public class MessageList {
 
     public var messages: [Message] = []
 
+    /// Whether the engine can take GTP commands right now — it has answered
+    /// the handshake and has not been torn down.
+    ///
+    /// `appendAndSend` DROPS (and logs) everything while this is false, so a
+    /// board that is on screen before the engine is (the whole point of the
+    /// change) cannot push commands into a pre-loop buffer that would replay
+    /// them at the wrong moment. Lifecycle commands — `version`, `stop`,
+    /// `quit` — deliberately bypass this by going through
+    /// `GameSession.engine.sendCommand` directly.
+    ///
+    /// Defaults TRUE in this commit: the hosts still gate their board behind
+    /// the handshake, so nothing can send early yet, and a default of false
+    /// here would silently swallow every command. The handshake wiring — and
+    /// the flip to false — belong to the commit that removes those gates.
+    public var isAcceptingCommands = true
+
     /// Back-reference to the owning `GameSession`. `appendAndSend` routes
     /// commands through `session?.engine` so `GameSession` is the sole engine
     /// owner. `@ObservationIgnored` — it is wiring, not observable UI state.
@@ -585,6 +601,13 @@ public class MessageList {
     }
 
     public func appendAndSend(command: String) {
+        guard isAcceptingCommands else {
+            // Logged, not silent: a dropped command is exactly the kind of
+            // thing that shows up much later as "the engine is on the wrong
+            // position", and the transcript is where that gets diagnosed.
+            messages.append(Message(text: "> (dropped — engine unavailable) \(command)"))
+            return
+        }
         append(command: command)
         session?.engine.sendCommand(command)
     }

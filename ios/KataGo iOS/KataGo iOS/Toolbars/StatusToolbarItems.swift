@@ -162,9 +162,14 @@ struct StatusToolbarItems: View {
         // moves an ungated undo would desync. (Off-branch it also stops the
         // futile undo the engine already refuses at mainline index 0.)
         if isFunctional, gobanState.canStepBackward(gameRecord: gameRecord) {
+            // A move the replay refused was never fed, so there is nothing to
+            // take back — read that BEFORE the cursor moves off the index.
+            let fed = gobanState.isStepBackwardFedToEngine(gameRecord: gameRecord)
             gobanState.undoIndex(gameRecord: gameRecord)
-            gobanState.undo(messageList: messageList, stones: stones)
-            player.toggleNextColorForPlayCommand()
+            if fed {
+                gobanState.undo(messageList: messageList, stones: stones)
+                player.toggleNextColorForPlayCommand()
+            }
             gobanState.sendShowBoardCommand(messageList: messageList)
         }
     }

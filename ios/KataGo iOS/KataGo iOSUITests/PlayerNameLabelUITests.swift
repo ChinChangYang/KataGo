@@ -124,9 +124,8 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
             }
         }
 
-        // "Forward to End" is the board-ready sentinel used by the other tests.
-        XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 360),
-                      "Board did not appear (engine never finished launching)")
+        // The engine-ready sentinel every class in this target shares.
+        waitForBoardInSync(app)
 
         // Start from a fresh New Game so the AI config is deterministic: the
         // default profile is "AI" (so the "Time per move" steppers exist, not the

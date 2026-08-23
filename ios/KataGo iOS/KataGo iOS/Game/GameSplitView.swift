@@ -337,12 +337,6 @@ struct GameSplitView: View {
                 newIsAutoPlaying: newIsAutoPlaying
             )
         }
-        .onChange(of: stones.isReady) { oldValue, newValue in
-            processStonesReadyChange(
-                oldValue: oldValue,
-                newValue: newValue
-            )
-        }
         .onChange(of: gobanState.analysisStatus) { _, newValue in
             processAnalysisStatusChange(newValue: newValue)
         }
@@ -484,20 +478,6 @@ struct GameSplitView: View {
         }
     }
 
-    /// The engine caught up. Everything that used to hang off this edge —
-    /// the per-index stone cache, the book walk, the widget reload — moved to
-    /// `processRecordPositionChange`, which does not wait for the engine. What
-    /// is left genuinely needs the ack: auto-play may only step once the
-    /// engine has acknowledged the move it just played. (C3 moves this too,
-    /// onto the sync gate.)
-    private func processStonesReadyChange(oldValue: Bool, newValue: Bool) {
-        if !oldValue && newValue,
-           let gameRecord = navigationContext.selectedGameRecord,
-           let advanced = gobanState.autoPlayAdvancedIndex() {
-            gameRecord.currentIndex = advanced
-        }
-    }
-
     /// The record position changed: cache it for the widget, walk the opening
     /// book to it, and flush a pending game-switch widget reload. All
     /// engine-free — this runs as soon as the record moves.
@@ -526,24 +506,24 @@ struct GameSplitView: View {
             gobanState.eyeStatus = .opened
             gobanState.deactivateBranch()
 
-            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-            while sgfHelper.getMove(at: gameRecord.currentIndex - 1) != nil {
-                gameRecord.undo()
-                gobanState.undo(messageList: messageList, stones: stones)
-                player.toggleNextColorForPlayCommand()
-            }
-
-            // auto-play analysis by best AI profile
+            // auto-play analysis by best AI profile. BEFORE the rewind: it
+            // ends with `sendPostExecutionCommands`, and these have to be in
+            // the engine before the analysis that follows is requested.
             if let humanSLModel = HumanSLModel(profile: "AI") {
                 messageList.appendAndSend(commands: humanSLModel.commands)
                 messageList.appendAndSend(command: "kata-set-param playoutDoublingAdvantage 0")
                 messageList.appendAndSend(command: "kata-set-param analysisWideRootNoise 0")
             }
 
-            gobanState.sendPostExecutionCommands(
-                config: gameRecord.concreteConfig,
+            // Rewind to the start of the game. `backwardMoves` is the shared
+            // rewind: it stops at the branch floor and, crucially, only sends
+            // `undo` for moves the engine was actually fed.
+            gobanState.backwardMoves(
+                limit: nil,
+                gameRecord: gameRecord,
                 messageList: messageList,
-                player: player
+                player: player,
+                stones: stones
             )
         } else {
             withAnimation {
@@ -577,7 +557,6 @@ struct GameSplitView: View {
     private func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
         if !newIsEditing {
             gobanState.isAutoPlaying = false
-            gobanState.clearAutoPlayStep()
         }
     }
 
@@ -880,6 +859,11 @@ struct GameSplitView: View {
                         interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
                 }
 
+                // The step still waits for the engine (an analysis has to be
+                // in hand before the move it belongs to is left behind), but
+                // the ADVANCE no longer does: `autoPlayStep` moves the cursor
+                // immediately and plays, so no `stones.isReady` edge can go
+                // missing or fire twice and skip a move.
                 if gobanState.isAutoPlaying && !analysis.info.isEmpty && stones.isReady {
                     gobanState.maybeUpdateAnalysisData(
                         gameRecord: gameRecord,
@@ -888,28 +872,13 @@ struct GameSplitView: View {
                         stones: stones
                     )
 
-                    // forward move
-                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-
-                    if let nextMove = sgfHelper.getMove(at: gameRecord.currentIndex),
-                       let move = board.locationToMove(location: nextMove.location) {
-                        let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-
-                        gobanState.play(
-                            turn: nextPlayer,
-                            move: String(move),
-                            messageList: messageList,
-                            stones: stones
-                        )
-
-                        player.toggleNextColorForPlayCommand()
-                        gobanState.sendShowBoardCommand(messageList: messageList)
-                        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
-                        gobanState.recordAutoPlayStep(nextIndex: gameRecord.currentIndex + 1)
-                    } else {
-                        gobanState.isAutoPlaying = false
-                        gobanState.clearAutoPlayStep()
-                    }
+                    gobanState.autoPlayStep(
+                        gameRecord: gameRecord,
+                        messageList: messageList,
+                        player: player,
+                        stones: stones,
+                        audioModel: audioModel
+                    )
                 }
             }
         }

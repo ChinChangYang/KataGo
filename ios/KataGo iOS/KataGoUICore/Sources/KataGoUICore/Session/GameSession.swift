@@ -41,14 +41,6 @@ public final class GameSession {
     /// wants `run()` to stop (mirrors `quitStatus == .quitted`).
     public var stopRequested = false
 
-    /// When the library is empty, a `printsgf` reply auto-creates and inserts a
-    /// GameRecord into the model context (`maybeCollectSgf`) — the iOS/macOS
-    /// first-launch behavior. The tvOS app opts out once at startup: its context
-    /// is the CloudKit-synced store, its library can legitimately be empty
-    /// (games arrive only via sync), and its self-play demo plays into an
-    /// in-memory record that must never leak into iCloud. A session-level flag
-    /// (not a per-call guard) so no reply race can ever re-arm the insert.
-    public var autoCreatesGameOnEmptyLibrary = true
     /// Out-of-band tap on every raw engine reply line, invoked from
     /// `messaging()` after the message is appended. The tvOS benchmark uses
     /// it to read kata-benchmark's result line (which no prefix-matcher
@@ -397,6 +389,16 @@ public final class GameSession {
         }
     }
 
+    /// Routes a `printsgf` reply into the active branch line or the selected
+    /// record. It can no longer CREATE anything: the first game is created by
+    /// the launch path (`GameRecord.resolveOrCreateInitialSelection`), engine-free,
+    /// so no reply ever inserts into a model context.
+    ///
+    /// `gameRecords` and `modelContext` are consequently unused. They stay on
+    /// the signature because `messaging(gameRecords:modelContext:…)` — a public
+    /// entry point every host calls — still threads them; dropping them is a
+    /// signature change across five app targets, and belongs with the later
+    /// commits that rework those hosts.
     func maybeCollectSgf(
         message: String,
         gameRecords: [GameRecord],
@@ -405,28 +407,11 @@ public final class GameSession {
     ) {
         let sgfPrefix = "= (;FF[4]GM[1]"
         if message.hasPrefix(sgfPrefix) {
-            // Consumed on ANY printsgf reply, whichever arm below handles it,
-            // so a load echo can never outlive the send that armed it and
-            // silently swallow a later real move's stamp.
-            let isLoadEcho = gobanState.nextSgfReplyIsLoadEcho
-            gobanState.nextSgfReplyIsLoadEcho = false
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
                 let sgfHelper = SgfOperations(sgf: sgfString)
                 let currentIndex = sgfHelper.moveSize ?? 0
-                // Auto-create only when nothing is selected: with a selection
-                // present (e.g. the tvOS self-play demo record, which lives in
-                // a separate in-memory container so this query is still empty),
-                // the reply belongs to the selected record below — inserting a
-                // new one here would duplicate it into this context's store.
-                if autoCreatesGameOnEmptyLibrary, gameRecords.isEmpty,
-                   navigationContext.selectedGameRecord == nil {
-                    // Automatically generate and select a new game when there are no games in the list
-                    let newGameRecord = GameRecord.createGameRecord(sgf: sgfString, currentIndex: currentIndex)
-                    modelContext.insert(newGameRecord)
-                    navigationContext.selectedGameRecord = newGameRecord
-                    gobanState.isEditing = true
-                } else if gobanState.isBranchActive {
+                if gobanState.isBranchActive {
                     gobanState.branchSgf = sgfString
                     gobanState.branchIndex = currentIndex
                 } else if let gameRecord = navigationContext.selectedGameRecord,
@@ -447,11 +432,7 @@ public final class GameSession {
                     if gameRecord.currentIndex != currentIndex {
                         gameRecord.currentIndex = currentIndex
                     }
-                    // A load echo re-states the record; it does not modify it,
-                    // so it must not touch the timestamp the library sorts on.
-                    if !isLoadEcho {
-                        gameRecord.lastModificationDate = Date.now
-                    }
+                    gameRecord.lastModificationDate = Date.now
                     gobanState.maybeUpdateMoves(gameRecord: gameRecord, board: board, sgfHelper: sgfHelper)
                 }
             }

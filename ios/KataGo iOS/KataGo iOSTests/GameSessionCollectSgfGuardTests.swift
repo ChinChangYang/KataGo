@@ -2,13 +2,13 @@
 //  GameSessionCollectSgfGuardTests.swift
 //  KataGo iOSTests
 //
-//  Pins the guarded auto-create in GameSession.maybeCollectSgf. The empty-
-//  library auto-create is iOS first-launch behavior (a printsgf reply births
-//  the first game); the guards keep it from ever inserting into the WRONG
-//  store: with a selection present (the tvOS self-play demo record lives in a
-//  separate in-memory container, so the CloudKit query stays empty) the reply
-//  belongs to the selected record, and with `autoCreatesGameOnEmptyLibrary`
-//  false (set once by the tvOS root) nothing is ever auto-inserted.
+//  Pins where a `printsgf` reply may and may not land. It used to be able to
+//  CREATE a game (the iOS first-launch path: an empty library plus a reply
+//  born the first record), which needed a per-platform kill switch to keep it
+//  from inserting into the wrong store. The board is engine-free now — iOS
+//  creates its first game at launch, without asking the engine — so no reply
+//  ever creates anything, on any platform. What is left to pin: a reply
+//  updates the SELECTED record and nothing else.
 //
 
 import Testing
@@ -30,8 +30,8 @@ struct GameSessionCollectSgfGuardTests {
         try container.mainContext.fetchCount(FetchDescriptor<GameRecord>())
     }
 
-    @Test("Empty library + nil selection: auto-create fires (iOS first-launch pin)")
-    func autoCreateFiresOnFirstLaunch() throws {
+    @Test("Empty library + nil selection: nothing is created")
+    func nothingIsCreatedFromAReply() throws {
         let container = try makeInMemoryContainer()
         let session = GameSession()
         let navigation = NavigationContext()
@@ -41,10 +41,8 @@ struct GameSessionCollectSgfGuardTests {
                                 modelContext: container.mainContext,
                                 navigationContext: navigation)
 
-        #expect(try fetchCount(container) == 1)
-        #expect(navigation.selectedGameRecord != nil)
-        #expect(navigation.selectedGameRecord?.currentIndex == 1)
-        #expect(session.gobanState.isEditing == true)
+        #expect(try fetchCount(container) == 0)
+        #expect(navigation.selectedGameRecord == nil)
     }
 
     @Test("Empty library + selection present: updates the selected record, inserts nothing")
@@ -69,24 +67,24 @@ struct GameSessionCollectSgfGuardTests {
         #expect(demo.currentIndex == 1)
     }
 
-    @Test("Opted out + nil selection: nothing is inserted (tvOS kill switch)")
-    func optOutInsertsNothing() throws {
+    /// A game that is on screen but not in this context's store — the tvOS
+    /// self-play demo record lives in its own in-memory container — still gets
+    /// the reply, and the reply still inserts nothing anywhere.
+    @Test("A non-empty library with nothing selected is left untouched")
+    func aReplyWithNoSelectionWritesNowhere() throws {
         let container = try makeInMemoryContainer()
+        let existing = GameRecord.createGameRecord(name: "Existing")
+        container.mainContext.insert(existing)
         let session = GameSession()
-        session.autoCreatesGameOnEmptyLibrary = false
         let navigation = NavigationContext()
 
         session.maybeCollectSgf(message: Self.printsgfReply,
-                                gameRecords: [],
+                                gameRecords: [existing],
                                 modelContext: container.mainContext,
                                 navigationContext: navigation)
 
-        #expect(try fetchCount(container) == 0)
+        #expect(try fetchCount(container) == 1)
+        #expect(existing.sgf == GameRecord.defaultSgf)
         #expect(navigation.selectedGameRecord == nil)
-    }
-
-    @Test("The opt-in default is true (iOS/macOS unchanged)")
-    func defaultsToAutoCreate() {
-        #expect(GameSession().autoCreatesGameOnEmptyLibrary == true)
     }
 }

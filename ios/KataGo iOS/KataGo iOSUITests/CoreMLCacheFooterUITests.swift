@@ -551,6 +551,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         XCTAssertTrue(lockButton.waitForExistence(timeout: 180),
                       "Goban (Lock button) did not appear after launching \(label) engine")
 
+        // The goban is on screen before the engine is — this class is about
+        // what a fully launched engine leaves in the cache, so wait for the
+        // engine itself, not just for the board that no longer depends on it.
+        waitForBoardInSync(app)
+
         // Board "More" → "Settings" (opens Global Settings directly).
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")

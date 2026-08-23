@@ -706,8 +706,8 @@ struct TVSelfPlayScreen: View {
         }
         ghost.reset()
 
-        // loadsgf inherently cancels the continuous analysis of the finished
-        // position; the rest of the setup mirrors first entry — including
+        // The reload's first command interrupts the continuous analysis of the
+        // finished position; the rest of the setup mirrors first entry — including
         // the one-shot unlock (see startIfNeeded: a Max-Board-Size-clamped
         // demo would otherwise load locked and branch-route every printsgf).
         gobanState.unlockEditingOnReload = true
@@ -731,8 +731,9 @@ struct TVSelfPlayScreen: View {
         broadcast?.cancelAll()
         restartTask?.cancel()
         restartTask = nil
-        // A late `play` reply after this is dropped harmlessly; the session's
-        // autoCreatesGameOnEmptyLibrary opt-out covers the printsgf race.
+        // A late `play` reply after this is dropped harmlessly, and a stray
+        // `printsgf` reply with nothing selected now writes nowhere at all (no
+        // reply ever creates a game any more).
         navigationContext.selectedGameRecord = nil
         UIApplication.shared.isIdleTimerDisabled = false
 

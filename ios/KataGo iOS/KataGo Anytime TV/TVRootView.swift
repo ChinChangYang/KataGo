@@ -283,15 +283,6 @@ struct TVRootView: View {
         }
         .onAppear(perform: startEngineIfNeeded)
         .task {
-            // The TV never auto-creates a game from a printsgf reply: the
-            // CloudKit library is legitimately empty until sync delivers
-            // games, and the self-play demo plays into an in-memory record
-            // that must never be duplicated into the synced store (a
-            // session-level switch so no reply race can re-arm the insert).
-            // Set before the engine handshake completes — no printsgf reply
-            // can precede it.
-            session.autoCreatesGameOnEmptyLibrary = false
-
             // tvOS draws the standard diagram orientation (GTP row 1 at the
             // bottom), matching the WidgetBoardView card thumbnails.
             // GlobalPreferenceSync never runs on TV, so nothing overwrites it.

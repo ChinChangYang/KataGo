@@ -133,6 +133,31 @@ public enum GtpCommandBuilder {
                 whiteHandicapBonusCommand(whiteHandicapBonus)]
     }
 
+    /// The command that puts a record's setup stones (AB/AW, AE applied) on the
+    /// engine's board, or nil when there are none.
+    ///
+    /// `set_free_handicap` when every setup stone is Black: that is the command
+    /// KataGo means for a handicap, and it applies the white handicap bonus and
+    /// leaves WHITE to move — exactly what `loadsgf` used to arrange
+    /// (`gtp.cpp` set_free_handicap). It demands an EMPTY board, so it may only
+    /// follow a `clear_board`/`boardsize`.
+    ///
+    /// `set_position` for anything else — a mixed setup, or White-only stones —
+    /// which takes `<COLOR> <VERTEX>` pairs and leaves BLACK to move.
+    ///
+    /// Colours are lower-case, matching every `play` the app sends;
+    /// `PlayerIO::tryParsePlayer` lower-cases its argument, so the engine reads
+    /// either spelling.
+    public static func setupStonesCommand(blackVertices: [String],
+                                          whiteVertices: [String]) -> String? {
+        if blackVertices.isEmpty && whiteVertices.isEmpty { return nil }
+        if whiteVertices.isEmpty {
+            return "set_free_handicap " + blackVertices.joined(separator: " ")
+        }
+        let pairs = blackVertices.map { "b \($0)" } + whiteVertices.map { "w \($0)" }
+        return "set_position " + pairs.joined(separator: " ")
+    }
+
     public static func symmetricHumanAnalysisCommands(humanSLProfile: String,
                                                       humanProfileForWhite: String,
                                                       humanRatioForBlack: Float,

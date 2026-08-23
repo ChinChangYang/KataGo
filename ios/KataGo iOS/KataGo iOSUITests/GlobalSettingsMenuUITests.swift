@@ -28,10 +28,9 @@ final class GlobalSettingsMenuUITests: PortraitUITestCase {
             }
         }
 
-        // Engine init + on-the-fly CoreML conversion is slow on the simulator.
-        let forwardEnd = app.buttons["Forward to End"]
-        XCTAssertTrue(forwardEnd.waitForExistence(timeout: 360),
-                      "Board did not appear (engine never finished launching)")
+        // The board draws before the engine is ready, so wait for the ENGINE
+        // to be in sync with it rather than for a toolbar button to exist.
+        waitForBoardInSync(app)
 
         // Pop back to the game list so no game is selected (compact width).
         // The back button carries the previous screen's title when it fits.

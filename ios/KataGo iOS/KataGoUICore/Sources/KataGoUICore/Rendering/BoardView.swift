@@ -158,6 +158,19 @@ public struct BoardView: View {
                             .shadow(color: .black.opacity(0.6), radius: dimensions.squareLengthDiv16)
                     }
 
+                    // The UI suite's sync sentinel. The BOARD never waits for
+                    // the engine — this is here so a test can, instead of
+                    // guessing from the presence of a toolbar button whether
+                    // the engine has caught up with the position on screen.
+                    // Hidden, 1 pt, and untappable, so it changes nothing the
+                    // user can see or reach.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .allowsHitTesting(false)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("Board.sync")
+                        .accessibilityValue(stones.isReady ? "inSync" : "syncing")
+
                     if gobanState.isBranchActive {
                         // Reminder that branch stones are temporary; geometry
                         // matches BoardLineView.drawBoardBackground's wood rect.
@@ -233,16 +246,9 @@ public struct BoardView: View {
             }
             .onChange(of: player.nextColorForPlayCommand) { oldValue, newValue in
                 if oldValue != newValue {
-                    gobanState.maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newValue,
-                                                                        config: config,
-                                                                        messageList: messageList)
-
-                    gobanState.maybeRequestAnalysis(
-                        config: config,
-                        nextColorForPlayCommand: newValue,
-                        messageList: messageList)
-
-                    gobanState.maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newValue)
+                    gobanState.handleTurnChange(to: newValue,
+                                                config: config,
+                                                messageList: messageList)
                 }
             }
             .onChange(of: stones.blackStonesCaptured) { oldValue, newValue in

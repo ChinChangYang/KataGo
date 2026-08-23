@@ -89,6 +89,29 @@ struct GameDeepLinkResolveTests {
         let c = try container()
         #expect(GameRecord.resolveInitialSelection(pendingGameID: nil, container: c) == nil)
     }
+
+    /// First launch. A `printsgf` reply used to birth the first game, which
+    /// meant the very first board could not be drawn until the engine had
+    /// loaded. The launch path creates it itself now, so an empty store yields
+    /// a game rather than nil — and the created game is the one that is opened.
+    @Test @MainActor func initialSelectionCreatesDefaultGameWhenStoreEmpty() throws {
+        let c = try container()
+        let created = GameRecord.resolveOrCreateInitialSelection(pendingGameID: nil, container: c)
+
+        #expect(created.sgf == GameRecord.defaultSgf)
+        #expect(created.currentIndex == 0)
+        try c.mainContext.save()
+        #expect(try GameRecord.fetchGameRecords(container: c).count == 1)
+    }
+
+    @Test @MainActor func initialSelectionKeepsAnExistingGameInsteadOfCreating() throws {
+        let c = try container()
+        let (_, newer) = try seedTwo(c)
+        let resolved = GameRecord.resolveOrCreateInitialSelection(pendingGameID: nil, container: c)
+
+        #expect(resolved.uuid == newer.uuid)
+        #expect(try GameRecord.fetchGameRecords(container: c).count == 2)
+    }
 }
 
 /// F14/F14b: a game selection arriving before the engine is ready (macOS cold
