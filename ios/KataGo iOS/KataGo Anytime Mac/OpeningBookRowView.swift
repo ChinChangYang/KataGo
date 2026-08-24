@@ -2,7 +2,8 @@
 //  OpeningBookRowView.swift
 //  KataGo Anytime Mac
 //
-//  A view-based NSTableCellView for one downloadable opening book: bold title,
+//  A view-based NSTableCellView for one opening book — a downloadable catalog
+//  entry or a user-imported file. Catalog rows: bold title,
 //  file size, a status area (Downloading… / Paused / Downloaded / Not
 //  downloaded), and trailing controls (a primary button labelled from the
 //  shared `DownloadButtonRole` — Download or Resume Download, an inline
@@ -207,6 +208,30 @@ final class OpeningBookRowView: NSTableCellView {
         primaryButton.imagePosition = .imageLeading
 
         trashButton.isHidden = !(isDownloaded && !isDownloading)
+    }
+
+    /// Configure for a user-imported book: title, "Imported - NxN - size"
+    /// status, and a trash button. No download controls — the file is already
+    /// on disk and nothing about it transfers.
+    func configure(imported record: CustomBookRecord,
+                   onDelete: @escaping () -> Void) {
+        self.onDownload = nil
+        self.onCancel = nil
+        self.onDelete = onDelete
+
+        titleField.stringValue = record.displayName
+        statusField.stringValue = "Imported"
+
+        let bytes = record.onDiskSize ?? record.fileSize
+        sizeField.stringValue =
+            "\(record.boardSize)x\(record.boardSize) · " +
+            Self.byteFormatter.string(fromByteCount: Int64(bytes))
+
+        progressIndicator.isHidden = true
+        cancelButton.isHidden = true
+        primaryButton.isHidden = true
+        primaryButtonTrailingConstraint.isActive = false
+        trashButton.isHidden = false
     }
 
     @objc private func primaryTapped() { onDownload?() }

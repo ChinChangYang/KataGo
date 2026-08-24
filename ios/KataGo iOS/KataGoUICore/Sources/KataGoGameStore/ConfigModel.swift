@@ -188,12 +188,12 @@ public final class Config {
 
 extension Config {
     /// Whether an opening book *could* apply to this board (pure-config
-    /// eligibility): a square board whose size has a published book (6...9).
-    /// Whether such a book is actually downloaded/loaded is a runtime concern
-    /// checked separately via `BookLookup.isAvailable(forBoardSize:)` /
-    /// `isReady(forBoardSize:)`.
+    /// eligibility): a square board within the KBOK format's range (2...15).
+    /// Whether a book actually exists for the size — catalog download or
+    /// user import — is a runtime concern checked separately via
+    /// `BookLookup.isAvailable(forBoardSize:)` / `isReady(forBoardSize:)`.
     public var isBookEligible: Bool {
-        boardWidth == boardHeight && (6...9).contains(boardWidth)
+        boardWidth == boardHeight && (2...15).contains(boardWidth)
     }
 }
 

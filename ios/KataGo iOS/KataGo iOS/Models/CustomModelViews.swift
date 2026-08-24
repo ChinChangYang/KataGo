@@ -56,12 +56,13 @@ struct CustomModelRow: View {
 /// because the copy can be hundreds of megabytes, where a bare spinner is
 /// indistinguishable from a hang.
 struct CustomModelImportProgressView: View {
+    var title: String = "Adding Network"
     let progress: Double
     let onCancel: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Adding Network")
+            Text(title)
                 .font(.headline)
             ProgressView(value: progress)
                 .progressViewStyle(.linear)

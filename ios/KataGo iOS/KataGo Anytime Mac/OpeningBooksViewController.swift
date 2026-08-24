@@ -2,15 +2,17 @@
 //  OpeningBooksViewController.swift
 //  KataGo Anytime Mac
 //
-//  The Opening Books window's content: an NSTableView of the opening-book catalog
-//  (6x6...9x9) on the left and a per-book detail pane (description + sizes) on the
-//  right. Mirrors `ModelsViewController`'s download lifecycle (downloads belong
-//  to the app-wide `DownloadCenter`; this controller mirrors one onto a row via
-//  a self-rescheduling `withObservationTracking` observer) but with the
-//  book-specific download/delete actions. No set-active / backend pane (books
-//  just apply to the matching board size when downloaded).
+//  The Opening Books window's content: an NSTableView of the opening-book
+//  catalog plus the user's imported books on the left, an Import Book… button
+//  under the list, and a per-book detail pane on the right. Mirrors
+//  `ModelsViewController`'s download lifecycle (downloads belong to the
+//  app-wide `DownloadCenter`; this controller mirrors one onto a row via a
+//  self-rescheduling `withObservationTracking` observer) but with the
+//  book-specific download/delete actions. When more than one book claims a
+//  board size, the detail pane offers the per-size active-book choice.
 //
-//  `onBooksChanged` is invoked after a download finishes or a book is deleted so
+//  `onBooksChanged` is invoked after a download finishes, an import lands, a
+//  book is deleted, or the active-book choice changes, so
 //  `MainWindowController` can re-evaluate the active game's book load + eye state.
 //
 
@@ -22,7 +24,23 @@ final class OpeningBooksViewController: NSViewController {
 
     private let onBooksChanged: () -> Void
 
-    private let books: [OpeningBook] = OpeningBook.allCases.sorted { $0.boardSize < $1.boardSize }
+    /// One list row: a catalog entry or a user-imported book.
+    enum BookRow {
+        case catalog(OpeningBook)
+        case imported(CustomBookRecord)
+    }
+
+    private let catalogBooks: [OpeningBook] = OpeningBook.allCases.sorted { $0.boardSize < $1.boardSize }
+
+    /// The table's rows: catalog first (by size), then imports (by size, then
+    /// import date). Rebuilt after an import, a delete, or a selection change.
+    private var rows: [BookRow] = []
+
+    private func rebuildRows() {
+        let imports = CustomBookStore().records
+            .sorted { ($0.boardSize, $0.importedAt) < ($1.boardSize, $1.importedAt) }
+        rows = catalogBooks.map(BookRow.catalog) + imports.map(BookRow.imported)
+    }
 
     /// File names whose `Download` is currently mirrored onto a row. Emptied
     /// when the window closes, which DETACHES the mirror — it does not stop
@@ -77,10 +95,21 @@ final class OpeningBooksViewController: NSViewController {
 
         detailContainer.translatesAutoresizingMaskIntoConstraints = false
 
+        // Left pane: the list with an Import Book… bar under it.
+        let importButton = NSButton(title: "Import Book…", target: self,
+                                    action: #selector(importBookClicked))
+        importButton.bezelStyle = .rounded
+        importButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let leftPane = NSView()
+        leftPane.translatesAutoresizingMaskIntoConstraints = false
+        leftPane.addSubview(scrollView)
+        leftPane.addSubview(importButton)
+
         splitView.translatesAutoresizingMaskIntoConstraints = false
         splitView.isVertical = true
         splitView.dividerStyle = .thin
-        splitView.addArrangedSubview(scrollView)
+        splitView.addArrangedSubview(leftPane)
         splitView.addArrangedSubview(detailContainer)
 
         let container = NSView()
@@ -90,7 +119,16 @@ final class OpeningBooksViewController: NSViewController {
             splitView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             splitView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             splitView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            scrollView.widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
+
+            scrollView.topAnchor.constraint(equalTo: leftPane.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leftPane.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: leftPane.trailingAnchor),
+
+            importButton.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 8),
+            importButton.leadingAnchor.constraint(equalTo: leftPane.leadingAnchor, constant: 12),
+            importButton.bottomAnchor.constraint(equalTo: leftPane.bottomAnchor, constant: -8),
+
+            leftPane.widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
             detailContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 260),
         ])
         view = container
@@ -98,8 +136,9 @@ final class OpeningBooksViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        rebuildRows()
         tableView.reloadData()
-        if !books.isEmpty {
+        if !rows.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
         rebuildDetailPane()
@@ -110,6 +149,7 @@ final class OpeningBooksViewController: NSViewController {
         // `attachDownloadObservation()` reloads the table itself, so this does
         // not also call `reloadVisibleRows()` — one `reloadData()` per
         // appearance, not two.
+        rebuildRows()
         rebuildDetailPane()
         attachDownloadObservation()
     }
@@ -127,7 +167,10 @@ final class OpeningBooksViewController: NSViewController {
     }
 
     private func reloadRow(for fileName: String) {
-        guard let row = books.firstIndex(where: { $0.fileName == fileName }) else { return }
+        guard let row = rows.firstIndex(where: { entry in
+            if case .catalog(let book) = entry { return book.fileName == fileName }
+            return false
+        }) else { return }
         tableView.reloadData(forRowIndexes: IndexSet(integer: row),
                              columnIndexes: IndexSet(integer: 0))
     }
@@ -168,7 +211,7 @@ final class OpeningBooksViewController: NSViewController {
     /// skipping `.interrupted` would leave a retrying download's row dead
     /// until the next close/reopen, since attach is the only re-entry point.
     func attachDownloadObservation() {
-        for book in books {
+        for book in catalogBooks {
             let entry = download(for: book)
             guard entry.state != .succeeded else { continue }
             track(entry, fileName: book.fileName)
@@ -218,9 +261,10 @@ final class OpeningBooksViewController: NSViewController {
                 if entry.state == .succeeded {
                     self.observedFileNames.remove(fileName)
                     self.reloadRow(for: fileName)
-                    if self.selectedBook?.fileName == fileName {
-                        self.rebuildDetailPane()
-                    }
+                    // Rebuild unconditionally: a finished download can make a
+                    // DIFFERENT selected row's size contested, which grows the
+                    // active-book popup on that row's pane.
+                    self.rebuildDetailPane()
                     // A finished download may make the active game's book available.
                     self.onBooksChanged()
                     return
@@ -247,9 +291,120 @@ final class OpeningBooksViewController: NSViewController {
             guard let self, response == .alertFirstButtonReturn else { return }
             book.deleteDownloaded()
             self.reloadRow(for: book.fileName)
-            if self.selectedBook?.fileName == book.fileName {
-                self.rebuildDetailPane()
+            self.rebuildDetailPane()
+            self.onBooksChanged()
+        }
+
+        if let window = view.window {
+            alert.beginSheetModal(for: window, completionHandler: respond)
+        } else {
+            respond(alert.runModal())
+        }
+    }
+
+    // MARK: - Import
+
+    private var importTask: Task<Void, Never>?
+    private var importProgressController: ModelImportProgressViewController?
+
+    @objc private func importBookClicked(_ sender: Any?) {
+        guard let window = view.window else { return }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.message = "Choose a KataGo opening book (.kbook or .kbook.gz)."
+        panel.prompt = "Import"
+        // Permissive on purpose, like the network importer: providers type
+        // files inconsistently, and the importer's KBOK sniff is what actually
+        // decides, with a specific reason when it says no.
+        panel.allowedContentTypes = [.gzip, .data]
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.startImport(from: url)
+        }
+    }
+
+    /// Copies the chosen file in behind a determinate progress sheet. The copy
+    /// itself runs off the main actor (`importBook` is nonisolated async).
+    private func startImport(from url: URL) {
+        let progress = ModelImportProgressViewController()
+        progress.titleText = "Importing Book"
+        progress.onCancel = { [weak self] in self?.importTask?.cancel() }
+        importProgressController = progress
+        presentAsSheet(progress)
+
+        importTask = Task { [weak self] in
+            defer {
+                self?.dismissImportProgress()
+                self?.importTask = nil
             }
+            do {
+                // Capture the sheet, NOT self — same @Sendable-closure
+                // reasoning as ModelsViewController's import.
+                let record = try await CustomBookImporter.importBook(from: url) { fraction in
+                    Task { @MainActor in progress.update(fraction: fraction) }
+                }
+                guard let self else { return }
+                self.rebuildRows()
+                self.tableView.reloadData()
+                if let row = self.rows.firstIndex(where: { entry in
+                    if case .imported(let existing) = entry { return existing.id == record.id }
+                    return false
+                }) {
+                    self.tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                    self.tableView.scrollRowToVisible(row)
+                }
+                self.rebuildDetailPane()
+                // An import may make the active game's book available, or
+                // change what the resolver answers for its size.
+                self.onBooksChanged()
+            } catch is CancellationError {
+                // The partial file is already gone; nothing was recorded.
+            } catch {
+                self?.presentImportFailure(error)
+            }
+        }
+    }
+
+    private func dismissImportProgress() {
+        if let progress = importProgressController {
+            dismiss(progress)
+        }
+        importProgressController = nil
+    }
+
+    private func presentImportFailure(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn't Import Book"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        if let window = view.window {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
+    }
+
+    /// Deletes an imported book: file, cache, selections, record — then lets
+    /// `MainWindowController` reconcile the live book (the resolver's fallback
+    /// makes the affected size fall back to the catalog or another import).
+    private func deleteImportedBook(_ record: CustomBookRecord) {
+        let alert = NSAlert()
+        alert.messageText = "Remove \u{201C}\(record.displayName)\u{201D}?"
+        alert.informativeText =
+            "This deletes the imported opening book. The app keeps no copy of the original file."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+
+        let respond: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            CustomBookImporter.delete(record)
+            self.rebuildRows()
+            self.tableView.reloadData()
+            self.rebuildDetailPane()
             self.onBooksChanged()
         }
 
@@ -262,19 +417,26 @@ final class OpeningBooksViewController: NSViewController {
 
     // MARK: - Detail pane
 
-    private var selectedBook: OpeningBook? {
+    private var selectedBookRow: BookRow? {
         let row = tableView.selectedRow
-        guard row >= 0, row < books.count else { return nil }
-        return books[row]
+        guard row >= 0, row < rows.count else { return nil }
+        return rows[row]
     }
 
     private func rebuildDetailPane() {
         detailPane?.removeFromSuperview()
         detailPane = nil
 
-        guard let book = selectedBook else { return }
+        guard let bookRow = selectedBookRow else { return }
 
-        let pane = OpeningBookDetailPaneView(book: book)
+        let pane = OpeningBookDetailPaneView(
+            row: bookRow,
+            onActiveBookChanged: { [weak self] in
+                guard let self else { return }
+                self.rebuildDetailPane()
+                self.onBooksChanged()
+            }
+        )
         pane.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(pane)
         NSLayoutConstraint.activate([
@@ -291,7 +453,7 @@ final class OpeningBooksViewController: NSViewController {
 
 extension OpeningBooksViewController: NSTableViewDataSource {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        books.count
+        rows.count
     }
 }
 
@@ -301,8 +463,7 @@ extension OpeningBooksViewController: NSTableViewDelegate {
     func tableView(_ tableView: NSTableView,
                    viewFor tableColumn: NSTableColumn?,
                    row: Int) -> NSView? {
-        guard row >= 0, row < books.count else { return nil }
-        let book = books[row]
+        guard row >= 0, row < rows.count else { return nil }
 
         let cell: OpeningBookRowView
         if let reused = tableView.makeView(withIdentifier: Self.cellIdentifier, owner: self)
@@ -313,14 +474,22 @@ extension OpeningBooksViewController: NSTableViewDelegate {
             cell.identifier = Self.cellIdentifier
         }
 
-        cell.configure(
-            book: book,
-            isDownloaded: book.isDownloaded,
-            download: download(for: book),
-            onDownload: { [weak self] in self?.startDownload(book) },
-            onCancel: { [weak self] in self?.cancelDownload(book) },
-            onDelete: { [weak self] in self?.deleteBook(book) }
-        )
+        switch rows[row] {
+        case .catalog(let book):
+            cell.configure(
+                book: book,
+                isDownloaded: book.isDownloaded,
+                download: download(for: book),
+                onDownload: { [weak self] in self?.startDownload(book) },
+                onCancel: { [weak self] in self?.cancelDownload(book) },
+                onDelete: { [weak self] in self?.deleteBook(book) }
+            )
+        case .imported(let record):
+            cell.configure(
+                imported: record,
+                onDelete: { [weak self] in self?.deleteImportedBook(record) }
+            )
+        }
         return cell
     }
 
@@ -331,12 +500,18 @@ extension OpeningBooksViewController: NSTableViewDelegate {
 
 // MARK: - Detail pane
 
-/// Shows the selected book's description and sizes. Scrolls from the top so a
-/// long description stays fully readable regardless of window height.
+/// Shows the selected book's description and sizes — and, when more than one
+/// book claims the row's board size, the per-size active-book choice. Scrolls
+/// from the top so a long description stays fully readable regardless of
+/// window height.
 @MainActor
 final class OpeningBookDetailPaneView: NSView {
 
-    private let book: OpeningBook
+    private let row: OpeningBooksViewController.BookRow
+    private let onActiveBookChanged: () -> Void
+
+    /// Identities behind the active-book popup's items, in item order.
+    private var popupIdentities: [String] = []
 
     private static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -344,13 +519,22 @@ final class OpeningBookDetailPaneView: NSView {
         return formatter
     }()
 
-    init(book: OpeningBook) {
-        self.book = book
+    init(row: OpeningBooksViewController.BookRow,
+         onActiveBookChanged: @escaping () -> Void) {
+        self.row = row
+        self.onActiveBookChanged = onActiveBookChanged
         super.init(frame: .zero)
         build()
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    private var boardSize: Int {
+        switch row {
+        case .catalog(let book): return book.boardSize
+        case .imported(let record): return record.boardSize
+        }
+    }
 
     private func build() {
         let stack = NSStackView()
@@ -360,27 +544,80 @@ final class OpeningBookDetailPaneView: NSView {
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
 
-        let header = NSTextField(labelWithString: book.title)
-        header.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        header.lineBreakMode = .byTruncatingTail
-        stack.addArrangedSubview(header)
+        switch row {
+        case .catalog(let book):
+            let header = NSTextField(labelWithString: book.title)
+            header.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
+            header.lineBreakMode = .byTruncatingTail
+            stack.addArrangedSubview(header)
 
-        let sizeText = book.isDownloaded
-            ? "Downloaded · \(Self.byteFormatter.string(fromByteCount: Int64(book.onDiskSize ?? book.fileSize)))"
-            : "Download size: \(Self.byteFormatter.string(fromByteCount: Int64(book.fileSize)))"
-        let size = NSTextField(labelWithString: sizeText)
-        size.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        size.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(size)
+            let sizeText = book.isDownloaded
+                ? "Downloaded · \(Self.byteFormatter.string(fromByteCount: Int64(book.onDiskSize ?? book.fileSize)))"
+                : "Download size: \(Self.byteFormatter.string(fromByteCount: Int64(book.fileSize)))"
+            let size = NSTextField(labelWithString: sizeText)
+            size.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            size.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(size)
 
-        if !book.description.isEmpty {
-            let description = NSTextField(wrappingLabelWithString: book.description)
-            description.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            description.textColor = .secondaryLabelColor
-            description.isSelectable = true
-            description.translatesAutoresizingMaskIntoConstraints = false
-            stack.addArrangedSubview(description)
-            description.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
+            if !book.description.isEmpty {
+                let description = NSTextField(wrappingLabelWithString: book.description)
+                description.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                description.textColor = .secondaryLabelColor
+                description.isSelectable = true
+                description.translatesAutoresizingMaskIntoConstraints = false
+                stack.addArrangedSubview(description)
+                description.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
+            }
+
+        case .imported(let record):
+            let header = NSTextField(labelWithString: record.displayName)
+            header.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
+            header.lineBreakMode = .byTruncatingTail
+            stack.addArrangedSubview(header)
+
+            let bytes = record.onDiskSize ?? record.fileSize
+            let sizeText = "Imported · \(record.boardSize)x\(record.boardSize) · " +
+                Self.byteFormatter.string(fromByteCount: Int64(bytes))
+            let size = NSTextField(labelWithString: sizeText)
+            size.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            size.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(size)
+
+            let dateText = "Imported \(record.importedAt.formatted(date: .abbreviated, time: .shortened))"
+            let date = NSTextField(labelWithString: dateText)
+            date.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            date.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(date)
+
+            let note = NSTextField(wrappingLabelWithString:
+                "An imported book stays on this Mac only. The app read its board size from the file itself.")
+            note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            note.textColor = .secondaryLabelColor
+            note.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(note)
+            note.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
+        }
+
+        // Per-size active-book choice — only when the size is contested.
+        let candidates = BookResolver.candidates(forBoardSize: boardSize)
+        if candidates.count >= 2 {
+            let label = NSTextField(labelWithString: "Active book for \(boardSize)x\(boardSize):")
+            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            stack.addArrangedSubview(label)
+
+            let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+            popup.translatesAutoresizingMaskIntoConstraints = false
+            popupIdentities = candidates.map(\.identity)
+            for candidate in candidates {
+                popup.addItem(withTitle: candidate.displayName)
+            }
+            let resolved = BookResolver.resolvedBook(forBoardSize: boardSize)?.identity
+            if let resolved, let index = popupIdentities.firstIndex(of: resolved) {
+                popup.selectItem(at: index)
+            }
+            popup.target = self
+            popup.action = #selector(activeBookPicked(_:))
+            stack.addArrangedSubview(popup)
         }
 
         let documentView = OpeningBookFlippedView()
@@ -407,6 +644,13 @@ final class OpeningBookDetailPaneView: NSView {
 
             documentView.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
         ])
+    }
+
+    @objc private func activeBookPicked(_ sender: NSPopUpButton) {
+        let index = sender.indexOfSelectedItem
+        guard index >= 0, index < popupIdentities.count else { return }
+        CustomBookStore().setActiveBookIdentity(popupIdentities[index], forBoardSize: boardSize)
+        onActiveBookChanged()
     }
 }
 

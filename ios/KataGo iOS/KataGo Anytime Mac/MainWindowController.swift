@@ -1650,8 +1650,9 @@ final class MainWindowController: NSWindowController {
 
     /// Opens (or brings forward) the native Opening Books window. Reached through
     /// the responder chain from the Window-menu "Manage Opening Books…" item. A
-    /// download/delete inside the window re-evaluates the active game's book load +
-    /// eye state via `refreshBookStateForSelectedGame()`.
+    /// download, import, delete, or active-book change inside the window
+    /// re-evaluates the active game's book load + eye state via
+    /// `refreshBookStateForSelectedGame()`.
     @objc func showOpeningBooksWindow(_ sender: Any?) {
         if openingBooksWindowController == nil {
             openingBooksWindowController = OpeningBooksWindowController(
@@ -1664,10 +1665,18 @@ final class MainWindowController: NSWindowController {
         openingBooksWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
-    /// Reconciles the active game's opening-book state after a book is downloaded
-    /// or deleted: load the matching-size book if it is now available; otherwise
-    /// unload it and leave book view.
+    /// Reconciles the active game's opening-book state after a book is
+    /// downloaded, imported, deleted, or the active-book choice changes: load
+    /// the size's resolved book if one is available (`loadIfNeeded` reloads
+    /// when the resolved identity changed); otherwise unload and leave book
+    /// view.
     private func refreshBookStateForSelectedGame() {
+        // The change may concern a size other than the selected game's — e.g.
+        // deleting a 9x9 book while a 19x19 game is up. If the loaded book no
+        // longer resolves for its own size, drop it rather than leaving a
+        // dangling identity answering isReady for a deleted file.
+        session.bookLookup.unloadIfStale()
+
         guard let cfg = navigationContext.selectedGameRecord?.concreteConfig else { return }
         let size = cfg.boardWidth
         if selectedBookAvailable {

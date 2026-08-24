@@ -98,14 +98,13 @@ struct ContentView: View {
         //
         // So re-scan instead of trusting a single last-value slot: ask
         // whether the book this game actually needs is on disk NOW.
-        // `loadIfNeeded` is a no-op when the size is already loaded or the
-        // book is missing, so this is cheap and idempotent.
+        // `loadIfNeeded` resolves the active book itself (catalog download or
+        // user import) and is a no-op when that book — same size AND same
+        // identity — is already loaded, so this is cheap and idempotent.
         .onChange(of: DownloadCenter.shared.finishedGeneration) { _, _ in
             guard let config = navigationContext.selectedGameRecord?.concreteConfig,
-                  config.isBookEligible,
-                  let book = OpeningBook.book(forBoardSize: config.boardWidth),
-                  book.isDownloaded else { return }
-            session.bookLookup.loadIfNeeded(boardSize: book.boardSize)
+                  config.isBookEligible else { return }
+            session.bookLookup.loadIfNeeded(boardSize: config.boardWidth)
         }
         // The Configurations sheet names the running net and its version. The
         // handshake is the only thing that knows them, so mirror rather than

@@ -726,11 +726,15 @@ final class ModelImportProgressViewController: NSViewController {
 
     var onCancel: (() -> Void)?
 
+    /// The sheet's headline. Networks say "Adding Network" (the default);
+    /// the opening-books window passes "Importing Book".
+    var titleText = "Adding Network"
+
     private let progressIndicator = NSProgressIndicator()
     private let percentLabel = NSTextField(labelWithString: "0%")
 
     override func loadView() {
-        let title = NSTextField(labelWithString: "Adding Network")
+        let title = NSTextField(labelWithString: titleText)
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
 
         progressIndicator.translatesAutoresizingMaskIntoConstraints = false

@@ -11,12 +11,15 @@ import Testing
 @testable import KataGoUICore
 
 /// Serialized because these tests mutate the process-global
-/// `OpeningBook._booksDirectoryOverride`; running them in parallel would race.
-/// One other suite touches that override — `DownloadCenterTests`, for the one
-/// test that installs a finished book — and it is safe alongside this one
-/// because its body is `@MainActor` and synchronous (so it cannot interleave
-/// with anything here) and it restores the previous value rather than nil'ing
-/// it. Any new user of the override must keep both of those properties.
+/// `OpeningBook._booksDirectoryOverride` — and, since custom books arrived,
+/// `CustomBookStore._directoryOverride`/`_defaultsOverride` too; running them
+/// in parallel would race. One other suite touches the books override —
+/// `DownloadCenterTests`, for the one test that installs a finished book — and
+/// it is safe alongside this one because its body is `@MainActor` and
+/// synchronous (so it cannot interleave with anything here) and it restores
+/// the previous value rather than nil'ing it. Any new user of any of these
+/// overrides must keep both of those properties, or live in THIS suite (the
+/// async importer/resolver tests below do exactly that).
 @Suite(.serialized)
 @MainActor
 struct OpeningBookTests {
@@ -62,6 +65,25 @@ struct OpeningBookTests {
         var isize = UInt32(truncatingIfNeeded: srcSize).littleEndian
         withUnsafeBytes(of: &isize) { out.append(contentsOf: $0) }
         return out
+    }
+
+    /// Point `CustomBookStore` at a scratch dir + throwaway defaults so the
+    /// resolver path reached through `BookLookup.loadIfNeeded`/`isAvailable`
+    /// (which constructs the default store itself) never touches real
+    /// Documents or standard defaults. Caller nils both overrides in a defer.
+    @discardableResult
+    fileprivate static func isolateCustomBooks(into parent: URL,
+                                               suiteName: String = #function) -> CustomBookStore {
+        CustomBookStore._directoryOverride = parent.appendingPathComponent("CustomBooks", isDirectory: true)
+        let defaults = UserDefaults(suiteName: "OpeningBookTests.\(suiteName)")!
+        defaults.removePersistentDomain(forName: "OpeningBookTests.\(suiteName)")
+        CustomBookStore._defaultsOverride = defaults
+        return CustomBookStore()
+    }
+
+    fileprivate static func restoreCustomBooks() {
+        CustomBookStore._directoryOverride = nil
+        CustomBookStore._defaultsOverride = nil
     }
 
     /// Point the books directory at a temp dir and install a synthetic gzipped
@@ -178,8 +200,10 @@ struct OpeningBookTests {
     @Test func loadIfNeededLoadsDownloadedBook() async throws {
         let parent = FileManager.default.temporaryDirectory
             .appendingPathComponent("bltest-\(UUID().uuidString)", isDirectory: true)
+        Self.isolateCustomBooks(into: parent)
         defer {
             OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
             try? FileManager.default.removeItem(at: parent)
         }
         let book = try OpeningBookTests.installFixtureBook(boardSize: 7, into: parent)
@@ -203,7 +227,11 @@ struct OpeningBookTests {
         let parent = FileManager.default.temporaryDirectory
             .appendingPathComponent("bltest-\(UUID().uuidString)", isDirectory: true)
         OpeningBook._booksDirectoryOverride = parent.appendingPathComponent("OpeningBooks", isDirectory: true)
-        defer { OpeningBook._booksDirectoryOverride = nil }
+        Self.isolateCustomBooks(into: parent)
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+        }
 
         let lookup = BookLookup()
         #expect(lookup.isAvailable(forBoardSize: 8) == false)
@@ -214,8 +242,10 @@ struct OpeningBookTests {
     @Test func loadIfNeededDifferentSizeUnloadsWhenNewSizeUnavailable() async throws {
         let parent = FileManager.default.temporaryDirectory
             .appendingPathComponent("bltest-\(UUID().uuidString)", isDirectory: true)
+        Self.isolateCustomBooks(into: parent)
         defer {
             OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
             try? FileManager.default.removeItem(at: parent)
         }
         // Only the 7x7 book is present.
@@ -232,5 +262,253 @@ struct OpeningBookTests {
         lookup.loadIfNeeded(boardSize: 8)
         #expect(lookup.isLoaded == false)
         #expect(lookup.isReady(forBoardSize: 7) == false)
+    }
+
+    // MARK: - Custom book import (CustomBookImporter)
+
+    /// Scratch parent + isolated stores + a source file written from raw
+    /// bytes. Returns (parent, sourceURL).
+    fileprivate static func importScratch(suiteName: String = #function,
+                                          sourceName: String,
+                                          bytes: Data) throws -> (URL, URL) {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cbtest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        OpeningBook._booksDirectoryOverride = parent.appendingPathComponent("OpeningBooks", isDirectory: true)
+        isolateCustomBooks(into: parent, suiteName: suiteName)
+        let sourceURL = parent.appendingPathComponent(sourceName)
+        try bytes.write(to: sourceURL)
+        return (parent, sourceURL)
+    }
+
+    fileprivate static func cleanupScratch(_ parent: URL) {
+        OpeningBook._booksDirectoryOverride = nil
+        restoreCustomBooks()
+        try? FileManager.default.removeItem(at: parent)
+    }
+
+    @Test func importPlainKbookStoresPlainExtension() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 12)
+        let (parent, source) = try Self.importScratch(sourceName: "My 12 Book.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        let record = try await CustomBookImporter.importBook(from: source)
+        #expect(record.fileName.hasSuffix(".kbook"))
+        #expect(record.fileName.hasSuffix(".kbook.gz") == false)
+        #expect(record.boardSize == 12)
+        #expect(record.displayName == "My 12 Book")
+        #expect(FileManager.default.fileExists(atPath: record.fileURL.path))
+        #expect(CustomBookStore().records.map(\.id) == [record.id])
+    }
+
+    @Test func importGzippedKbookStoresGzExtension() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 6)
+        let (parent, source) = try Self.importScratch(sourceName: "small.kbook.gz",
+                                                      bytes: Self.gzipForTesting(raw))
+        defer { Self.cleanupScratch(parent) }
+
+        let record = try await CustomBookImporter.importBook(from: source)
+        #expect(record.fileName.hasSuffix(".kbook.gz"))
+        #expect(record.boardSize == 6)
+        #expect(record.displayName == "small")
+        #expect(FileManager.default.fileExists(atPath: record.fileURL.path))
+    }
+
+    @Test func importRejectsVersion2WithDistinctError() async throws {
+        var raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 9)
+        var version2 = UInt32(2).littleEndian
+        withUnsafeBytes(of: &version2) { raw.replaceSubrange(4..<8, with: $0) }
+        let (parent, source) = try Self.importScratch(sourceName: "future.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        await #expect(throws: CustomBookImportError.unsupportedBookVersion(2)) {
+            try await CustomBookImporter.importBook(from: source)
+        }
+        #expect(CustomBookStore().records.isEmpty)
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: CustomBookStore.directoryURL, includingPropertiesForKeys: nil)) ?? []
+        #expect(contents.isEmpty)
+    }
+
+    @Test func importRejectsUnsupportedBoardSize() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 16)
+        let (parent, source) = try Self.importScratch(sourceName: "big.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        await #expect(throws: CustomBookImportError.unsupportedBoardSize(16)) {
+            try await CustomBookImporter.importBook(from: source)
+        }
+        #expect(CustomBookStore().records.isEmpty)
+    }
+
+    @Test func importRejectsGarbageBeforeCopying() async throws {
+        let (parent, source) = try Self.importScratch(sourceName: "notes.txt",
+                                                      bytes: Data("just some text".utf8))
+        defer { Self.cleanupScratch(parent) }
+
+        await #expect(throws: CustomBookImportError.notABook) {
+            try await CustomBookImporter.importBook(from: source)
+        }
+        #expect(CustomBookStore().records.isEmpty)
+    }
+
+    @Test func importRejectsTruncatedBookAndLeavesNothing() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 9)
+        let (parent, source) = try Self.importScratch(sourceName: "cut.kbook",
+                                                      bytes: raw.prefix(raw.count - 1))
+        defer { Self.cleanupScratch(parent) }
+
+        await #expect(throws: CustomBookImportError.notABook) {
+            try await CustomBookImporter.importBook(from: source)
+        }
+        #expect(CustomBookStore().records.isEmpty)
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: CustomBookStore.directoryURL, includingPropertiesForKeys: nil)) ?? []
+        #expect(contents.isEmpty)
+    }
+
+    @Test func deleteSweepsFileCacheRecordAndSelection() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 8)
+        let (parent, source) = try Self.importScratch(sourceName: "book8.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        let store = CustomBookStore()
+        let record = try await CustomBookImporter.importBook(from: source)
+        store.setActiveBookIdentity(record.identity, forBoardSize: 8)
+        try Data([1, 2, 3]).write(to: record.decompressedCacheURL)
+
+        CustomBookImporter.delete(record)
+        #expect(FileManager.default.fileExists(atPath: record.fileURL.path) == false)
+        #expect(FileManager.default.fileExists(atPath: record.decompressedCacheURL.path) == false)
+        #expect(store.activeBookIdentity(forBoardSize: 8) == nil)
+        #expect(store.records.isEmpty)
+    }
+
+    // MARK: - Resolver + selection-aware loading
+
+    @Test func resolverPrefersSelectionThenCatalogThenNewestImport() async throws {
+        let raw7 = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 7)
+        let (parent, source) = try Self.importScratch(sourceName: "mine7.kbook", bytes: raw7)
+        defer { Self.cleanupScratch(parent) }
+
+        let store = CustomBookStore()
+
+        // Imported only: the import resolves even with no selection.
+        let record = try await CustomBookImporter.importBook(from: source)
+        #expect(BookResolver.resolvedBook(forBoardSize: 7)?.identity == record.identity)
+
+        // Catalog appears: automatic resolution prefers it.
+        let catalog = try Self.installFixtureBook(boardSize: 7, into: parent)
+        #expect(BookResolver.resolvedBook(forBoardSize: 7)?.identity == catalog.fileName)
+
+        // An explicit selection wins over the catalog.
+        store.setActiveBookIdentity(record.identity, forBoardSize: 7)
+        #expect(BookResolver.resolvedBook(forBoardSize: 7)?.identity == record.identity)
+
+        // A dangling selection falls back to the catalog.
+        store.setActiveBookIdentity("no-such-book", forBoardSize: 7)
+        #expect(BookResolver.resolvedBook(forBoardSize: 7)?.identity == catalog.fileName)
+
+        // Deleting the selected import clears its selection and falls back.
+        store.setActiveBookIdentity(record.identity, forBoardSize: 7)
+        CustomBookImporter.delete(record)
+        #expect(store.activeBookIdentity(forBoardSize: 7) == nil)
+        #expect(BookResolver.resolvedBook(forBoardSize: 7)?.identity == catalog.fileName)
+    }
+
+    @Test func importedOnlySizeIsAvailable() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 12)
+        let (parent, source) = try Self.importScratch(sourceName: "twelve.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        let lookup = BookLookup()
+        #expect(lookup.isAvailable(forBoardSize: 12) == false)
+        _ = try await CustomBookImporter.importBook(from: source)
+        #expect(lookup.isAvailable(forBoardSize: 12))
+    }
+
+    @Test func loadIfNeededReloadsWhenSelectionChanges() async throws {
+        let raw7 = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 7)
+        let (parent, source) = try Self.importScratch(sourceName: "alt7.kbook", bytes: raw7)
+        defer { Self.cleanupScratch(parent) }
+
+        let store = CustomBookStore()
+        let catalog = try Self.installFixtureBook(boardSize: 7, into: parent)
+        let record = try await CustomBookImporter.importBook(from: source)
+
+        // Loads the automatic pick: the catalog.
+        let lookup = BookLookup()
+        lookup.loadIfNeeded(boardSize: 7)
+        var deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while !lookup.isLoaded, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(lookup.loadedBookIdentity == catalog.fileName)
+
+        // Same size + same identity: a further call is a no-op.
+        lookup.loadIfNeeded(boardSize: 7)
+        #expect(lookup.isLoaded)
+
+        // Selection change for the loaded size: the next call reloads —
+        // this plain-.kbook import also exercises the no-gzip load path.
+        store.setActiveBookIdentity(record.identity, forBoardSize: 7)
+        lookup.loadIfNeeded(boardSize: 7)
+        deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while lookup.loadedBookIdentity != record.identity, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(lookup.loadedBookIdentity == record.identity)
+        #expect(lookup.isReady(forBoardSize: 7))
+    }
+
+    /// Pin the mid-flight rule: a change that arrives while a load is in
+    /// flight is re-resolved when the load lands — never dropped, and never
+    /// left installing a stale book.
+    @Test func loadIfNeededMidFlightChangeLandsOnLatest() async throws {
+        let raw7 = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 7)
+        let (parent, source) = try Self.importScratch(sourceName: "flight7.kbook", bytes: raw7)
+        defer { Self.cleanupScratch(parent) }
+
+        let store = CustomBookStore()
+        try Self.installFixtureBook(boardSize: 7, into: parent)
+        let record = try await CustomBookImporter.importBook(from: source)
+
+        let lookup = BookLookup()
+        // Start loading the automatic pick (the catalog), then immediately
+        // flip the selection and re-request. Whether or not the first load is
+        // still in flight, the lookup must settle on the newest resolution.
+        lookup.loadIfNeeded(boardSize: 7)
+        store.setActiveBookIdentity(record.identity, forBoardSize: 7)
+        lookup.loadIfNeeded(boardSize: 7)
+
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while lookup.loadedBookIdentity != record.identity, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(lookup.loadedBookIdentity == record.identity)
+        #expect(lookup.isReady(forBoardSize: 7))
+    }
+
+    /// Pin the one behavioral edge the identity-aware rewrite changed: same
+    /// size, resolver nil (book gone from disk) now UNLOADS the stale book
+    /// instead of keeping it.
+    @Test func loadIfNeededUnloadsWhenLoadedBookVanishes() async throws {
+        let raw = BookLookup.serializeToBinary(positions: Self.singleMoveBook(), boardSize: 9)
+        let (parent, source) = try Self.importScratch(sourceName: "gone9.kbook", bytes: raw)
+        defer { Self.cleanupScratch(parent) }
+
+        let record = try await CustomBookImporter.importBook(from: source)
+        let lookup = BookLookup()
+        lookup.loadIfNeeded(boardSize: 9)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while !lookup.isLoaded, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(lookup.isReady(forBoardSize: 9))
+
+        CustomBookImporter.delete(record)
+        lookup.loadIfNeeded(boardSize: 9)
+        #expect(lookup.isLoaded == false)
+        #expect(lookup.loadedBookIdentity == nil)
     }
 }

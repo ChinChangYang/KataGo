@@ -5,6 +5,7 @@
 //  Created by Chin-Chang Yang on 2026/3/3.
 //
 
+import Foundation
 import Testing
 @testable import KataGo_Anytime
 @testable import KataGoUICore
@@ -459,13 +460,82 @@ struct BookLookupTests {
         #expect(book.currentMovesCount == nil)
     }
 
-    // MARK: - Multi-size board support (6x6, 7x7, 8x8, 9x9)
+    // MARK: - Multi-size board support (square 2...15)
 
-    /// The loaded book reports the board size from its binary header.
-    @Test(arguments: [6, 7, 8, 9])
+    /// The loaded book reports the board size from its binary header, across
+    /// the whole KBOK range — not just the catalog's 6...9.
+    @Test(arguments: [2, 5, 6, 7, 8, 9, 12, 15])
     func boardSizeFromHeader(n: Int) {
         let book = BookLookup(positions: BookLookupTests.singleMoveBook(), boardSize: n)
         #expect(book.boardSize == n)
+    }
+
+    // MARK: - Header validation (parseHeader / validateImportedBook)
+
+    @Test func parseHeaderAcceptsValidBook() throws {
+        let data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: 9)
+        let summary = try BookLookup.parseHeader(data)
+        #expect(summary.boardSize == 9)
+        #expect(summary.positionCount == 2)
+    }
+
+    @Test func parseHeaderRejectsSizeOutsideRange() {
+        for n in [1, 16, 19] {
+            let data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: n)
+            #expect(throws: BookLookup.BookValidationError.unsupportedBoardSize(UInt32(n))) {
+                try BookLookup.parseHeader(data)
+            }
+        }
+    }
+
+    /// A future v2 file must fail with the DISTINCT unsupported-version error,
+    /// not a generic one — the import UI names the version in its message.
+    @Test func parseHeaderRejectsVersion2() {
+        var data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: 9)
+        var version2 = UInt32(2).littleEndian
+        withUnsafeBytes(of: &version2) { data.replaceSubrange(4..<8, with: $0) }
+        #expect(throws: BookLookup.BookValidationError.unsupportedVersion(2)) {
+            try BookLookup.parseHeader(data)
+        }
+    }
+
+    @Test func parseHeaderRejectsBadMagic() {
+        var data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: 9)
+        data.replaceSubrange(0..<4, with: [0, 1, 2, 3])
+        #expect(throws: BookLookup.BookValidationError.badMagic) {
+            try BookLookup.parseHeader(data)
+        }
+    }
+
+    @Test func parseHeaderRejectsTruncatedData() {
+        let data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: 9)
+        // Shorter than the header at all…
+        #expect(throws: BookLookup.BookValidationError.truncated) {
+            try BookLookup.parseHeader(data.prefix(16))
+        }
+        // …and a full header whose tables are cut short.
+        #expect(throws: BookLookup.BookValidationError.truncated) {
+            try BookLookup.parseHeader(data.prefix(data.count - 1))
+        }
+    }
+
+    @Test func validateImportedBookAcceptsPlainKbook() throws {
+        let data = BookLookup.serializeToBinary(positions: BookLookupTests.singleMoveBook(), boardSize: 12)
+        let result = try BookLookup.validateImportedBook(data)
+        #expect(result.summary.boardSize == 12)
+        #expect(result.isGzipped == false)
+    }
+
+    @Test func validateImportedBookRejectsGarbage() {
+        // Long enough to pass the header-size check, so the magic is what fails.
+        let garbage = Data(repeating: 0x41, count: 64)
+        #expect(throws: BookLookup.BookValidationError.badMagic) {
+            try BookLookup.validateImportedBook(garbage)
+        }
+        // Shorter than the 32-byte header: truncation fires first.
+        #expect(throws: BookLookup.BookValidationError.truncated) {
+            try BookLookup.validateImportedBook(Data("not a book at all".utf8))
+        }
     }
 
     @Test(arguments: [6, 7, 8, 9])

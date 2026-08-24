@@ -2,21 +2,47 @@
 //  OpeningBookPickerView.swift
 //  KataGo Anytime
 //
-//  Download / inspect / delete the KataGo opening books (6x6...9x9). Mirrors
-//  ModelPickerView's trio. Reached from ModelPickerView, which may be shown
-//  before a game session exists, so BookLookup/GobanState are looked up
-//  optionally from the environment.
+//  Download / inspect / delete the catalog opening books, import the user's
+//  own .kbook/.kbook.gz files, and choose the active book per board size.
+//  Mirrors ModelPickerView's trio. Reached from ModelPickerView, which may be
+//  shown before a game session exists, so BookLookup/GobanState/BoardSize
+//  are looked up optionally from the environment.
 //
 
 import SwiftUI
 import KataGoUICore
 
+/// Reconcile a live `BookLookup` after anything changed what the resolver
+/// would answer for `size` — an import, a delete, or an active-book selection.
+///
+/// Scoped so it can never touch a live book of a DIFFERENT size: deleting a
+/// 7x7 book while a 9x9 game is in book view must leave the 9x9 book alone.
+/// `loadIfNeeded` itself does the rest — it reloads when the resolved identity
+/// changed and unloads when nothing resolves any more — and the eye falls back
+/// out of book view only when the CURRENT game's size lost its last book.
+@MainActor
+func reconcileActiveBook(size: Int,
+                         bookLookup: BookLookup?,
+                         gobanState: GobanState?,
+                         board: BoardSize?) {
+    guard let bookLookup else { return }
+    let gameSize: Int? = board.flatMap { $0.width == $0.height ? Int($0.width) : nil }
+    guard gameSize == size || bookLookup.isReady(forBoardSize: size) else { return }
+    let target = gameSize ?? size
+    bookLookup.loadIfNeeded(boardSize: target)
+    if !bookLookup.isAvailable(forBoardSize: target), gobanState?.eyeStatus == .book {
+        gobanState?.eyeStatus = .opened
+    }
+}
+
 struct OpeningBookTrashButton: View {
     let book: OpeningBook
     @Binding var isDownloaded: Bool
+    var onDeleted: (() -> Void)? = nil
     @State private var isConfirming = false
     @Environment(BookLookup.self) private var bookLookup: BookLookup?
     @Environment(GobanState.self) private var gobanState: GobanState?
+    @Environment(BoardSize.self) private var board: BoardSize?
 
     var body: some View {
         Button(role: .destructive) {
@@ -33,18 +59,74 @@ struct OpeningBookTrashButton: View {
         ) {
             Button("Remove", role: .destructive) {
                 book.deleteDownloaded()
-                // If the deleted book is the one currently loaded, unload it and
-                // leave book view (the overlay would otherwise show nothing).
-                if bookLookup?.isReady(forBoardSize: book.boardSize) == true {
-                    bookLookup?.unload()
-                    if gobanState?.eyeStatus == .book {
-                        gobanState?.eyeStatus = .opened
-                    }
-                }
+                // The resolver may now answer with an imported book of the
+                // same size — or with nothing, in which case the live lookup
+                // unloads and the eye leaves book view.
+                reconcileActiveBook(size: book.boardSize,
+                                    bookLookup: bookLookup,
+                                    gobanState: gobanState,
+                                    board: board)
                 isDownloaded = book.isDownloaded
+                onDeleted?()
             }
             Button("Cancel", role: .cancel) {
                 isConfirming = false
+            }
+        }
+    }
+}
+
+/// Detail screen for one imported book: name, board size, size on disk,
+/// import date, and removal.
+struct ImportedBookDetailView: View {
+    let record: CustomBookRecord
+    /// Invoked after the record is deleted, so the list refreshes.
+    let onStoreChanged: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(BookLookup.self) private var bookLookup: BookLookup?
+    @Environment(GobanState.self) private var gobanState: GobanState?
+    @Environment(BoardSize.self) private var board: BoardSize?
+    @State private var isConfirmingDelete = false
+
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Board Size", value: "\(record.boardSize)x\(record.boardSize)")
+                if let size = record.onDiskSize {
+                    LabeledContent("Size", value: size.humanFileSize)
+                }
+                LabeledContent("Imported", value: record.importedAt.formatted(date: .abbreviated, time: .shortened))
+            } footer: {
+                Text("An imported book stays on this device only. The app read its board size from the file itself.")
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Label("Remove Imported Book", systemImage: "trash")
+                }
+                .accessibilityIdentifier("ImportedBookDetailView.trashButton")
+            }
+        }
+        .navigationTitle(record.displayName)
+        .confirmationDialog(
+            "Remove this imported book? The app keeps no copy of the original file.",
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                CustomBookImporter.delete(record)
+                reconcileActiveBook(size: record.boardSize,
+                                    bookLookup: bookLookup,
+                                    gobanState: gobanState,
+                                    board: board)
+                onStoreChanged()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {
+                isConfirmingDelete = false
             }
         }
     }
@@ -56,6 +138,9 @@ struct OpeningBookDetailView: View {
     /// this screen shows the transfer that is already running rather than
     /// starting a second one.
     let download: Download
+    /// Forwarded to the trash button, so a delete refreshes the picker's
+    /// Imported/Active Books sections (they are plain @State, not observable).
+    var onDeleted: (() -> Void)? = nil
     @State private var isDownloaded = false
 
     /// `isOnDisk: false` on purpose. A book has nothing to activate, so the
@@ -123,7 +208,9 @@ struct OpeningBookDetailView: View {
                     Spacer()
 
                     if isDownloaded {
-                        OpeningBookTrashButton(book: book, isDownloaded: $isDownloaded)
+                        OpeningBookTrashButton(book: book,
+                                               isDownloaded: $isDownloaded,
+                                               onDeleted: onDeleted)
                     }
                 }
                 .padding(.vertical)
@@ -147,14 +234,47 @@ struct OpeningBookDetailView: View {
 }
 
 struct OpeningBookPickerView: View {
+    @Environment(BookLookup.self) private var bookLookup: BookLookup?
+    @Environment(GobanState.self) private var gobanState: GobanState?
+    @Environment(BoardSize.self) private var board: BoardSize?
+
+    @State private var customRecords: [CustomBookRecord] = []
+    /// Sizes where more than one book claims the board, so an explicit choice
+    /// exists to make. Recomputed by `reload()` — none of its inputs
+    /// (UserDefaults, the file system, catalog downloads) are observable.
+    @State private var contestedSizes: [(size: Int, candidates: [ResolvedBook])] = []
+
+    @State private var isPresentingImporter = false
+    @State private var isCopying = false
+    @State private var copyProgress: Double = 0
+    @State private var importTask: Task<Void, Never>?
+    @State private var importErrorMessage: String?
+
     var body: some View {
         List {
+            if !contestedSizes.isEmpty {
+                Section {
+                    ForEach(contestedSizes, id: \.size) { entry in
+                        Picker("\(entry.size)x\(entry.size)", selection: activeBookBinding(forSize: entry.size)) {
+                            ForEach(entry.candidates, id: \.identity) { candidate in
+                                Text(candidate.displayName).tag(candidate.identity)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Active Books")
+                } footer: {
+                    Text("These board sizes have more than one book. The chosen one is what book view shows.")
+                }
+            }
+
             Section {
                 ForEach(OpeningBook.allCases.sorted { $0.boardSize < $1.boardSize }) { book in
                     NavigationLink {
                         OpeningBookDetailView(
                             book: book,
-                            download: DownloadCenter.shared.download(for: book.downloadedURL)
+                            download: DownloadCenter.shared.download(for: book.downloadedURL),
+                            onDeleted: reload
                         )
                     } label: {
                         HStack {
@@ -172,10 +292,153 @@ struct OpeningBookPickerView: View {
                     }
                 }
             } footer: {
-                Text("Opening books show KataGo's strongest opening moves and their evaluations directly on the board. Once a board's book is downloaded, tap the eye button to switch the board into book view.")
+                Text("Opening books show KataGo's strongest opening moves and their evaluations directly on the board. Once a book is downloaded or imported for a board size, tap the eye button to switch the board into book view.")
+            }
+
+            Section {
+                ForEach(customRecords) { record in
+                    NavigationLink {
+                        ImportedBookDetailView(record: record, onStoreChanged: reload)
+                    } label: {
+                        HStack {
+                            Text(record.displayName)
+                            Spacer()
+                            Text("\(record.boardSize)x\(record.boardSize)")
+                                .foregroundStyle(.secondary)
+                            if let size = record.onDiskSize {
+                                Text(size.humanFileSize)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .onDelete(perform: deleteCustomRecords)
+
+                Button {
+                    isPresentingImporter = true
+                } label: {
+                    Label("Import Book…", systemImage: "plus")
+                }
+                .accessibilityIdentifier("OpeningBookPickerView.importButton")
+            } header: {
+                Text("Imported Books")
+            } footer: {
+                Text("Import a .kbook or .kbook.gz file built with the KataGo book pipeline. Square boards from 2x2 to 15x15.")
             }
         }
         .navigationTitle("Opening Books")
+        .task { reload() }
+        // A catalog download finishing while this screen is up changes the
+        // candidate lists, which nothing observable carries — re-scan.
+        .onChange(of: DownloadCenter.shared.finishedGeneration) { _, _ in
+            reload()
+        }
+        .fileImporter(
+            isPresented: $isPresentingImporter,
+            // Permissive on purpose, like the network importer: providers
+            // type files inconsistently, and the KBOK sniff in the importer
+            // is what actually decides, with a specific reason when it says no.
+            allowedContentTypes: [.gzip, .data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                startImport(from: url)
+            case .failure(let error):
+                importErrorMessage = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: $isCopying) {
+            CustomModelImportProgressView(title: "Importing Book",
+                                          progress: copyProgress,
+                                          onCancel: cancelImport)
+                .interactiveDismissDisabled()
+        }
+        .alert("Couldn't Import Book",
+               isPresented: Binding(get: { importErrorMessage != nil },
+                                    set: { if !$0 { importErrorMessage = nil } })) {
+            Button("OK", role: .cancel) { importErrorMessage = nil }
+        } message: {
+            Text(importErrorMessage ?? "")
+        }
+    }
+
+    // MARK: - State
+
+    private func reload() {
+        let store = CustomBookStore()
+        customRecords = store.records.sorted { $0.importedAt < $1.importedAt }
+        contestedSizes = (2...15).compactMap { size in
+            let candidates = BookResolver.candidates(forBoardSize: size, store: store)
+            return candidates.count >= 2 ? (size, candidates) : nil
+        }
+    }
+
+    /// Shows the RESOLVED identity (so an automatic choice reads as what it
+    /// is); a user change writes an explicit per-size key.
+    private func activeBookBinding(forSize size: Int) -> Binding<String> {
+        Binding(
+            get: { BookResolver.resolvedBook(forBoardSize: size)?.identity ?? "" },
+            set: { newIdentity in
+                CustomBookStore().setActiveBookIdentity(newIdentity, forBoardSize: size)
+                reconcileActiveBook(size: size,
+                                    bookLookup: bookLookup,
+                                    gobanState: gobanState,
+                                    board: board)
+                reload()
+            }
+        )
+    }
+
+    // MARK: - Import
+
+    /// Copies the picked file in on a background task, then refreshes the list
+    /// and reconciles the live book (an import is the current game's only
+    /// activation hook — there is no download completion to observe).
+    private func startImport(from url: URL) {
+        copyProgress = 0
+        isCopying = true
+        importTask = Task {
+            defer { isCopying = false }
+            do {
+                // `importBook` is a nonisolated async function, so the copy
+                // runs off the main actor even though this Task inherits it.
+                let record = try await CustomBookImporter.importBook(from: url) { fraction in
+                    Task { @MainActor in copyProgress = fraction }
+                }
+                reconcileActiveBook(size: record.boardSize,
+                                    bookLookup: bookLookup,
+                                    gobanState: gobanState,
+                                    board: board)
+                reload()
+            } catch is CancellationError {
+                // The partial file is already gone; nothing was recorded.
+            } catch {
+                importErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func cancelImport() {
+        importTask?.cancel()
+        importTask = nil
+        isCopying = false
+    }
+
+    /// Swipe-to-delete for imported books. The rows go immediately; the file,
+    /// cache and selection sweep follow, and the list is re-read afterwards.
+    private func deleteCustomRecords(at offsets: IndexSet) {
+        let doomed = offsets.map { customRecords[$0] }
+        customRecords.remove(atOffsets: offsets)
+        for record in doomed {
+            CustomBookImporter.delete(record)
+            reconcileActiveBook(size: record.boardSize,
+                                bookLookup: bookLookup,
+                                gobanState: gobanState,
+                                board: board)
+        }
+        reload()
     }
 }
 

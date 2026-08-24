@@ -84,9 +84,10 @@ struct ConfigModelTests {
         #expect(customConfig.optionalShowComments == true)
     }
 
-    // 1b. Opening-book eligibility (pure config: square board, size 6...9)
+    // 1b. Opening-book eligibility (pure config: square board, size 2...15 —
+    // the KBOK format's whole range, not just the catalog's 6...9)
     @Test func isBookEligibleForSquareSmallBoards() {
-        for n in 6...9 {
+        for n in 2...15 {
             #expect(Config(boardWidth: n, boardHeight: n).isBookEligible,
                     "square \(n)x\(n) should be book-eligible")
         }
@@ -94,8 +95,8 @@ struct ConfigModelTests {
 
     @Test func isBookEligibleFalseForLargeAndNonSquareBoards() {
         #expect(Config(boardWidth: 19, boardHeight: 19).isBookEligible == false)
-        #expect(Config(boardWidth: 13, boardHeight: 13).isBookEligible == false)
-        #expect(Config(boardWidth: 5, boardHeight: 5).isBookEligible == false)
+        #expect(Config(boardWidth: 16, boardHeight: 16).isBookEligible == false)
+        #expect(Config(boardWidth: 1, boardHeight: 1).isBookEligible == false)
         #expect(Config(boardWidth: 6, boardHeight: 9).isBookEligible == false)
         #expect(Config(boardWidth: 9, boardHeight: 13).isBookEligible == false)
     }

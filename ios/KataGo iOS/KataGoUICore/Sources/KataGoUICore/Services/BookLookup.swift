@@ -33,12 +33,28 @@ private let childEntrySize = 8
 @Observable
 public class BookLookup {
     public private(set) var isLoaded = false
+
+    /// Identity of the loaded book (catalog fileName or import UUID), so a
+    /// selection change for the loaded size is detected as "needs reload"
+    /// even though the size is unchanged. Nil when nothing is loaded.
+    public private(set) var loadedBookIdentity: String?
     public private(set) var isInBook = false
     public private(set) var currentPositionId: Int = 0
     private(set) var accumulatedSymmetry: Int = 0
     public private(set) var justAdvanced = false
 
     private var isLoading = false
+
+    /// Bumped on every unload and every load start. An in-flight load whose
+    /// generation no longer matches was superseded (unloaded, or a newer load
+    /// started) and must not install its result.
+    private var loadGeneration = 0
+
+    /// A size whose resolution changed while a load was in flight. Re-resolved
+    /// as soon as the in-flight load lands, so a selection change (or delete)
+    /// during a slow decompress is never silently dropped.
+    private var pendingResolveSize: Int?
+
     private var bookData: Data?
     private var positionCount: UInt32 = 0
     private var moveCount: UInt32 = 0
@@ -51,32 +67,55 @@ public class BookLookup {
     private var childrenTableOffset: Int = 0
     private var movePositionsTableOffset: Int = 0
 
-    /// Board size (6...9) read from the loaded book's binary header. Zero until
+    /// Board size (2...15) read from the loaded book's binary header. Zero until
     /// a book is loaded. All coordinate/symmetry math derives from this, so the
     /// same code path serves every supported board size.
     private(set) var boardSize = 0
 
     public init() {}
 
-    /// Load the downloaded opening book for `newSize` (6...9), if any. Loading the
-    /// already-loaded size is a no-op; switching sizes unloads the current book
-    /// first. If no book is downloaded for `newSize`, the lookup is left unloaded
+    /// Load the active opening book for `newSize` (2...15), if any — the
+    /// resolver's pick among the catalog download and the user's imports.
+    /// Loading the already-active book is a no-op (same size AND same
+    /// identity); a size switch or a selection change unloads the current book
+    /// first. If no book resolves for `newSize`, the lookup is left unloaded
     /// (callers gate the `.book` eye mode on `isReady(forBoardSize:)`).
     public func loadIfNeeded(boardSize newSize: Int) {
-        if isLoaded && boardSize == newSize { return }
-        if isLoading { return }
-        if isLoaded && boardSize != newSize { unload() }
-        guard let book = OpeningBook.book(forBoardSize: newSize), book.isDownloaded else { return }
+        let resolved = BookResolver.resolvedBook(forBoardSize: newSize)
+        if isLoaded && boardSize == newSize && loadedBookIdentity == resolved?.identity { return }
+        if isLoading {
+            // Something changed mid-flight (selection, delete, size). Note it
+            // and re-resolve when the in-flight load lands, instead of
+            // silently dropping the change and installing a stale book.
+            pendingResolveSize = newSize
+            return
+        }
+        if isLoaded { unload() }
+        guard let resolved else { return }
         isLoading = true
-        let sourceURL = book.downloadedURL
-        Task { await load(from: sourceURL) }
+        loadGeneration += 1
+        let generation = loadGeneration
+        Task { await load(from: resolved.sourceURL, identity: resolved.identity, generation: generation) }
+    }
+
+    /// Unload when the loaded book no longer resolves as its size's active
+    /// book (deleted, or superseded by a selection change). No-op otherwise.
+    /// For callers that only know "something changed somewhere" — the size
+    /// that changed may not be the displayed game's.
+    public func unloadIfStale() {
+        guard isLoaded else { return }
+        if BookResolver.resolvedBook(forBoardSize: boardSize)?.identity != loadedBookIdentity {
+            unload()
+        }
     }
 
     /// Clear all loaded state (used on board-size change and after a book is
     /// deleted from the management UI).
     public func unload() {
+        loadGeneration += 1
         bookData = nil
         isLoaded = false
+        loadedBookIdentity = nil
         isInBook = false
         currentPositionId = 0
         accumulatedSymmetry = 0
@@ -88,10 +127,11 @@ public class BookLookup {
         movePositionCount = 0
     }
 
-    /// Whether a book for `size` is downloaded (so the `.book` eye mode can be
-    /// offered). Independent of whether it is currently loaded.
+    /// Whether any book for `size` exists on this device — catalog download or
+    /// user import (so the `.book` eye mode can be offered). Independent of
+    /// whether it is currently loaded.
     public func isAvailable(forBoardSize size: Int) -> Bool {
-        OpeningBook.book(forBoardSize: size)?.isDownloaded ?? false
+        BookResolver.resolvedBook(forBoardSize: size) != nil
     }
 
     /// Whether a book is loaded AND matches `size` (so the book overlay can
@@ -221,27 +261,44 @@ public class BookLookup {
 
     // MARK: - Loading
 
-    /// Parse the book at `sourceURL` (a `.kbook.gz`) off the main actor, then
-    /// install it. Shared by the bundle path and the downloaded-file path.
-    private func load(from sourceURL: URL) async {
-        defer { isLoading = false }
+    /// Parse the book at `sourceURL` (a `.kbook` or `.kbook.gz`) off the main
+    /// actor, then install it under `identity` — unless `generation` shows the
+    /// load was superseded while the parse ran. Either way, any change that
+    /// arrived mid-flight (`pendingResolveSize`) is re-resolved on the way out.
+    private func load(from sourceURL: URL, identity: String, generation: Int) async {
+        defer {
+            isLoading = false
+            if let size = pendingResolveSize {
+                pendingResolveSize = nil
+                loadIfNeeded(boardSize: size)
+            }
+        }
         let parseTask = Task.detached(priority: .userInitiated) {
             Self.loadBinaryBook(sourceURL: sourceURL)
         }
         guard let data = await parseTask.value else {
             return
         }
+        guard generation == loadGeneration else { return }
 
         if loadFromData(data) {
             self.isLoaded = true
+            self.loadedBookIdentity = identity
             self.isInBook = self.positionCount > 0
             self.currentPositionId = 0
             self.accumulatedSymmetry = 0
         }
     }
 
-    /// Decompress .kbook.gz to caches dir on first use, then mmap.
+    /// Read a book source. A plain `.kbook` is mapped directly; a `.kbook.gz`
+    /// is decompressed to the caches dir on first use, then mmapped.
     private nonisolated static func loadBinaryBook(sourceURL: URL) -> Data? {
+        // A plain (non-gzipped) .kbook needs no cache: map it directly.
+        if let raw = try? Data(contentsOf: sourceURL, options: .mappedIfSafe),
+           raw.count >= 4, raw.readUInt32(at: 0) == kbookMagic {
+            return raw
+        }
+
         let filename = sourceURL.deletingPathExtension().lastPathComponent
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let cachedURL = cacheDir.appendingPathComponent(filename)
@@ -277,49 +334,89 @@ public class BookLookup {
         return decompressedData
     }
 
-    /// Load binary book data and validate header. Returns true on success.
-    private func loadFromData(_ data: Data) -> Bool {
-        guard data.count >= headerSize else {
-            printError("Book data truncated: \(data.count) bytes < \(headerSize) header size")
-            return false
-        }
+    // MARK: - Header validation
+
+    /// Everything the fixed-size KBOK header declares about a book, after validation.
+    struct BookHeaderSummary: Equatable {
+        let boardSize: Int
+        let positionCount: UInt32
+        let moveCount: UInt32
+        let childCount: UInt32
+        let movePositionCount: UInt32
+    }
+
+    enum BookValidationError: Error, Equatable {
+        case truncated
+        case badMagic
+        case unsupportedVersion(UInt32)
+        case unsupportedBoardSize(UInt32)
+    }
+
+    /// Validate the KBOK header and table bounds of `data` (decompressed bytes).
+    /// The board-size gate is the app-wide book range: square 2...15. KBOK v1
+    /// stores each move position in one byte with pass sentinel N*N, so 15x15
+    /// (225) is the largest board the format can represent (see ADR 0009).
+    nonisolated static func parseHeader(_ data: Data) throws -> BookHeaderSummary {
+        guard data.count >= headerSize else { throw BookValidationError.truncated }
 
         let magic = data.readUInt32(at: 0)
-        let version = data.readUInt32(at: 4)
+        guard magic == kbookMagic else { throw BookValidationError.badMagic }
 
-        guard magic == kbookMagic else {
-            printError("Bad magic: 0x\(String(magic, radix: 16)), expected 0x\(String(kbookMagic, radix: 16))")
-            return false
-        }
-        guard version == kbookVersion else {
-            printError("Bad version: \(version), expected \(kbookVersion)")
-            return false
-        }
+        let version = data.readUInt32(at: 4)
+        guard version == kbookVersion else { throw BookValidationError.unsupportedVersion(version) }
 
         let boardSizeVal = data.readUInt32(at: 8)
-        guard (6...9).contains(boardSizeVal) else {
-            printError("Unsupported board size: \(boardSizeVal), expected 6...9")
+        guard (2...15).contains(boardSizeVal) else { throw BookValidationError.unsupportedBoardSize(boardSizeVal) }
+
+        let positionCount = data.readUInt32(at: 12)
+        let moveCount = data.readUInt32(at: 16)
+        let childCount = data.readUInt32(at: 20)
+        let movePositionCount = data.readUInt32(at: 24)
+
+        let movesTableOffset = headerSize + Int(positionCount) * positionEntrySize
+        let childrenTableOffset = movesTableOffset + Int(moveCount) * moveEntrySize
+        let movePositionsTableOffset = childrenTableOffset + Int(childCount) * childEntrySize
+        let expectedMinSize = movePositionsTableOffset + Int(movePositionCount)
+        guard data.count >= expectedMinSize else { throw BookValidationError.truncated }
+
+        return BookHeaderSummary(boardSize: Int(boardSizeVal),
+                                 positionCount: positionCount,
+                                 moveCount: moveCount,
+                                 childCount: childCount,
+                                 movePositionCount: movePositionCount)
+    }
+
+    /// Full structural validation for an import: sniffs gzip vs plain KBOK,
+    /// decompresses if needed, then validates the header and table bounds.
+    nonisolated static func validateImportedBook(_ raw: Data) throws -> (summary: BookHeaderSummary, isGzipped: Bool) {
+        if raw.count >= 2, raw[raw.startIndex] == 0x1f, raw[raw.startIndex + 1] == 0x8b {
+            guard let decompressed = decompressGzip(raw) else { throw BookValidationError.truncated }
+            return (try parseHeader(decompressed), true)
+        }
+        return (try parseHeader(raw), false)
+    }
+
+    /// Load binary book data and validate header. Returns true on success.
+    private func loadFromData(_ data: Data) -> Bool {
+        let summary: BookHeaderSummary
+        do {
+            summary = try Self.parseHeader(data)
+        } catch {
+            printError("Book validation failed: \(error)")
             return false
         }
-        self.boardSize = Int(boardSizeVal)
 
-        self.positionCount = data.readUInt32(at: 12)
-        self.moveCount = data.readUInt32(at: 16)
-        self.childCount = data.readUInt32(at: 20)
-        self.movePositionCount = data.readUInt32(at: 24)
+        self.boardSize = summary.boardSize
+        self.positionCount = summary.positionCount
+        self.moveCount = summary.moveCount
+        self.childCount = summary.childCount
+        self.movePositionCount = summary.movePositionCount
 
-        // Compute table offsets
+        // Compute table offsets (already bounds-checked by parseHeader)
         self.positionTableOffset = headerSize
         self.movesTableOffset = positionTableOffset + Int(positionCount) * positionEntrySize
         self.childrenTableOffset = movesTableOffset + Int(moveCount) * moveEntrySize
         self.movePositionsTableOffset = childrenTableOffset + Int(childCount) * childEntrySize
-
-        // Validate data size
-        let expectedMinSize = movePositionsTableOffset + Int(movePositionCount)
-        guard data.count >= expectedMinSize else {
-            printError("Book data truncated: \(data.count) bytes < \(expectedMinSize) expected")
-            return false
-        }
 
         self.bookData = data
         return true

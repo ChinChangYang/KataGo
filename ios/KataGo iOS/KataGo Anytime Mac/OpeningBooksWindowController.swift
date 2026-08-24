@@ -3,9 +3,10 @@
 //  KataGo Anytime Mac
 //
 //  The native "Opening Books" window: a resizable NSWindow hosting
-//  `OpeningBooksViewController` — a table of the opening-book catalog (6x6...9x9)
-//  with per-row download / delete. The AppKit analogue of the iOS
-//  `OpeningBookPickerView` + `OpeningBookDetailView`.
+//  `OpeningBooksViewController` — a table of the opening-book catalog plus the
+//  user's imported books, with per-row download / delete, an Import Book…
+//  button, and a per-size active-book chooser in the detail pane. The AppKit
+//  analogue of the iOS `OpeningBookPickerView` + its detail views.
 //
 //  Created lazily and retained by `MainWindowController.showOpeningBooksWindow(_:)`
 //  (reached through the responder chain from the Window-menu "Manage Opening

@@ -57,3 +57,15 @@ https://github.com/<owner>/KataGoBooks/releases/download/books-v1/<name>.kbook.g
   python3 scripts/build_book_db.py --board-size 6 --book-dir extracted \
       --output book6x6jp-20230525.kbook.gz
   ```
+
+## Build your own .kbook
+
+The app can import a book directly — no release upload needed. Build one with
+the same local-build steps above (any square size 2–15 via `--board-size`),
+then bring the resulting `.kbook.gz` (or an uncompressed `.kbook`) onto the
+device and use **Opening Books ▸ Import Book…** on iOS, or the Opening Books
+window's **Import Book…** button on macOS. Constraints: KBOK v1 only (the
+one-byte move encoding caps boards at 15×15 — see `docs/adr/0009`), square
+boards only, and komi is not carried in the header (imported books show no
+komi). The app reads the board size from the file itself and rejects anything
+that is not a structurally valid v1 book at import.

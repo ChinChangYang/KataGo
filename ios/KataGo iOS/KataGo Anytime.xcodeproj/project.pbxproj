@@ -593,6 +593,7 @@
 		DEEAC9D96350CDE2D6FFBF4D /* AnalysisPersistenceGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4DA83343A93EAA90750BBD /* AnalysisPersistenceGuardTests.swift */; };
 		DF6342195944744B53ECD15A /* StorageReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B9B6911DE0B2E094FAB6A5FA /* StorageReader.cpp */; };
 		DF780E9C5DE6D838055214DF /* CoreMLComputeHandleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89F84204367E6D31620F793 /* CoreMLComputeHandleLoader.swift */; };
+		DF7CE699EEFE3F930C00637A /* CustomBookStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3FD3DA1A2B56E53DBA8411 /* CustomBookStoreTests.swift */; };
 		DF9ADD0191D1FFC24D565364 /* futex_waiter.cc in Sources */ = {isa = PBXBuildFile; fileRef = 6D9FF732AC167F5678088D30 /* futex_waiter.cc */; };
 		DFBA06FB577F4C7A7B90DFF2 /* time_zone_if.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDB70E46C2122A655174A3BB /* time_zone_if.cc */; };
 		E089280930AB67FC38E9A209 /* VisionLicensesOrnament.swift in Sources */ = {isa = PBXBuildFile; fileRef = F366CA82A77C8E4E7C13586A /* VisionLicensesOrnament.swift */; };
@@ -2014,6 +2015,7 @@
 		FAFCAF20253B4B0B85BC6A24 /* EngineFeedInitialCommandsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineFeedInitialCommandsTests.swift; sourceTree = "<group>"; };
 		FB77AE0C1C1E08B886E39DED /* WordEmbedding.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WordEmbedding.pb.cc; path = ../../cpp/external/katagocoreml/generated/WordEmbedding.pb.cc; sourceTree = SOURCE_ROOT; };
 		FC3688217D006AF0B82530FB /* BoardCameraView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BoardCameraView.swift; path = "KataGo iOS/Camera/BoardCameraView.swift"; sourceTree = "<group>"; };
+		FC3FD3DA1A2B56E53DBA8411 /* CustomBookStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomBookStoreTests.swift; sourceTree = "<group>"; };
 		FC68F5D8F748C36294662826 /* NewGameViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewGameViewController.swift; sourceTree = "<group>"; };
 		FD3A1B4C35BF5CEC507F7F11 /* MoveNumbersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MoveNumbersTests.swift; sourceTree = "<group>"; };
 		FD6285BC94198C4A3B86B232 /* EngineStatusUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineStatusUITests.swift; sourceTree = "<group>"; };
@@ -3393,6 +3395,7 @@
 				D05DA271E04264722D6293E2 /* HeldAnalysisGuardTests.swift */,
 				3B7406137DBFE906C3340CC7 /* EngineHeldRuleTests.swift */,
 				FAFCAF20253B4B0B85BC6A24 /* EngineFeedInitialCommandsTests.swift */,
+				FC3FD3DA1A2B56E53DBA8411 /* CustomBookStoreTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = SOURCE_ROOT;
@@ -4957,6 +4960,7 @@
 				8A156CA348AE15F056AB65DD /* HeldAnalysisGuardTests.swift in Sources */,
 				7DB2BA237662EEAE50A47CAB /* EngineHeldRuleTests.swift in Sources */,
 				319B9E57CF668275EE8734A1 /* EngineFeedInitialCommandsTests.swift in Sources */,
+				DF7CE699EEFE3F930C00637A /* CustomBookStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

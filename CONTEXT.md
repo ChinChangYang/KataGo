@@ -39,7 +39,9 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 
 ## Downloads
 
-- **Catalog asset** — an item the app's built-in catalog knows how to fetch: a downloadable neural network or an opening book. Distinct from a *user-imported* network, which arrives from the file system and is never downloaded.
+- **Catalog asset** — an item the app's built-in catalog knows how to fetch: a downloadable neural network or an opening book. Distinct from a *user-imported asset* — a network or opening book that arrives from the file system and is never downloaded.
+- **Imported book** — an opening book the user brought in from the file system. Exists only on the device that imported it; never synced.
+- **Active book** — the book a board size actually uses: the explicit per-size choice when one has been made; otherwise the catalog book for that size, else the newest imported book of that size. Deleting the active book falls back down that chain.
 - **Download** — the whole user-visible operation of bringing one catalog asset onto the device. Survives leaving the screen, leaving the app, and quitting.
 - **Transfer** — one attempt at fetching the bytes a download is still missing. A download completes through as many transfers as it takes.
 - **Partial** — the bytes of an incomplete download.
