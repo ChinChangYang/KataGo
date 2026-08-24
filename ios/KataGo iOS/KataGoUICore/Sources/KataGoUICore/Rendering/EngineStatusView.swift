@@ -48,6 +48,18 @@ public struct EngineStatusView: View {
     private var isCompiling: Bool { launchStatus?.isCompiling ?? false }
     private var isLaunching: Bool { status.availability == .launching }
 
+    /// Held's remedy is the pill itself: tapping the "Board larger than Max
+    /// Board Size N" line opens the model chooser — no button row (tester
+    /// feedback: a button under that headline crowded the pill). Every other
+    /// state keeps its buttons; a Held with no actions (macOS, tvOS) stays a
+    /// bare, inert line.
+    private var tapOpensChooser: Bool {
+        if case .held = status.availability {
+            return status.actions.contains(.chooseModel)
+        }
+        return false
+    }
+
     public var body: some View {
         let text = EngineStatusText.decide(availability: status.availability,
                                            isCompiling: isCompiling,
@@ -87,7 +99,7 @@ public struct EngineStatusView: View {
 
     @ViewBuilder
     private func stack(_ text: (headline: String?, secondary: String?, note: String?)) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let content = VStack(alignment: .leading, spacing: 4) {
             if let headline = text.headline {
                 Text(headline + String(repeating: ".", count: isLaunching ? dotCount : 0))
                     .font(.subheadline.weight(.semibold))
@@ -99,7 +111,7 @@ public struct EngineStatusView: View {
             if let note = text.note {
                 line(note)
             }
-            if !status.actions.isEmpty {
+            if !status.actions.isEmpty, !tapOpensChooser {
                 HStack(spacing: 12) {
                     if status.actions.contains(.retry) {
                         Button("Retry") { status.perform(.retry) }
@@ -129,6 +141,21 @@ public struct EngineStatusView: View {
                 // a failure reason at an accessibility size always is.
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.thinMaterial)
+            }
+        }
+
+        Group {
+            if tapOpensChooser {
+                // A real Button, not a tap gesture: the whole pill activates,
+                // VoiceOver gets the button trait, and Voice Control can speak
+                // the headline. `.plain` keeps the pill looking like the line
+                // it replaces. The board's overlay only takes touches when
+                // actions are non-empty (BoardView), which Held's
+                // `[.chooseModel]` guarantees.
+                Button { status.perform(.chooseModel) } label: { content }
+                    .buttonStyle(.plain)
+            } else {
+                content
             }
         }
         .accessibilityElement(children: .contain)

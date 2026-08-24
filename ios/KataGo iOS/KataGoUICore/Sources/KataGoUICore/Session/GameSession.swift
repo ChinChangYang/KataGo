@@ -361,11 +361,19 @@ public final class GameSession {
     ///
     /// The availability write is last, so no observer can see a `.held` status
     /// over a gate that is still open.
-    public func holdEngineSession(maxBoardLength: Int) {
+    ///
+    /// - Parameter actions: what the Held status line offers as a remedy.
+    ///   Defaults to nothing so platforms whose Held UI is a bare line (macOS,
+    ///   tvOS) stay untouched; iOS passes `[.chooseModel]` so the pill can open
+    ///   the model picker, where both remedies live (another net, or Backend
+    ///   Settings ▸ Max Board Size).
+    public func holdEngineSession(maxBoardLength: Int,
+                                  actions: [EngineStatusAction] = []) {
         sendLifecycleCommand("stop")
         abortInFlightBoardCollection()
         messageList.isAcceptingCommands = false
         gobanState.resetForFreshEngine(stones: stones)
+        engineStatus.actions = actions
         engineStatus.availability = .held(maxBoardLength: maxBoardLength)
     }
 
@@ -381,6 +389,8 @@ public final class GameSession {
     ///     `noteBoardMounted`, whose next breath is `loadGame`) — feeding from
     ///     both would put the same bundle on the wire twice.
     public func releaseEngineHold(gameRecord: GameRecord?, feeds: Bool = true) {
+        // Drop whatever remedy Held offered — a Ready status has none.
+        engineStatus.actions = []
         engineStatus.availability = .ready
         messageList.isAcceptingCommands = true
         guard feeds else { return }

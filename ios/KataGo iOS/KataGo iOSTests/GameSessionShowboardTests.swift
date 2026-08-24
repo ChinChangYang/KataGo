@@ -141,6 +141,27 @@ struct GameSessionShowboardTests {
         #expect(session.player.nextColorForPlayCommand == .black)
     }
 
+    /// A hold may carry a remedy — iOS passes `[.chooseModel]` so the Held
+    /// pill can open the model picker — and the release takes it back: a Ready
+    /// status has no remedy to offer. Platforms that pass nothing (the
+    /// default) keep a bare, button-less line.
+    @Test func aHoldSeedsItsRemedyAndTheReleaseClearsIt() {
+        let session = GameSession.accepting()
+        session.useEngine(RecordingEngine())
+        session.engineStatus.availability = .ready
+        seedRecordPosition(session)
+
+        session.holdEngineSession(maxBoardLength: 19, actions: [.chooseModel])
+        #expect(session.engineStatus.actions == [.chooseModel])
+
+        session.releaseEngineHold(gameRecord: nil)
+        #expect(session.engineStatus.actions.isEmpty)
+
+        // The default is no remedy at all — the macOS/tvOS bare line.
+        session.holdEngineSession(maxBoardLength: 19)
+        #expect(session.engineStatus.actions.isEmpty)
+    }
+
     /// The block a hold interrupted must not be able to finish afterwards: its
     /// trailing lines belong to a position the engine no longer holds.
     @Test func theInterruptedBlockCannotClaimSyncAfterTheHold() async {

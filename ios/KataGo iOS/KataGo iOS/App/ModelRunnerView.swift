@@ -42,10 +42,13 @@ struct ModelRunnerView: View {
             ModelPickerView(selectedModel: $selectedModel)
                 // The sheet is presented from HERE, above every environment
                 // injection `ContentView` makes into the board tree, so the
-                // one value the picker needs — whether an engine is running,
-                // which gates the Core ML routing probe and Clear Cache — is
-                // handed over explicitly.
+                // two values the picker needs are handed over explicitly:
+                // whether an engine is running — which decides whether the
+                // Core ML routing probe and Clear Cache run directly or have
+                // to unload the engine first — and the controller whose
+                // `restart(performingWhileStopped:)` is that unload.
                 .environment(session.engineStatus)
+                .environment(controller)
         }
         .onAppear {
             configureAndDecideRecovery()

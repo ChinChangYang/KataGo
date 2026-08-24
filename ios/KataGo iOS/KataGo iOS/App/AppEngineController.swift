@@ -198,11 +198,25 @@ final class AppEngineController {
     /// activation drives the restart, or with the same net (and the freshly
     /// persisted backend settings) when nil.
     ///
+    /// - Parameter performingWhileStopped: work that must run with NO engine
+    ///   alive — clearing the Core ML cache, running the routing probe. It runs
+    ///   after both teardown waits (read loop parked, engine thread exited) and
+    ///   before the replacement spawns, so nothing is using the artifacts it
+    ///   touches. It does NOT run when the teardown fails; the caller must not
+    ///   rely on it for cleanup.
     /// - Returns: true when the new engine answered its handshake.
     @discardableResult
-    func restart(loading newModel: NeuralNetworkModel? = nil) async -> Bool {
-        guard let session, let engineLifecycle else { return false }
-        guard Self.canRestart(from: phase) else { return false }
+    func restart(loading newModel: NeuralNetworkModel? = nil,
+                 performingWhileStopped: (@MainActor () async -> Void)? = nil) async -> Bool {
+        guard let session, let engineLifecycle else {
+            engineLogger.error("restart refused: not configured")
+            return false
+        }
+        guard Self.canRestart(from: phase) else {
+            engineLogger.notice("restart refused from phase \(String(describing: self.phase), privacy: .public)")
+            return false
+        }
+        engineLogger.info("restart: begin (newModel: \(newModel?.title ?? "same", privacy: .public))")
         phase = .stopping
 
         // ORDER IS LOAD-BEARING, twice over.
@@ -250,7 +264,9 @@ final class AppEngineController {
         // a wait that never resumes would hold the whole restart in `.stopping`
         // forever — no phase, no status, no Retry. A deadline-checked poll
         // gives up on its own and reports it.
+        engineLogger.info("restart: teardown sent, waiting for read loop to park")
         guard await waitForReadLoopPark(timeout: Self.readLoopParkTimeout) else {
+            engineLogger.error("restart: read loop did not park")
             return fail("The engine did not shut down.")
         }
 
@@ -261,8 +277,19 @@ final class AppEngineController {
         // process-global bridge state and dies with a C++ fatalError. An idle
         // engine tears down in milliseconds, but one that has just run a search
         // has been observed taking ~2 minutes — allow for it.
+        engineLogger.info("restart: read loop parked, waiting for engine thread exit")
         guard await waitForEngineThreadExit(timeout: Self.engineThreadExitTimeout) else {
+            engineLogger.error("restart: engine thread did not exit")
             return fail("The engine did not shut down.")
+        }
+
+        // The engine is fully down — read loop parked, thread exited. This is
+        // the one window where heavy Core ML work is safe with a live session:
+        // nothing holds the compiled artifacts, and the Neural Engine is idle.
+        if let performingWhileStopped {
+            engineLogger.info("restart: running stopped-window work")
+            await performingWhileStopped()
+            engineLogger.info("restart: stopped-window work done")
         }
 
         // The model swaps only after the old engine has fully torn down, so
@@ -398,7 +425,11 @@ final class AppEngineController {
 
         switch next {
         case .held(let maxBoardLength):
-            session.holdEngineSession(maxBoardLength: maxBoardLength)
+            // iOS seeds the remedy: the model picker is where both ways out
+            // live (pick a net with a bigger cap, or Backend Settings ▸ Max
+            // Board Size). Other platforms pass nothing and keep a bare line.
+            session.holdEngineSession(maxBoardLength: maxBoardLength,
+                                      actions: [.chooseModel])
         case .ready:
             session.releaseEngineHold(gameRecord: navigationContext?.selectedGameRecord)
         default:
@@ -474,25 +505,42 @@ final class AppEngineController {
         }
     }
 
-    /// Whether the model picker may do heavy Core ML work right now: run the
+    /// How the model picker may do heavy Core ML work right now — run the
     /// routing probe (which COMPILES a network on a miss) or clear the compiled
     /// cache out from under whatever is using it.
-    ///
+    enum HeavyCoreMLWorkPermission {
+        /// No engine holds the artifacts: do the work right now, and nothing
+        /// needs relaunching afterwards.
+        case direct
+        /// An engine is running off the artifacts. The work is still offered —
+        /// the engine is unloaded first, the work runs while it is down, and it
+        /// relaunches afterwards (`restart(performingWhileStopped:)`).
+        case requiresUnload
+        /// The engine is mid-launch — possibly mid-compile. Interrupting that
+        /// is the one teardown path this app does not take; the work waits the
+        /// transient out.
+        case unavailable
+    }
+
     /// The picker used to be reachable only with the engine stopped, which is
-    /// why neither of those needed a guard. It is a sheet over a live board
-    /// now, so both do: a compile competes with the engine for the same Neural
-    /// Engine, and deleting the artifacts a running engine loaded from is not
-    /// something the app should offer at all.
+    /// why heavy work needed no guard at all. It is a sheet over a live board
+    /// now: a compile competes with the engine for the same Neural Engine, and
+    /// deleting the artifacts a running engine loaded from must not happen
+    /// under it — so a running engine means *unload first*, never *blocked*.
     ///
-    /// A nil availability — no status injected — reads as "allowed", which is
+    /// A nil availability — no status injected — reads as `.direct`, which is
     /// the behaviour every surface had before the status existed.
-    static func allowsHeavyCoreMLWork(_ availability: EngineAvailability?) -> Bool {
-        guard let availability else { return true }
+    static func heavyCoreMLWorkPermission(
+        _ availability: EngineAvailability?
+    ) -> HeavyCoreMLWorkPermission {
+        guard let availability else { return .direct }
         switch availability {
         case .absent, .failed:
-            return true
-        case .launching, .ready, .held:
-            return false
+            return .direct
+        case .ready, .held:
+            return .requiresUnload
+        case .launching:
+            return .unavailable
         }
     }
 

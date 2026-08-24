@@ -24,13 +24,22 @@
 //     the path under test. If the staging does not happen the test fails
 //     outright rather than falling back to the network.
 //
-//  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" the
-//     footer immediately shows "Main: 0 of <cap> · 0 B" and
-//     "Human SL: 0 of <cap> · 0 B". No automatic repopulation occurs; the
-//     cache refills only when the user explicitly loads a model.
+//  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" with NO
+//     engine running (the direct path), the footer immediately shows
+//     "Main: 0 of <cap> · 0 B" and "Human SL: 0 of <cap> · 0 B", and no
+//     repopulation occurs — with no engine there is nothing to relaunch.
 //     The "Clear Cache" button hides once totalCount == 0.
 //     The caps come from CoreMLModelCache.shared and differ per partition,
 //     so these tests never assert on the cap itself — only on the count.
+//
+//  3. testClearCacheIsEnabledWhileEngineRuns — the unload path. With the
+//     engine Ready, Clear Cache is ENABLED (it used to be disabled with
+//     "Clearing is available when no engine is running"); tapping it
+//     unloads the engine, clears in the stopped window, and relaunches.
+//     The relaunch RECOMPILES and eventually repopulates the cache, so
+//     this test asserts the counts reach 0 and stops there — it must not
+//     assert the button disappears, because the recompile will bring it
+//     back at an unpredictable time.
 //
 //  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
 //  for a clean cache state.
@@ -122,12 +131,15 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         tapDownloadOrPlay(in: app)
         waitForBoardInSync(app)
 
-        // Relaunch before clearing. "Clear Cache" is deliberately unavailable
-        // while an engine is running — the picker is a sheet over a live board
-        // now, and deleting the compiled artifacts an engine loaded from is not
-        // something the app offers. A fresh Debug launch comes up with no
-        // engine (Absent) and the picker already presented, holding the cache
-        // the previous launch filled.
+        // Relaunch before clearing — NOT because Clear is unavailable with an
+        // engine running (it no longer is: a running engine is unloaded around
+        // the clear and relaunched after), but because this test pins the
+        // DIRECT path: with no engine there is no relaunch, so nothing
+        // recompiles and the 0-counts and hidden button are stable to assert
+        // on. The unload path has its own test below, which deliberately stops
+        // at the 0-count because its relaunch repopulates the cache. A fresh
+        // Debug launch comes up with no engine (Absent) and the picker already
+        // presented, holding the cache the previous launch filled.
         app.terminate()
         app.launch()
 
@@ -178,6 +190,63 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // The Clear Cache button must disappear once totalCount == 0.
         XCTAssertFalse(clearButton.waitForExistence(timeout: 5),
                        "Clear Cache button should be hidden when cache is empty")
+    }
+
+    /// The unload path — the feedback this round exists for: Clear Cache used
+    /// to be disabled while an engine ran ("Clearing is available when no
+    /// engine is running"). It must be ENABLED now; tapping it unloads the
+    /// engine, clears the cache in the stopped window, and relaunches.
+    ///
+    /// Deliberately stops at "the counts reached 0": the relaunch recompiles
+    /// the model and repopulates the cache at an unpredictable time, so
+    /// asserting the button hides again — or that the counts STAY 0 — would be
+    /// a latent flake. The stable 0-count/hidden-button assertions live in
+    /// `testFooterShowsZeroAfterClear`, on the direct (no-engine) path.
+    @MainActor
+    func testClearCacheIsEnabledWhileEngineRuns() throws {
+        let app = makeApp()
+        app.launch()
+
+        // Populate the cache and get the engine Ready.
+        tapModelRow(in: app, title: builtInTitle)
+        tapDownloadOrPlay(in: app)
+        // Return to the picker with the engine STILL RUNNING underneath —
+        // exactly the state in which Clear used to be blocked.
+        waitForEngineThenChangeModel(in: app, label: "clear-while-running")
+        waitForPicker(in: app, title: builtInTitle)
+
+        revealClearCacheButton(in: app)
+        let clearButton = app.buttons["Clear Cache"]
+        XCTAssertTrue(clearButton.waitForExistence(timeout: 15),
+                      "Clear Cache button should be visible when cache has entries")
+        XCTAssertTrue(clearButton.isEnabled,
+                      "Clear Cache must be ENABLED while the engine runs — " +
+                      "a running engine is unloaded around the clear, not a block on it")
+
+        clearButton.tap()
+        let confirmClear = app.buttons["Clear"]
+        XCTAssertTrue(confirmClear.waitForExistence(timeout: 5),
+                      "Confirmation 'Clear' button did not appear")
+        confirmClear.tap()
+
+        // The clear happens in the restart's stopped window: stop/quit, wait
+        // for the engine thread to exit (an engine that has just searched has
+        // been observed taking ~2 minutes), then clearAll. Give the whole
+        // sequence a generous deadline and poll for the 0-count.
+        let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
+        let clearedMain = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label BEGINSWITH %@", "Main: 0 of"),
+            object: mainStats)
+        XCTAssertEqual(XCTWaiter().wait(for: [clearedMain], timeout: 300), .completed,
+                       "Main partition never showed 0 after clearing with a " +
+                       "running engine; footer was: '\(mainStats.label)'")
+        let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
+        let clearedAux = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label BEGINSWITH %@", "Human SL: 0 of"),
+            object: auxStats)
+        XCTAssertEqual(XCTWaiter().wait(for: [clearedAux], timeout: 30), .completed,
+                       "Human SL partition never showed 0 after clearing with a " +
+                       "running engine; footer was: '\(auxStats.label)'")
     }
 
     /// End-to-end runtime check that the MLX backend actually evaluates the

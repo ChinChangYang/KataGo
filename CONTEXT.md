@@ -67,7 +67,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Engine position** — the position the engine has been fed. Never displayed; it exists so analysis has something to analyse.
 - **Feed** — telling the engine the record's moves one at a time. A move the engine would refuse is skipped, exactly as the replay skipped it.
 - **In sync** — the engine has acknowledged the record position. Analysis is collected, and stones may be played, only while in sync.
-- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state the board displays; never a screen that replaces it.
+- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off; the status may offer the model chooser as the remedy). A state the board displays; never a screen that replaces it.
 
 ## Core ML compilation
 
@@ -76,3 +76,4 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Cache miss** — no compiled model exists for the current compile key. The only condition under which the app may say it is compiling.
 - **Recompile** — a compile that happens because the compile key changed, because the compiled model was evicted to stay within the cache's bounds, or because the user cleared the cache. Ordinary, not exceptional: the app never describes compiling as a one-time event.
 - **NN buffer size** — the largest board the running engine can evaluate, fixed when the engine launches (the *Max Board Size* setting). Distinct from the board size of any particular game, which may be smaller — a 9×9 game on a 19×19 engine compiles nothing new.
+- **Heavy Core ML work** — clearing the compiled cache, or checking where Core ML routes a network: work that must never run beside a running engine, because it deletes or contends for what that engine is using. A running engine does not block it — the engine is unloaded around the work and relaunched after. Only a mid-launch engine defers it.

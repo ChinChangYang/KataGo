@@ -15,12 +15,24 @@ struct CoreMLCacheFooterView: View {
     @State private var clearing = false
     /// Optional so a surface that injects no status keeps today's behaviour.
     @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+    /// The unload path: `restart(performingWhileStopped:)`. Optional so a
+    /// surface that injects no controller simply cannot offer the unload flow.
+    @Environment(AppEngineController.self) private var controller: AppEngineController?
 
     /// The picker is a sheet over a live board now, so Clear Cache can be
     /// reached while an engine is running off the very artifacts it would
-    /// delete. Offered only when nothing is using them.
+    /// delete. A running engine no longer blocks the clear — it is unloaded
+    /// first and relaunched after. Only a mid-launch engine makes it wait.
+    private var permission: AppEngineController.HeavyCoreMLWorkPermission {
+        AppEngineController.heavyCoreMLWorkPermission(engineStatus?.availability)
+    }
+
     private var canClear: Bool {
-        AppEngineController.allowsHeavyCoreMLWork(engineStatus?.availability)
+        switch permission {
+        case .direct: true
+        case .requiresUnload: controller != nil
+        case .unavailable: false
+        }
     }
 
     // Read the caps from the cache itself rather than restating them. These
@@ -53,7 +65,7 @@ struct CoreMLCacheFooterView: View {
                 }
             }
             if totalCount > 0, !canClear {
-                Text("Clearing is available when no engine is running.")
+                Text("Available once the engine finishes loading.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -80,7 +92,11 @@ struct CoreMLCacheFooterView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("All \(totalCount) compiled models will be removed. They will recompile on next use.")
+            if permission == .requiresUnload {
+                Text("All \(totalCount) compiled models will be removed. The engine will restart, then recompile its model — that can take a while.")
+            } else {
+                Text("All \(totalCount) compiled models will be removed. They will recompile on next use.")
+            }
         }
     }
 
@@ -103,11 +119,32 @@ struct CoreMLCacheFooterView: View {
     @MainActor private func clear() async {
         clearing = true
         defer { clearing = false }
-        await CoreMLModelCache.shared.clearAll()
-        // clearAll() emits an indexEvents tick, so the task-bound
-        // subscription will refresh us. Call refresh() explicitly too
-        // to guarantee the user sees 0/0 before the next event loop
-        // iteration in case the subscription is mid-iteration.
-        await refresh()
+        switch permission {
+        case .direct:
+            await CoreMLModelCache.shared.clearAll()
+            // clearAll() emits an indexEvents tick, so the task-bound
+            // subscription will refresh us. Call refresh() explicitly too
+            // to guarantee the user sees 0/0 before the next event loop
+            // iteration in case the subscription is mid-iteration.
+            await refresh()
+        case .requiresUnload:
+            // Unload → clear → relaunch. The clear runs in the restart's
+            // stopped window, when nothing holds the compiled artifacts. The
+            // `clearing` flag drops as soon as the cache is empty — the
+            // relaunch continues underneath, reported by the board's inline
+            // status line, and re-entry stays disabled through it because the
+            // availability is `.launching` (permission `.unavailable`).
+            guard let controller else {
+                assertionFailure("Clear offered the unload path with no controller in the environment")
+                return
+            }
+            await controller.restart(performingWhileStopped: {
+                await CoreMLModelCache.shared.clearAll()
+                await refresh()
+                clearing = false
+            })
+        case .unavailable:
+            return
+        }
     }
 }

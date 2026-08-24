@@ -124,18 +124,28 @@ struct AppEngineControllerTests {
 
     // MARK: - Heavy Core ML work in a picker that now sits over a live engine
 
-    @Test func compileAndClearAreOfferedOnlyWhenNoEngineIsUsingTheCache() {
-        #expect(AppEngineController.allowsHeavyCoreMLWork(.absent))
-        #expect(AppEngineController.allowsHeavyCoreMLWork(.failed(reason: "boom")))
+    @Test func compileAndClearRunDirectlyWhenNoEngineIsUsingTheCache() {
+        #expect(AppEngineController.heavyCoreMLWorkPermission(.absent) == .direct)
+        #expect(AppEngineController.heavyCoreMLWorkPermission(.failed(reason: "boom")) == .direct)
         // A host that injects no status behaves exactly as it did before the
         // status existed.
-        #expect(AppEngineController.allowsHeavyCoreMLWork(nil))
+        #expect(AppEngineController.heavyCoreMLWorkPermission(nil) == .direct)
+    }
 
-        #expect(!AppEngineController.allowsHeavyCoreMLWork(.launching))
-        #expect(!AppEngineController.allowsHeavyCoreMLWork(.ready))
+    @Test func aRunningEngineIsUnloadedForHeavyWorkNotABlockOnIt() {
+        // The feedback this pins: Clear Cache used to be disabled while an
+        // engine ran. A running engine now means unload → work → relaunch.
+        #expect(AppEngineController.heavyCoreMLWorkPermission(.ready) == .requiresUnload)
         // Held is a RUNNING engine that simply cannot take this board; its
-        // compiled artifacts are still in use.
-        #expect(!AppEngineController.allowsHeavyCoreMLWork(.held(maxBoardLength: 19)))
+        // compiled artifacts are still in use, so it unloads the same way.
+        #expect(AppEngineController.heavyCoreMLWorkPermission(.held(maxBoardLength: 19))
+                == .requiresUnload)
+    }
+
+    @Test func onlyAMidLaunchEngineMakesHeavyWorkWait() {
+        // Interrupting a launch — possibly mid-compile — is the one teardown
+        // path the app does not take; the transient is waited out instead.
+        #expect(AppEngineController.heavyCoreMLWorkPermission(.launching) == .unavailable)
     }
 }
 

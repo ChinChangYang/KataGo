@@ -33,13 +33,15 @@
 //    user's very next action is usually Play, which wants that exact
 //    artifact. Cancelling would discard 30s of work and then make them wait
 //    for it again.
-//  * The probe is only OFFERED while no engine is running
-//    (`AppEngineController.allowsHeavyCoreMLWork`, wired in
+//  * The probe never runs BESIDE an engine
+//    (`AppEngineController.heavyCoreMLWorkPermission`, wired in
 //    `BackendConfigSheet`). This sheet used to be reachable only from a model
 //    picker that owned the whole screen with the engine stopped, so the
 //    compile it may trigger had the Neural Engine to itself. The picker is a
 //    sheet over a live board now — the board never waits for the engine — so
-//    that guarantee has to be stated rather than assumed.
+//    a running engine is unloaded around the probe
+//    (`restart(performingWhileStopped:)`) rather than left to fight it for
+//    the Neural Engine; only a mid-launch engine defers the check.
 //
 
 import CoreML
