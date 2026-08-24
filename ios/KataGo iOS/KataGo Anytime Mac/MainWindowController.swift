@@ -420,7 +420,7 @@ final class MainWindowController: NSWindowController {
         // engine starts so the first `.launching -> .ready` edge is not missed.
         installEngineAvailabilityObserver()
 
-        // What the status line's Retry button does. Set once: `EngineStatus`
+        // What the status header's Retry button does. Set once: `EngineStatus`
         // is owned by the session, which outlives every engine.
         session.engineStatus.onAction = { [weak self] action in
             guard let self, action == .retry else { return }
@@ -1012,10 +1012,12 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Engine availability observer + the Held rule
     //
-    // Engine availability is a STATE the board displays, never a screen that
-    // replaces it. `EngineStatusView` (inside the hosted `BoardView`) renders
-    // it; the window controller only has to keep the one state the board's own
-    // size decides — *Held* — in step with the engine and the record.
+    // Engine availability is a STATE, never a screen that replaces the board.
+    // Only the transient Launching state renders on the board (ADR 0010); the
+    // resting states surface through the Analyze toolbar item and the Manage
+    // Models window's status header. The window controller keeps the one state
+    // the board's own size decides — *Held* — in step with the engine and the
+    // record, and repaints the Analyze item on every availability edge.
 
     /// Seeds the availability snapshot from the live session and starts the
     /// self-rescheduling observation bridge. Called once in `init`.
@@ -1049,6 +1051,10 @@ final class MainWindowController: NSWindowController {
     private func handleEngineAvailabilityChange() {
         guard session.engineStatus.availability != lastEngineAvailability else { return }
         applyHeldStatus()
+        // The analysis control wears the availability now (ADR 0010): the
+        // badge must appear/disappear on the edge, not wait for the next
+        // validation pass.
+        refreshAnalyzeToolbarItem()
     }
 
     /// Feeds the engine the position the board is showing, and re-arms analysis
@@ -1586,7 +1592,7 @@ final class MainWindowController: NSWindowController {
     /// there are never two concurrent `run()` loops.
     ///
     /// Deliberately UNGUARDED on engine readiness: this is also the Retry
-    /// action on the status line's `.failed` state, and refusing to relaunch a
+    /// action on the `.failed` state's status header, and refusing to relaunch a
     /// dead engine would leave the only way out disabled.
     ///
     /// It IS guarded on re-entrancy. Readiness is not the same question: a
@@ -1637,13 +1643,41 @@ final class MainWindowController: NSWindowController {
                     self?.modelSelection.currentModel.title ?? ""
                 },
                 onSetActive: { [weak self] model in
-                    self?.relaunch(model: model)
+                    guard let self else { return }
+                    // The sparkle's remedy click opened this window wanting
+                    // analysis: a pick arms a cleared preference back to run.
+                    // `.pause`/`.run` are left alone — the preference is the
+                    // user's, and the post-relaunch resync auto-resumes
+                    // anything that is not `.clear` (ADR 0010).
+                    if self.modelsWindowOpenedFromAnalysisControl {
+                        self.modelsWindowOpenedFromAnalysisControl = false
+                        if self.session.gobanState.analysisStatus == .clear {
+                            self.session.gobanState.analysisStatus = .run
+                            self.session.analysis.resetVisitsPerSecondSession()
+                        }
+                    }
+                    self.relaunch(model: model)
+                },
+                engineStatus: session.engineStatus,
+                board: session.board,
+                modelBoardCap: { [weak self] in
+                    self?.modelSelection.currentModel.nnLen
+                },
+                onWindowClose: { [weak self] in
+                    // Closed without a pick: the intent expires with the window.
+                    self?.modelsWindowOpenedFromAnalysisControl = false
                 }
             )
         }
         modelsWindowController?.showWindow(sender)
         modelsWindowController?.window?.makeKeyAndOrderFront(sender)
     }
+
+    /// The analysis control opened the Models window while the engine was
+    /// down, so the click expressed "I want analysis": a model set active from
+    /// THIS open arms a cleared preference back to run. Cleared on consume and
+    /// when the window closes without a pick.
+    private var modelsWindowOpenedFromAnalysisControl = false
 
     /// Retained for the same reason as `modelsWindowController`.
     private var openingBooksWindowController: OpeningBooksWindowController?
@@ -2837,6 +2871,21 @@ final class MainWindowController: NSWindowController {
     /// the responder chain). Cycles analysis on -> paused -> off, mirroring iOS
     /// `sparkleAction()`.
     @objc func toggleAnalysis(_ sender: Any?) {
+        // ADR 0010: with a resting-down engine (Failed/Held — macOS never
+        // shows Absent) the sparkle IS the way into the remedy. The branch
+        // lives HERE, not in validation, because bare Space reaches this
+        // method through the local key monitor and bypasses menu validation
+        // entirely. Launching stays inert: the wait is transient and the
+        // board's pill narrates it. Deliberately BEFORE the game guard —
+        // a down engine is worth fixing with no game selected too.
+        let control = AnalysisControlModel.make(analysisStatus: session.gobanState.analysisStatus,
+                                                availability: session.engineStatus.availability)
+        guard control.isEnabled else { return }
+        if control.tap == .openRemedy {
+            modelsWindowOpenedFromAnalysisControl = true
+            showModelsWindow(sender)
+            return
+        }
         guard let gameRecord = navigationContext.selectedGameRecord else { return }
         let gobanState = session.gobanState
 
@@ -3673,11 +3722,20 @@ final class MainWindowController: NSWindowController {
     private func refreshAnalyzeToolbarItem() {
         guard let item = analyzeToolbarItem else { return }
         let status = session.gobanState.analysisStatus
-        let symbolName = (status == .clear) ? "custom.sparkle.slash" : "custom.sparkle"
+        let control = AnalysisControlModel.make(analysisStatus: status,
+                                                availability: session.engineStatus.availability)
         // Fall back to the stock wand if the catalog lookup ever fails, so the
         // item can never render as an empty slot.
-        let base = NSImage(named: symbolName)
+        let base = NSImage(named: control.symbolName)
             ?? NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Analyze")
+        // Engine down (ADR 0010): the badged red slash — a SHAPE, not a
+        // colour, so it stays distinguishable from the bare user-off slash —
+        // and a click that opens Manage Models instead of cycling.
+        if control.showsWarningBadge {
+            item.image = Self.engineDownAnalyzeImage(base: base)
+            item.toolTip = "Engine unavailable — open Manage Models"
+            return
+        }
         switch status {
         case .clear:
             // Analysis OFF: red slashed sparkle signals "click to start".
@@ -3694,6 +3752,30 @@ final class MainWindowController: NSWindowController {
                 .init(hierarchicalColor: .secondaryLabelColor))
             item.toolTip = "Resume Analysis"
         }
+    }
+
+    /// The engine-down toolbar image: the red slashed sparkle with a small
+    /// orange warning badge drawn bottom-trailing (the AppKit rendering of the
+    /// iOS sparkle's badge overlay). Composed by hand because the catalog
+    /// symbolsets carry no badge variant.
+    private static func engineDownAnalyzeImage(base: NSImage?) -> NSImage? {
+        guard let red = base?.withSymbolConfiguration(
+            .init(paletteColors: [.systemRed])) else { return nil }
+        let size = red.size
+        guard size.width > 0, size.height > 0 else { return red }
+        let image = NSImage(size: size, flipped: false) { rect in
+            red.draw(in: rect)
+            if let badge = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
+                                   accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(paletteColors: [.systemOrange])) {
+                let side = min(rect.width, rect.height) * 0.55
+                badge.draw(in: NSRect(x: rect.maxX - side, y: rect.minY,
+                                      width: side, height: side))
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     /// Updates the eye toolbar item's image/tint/toolTip from the live
@@ -4208,8 +4290,14 @@ extension MainWindowController: NSMenuItemValidation {
         // toggle would re-arm the engine underneath it. Pause/Off stay enabled
         // — they cannot resume anything.
         case #selector(toggleAnalysis(_:)):
-            menuItem.state = gobanState.analysisStatus != .clear ? .on : .off
-            return hasGame && !isTextInputActive && !isPresentingSheet
+            // Engine down: no analysis is running whatever the preference
+            // says, so the checkmark is off; the item stays enabled because
+            // invoking it opens Manage Models (the remedy). Only Launching
+            // disables it.
+            let control = AnalysisControlModel.make(analysisStatus: gobanState.analysisStatus,
+                                                    availability: session.engineStatus.availability)
+            menuItem.state = (gobanState.analysisStatus != .clear && control.tap == .cycle) ? .on : .off
+            return hasGame && !isTextInputActive && !isPresentingSheet && control.isEnabled
         case #selector(pauseAnalysis(_:)):
             menuItem.state = gobanState.analysisStatus == .pause ? .on : .off
             return hasGame
@@ -4304,9 +4392,12 @@ extension MainWindowController: NSToolbarItemValidation {
         }
         if item.action == #selector(toggleAnalysis(_:)) {
             // Analyze only makes sense with a game loaded; refresh its on/off
-            // appearance opportunistically while we're here.
+            // appearance opportunistically while we're here. Only the
+            // transient Launching wait disables it — the down states keep it
+            // clickable, because the click is the way into the remedy.
             refreshAnalyzeToolbarItem()
             return navigationContext.selectedGameRecord != nil
+                && session.engineStatus.availability != .launching
         }
         if item.action == #selector(toggleEyeStatus(_:)) {
             // The eye button only makes sense with a game loaded; refresh its

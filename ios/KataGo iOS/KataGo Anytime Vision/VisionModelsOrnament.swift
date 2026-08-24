@@ -21,6 +21,13 @@ import KataGoUICore
 struct VisionModelsOrnament: View {
     let engine: VisionEngineController
     let readiness: CoreMLCacheReadiness
+    /// The engine-status header's inputs (ADR 0010): this card is the visionOS
+    /// remedy surface, so it explains the engine state it fixes — the failure
+    /// reason with Retry, the Held hint, the built-in-fallback note. All
+    /// optional: with no status injected the header simply never renders.
+    var engineStatus: EngineStatus?
+    var launchStatus: EngineLaunchStatus?
+    var board: BoardSize?
     /// Pre-boot chooser mode (shell.phase == .choosingModel): no engine is
     /// running yet, so nothing is "active", every net is activatable, and
     /// the card cannot be dismissed — picking a net IS the boot.
@@ -42,20 +49,34 @@ struct VisionModelsOrnament: View {
 
     var body: some View {
         NavigationStack {
-            List(items) { item in
-                NavigationLink(value: item.title) {
-                    HStack {
-                        Text(item.title)
-                        Spacer()
-                        if item.isActive {
-                            Image(systemName: "play.circle.fill")
-                                .foregroundStyle(.tint)
-                                .accessibilityLabel("Active model")
-                        }
-                        if item.showsReadyCheckmark {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .accessibilityLabel("Core ML cache ready")
+            List {
+                // The status header, above the remedy it points at. Renders
+                // nothing when a ready engine has nothing to say. In the
+                // pre-boot chooser it reads "No model chosen" — deliberate:
+                // that IS the state the chooser exists to fix.
+                if let engineStatus {
+                    EngineStatusHeaderView(status: engineStatus,
+                                           launchStatus: launchStatus,
+                                           board: board,
+                                           modelBoardCap: isBootChooser ? nil : engine.activeModel.nnLen,
+                                           hintStyle: .visionInline)
+                }
+
+                ForEach(items) { item in
+                    NavigationLink(value: item.title) {
+                        HStack {
+                            Text(item.title)
+                            Spacer()
+                            if item.isActive {
+                                Image(systemName: "play.circle.fill")
+                                    .foregroundStyle(.tint)
+                                    .accessibilityLabel("Active model")
+                            }
+                            if item.showsReadyCheckmark {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                    .accessibilityLabel("Core ML cache ready")
+                            }
                         }
                     }
                 }

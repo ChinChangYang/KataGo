@@ -150,20 +150,13 @@ struct VisionRootView: View {
                             onCancel: {
                                 session.gobanState.confirmingBranchDiscard = false
                             })
-                    } else if case .held(let maxBoardLength) =
-                                session.engineStatus.availability {
-                        // Held gets its own card rather than the one-line status:
-                        // it is the only engine state with a real remedy, and
-                        // which remedy depends on the net (raise the setting vs
-                        // switch nets). The board is drawn behind it.
-                        boardTooLargeCard(maxBoardLength: maxBoardLength)
-                            .frame(width: 460)
-                            .padding(20)
-                            .glassBackgroundEffect()
                     } else {
-                        // Launching / Failed (+ Retry) / a built-in-fallback
-                        // note. Renders NOTHING once the engine is ready — that
-                        // is what makes it a status line and not a screen.
+                        // Launching only (ADR 0010): the transient wait, with
+                        // the compile caption when a compile is genuinely
+                        // running. The resting states — Failed, Held, the
+                        // built-in-fallback note — surface through the
+                        // sparkle's badge and the Models card's status header
+                        // instead of covering the goban.
                         engineStatusCard
                     }
                 case .choosingModel:
@@ -173,6 +166,9 @@ struct VisionRootView: View {
                     // picking a net boots it.
                     VisionModelsOrnament(engine: engineController,
                                          readiness: cacheReadiness,
+                                         engineStatus: session.engineStatus,
+                                         launchStatus: engineLaunchStatus,
+                                         board: session.board,
                                          isBootChooser: true,
                                          onActivate: { model in
                                              // Dismiss the chooser. The board is
@@ -208,6 +204,14 @@ struct VisionRootView: View {
                     controllerInput: controllerInput,
                     navigationContext: navigationContext,
                     onSparkle: { sparkleAnalysisAction() },
+                    onOpenModels: {
+                        // The tap said "I want analysis": remember it, so a
+                        // model activated from this open arms a cleared
+                        // preference (ADR 0010; the flag expires with the
+                        // card).
+                        shell.modelsPresentedFromAnalysisControl = true
+                        shell.presentModels()
+                    },
                     onToggleAI: { toggleAI(for: $0) },
                     onDismissIllegalMove: {
                         session.gobanState.confirmingIllegalMove = false
@@ -240,6 +244,9 @@ struct VisionRootView: View {
                 } else if shell.showingModels {
                     VisionModelsOrnament(engine: engineController,
                                          readiness: cacheReadiness,
+                                         engineStatus: session.engineStatus,
+                                         launchStatus: engineLaunchStatus,
+                                         board: session.board,
                                          onActivate: { activateModel($0) },
                                          onMaxBoardSizeRestart: { restartEngineForMaxBoardSize() },
                                          onDismiss: { shell.showingModels = false })
@@ -1097,46 +1104,14 @@ struct VisionRootView: View {
         }
     }
 
-    /// The *Held* card: the board on screen is larger than the running engine's
-    /// NN buffer, so the engine is never told about it and analysis is off.
-    ///
-    /// This is the one engine state that keeps a card of its own rather than the
-    /// one-line status, because it is the one with a real remedy — and WHICH
-    /// remedy depends on the net: a capped net (nnLen below this board) can
-    /// never be raised far enough, so the honest exit there is switching nets.
-    /// Both controls live behind Settings ▸ Neural Net. The goban is drawn
-    /// behind this card the whole time; the game is fully navigable.
-    private func boardTooLargeCard(maxBoardLength: Int) -> some View {
-        let width = Int(session.board.width)
-        let height = Int(session.board.height)
-        let cap = engineController.activeModel.nnLen
-        let raisable = boardFits(width: width, height: height, maxBoardLength: cap)
-        return ContentUnavailableView {
-            Label("Board Too Large", systemImage: "square.grid.3x3.square")
-        } description: {
-            if raisable {
-                Text("This game uses a \(width)×\(height) board, larger than the current Max Board Size (\(maxBoardLength)×\(maxBoardLength)). Analysis is off until you raise Max Board Size under Settings ▸ Neural Net.")
-            } else {
-                Text("This game uses a \(width)×\(height) board, larger than the current neural net supports (\(cap)×\(cap)). Analysis is off until you switch the neural net in Settings.")
-            }
-        } actions: {
-            Button("Open Settings") {
-                shell.showingSettings = true
-                shell.showingControllerHelp = false
-                shell.showingNewGamePanel = false
-            }
-        }
-    }
-
-    /// Engine availability as a LINE over the visible board: Launching (with
-    /// ADR 0007's compile caption when a compile is genuinely running), Failed
-    /// with its reason and a Retry button, or a note like "⟨net⟩ was removed —
-    /// using the built-in network". A ready engine renders nothing at all, so
-    /// the ornament collapses and the goban is unobstructed.
+    /// The one engine state still drawn over the visible board (ADR 0010):
+    /// LAUNCHING, the transient wait, with ADR 0007's compile caption when a
+    /// compile is genuinely running. Every resting state — Failed, Held, the
+    /// built-in-fallback note — surfaces through the sparkle's badge and the
+    /// Models card's status header, so the goban stays unobstructed.
     @ViewBuilder
     private var engineStatusCard: some View {
-        if session.engineStatus.availability != .ready
-            || session.engineStatus.note != nil {
+        if session.engineStatus.availability == .launching {
             EngineStatusView(status: session.engineStatus,
                              launchStatus: engineLaunchStatus,
                              style: .ornament)
@@ -1309,6 +1284,17 @@ struct VisionRootView: View {
     private func activateModel(_ model: NeuralNetworkModel) {
         guard engineController.canRestartNow,
               model.title != engineController.activeModel.title else { return }
+        // The sparkle's remedy tap opened the Models card wanting analysis: a
+        // pick arms a cleared preference back to run. `.pause`/`.run` are left
+        // alone — the preference is the user's, and the post-restart resync
+        // auto-resumes anything that is not `.clear` (ADR 0010).
+        if shell.modelsPresentedFromAnalysisControl {
+            shell.modelsPresentedFromAnalysisControl = false
+            if session.gobanState.analysisStatus == .clear {
+                session.gobanState.analysisStatus = .run
+                session.analysis.resetVisitsPerSecondSession()
+            }
+        }
         Task { await engineController.restartEngine(loading: model) }
     }
 

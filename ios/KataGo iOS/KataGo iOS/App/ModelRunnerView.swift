@@ -38,16 +38,24 @@ struct ModelRunnerView: View {
                     controller: controller,
                     navigationContext: navigationContext,
                     topUIState: topUIState)
-        .sheet(isPresented: $topUIState.presentingModelPicker) {
+        .sheet(isPresented: $topUIState.presentingModelPicker,
+               onDismiss: {
+                   // A dismissal without a pick drops the sparkle's intent (a
+                   // pick consumed it before dismissing, so this is a no-op
+                   // on that path).
+                   topUIState.analysisArmOnPick = false
+               }) {
             ModelPickerView(selectedModel: $selectedModel)
                 // The sheet is presented from HERE, above every environment
                 // injection `ContentView` makes into the board tree, so the
-                // two values the picker needs are handed over explicitly:
+                // values the picker needs are handed over explicitly:
                 // whether an engine is running — which decides whether the
                 // Core ML routing probe and Clear Cache run directly or have
-                // to unload the engine first — and the controller whose
-                // `restart(performingWhileStopped:)` is that unload.
+                // to unload the engine first — the controller whose
+                // `restart(performingWhileStopped:)` is that unload, and the
+                // board size the status header's Held hint reads.
                 .environment(session.engineStatus)
+                .environment(session.board)
                 .environment(controller)
         }
         .onAppear {
@@ -63,6 +71,17 @@ struct ModelRunnerView: View {
             // reachable with a live engine now, so re-picking it is the natural
             // way to apply a changed backend or Max Board Size.
             selectedModel = nil
+            // The sparkle's remedy tap opened this picker wanting analysis: a
+            // pick arms a cleared preference back to run. `.pause`/`.run` are
+            // left alone — the preference is the user's, and the existing
+            // resync auto-resumes anything that is not `.clear` (ADR 0010).
+            if topUIState.analysisArmOnPick {
+                topUIState.analysisArmOnPick = false
+                if session.gobanState.analysisStatus == .clear {
+                    session.gobanState.analysisStatus = .run
+                    session.analysis.resetVisitsPerSecondSession()
+                }
+            }
             // Then dismiss: the picker's job is done, and leaving it up over a
             // board that is already relaunching just hides the status line that
             // explains the wait.
@@ -88,7 +107,8 @@ struct ModelRunnerView: View {
                              engineLifecycle: engineLifecycle,
                              navigationContext: navigationContext)
 
-        // The two ways out the inline status line offers. They live here
+        // The two ways out the engine states offer (reached from the sparkle
+        // and the remedy surface's status header, ADR 0010). They live here
         // because this is the only view that owns both the picker's
         // presentation and the controller. Bound to locals so the escaping
         // closure holds the two objects rather than a copy of this struct.
@@ -128,9 +148,9 @@ struct ModelRunnerView: View {
 
         case .presentPicker:
             // The board mounts in Absent and the picker comes up over it.
-            // `presentAbsent` also seeds the status line's "Choose model"
-            // button, so the picker stays reachable from the board itself if
-            // this presentation is ever dropped.
+            // `presentAbsent` also seeds the `.chooseModel` action, which the
+            // sparkle's remedy tap performs — so the picker stays reachable
+            // from the board if this presentation is ever dropped.
             controller.presentAbsent()
             topUIState.presentingModelPicker = true
 

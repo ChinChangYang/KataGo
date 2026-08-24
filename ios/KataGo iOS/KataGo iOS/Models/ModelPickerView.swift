@@ -171,6 +171,14 @@ struct ModelPickerView: View {
     @State private var selectedModelID: UUID?
     @Environment(CoreMLCacheReadiness.self) private var readiness
     @Environment(\.dismiss) private var dismiss
+    /// The engine-status header's inputs (ADR 0010): the resting states no
+    /// longer overlay the board, so THIS surface explains them — and offers
+    /// Retry — above the remedy, the model list itself. All optional: a host
+    /// that injects nothing simply shows no header.
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
+    @Environment(EngineLaunchStatus.self) private var launchStatus: EngineLaunchStatus?
+    @Environment(BoardSize.self) private var board: BoardSize?
+    @Environment(AppEngineController.self) private var controller: AppEngineController?
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -201,6 +209,17 @@ struct ModelPickerView: View {
     var body: some View {
         NavigationStack {
             List(selection: $selectedModelID) {
+                // Not wrapped in a Section: the view renders NOTHING when a
+                // ready engine has nothing to say, and a bare row vanishes
+                // cleanly where an empty Section would keep its chrome.
+                if let engineStatus {
+                    EngineStatusHeaderView(status: engineStatus,
+                                           launchStatus: launchStatus,
+                                           board: board,
+                                           modelBoardCap: controller?.activeModel?.nnLen,
+                                           hintStyle: .iosBackendSettings)
+                }
+
                 Section {
                     ForEach(NeuralNetworkModel.allCases) { model in
                         if model.visible,

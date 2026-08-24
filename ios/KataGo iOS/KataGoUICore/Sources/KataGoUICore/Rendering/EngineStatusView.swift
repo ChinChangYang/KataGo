@@ -6,6 +6,12 @@
 //  screen that replaces the board. Renders nothing at all while the engine is
 //  ready, which is what makes it a status line rather than a gate.
 //
+//  Since ADR 0010 the board hosts mount this only for the TRANSIENT Launching
+//  state (and tvOS its side-panel line): the resting states (Absent, Failed,
+//  Held) surface through the analysis control instead, and their remedies
+//  live in `EngineStatusHeaderView` on the model-selection surface. The pill
+//  is inert again — it narrates a wait, it is not a control.
+//
 //  Three styles because the chrome differs, not the content: `.inline` draws
 //  its own pill over the board (iOS/macOS), `.ornament` lets the visionOS
 //  ornament be the chrome, and `.tvLine` is the ONE fixed short line tvOS can
@@ -47,26 +53,6 @@ public struct EngineStatusView: View {
 
     private var isCompiling: Bool { launchStatus?.isCompiling ?? false }
     private var isLaunching: Bool { status.availability == .launching }
-
-    /// The pill never shows a button row (tester feedback, twice: a button
-    /// under the headline crowded the pill — first on Held, then on Absent).
-    /// The pill IS the control: with exactly one way out, tapping the pill
-    /// performs it; with two (a failure offering Retry and Choose model),
-    /// tapping the pill opens a menu of them. A pill with no actions (macOS,
-    /// tvOS) stays a bare, inert line.
-    private var soleAction: EngineStatusAction? {
-        status.actions.count == 1 ? status.actions.first : nil
-    }
-
-    /// The identifier the pill-as-button carries, so the UI suite can keep
-    /// addressing "the Choose model button" even though the button is now the
-    /// whole pill.
-    private static func actionIdentifier(_ action: EngineStatusAction) -> String {
-        switch action {
-        case .retry: return "EngineStatus.retry"
-        case .chooseModel: return "EngineStatus.chooseModel"
-        }
-    }
 
     public var body: some View {
         let text = EngineStatusText.decide(availability: status.availability,
@@ -137,38 +123,7 @@ public struct EngineStatusView: View {
             }
         }
 
-        Group {
-            if let action = soleAction {
-                // A real Button, not a tap gesture: the whole pill activates,
-                // VoiceOver gets the button trait, and Voice Control can speak
-                // the headline. `.plain` keeps the pill looking like the line
-                // it replaces. The board's overlay only takes touches when
-                // actions are non-empty (BoardView), which any tappable pill
-                // guarantees.
-                Button { status.perform(action) } label: { content }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier(Self.actionIdentifier(action))
-            } else if !status.actions.isEmpty {
-                // Two ways out share one pill: tapping it offers both, so the
-                // pill still carries no button row of its own.
-                Menu {
-                    if status.actions.contains(.retry) {
-                        Button("Retry") { status.perform(.retry) }
-                            .accessibilityIdentifier("EngineStatus.retry")
-                    }
-                    if status.actions.contains(.chooseModel) {
-                        Button("Choose model") { status.perform(.chooseModel) }
-                            .accessibilityIdentifier("EngineStatus.chooseModel")
-                    }
-                } label: {
-                    content
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("EngineStatus.actions")
-            } else {
-                content
-            }
-        }
+        content
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(status.availability.accessibilityIdentifier
                                  ?? Self.noteIdentifier)

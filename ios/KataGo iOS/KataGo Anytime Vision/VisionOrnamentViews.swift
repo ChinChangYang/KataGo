@@ -40,6 +40,9 @@ struct VisionControlOrnament: View {
     let controllerInput: VisionControllerInput
     let navigationContext: NavigationContext
     let onSparkle: () -> Void
+    /// The sparkle's remedy tap (ADR 0010): opens the Models card, where the
+    /// engine-status header explains the down state and offers the way out.
+    let onOpenModels: () -> Void
     let onToggleAI: (PlayerColor) -> Void
     let onDismissIllegalMove: () -> Void
 
@@ -81,29 +84,49 @@ struct VisionControlOrnament: View {
                           ? "square.stack.3d.up.fill" : "square.stack.3d.up")
                 }
 
-                // Sparkle = analysis engine state, with the three iOS styles:
+                // Sparkle (ADR 0010): appearance reports analysis ACTIVITY —
                 // running = animated variable-color sparkle, paused = static
-                // sparkle, off = red slashed sparkle. Overlay VISIBILITY is on
-                // the controller's B button (no eye button here).
-                // Analysis needs an engine that can answer. Held counts as
-                // "cannot": it is up, but it refuses this board's size, so there
-                // is nothing for the toggle to start (iOS
-                // StatusToolbarItems.isAnalysisToggleEnabled).
-                Button(action: onSparkle) {
+                // sparkle, user-off = bare red slash, engine down = badged red
+                // slash. Overlay VISIBILITY is on the controller's B button
+                // (no eye button here). Tap follows the engine: usable cycles
+                // the preference; a resting-down engine opens the Models card,
+                // whose status header explains the state and offers the way
+                // out. Only the transient Launching wait disables it.
+                let control = AnalysisControlModel.make(
+                    analysisStatus: session.gobanState.analysisStatus,
+                    availability: session.engineStatus.availability)
+                Button {
+                    if control.tap == .openRemedy {
+                        onOpenModels()
+                    } else {
+                        onSparkle()
+                    }
+                } label: {
                     Label {
                         Text("Toggle Analysis")
                     } icon: {
-                        Image(session.gobanState.analysisStatus == .clear
-                              ? "custom.sparkle.slash" : "custom.sparkle")
+                        Image(control.symbolName)
                             .symbolEffect(.variableColor.iterative.reversing,
-                                          isActive: session.gobanState.analysisStatus == .run)
+                                          isActive: control.isAnimating)
+                            // The engine-down badge: a SHAPE, not a colour, so
+                            // a bare red slash (user off) and a badged one
+                            // (engine down) stay distinguishable to everyone.
+                            .overlay(alignment: .bottomTrailing) {
+                                if control.showsWarningBadge {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.orange)
+                                        .offset(x: 4, y: 4)
+                                }
+                            }
                     }
                 }
-                .foregroundStyle(session.gobanState.analysisStatus == .clear
+                .foregroundStyle(control.isRed
                                  ? AnyShapeStyle(.red)
                                  : AnyShapeStyle(.primary))
                 .contentTransition(.symbolEffect(.replace))
-                .disabled(!isEngineReady)
+                .disabled(!control.isEnabled)
+                .accessibilityLabel(control.accessibilityLabel)
 
                 lockSlotButton
 

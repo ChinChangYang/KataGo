@@ -31,6 +31,10 @@ final class ModelsWindowController: NSWindowController, NSWindowDelegate {
 
     private let modelsViewController: ModelsViewController
 
+    /// Told when the window closes, so the main window controller can drop the
+    /// "opened from the analysis control" arm-on-pick intent (ADR 0010).
+    private let onWindowClose: () -> Void
+
     /// Builds the Models window around a `ModelsViewController`.
     ///
     /// - Parameters:
@@ -39,11 +43,23 @@ final class ModelsWindowController: NSWindowController, NSWindowDelegate {
     ///     each time the table reloads (e.g. after a set-active relaunch).
     ///   - onSetActive: invoked when the user chooses a downloaded model as the
     ///     active net; the caller routes it to `relaunch(model:)`.
+    ///   - engineStatus/board/modelBoardCap: the status header's inputs — this
+    ///     window is the macOS remedy surface (ADR 0010), so it explains the
+    ///     engine state it fixes.
+    ///   - onWindowClose: invoked from `windowWillClose`.
     init(currentModelTitle: @escaping () -> String,
-         onSetActive: @escaping (NeuralNetworkModel) -> Void) {
+         onSetActive: @escaping (NeuralNetworkModel) -> Void,
+         engineStatus: EngineStatus? = nil,
+         board: BoardSize? = nil,
+         modelBoardCap: @escaping () -> Int? = { nil },
+         onWindowClose: @escaping () -> Void = {}) {
+        self.onWindowClose = onWindowClose
         modelsViewController = ModelsViewController(
             currentModelTitle: currentModelTitle,
-            onSetActive: onSetActive
+            onSetActive: onSetActive,
+            engineStatus: engineStatus,
+            board: board,
+            modelBoardCap: modelBoardCap
         )
 
         let window = NSWindow(
@@ -70,5 +86,6 @@ final class ModelsWindowController: NSWindowController, NSWindowDelegate {
     /// survives quitting the app should certainly survive closing a window.
     func windowWillClose(_ notification: Notification) {
         modelsViewController.detachDownloadObservation()
+        onWindowClose()
     }
 }

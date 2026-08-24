@@ -69,11 +69,11 @@ struct MacBoardHostView: View {
                         .environment(session.bookLookup)
                         .environment(session.messageList)
                         .environment(audioModel)
-                        // Engine availability, shown inline over the board:
-                        // "Loading engine…" during a launch, the failure reason
-                        // + Retry after a helper exit, "Board larger than Max
-                        // Board Size N" while held. Renders nothing at all once
-                        // the engine is ready.
+                        // Engine availability: only the transient
+                        // "Loading engine…" pill renders over the board (ADR
+                        // 0010). The resting states — Failed, Held — surface
+                        // through the Analyze toolbar item and the Manage
+                        // Models window's status header instead.
                         .environment(session.engineStatus)
 
                     MacBoardInteractionLayer(gameRecord: gameRecord)
@@ -87,18 +87,13 @@ struct MacBoardHostView: View {
                         .environment(session.stones)
                         .environment(session.messageList)
                         .environment(session.analysis)
-                        // The status line is drawn INSIDE `BoardView`, i.e.
-                        // UNDER this overlay — and this overlay owns every
-                        // click in the board area (its `Color.clear` is
-                        // hit-testable edge to edge). So when the status offers
-                        // a way out (Retry), stand aside, or that button could
-                        // never be clicked. Nothing is lost: a board whose
-                        // engine is failed or absent refuses plays anyway
-                        // (`stones.isReady` is false), so the only thing given
-                        // up is the right-click menu, for exactly as long as
-                        // the button is up. A plain "Loading engine…" carries
-                        // no actions and leaves the overlay live.
-                        .allowsHitTesting(session.engineStatus.actions.isEmpty)
+                        // No standdown any more (ADR 0010): the board never
+                        // renders a tappable status, so this overlay owns
+                        // every click unconditionally. (The old
+                        // `actions.isEmpty` gate would now silently kill
+                        // right-click and hover for the whole of every Failed
+                        // rest — the session still seeds `[.retry]` — with
+                        // nothing visible to explain why.)
                 }
             } else {
                 // No game selected — not an engine state, so no status line:

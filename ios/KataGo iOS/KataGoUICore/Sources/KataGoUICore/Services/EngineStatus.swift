@@ -2,15 +2,21 @@
 //  EngineStatus.swift
 //  KataGoUICore
 //
-//  Engine availability is a STATE the board displays — never a screen that
-//  replaces it. The board always shows the record position; this says whether
-//  anything is able to analyse it.
+//  Engine availability is a STATE — never a screen that replaces the board.
+//  The board always shows the record position; this says whether anything is
+//  able to analyse it.
 //
 //  The five states are the glossary's: Absent (no model chosen), Launching
 //  (a model is loading, possibly compiling), Ready, Failed (with a reason and a
 //  way out), and Held (the running engine's NN buffer is smaller than this
 //  board). Held is a board-size answer, not a screen: the position still draws,
 //  analysis and taps are simply off.
+//
+//  Where a state SHOWS (ADR 0010): only the transient Launching state renders
+//  on the board (and tvOS its side-panel line). The resting states — Absent,
+//  Failed, Held — surface through the analysis (sparkle) control, whose tap
+//  opens the model-selection surface; `EngineStatusHeaderView` there carries
+//  the words and the Retry these states used to put in a pill over the goban.
 //
 
 import Foundation
@@ -80,6 +86,8 @@ public final class EngineStatus {
 
     /// The ways out this state offers. The session seeds `[.retry]` on a
     /// failure and clears them on ready; a host may add `.chooseModel`.
+    /// Rendered by the remedy surface's status header (`showsRetry` follows
+    /// `.retry`), not by any board overlay.
     public var actions: [EngineStatusAction] = []
 
     /// The Max Board Size the RUNNING engine was launched with, i.e. the number

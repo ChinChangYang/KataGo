@@ -20,10 +20,13 @@
 //  still polling, because the engine had come up in under a second. Launching is
 //  still checked where it can be, but never as a gate.
 //
-//  What they pin, and why each is a real regression risk:
+//  What they pin, and why each is a real regression risk (ADR 0010):
 //    • the board exists with NO engine (a re-added `isInitialized` gate would
 //      fail this on the first frame);
-//    • the status line's own "Choose model" button is wired;
+//    • Absent puts NO pill over the board — the resting states surface through
+//      the sparkle, whose tap opens the model picker (the remedy);
+//    • the sparkle's spoken label says the engine is down (VoiceOver cannot
+//      see the badge, so the words must carry it);
 //    • changing the model does not take the board down (the old flow unmounted
 //      the entire tree when `runGtp` returned, which is what
 //      `AppEngineController` replaces);
@@ -56,15 +59,23 @@ final class EngineStatusUITests: PortraitUITestCase {
         XCTAssertEqual(sync.value as? String, "syncing",
                        "The board claimed to be in sync with an engine that does not exist")
 
-        // And the state is explained rather than hidden.
-        XCTAssertTrue(statusElement(app, "EngineStatus.absent").waitForExistence(timeout: 15),
-                      "No 'no model chosen' engine status appeared over the board")
+        // NO pill over the board (ADR 0010): the resting Absent state is the
+        // sparkle's to tell, not an overlay's.
+        XCTAssertFalse(statusElement(app, "EngineStatus.absent").waitForExistence(timeout: 3),
+                       "The removed 'No model chosen' pill reappeared over the board")
 
-        // The status line's own way out — nothing else in this target covers it.
-        let chooseModel = app.buttons["EngineStatus.chooseModel"]
-        XCTAssertTrue(chooseModel.waitForExistence(timeout: 10),
-                      "The Absent status offered no 'Choose model' button")
-        chooseModel.tap()
+        // The sparkle IS the way out: enabled while the engine is down, spoken
+        // label says why, and tapping it opens the model picker.
+        let sparkle = app.buttons["Toggle Analysis"].firstMatch
+        XCTAssertTrue(sparkle.waitForExistence(timeout: 15),
+                      "The analysis sparkle was not on screen")
+        XCTAssertTrue(sparkle.isEnabled,
+                      "The sparkle was disabled with the engine Absent — it is the way into the remedy")
+        XCTAssertTrue(sparkle.label.contains("engine unavailable"),
+                      "The sparkle's label did not say the engine is down (was: \(sparkle.label))")
+        sparkle.tap()
+        XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
+                      "Tapping the sparkle with no engine did not open the model picker")
 
         launchBuiltInEngine(app)
 
@@ -140,8 +151,9 @@ final class EngineStatusUITests: PortraitUITestCase {
 
         dismissModelPicker(app)
 
-        XCTAssertTrue(statusElement(app, "EngineStatus.absent").waitForExistence(timeout: 30),
-                      "No 'no model chosen' engine status appeared over the board")
+        // The resting state adds nothing to the board tree (ADR 0010).
+        XCTAssertFalse(statusElement(app, "EngineStatus.absent").waitForExistence(timeout: 3),
+                       "The removed 'No model chosen' pill reappeared over the board")
 
         // The navigation buttons are enabled and take taps with no engine in the
         // process at all — the strongest form of "navigation never waits". They
@@ -161,11 +173,14 @@ final class EngineStatusUITests: PortraitUITestCase {
         XCTAssertEqual(app.state, .runningForeground,
                        "The app did not survive navigation with no engine")
 
-        // And the engine still arrives afterwards, onto the same board.
-        let chooseModel = app.buttons["EngineStatus.chooseModel"]
-        XCTAssertTrue(chooseModel.waitForExistence(timeout: 10),
-                      "The Absent status offered no 'Choose model' button")
-        chooseModel.tap()
+        // And the engine still arrives afterwards, onto the same board — via
+        // the sparkle, the one control that leads to the remedy.
+        let sparkle = app.buttons["Toggle Analysis"].firstMatch
+        XCTAssertTrue(sparkle.waitForExistence(timeout: 10),
+                      "The analysis sparkle was not on screen")
+        sparkle.tap()
+        XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
+                      "Tapping the sparkle with no engine did not open the model picker")
         launchBuiltInEngine(app)
         waitForBoardInSync(app)
     }

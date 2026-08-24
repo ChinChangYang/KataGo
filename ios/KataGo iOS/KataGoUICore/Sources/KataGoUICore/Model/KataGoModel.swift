@@ -829,9 +829,17 @@ public class TopUIState {
     /// Presents the model picker over the (always-mounted) board. Owned by
     /// `TopUIState` rather than by the root view's own `@State` because three
     /// unrelated places ask for it: the launch decision (DEBUG), the engine
-    /// status line's "Choose model" button, and Global Settings ▸ Change model.
+    /// analysis sparkle's remedy tap, and Global Settings ▸ Change model.
     /// iOS only; nothing else mutates it.
     public var presentingModelPicker = false
+
+    /// The analysis control opened the picker while the engine was down, so
+    /// the tap expressed "I want analysis": a model picked from THIS open arms
+    /// a cleared preference back to run. Set by the sparkle's remedy tap,
+    /// consumed by the selection handler, dropped when the picker is dismissed
+    /// without a pick. The Settings route never sets it — arming is
+    /// sparkle-scoped by design.
+    public var analysisArmOnPick = false
 
     /// Global Settings asked for the picker and is about to dismiss itself.
     /// Two flags rather than one because presenting a sheet in the same

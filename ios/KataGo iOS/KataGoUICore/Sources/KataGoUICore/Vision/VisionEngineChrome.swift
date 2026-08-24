@@ -23,13 +23,17 @@ public struct VisionEngineChrome: Equatable, Sendable {
     /// The goban. The engine has no say in this.
     public let showsBoard: Bool
 
-    /// Controls that SEND GTP commands: the analysis sparkle, the Human/AI
-    /// chips (which rewrite the human-SL bundle and re-arm the search), and New
-    /// Game (which creates a record and feeds it, sized by a buffer a launching
-    /// engine has not settled yet). Only a ready engine can take those.
+    /// Controls that SEND GTP commands: the Human/AI chips (which rewrite the
+    /// human-SL bundle and re-arm the search) and New Game (which creates a
+    /// record and feeds it, sized by a buffer a launching engine has not
+    /// settled yet). Only a ready engine can take those.
     ///
     /// *Held* counts as "cannot": the engine is up, but it refuses this board's
     /// size, so there is nothing for those controls to start.
+    ///
+    /// The analysis sparkle no longer reads this (ADR 0010): it has its own
+    /// rule, `AnalysisControlModel`, because a down engine must keep the
+    /// sparkle ENABLED — its tap is the way into the remedy.
     public let allowsEngineCommands: Bool
 
     /// Stepping (L1/R1), jumping (L2/R2), and opening another game from the

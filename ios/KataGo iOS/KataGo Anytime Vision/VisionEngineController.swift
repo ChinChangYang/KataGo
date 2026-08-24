@@ -92,7 +92,8 @@ final class VisionEngineController {
         self.engineLifecycle = engineLifecycle
         self.modelSelection = modelSelection
         self.navigationContext = navigationContext
-        // The status line's one way out. visionOS has no model picker on the
+        // The `.failed` state's one way out (the Models card's status header
+        // performs it). visionOS has no model picker on the
         // status card (the Models ornament is that), so Retry is the only
         // action it ever offers.
         session.engineStatus.onAction = { [weak self] action in

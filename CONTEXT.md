@@ -69,7 +69,11 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Engine position** — the position the engine has been fed. Never displayed; it exists so analysis has something to analyse.
 - **Feed** — telling the engine the record's moves one at a time. A move the engine would refuse is skipped, exactly as the replay skipped it.
 - **In sync** — the engine has acknowledged the record position. Analysis is collected, and stones may be played, only while in sync.
-- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off; the status may offer the model chooser as the remedy). A state the board displays; never a screen that replaces it.
+- **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state; never a screen that replaces the board. Only the transient *Launching* overlays the board; the resting states surface through the *analysis control*.
+- **Analysis preference** — the user's run / pause / off choice for live analysis. Owned by the user: engine transitions never write it, which is why analysis resumes by itself when a down engine comes back.
+- **Analysis activity** — whether analysis is actually streaming: the preference says run *and* the engine is ready. What the analysis control's appearance reports.
+- **Analysis control** — the sparkle. With a usable engine its tap cycles the preference; with a resting-down engine it wears a warning badge and its tap opens the *remedy surface*. A bare red slash means the user turned analysis off; a badged one means the engine cannot analyse.
+- **Remedy surface** — the model-selection surface (model picker sheet, Manage Models window, Models ornament), carrying an engine-status header: the state, the failure reason, Retry when offered, and the way out of *Held*.
 
 ## Core ML compilation
 

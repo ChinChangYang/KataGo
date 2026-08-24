@@ -21,6 +21,10 @@ struct StatusToolbarItems: View {
     /// Optional: a host that injects no status (macOS) reads as ready, which is
     /// the pre-existing behaviour verbatim.
     @Environment(EngineStatus.self) var engineStatus: EngineStatus?
+    /// Optional for the same reason (and for previews): only the sparkle's
+    /// remedy tap reads it, to remember that a model picked from that open
+    /// should arm analysis.
+    @Environment(TopUIState.self) var topUIState: TopUIState?
 
     var gameRecord: GameRecord
 
@@ -40,13 +44,6 @@ struct StatusToolbarItems: View {
     static func isFunctional(gobanState: GobanState, config: Config, player: Turn) -> Bool {
         !gobanState.shouldGenMove(config: config, player: player)
         && !gobanState.isAutoPlaying
-    }
-
-    /// The analysis toggle needs an engine that can answer. Held counts as
-    /// "cannot": the engine is up but refuses this board's size, so there is
-    /// nothing for the toggle to start.
-    static func isAnalysisToggleEnabled(engineStatus: EngineStatus?) -> Bool {
-        engineStatus?.isReady ?? true
     }
 
     var isFunctional: Bool {
@@ -102,19 +99,40 @@ struct StatusToolbarItems: View {
                 systemImage: "backward.frame"
             )
 
+            // One rule decides the sparkle (ADR 0010): appearance reports
+            // analysis ACTIVITY, the tap either cycles the preference or —
+            // with a resting-down engine — opens the model picker, which is
+            // where the missing engine is explained and fixed. Enabled
+            // precisely when it has something to do; only the transient
+            // Launching wait disables it.
+            let control = AnalysisControlModel.make(analysisStatus: gobanState.analysisStatus,
+                                                    availability: engineStatus?.availability)
             createButton(
                 action: sparkleAction,
                 label: "Toggle Analysis",
                 image:
-                    Image((gobanState.analysisStatus == .clear) ? "custom.sparkle.slash" : "custom.sparkle")
-                    .symbolEffect(.variableColor.iterative.reversing, isActive: gobanState.analysisStatus == .run)
+                    Image(control.symbolName)
+                    .symbolEffect(.variableColor.iterative.reversing, isActive: control.isAnimating)
+                    // The engine-down badge: a SHAPE, not a colour, so a bare
+                    // red slash (user off) and a badged one (engine down) stay
+                    // distinguishable to everyone.
+                    .overlay(alignment: .bottomTrailing) {
+                        if control.showsWarningBadge {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                                .offset(x: 4, y: 4)
+                        }
+                    }
             )
-            .foregroundStyle((gobanState.analysisStatus == .clear) ? .red : .primary)
+            .foregroundStyle(control.isRed ? .red : .primary)
             .contentTransition(.symbolEffect(.replace))
-            // Navigation never waits for the engine; analysis has nothing to
-            // do without one. Disabled rather than silently inert, so the
-            // button says what the status line already says.
-            .disabled(!Self.isAnalysisToggleEnabled(engineStatus: engineStatus))
+            .disabled(!control.isEnabled)
+            // The NAME stays stable for the UI suite while the spoken label
+            // follows the state — VoiceOver cannot see the badge, so the words
+            // must carry what the badge carries.
+            .accessibilityIdentifier("Toggle Analysis")
+            .accessibilityLabel(control.accessibilityLabel)
 
             createButton(
                 action: eyeAction,
@@ -225,6 +243,16 @@ struct StatusToolbarItems: View {
     }
 
     func sparkleAction() {
+        let control = AnalysisControlModel.make(analysisStatus: gobanState.analysisStatus,
+                                                availability: engineStatus?.availability)
+        if control.tap == .openRemedy {
+            // The tap said "I want analysis": remember it, so a model picked
+            // from this open arms a cleared preference (ModelRunnerView
+            // consumes the flag; a dismissed picker drops it).
+            topUIState?.analysisArmOnPick = true
+            engineStatus?.perform(.chooseModel)
+            return
+        }
         if gobanState.analysisStatus == .pause {
             stopAction()
         } else if gobanState.analysisStatus == .run {

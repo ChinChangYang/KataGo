@@ -24,7 +24,7 @@
 //      beginEngineSession -> re-feed the position the board is showing.
 //
 //  Two iOS-only additions:
-//    • `restart` is allowed from `.failed` — that is what the status line's
+//    • `restart` is allowed from `.failed` — that is what the remedy surface's
 //      Retry button is. visionOS has no such button.
 //    • a thread that returns without being asked to becomes `.failed` with
 //      BOTH ways out (`.retry` and `.chooseModel`); iOS is the only platform

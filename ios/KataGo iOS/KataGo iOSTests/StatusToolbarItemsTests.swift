@@ -12,8 +12,11 @@
 //  them are the two that would corrupt the record: an AI move being generated,
 //  and an auto-play replay already stepping the cursor.
 //
-//  The analysis toggle is the opposite case: it has nothing to toggle without
-//  an engine, so it is disabled — not ignored — while one is unavailable.
+//  The analysis toggle (ADR 0010): its appearance reports analysis ACTIVITY
+//  and its tap follows the engine — a usable engine cycles the preference, a
+//  resting-down one (Absent/Failed/Held) opens the model picker instead, with
+//  a badge saying so. Only the transient Launching wait disables it: the
+//  control is the way INTO the remedy, so the down states must keep it live.
 //
 
 import Testing
@@ -60,30 +63,68 @@ struct StatusToolbarItemsTests {
                                                  player: Turn()))
     }
 
-    @Test func theAnalysisToggleIsDisabledUntilAnEngineCanAnswer() {
-        let status = EngineStatus()
+    @Test func theAnalysisToggleIsDisabledOnlyWhileLaunching() {
+        // Launching is the one transient wait: the board's pill narrates it,
+        // and a tap has nothing useful to do yet.
+        let launching = AnalysisControlModel.make(analysisStatus: .run,
+                                                  availability: .launching)
+        #expect(!launching.isEnabled)
+        #expect(!launching.isAnimating)
+        #expect(!launching.showsWarningBadge)
 
-        status.availability = .launching
-        #expect(!StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: status))
+        // The resting down states keep the control ENABLED — it is the way
+        // into the remedy — and badge it so a bare red slash (user off) and
+        // an engine-down slash stay distinguishable.
+        for down in [EngineAvailability.absent,
+                     .failed(reason: "boom"),
+                     .held(maxBoardLength: 19)] {
+            let control = AnalysisControlModel.make(analysisStatus: .run,
+                                                    availability: down)
+            #expect(control.isEnabled)
+            #expect(control.tap == .openRemedy)
+            #expect(control.showsWarningBadge)
+            #expect(control.isRed)
+            #expect(control.symbolName == AnalysisControlModel.slashSymbol)
+            // Activity, not preference: a `.run` preference against a down
+            // engine animates nothing, because nothing is running.
+            #expect(!control.isAnimating)
+        }
 
-        status.availability = .absent
-        #expect(!StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: status))
+        let ready = AnalysisControlModel.make(analysisStatus: .run,
+                                              availability: .ready)
+        #expect(ready.isEnabled)
+        #expect(ready.tap == .cycle)
+        #expect(ready.isAnimating)
+        #expect(!ready.showsWarningBadge)
+    }
 
-        status.availability = .failed(reason: "boom")
-        #expect(!StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: status))
+    @Test func theBadgeGrammarSeparatesUserOffFromEngineDown() {
+        // Bare red slash: the USER turned analysis off, engine fine.
+        let userOff = AnalysisControlModel.make(analysisStatus: .clear,
+                                                availability: .ready)
+        #expect(userOff.symbolName == AnalysisControlModel.slashSymbol)
+        #expect(userOff.isRed)
+        #expect(!userOff.showsWarningBadge)
+        #expect(userOff.tap == .cycle)
 
-        // Held: the engine is up, but it cannot take this board — so there is
-        // still nothing for the toggle to start.
-        status.availability = .held(maxBoardLength: 19)
-        #expect(!StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: status))
+        // Badged red slash: the ENGINE is down, whatever the preference says.
+        let engineDown = AnalysisControlModel.make(analysisStatus: .clear,
+                                                   availability: .absent)
+        #expect(engineDown.showsWarningBadge)
+        #expect(engineDown.tap == .openRemedy)
 
-        status.availability = .ready
-        #expect(StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: status))
+        // VoiceOver cannot see the badge, so the words must diverge too.
+        #expect(userOff.accessibilityLabel != engineDown.accessibilityLabel)
     }
 
     @Test func aHostThatInjectsNoStatusKeepsTheToggleEnabled() {
-        // macOS injects none. "No status" must read as "carry on as before",
-        // never as "disabled forever".
-        #expect(StatusToolbarItems.isAnalysisToggleEnabled(engineStatus: nil))
+        // macOS's shared row injects none. "No status" must read as "carry on
+        // as before", never as "disabled forever".
+        let control = AnalysisControlModel.make(analysisStatus: .pause,
+                                                availability: nil)
+        #expect(control.isEnabled)
+        #expect(control.tap == .cycle)
+        #expect(!control.showsWarningBadge)
+        #expect(control.symbolName == AnalysisControlModel.sparkleSymbol)
     }
 }

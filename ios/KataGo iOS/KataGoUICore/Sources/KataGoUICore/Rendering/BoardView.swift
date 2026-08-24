@@ -101,10 +101,9 @@ public struct BoardView: View {
     /// before.
     ///
     /// tvOS is the one platform that does NOT take the engine line here: it has
-    /// a 10-foot side panel with an analysis slot of its own, and the inline
-    /// pill would put a wrapping caption — and a focusable Retry button — on top
-    /// of the hero board. `TVReviewScreen`/`TVPlayScreen` render
-    /// `EngineStatusView(style: .tvLine)` in that panel instead.
+    /// a 10-foot side panel with an analysis slot of its own. `TVReviewScreen`/
+    /// `TVPlayScreen` render `EngineStatusView(style: .tvLine)` in that panel
+    /// instead.
     @ViewBuilder
     private var engineStatusOverlay: some View {
         // tvOS never shows the engine line here (see above), so on that platform
@@ -112,7 +111,11 @@ public struct BoardView: View {
 #if os(tvOS)
         let showsEngineStatus = false
 #else
-        let showsEngineStatus = engineStatus.map { !$0.isReady || $0.note != nil } ?? false
+        // Only the TRANSIENT Launching state overlays the board (ADR 0010).
+        // The resting states — Absent, Failed, Held, and a ready engine's
+        // note — surface through the analysis control and the model-selection
+        // surface's status header instead of covering the goban.
+        let showsEngineStatus = engineStatus.map { $0.availability == .launching } ?? false
 #endif
         if showsEngineStatus || gobanState.isRecordUnreadable {
             VStack(spacing: 6) {
@@ -128,9 +131,9 @@ public struct BoardView: View {
                 }
             }
             .padding(.top, 8)
-            // Only a status with a way out may take a touch; otherwise the line
-            // must not steal a tap meant for the point underneath it.
-            .allowsHitTesting(engineStatus?.actions.isEmpty == false)
+            // Nothing rendered here is interactive: the line must not steal a
+            // tap meant for the point underneath it.
+            .allowsHitTesting(false)
         }
     }
 

@@ -39,6 +39,7 @@
 
 import AppKit
 import KataGoUICore
+import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
@@ -52,6 +53,14 @@ final class ModelsViewController: NSViewController {
 
     /// Invoked when the user chooses a downloaded model as the active net.
     private let onSetActive: (NeuralNetworkModel) -> Void
+
+    /// The status header's inputs (ADR 0010): this window is the macOS remedy
+    /// surface, so it explains the engine state it fixes — the failure reason
+    /// with Retry, the Held hint, the built-in-fallback note. Optional: with
+    /// no status injected the header simply never renders.
+    private let engineStatus: EngineStatus?
+    private let board: BoardSize?
+    private let modelBoardCap: () -> Int?
 
     // MARK: - Data
 
@@ -133,9 +142,15 @@ final class ModelsViewController: NSViewController {
     // MARK: - Init
 
     init(currentModelTitle: @escaping () -> String,
-         onSetActive: @escaping (NeuralNetworkModel) -> Void) {
+         onSetActive: @escaping (NeuralNetworkModel) -> Void,
+         engineStatus: EngineStatus? = nil,
+         board: BoardSize? = nil,
+         modelBoardCap: @escaping () -> Int? = { nil }) {
         self.currentModelTitle = currentModelTitle
         self.onSetActive = onSetActive
+        self.engineStatus = engineStatus
+        self.board = board
+        self.modelBoardCap = modelBoardCap
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -203,9 +218,29 @@ final class ModelsViewController: NSViewController {
         splitView.addArrangedSubview(detailContainer)
 
         let container = NSView()
+        // The engine-status header, above the split view (ADR 0010). An
+        // `NSHostingView` so the shared SwiftUI header is reused verbatim;
+        // `@Observable` tracking re-renders it through Launching → Ready with
+        // no observer plumbing, and it collapses to zero height when a ready
+        // engine has nothing to say.
+        var splitTopAnchor = container.topAnchor
+        if let engineStatus {
+            let header = NSHostingView(rootView: MacEngineStatusHeader(
+                status: engineStatus,
+                board: board,
+                modelBoardCap: modelBoardCap))
+            header.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(header)
+            NSLayoutConstraint.activate([
+                header.topAnchor.constraint(equalTo: container.topAnchor),
+                header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            ])
+            splitTopAnchor = header.bottomAnchor
+        }
         container.addSubview(splitView)
         NSLayoutConstraint.activate([
-            splitView.topAnchor.constraint(equalTo: container.topAnchor),
+            splitView.topAnchor.constraint(equalTo: splitTopAnchor),
             splitView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             splitView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             splitView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
@@ -777,5 +812,26 @@ final class ModelImportProgressViewController: NSViewController {
 
     @objc private func cancelClicked() {
         onCancel?()
+    }
+}
+
+
+/// The Manage Models window's engine-status header: the shared
+/// `EngineStatusHeaderView` with macOS wording, padded for an AppKit window.
+/// `launchStatus` is nil by design — the subprocess engine has no
+/// compile-status channel back to the app (ADR 0007's deliberate gap).
+private struct MacEngineStatusHeader: View {
+    let status: EngineStatus
+    let board: BoardSize?
+    let modelBoardCap: () -> Int?
+
+    var body: some View {
+        EngineStatusHeaderView(status: status,
+                               launchStatus: nil,
+                               board: board,
+                               modelBoardCap: modelBoardCap(),
+                               hintStyle: .macDetailPane)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
     }
 }

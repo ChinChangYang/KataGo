@@ -53,8 +53,20 @@ final class VisionGameShell {
     /// the flags directly, from the bar buttons.
     var showingSettings = false
     var showingNewGamePanel = false
-    var showingModels = false
+    var showingModels = false {
+        didSet {
+            // The sparkle's arm-on-pick intent (ADR 0010) expires with the
+            // card, however it closed — dismissal, anchor swap, activation.
+            if !showingModels { modelsPresentedFromAnalysisControl = false }
+        }
+    }
     var showingLicenses = false
+
+    /// The analysis sparkle opened the Models card while the engine was down,
+    /// so the tap expressed "I want analysis": a model activated from THIS
+    /// open arms a cleared preference back to run (consumed by
+    /// `VisionRootView.activateModel`).
+    var modelsPresentedFromAnalysisControl = false
 
     func toggleSettings() {
         showingSettings.toggle()
