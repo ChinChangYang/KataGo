@@ -48,16 +48,24 @@ public struct EngineStatusView: View {
     private var isCompiling: Bool { launchStatus?.isCompiling ?? false }
     private var isLaunching: Bool { status.availability == .launching }
 
-    /// Held's remedy is the pill itself: tapping the "Board larger than Max
-    /// Board Size N" line opens the model chooser — no button row (tester
-    /// feedback: a button under that headline crowded the pill). Every other
-    /// state keeps its buttons; a Held with no actions (macOS, tvOS) stays a
-    /// bare, inert line.
-    private var tapOpensChooser: Bool {
-        if case .held = status.availability {
-            return status.actions.contains(.chooseModel)
+    /// The pill never shows a button row (tester feedback, twice: a button
+    /// under the headline crowded the pill — first on Held, then on Absent).
+    /// The pill IS the control: with exactly one way out, tapping the pill
+    /// performs it; with two (a failure offering Retry and Choose model),
+    /// tapping the pill opens a menu of them. A pill with no actions (macOS,
+    /// tvOS) stays a bare, inert line.
+    private var soleAction: EngineStatusAction? {
+        status.actions.count == 1 ? status.actions.first : nil
+    }
+
+    /// The identifier the pill-as-button carries, so the UI suite can keep
+    /// addressing "the Choose model button" even though the button is now the
+    /// whole pill.
+    private static func actionIdentifier(_ action: EngineStatusAction) -> String {
+        switch action {
+        case .retry: return "EngineStatus.retry"
+        case .chooseModel: return "EngineStatus.chooseModel"
         }
-        return false
     }
 
     public var body: some View {
@@ -111,21 +119,6 @@ public struct EngineStatusView: View {
             if let note = text.note {
                 line(note)
             }
-            if !status.actions.isEmpty, !tapOpensChooser {
-                HStack(spacing: 12) {
-                    if status.actions.contains(.retry) {
-                        Button("Retry") { status.perform(.retry) }
-                            .accessibilityIdentifier("EngineStatus.retry")
-                    }
-                    if status.actions.contains(.chooseModel) {
-                        Button("Choose model") { status.perform(.chooseModel) }
-                            .accessibilityIdentifier("EngineStatus.chooseModel")
-                    }
-                }
-                .font(.caption)
-                .buttonStyle(.bordered)
-                .padding(.top, 2)
-            }
         }
         .multilineTextAlignment(.leading)
         // Text WRAPS only with fixedSize; lineLimit alone truncates. Both, so a
@@ -145,15 +138,33 @@ public struct EngineStatusView: View {
         }
 
         Group {
-            if tapOpensChooser {
+            if let action = soleAction {
                 // A real Button, not a tap gesture: the whole pill activates,
                 // VoiceOver gets the button trait, and Voice Control can speak
                 // the headline. `.plain` keeps the pill looking like the line
                 // it replaces. The board's overlay only takes touches when
-                // actions are non-empty (BoardView), which Held's
-                // `[.chooseModel]` guarantees.
-                Button { status.perform(.chooseModel) } label: { content }
+                // actions are non-empty (BoardView), which any tappable pill
+                // guarantees.
+                Button { status.perform(action) } label: { content }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier(Self.actionIdentifier(action))
+            } else if !status.actions.isEmpty {
+                // Two ways out share one pill: tapping it offers both, so the
+                // pill still carries no button row of its own.
+                Menu {
+                    if status.actions.contains(.retry) {
+                        Button("Retry") { status.perform(.retry) }
+                            .accessibilityIdentifier("EngineStatus.retry")
+                    }
+                    if status.actions.contains(.chooseModel) {
+                        Button("Choose model") { status.perform(.chooseModel) }
+                            .accessibilityIdentifier("EngineStatus.chooseModel")
+                    }
+                } label: {
+                    content
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("EngineStatus.actions")
             } else {
                 content
             }
