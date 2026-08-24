@@ -24,8 +24,7 @@ import Testing
 
 @MainActor
 struct HeldAnalysisGuardTests {
-    private let infoLine =
-        "info move Q16 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 order 0 pv Q16"
+    private let infoLine = AnalyzeLineFixture.line()
 
     @Test func aLiveEngineSAnalysisIsCollected() async {
         let session = GameSession.accepting()
@@ -76,6 +75,9 @@ struct HeldAnalysisGuardTests {
 
         // The controller's launched buffer is 19 before any spawn; a 37x37
         // record cannot be fed to it.
+        session.analysis.ownershipUnits = [OwnershipUnit(point: BoardPoint(x: 0, y: 0),
+                                                         whiteness: 1, scale: 1, opacity: 1)]
+
         controller.applyHeldStatus(boardWidth: 37, boardHeight: 37)
 
         #expect(session.engineStatus.availability == .held(maxBoardLength: 19))
@@ -83,6 +85,68 @@ struct HeldAnalysisGuardTests {
                 "the engine kept searching the position the board no longer shows")
         #expect(!session.messageList.isAcceptingCommands)
         #expect(!session.stones.isReady)
+        #expect(session.analysis.ownershipUnits.isEmpty,
+                "shading survived the engine that produced it, under a badged sparkle")
+    }
+
+    // MARK: - The ownership hold expires with the engine (ADR 0011)
+
+    @Test func ownershipIsClearedWhenTheEngineLeavesAWorkingState() {
+        func session(seeded: Bool = true) -> GameSession {
+            let session = GameSession.accepting()
+            session.useEngine(RecordingEngine())
+            session.engineStatus.availability = .ready
+            if seeded {
+                session.analysis.ownershipUnits =
+                    [OwnershipUnit(point: BoardPoint(x: 0, y: 0),
+                                   whiteness: 1, scale: 1, opacity: 1)]
+            }
+            return session
+        }
+
+        let held = session()
+        held.holdEngineSession(maxBoardLength: 19)
+        #expect(held.analysis.ownershipUnits.isEmpty)
+
+        let failed = session()
+        failed.endEngineSession(.failed(reason: "x"))
+        #expect(failed.analysis.ownershipUnits.isEmpty)
+
+        let absent = session()
+        absent.endEngineSession(.absent)
+        #expect(absent.analysis.ownershipUnits.isEmpty)
+
+        // Launching is deliberately a WORKING state: every restart passes
+        // through it, and most change neither the position nor the engine's
+        // opinion of it. Clearing here would blink the board on every backend
+        // change, thread-count change and Retry.
+        let launching = session()
+        launching.endEngineSession(.launching)
+        #expect(launching.analysis.ownershipUnits.count == 1)
+    }
+
+    @Test func aMalformedInfoLineDoesNotBlankTheOwnershipOverlay() async {
+        // A search for the board we just LEFT keeps streaming. Its grid is
+        // count-validated against the board on screen, so it parses to no
+        // units — and writing that emptiness would blink the held map exactly
+        // as the projector's old clear did.
+        let session = GameSession.accepting()
+        session.board.width = 2
+        session.board.height = 2
+        session.analysis.ownershipUnits = (0..<2).flatMap { y in
+            (0..<2).map { x in
+                OwnershipUnit(point: BoardPoint(x: x, y: y),
+                              whiteness: 1, scale: 1, opacity: 1)
+            }
+        }
+
+        await session.maybeCollectAnalysis(
+            message: AnalyzeLineFixture.lineForAnotherBoard(boardWidth: 3, boardHeight: 3))
+
+        #expect(session.analysis.ownershipUnits.count == 4,
+                "a report for a board we already left blanked the overlay")
+        #expect(session.analysis.collectedForKey == nil,
+                "a report for another board stamped the displayed position as analysed")
     }
 
     /// One complete showboard reply, in the order KataGo prints it.

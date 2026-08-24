@@ -18,6 +18,14 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Evidence** — what a probe is waiting for: a reply in which the engine actually *searched* something. A reply carrying only the engine's prior guesses is not evidence; it reports the position's own numbers under another move's name.
 - **Patience pool** — the extra time one report may spend, in total, waiting for evidence past its stages' fixed budgets. A property of the occasion, not of the position: an unattended TV slideshow has patience, a report sheet a person is watching has none.
 
+## Live analysis
+
+- **Live analysis** — the engine's continuous read of the position on screen, drawn over the board and refined for as long as the search runs. Distinct from the *Deep Analysis Report*, which studies one position once and then stops.
+- **Ownership overlay** — the shaded square on every intersection, saying which side the engine expects to end up owning it and how settled that expectation is. A whole-board picture, never a selection: every intersection carries one, so there are no interesting points and boring gaps.
+- **Candidate overlay** — the circles marking the moves the engine is weighing, carrying their win rate, score and visit count. Drawn for one specific side to move, which is what makes it worthless the instant the position changes.
+- **Ownership hold** — the previous position's *ownership overlay* stays on the board across a played move, an undo or a scrub, and each square moves to its new shade when the engine's first answer for the new position lands. The *candidate overlay* is never held: a territory map one stone out of date is approximately right, a ranking made for the other side to move is simply wrong.
+- **Hold expiry** — what ends an *ownership hold* outright instead of replacing it: the board ceasing to be the same game (a switch, a new game, a size change), *engine availability* leaving a working state, and the board moving while the engine is not being talked to. Shading that outlived its engine would claim an analysis the *analysis control* is at that moment badged to say the app does not have.
+
 ## Broadcast
 
 - **Broadcast** — the commentated slide show that narrates one position on Apple TV: deterministic fact sentences typed out in lockstep with an acted-out board, and spoken aloud when narration is on. Distinct from the *Deep Analysis Report*, which is the same underlying study data presented as a static sheet.
@@ -70,7 +78,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Feed** — telling the engine the record's moves one at a time. A move the engine would refuse is skipped, exactly as the replay skipped it.
 - **In sync** — the engine has acknowledged the record position. Analysis is collected, and stones may be played, only while in sync.
 - **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state; never a screen that replaces the board. Only the transient *Launching* overlays the board; the resting states surface through the *analysis control*.
-- **Analysis preference** — the user's run / pause / off choice for live analysis. Owned by the user: engine transitions never write it, which is why analysis resumes by itself when a down engine comes back.
+- **Analysis preference** — the user's run / pause / off choice for *live analysis*. Owned by the user: engine transitions never write it, which is why analysis resumes by itself when a down engine comes back.
 - **Analysis activity** — whether analysis is actually streaming: the preference says run *and* the engine is ready. What the analysis control's appearance reports.
 - **Analysis control** — the sparkle. With a usable engine its tap cycles the preference; with a resting-down engine it wears a warning badge and its tap opens the *remedy surface*. A bare red slash means the user turned analysis off; a badged one means the engine cannot analyse.
 - **Remedy surface** — the model-selection surface (model picker sheet, Manage Models window, Models ornament), carrying an engine-status header: the state, the failure reason, Retry when offered, and the way out of *Held*.

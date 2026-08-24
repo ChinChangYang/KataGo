@@ -155,16 +155,42 @@ public final class RecordPositionProjector {
     /// Publishes `key`'s position into the display models. Idempotent: the
     /// same key writes nothing and returns the position already on screen.
     ///
-    /// `Analysis` is cleared when the board size changes (as
-    /// `adjustBoardDimensionsIfNeeded` did) and whenever the key changes while
-    /// the engine is NOT in sync — the numbers were collected for the position
-    /// being left, and nothing has analysed the new one yet.
+    /// `Analysis` is ASYMMETRIC across a position change (ADR 0011). The
+    /// candidate moves go on every key change — `clearCandidates()`. The
+    /// ownership map STAYS, and is replaced square by square when the engine
+    /// answers for the new position: every intersection carries a unit and a
+    /// unit's identity is its point, so two non-empty maps interpolate, while a
+    /// map replaced by NOTHING is a delete followed by an insert that no
+    /// animation on the arrival can make look like anything but a blink.
+    ///
+    /// The map is dropped outright — the full `clear()` — only where it can no
+    /// longer describe anything on screen:
+    ///
+    ///   • the board changed size (the units are indexed by a grid that is
+    ///     gone);
+    ///   • nothing is selected, or the record could not be replayed, so the
+    ///     board published is empty. Neither trips `sizeChanged`, because
+    ///     `RecordPosition.empty` reuses the size already on screen;
+    ///   • a different record arrived (`loadGame` clears too, but a host whose
+    ///     own driver projects the new key first would make that a no-op);
+    ///   • the engine is not being talked to. This is the one that is not about
+    ///     the board: while the command gate is shut — a relaunch, *Held*,
+    ///     *Failed* — every command is dropped and `maybeCollectAnalysis`
+    ///     refuses every line, so a map carried onto a position the user
+    ///     scrubbed to has nothing left that could ever correct it. Standing
+    ///     still through a relaunch keeps the map; this method is not even
+    ///     called, because the key did not change.
+    ///
+    /// Sync is deliberately NOT one of them: the board leaves sync on every
+    /// step by design, which is how clearing on it blanked the overlay on every
+    /// move.
     @discardableResult
     public func project(key: RecordPositionKey?,
                         into stones: Stones,
                         board: BoardSize,
                         analysis: Analysis,
-                        gobanState: GobanState) -> RecordPosition {
+                        gobanState: GobanState,
+                        engineIsAcceptingCommands: Bool = true) -> RecordPosition {
         if hasProjected, key == currentKey, let currentPosition {
             return currentPosition
         }
@@ -183,8 +209,11 @@ public final class RecordPositionProjector {
 
         let sizeChanged = board.width != CGFloat(position.width)
             || board.height != CGFloat(position.height)
-        if sizeChanged || !stones.isReady {
+        let recordChanged = key?.recordID != currentKey?.recordID
+        if sizeChanged || resolved == nil || recordChanged || !engineIsAcceptingCommands {
             analysis.clear()
+        } else {
+            analysis.clearCandidates()
         }
 
         // Two transactions, both synchronous: stones and geometry swap

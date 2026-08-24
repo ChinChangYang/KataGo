@@ -35,3 +35,32 @@ extension GameSession {
         return session
     }
 }
+
+/// One `kata-analyze` line shaped the way the APP asks for it: candidates plus a
+/// full root ownership grid.
+///
+/// Every app target requests ownership (`AnalysisCommand.analyze` defaults it
+/// true; only the iOS Safari appex opts out, and it never reaches
+/// `GameSession`). Since ADR 0011 the collector drops any line whose grid does
+/// not fit the board on screen, so a fixture WITHOUT a grid is not a line the
+/// collector can ever see — and a test built on one would be pinning a path
+/// that does not exist.
+enum AnalyzeLineFixture {
+    static func line(move: String = "Q16",
+                     visits: Int = 10,
+                     boardWidth: Int = 19,
+                     boardHeight: Int = 19) -> String {
+        let count = boardWidth * boardHeight
+        let ownership = Array(repeating: "0.5", count: count).joined(separator: " ")
+        let stdev = Array(repeating: "0.1", count: count).joined(separator: " ")
+        return "info move \(move) visits \(visits) winrate 0.55 scoreLead 2.5"
+            + " utilityLcb 0.3 order 0 pv \(move)"
+            + " ownership \(ownership) ownershipStdev \(stdev)"
+    }
+
+    /// A line whose grid belongs to a DIFFERENT board — what a search for the
+    /// position the user just left keeps streaming after a size change.
+    static func lineForAnotherBoard(boardWidth: Int, boardHeight: Int) -> String {
+        line(boardWidth: boardWidth, boardHeight: boardHeight)
+    }
+}

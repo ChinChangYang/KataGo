@@ -351,6 +351,29 @@ public class Analysis {
         sessionStartTime = nil
     }
 
+    /// Drops the candidate moves and the collection stamp, and nothing else —
+    /// the ownership map stays on the board (ADR 0011). A territory map one
+    /// stone out of date is approximately right, which is the whole job of a
+    /// territory map; a candidate ranking is computed for one specific side to
+    /// move, so after a move it ranks the wrong player's options and can put a
+    /// circle on the stone that was just played. Absent beats wrong.
+    ///
+    /// Nilling the stamp is half the point, not bookkeeping:
+    /// `GobanState.maybeUpdateAnalysisData` persists per-index analysis only
+    /// while `collectedForKey` names the displayed position, and a held map
+    /// belongs to the position being left. Keeping the stamp would let a
+    /// navigation round trip re-file the previous position's numbers into the
+    /// index the board has just arrived at.
+    ///
+    /// The visits/s session is deliberately left alone: `updateVisitsPerSecond`
+    /// re-anchors itself when cumulative root visits drop, which is exactly what
+    /// a new search does, so re-anchoring here would only flash a zero in the
+    /// status line for one report.
+    public func clearCandidates() {
+        info = [:]
+        collectedForKey = nil
+    }
+
     /// Updates `visitsPerSecond` as the average rate over the current analysis session
     /// (the continuous search for the current position). Averaging from the start of the
     /// session keeps the number stable as the search runs, instead of jumping with each

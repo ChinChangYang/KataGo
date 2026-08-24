@@ -121,7 +121,8 @@ public final class GameSession {
                                into: stones,
                                board: board,
                                analysis: analysis,
-                               gobanState: gobanState)
+                               gobanState: gobanState,
+                               engineIsAcceptingCommands: messageList.isAcceptingCommands)
     }
 
     // MARK: - Initialization
@@ -323,6 +324,15 @@ public final class GameSession {
         messageList.isAcceptingCommands = false
         abortInFlightBoardCollection()
         gobanState.resetForFreshEngine(stones: stones)
+        // A held ownership map that outlived its engine claims an analysis the
+        // badged analysis control is at that moment saying the app does not
+        // have (ADR 0011). The FULL clear, not the narrow one: on an engine
+        // departure the candidates and the frozen visits/s are stale too.
+        // Animated, because this is a genuine disappearance rather than a
+        // replacement, and the board size is not moving under it.
+        if !EngineAnalysisHoldRule.holdsOverlay(availability) {
+            withAnimation { analysis.clear() }
+        }
         engineStatus.availability = availability
         if case .failed = availability {
             engineStatus.actions = [.retry]
@@ -358,6 +368,9 @@ public final class GameSession {
     ///      exists, and its `?` refusals would claim a sync that does not exist.
     ///   4. `resetForFreshEngine` — nothing the engine holds relates to what is
     ///      on screen any more.
+    ///   5. Clear `Analysis`. The ownership map is otherwise HELD across a
+    ///      position change (ADR 0011), and a Held engine is exactly the case
+    ///      where holding it would be a lie: nothing is going to replace it.
     ///
     /// The availability write is last, so no observer can see a `.held` status
     /// over a gate that is still open.
@@ -373,6 +386,10 @@ public final class GameSession {
         abortInFlightBoardCollection()
         messageList.isAcceptingCommands = false
         gobanState.resetForFreshEngine(stones: stones)
+        // Held is a resting-down state, so the overlay goes with it (ADR 0011)
+        // — before the availability write, like every other step here, so no
+        // observer sees `.held` over a map that is still standing.
+        withAnimation { analysis.clear() }
         engineStatus.actions = actions
         engineStatus.availability = .held(maxBoardLength: maxBoardLength)
     }
@@ -612,6 +629,17 @@ public final class GameSession {
                                             boardHeight: Int(board.height),
                                             nextColor: player.nextColorFromShowBoard)
             let parsed = parser.parse(message: message)
+            // A report whose ownership grid does not fit the board on screen is
+            // a report for a board we have already LEFT (a size change still in
+            // flight) — the parser count-validates the grid and hands back no
+            // units for it. Drop the whole line rather than just the ownership
+            // write: taking its `info` would move `collectedForKey` to the live
+            // key while the held map still describes the position being left,
+            // which is precisely how a stale map gets filed into a new index.
+            // Every app target asks for ownership — only the iOS Safari appex
+            // opts out, and it never touches this class — so such a line is
+            // stale or malformed, never a legitimate report.
+            guard !parsed.ownershipUnits.isEmpty else { return }
             let rootVisits = Analysis.parseRootVisits(from: message)
 
             withAnimation {

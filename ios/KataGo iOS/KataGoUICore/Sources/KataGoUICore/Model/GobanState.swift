@@ -1316,7 +1316,8 @@ public class GobanState {
                           into: stones,
                           board: board,
                           analysis: analysis,
-                          gobanState: self)
+                          gobanState: self,
+                          engineIsAcceptingCommands: messageList.isAcceptingCommands)
 
         // The record is the authority on its own rules; adopt them before the
         // feed states them to the engine.

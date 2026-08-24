@@ -41,9 +41,22 @@ struct RecordPositionProjectorTests {
         let projector = RecordPositionProjector()
 
         @discardableResult
-        func project(_ key: RecordPositionKey?) -> RecordPosition {
+        func project(_ key: RecordPositionKey?,
+                     engineIsAcceptingCommands: Bool = true) -> RecordPosition {
             projector.project(key: key, into: stones, board: board,
-                              analysis: analysis, gobanState: gobanState)
+                              analysis: analysis, gobanState: gobanState,
+                              engineIsAcceptingCommands: engineIsAcceptingCommands)
+        }
+
+        /// One unit per intersection, exactly as `AnalysisLineParser` emits
+        /// them — the array shape the hold depends on.
+        func seedOwnership(size: Int) {
+            analysis.ownershipUnits = (0..<size).flatMap { y in
+                (0..<size).map { x in
+                    OwnershipUnit(point: BoardPoint(x: x, y: y),
+                                  whiteness: 1, scale: 1, opacity: 1)
+                }
+            }
         }
     }
 
@@ -254,19 +267,26 @@ struct RecordPositionProjectorTests {
 
     // MARK: - Analysis lifetime
 
-    @Test func analysisIsClearedWhenTheKeyChangesWhileNotInSync() {
+    @Test func candidatesClearButOwnershipHoldsWhenTheKeyChangesWhileNotInSync() {
+        // ADR 0011: sync is NOT what expires the hold. A played move drops
+        // `isReady` before the record moves, so clearing on it blanked the
+        // overlay on every single step — the regression this pins shut.
         let models = Models()
         models.project(key(Self.nineteen, 1))
         models.stones.isReady = true
         models.analysis.ownershipUnits = [OwnershipUnit(point: BoardPoint(x: 0, y: 0),
                                                         whiteness: 1, scale: 1, opacity: 1)]
+        models.analysis.info[BoardPoint(x: 15, y: 15)] =
+            AnalysisInfo(visits: 100, winrate: 0.5, scoreLead: 0, utilityLcb: 0)
         models.analysis.collectedForKey = key(Self.nineteen, 1)
 
         // A played move / a step: `isReady` drops, then the record moves.
         models.stones.isReady = false
         models.project(key(Self.nineteen, 2))
 
-        #expect(models.analysis.ownershipUnits.isEmpty)
+        #expect(models.analysis.ownershipUnits.count == 1)
+        // The candidates go: they were ranked for the other side to move.
+        #expect(models.analysis.info.isEmpty)
         #expect(models.analysis.collectedForKey == nil)
     }
 
@@ -279,9 +299,61 @@ struct RecordPositionProjectorTests {
         models.stones.isReady = true
         models.analysis.ownershipUnits = [OwnershipUnit(point: BoardPoint(x: 0, y: 0),
                                                         whiteness: 1, scale: 1, opacity: 1)]
+        models.analysis.info[BoardPoint(x: 15, y: 15)] =
+            AnalysisInfo(visits: 100, winrate: 0.5, scoreLead: 0, utilityLcb: 0)
 
         models.project(key(Self.nineteen, 2))
         #expect(models.analysis.ownershipUnits.count == 1)
+        // The asymmetry is a contract, not an accident of which clear ran:
+        // in sync or not, the candidates go and the map stays.
+        #expect(models.analysis.info.isEmpty)
+    }
+
+    @Test func ownershipIsNeverEmptiedAcrossAPlayedMove() {
+        // Count is not enough. `ForEach` interpolates a square only when it
+        // recognises it, and a unit's identity is its point — so the IDENTITY
+        // sequence surviving is what makes the animation a value tween instead
+        // of a delete-and-insert.
+        let models = Models()
+        models.project(key(Self.nineteen, 1))
+        models.stones.isReady = true
+        models.seedOwnership(size: 19)
+        let seeded = models.analysis.ownershipUnits.map(\.id)
+
+        models.stones.isReady = false
+        models.project(key(Self.nineteen, 2))
+
+        #expect(models.analysis.ownershipUnits.count == 19 * 19)
+        #expect(models.analysis.ownershipUnits.map(\.id) == seeded)
+    }
+
+    @Test func aShutCommandGateClearsTheHeldOwnership() {
+        // Nothing can correct a map carried onto a position the user scrubbed
+        // to while the engine is not being talked to: no command goes out and
+        // no analysis line is accepted. So it goes.
+        let models = Models()
+        models.project(key(Self.nineteen, 1))
+        models.stones.isReady = true
+        models.seedOwnership(size: 19)
+
+        models.project(key(Self.nineteen, 2), engineIsAcceptingCommands: false)
+        #expect(models.analysis.ownershipUnits.isEmpty)
+        #expect(models.analysis.collectedForKey == nil)
+    }
+
+    @Test func deselectionClearsTheHeldOwnership() {
+        // An empty board is not a position the map can describe. It does not
+        // trip `sizeChanged` either — `RecordPosition.empty` reuses the size
+        // already on screen — so it needs its own arm.
+        let models = Models()
+        models.project(key(Self.twoMoves, 2))
+        models.stones.isReady = true
+        models.seedOwnership(size: 9)
+
+        models.project(nil)
+        #expect(models.analysis.ownershipUnits.isEmpty)
+        // Deselecting is still not a board resize.
+        #expect(models.board.width == 9)
     }
 
     @Test func aBoardSizeChangeAlwaysClearsAnalysis() {

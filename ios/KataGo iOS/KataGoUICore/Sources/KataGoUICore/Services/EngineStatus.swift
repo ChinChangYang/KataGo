@@ -184,6 +184,32 @@ public enum EngineStatusText {
     }
 }
 
+/// Whether an availability may keep the live analysis overlay standing.
+///
+/// *Ready* obviously may. *Launching* may too, deliberately: every restart —
+/// model, backend, search threads, Max Board Size, Retry, cache clear — passes
+/// through `endEngineSession(.launching)`, and most of them change neither the
+/// position nor the engine's opinion of it, so clearing there would blink the
+/// board on every one of them. ADR 0010's badge draws the line in the same
+/// place: `.launching` wears no warning badge, it narrates itself on the board.
+///
+/// The resting-down states do not. Shading that outlived its engine claims an
+/// analysis the badged *analysis control* is at that moment saying the app does
+/// not have.
+///
+/// This is only half of the hold's expiry (ADR 0011), and the half that covers
+/// a STATIONARY board. A board the user MOVES while the command gate is shut
+/// drops its map in `RecordPositionProjector.project`, which is the only place
+/// that can see the board move.
+public enum EngineAnalysisHoldRule {
+    public static func holdsOverlay(_ availability: EngineAvailability) -> Bool {
+        switch availability {
+        case .ready, .launching: return true
+        case .absent, .failed, .held: return false
+        }
+    }
+}
+
 /// Whether the board on screen is one the RUNNING engine can be fed.
 ///
 /// Pure, and deliberately narrow: only `.ready` may become `.held` and only

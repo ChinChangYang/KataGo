@@ -9,7 +9,7 @@ import Testing
 
 @MainActor
 struct GameSessionReportModeTests {
-    private let infoLine = "info move Q16 visits 10 winrate 0.55 scoreLead 2.5 utilityLcb 0.3 order 0 pv Q16"
+    private let infoLine = AnalyzeLineFixture.line()
 
     @Test func reportModeBypassesLiveAnalysis() async {
         let session = GameSession.accepting()

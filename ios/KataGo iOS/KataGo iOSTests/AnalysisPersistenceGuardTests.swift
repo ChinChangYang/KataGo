@@ -112,6 +112,48 @@ struct AnalysisPersistenceGuardTests {
         #expect(fixture.record.ownershipWhiteness?[2] == nil)
     }
 
+    @Test("A held ownership map is never persisted into the index it was carried onto")
+    func heldOwnershipIsNeverPersistedIntoTheNewIndex() {
+        // ADR 0011 keeps the ownership map on screen across a step. The guard
+        // that stops it being WRITTEN DOWN is the stamp the narrow clear drops
+        // — so drive the real projector rather than nilling `collectedForKey`
+        // by hand, which would prove only that the guard reads a field.
+        let fixture = makeFixture()
+        let projector = RecordPositionProjector()
+
+        func project() {
+            projector.project(key: fixture.gobanState.recordPositionKey(gameRecord: fixture.record),
+                              into: fixture.stones,
+                              board: fixture.board,
+                              analysis: fixture.analysis,
+                              gobanState: fixture.gobanState)
+        }
+
+        fixture.record.currentIndex = 1
+        project()
+        // Seed AFTER the first projection: arriving at a record from nothing is
+        // a record change, which clears outright — there is no earlier position
+        // for a map to be held from.
+        fixture.analysis.ownershipUnits = [OwnershipUnit(point: BoardPoint(x: 0, y: 0),
+                                                         whiteness: 0.5, scale: 0.8, opacity: 1)]
+        markInSync(fixture)
+        persist(fixture)
+        #expect(fixture.record.ownershipWhiteness?[1] != nil)
+
+        // Step: the record moves while the engine is still catching up.
+        fixture.stones.isReady = false
+        fixture.record.currentIndex = 2
+        project()
+
+        // The map is still on screen — that is the whole point of the hold …
+        #expect(!fixture.analysis.ownershipUnits.isEmpty)
+        // … and it is still filed against nothing, so it cannot be written down.
+        #expect(fixture.analysis.collectedForKey == nil)
+
+        persist(fixture)
+        #expect(fixture.record.ownershipWhiteness?[2] == nil)
+    }
+
     @Test("Analysis collected for a different game is never written into this one")
     func analysisFromAnotherRecordIsRefused() {
         let fixture = makeFixture()

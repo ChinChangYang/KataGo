@@ -1166,8 +1166,8 @@ final class MainWindowController: NSWindowController {
             guard let builtIn = NeuralNetworkModel.builtInModel,
                   let builtInPath = Bundle.main.path(forResource: "default_model", ofType: "bin.gz") else {
                 assertionFailure("Built-in model not bundled in the Mac target's Resources.")
-                session.engineStatus.availability = .failed(
-                    reason: "The built-in network is missing from this build.")
+                session.endEngineSession(
+                    .failed(reason: "The built-in network is missing from this build."))
                 return
             }
             // Say so. The engine that comes up is NOT the one the user chose,
