@@ -112,13 +112,14 @@ public struct ReportBoardView: View {
                                   showCoordinate: showCoordinate, showPass: false,
                                   isDrawingCapturedStones: false)
             let localBoardSize = boardSize
-            let localStones = stones
+            let resolved = resolvedVariation
+            let localStones = stones(resolved)
 
             ZStack {
                 BoardLineView(dimensions: dims, showPass: false, verticalFlip: verticalFlip)
                 StoneView(dimensions: dims, isClassicStoneStyle: isClassicStoneStyle,
                          verticalFlip: verticalFlip, isDrawingCapturedStones: false)
-                overlayLayer(dimensions: dims)
+                overlayLayer(dimensions: dims, resolved: resolved)
                 // The app's red last-move dot, drawn on top regardless of the
                 // overlay. lastMoveMarker no-ops unless a stone sits at the point.
                 if let point = lastMovePoint {
@@ -157,23 +158,70 @@ public struct ReportBoardView: View {
         return board
     }
 
-    private var stones: Stones {
+    /// The drawn position. A board carrying a variation takes its stones from
+    /// the force-played resolution, which can REMOVE base stones — so this
+    /// replaces the base lists rather than appending to them. Without a
+    /// variation there is nothing to resolve: the base is already a position.
+    private func stones(_ resolved: VariationPosition?) -> Stones {
         let stones = Stones()
-        stones.blackPoints = blackVertices.compactMap { BoardPoint(move: $0, width: width, height: height) }
-        stones.whitePoints = whiteVertices.compactMap { BoardPoint(move: $0, width: width, height: height) }
-        if case .pv(let vertices, let startingWith) = overlay {
-            let pv = pvStones(vertices, startingWith: startingWith)
-            stones.blackPoints += pv.filter { $0.color == .black }.map(\.point)
-            stones.whitePoints += pv.filter { $0.color == .white }.map(\.point)
-        }
-        if let point = markedPoint {
-            if markedMove?.color == .black {
-                stones.blackPoints.append(point)
-            } else {
-                stones.whitePoints.append(point)
-            }
+        if let resolved {
+            stones.blackPoints = resolved.blackPoints
+            stones.whitePoints = resolved.whitePoints
+        } else {
+            stones.blackPoints = blackVertices.compactMap { BoardPoint(move: $0, width: width, height: height) }
+            stones.whitePoints = whiteVertices.compactMap { BoardPoint(move: $0, width: width, height: height) }
         }
         return stones
+    }
+
+    /// The marked move as a variation move, or nil when there is none to play.
+    private var markedVariationMove: VariationMove? {
+        guard let markedMove, markedMove.vertex != "pass" else { return nil }
+        return VariationMove(vertex: markedMove.vertex, color: markedMove.color)
+    }
+
+    /// The variation this board draws, in the order it is played: the move UNDER
+    /// STUDY first, then its continuation. Both are hypothetical stones on the
+    /// same board, so they resolve as ONE chain — a PV played into a shape the
+    /// marked move just captured has to find that shape empty, and a PV whose
+    /// first move IS the marked move must find its own stone already there.
+    private var variationMoves: [VariationMove] {
+        var moves: [VariationMove] = []
+        if let markedVariationMove { moves.append(markedVariationMove) }
+        if case .pv(let vertices, let startingWith) = overlay {
+            moves += VariationResolver.alternating(vertices, startingWith: startingWith)
+        }
+        return moves
+    }
+
+    /// Where the PV starts in the resolved chain — after the marked move, if
+    /// there is one. Numbers are read by POSITION, never by inspecting a number:
+    /// the marked move can legitimately share a point with a PV move, and a
+    /// value-based filter would strip that PV move's number along with it.
+    private var pvIndexOffset: Int { markedVariationMove == nil ? 0 : 1 }
+
+    /// The PV's move numbers: its own 1-based indices, for the moves whose
+    /// stones are still standing. A point replayed after a capture (ko) keeps
+    /// the LATEST number, matching `MoveNumbers.derive`'s overwrite semantics.
+    private func pvNumbers(_ vertices: [String],
+                           resolved: VariationPosition?) -> [BoardPoint: Int] {
+        guard let surviving = resolved?.survivingPoints else { return [:] }
+        var numbers: [BoardPoint: Int] = [:]
+        for index in vertices.indices {
+            let slot = index + pvIndexOffset
+            guard slot < surviving.count, let point = surviving[slot] else { continue }
+            numbers[point] = index + 1
+        }
+        return numbers
+    }
+
+    private var resolvedVariation: VariationPosition? {
+        let moves = variationMoves
+        guard !moves.isEmpty else { return nil }
+        return VariationResolver.resolve(width: width, height: height,
+                                         blackVertices: blackVertices,
+                                         whiteVertices: whiteVertices,
+                                         moves: moves)
     }
 
     /// Nil when there is no marked move or its vertex is "pass"/unparseable.
@@ -189,7 +237,7 @@ public struct ReportBoardView: View {
     }
 
     @ViewBuilder
-    private func overlayLayer(dimensions: Dimensions) -> some View {
+    private func overlayLayer(dimensions: Dimensions, resolved: VariationPosition?) -> some View {
         switch overlay {
         case .none:
             EmptyView()
@@ -199,18 +247,18 @@ public struct ReportBoardView: View {
             // The red dot sits ON TOP of the delta squares so the marked
             // stone stays identifiable under the grayscale overlay — the
             // live board's current-move idiom (MoveNumberView.lastMoveMarker).
+            // A marked move that self-captures leaves no stone to identify, and
+            // lastMoveMarker draws nothing without one.
             if let point = markedPoint {
                 MoveNumberView(dimensions: dimensions, verticalFlip: verticalFlip,
                                style: .lastMoveMarker,
                                moveNumbers: MoveNumbers(numbers: [:], lastPoint: point, lastNumber: nil))
             }
 
-        case .pv(let vertices, let startingWith):
-            let pv = pvStones(vertices, startingWith: startingWith)
-            // A PV can revisit a point (ko recapture); the latest move number
-            // wins, matching MoveNumbers.derive's overwrite semantics.
-            let numbers = Dictionary(pv.map { ($0.point, $0.number) },
-                                     uniquingKeysWith: { _, latest in latest })
+        case .pv(let vertices, _):
+            // A stone the variation captures takes its number with it: the
+            // resolver reports no surviving point for it.
+            let numbers = pvNumbers(vertices, resolved: resolved)
             MoveNumberView(dimensions: dimensions, verticalFlip: verticalFlip, style: .allMoves,
                           moveNumbers: MoveNumbers(numbers: numbers, lastPoint: nil, lastNumber: nil))
         }
@@ -277,26 +325,6 @@ public struct ReportBoardView: View {
         }
     }
 
-    private struct PVStone {
-        let point: BoardPoint
-        let number: Int
-        let color: PlayerColor
-    }
-
-    /// Naive about captures inside the PV: a PV move capturing base stones
-    /// isn't simulated, so a captured base stone still renders underneath the
-    /// later ghost stone (pre-existing behavior).
-    private func pvStones(_ vertices: [String], startingWith: PlayerColor) -> [PVStone] {
-        var stones: [PVStone] = []
-        var color = startingWith
-        for (index, vertex) in vertices.enumerated() {
-            defer { color = color == .black ? .white : .black }
-            guard vertex != "pass",
-                  let point = BoardPoint(move: vertex, width: width, height: height) else { continue }
-            stones.append(PVStone(point: point, number: index + 1, color: color))
-        }
-        return stones
-    }
 }
 
 #Preview("Ownership delta") {

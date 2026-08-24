@@ -151,35 +151,36 @@ public struct BroadcastBoardFrame: Equatable, Sendable {
         self.caption = caption
     }
 
-    /// Merged, deduped, "pass"-filtered vertex list for the renderer. A
-    /// literal "pass" would draw OFF-GRID: BoardPoint(move:) maps the pass
-    /// move to a synthetic point below the board and the base-vertex
-    /// compactMap has no pass guard. frames(for:model:) never emits one;
-    /// this filters defensively anyway.
-    public func blackVertices(base: [String]) -> [String] {
-        merged(base: base, color: .black)
+    /// The renderer's vertex lists: the base position with this frame's placed
+    /// stones FORCE-PLAYED onto it, captures resolved, so a beat never draws a
+    /// position the rules could not produce.
+    ///
+    /// Both colors resolve TOGETHER, in placement order, and that is
+    /// load-bearing rather than incidental. `tenukiPhase` places the candidate
+    /// stone and then a stone the engine chose on the board that stone had
+    /// already cleared — so when the candidate captures, the punish point holds
+    /// an enemy stone in the base and only becomes legal once the capture is
+    /// applied. Resolving each color on its own would never see that capture
+    /// and would drop the punish stone.
+    ///
+    /// A literal "pass" would draw OFF-GRID (BoardPoint(move:) maps it to a
+    /// synthetic point below the board), so it places nothing.
+    /// `frames(for:model:)` never emits one; this handles it anyway.
+    public func stones(black: [String], white: [String],
+                       width: Int, height: Int) -> (black: [String], white: [String]) {
+        guard !placedStones.isEmpty else { return (black, white) }
+        let moves = placedStones.map { VariationMove(vertex: $0.vertex, color: $0.color) }
+        return VariationResolver.resolveVertices(width: width, height: height,
+                                                 blackVertices: black, whiteVertices: white,
+                                                 moves: moves) ?? (black, white)
     }
 
-    public func whiteVertices(base: [String]) -> [String] {
-        merged(base: base, color: .white)
-    }
-
-    /// The red current-move dot: the newest placed stone. The renderer's
-    /// dot layer no-ops unless a stone sits at the point, which the merged
-    /// vertex lists guarantee.
+    /// The red current-move dot: the newest placed stone. The renderer's dot
+    /// layer no-ops unless a stone sits at the point — which is no longer
+    /// guaranteed, since a placed stone that self-captures comes straight back
+    /// off. Drawing nothing is the right answer there.
     public var lastMoveVertex: String? {
         placedStones.last.flatMap { $0.vertex == "pass" ? nil : $0.vertex }
-    }
-
-    private func merged(base: [String], color: PlayerColor) -> [String] {
-        var seen = Set(base)
-        var result = base
-        for stone in placedStones
-        where stone.color == color && stone.vertex != "pass"
-            && seen.insert(stone.vertex).inserted {
-            result.append(stone.vertex)
-        }
-        return result
     }
 }
 

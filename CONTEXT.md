@@ -9,6 +9,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Alternative** — the report's second candidate slot. Exactly one Alternative is shown; it can originate from the engine's rank #2, from the game's next recorded move (the *smart default*), or from a *user pick*.
 - **Smart default** — the Alternative chosen automatically when the report opens: the game's next recorded move when reviewing mid-game (if legal and not the Best Move), else engine rank #2.
 - **User pick** — an Alternative the user nominated from the in-report board picker.
+- **Variation** — a hypothetical continuation played out on the position under study: the engine's principal variation, or the stones a *beat* acts out. Force-played one move at a time, with every liberty-less group lifted — so a variation board is always a position the rules could produce, never the current stones with extra ones laid on top.
 - **Snapshot probe** — the unconstrained analysis pass over the report's position; its ranked candidate list is the report's baseline.
 - **Forced-candidate probe** — an analysis pass constrained so that all root search effort goes to one nominated vertex, used to evaluate a move the open search would starve.
 - **Tenuki follow-up** — the probe answering "what happens next if this candidate is played": play the candidate, analyze the reply position, undo.
@@ -38,7 +39,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Comment slide** — a slide whose facts are the human-written note attached to that move, rather than engine-derived sentences.
 - **Played-pass slide** — the slide reporting that the move the cycle just made *was* a pass. Reports what happened; the Playing vs Passing slide weighs what would happen.
 - **Game-over slide** — the terminal caption: both players have passed, so the game is over. At most one per game, and earnable again if the game returns to a live position.
-- **Beat** — one acted-out moment of a slide's board choreography, paired with the sentence it illustrates.
+- **Beat** — one acted-out moment of a slide's board choreography, paired with the sentence it illustrates. Its board is a *variation*: the stones it acts out are force-played onto the position, captures and all, never laid on top of it.
 - **Pass beat** — the beat in which the side to move *passes*. Distinct from a tenuki beat: passing forfeits the move, it does not relocate it.
 - **Tenuki beat** — the beat in which a player ignores the move under discussion and *plays elsewhere*.
 - **Dwell** — the pause after a slide's text has finished, giving the viewer time to absorb the board the slide acted out.

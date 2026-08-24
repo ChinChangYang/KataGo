@@ -456,8 +456,11 @@ struct BroadcastScriptTests {
                            PlacedStone(vertex: "Q16", color: .black),
                            PlacedStone(vertex: "C3", color: .white)],
             overlay: .none, caption: nil)
-        #expect(frame.blackVertices(base: ["D4", "Q16"]) == ["D4", "Q16"])
-        #expect(frame.whiteVertices(base: ["D16"]) == ["D16", "C3"])
+        // A stone placed where one of its own color already stands is a no-op,
+        // so the base order survives verbatim; "pass" places nothing.
+        let stones = frame.stones(black: ["D4", "Q16"], white: ["D16"], width: 19, height: 19)
+        #expect(stones.black == ["D4", "Q16"])
+        #expect(stones.white == ["D16", "C3"])
         #expect(frame.lastMoveVertex == "C3")
 
         let empty = BroadcastBoardFrame(anchor: .fact(0), placedStones: [],
@@ -469,6 +472,61 @@ struct BroadcastScriptTests {
             placedStones: [PlacedStone(vertex: "pass", color: .black)],
             overlay: .none, caption: nil)
         #expect(passLast.lastMoveVertex == nil)
+    }
+
+    @Test("A beat's placed stones capture, so a punish inside the cleared shape lands")
+    func beatStonesResolveAsOneOrderedChain() {
+        // 9x9 corner. White A9's only liberties are B9 and A8; Black already
+        // holds B9, so Black A8 captures it. The punish then plays A9 itself —
+        // a point the BASE shows as a WHITE stone, legal only once the capture
+        // ahead of it has been applied. This is tenukiPhase's exact shape: the
+        // capturing stone travels ahead of the punish in one placedStones list.
+        let frame = BroadcastBoardFrame(
+            anchor: .fact(0),
+            placedStones: [PlacedStone(vertex: "A8", color: .black),
+                           PlacedStone(vertex: "A9", color: .black)],
+            overlay: .none, caption: nil)
+        let stones = frame.stones(black: ["B9"], white: ["A9"], width: 9, height: 9)
+
+        #expect(stones.white == [])                                 // captured
+        #expect(stones.black.sorted() == ["A8", "A9", "B9"])        // punish landed
+        #expect(frame.lastMoveVertex == "A9")
+    }
+
+    @Test("The real tenuki choreography resolves captures end to end")
+    func tenukiChoreographyRendersACaptureCorrectly() throws {
+        // Built through BroadcastScript.frames, not a hand-made frame, so this
+        // covers the choreography the broadcast actually emits. 9x9: White A9's
+        // last liberty is A8 (Black already holds B9), so the best move A8
+        // captures it — and the tenuki punish is A9 itself, the point the
+        // capture just cleared. The engine chose that punish on the board AFTER
+        // the candidate was played, which is why the base still shows a white
+        // stone there.
+        let model = DeepReportModel()
+        model.sideToMove = .black
+        model.boardWidth = 9
+        model.boardHeight = 9
+        model.blackVertices = ["B9"]
+        model.whiteVertices = ["A9"]
+        model.position = PositionSummary(winrate: 0.55, scoreLead: 1.5, visits: 200)
+        model.candidates = [
+            CandidateReport(vertex: "A8", visits: 100, winrate: 0.6, scoreLead: 2,
+                            winrateDelta: 0, scoreLeadDelta: 0, pv: ["A8"],
+                            ownershipDelta: [:],
+                            tenuki: TenukiFollowUp(vertex: "A9", winrate: 0.62,
+                                                   scoreLead: 2.5, visits: 40, pv: ["A9"])),
+        ]
+        model.stage = .complete
+
+        let best = BroadcastScript.slides(from: model).first { $0.kind == .best }
+        let frames = BroadcastScript.frames(for: try #require(best), model: model)
+        let final = try #require(frames.last)
+        let stones = final.stones(black: model.blackVertices, white: model.whiteVertices,
+                                  width: model.boardWidth, height: model.boardHeight)
+
+        #expect(final.placedStones.map(\.vertex) == ["A8", "A9"])
+        #expect(stones.white.isEmpty)                            // A9 was captured
+        #expect(stones.black.sorted() == ["A8", "A9", "B9"])     // and the punish landed
     }
 
     @Test("A comment slide has no choreography and never grows")

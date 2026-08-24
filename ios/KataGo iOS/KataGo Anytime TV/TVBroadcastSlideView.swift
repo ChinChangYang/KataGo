@@ -21,9 +21,11 @@ struct TVBroadcastSlideBoard: View {
     let model: DeepReportModel
 
     var body: some View {
+        let stones = frame.stones(black: model.blackVertices, white: model.whiteVertices,
+                                  width: model.boardWidth, height: model.boardHeight)
         ReportBoardView(width: model.boardWidth, height: model.boardHeight,
-                        blackVertices: frame.blackVertices(base: model.blackVertices),
-                        whiteVertices: frame.whiteVertices(base: model.whiteVertices),
+                        blackVertices: stones.black,
+                        whiteVertices: stones.white,
                         overlay: frame.overlay,
                         lastMoveVertex: frame.lastMoveVertex,
                         isClassicStoneStyle: model.isClassicStoneStyle,
