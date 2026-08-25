@@ -43,26 +43,36 @@ struct CoreMLCacheFooterView: View {
     private var totalCount: Int { mainCount + auxCount }
 
     var body: some View {
+        statsRow
+        // Its own row, unstyled: the in-list convention (see "Play" in
+        // CustomModelViews). Parked beside the stats it would inherit the
+        // row's tap target, so the stat text would open the destructive
+        // dialog. `.bordered` + `.tint(.secondary)` used to confine that, at
+        // the price of wearing iOS's disabled costume in every state — which
+        // is exactly how it read.
+        if totalCount > 0 {
+            Button("Clear Cache") { showConfirm = true }
+                .disabled(clearing || !canClear)
+        }
+    }
+
+    /// The stats row, and the host for the index subscription and the
+    /// confirmation dialog. It is the unconditional sibling, and these have to
+    /// hang off one view: a modifier on a `Group` wrapping both rows applies
+    /// to each child, which would open two subscriptions and register two
+    /// dialogs.
+    private var statsRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Core ML Cache")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(line(label: "Main", count: mainCount, cap: mainCap, bytes: mainBytes))
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("CoreMLCache.footerMainStats")
-                    Text(line(label: "Human SL", count: auxCount, cap: auxCap, bytes: auxBytes))
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("CoreMLCache.footerAuxStats")
-                }
-                Spacer()
-                if totalCount > 0 {
-                    Button("Clear Cache") { showConfirm = true }
-                        .buttonStyle(.bordered)
-                        .tint(.secondary)
-                        .disabled(clearing || !canClear)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line(label: "Main", count: mainCount, cap: mainCap, bytes: mainBytes))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("CoreMLCache.footerMainStats")
+                Text(line(label: "Human SL", count: auxCount, cap: auxCap, bytes: auxBytes))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("CoreMLCache.footerAuxStats")
             }
             if totalCount > 0, !canClear {
                 Text("Available once the engine finishes loading.")

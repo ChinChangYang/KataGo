@@ -761,13 +761,23 @@ A footer section at the bottom of the model list, below the last row, separated 
 │                                                     │
 │  Core ML Cache                                      │
 │  287 MB · 3 of 8 compiled models                    │
-│                                  [ Clear Cache ]    │
+├─────────────────────────────────────────────────────┤
+│  Clear Cache                                        │
 └─────────────────────────────────────────────────────┘
 ```
 
 - **Header:** `"Core ML Cache"` (`.font(.subheadline)`, `.foregroundStyle(.secondary)`).
 - **Status line:** `"<formatted size> · <N> of 8 compiled models"`. Uses `ByteCountFormatter` for size. Updates reactively from `CoreMLModelCache`.
-- **Clear button:** `Button("Clear Cache")`, `.bordered`, `.tint(.secondary)`.
+- **Clear button:** a bare `Button("Clear Cache")` in a row of its own, carrying
+  nothing but `.disabled(...)`. **Reversed 2026-08-25** — this originally read
+  "`.bordered`, `.tint(.secondary)`", and that was wrong twice over. `.bordered`
+  takes its capsule *fill* from the tint, so a secondary tint renders the exact
+  grey-filled capsule iOS uses for a **disabled** system button: a tester read the
+  control as unavailable in every state it was visible. It was also the only
+  `.buttonStyle` inside an iOS `List` in the whole target — the house convention is
+  a bare `Button` that takes the system accent, with prominence coming from having
+  its own row (cf. "Play" in `CustomModelViews.swift`). Giving it that row is what
+  keeps the stat text from becoming a tap target for a destructive dialog.
 - **Empty state:** entire footer collapses to a single line `"Core ML Cache · empty"` with no button.
 
 ### Clear Cache behavior

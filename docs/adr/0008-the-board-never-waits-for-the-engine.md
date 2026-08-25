@@ -261,6 +261,9 @@ board displays, never a screen that replaces it.**
     is deleted (`GameSplitView` owns imports), the Core ML routing probe and
     Clear Cache are disabled unless availability is Absent or Failed, and Play on
     the running model restarts it.
+    *Superseded 2026-08-24 (`d54cc3e17`): neither is blocked by a running engine
+    any more — the engine is unloaded around the work and relaunched after, and
+    only a mid-launch engine still makes them wait.*
 
 14. **Stage 2 is the seam this leaves.** Post-move order is now
     `play` → `printsgf` → `showboard`, so the record — and therefore the stone —

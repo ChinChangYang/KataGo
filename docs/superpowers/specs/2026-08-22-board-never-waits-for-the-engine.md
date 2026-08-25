@@ -153,8 +153,9 @@ Deliverables include ADR 0008 and a new "Engine" section in `CONTEXT.md`.
    finish loading ⟨title⟩" + Choose model.
 10. **Picker reachable with a live engine** (new on iOS): the picker's own
     `onOpenURL` is deleted (`GameSplitView` owns imports); the Core ML
-    routing probe and "Clear Cache" are disabled unless availability is
-    *Absent*/*Failed*; Play on the running model restarts it; the backend
+    routing probe and "Clear Cache" no longer block on a running engine — it
+    is unloaded around the work and relaunched after, and only a *Launching*
+    engine makes them wait; Play on the running model restarts it; the backend
     sheet's "takes effect on the next load" stays true.
 11. **Watch keeps refusing anomalous records**
     (`isReadable = anomalyIndex == nil`); the phone skips refused moves.
