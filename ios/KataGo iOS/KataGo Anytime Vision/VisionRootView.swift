@@ -1282,12 +1282,19 @@ struct VisionRootView: View {
     /// Allowed from a FAILED engine too (`canRestart`), which is how the Models
     /// card doubles as the way out of a launch that never came up.
     private func activateModel(_ model: NeuralNetworkModel) {
-        guard engineController.canRestartNow,
-              model.title != engineController.activeModel.title else { return }
         // The sparkle's remedy tap opened the Models card wanting analysis: a
         // pick arms a cleared preference back to run. `.pause`/`.run` are left
         // alone — the preference is the user's, and the post-restart resync
         // auto-resumes anything that is not `.clear` (ADR 0010).
+        //
+        // Consumed BEFORE the restart guard, and unconditionally, the way iOS
+        // does it in `ModelRunnerView.onChange(of: selectedModel)`. Below the
+        // guard it was skipped for the two picks that do not restart —
+        // re-picking the model already running, and picking while the engine
+        // is mid-launch — so the most natural answer to the sparkle's own
+        // remedy card ("play the net that is already loaded") armed nothing
+        // and left the user's tap a dead end. Whether to relaunch is a
+        // separate question from whether they asked for analysis.
         if shell.modelsPresentedFromAnalysisControl {
             shell.modelsPresentedFromAnalysisControl = false
             if session.gobanState.analysisStatus == .clear {
@@ -1295,6 +1302,8 @@ struct VisionRootView: View {
                 session.analysis.resetVisitsPerSecondSession()
             }
         }
+        guard engineController.canRestartNow,
+              model.title != engineController.activeModel.title else { return }
         Task { await engineController.restartEngine(loading: model) }
     }
 

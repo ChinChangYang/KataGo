@@ -519,10 +519,16 @@ final class ModelsViewController: NSViewController {
         presentAsSheet(progress)
 
         importTask = Task { [weak self] in
-            defer {
-                self?.dismissImportProgress()
-                self?.importTask = nil
-            }
+            // Dismiss the progress sheet on each outcome rather than in a
+            // `defer`, which runs AFTER the catch: as written, the failure
+            // alert was raised on a window that still had the progress sheet
+            // presented. The iOS twin of this shape could drop the alert
+            // outright, leaving a failed import explaining nothing — easy to
+            // reach, since any file is pickable — and it was fixed there in
+            // `5468b6e21`. What AppKit does with the overlap here has NOT been
+            // observed; the ordering is wrong either way, so state it plainly
+            // instead: sheet down, then report. Same on both importers.
+            defer { self?.importTask = nil }
             do {
                 // Capture the sheet, NOT self. The progress handler is a
                 // nonisolated @Sendable closure, so `self` inside it is
@@ -532,6 +538,7 @@ final class ModelsViewController: NSViewController {
                 let record = try await CustomModelImporter.importModel(from: url) { fraction in
                     Task { @MainActor in progress.update(fraction: fraction) }
                 }
+                self?.dismissImportProgress()
                 guard let self else { return }
                 self.rebuildRows()
                 self.recomputeAvailability()
@@ -544,7 +551,9 @@ final class ModelsViewController: NSViewController {
                 self.updateAddRemoveEnablement()
             } catch is CancellationError {
                 // The partial file is already gone; nothing was recorded.
+                self?.dismissImportProgress()
             } catch {
+                self?.dismissImportProgress()
                 self?.presentImportFailure(error)
             }
         }
