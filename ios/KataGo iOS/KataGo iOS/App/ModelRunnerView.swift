@@ -54,8 +54,18 @@ struct ModelRunnerView: View {
                 // to unload the engine first — the controller whose
                 // `restart(performingWhileStopped:)` is that unload, and the
                 // board size the status header's Held hint reads.
+                //
+                // The live book and the eye come across for the same reason:
+                // the Opening Books screen hangs off this picker, and importing,
+                // deleting or re-choosing an active book has to reconcile the
+                // book the current game is playing from. Without them
+                // `reconcileActiveBook` looks them up as nil and returns at its
+                // first guard, leaving a stale book loaded until the game is
+                // reopened.
                 .environment(session.engineStatus)
                 .environment(session.board)
+                .environment(session.bookLookup)
+                .environment(session.gobanState)
                 .environment(controller)
         }
         .onAppear {

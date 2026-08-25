@@ -28,11 +28,17 @@ func reconcileActiveBook(size: Int,
     guard let bookLookup else { return }
     let gameSize: Int? = board.flatMap { $0.width == $0.height ? Int($0.width) : nil }
     guard gameSize == size || bookLookup.isReady(forBoardSize: size) else { return }
-    let target = gameSize ?? size
-    bookLookup.loadIfNeeded(boardSize: target)
-    if !bookLookup.isAvailable(forBoardSize: target), gobanState?.eyeStatus == .book {
-        gobanState?.eyeStatus = .opened
-    }
+    // Reconcile the size that CHANGED. Usually that is the game's size; when it
+    // is not, the guard leaves only one other case — `size` is the size
+    // currently LOADED — and reloading the game's size there would unload a
+    // live book nothing asked about and load nothing in its place.
+    bookLookup.loadIfNeeded(boardSize: size)
+    // The eye speaks only for the displayed game, so it leaves book view only
+    // when THAT size lost its last book.
+    guard gameSize == size,
+          !bookLookup.isAvailable(forBoardSize: size),
+          gobanState?.eyeStatus == .book else { return }
+    gobanState?.eyeStatus = .opened
 }
 
 struct OpeningBookTrashButton: View {
@@ -400,13 +406,13 @@ struct OpeningBookPickerView: View {
         copyProgress = 0
         isCopying = true
         importTask = Task {
-            defer { isCopying = false }
             do {
                 // `importBook` is a nonisolated async function, so the copy
                 // runs off the main actor even though this Task inherits it.
                 let record = try await CustomBookImporter.importBook(from: url) { fraction in
                     Task { @MainActor in copyProgress = fraction }
                 }
+                isCopying = false
                 reconcileActiveBook(size: record.boardSize,
                                     bookLookup: bookLookup,
                                     gobanState: gobanState,
@@ -414,7 +420,17 @@ struct OpeningBookPickerView: View {
                 reload()
             } catch is CancellationError {
                 // The partial file is already gone; nothing was recorded.
+                isCopying = false
             } catch {
+                // Dismiss the progress sheet and let that land BEFORE raising
+                // the alert. Both are presentations from this view, and a
+                // `defer` would have written them in one transaction — an
+                // alert raised in the same update that dismisses a sheet can be
+                // dropped, leaving a failed import with no explanation at all.
+                // Any file is pickable here (`.data` is in the allowed types),
+                // so the failure path is easy to reach.
+                isCopying = false
+                await Task.yield()
                 importErrorMessage = error.localizedDescription
             }
         }

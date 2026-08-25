@@ -361,18 +361,25 @@ struct ModelPickerView: View {
         copyProgress = 0
         isCopying = true
         importTask = Task {
-            defer { isCopying = false }
             do {
                 // `importModel` is a nonisolated async function, so the copy
                 // runs off the main actor even though this Task inherits it.
                 _ = try await CustomModelImporter.importModel(from: url) { fraction in
                     Task { @MainActor in copyProgress = fraction }
                 }
+                isCopying = false
                 reloadCustomRecords()
                 await readiness.update(forFileNames: visibleFileNames)
             } catch is CancellationError {
                 // The partial file is already gone; nothing was recorded.
+                isCopying = false
             } catch {
+                // Dismiss the progress sheet before raising the alert, and let
+                // the dismissal land first: written together (as a `defer`
+                // would), the alert can be dropped and the failure goes
+                // unexplained. Mirrors OpeningBookPickerView.startImport.
+                isCopying = false
+                await Task.yield()
                 importErrorMessage = error.localizedDescription
             }
         }
