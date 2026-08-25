@@ -12,6 +12,7 @@
 #if os(iOS)
 
 import AVFoundation
+import KataGoUICore
 import SwiftUI
 import UIKit
 
@@ -231,12 +232,19 @@ struct BoardCameraView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
             Spacer(minLength: 0)
-            HStack {
+            // Liquid Glass, the app's style for floating chrome, and the pair
+            // moves together: a bare `Cancel` beside a `.borderedProminent`
+            // `Open Settings` put two materials in one row — the shape
+            // `PhotoImportSheet` explicitly forbids. `ActionRow` because each
+            // capsule costs ~40pt of horizontal padding, which truncates even a
+            // two-button row at accessibility text sizes.
+            ActionRow {
                 Button("Cancel", role: .cancel, action: cancel)
+                    .buttonStyle(.glass)
                     .accessibilityIdentifier("BoardCamera.cancel")
-                Spacer()
+            } primary: {
                 Button("Open Settings", action: openSettings)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
             }
             .padding(24)
         }
