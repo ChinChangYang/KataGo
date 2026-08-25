@@ -184,13 +184,18 @@ public final class RecordPositionProjector {
     /// Sync is deliberately NOT one of them: the board leaves sync on every
     /// step by design, which is how clearing on it blanked the overlay on every
     /// move.
+    ///
+    /// `engineIsAcceptingCommands` has NO DEFAULT on purpose. Either default
+    /// would be a wrong answer someone gets by forgetting: `true` silently
+    /// holds a map nothing can correct, `false` reinstates the blink. A new
+    /// caller has to say which it is, and the compiler asks.
     @discardableResult
     public func project(key: RecordPositionKey?,
                         into stones: Stones,
                         board: BoardSize,
                         analysis: Analysis,
                         gobanState: GobanState,
-                        engineIsAcceptingCommands: Bool = true) -> RecordPosition {
+                        engineIsAcceptingCommands: Bool) -> RecordPosition {
         if hasProjected, key == currentKey, let currentPosition {
             return currentPosition
         }

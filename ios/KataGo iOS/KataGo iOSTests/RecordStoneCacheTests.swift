@@ -31,7 +31,12 @@ struct RecordStoneCacheTests {
                                           into: Stones(),
                                           board: BoardSize(),
                                           analysis: Analysis(),
-                                          gobanState: GobanState())
+                                          gobanState: GobanState(),
+                                          // Irrelevant here — this fixture
+                                          // asserts on the published stones,
+                                          // and the flag only decides how much
+                                          // of a throwaway `Analysis` is cleared.
+                                          engineIsAcceptingCommands: true)
         return (published, key)
     }
 

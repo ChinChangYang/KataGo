@@ -126,7 +126,11 @@ struct AnalysisPersistenceGuardTests {
                               into: fixture.stones,
                               board: fixture.board,
                               analysis: fixture.analysis,
-                              gobanState: fixture.gobanState)
+                              gobanState: fixture.gobanState,
+                              // An OPEN gate, so the map is held rather than
+                              // cleared — which is the whole point here: what
+                              // is on screen must still not be written down.
+                              engineIsAcceptingCommands: true)
         }
 
         fixture.record.currentIndex = 1
