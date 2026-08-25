@@ -53,13 +53,13 @@ struct BroadcastScriptTests {
 
     @Test func bestSlideLeadsWithPositionFacts() {
         let best = BroadcastScript.slides(from: fullModel())[0]
-        #expect(best.facts.first?.hasPrefix("Position: move") == true)
-        #expect(best.facts.contains { $0.hasPrefix("Best move Q16") })
+        #expect(best.facts.first?.hasPrefix("Here we are at move") == true)
+        #expect(best.facts.contains { $0.hasPrefix("KataGo's favorite is Q16") })
     }
 
     @Test func passSlideNamesThePassComparison() {
         let pass = BroadcastScript.slides(from: fullModel())[2]
-        #expect(pass.facts.first?.contains("passes instead") == true)
+        #expect(pass.facts.first?.contains("just passes here") == true)
     }
 
     @Test func partialModelYieldsOnlyLandedSlides() {
@@ -161,13 +161,13 @@ struct BroadcastScriptTests {
     @Test func broadcastFactsCarryNoCoordinateListSentences() {
         for slide in BroadcastScript.slides(from: fullModel()) {
             let joined = slide.facts.joined(separator: "\n")
-            #expect(!joined.contains("Expected continuation"))
+            #expect(!joined.contains("expected continuation"))
             if slide.kind == .pass {
                 // Round 2: the contested sentence returned — it types over
                 // the punish-stone board; the Δ payoff follows it.
-                #expect(joined.contains("contested areas"))
+                #expect(joined.contains("biggest fights"))
             } else {
-                #expect(!joined.contains("contested areas"))
+                #expect(!joined.contains("biggest fights"))
             }
         }
     }
@@ -544,7 +544,7 @@ struct BroadcastScriptTests {
         for slide in [BroadcastSlide(kind: .playedPass, title: "Black Passes",
                                      facts: ["Black passes."]),
                       BroadcastSlide(kind: .gameOver, title: "Game Over",
-                                     facts: ["Both players passed. The game is over."])] {
+                                     facts: ["Both players have passed — that's the end of the game."])] {
             #expect(BroadcastScript.frames(for: slide, model: model).isEmpty)
             #expect(!BroadcastScript.factsMayGrow(kind: slide.kind, model: model))
         }

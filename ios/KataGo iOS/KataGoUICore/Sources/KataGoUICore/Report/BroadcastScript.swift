@@ -397,7 +397,7 @@ public enum BroadcastScript {
         case .pass:
             guard let pass = model.passComparison else { return [] }
             let bestStones = bestVertex.map { [PlacedStone(vertex: $0, color: side)] } ?? []
-            // Fact 0 ("If Black passes instead: …"): open on the bare board,
+            // Fact 0 ("If Black just passes here, …"): open on the bare board,
             // then act the PASS BEAT — caption only, no stone. `.passes` is
             // load-bearing here: this beat forfeits the move, it does not
             // relocate it, and the caption must not read "plays elsewhere".

@@ -321,7 +321,7 @@ struct BroadcastControllerTests {
         // the live board underneath stays mounted while the caption types.
         #expect(f.controller.currentFrame == nil)
         #expect(f.controller.currentSlide?.facts
-                == ["Both players passed. The game is over."])
+                == ["Both players have passed — that's the end of the game."])
         #expect(f.controller.phase == .idle)          // idle, exactly as before
         #expect(!f.sent("kata-search_analyze_cancellable"))
 
@@ -702,7 +702,7 @@ struct BroadcastControllerTests {
                case .pv = overlay { return true }
             return false
         })
-        #expect(f.controller.typedText.contains("visits."))
+        #expect(f.controller.typedText.contains("with a 60% win rate."))
     }
 
     @Test("Beat frames drain before the next fact: the tenuki phase never starts mid-PV")
@@ -818,7 +818,7 @@ struct BroadcastControllerTests {
                f.controller.currentFrame?.placedStones
                    .contains(PlacedStone(vertex: "E5", color: .white)) == true {
                 sawPunishFrame = true
-                textPrecededStone = f.controller.typedText.contains("would punish at E5")
+                textPrecededStone = f.controller.typedText.contains("punishes at E5")
             }
             await Task.yield()
         }
@@ -1087,7 +1087,7 @@ struct BroadcastControllerTests {
         #expect(kinds == [.playedPass, .gameOver])
         #expect(h.controller.phase == .idle)
         #expect(h.speaker.spoken.contains("Black passes."))
-        #expect(h.speaker.spoken.contains("Both players passed. The game is over."))
+        #expect(h.speaker.spoken.contains("Both players have passed — that's the end of the game."))
     }
 
     /// The *caption hold*: once the game-over card covers the panel there is
@@ -1120,7 +1120,9 @@ struct BroadcastControllerTests {
         let covered = await holdCost(startingPassCount: 1)
 
         #expect(uncovered > 4.0)
-        #expect(covered < 2.0)
+        // Both closing captions type ~2.2 s of text at the live 30 cps; the
+        // bound just has to exclude the 6 s dwell floor, not shave typing.
+        #expect(covered < 3.0)
         // Comfortably inside self-play's 8 s interstitial, which the 6 s
         // floor applied twice would have overrun.
         #expect(covered * 2 < uncovered)

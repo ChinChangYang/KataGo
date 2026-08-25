@@ -675,13 +675,14 @@ public final class BroadcastController {
     static var gameOverSlide: BroadcastSlide {
         BroadcastSlide(kind: .gameOver,
                        title: "Game Over",
-                       facts: ["Both players passed. The game is over."])
+                       facts: ["Both players have passed — that's the end of the game."])
     }
 
     /// Queues the terminal caption at most once per game (see
     /// `didPresentGameOverSlide`). At a closing double pass it lands BEHIND
     /// the played-pass caption `advance` queued a moment earlier, so the game
-    /// ends "White passes." → "Both players passed. The game is over."
+    /// ends "White passes." → "Both players have passed — that's the end of
+    /// the game."
     private func presentGameOverSlideOnce() {
         guard !didPresentGameOverSlide else { return }
         didPresentGameOverSlide = true

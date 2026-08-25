@@ -182,7 +182,7 @@ private func previewFrames(_ slideIndex: Int) -> [BroadcastBoardFrame] {
 
 #Preview("Slide panel — streaming") {
     TVBroadcastSlidePanel(title: "Best Move R14",
-                          text: "Position: move 12, Black to play.\nBest move R14: 56% win rate",
+                          text: "Here we are at move 12, and it's Black's turn.\nKataGo's favorite is R14. It lifts Black to a 56% win rate",
                           slideNumber: 1,
                           slideCount: 3)
         .frame(width: 752, height: 900)

@@ -382,20 +382,17 @@ public struct DeepReportView: View {
 
     // MARK: - Bits
 
-    /// The Playing-vs-Passing sentence (round 5): names the best move and
-    /// conditions the punishment on it. Static (not a computed property on the
-    /// view) so the bestVertex-nil fallback is unit-testable.
+    /// The Playing-vs-Passing sentence: the narrator's shared head + punish
+    /// pair joined into one paragraph, so the sheet reads exactly what the
+    /// broadcast speaks. Static (not a computed property on the view) so the
+    /// bestVertex-nil fallback is unit-testable.
     static func passSentence(pass: PassComparison, bestVertex: String?,
                              sideName: String, opponentName: String) -> String {
-        // A "pass" best candidate is not a nameable point ("doesn't play at
-        // pass") — treat it like no best vertex.
-        let named = bestVertex.flatMap { $0 == "pass" ? nil : $0 }
-        let playing = named.map { "playing \($0)" } ?? "playing"
-        var sentence = "If \(sideName) passes: \(String(format: "%.0f%%", pass.winrate * 100)) win rate — \(playing) is worth \(String(format: "%+.0f%%", pass.winrateDeltaVsBest * 100)) and \(String(format: "%+.1f", pass.scoreLeadDeltaVsBest)) points. \(opponentName) would punish at \(pass.punishmentVertex)"
-        if let named {
-            sentence += " if \(sideName) doesn't play at \(named)"
-        }
-        return sentence + "."
+        let (head, punish) = ReportNarrator.passHeadAndPunish(pass: pass,
+                                                              bestVertex: bestVertex,
+                                                              sideName: sideName,
+                                                              opponentName: opponentName)
+        return head + " " + punish
     }
 
     private func skeletonRow(height: CGFloat) -> some View {
@@ -492,7 +489,12 @@ struct CandidateSectionView: View {
                 Text(statsText)
                     .font(.callout)
                 if let tenuki = candidate.tenuki {
-                    Label("If \(opponentName) ignores \(candidate.vertex), \(sideName) follows up with \(tenuki.vertex) (\(String(format: "%.0f%%", tenuki.winrate * 100)) win rate, \(String(format: "%+.1f", tenuki.scoreLead)) points).",
+                    Label(ReportNarrator.tenukiSentence(opponentName: opponentName,
+                                                        sideName: sideName,
+                                                        ignoredVertex: candidate.vertex,
+                                                        followUpVertex: tenuki.vertex,
+                                                        winrate: tenuki.winrate,
+                                                        scoreLead: tenuki.scoreLead),
                           systemImage: "arrow.turn.down.right")
                         .font(.callout)
                 }

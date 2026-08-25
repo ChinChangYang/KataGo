@@ -230,12 +230,11 @@ struct BroadcastReplayTests {
             .flatMap { $0.facts }.first!
         let chunks = BroadcastScript.typewriterChunks(firstFact)
         #expect(!chunks.isEmpty)
-        // Any non-empty chunk discriminates 60 cps from 30 cps; guard
-        // defensively against a degenerate chunk where they'd collide.
-        let chunk = chunks.first {
-            Double($0.count) / TVAutoPlaySpeed.fast.broadcastPacing.charactersPerSecond
-                != Double($0.count) / BroadcastPacing.live.charactersPerSecond
-        } ?? chunks[0]
+        // Use the LONGEST chunk: its live-rate delay could only be produced
+        // at the fast rate by a chunk twice as long, which no fact has — a
+        // shorter chunk's live delay can collide with a double-length chunk's
+        // fast delay (n/30 == 2n/60) and once did.
+        let chunk = chunks.max(by: { $0.count < $1.count })!
         let fastDelay = Double(chunk.count) / TVAutoPlaySpeed.fast.broadcastPacing.charactersPerSecond
         let liveDelay = Double(chunk.count) / BroadcastPacing.live.charactersPerSecond
 
