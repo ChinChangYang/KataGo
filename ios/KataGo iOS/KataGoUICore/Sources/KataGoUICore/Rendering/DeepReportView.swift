@@ -165,7 +165,26 @@ public struct DeepReportView: View {
         // deserves a reachable Alternative slot.
         if model.stage == .complete && model.candidates.count == 1 {
             Button("Pick an alternative…") { showingPicker = true }
+                // Liquid Glass: the sheet body is floating chrome, not a List
+                // row, so the house style applies. `.glass` and not
+                // `.glassProminent` because the report's one default action is
+                // the toolbar's Done — these two in-body buttons both open the
+                // same picker, and neither is the thing the sheet is for.
+                //
+                // `#if os(visionOS)` and NOT the `|| os(tvOS)` this package
+                // uses in StoneView/CommentView: in the 26 SDKs both styles are
+                // `@available(iOS 26, macOS 26, tvOS 26, watchOS 26, *)` with
+                // `@available(visionOS, unavailable)` — visionOS is the only
+                // platform that cannot compile them. tvOS's exclusion elsewhere
+                // is a styling choice, not a constraint. Moot for rendering
+                // either way: DeepReportView is presented only by the iOS sheet
+                // and the macOS hosting controller (tvOS reuses DeepReportModel
+                // alone), so the fallback exists to keep the package building.
+#if os(visionOS)
                 .buttonStyle(.bordered)
+#else
+                .buttonStyle(.glass)
+#endif
         }
     }
 
@@ -413,19 +432,62 @@ struct CandidateSectionView: View {
         return text
     }
 
+    private var headingText: some View {
+        Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
+            .font(.title3.bold())
+    }
+
+    /// Same style and the same guard as the "Pick an alternative…" button in
+    /// `DeepReportView.candidatesSection`, which carries the reasoning.
+    private func changeButton(_ action: @escaping () -> Void) -> some View {
+        let button = Button("Change…", action: action)
+#if os(visionOS)
+        return button.buttonStyle(.bordered).controlSize(.small)
+#else
+        return button.buttonStyle(.glass).controlSize(.small)
+#endif
+    }
+
+    /// Heading plus the Change… affordance, stacked instead when they cannot
+    /// sit side by side.
+    ///
+    /// Measured, not assumed: rendered at `.accessibility5` in a 370pt lane —
+    /// the report sheet's content width on an iPhone — the one-line HStack
+    /// hyphen-breaks the heading across three lines ("Alter-/native/C7") AND
+    /// wraps the button label to "Chang/e…". That is a PRE-EXISTING overflow,
+    /// visible with the bare label and unchanged by the move to Liquid Glass;
+    /// the glass capsule's ~40pt of horizontal padding only widens the miss.
+    ///
+    /// `ViewThatFits` measures the horizontal branch's ideal width (the
+    /// `Spacer` contributes zero, so it is just heading + button) and falls
+    /// back only on genuine overflow, so ordinary text sizes lay out exactly
+    /// as before. Not `ActionRow`: that helper is for a secondary/primary
+    /// action pair — it clamps both children to `lineLimit(1)` and puts the
+    /// primary FIRST when stacked, and a section heading must neither be
+    /// truncated to one line nor follow the control it labels.
+    @ViewBuilder
+    private var headingRow: some View {
+        if let onChangeAlternative {
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    headingText
+                    Spacer()
+                    changeButton(onChangeAlternative)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    headingText
+                    changeButton(onChangeAlternative)
+                }
+            }
+        } else {
+            headingText
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
-            HStack {
-                Text(isBest ? "Best Move \(candidate.vertex)" : "Alternative \(candidate.vertex)")
-                    .font(.title3.bold())
-                if let onChangeAlternative {
-                    Spacer()
-                    Button("Change…") { onChangeAlternative() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
-            }
+            headingRow
             VStack(alignment: .leading, spacing: 8) {
                 Text(statsText)
                     .font(.callout)
@@ -510,6 +572,13 @@ struct DeltaLegendView: View {
                         ownershipDelta: [BoardPoint(x: 4, y: 4): -0.5],
                         tenuki: TenukiFollowUp(vertex: "G5", winrate: 0.56, scoreLead: 0.5,
                                                visits: 45, pv: ["G5"])),
+        // A second candidate so the preview covers the Alternative block too —
+        // its Variation/Δ picker and its "Change…" button only exist for a
+        // non-best candidate, and a one-candidate preview never drew them.
+        CandidateReport(vertex: "C7", visits: 60, winrate: 0.36, scoreLead: -6.5,
+                        winrateDelta: -0.06, scoreLeadDelta: -2.5, pv: ["C7", "E5"],
+                        ownershipDelta: [BoardPoint(x: 2, y: 6): -0.4],
+                        tenuki: nil),
     ]
     model.passComparison = PassComparison(punishmentVertex: "E5", winrate: 0.28, scoreLead: -7.0,
                                           winrateDeltaVsBest: 0.12, scoreLeadDeltaVsBest: 2.0,
@@ -530,9 +599,16 @@ private struct DeepReportViewPreviewHost: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 ForEach(model.candidates) { candidate in
+                    let isBest = candidate.id == model.candidates.first?.id
                     CandidateSectionView(candidate: candidate, model: model, sideName: "Black",
                                          opponentName: "White",
-                                         isBest: candidate.id == model.candidates.first?.id)
+                                         isBest: isBest,
+                                         // Non-nil for an alternative, matching
+                                         // candidatesSection's own condition, so
+                                         // the preview draws the "Change…" button.
+                                         // Inert: the picker is a navigation
+                                         // destination the host does not own.
+                                         onChangeAlternative: isBest ? nil : {})
                 }
             }
             .padding()
