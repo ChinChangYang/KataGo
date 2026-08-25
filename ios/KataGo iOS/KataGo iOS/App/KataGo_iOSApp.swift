@@ -17,6 +17,9 @@ struct KataGo_iOSApp: App {
     // "Open …" App Intents can write `pendingGameID` in-process — the system
     // refuses to open the custom katago-anytime scheme on their behalf.
     @State private var deepLinkRouter = DeepLinkRouter.shared
+    // App-level so a Listening Session outlives any one screen: audio keeps
+    // playing when the sheet is dismissed or the selection changes.
+    @State private var listeningController = ListeningSessionController()
 
     init() {
         // Create the EngineLaunchStatus object first so we can capture a
@@ -77,6 +80,22 @@ struct KataGo_iOSApp: App {
             .environment(cacheReadiness)
             .environment(engineLaunchStatus)
             .environment(deepLinkRouter)
+            .environment(listeningController)
+            .sheet(isPresented: Bindable(listeningController).isPresentingSheet) {
+                // Explicit injection: this sheet is attached OUTSIDE the
+                // .environment chain above, so its content would not inherit
+                // the controller — and a non-optional @Environment traps on
+                // view update, not on access.
+                ListeningView()
+                    .environment(listeningController)
+            }
+            .onChange(of: deepLinkRouter.pendingListenGameID, initial: true) {
+                // The Listen App Intents' drain. Board selection is untouched:
+                // a Listening Session is audio over the record, not navigation.
+                guard let id = deepLinkRouter.pendingListenGameID else { return }
+                deepLinkRouter.pendingListenGameID = nil
+                listeningController.listenToGame(withID: id)
+            }
             .onOpenURL { url in
                 // Capture externally-opened content at the always-mounted root so
                 // it survives a cold launch — a URL can be delivered before

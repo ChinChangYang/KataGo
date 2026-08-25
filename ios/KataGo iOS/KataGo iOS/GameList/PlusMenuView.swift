@@ -19,11 +19,15 @@ struct PlusMenuView: View {
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
+    @Environment(ListeningSessionController.self) var listeningController
     @State private var showingGameSettings = false
     @State private var confirmingClone = false
     @State private var showingReport = false
     @State private var showingGlobalSettings = false
     @State private var showingGifExport = false
+    @State private var listeningFailed = false
+    @State private var showingPrepare = false
+    @State private var confirmingUnpreparedListen = false
 
     var body: some View {
         Menu {
@@ -115,6 +119,28 @@ struct PlusMenuView: View {
                     } label: {
                         Label("Export GIF", systemImage: "film")
                     }
+
+                    Button {
+                        // Ready games start at once; an unprepared one is
+                        // offered the full bake first (never a gate — Listen
+                        // Now narrates what exists).
+                        if isReadyToListen {
+                            startListening()
+                        } else {
+                            confirmingUnpreparedListen = true
+                        }
+                    } label: {
+                        Label("Listen", systemImage: "headphones")
+                    }
+
+                    Button {
+                        showingPrepare = true
+                    } label: {
+                        Label("Prepare for Listening", systemImage: "waveform.badge.magnifyingglass")
+                    }
+                    // The sweep shares the Deep Report's engine envelope, so
+                    // it shares its gate too.
+                    .disabled(reportDisabled)
 
                     Button {
                         confirmingClone = true
@@ -220,6 +246,41 @@ struct PlusMenuView: View {
             }
         }
         .confirmationDialog(
+            "This game isn't fully analyzed yet",
+            isPresented: $confirmingUnpreparedListen,
+            titleVisibility: .visible
+        ) {
+            Button("Listen Now") {
+                startListening()
+            }
+            Button("Prepare for Listening First") {
+                showingPrepare = true
+            }
+            .disabled(reportDisabled)
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Unanalyzed moves are read as bare move calls. Prepare analyzes every move and writes commentary first.")
+        }
+        .sheet(isPresented: $showingPrepare, onDismiss: {
+            // The sweep left the engine idle on the displayed position;
+            // re-arm live analysis exactly as the Deep Report dismissal does.
+            if let gameRecord {
+                gobanState.resumeAnalysisAfterReport(
+                    config: gameRecord.concreteConfig,
+                    nextColorForPlayCommand: player.nextColorForPlayCommand,
+                    messageList: messageList)
+            }
+        }) {
+            if let gameRecord {
+                ListeningPrepareSheet(gameRecord: gameRecord)
+            }
+        }
+        .alert("This game can't be narrated", isPresented: $listeningFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Its record holds a move the rules refuse to replay.")
+        }
+        .confirmationDialog(
             "Clone this game",
             isPresented: $confirmingClone,
             titleVisibility: .visible
@@ -246,6 +307,22 @@ struct PlusMenuView: View {
         }
     }
 
+    private func startListening() {
+        guard let gameRecord else { return }
+        if !listeningController.listen(to: gameRecord) {
+            listeningFailed = true
+        }
+    }
+
+    /// The derived ready-to-listen marker: every position 0...N analyzed.
+    private var isReadyToListen: Bool {
+        guard let gameRecord,
+              let scan = SgfHeaderScan(sgf: gameRecord.sgf) else { return false }
+        return ListeningReadiness.isReady(
+            moveCount: scan.moveCount,
+            analyzedIndices: Set(gameRecord.winRates?.keys ?? [:].keys))
+    }
+
     /// Deep Report gating: engine/board ready, no in-flight AI move (its
     /// cancellable search would interleave with the probes), game not
     /// finished, no report running.
@@ -269,4 +346,5 @@ struct PlusMenuView: View {
     .environment(TopUIState())
     .environment(Turn())
     .environment(Stones())
+    .environment(ListeningSessionController())
 }

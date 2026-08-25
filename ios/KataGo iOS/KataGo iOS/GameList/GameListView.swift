@@ -16,6 +16,7 @@ struct GameLinksView: View {
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @Environment(TopUIState.self) private var topUIState
+    @Environment(ListeningSessionController.self) private var listeningController
 
     private var isSearchActive: Bool { !searchText.isEmpty }
 
@@ -44,6 +45,15 @@ struct GameLinksView: View {
             } else {
                 NavigationLink(value: gameRecord) {
                     GameLinkView(gameRecord: gameRecord)
+                }
+                .contextMenu {
+                    Button {
+                        // Narrates THIS row's record; selection is untouched
+                        // (a Listening Session never moves any board).
+                        listeningController.listen(to: gameRecord)
+                    } label: {
+                        Label("Listen", systemImage: "headphones")
+                    }
                 }
             }
         }

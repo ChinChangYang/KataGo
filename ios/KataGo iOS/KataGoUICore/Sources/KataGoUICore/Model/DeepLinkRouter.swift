@@ -34,6 +34,12 @@ public struct PendingImageImport: Equatable {
 public class DeepLinkRouter {
     public var pendingGameID: UUID?
 
+    /// A pending "listen to this game" request from the Listen App Intents,
+    /// drained at the iOS app root into a Listening Session. Separate from
+    /// `pendingGameID` on purpose: listening never moves any board, so it
+    /// must not ride the open-game selection path.
+    public var pendingListenGameID: UUID?
+
     /// A board image opened WITH the app, latched by the root `.onOpenURL`.
     /// The bytes are read AT RECEIPT rather than latching the URL: the URL's
     /// sandbox (security-scoped) extension is not guaranteed to survive until

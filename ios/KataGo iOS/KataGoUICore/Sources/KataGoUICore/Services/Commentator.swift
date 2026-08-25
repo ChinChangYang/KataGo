@@ -34,9 +34,22 @@ public class Commentator {
     public var gameRecord: GameRecord
     public var turn: Turn
 
-    public init(gameRecord: GameRecord, turn: Turn) {
+    /// A pinned move index. Normally nil, so the commentator follows the
+    /// record's parked position (the historical behavior). Prepare and Listen
+    /// pin an explicit index so commentary can be generated for any move
+    /// WITHOUT moving the user's board (ADR 0013).
+    private let indexOverride: Int?
+
+    /// The index this commentator speaks about: the pinned one when set,
+    /// else the record's parked position, read live at generation time.
+    public var currentIndex: Int {
+        indexOverride ?? gameRecord.currentIndex
+    }
+
+    public init(gameRecord: GameRecord, turn: Turn, index: Int? = nil) {
         self.gameRecord = gameRecord
         self.turn = turn
+        self.indexOverride = index
     }
 
     @MainActor
@@ -75,7 +88,7 @@ Original Go commentary of the current move to be improved:
             comment = improved.isEmpty ? original : improved
 
 #if DEBUG
-            let analysisText = generateAnalysisText(currentIndex: gameRecord.currentIndex)
+            let analysisText = generateAnalysisText(currentIndex: currentIndex)
 
             comment =
 """
@@ -173,8 +186,8 @@ Original Go commentary of the current move to be improved:
     }
 
     public func generateNaturalComment() -> String {
-        let currentIndex = gameRecord.currentIndex
-        let nextIndex = gameRecord.currentIndex + 1
+        let currentIndex = self.currentIndex
+        let nextIndex = currentIndex + 1
         let lastMoveText = generateLastMoveText()
         let colorToPlay = turn.nextColorForPlayCommand.name
         let colorPlayed = turn.nextColorForPlayCommand.other.name
@@ -440,12 +453,56 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
     }
 
     private func generateLastMoveText() -> String {
-        guard gameRecord.currentIndex >= 1 else { return "None" }
-        let lastMove = gameRecord.moves?[gameRecord.currentIndex - 1] ?? "Unknown"
+        guard currentIndex >= 1 else { return "None" }
+        let lastMove = gameRecord.moves?[currentIndex - 1] ?? "Unknown"
         return lastMove
     }
 
-    private func stonesDiff(current: String?, next: String?) -> [String] {
+    private func formatWinRate(_ blackWinRate: Float?, for selfColor: PlayerColor) -> String {
+        CommentatorPhrasing.formatWinRate(blackWinRate, for: selfColor)
+    }
+
+    private func formatWinRateDiff(
+        _ bestBlackWinRate: Float?,
+        _ myBlackWinRate: Float?,
+        for selfColor: PlayerColor
+    ) -> String {
+        CommentatorPhrasing.formatWinRateDiff(bestBlackWinRate, myBlackWinRate, for: selfColor)
+    }
+
+    private func formatScore(_ blackScore: Float?, for selfColor: PlayerColor) -> String {
+        CommentatorPhrasing.formatScore(blackScore, for: selfColor)
+    }
+
+    private func formatScoreDiff(
+        _ bestBlackScore: Float?,
+        _ myBlackScore: Float?,
+        for selfColor: PlayerColor
+    ) -> String {
+        CommentatorPhrasing.formatScoreDiff(bestBlackScore, myBlackScore, for: selfColor)
+    }
+
+    private func formatDeadStonesDiff(current: String?, next: String?, color: PlayerColor) -> String {
+        CommentatorPhrasing.formatDeadStonesDiff(current: current, next: next, color: color)
+    }
+
+    private func formatSchrodingerStonesDiff(current: String?, next: String?, color: PlayerColor) -> String {
+        CommentatorPhrasing.formatSchrodingerStonesDiff(current: current, next: next, color: color)
+    }
+
+    private func formatEndangeredStonesDiff(current: String?, next: String?, color: PlayerColor) -> String {
+        CommentatorPhrasing.formatEndangeredStonesDiff(current: current, next: next, color: color)
+    }
+
+}
+
+/// The commentator register's shared wording units, extracted from
+/// `Commentator` so surfaces without a board position in hand — Listen's
+/// per-move cues, Prepare's sweep — speak the exact same phrases. Pure
+/// functions of the record's persisted, black-perspective numbers; the
+/// bodies are the originals, moved verbatim.
+public enum CommentatorPhrasing {
+    public static func stonesDiff(current: String?, next: String?) -> [String] {
         guard let current, let next, current != next else { return [] }
         let currentSet = Set(current.split(separator: " ").map(String.init))
         let nextSet = Set(next.split(separator: " ").map(String.init))
@@ -453,7 +510,7 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return diff.sorted()
     }
 
-    private func formatWinRate(_ blackWinRate: Float?, for selfColor: PlayerColor) -> String {
+    public static func formatWinRate(_ blackWinRate: Float?, for selfColor: PlayerColor) -> String {
         guard let blackWinRate else {
             return "Unknown"
         }
@@ -464,7 +521,7 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return winRateText
     }
 
-    private func formatWinRateDiff(
+    public static func formatWinRateDiff(
         _ bestBlackWinRate: Float?,
         _ myBlackWinRate: Float?,
         for selfColor: PlayerColor
@@ -484,7 +541,7 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return winRateDiffSentence
     }
 
-    private func formatScore(_ blackScore: Float?, for selfColor: PlayerColor) -> String {
+    public static func formatScore(_ blackScore: Float?, for selfColor: PlayerColor) -> String {
         guard let blackScore else {
             return "Unknown"
         }
@@ -497,7 +554,7 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return scoreSentence
     }
 
-    private func formatScoreDiff(
+    public static func formatScoreDiff(
         _ bestBlackScore: Float?,
         _ myBlackScore: Float?,
         for selfColor: PlayerColor
@@ -517,12 +574,12 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return scoreDiffSentence
     }
 
-    private func formatDeadStonesDiff(
+    public static func formatDeadStonesDiff(
         current: String?,
         next: String?,
         color: PlayerColor
     ) -> String {
-        let deadStones = stonesDiff(current: current, next: next)
+        let deadStones = Self.stonesDiff(current: current, next: next)
         guard !deadStones.isEmpty else { return "" }
         let stonesString = deadStones.joined(separator: " ")
 
@@ -534,12 +591,12 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return deadStonesDiffText
     }
 
-    private func formatSchrodingerStonesDiff(
+    public static func formatSchrodingerStonesDiff(
         current: String?,
         next: String?,
         color: PlayerColor
     ) -> String {
-        let schrodingerStones = stonesDiff(current: current, next: next)
+        let schrodingerStones = Self.stonesDiff(current: current, next: next)
         guard !schrodingerStones.isEmpty else { return "" }
         let stonesString = schrodingerStones.joined(separator: " ")
         
@@ -551,12 +608,12 @@ Game starts.\(colorToPlaySentence)\(colorCapturingBlackSentence)\(colorCapturing
         return schrodingerStonesDiffText
     }
 
-    private func formatEndangeredStonesDiff(
+    public static func formatEndangeredStonesDiff(
         current: String?,
         next: String?,
         color: PlayerColor
     ) -> String {
-        let endangeredStones = stonesDiff(current: current, next: next)
+        let endangeredStones = Self.stonesDiff(current: current, next: next)
         guard !endangeredStones.isEmpty else { return "" }
         let stonesString = endangeredStones.joined(separator: " ")
 

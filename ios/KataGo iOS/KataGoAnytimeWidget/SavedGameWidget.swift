@@ -32,6 +32,12 @@ struct SavedGameWidget: Widget {
             // comment stay bright and legible over the glass backdrop instead
             // of dimming with the room like a print.
             .widgetTexture(.glass)
+        #elseif os(iOS)
+        // A glanceable goban on the CarPlay Dashboard is a distraction
+        // magnet; Apple's guidance is to disfavor game widgets there. The
+        // Listening Live Activity is the app's one CarPlay surface.
+        base
+            .disfavoredLocations([.carPlay], for: [.systemSmall])
         #else
         base
         #endif

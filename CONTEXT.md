@@ -93,3 +93,13 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Recompile** — a compile that happens because the compile key changed, because the compiled model was evicted to stay within the cache's bounds, or because the user cleared the cache. Ordinary, not exceptional: the app never describes compiling as a one-time event.
 - **NN buffer size** — the largest board the running engine can evaluate, fixed when the engine launches (the *Max Board Size* setting). Distinct from the board size of any particular game, which may be smaller — a 9×9 game on a 19×19 engine compiles nothing new.
 - **Heavy Core ML work** — clearing the compiled cache, or checking where Core ML routes a network: work that must never run beside a running engine, because it deletes or contends for what that engine is using. A running engine does not block it — the engine is unloaded around the work and relaunched after. Only a mid-launch engine defers it.
+
+## Listen
+
+- **Listen** — the audio-first feature that narrates a saved game aloud, move by move, for ears-only settings such as driving. Distinct from *Broadcast*: a broadcast is slide-paced and screen-bound, while Listen is utterance-paced — the next move begins when the current sentence has been spoken — and needs no screen at all.
+- **Listening Session** — one game being narrated: a read-only projection of the record as it was when the session began. Edits made to the record while a session plays never reach it, and playback never writes the record.
+- **Listening Cursor** — the per-game resume point, local to the device it was made on. Finishing a game clears it; stopping mid-game keeps it; a cursor pointing past the end of a game that has since shrunk snaps back to the last position the game still has.
+- **Listening Cue** — one move's worth of a session: the stone sound, then that move's sentence — a saved comment spoken verbatim, a *commentator register* sentence when the move has analysis, or a *bare move call* when it has nothing.
+- **Bare move call** — the minimal cue text for a move without analysis: the color and the vertex, nothing else. What an unprepared game sounds like.
+- **Prepare for Listening** — the optional pass that analyzes every move of a game and writes commentary for the moves that have none, so a session speaks full sentences throughout. An upgrade, never a gate: every game is listenable unprepared, and saved comments are never overwritten.
+- **Ready to listen** — the derived marker that a game is fully prepared: every move carries analysis. Read off the record's data, never stored.

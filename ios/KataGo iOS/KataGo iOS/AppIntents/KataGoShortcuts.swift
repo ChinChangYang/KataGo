@@ -66,6 +66,47 @@ final class KataGoShortcuts: AppShortcutsProvider {
                     )
         )
 
+        // Listen ships on iOS only (the CarPlay design); the Mac target
+        // compiles this file but not the Listen intents.
+        #if os(iOS)
+        AppShortcut(intent: ListenToGame(),
+                    phrases: [
+                        "Listen to \(\.$game) with \(.applicationName)",
+                        "Play \(\.$game) aloud with \(.applicationName)",
+                        "Narrate \(\.$game) with \(.applicationName)"
+                    ],
+                    shortTitle: "Listen to Go Game",
+                    systemImageName: "headphones",
+                    parameterPresentation: ParameterPresentation(
+                        for: \.$game,
+                        summary: Summary("Listen to \(\.$game)"),
+                        optionsCollections: {
+                            OptionsCollection(GameEntityQuery(), title: "Go Games", systemImageName: "headphones")
+                        }
+                    )
+        )
+
+        AppShortcut(intent: ListenToLatestGame(),
+                    phrases: [
+                        "Listen to the latest go game with \(.applicationName)",
+                        "Listen to my latest go game with \(.applicationName)",
+                        "Narrate my latest go game with \(.applicationName)"
+                    ],
+                    shortTitle: "Listen to Latest Go Game",
+                    systemImageName: "headphones"
+        )
+
+        AppShortcut(intent: ResumeListening(),
+                    phrases: [
+                        "Resume listening with \(.applicationName)",
+                        "Keep listening with \(.applicationName)",
+                        "Continue my go game narration with \(.applicationName)"
+                    ],
+                    shortTitle: "Resume Listening",
+                    systemImageName: "headphones"
+        )
+        #endif
+
         AppShortcut(intent: OpenLatestGame(),
                     phrases: [
                         "Open the latest go game with \(.applicationName)",

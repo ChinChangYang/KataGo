@@ -30,16 +30,32 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>chinchangyang.KataGo-iOS.tw.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>katago-anytime</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>KataGo Anytime uses the camera to photograph your Go board so it can import the position.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>KataGo Anytime uses the camera to photograph your Go board so it can import the position.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>audio</string>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
@@ -61,19 +77,6 @@
 					<string>sgf</string>
 				</array>
 			</dict>
-		</dict>
-	</array>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>chinchangyang.KataGo-iOS.tw.deeplink</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>katago-anytime</string>
-			</array>
 		</dict>
 	</array>
 </dict>

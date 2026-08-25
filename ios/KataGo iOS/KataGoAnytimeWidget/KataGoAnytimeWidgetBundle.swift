@@ -5,5 +5,8 @@ import SwiftUI
 struct KataGoAnytimeWidgetBundle: WidgetBundle {
     var body: some Widget {
         SavedGameWidget()
+        #if os(iOS)
+        ListeningActivityWidget()
+        #endif
     }
 }

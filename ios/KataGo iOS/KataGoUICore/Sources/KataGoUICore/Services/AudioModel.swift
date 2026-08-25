@@ -15,8 +15,14 @@ public class AudioModel {
 
     public init() {
 #if !os(macOS)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        // Through the policy latch, not directly: while a Listening Session
+        // owns the session (non-mixable spoken audio), a view rebuild
+        // constructing another AudioModel must not clobber it.
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { AppAudioSessionPolicy.assertSharedPlayback() }
+        } else {
+            Task { @MainActor in AppAudioSessionPolicy.assertSharedPlayback() }
+        }
 #endif
     }
 
