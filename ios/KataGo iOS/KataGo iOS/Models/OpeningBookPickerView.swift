@@ -25,7 +25,14 @@ func reconcileActiveBook(size: Int,
                          bookLookup: BookLookup?,
                          gobanState: GobanState?,
                          board: BoardSize?) {
-    guard let bookLookup else { return }
+    guard let bookLookup else {
+        // Should never happen. Both values are handed across the model-picker
+        // sheet, which is the only way this screen is reached — and when they
+        // were not, this whole function was dead code that returned here on
+        // every call and nothing said so. Never fail silently here again.
+        printError("reconcileActiveBook(\(size)): no BookLookup in the environment, the active book was NOT reconciled")
+        return
+    }
     let gameSize: Int? = board.flatMap { $0.width == $0.height ? Int($0.width) : nil }
     guard gameSize == size || bookLookup.isReady(forBoardSize: size) else { return }
     // Reconcile the size that CHANGED. Usually that is the game's size; when it
@@ -35,10 +42,13 @@ func reconcileActiveBook(size: Int,
     bookLookup.loadIfNeeded(boardSize: size)
     // The eye speaks only for the displayed game, so it leaves book view only
     // when THAT size lost its last book.
-    guard gameSize == size,
-          !bookLookup.isAvailable(forBoardSize: size),
-          gobanState?.eyeStatus == .book else { return }
-    gobanState?.eyeStatus = .opened
+    guard gameSize == size, !bookLookup.isAvailable(forBoardSize: size) else { return }
+    guard let gobanState else {
+        printError("reconcileActiveBook(\(size)): no GobanState in the environment, book view was NOT dropped")
+        return
+    }
+    guard gobanState.eyeStatus == .book else { return }
+    gobanState.eyeStatus = .opened
 }
 
 struct OpeningBookTrashButton: View {

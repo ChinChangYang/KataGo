@@ -8,6 +8,7 @@
 import Foundation
 import Compression
 import Testing
+@testable import KataGo_Anytime
 @testable import KataGoUICore
 
 /// Serialized because these tests mutate the process-global
@@ -510,5 +511,164 @@ struct OpeningBookTests {
         lookup.loadIfNeeded(boardSize: 9)
         #expect(lookup.isLoaded == false)
         #expect(lookup.loadedBookIdentity == nil)
+    }
+
+    // MARK: - reconcileActiveBook (the iOS picker's post-change reconcile)
+
+    /// Scratch dirs + isolated stores, with NO book installed anywhere.
+    /// Caller restores in a defer.
+    fileprivate static func isolateWithNoBooks(suiteName: String = #function) -> URL {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rctest-\(UUID().uuidString)", isDirectory: true)
+        OpeningBook._booksDirectoryOverride = parent.appendingPathComponent("OpeningBooks", isDirectory: true)
+        isolateCustomBooks(into: parent, suiteName: suiteName)
+        return parent
+    }
+
+    fileprivate static func board(_ width: Int, _ height: Int) -> BoardSize {
+        let board = BoardSize()
+        board.width = CGFloat(width)
+        board.height = CGFloat(height)
+        return board
+    }
+
+    /// The size to reconcile is the one that CHANGED, not the game's.
+    ///
+    /// Positive control for the `gameSize ?? size` bug: a 19x19 game with a
+    /// 7x7 book live, reconciling 7. Targeting the game's size instead unloads
+    /// a live book nothing asked about and loads nothing in its place.
+    @Test func reconcileTargetsTheSizeThatChangedNotTheGames() async throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rctest-\(UUID().uuidString)", isDirectory: true)
+        Self.isolateCustomBooks(into: parent)
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+        try Self.installFixtureBook(boardSize: 7, into: parent)
+
+        let lookup = BookLookup()
+        lookup.loadIfNeeded(boardSize: 7)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while !lookup.isLoaded, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try #require(lookup.isReady(forBoardSize: 7))
+        let identity = lookup.loadedBookIdentity
+
+        reconcileActiveBook(size: 7,
+                            bookLookup: lookup,
+                            gobanState: GobanState(),
+                            board: Self.board(19, 19))
+
+        #expect(lookup.isReady(forBoardSize: 7))
+        #expect(lookup.loadedBookIdentity == identity)
+    }
+
+    /// The scoping rule: a change at some OTHER size never drags the displayed
+    /// game out of book view.
+    @Test func reconcileOfAnotherSizeLeavesTheGamesEyeAlone() {
+        let parent = Self.isolateWithNoBooks()
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+
+        let goban = GobanState()
+        goban.eyeStatus = .book
+        reconcileActiveBook(size: 7,
+                            bookLookup: BookLookup(),
+                            gobanState: goban,
+                            board: Self.board(9, 9))
+
+        #expect(goban.eyeStatus == .book)
+    }
+
+    /// The eye leaves book view when the DISPLAYED game's size lost its last
+    /// book — the delete-the-active-book case.
+    @Test func reconcileDropsBookViewWhenTheGamesSizeHasNoBookLeft() {
+        let parent = Self.isolateWithNoBooks()
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+
+        let goban = GobanState()
+        goban.eyeStatus = .book
+        reconcileActiveBook(size: 7,
+                            bookLookup: BookLookup(),
+                            gobanState: goban,
+                            board: Self.board(7, 7))
+
+        #expect(goban.eyeStatus == .opened)
+    }
+
+    /// ...and stays in book view while that size still has one — deleting the
+    /// catalog book with an import behind it must not close the eye.
+    @Test func reconcileKeepsBookViewWhileTheSizeStillHasABook() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rctest-\(UUID().uuidString)", isDirectory: true)
+        Self.isolateCustomBooks(into: parent)
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+        try Self.installFixtureBook(boardSize: 7, into: parent)
+
+        let goban = GobanState()
+        goban.eyeStatus = .book
+        reconcileActiveBook(size: 7,
+                            bookLookup: BookLookup(),
+                            gobanState: goban,
+                            board: Self.board(7, 7))
+
+        #expect(goban.eyeStatus == .book)
+    }
+
+    /// A missing `BookLookup` is how this function shipped dead: every call
+    /// returned at the first guard and nothing reconciled. Paired with
+    /// `reconcileDropsBookViewWhenTheGamesSizeHasNoBookLeft`, which runs the
+    /// same inputs WITH a lookup and does drop the eye — so this test fails
+    /// the moment the guard stops being the thing that swallowed the call.
+    @Test func reconcileWithoutALiveBookLookupDoesNothing() {
+        let parent = Self.isolateWithNoBooks()
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+
+        let goban = GobanState()
+        goban.eyeStatus = .book
+        reconcileActiveBook(size: 7,
+                            bookLookup: nil,
+                            gobanState: goban,
+                            board: Self.board(7, 7))
+
+        #expect(goban.eyeStatus == .book)
+    }
+
+    /// A rectangular game has no book size of its own, so nothing about it
+    /// matches a book change and its eye is left alone.
+    @Test func reconcileIgnoresARectangularBoard() {
+        let parent = Self.isolateWithNoBooks()
+        defer {
+            OpeningBook._booksDirectoryOverride = nil
+            Self.restoreCustomBooks()
+            try? FileManager.default.removeItem(at: parent)
+        }
+
+        let goban = GobanState()
+        goban.eyeStatus = .book
+        reconcileActiveBook(size: 7,
+                            bookLookup: BookLookup(),
+                            gobanState: goban,
+                            board: Self.board(13, 9))
+
+        #expect(goban.eyeStatus == .book)
     }
 }
