@@ -4,9 +4,10 @@
 //
 //  Download / inspect / delete the catalog opening books, import the user's
 //  own .kbook/.kbook.gz files, and choose the active book per board size.
-//  Mirrors ModelPickerView's trio. Reached from ModelPickerView, which may be
-//  shown before a game session exists, so BookLookup/GobanState/BoardSize
-//  are looked up optionally from the environment.
+//  Mirrors ModelPickerView's trio. Reached from ModelPickerView, whose sheet
+//  hands BookLookup/GobanState/BoardSize across from the session — so this
+//  screen reads all three NON-optionally and a dropped injection traps on
+//  arrival instead of quietly reconciling nothing.
 //
 
 import SwiftUI
@@ -20,20 +21,19 @@ import KataGoUICore
 /// `loadIfNeeded` itself does the rest — it reloads when the resolved identity
 /// changed and unloads when nothing resolves any more — and the eye falls back
 /// out of book view only when the CURRENT game's size lost its last book.
+///
+/// Every parameter is non-optional on purpose. This function shipped dead
+/// because the model-picker sheet did not hand the live book and the eye
+/// across, `@Environment` answered nil, and it returned at a guard nothing was
+/// watching. The sheet is still the only way here, so the callers now read all
+/// three non-optionally: dropping the injection again is a trap on arrival at
+/// the screen, not a log line.
 @MainActor
 func reconcileActiveBook(size: Int,
-                         bookLookup: BookLookup?,
-                         gobanState: GobanState?,
-                         board: BoardSize?) {
-    guard let bookLookup else {
-        // Should never happen. Both values are handed across the model-picker
-        // sheet, which is the only way this screen is reached — and when they
-        // were not, this whole function was dead code that returned here on
-        // every call and nothing said so. Never fail silently here again.
-        printError("reconcileActiveBook(\(size)): no BookLookup in the environment, the active book was NOT reconciled")
-        return
-    }
-    let gameSize: Int? = board.flatMap { $0.width == $0.height ? Int($0.width) : nil }
+                         bookLookup: BookLookup,
+                         gobanState: GobanState,
+                         board: BoardSize) {
+    let gameSize: Int? = board.width == board.height ? Int(board.width) : nil
     guard gameSize == size || bookLookup.isReady(forBoardSize: size) else { return }
     // Reconcile the size that CHANGED. Usually that is the game's size; when it
     // is not, the guard leaves only one other case — `size` is the size
@@ -43,10 +43,6 @@ func reconcileActiveBook(size: Int,
     // The eye speaks only for the displayed game, so it leaves book view only
     // when THAT size lost its last book.
     guard gameSize == size, !bookLookup.isAvailable(forBoardSize: size) else { return }
-    guard let gobanState else {
-        printError("reconcileActiveBook(\(size)): no GobanState in the environment, book view was NOT dropped")
-        return
-    }
     guard gobanState.eyeStatus == .book else { return }
     gobanState.eyeStatus = .opened
 }
@@ -56,9 +52,9 @@ struct OpeningBookTrashButton: View {
     @Binding var isDownloaded: Bool
     var onDeleted: (() -> Void)? = nil
     @State private var isConfirming = false
-    @Environment(BookLookup.self) private var bookLookup: BookLookup?
-    @Environment(GobanState.self) private var gobanState: GobanState?
-    @Environment(BoardSize.self) private var board: BoardSize?
+    @Environment(BookLookup.self) private var bookLookup
+    @Environment(GobanState.self) private var gobanState
+    @Environment(BoardSize.self) private var board
 
     var body: some View {
         Button(role: .destructive) {
@@ -100,9 +96,9 @@ struct ImportedBookDetailView: View {
     let onStoreChanged: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(BookLookup.self) private var bookLookup: BookLookup?
-    @Environment(GobanState.self) private var gobanState: GobanState?
-    @Environment(BoardSize.self) private var board: BoardSize?
+    @Environment(BookLookup.self) private var bookLookup
+    @Environment(GobanState.self) private var gobanState
+    @Environment(BoardSize.self) private var board
     @State private var isConfirmingDelete = false
 
     var body: some View {
@@ -250,9 +246,9 @@ struct OpeningBookDetailView: View {
 }
 
 struct OpeningBookPickerView: View {
-    @Environment(BookLookup.self) private var bookLookup: BookLookup?
-    @Environment(GobanState.self) private var gobanState: GobanState?
-    @Environment(BoardSize.self) private var board: BoardSize?
+    @Environment(BookLookup.self) private var bookLookup
+    @Environment(GobanState.self) private var gobanState
+    @Environment(BoardSize.self) private var board
 
     @State private var customRecords: [CustomBookRecord] = []
     /// Sizes where more than one book claims the board, so an explicit choice
@@ -468,14 +464,32 @@ struct OpeningBookPickerView: View {
     }
 }
 
+/// Hosts the trio the picker's sheet hands across in the app, so the previews
+/// satisfy the non-optional reads the way `ModelRunnerView` does.
+private struct BookPreviewHost<Content: View>: View {
+    @ViewBuilder let content: Content
+    @State private var bookLookup = BookLookup()
+    @State private var gobanState = GobanState()
+    @State private var board = BoardSize()
+
+    var body: some View {
+        NavigationStack {
+            content
+        }
+        .environment(bookLookup)
+        .environment(gobanState)
+        .environment(board)
+    }
+}
+
 #Preview("Opening Book Picker") {
-    NavigationStack {
+    BookPreviewHost {
         OpeningBookPickerView()
     }
 }
 
 #Preview("Opening Book Detail") {
-    NavigationStack {
+    BookPreviewHost {
         OpeningBookDetailView(
             book: OpeningBook.allCases[3],
             download: DownloadCenter.shared.download(for: OpeningBook.allCases[3].downloadedURL)

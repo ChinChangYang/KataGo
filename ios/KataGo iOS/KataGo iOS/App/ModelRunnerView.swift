@@ -58,10 +58,10 @@ struct ModelRunnerView: View {
                 // The live book and the eye come across for the same reason:
                 // the Opening Books screen hangs off this picker, and importing,
                 // deleting or re-choosing an active book has to reconcile the
-                // book the current game is playing from. Without them
-                // `reconcileActiveBook` looks them up as nil and returns at its
-                // first guard, leaving a stale book loaded until the game is
-                // reopened.
+                // book the current game is playing from. That screen reads all
+                // three NON-optionally now, so dropping one from this chain
+                // traps on arrival — the way it once left a stale book loaded
+                // until the game was reopened, with only a log line to say so.
                 .environment(session.engineStatus)
                 .environment(session.board)
                 .environment(session.bookLookup)

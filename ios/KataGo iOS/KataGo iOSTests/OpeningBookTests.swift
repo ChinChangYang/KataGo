@@ -629,29 +629,6 @@ struct OpeningBookTests {
         #expect(goban.eyeStatus == .book)
     }
 
-    /// A missing `BookLookup` is how this function shipped dead: every call
-    /// returned at the first guard and nothing reconciled. Paired with
-    /// `reconcileDropsBookViewWhenTheGamesSizeHasNoBookLeft`, which runs the
-    /// same inputs WITH a lookup and does drop the eye — so this test fails
-    /// the moment the guard stops being the thing that swallowed the call.
-    @Test func reconcileWithoutALiveBookLookupDoesNothing() {
-        let parent = Self.isolateWithNoBooks()
-        defer {
-            OpeningBook._booksDirectoryOverride = nil
-            Self.restoreCustomBooks()
-            try? FileManager.default.removeItem(at: parent)
-        }
-
-        let goban = GobanState()
-        goban.eyeStatus = .book
-        reconcileActiveBook(size: 7,
-                            bookLookup: nil,
-                            gobanState: goban,
-                            board: Self.board(7, 7))
-
-        #expect(goban.eyeStatus == .book)
-    }
-
     /// A rectangular game has no book size of its own, so nothing about it
     /// matches a book change and its eye is left alone.
     @Test func reconcileIgnoresARectangularBoard() {

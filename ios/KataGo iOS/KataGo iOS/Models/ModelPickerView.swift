@@ -419,12 +419,20 @@ struct ModelPickerView: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var readiness = CoreMLCacheReadiness()
         @State private var controller = AppEngineController()
+        // The trio ModelRunnerView hands across; the Opening Books screen
+        // pushed from here reads all three non-optionally.
+        @State private var bookLookup = BookLookup()
+        @State private var gobanState = GobanState()
+        @State private var board = BoardSize()
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel
             )
             .environment(readiness)
             .environment(controller)
+            .environment(bookLookup)
+            .environment(gobanState)
+            .environment(board)
         }
     }
     return PreviewHost()
