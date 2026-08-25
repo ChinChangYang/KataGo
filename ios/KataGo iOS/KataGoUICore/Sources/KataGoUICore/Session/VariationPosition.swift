@@ -184,11 +184,20 @@ public enum VariationResolver {
         BoardPoint(x: point.x, y: height - 1 - point.y)
     }
 
+    /// The SAME parse `ForcePlay` uses, deliberately: `parseVertex` is a prefix
+    /// scan that already bounds-checks both axes and already returns GoPoint's
+    /// top-left convention, so there is no flip to get wrong here and no
+    /// disagreement possible with the board the force-play just built.
+    ///
+    /// NOT `BoardPoint(move:)`, which builds a Swift `Regex` per call: this runs
+    /// once per base stone on every `resolveVertices`, i.e. per broadcast beat
+    /// on Apple TV, where a mid-game 19x19 would mean ~150 regex constructions
+    /// for an answer a prefix scan gives for free. It also maps "pass" to a
+    /// synthetic off-board point rather than nil, which is a guard this would
+    /// then have to remember to write.
     private static func goPoint(_ vertex: String, width: Int, height: Int) -> GoPoint? {
-        guard let point = BoardPoint(move: vertex, width: width, height: height),
-              !point.isPass(width: width, height: height),
-              point.x >= 0, point.x < width, point.y >= 0, point.y < height else { return nil }
-        return GoPoint(x: point.x, y: height - 1 - point.y)
+        guard let parsed = parseVertex(vertex, width: width, height: height) else { return nil }
+        return GoPoint(x: parsed.x, y: parsed.y)
     }
 }
 
