@@ -36,10 +36,12 @@
 //     engine Ready, Clear Cache is ENABLED (it used to be disabled with
 //     "Clearing is available when no engine is running"); tapping it
 //     unloads the engine, clears in the stopped window, and relaunches.
-//     The relaunch RECOMPILES and eventually repopulates the cache, so
-//     this test asserts the counts reach 0 and stops there — it must not
-//     assert the button disappears, because the recompile will bring it
-//     back at an unpredictable time.
+//     It asserts the RESTART — engine down, then back up, without the
+//     teardown failure — and never a cache count. ⚠️ Do not "restore" a
+//     0-count assertion here: the relaunch re-caches the main net about
+//     1.5 s after the clear, which is narrower than XCTest's ~1 s
+//     element-predicate poll. That is measured, not suspected; test 2
+//     owns the count assertions, on the path where the 0 is stable.
 //
 //  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
 //  for a clean cache state.
@@ -197,11 +199,26 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// engine is running"). It must be ENABLED now; tapping it unloads the
     /// engine, clears the cache in the stopped window, and relaunches.
     ///
-    /// Deliberately stops at "the counts reached 0": the relaunch recompiles
-    /// the model and repopulates the cache at an unpredictable time, so
-    /// asserting the button hides again — or that the counts STAY 0 — would be
-    /// a latent flake. The stable 0-count/hidden-button assertions live in
-    /// `testFooterShowsZeroAfterClear`, on the direct (no-engine) path.
+    /// It asserts the RESTART, never the zero count. This used to poll for
+    /// "Main: 0 of …" and was flaky by construction: measured 2026-08-25, the
+    /// clear itself takes 16 ms and the relaunch re-caches the main net
+    /// **1.5 s later**, because `clearAll()` empties only the app's own cache
+    /// directory — Core ML's compiler cache survives it, so the "recompile"
+    /// costs seconds, not the minutes this test once assumed. An
+    /// `XCTNSPredicateExpectation` on an XCUIElement re-evaluates about once a
+    /// second, each evaluation paying for an accessibility snapshot, so a 1.5 s
+    /// window was a coin flip (1 pass, 5 failures in one day at one commit).
+    ///
+    /// The restart is the better witness anyway. The clear runs inside the
+    /// restart's stopped window, *after* both teardown waits — so an engine
+    /// that goes down and comes back up is proof the closure ran, and a
+    /// teardown that failed says "The engine did not shut down." instead of
+    /// returning to Ready. That is the discriminator, and both halves of it are
+    /// seconds wide rather than milliseconds.
+    ///
+    /// "The cache really does empty" is not abandoned — it is asserted, with a
+    /// stable 0 and a hidden button, by `testFooterShowsZeroAfterClear` on the
+    /// direct (no-engine) path, where nothing races to refill it.
     @MainActor
     func testClearCacheIsEnabledWhileEngineRuns() throws {
         let app = makeApp()
@@ -229,24 +246,59 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Confirmation 'Clear' button did not appear")
         confirmClear.tap()
 
-        // The clear happens in the restart's stopped window: stop/quit, wait
-        // for the engine thread to exit (an engine that has just searched has
-        // been observed taking ~2 minutes), then clearAll. Give the whole
-        // sequence a generous deadline and poll for the 0-count.
-        let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
-        let clearedMain = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label BEGINSWITH %@", "Main: 0 of"),
-            object: mainStats)
-        XCTAssertEqual(XCTWaiter().wait(for: [clearedMain], timeout: 300), .completed,
-                       "Main partition never showed 0 after clearing with a " +
-                       "running engine; footer was: '\(mainStats.label)'")
-        let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
-        let clearedAux = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label BEGINSWITH %@", "Human SL: 0 of"),
-            object: auxStats)
-        XCTAssertEqual(XCTWaiter().wait(for: [clearedAux], timeout: 30), .completed,
-                       "Human SL partition never showed 0 after clearing with a " +
-                       "running engine; footer was: '\(auxStats.label)'")
+        // Let the confirmation sheet finish dismissing before watching the
+        // button. While it is up the list underneath is out of the
+        // accessibility tree, so "the button is gone" would be true for the
+        // wrong reason and step 1 would pass vacuously.
+        XCTAssertTrue(waitUntil(timeout: 15) { !confirmClear.exists },
+                      "The Clear confirmation never dismissed")
+
+        // The witness is THIS button, deliberately — it is the one element the
+        // view is already scrolled to. The picker's engine-status header would
+        // say "Loading engine…" too, but it renders at the TOP of the list and
+        // `revealClearCacheButton` has just scrolled to the bottom, so it is
+        // off-screen and therefore out of the accessibility tree entirely. A
+        // witness that is not on screen cannot be waited on.
+        //
+        // 1. The engine goes down. PRESENT BUT DISABLED is the state to wait
+        //    for, and the precision matters: the button also disappears while
+        //    the cache reads empty (`totalCount > 0` gates it), but that
+        //    happens on the direct path too, so "gone" would not tell the two
+        //    apart. Disabled-with-entries is reached only through permission
+        //    `.unavailable`, i.e. `.launching`, i.e. a restart — which is what
+        //    the unload path is. It holds from the relaunch's first recompile
+        //    until Ready, seconds rather than the 1.5 s the old zero-count
+        //    assertion had to hit.
+        XCTAssertTrue(waitUntil(timeout: 60) { clearButton.exists && !clearButton.isEnabled },
+                      "Clear Cache never went disabled after confirming — the engine " +
+                      "was never unloaded, so the stopped-window clear did not run")
+
+        // 2. It comes back. This is also how a FAILED teardown is caught: a
+        //    restart that could not stop the engine reports "The engine did not
+        //    shut down." and never returns to Ready, so the button never
+        //    re-enables and this wait is what fails.
+        XCTAssertTrue(waitUntil(timeout: 300) { clearButton.exists && clearButton.isEnabled },
+                      "The engine never came back after the clear — it is still " +
+                      "launching, or the restart failed")
+    }
+
+    /// Polls `condition` until it holds or `timeout` elapses.
+    ///
+    /// Hand-rolled rather than `XCTNSPredicateExpectation` because that class
+    /// re-evaluates on roughly a one-second timer, which is what made the old
+    /// version of the test above miss a 1.5 s window. This samples as fast as
+    /// the accessibility snapshots come back, and the condition is a closure so
+    /// it can combine `exists` and `isEnabled` — `isEnabled` on a query that
+    /// matches nothing raises rather than returning false, so the `exists`
+    /// guard has to be part of the same expression.
+    @MainActor
+    private func waitUntil(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            usleep(100_000)
+        } while Date() < deadline
+        return condition()
     }
 
     /// End-to-end runtime check that the MLX backend actually evaluates the
