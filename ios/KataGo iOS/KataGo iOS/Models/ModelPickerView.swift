@@ -173,12 +173,19 @@ struct ModelPickerView: View {
     @Environment(\.dismiss) private var dismiss
     /// The engine-status header's inputs (ADR 0010): the resting states no
     /// longer overlay the board, so THIS surface explains them — and offers
-    /// Retry — above the remedy, the model list itself. All optional: a host
-    /// that injects nothing simply shows no header.
+    /// Retry — above the remedy, the model list itself. The three status
+    /// values are optional: a host that injects none simply shows no header.
     @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
     @Environment(EngineLaunchStatus.self) private var launchStatus: EngineLaunchStatus?
     @Environment(BoardSize.self) private var board: BoardSize?
-    @Environment(AppEngineController.self) private var controller: AppEngineController?
+    /// NOT optional, unlike the three above. The controller is not a status to
+    /// show or omit — it is wiring `ModelRunnerView` hands across the sheet,
+    /// and this view has exactly one host. Read non-optionally so a dropped
+    /// `.environment(controller)` traps on the next launch instead of quietly
+    /// reporting no board cap in the Held hint. `readiness` above already
+    /// binds this view to that same host, so this adds no new requirement —
+    /// only a second value the host must keep handing over.
+    @Environment(AppEngineController.self) private var controller: AppEngineController
 
     // Final selected model
     @Binding var selectedModel: NeuralNetworkModel?
@@ -216,7 +223,7 @@ struct ModelPickerView: View {
                     EngineStatusHeaderView(status: engineStatus,
                                            launchStatus: launchStatus,
                                            board: board,
-                                           modelBoardCap: controller?.activeModel?.nnLen,
+                                           modelBoardCap: controller.activeModel?.nnLen,
                                            hintStyle: .iosBackendSettings)
                 }
 
@@ -411,11 +418,13 @@ struct ModelPickerView: View {
     struct PreviewHost: View {
         @State private var selectedModel: NeuralNetworkModel? = nil
         @State private var readiness = CoreMLCacheReadiness()
+        @State private var controller = AppEngineController()
         var body: some View {
             ModelPickerView(
                 selectedModel: $selectedModel
             )
             .environment(readiness)
+            .environment(controller)
         }
     }
     return PreviewHost()

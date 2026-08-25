@@ -107,6 +107,7 @@ struct PlayView: View {
                 .environment(AudioModel())
                 .environment(Winrate())
                 .environment(Score())
+                .environment(TopUIState())
         }
     }
 

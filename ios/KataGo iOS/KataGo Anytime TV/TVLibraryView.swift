@@ -29,9 +29,11 @@ private enum LibraryFocus: Hashable {
 struct TVLibraryView: View {
     @Query(sort: \GameRecord.lastModificationDate, order: .reverse) private var gameRecords: [GameRecord]
     @Environment(CloudKitSyncMonitor.self) private var syncMonitor
-    // Optional: previews and hosts without attract mode simply get no idle
-    // tracking (the signal degrades to nothing, never crashes).
-    @Environment(TVAttractModeController.self) private var attractMode: TVAttractModeController?
+    // NOT optional. Idle attract mode has no other signal source, so a nil
+    // read silently disables the whole feature and nothing reports it. There
+    // is one host (TVRootView, which injects it), and the sibling
+    // `syncMonitor` above is already non-optional — previews inject both.
+    @Environment(TVAttractModeController.self) private var attractMode: TVAttractModeController
     @FocusState private var focus: LibraryFocus?
 
     private let columns = [GridItem(.adaptive(minimum: 320), spacing: 48)]
@@ -49,10 +51,10 @@ struct TVLibraryView: View {
         // (do NOT use a library-level onMoveCommand — it would swallow grid
         // navigation); play/pause is otherwise unused here.
         .onChange(of: focus) { _, _ in
-            attractMode?.noteUserActivity()
+            attractMode.noteUserActivity()
         }
         .onPlayPauseCommand {
-            attractMode?.noteUserActivity()
+            attractMode.noteUserActivity()
         }
     }
 
@@ -592,6 +594,7 @@ struct TVSearchView: View {
         TVPreviewData.smallBoardGame(),
     ]))
     .environment(CloudKitSyncMonitor.fixture())
+    .environment(TVAttractModeController())
 }
 
 // Populated grid during the initial import burst: the sync pill counts along.
@@ -608,6 +611,7 @@ struct TVSearchView: View {
         TVPreviewData.smallBoardGame(),
     ]))
     .environment(CloudKitSyncMonitor.fixture(recentRemoteActivity: true))
+    .environment(TVAttractModeController())
 }
 
 // The four empty states. Each also shows the bundled sample-game card.
@@ -615,24 +619,28 @@ struct TVSearchView: View {
     NavigationStack { TVLibraryView() }
         .modelContainer(TVPreviewData.container(games: []))
         .environment(CloudKitSyncMonitor.fixture(importInFlight: true))
+        .environment(TVAttractModeController())
 }
 
 #Preview("Library — signed out") {
     NavigationStack { TVLibraryView() }
         .modelContainer(TVPreviewData.container(games: []))
         .environment(CloudKitSyncMonitor.fixture(accountState: .unavailable))
+        .environment(TVAttractModeController())
 }
 
 #Preview("Library — iCloud unavailable") {
     NavigationStack { TVLibraryView() }
         .modelContainer(TVPreviewData.container(games: []))
         .environment(CloudKitSyncMonitor.fixture(storeMode: .localOnly))
+        .environment(TVAttractModeController())
 }
 
 #Preview("Library — truly empty") {
     NavigationStack { TVLibraryView() }
         .modelContainer(TVPreviewData.container(games: []))
         .environment(CloudKitSyncMonitor.fixture(graceExpired: true))
+        .environment(TVAttractModeController())
 }
 
 // Under the real tab bar and navigation title, on the two longest strings of

@@ -18,13 +18,18 @@ struct StatusToolbarItems: View {
     @Environment(Analysis.self) var analysis
     @Environment(Stones.self) var stones
     @Environment(BookLookup.self) var bookLookup
-    /// Optional: a host that injects no status (macOS) reads as ready, which is
-    /// the pre-existing behaviour verbatim.
+    /// Optional: a host that injects no status reads as ready, which is the
+    /// pre-existing behaviour verbatim. Previews are the only such host today
+    /// — this file is a member of the iOS target alone.
     @Environment(EngineStatus.self) var engineStatus: EngineStatus?
-    /// Optional for the same reason (and for previews): only the sparkle's
-    /// remedy tap reads it, to remember that a model picked from that open
-    /// should arm analysis.
-    @Environment(TopUIState.self) var topUIState: TopUIState?
+    /// NOT optional. The sparkle's remedy tap writes `analysisArmOnPick` here
+    /// so a model picked from that open arms a cleared preference; a nil read
+    /// would drop that intent with nothing to notice it by. This view has one
+    /// host — `PlayView`, iOS only, the file belongs to no other target — and
+    /// every sibling reader of `TopUIState` (GameSplitView, GameListView,
+    /// GameListToolbar, PlusMenuView, ConfigView) already reads it
+    /// non-optionally. Previews inject their own.
+    @Environment(TopUIState.self) var topUIState: TopUIState
 
     var gameRecord: GameRecord
 
@@ -249,7 +254,7 @@ struct StatusToolbarItems: View {
             // The tap said "I want analysis": remember it, so a model picked
             // from this open arms a cleared preference (ModelRunnerView
             // consumes the flag; a dismissed picker drops it).
-            topUIState?.analysisArmOnPick = true
+            topUIState.analysisArmOnPick = true
             engineStatus?.perform(.chooseModel)
             return
         }
@@ -343,6 +348,7 @@ struct StatusToolbarItems: View {
         let analysis = Analysis()
         let gameRecord = GameRecord(config: Config())
         let bookLookup = BookLookup()
+        let topUIState = TopUIState()
 
         var body: some View {
             VStack(alignment: .leading) {
@@ -355,6 +361,7 @@ struct StatusToolbarItems: View {
                     .environment(messageList)
                     .environment(analysis)
                     .environment(bookLookup)
+                    .environment(topUIState)
                     .environment(\.dynamicTypeSize, .accessibility5)
 
                 Text("xSmall:")
@@ -366,6 +373,7 @@ struct StatusToolbarItems: View {
                     .environment(messageList)
                     .environment(analysis)
                     .environment(bookLookup)
+                    .environment(topUIState)
                     .environment(\.dynamicTypeSize, .xSmall)
 
             }
