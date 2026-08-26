@@ -108,7 +108,12 @@ struct PlusMenuView: View {
                         ),
                         preview: SharePreview(
                             gameRecord.name,
-                            image: gameRecord.image ?? Image(.loadingIcon)
+                            // Derived from the record (ADR 0014). Reading the
+                            // stored column here would keep sharing a legacy
+                            // bitmap — which, for a record the thumbnail
+                            // regression touched, is another game's board.
+                            image: RecordBoardImage.image(for: gameRecord, side: 256)
+                                ?? Image(.loadingIcon)
                         )
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")

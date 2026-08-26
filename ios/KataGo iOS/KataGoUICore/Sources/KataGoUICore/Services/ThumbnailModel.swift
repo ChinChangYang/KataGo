@@ -16,10 +16,6 @@ public class ThumbnailModel {
 
     public init() {}
 
-    public var title: String {
-        return isLarge ? "Small Thumbnails" : "Large Thumbnails"
-    }
-
     public var width: CGFloat {
         return isLarge ? Self.largeSize : Self.smallSize
     }

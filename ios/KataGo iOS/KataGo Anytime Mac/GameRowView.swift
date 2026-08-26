@@ -1,12 +1,23 @@
 import AppKit
+import SwiftUI
 import KataGoUICore
 
-/// A view-based table cell for one library game: a thumbnail on the leading
-/// edge, with a bold name, a short modification date, and the root comment
-/// (the comment at move 0, secondary and truncated) stacked on the trailing
-/// side. Mirrors the iOS `GameLinkView` row layout in AppKit.
+/// Hosts the row's board without taking any of the row's clicks.
+///
+/// `NSHostingView` is hit-testable, and SwiftUI's `allowsHitTesting(false)`
+/// only silences the SwiftUI side — AppKit would still route the click here
+/// and the row would stop selecting and stop opening its context menu. Refusing
+/// the hit outright hands every click back to the table.
+private final class BoardHostView<Content: View>: NSHostingView<Content> {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// A view-based table cell for one library game: a board on the leading edge,
+/// with a bold name, a short modification date, and the root comment (the
+/// comment at move 0, secondary and truncated) stacked on the trailing side.
+/// Mirrors the iOS `GameLinkView` row layout in AppKit.
 final class GameRowView: NSTableCellView {
-    private let thumbnailView = NSImageView()
+    private let boardHost = BoardHostView<AnyView>(rootView: AnyView(Color.clear))
     private let nameField = NSTextField(labelWithString: "")
     private let dateField = NSTextField(labelWithString: "")
     private let commentField = NSTextField(labelWithString: "")
@@ -19,9 +30,11 @@ final class GameRowView: NSTableCellView {
         return formatter
     }()
 
-    /// SF Symbol placeholder shown when a game has no rendered thumbnail yet.
-    private static let placeholderImage: NSImage? =
-        NSImage(systemSymbolName: "square.grid.3x3", accessibilityDescription: "No thumbnail")
+    /// Shown when a record's SGF cannot be read. Under live rendering there is
+    /// no "no board yet" state — a readable record always has a position — so
+    /// this is a diagnostic, not a waiting state.
+    private static let unreadableImage: NSImage? =
+        NSImage(systemSymbolName: "square.grid.3x3", accessibilityDescription: "Unreadable game record")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -31,12 +44,10 @@ final class GameRowView: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     private func setup() {
-        thumbnailView.translatesAutoresizingMaskIntoConstraints = false
-        thumbnailView.imageScaling = .scaleProportionallyUpOrDown
-        thumbnailView.imageFrameStyle = .none
-        addSubview(thumbnailView)
-        // Wire `imageView` so `NSTableCellView` row styling cooperates.
-        imageView = thumbnailView
+        boardHost.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(boardHost)
+        // `NSTableCellView.imageView` is deliberately left nil: it expects an
+        // `NSImageView`, and the board is a hosted SwiftUI view.
 
         nameField.translatesAutoresizingMaskIntoConstraints = false
         nameField.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
@@ -60,12 +71,12 @@ final class GameRowView: NSTableCellView {
         addSubview(commentField)
 
         NSLayoutConstraint.activate([
-            thumbnailView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            thumbnailView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            thumbnailView.widthAnchor.constraint(equalToConstant: 40),
-            thumbnailView.heightAnchor.constraint(equalToConstant: 40),
+            boardHost.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            boardHost.centerYAnchor.constraint(equalTo: centerYAnchor),
+            boardHost.widthAnchor.constraint(equalToConstant: 40),
+            boardHost.heightAnchor.constraint(equalToConstant: 40),
 
-            nameField.leadingAnchor.constraint(equalTo: thumbnailView.trailingAnchor, constant: 8),
+            nameField.leadingAnchor.constraint(equalTo: boardHost.trailingAnchor, constant: 8),
             nameField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             nameField.topAnchor.constraint(equalTo: topAnchor, constant: 4),
 
@@ -80,8 +91,9 @@ final class GameRowView: NSTableCellView {
         ])
     }
 
-    /// Populates the cell from a game record. The thumbnail decodes the
-    /// persisted `thumbnail` data, falling back to a placeholder symbol.
+    /// Populates the cell from a game record. The board is derived from the
+    /// record's own SGF (ADR 0014), never from a stored bitmap, so a row cannot
+    /// draw another game's position.
     func configure(with gameRecord: GameRecord) {
         nameField.stringValue = gameRecord.name
 
@@ -95,7 +107,41 @@ final class GameRowView: NSTableCellView {
         // the iOS `GameLinkView` row preview.
         commentField.stringValue = gameRecord.comments?[0] ?? ""
 
-        thumbnailView.image =
-            gameRecord.thumbnail.flatMap(NSImage.init(data:)) ?? Self.placeholderImage
+        boardHost.rootView = Self.boardView(for: gameRecord)
+    }
+
+    /// The row's board, or the unreadable-record symbol.
+    ///
+    /// Stone style and vertical flip come from `UserDefaults`: the sidebar
+    /// controller holds no `GobanState`, and these two keys are what
+    /// `MacGlobalPreferenceSync` persists and reads back, so `UserDefaults` IS
+    /// the macOS source of truth for them.
+    @MainActor
+    private static func boardView(for gameRecord: GameRecord) -> AnyView {
+        guard let preview = RecordBoardPreviewSource.preview(for: gameRecord) else {
+            return AnyView(
+                Image(nsImage: Self.unreadableImage ?? NSImage())
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Unreadable game record"))
+        }
+
+        let defaults = UserDefaults.standard
+        let stoneStyle = (defaults.object(forKey: GlobalSettingsKeys.stoneStyle) as? Int)
+            ?? Config.defaultStoneStyle
+        let verticalFlip = (defaults.object(forKey: GlobalSettingsKeys.verticalFlip) as? Bool)
+            ?? Config.compatibleVerticalFlip
+
+        return AnyView(
+            ReportBoardView(width: preview.width,
+                            height: preview.height,
+                            blackVertices: preview.blackVertices,
+                            whiteVertices: preview.whiteVertices,
+                            overlay: .none,
+                            lastMoveVertex: preview.lastMoveVertex,
+                            isClassicStoneStyle: Config.isClassicStoneStyle(atIndex: stoneStyle),
+                            showCoordinate: false,
+                            verticalFlip: verticalFlip))
     }
 }

@@ -111,7 +111,6 @@ struct GameListView: View {
     @Binding var isEditorPresented: Bool
     @Binding var selectedGameRecord: GameRecord?
     @State var searchText = ""
-    @Binding var isGameListViewAppeared: Bool
     @Environment(ThumbnailModel.self) var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
 
@@ -149,7 +148,6 @@ struct GameListView: View {
             }
         }
         .onAppear {
-            isGameListViewAppeared = true
             thumbnailModel.isGameListViewAppeared = true
             if let selectedGameRecord {
                 // reduces unnecessary updates and filters out unrelated game records when a game is edited.
@@ -157,7 +155,6 @@ struct GameListView: View {
             }
         }
         .onDisappear {
-            isGameListViewAppeared = false
             thumbnailModel.isGameListViewAppeared = false
             // Don't let select mode (and its bottom bar) linger if the list goes away.
             topUIState.exitSelection()
@@ -194,7 +191,6 @@ extension ModelContext {
 #Preview {
     @Previewable @State var isEditorPresented = false
     @Previewable @State var selectedGameRecord: GameRecord? = nil
-    @Previewable @State var isGameListViewAppeared = false
 
     let container: ModelContainer = {
         let schema = Schema([GameRecord.self])
@@ -211,8 +207,7 @@ extension ModelContext {
     NavigationStack {
         GameListView(
             isEditorPresented: $isEditorPresented,
-            selectedGameRecord: $selectedGameRecord,
-            isGameListViewAppeared: $isGameListViewAppeared
+            selectedGameRecord: $selectedGameRecord
         )
     }
     .environment(ThumbnailModel())

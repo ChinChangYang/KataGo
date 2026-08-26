@@ -53,8 +53,10 @@ final class ListeningSessionController: ListeningPresenting {
         // it on its own queue, and a closure formed here would otherwise
         // inherit MainActor isolation and trap off-main (the @MainActor-
         // inherited-ObjC-callback trap — compiles clean, dies at runtime).
-        artwork = gameRecord.thumbnail
-            .flatMap(UIImage.init(data:))
+        // Rendered from the record, once per session — the stored `thumbnail`
+        // column is no longer written (ADR 0014), and a session is exactly the
+        // right granularity for a raster: one render, not one per cue.
+        artwork = RecordBoardImage.render(for: gameRecord, side: 512)
             .map { image in
                 MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
             }

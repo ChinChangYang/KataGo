@@ -21,7 +21,6 @@ struct GameSplitView: View {
     @State var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var isEditorPresented = false
     @State private var widgetReloadLatch = WidgetReloadLatch()
-    @State var isGameListViewAppeared = false
     @State private var photoPickerItem: PhotosPickerItem?
 
 #if os(iOS)
@@ -52,7 +51,6 @@ struct GameSplitView: View {
     @Environment(Winrate.self) var rootWinrate
     @Environment(Score.self) var rootScore
     @Environment(NavigationContext.self) var navigationContext
-    @Environment(ThumbnailModel.self) var thumbnailModel
     @Environment(AudioModel.self) var audioModel
     @Environment(TopUIState.self) var topUIState
     @Environment(BookLookup.self) var bookLookup
@@ -224,8 +222,7 @@ struct GameSplitView: View {
 
         return NavigationSplitView(columnVisibility: $columnVisibility) {
             GameListView(isEditorPresented: $isEditorPresented,
-                         selectedGameRecord: $navigationContext.selectedGameRecord,
-                         isGameListViewAppeared: $isGameListViewAppeared)
+                         selectedGameRecord: $navigationContext.selectedGameRecord)
             .toolbar {
                 GameListToolbar(
                     gameRecord: navigationContext.selectedGameRecord,
@@ -244,7 +241,6 @@ struct GameSplitView: View {
             processRecordPositionChange(position: position, key: key)
         }
         .onChange(of: navigationContext.selectedGameRecord) { oldGameRecord, newGameRecord in
-            createThumbnail(for: oldGameRecord)
             // Reloading here would race the load: the switched game's position
             // and its per-index cache land with the projection, so arm the
             // latch and reload from `processRecordPositionChange` instead.
@@ -324,10 +320,6 @@ struct GameSplitView: View {
         .onChange(of: gobanState.branchSgf) { oldBranchStateSgf, newBranchStateSgf in
             processChange(oldBranchStateSgf: oldBranchStateSgf,
                           newBranchStateSgf: newBranchStateSgf)
-        }
-        .onChange(of: isGameListViewAppeared) { oldIsGameListViewAppeared, newIsGameListViewAppeared in
-            processChange(oldIsGameListViewAppeared: oldIsGameListViewAppeared,
-                          newIsGameListViewAppeared: newIsGameListViewAppeared)
         }
         .onChange(of: gobanState.isEditing) { oldIsEditing, newIsEditing in
             processIsEditingChange(oldIsEditing: oldIsEditing, newIsEditing: newIsEditing)
@@ -474,7 +466,6 @@ struct GameSplitView: View {
 
     private func processChange(newScenePhase: ScenePhase) {
         if newScenePhase == .background {
-            createThumbnail(for: navigationContext.selectedGameRecord)
             gobanState.maybePauseAnalysis()
         }
     }
@@ -558,62 +549,6 @@ struct GameSplitView: View {
     private func processIsEditingChange(oldIsEditing: Bool, newIsEditing: Bool) {
         if !newIsEditing {
             gobanState.isAutoPlaying = false
-        }
-    }
-
-    private func processChange(oldIsGameListViewAppeared: Bool,
-                               newIsGameListViewAppeared: Bool) {
-        if !oldIsGameListViewAppeared && newIsGameListViewAppeared && gobanState.isShownBoard {
-            createThumbnail(for: navigationContext.selectedGameRecord)
-        }
-    }
-
-    private func createThumbnail(for gameRecord: GameRecord?) {
-        if let gameRecord {
-            let maxBoardLength = max(board.width + 1, board.height + 1)
-            let maxCGLength: CGFloat = ThumbnailModel.largeSize
-            let cgWidth = (board.width + 1) / maxBoardLength * maxCGLength
-            let cgHeight = (board.height + 1) / maxBoardLength * maxCGLength
-            let cgSize = CGSize(width: cgWidth, height: cgHeight)
-            let isDrawingCapturedStones = false
-            let dimensions = Dimensions(size: cgSize,
-                                        width: board.width,
-                                        height: board.height,
-                                        showCoordinate: false,
-                                        showPass: false,
-                                        isDrawingCapturedStones: isDrawingCapturedStones)
-
-            let config = gameRecord.concreteConfig
-            let content = ZStack {
-                BoardLineView(dimensions: dimensions,
-                              showPass: false,
-                              verticalFlip: gobanState.verticalFlip)
-
-                StoneView(dimensions: dimensions,
-                          isClassicStoneStyle: gobanState.isClassicStoneStyle,
-                          verticalFlip: gobanState.verticalFlip,
-                          isDrawingCapturedStones: isDrawingCapturedStones)
-
-                AnalysisView(config: config, dimensions: dimensions)
-            }
-                .environment(board)
-                .environment(stones)
-                .environment(analysis)
-                .environment(gobanState)
-                .environment(player)
-                .environment(bookLookup)
-
-            let renderer = ImageRenderer(content: content)
-#if os(macOS)
-            if let nsImage = renderer.nsImage,
-               let tiffData = nsImage.tiffRepresentation,
-               let bitmap = NSBitmapImageRep(data: tiffData),
-               let pngData = bitmap.representation(using: .png, properties: [:]) {
-                gameRecord.thumbnail = pngData
-            }
-#else
-            gameRecord.thumbnail = renderer.uiImage?.heicData()
-#endif
         }
     }
 

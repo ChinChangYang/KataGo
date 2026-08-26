@@ -73,6 +73,12 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Handicap default** — the ruleset a new game with handicap stones receives when the user has not chosen one: the Chinese preset, whose white handicap bonus compensates White one point per free stone (Tromp-Taylor compensates nothing). The default follows the handicap only while *untouched*; an explicit ruleset choice always wins and never flips back.
 - **Untouched rules** — rules the user has neither picked from the preset list nor edited knob-by-knob. Only untouched rules retarget themselves when the handicap changes. Rules identical to the default count as untouched: indistinguishable states are treated the same.
 
+## Game library
+
+- **Game library** — the saved games, listed newest first, that every platform browses. One game is *open* at a time; the rest are rows.
+- **Thumbnail** — the small board on a game's row: that game's position at the move it is parked on, with its last move marked. Derived from the record — its own moves replayed — and never a picture of the screen, so it can only ever depict the game it belongs to. It shows stones, grid and the last move alone: no analysis, no move numbers, no coordinates, and never a *branch*, because none of those belong to the game. They belong to whoever is looking at it.
+- **Unreadable record** — a saved game whose moves cannot be replayed at all. Not an empty game and not a game still loading: there is nothing to draw and nothing to analyse, and every surface says so rather than showing a blank board.
+
 ## Engine
 
 - **Record position** — the board at the game's current index, replayed from the game record. The only thing the board ever shows.
