@@ -328,9 +328,35 @@ public final class GameRecord {
         // less likely to be jettisoned (which is what makes a configured widget fall
         // back to most-recent). SwiftData faults any unlisted property in on demand,
         // so this is purely a footprint bound, never a correctness change.
+        //
+        // `sgf` replaced `blackStones`/`whiteStones` here when the widget started
+        // replaying the game instead of reading its per-move cache. That is a
+        // footprint WIN, not a cost: those dictionaries hold a full stone list for
+        // every index the phone ever visited — hundreds of entries for a
+        // played-through game — where the SGF they were all derived from is a
+        // couple of kilobytes. `width`/`height` stay for the unreadable-SGF case,
+        // which has no replay to take geometry from.
         descriptor.propertiesToFetch = [
             \.uuid, \.name, \.comments, \.width, \.height,
-            \.blackStones, \.whiteStones, \.currentIndex, \.lastModificationDate
+            \.sgf, \.currentIndex, \.lastModificationDate
+        ]
+        return try container.mainContext.fetch(descriptor).first
+    }
+
+    /// The most-recently-modified game, fetched with the same property bound as
+    /// `fetchGameRecord(uuid:container:)`.
+    ///
+    /// The widget's fallback when no game is configured, or when the configured
+    /// one is gone. It exists because the general `fetchGameRecords(container:
+    /// fetchLimit: 1)` it used to call has NO property bound, so the fallback
+    /// faulted a whole record — every ownership map and analysis dictionary —
+    /// inside the extension whose memory ceiling this all exists to respect.
+    @MainActor
+    public class func fetchMostRecentGameRecord(container: ModelContainer) throws -> GameRecord? {
+        var descriptor = createFetchDescriptor(fetchLimit: 1)
+        descriptor.propertiesToFetch = [
+            \.uuid, \.name, \.comments, \.width, \.height,
+            \.sgf, \.currentIndex, \.lastModificationDate
         ]
         return try container.mainContext.fetch(descriptor).first
     }

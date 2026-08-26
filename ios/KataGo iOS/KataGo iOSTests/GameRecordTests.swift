@@ -8,6 +8,7 @@
 import Testing
 import SwiftData
 import KataGoUICore
+import GoRulesKit
 @testable import KataGo_Anytime
 @testable import KataGoUICore
 
@@ -108,16 +109,22 @@ struct GameRecordTests {
         #expect(GameRecord.importedGameRecord(sgf: "not an sgf", name: "Bad") == nil)
     }
 
-    @Test func importGameRecord_finalStonesFeedGameEntity() async throws {
+    @MainActor
+    @Test func importGameRecord_finalStonesReachTheWidget() async throws {
         let container = try GameRecordTests.makeInMemoryContainer()
         let context = ModelContext(container)
         // 9x9 capture: Black A9 is captured; only G3 (black) and B9/A8 (white) remain.
         let sgf = "(;FF[4]GM[1]SZ[9];B[aa];W[ba];B[gg];W[ab])"
         let result = GameRecord.importGameRecord(sgf: sgf, name: "Imported", in: context)
         let record = try #require(result?.gameRecord)
-        let entity = GameEntity(gameRecord: record)
-        #expect(entity.lastBlackStones == ["G3"])
-        #expect(entity.lastWhiteStones.sorted() == ["A8", "B9"])
+        // Imported games park on their last move, and the widget replays to it.
+        // Captures are resolved by the rules, so the board shows a position that
+        // could really occur — never a stone dump.
+        let snap = SavedGameSnapshot(record: record,
+                                     position: try #require(SgfDisplayPosition.resolve(record)))
+        #expect(snap.lastBlackStones == ["G3"])
+        #expect(snap.lastWhiteStones.sorted() == ["A8", "B9"])
+        #expect(snap.boardWidth == 9)
     }
 
     /// ADR 0001: the default game's SGF carries the named Tromp-Taylor token

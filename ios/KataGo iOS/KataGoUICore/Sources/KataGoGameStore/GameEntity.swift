@@ -19,20 +19,15 @@ public struct GameEntity: AppEntity {
     @Property(title: "Name") public var name: String
     @Property(title: "Comments") public var comments: [String]
 
-    /// The DISPLAYED position's comment (`GameRecord.comments[lastIndex]`, the same
-    /// index `lastBlackStones`/`lastWhiteStones` are rendered at), or "" when that
-    /// move has no comment — mirroring the in-app `CommentView` lookup. This is what
-    /// the rendered widget shows next to the board; the game-level summary shown by
-    /// the config picker and Shortcuts stays `firstComment(from:)`.
-    public var comment: String
-    public var boardWidth: Int
-    public var boardHeight: Int
-    public var lastBlackStones: [String]
-    public var lastWhiteStones: [String]
-    /// The displayed position's move index (`GameRecord.currentIndex`). Already in
-    /// `fetchGameRecord`'s `propertiesToFetch` and read below for `lastIndex`, so
-    /// surfacing it adds no fault. Shown as "Move N" on the systemExtraLarge widget.
-    public var moveCount: Int
+    // This entity is an IDENTITY, not a board. It used to carry the widget's
+    // rendered position too — geometry, the stones at a resolved index, that
+    // index's comment — which meant every Shortcuts lookup and every config-picker
+    // row faulted a game's per-move stone dictionaries in order to show a name.
+    // `SavedGameSnapshot` now resolves the position itself, from the SGF, so those
+    // fields had no readers left. See `RecordDisplayPosition`.
+    //
+    // Only `name` and `comments` are `@Property`, so nothing removed here was ever
+    // part of the Shortcuts-visible schema.
 
     public var displayRepresentation: DisplayRepresentation {
         // Use an SF Symbol, not `Image(named:)`: a named asset resolves against
@@ -49,36 +44,9 @@ public struct GameEntity: AppEntity {
 
     public init(gameRecord: GameRecord) {
         let sortedComments = gameRecord.comments?.keys.sorted().compactMap { gameRecord.comments?[$0] } ?? []
-        // Render the position the game is actually sitting on (currentIndex), not
-        // the highest move ever visited. The engine writes blackStones/whiteStones
-        // for every index navigated to and plain back-navigation never trims them,
-        // so keys.max() can point PAST the displayed move. Fall back to the highest
-        // stored index only when currentIndex has no recorded entry (e.g. a record
-        // written by a path that didn't fill that index).
-        let currentIndex = gameRecord.currentIndex
-        let lastIndex: Int
-        if gameRecord.blackStones?[currentIndex] != nil || gameRecord.whiteStones?[currentIndex] != nil {
-            lastIndex = currentIndex
-        } else {
-            lastIndex = max(gameRecord.blackStones?.keys.max() ?? 0,
-                            gameRecord.whiteStones?.keys.max() ?? 0)
-        }
         self.id = gameRecord.uuid ?? UUID()
-        self.comment = gameRecord.comments?[lastIndex] ?? ""
-        self.boardWidth = gameRecord.width ?? 19
-        self.boardHeight = gameRecord.height ?? 19
-        self.lastBlackStones = GameEntity.stoneList(gameRecord.blackStones, at: lastIndex)
-        self.lastWhiteStones = GameEntity.stoneList(gameRecord.whiteStones, at: lastIndex)
-        self.moveCount = currentIndex
         self.name = gameRecord.name
         self.comments = sortedComments
-    }
-
-    /// Stored stone dictionaries map move index → space-joined GTP vertices
-    /// (e.g. "Q16 D4"). Returns the vertices for `index`, or [].
-    public static func stoneList(_ dict: [Int: String]?, at index: Int) -> [String] {
-        guard let raw = dict?[index], !raw.isEmpty else { return [] }
-        return raw.split(separator: " ").map(String.init)
     }
 
     /// A game-LEVEL summary comment: the move-0 comment, or — for an imported SGF whose

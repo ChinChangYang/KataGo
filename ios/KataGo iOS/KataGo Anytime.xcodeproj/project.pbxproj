@@ -900,6 +900,7 @@
 		F5C261D4903C3A4E51E2B111 /* LastMoveKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D62467D94D15F32653A85 /* LastMoveKeyTests.swift */; };
 		F669B066BE644088B09D3EDE /* civil_time_detail.cc in Sources */ = {isa = PBXBuildFile; fileRef = FE23716608EA458E4BFD753E /* civil_time_detail.cc */; };
 		F7592CEF5C5DA4D3652FA03F /* MessageListEngineGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34723AB278848BE3F63A225 /* MessageListEngineGateTests.swift */; };
+		F76E98A8E742FEFC1D65BB89 /* GoRulesKit in Frameworks */ = {isa = PBXBuildFile; productRef = AFAA970AD0C4500909768C85 /* GoRulesKit */; };
 		F772D614493ACDFC6548A7E2 /* OpeningBooksUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1131B4093F8D395EE99D9D7D /* OpeningBooksUITests.swift */; };
 		F7FE6A14B724E84C0ED79316 /* DraftMirrorStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59081CBBB1938B54C4E5FEA0 /* DraftMirrorStoreTests.swift */; };
 		F901FB76614B8ADCA74F4C53 /* zone_info_source.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8BBC0B17931482DDF9473F56 /* zone_info_source.cc */; };
@@ -2080,6 +2081,7 @@
 			files = (
 				58588878BFF4FE0A09BD0352 /* Foundation.framework in Frameworks */,
 				D6D4DD60BAB45D967FF2F8E6 /* KataGoGameStore in Frameworks */,
+				F76E98A8E742FEFC1D65BB89 /* GoRulesKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3802,6 +3804,7 @@
 			name = KataGoAnytimeWidget;
 			packageProductDependencies = (
 				BE3F2C08C52FF50E7E3FE7EB /* KataGoGameStore */,
+				AFAA970AD0C4500909768C85 /* GoRulesKit */,
 			);
 			productName = KataGoAnytimeWidget;
 			productReference = 2F67E1D07B5803FC17D98A81 /* KataGoAnytimeWidget.appex */;
@@ -6686,6 +6689,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
 			productName = CoreMLCacheKit;
+		};
+		AFAA970AD0C4500909768C85 /* GoRulesKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E30F38E1889CD121C14BE50 /* XCLocalSwiftPackageReference "KataGoUICore" */;
+			productName = GoRulesKit;
 		};
 		B475EDD66FFFB4DBA2D8BA1D /* GoRulesKit */ = {
 			isa = XCSwiftPackageProductDependency;

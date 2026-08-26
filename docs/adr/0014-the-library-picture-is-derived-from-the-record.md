@@ -141,9 +141,22 @@ record's own `sgf` at the record's own `currentIndex`.
   Apple TV than on the phone; `GobanState.cloneCurrentPosition` mints exactly
   such a record, parking a new game on the branch tip while trimming the
   dictionaries to the divergence point. They now replay like every other row.
-- The **Saved Game widget** is the remaining exception, and it is a linkage
-  problem rather than a disagreement about the decision: its appex links only
-  `KataGoGameStore` and so cannot reach the C++ parser this ADR standardises on.
-  Conforming it means replaying with the bridge-free `GoRulesKit` — already
-  proven in the Messages extension and the watch app — under a 30 MB jetsam cap
-  the Simulator never enforces, which is its own decision to make.
+- The **Saved Game widget** conforms too, replaying with the bridge-free
+  `GoRulesKit` because its appex cannot reach the C++ parser this ADR otherwise
+  standardises on. That is a second parser for one game — the thing decision 2
+  refuses — and it is accepted here only because the alternative is not "one
+  parser" but "no replay at all": `GoRulesKit` is held to the C++ board's answers
+  by differential tests, and the watch app and Messages extension already draw
+  from it. Its one known divergence is inert here: it applies mid-game `AB`/`AW`
+  setup nodes at index 0, which the C++ parser refuses to open at all.
+- Resolving the widget's board turned out to make it LIGHTER, not heavier — the
+  opposite of what the 30 MB jetsam cap suggested. The bounded fetch had to
+  materialize `blackStones`/`whiteStones`, a full stone list for every index the
+  phone ever visited; it now materializes `sgf`, the couple of kilobytes all of
+  those were derived from. The same fetch bound was extended to the most-recent
+  fallback, which had none, so the branch that rescues an unresolvable
+  configuration is no longer the heaviest one in the extension.
+- `GameEntity` went back to being an identity — id, name, comments. It had grown
+  the widget's rendered position, so every Shortcuts lookup and config-picker row
+  faulted a game's per-move dictionaries to show a name. Nothing removed was
+  `@Property`, so the Shortcuts-visible schema is unchanged.

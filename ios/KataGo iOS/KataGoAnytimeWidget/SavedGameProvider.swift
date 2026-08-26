@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import GoRulesKit
 import KataGoGameStore
 
 struct SavedGameEntry: TimelineEntry {
@@ -55,8 +56,13 @@ struct SavedGameProvider: AppIntentTimelineProvider {
         // to the user's exact configured game even when it isn't the most-recent.
         let configuredID = configuration.gameID.flatMap { UUID(uuidString: $0) }
         let snapshot = await MainActor.run {
+            // The board comes from the game's own SGF, replayed to its own
+            // cursor — the projection every other library surface draws (ADR
+            // 0014). `GoRulesKit` is the bridge-free replay an appex can link;
+            // the C++ parser the app uses is not reachable from here.
             SavedGameSnapshot.resolveSnapshot(configuredID: configuredID,
-                                              container: SharedModelContainer.shared)
+                                              container: SharedModelContainer.shared,
+                                              position: SgfDisplayPosition.resolve)
         }
         return SavedGameEntry(date: .now, snapshot: snapshot,
                               background: SavedGameBackground.resolve(

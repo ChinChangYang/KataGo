@@ -2,6 +2,7 @@ import Testing
 import SwiftData
 import Foundation
 import KataGoUICore
+import GoRulesKit
 
 struct SavedGameProviderTests {
     @MainActor
@@ -16,13 +17,15 @@ struct SavedGameProviderTests {
         let newer = GameRecord(config: Config()); newer.name = "Newer"; newer.lastModificationDate = Date(timeIntervalSince1970: 2)
         c.mainContext.insert(older); c.mainContext.insert(newer); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.name == "Newer")
     }
 
     @Test @MainActor func resolve_returnsPlaceholderWhenEmpty() throws {
         let c = try container()
-        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.gameID == nil)
         #expect(snap.name == "No game selected")
     }
@@ -36,7 +39,8 @@ struct SavedGameProviderTests {
         let bravo = GameRecord(config: Config()); bravo.name = "Bravo"
         c.mainContext.insert(alpha); c.mainContext.insert(bravo); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: bravo), container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: bravo), container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.gameID == bravo.uuid)
         #expect(snap.name == "Bravo")
     }
@@ -47,10 +51,20 @@ struct SavedGameProviderTests {
     /// `propertiesToFetch`, so the move count costs no extra per-move-dictionary fault.
     @Test @MainActor func snapshot_carriesMoveCountFromCurrentIndex() throws {
         let c = try container()
-        let g = GameRecord(config: Config()); g.name = "Mid-game"; g.currentIndex = 142
+        // A real 142-move game. The move number is the index the board was
+        // actually drawn at, so a cursor the game cannot support would clamp —
+        // the point being that the number and the stones always agree.
+        let moves = (0..<142).map { i in
+            let color = i.isMultiple(of: 2) ? "B" : "W"
+            let x = String(UnicodeScalar(97 + i % 19)!), y = String(UnicodeScalar(97 + i / 19)!)
+            return ";\(color)[\(x)\(y)]"
+        }.joined()
+        let g = GameRecord(sgf: "(;FF[4]GM[1]SZ[19]KM[7.5]\(moves))", currentIndex: 142, config: Config())
+        g.name = "Mid-game"
         c.mainContext.insert(g); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: g.uuid, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: g.uuid, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.moveCount == 142)
     }
 
@@ -87,7 +101,8 @@ struct SavedGameProviderTests {
         // A configured entity whose game is NOT in this store (never inserted), so
         // the display resolution falls back to `newer`.
         let ghost = GameRecord(config: Config()); ghost.name = "Ghost"; ghost.uuid = UUID()
-        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: ghost), container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: ghost), container: c,
+                                                    position: SgfDisplayPosition.resolve)
 
         #expect(snap.name == "Newer")                       // display fell back
         #expect(snap.gameID == newer.uuid)                  // displayed game's id
@@ -101,7 +116,8 @@ struct SavedGameProviderTests {
         let only = GameRecord(config: Config()); only.name = "Only"
         c.mainContext.insert(only); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: nil, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.configuredGameID == nil)
     }
 
@@ -112,7 +128,8 @@ struct SavedGameProviderTests {
         let bravo = GameRecord(config: Config()); bravo.name = "Bravo"
         c.mainContext.insert(alpha); c.mainContext.insert(bravo); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: bravo), container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(for: GameEntity(gameRecord: bravo), container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.gameID == bravo.uuid)
         #expect(snap.configuredGameID == bravo.uuid)
     }
@@ -142,7 +159,8 @@ struct SavedGameProviderTests {
         newer.lastModificationDate = Date(timeIntervalSince1970: 2)        // most-recent
         c.mainContext.insert(configured); c.mainContext.insert(newer); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: configured.uuid, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: configured.uuid, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.name == "Configured")                 // NOT "Newer"
         #expect(snap.gameID == configured.uuid)
         #expect(snap.configuredGameID == configured.uuid)
@@ -156,7 +174,8 @@ struct SavedGameProviderTests {
         let newer = GameRecord(config: Config()); newer.name = "Newer"; newer.lastModificationDate = Date(timeIntervalSince1970: 2)
         c.mainContext.insert(older); c.mainContext.insert(newer); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: nil, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: nil, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.name == "Newer")
         #expect(snap.configuredGameID == nil)
     }
@@ -170,7 +189,8 @@ struct SavedGameProviderTests {
         c.mainContext.insert(newer); try c.mainContext.save()
 
         let missingID = UUID()
-        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: missingID, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: missingID, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.name == "Newer")                  // display falls back
         #expect(snap.configuredGameID == missingID)    // tap still targets the configured id
     }
@@ -192,7 +212,8 @@ struct SavedGameProviderTests {
         newer.lastModificationDate = Date(timeIntervalSince1970: 2)      // most-recent
         c.mainContext.insert(newer); try c.mainContext.save()
 
-        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: baseline.uuid, container: c)
+        let snap = SavedGameSnapshot.resolveSnapshot(configuredID: baseline.uuid, container: c,
+                                                    position: SgfDisplayPosition.resolve)
         #expect(snap.name == "Baseline")            // configured game, NOT most-recent "New Game"
         #expect(snap.gameID == baseline.uuid)
         #expect(snap.configuredGameID == baseline.uuid)
