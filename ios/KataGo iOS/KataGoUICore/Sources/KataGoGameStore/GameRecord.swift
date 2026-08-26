@@ -10,7 +10,7 @@
 //  KataGoUICore/Model/GameRecord+SGF.swift.
 //
 
-import SwiftUI
+import Foundation
 import SwiftData
 
 @Model
@@ -111,6 +111,19 @@ public final class GameRecord {
     public var lastModificationDate: Date?
     public var comments: [Int: String]?
     public var uuid: UUID? = UUID()
+    /// RETIRED (ADR 0014). A library picture is derived from the record now, so
+    /// nothing writes this and nothing reads it. The column stays because the
+    /// schema is frozen for CloudKit, and the bytes already in it stay because
+    /// no healing pass runs — once nothing reads the column they are simply
+    /// invisible.
+    ///
+    /// There is deliberately no way to SET it at construction any more: the
+    /// init and `createGameRecord` dropped their `thumbnail:` parameters, so a
+    /// new record cannot be born carrying one. The two remaining writers touch
+    /// it directly and both mean it — `DraftSnapshot` round-trips whatever a
+    /// legacy record already holds (dropping it would make a macOS draft Save
+    /// *erase* those bytes), and a perf test sets a blob to weigh a realistic
+    /// legacy row.
     public var thumbnail: Data?
     public var scoreLeads: [Int: Float]?
     public var bestMoves: [Int: String]?
@@ -188,7 +201,6 @@ public final class GameRecord {
          name: String = defaultName,
          lastModificationDate: Date? = Date.now,
          comments: [Int: String]? = [:],
-         thumbnail: Data? = nil,
          scoreLeads: [Int: Float]? = [:],
          bestMoves: [Int: String]? = [:],
          winRates: [Int: Float]? = [:],
@@ -210,7 +222,6 @@ public final class GameRecord {
         self.name = name
         self.lastModificationDate = lastModificationDate
         self.comments = comments
-        self.thumbnail = thumbnail
         self.scoreLeads = scoreLeads
         self.bestMoves = bestMoves
         self.winRates = winRates
@@ -237,7 +248,6 @@ public final class GameRecord {
             name: self.name + " (copy)",
             lastModificationDate: Date.now,
             comments: self.comments,
-            thumbnail: self.thumbnail,
             scoreLeads: self.scoreLeads,
             bestMoves: self.bestMoves,
             winRates: self.winRates,
@@ -404,21 +414,4 @@ public final class GameRecord {
         return (try? fetchGameRecords(container: container))?.first
     }
 
-    public var image: Image? {
-#if os(macOS)
-        if let thumbnail,
-           let uiImage = NSImage(data: thumbnail) {
-            return Image(nsImage: uiImage)
-        } else {
-            return nil
-        }
-#else
-        if let thumbnail,
-           let uiImage = UIImage(data: thumbnail) {
-            return Image(uiImage: uiImage)
-        } else {
-            return nil
-        }
-#endif
-    }
 }
