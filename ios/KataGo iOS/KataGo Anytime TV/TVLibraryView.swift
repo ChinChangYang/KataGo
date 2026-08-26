@@ -3,7 +3,8 @@
 //  KataGo Anytime TV
 //
 //  The lean-back library: a focusable grid of the iCloud-synced saved games.
-//  Each card is a crisp vector board thumbnail (WidgetBoardView) — no engine.
+//  Each card is a crisp vector board thumbnail (WidgetBoardView) drawn from the
+//  record's own SGF replayed to its own cursor — no engine, no stored bitmap.
 //  Selecting a card pushes the read-only review screen.
 //
 //  An empty query is NOT one state: CloudKitSyncMonitor + LibrarySyncPolicy
@@ -277,7 +278,14 @@ private struct TVLibraryEmptyCards: View {
                     // reaches the board inside), and pin the ideal height: the
                     // surrounding stack proposes a squeezed height, which would
                     // otherwise shrink the aspect-fit board to a thumbnail.
-                    TVGameCard(game: sample)
+                    //
+                    // The one card that is cover art rather than a row. The
+                    // sample record parks its cursor at move 0 so review opens
+                    // at the start of the 1846 game, so drawing the cursor
+                    // would offer a brand-new user an EMPTY board as the
+                    // invitation to watch it. The finished position is what
+                    // this card is advertising.
+                    TVGameCard(game: sample, depicting: .finishedGame)
                         .frame(width: cardWidth)
                         .fixedSize(horizontal: false, vertical: true)
                         .overlay(alignment: .topTrailing) { TVLibrarySampleBadge() }
@@ -404,7 +412,17 @@ struct TVPlayKataGoCard: View {
 }
 
 struct TVGameCard: View {
+    /// Which position a card draws. Rows take `.cursor`; only the bundled
+    /// sample card takes `.finishedGame`, and it says why at that call site.
+    enum Depiction {
+        /// The move the game is parked on — what a library row means.
+        case cursor
+        /// The position after every recorded move, whatever the cursor says.
+        case finishedGame
+    }
+
     let game: GameRecord
+    var depicting: Depiction = .cursor
 
     /// Cached, not a plain computed property: `TVPlayability.isPlayable`
     /// transitively parses the game's SGF through the C++ bridge
@@ -419,20 +437,35 @@ struct TVGameCard: View {
     /// case a LazyVGrid ever reuses a card instance for a different record.
     @State private var isPlayable = false
 
-    private var vertices: (black: [String], white: [String]) {
-        let idx = displayIndex
-        let b = (game.blackStones?[idx] ?? "").split(separator: " ").map(String.init)
-        let w = (game.whiteStones?[idx] ?? "").split(separator: " ").map(String.init)
-        return (b, w)
-    }
-
-    /// The move whose position we show: the current move if it has stones,
-    /// otherwise the highest visited move (mirrors the widget's resolution).
-    private var displayIndex: Int {
-        if game.blackStones?[game.currentIndex] != nil || game.whiteStones?[game.currentIndex] != nil {
-            return game.currentIndex
+    /// The board this card draws: the record's own SGF replayed to the record's
+    /// own cursor — the same projection the iOS and macOS library rows make
+    /// (ADR 0014), so every library surface depicts one game one way.
+    ///
+    /// This used to read the per-index `blackStones`/`whiteStones` cache, with
+    /// the highest visited move as a fallback when `currentIndex` had no entry.
+    /// Only a host running the position projector fills that cache, so an index
+    /// no host ever visited fell through to the fallback and the card drew a
+    /// DIFFERENT move of the game than the phone was showing.
+    /// `GobanState.cloneCurrentPosition` makes exactly such a record: saving a
+    /// branch as a new game parks `currentIndex` on the branch tip while
+    /// trimming the dictionaries back to the divergence point, so the card drew
+    /// the divergence and the phone drew the tip. A replay of the record cannot
+    /// disagree with the record.
+    ///
+    /// Geometry comes from the replay too, never from the cached
+    /// `width`/`height` fields, so the grid can never contradict the stones
+    /// standing on it.
+    ///
+    /// Not hoisted into `@State` like `isPlayable` above: the parse behind this
+    /// is memoized process-wide by `RecordBoardPreviewSource`'s LRU, keyed on a
+    /// `RecordPositionKey` that carries the SGF by value — so a card
+    /// self-invalidates when its game gets a move, which a one-shot `@State`
+    /// capture would not.
+    private var preview: RecordBoardPreview? {
+        switch depicting {
+        case .cursor: RecordBoardPreviewSource.preview(for: game)
+        case .finishedGame: RecordBoardPreviewSource.finishedGamePreview(for: game)
         }
-        return max(game.blackStones?.keys.max() ?? 0, game.whiteStones?.keys.max() ?? 0)
     }
 
     var body: some View {
@@ -441,13 +474,30 @@ struct TVGameCard: View {
         // rectangle, framed by the card surface. Name/date keep their own
         // inset block below.
         VStack(alignment: .leading, spacing: 0) {
-            WidgetBoardView(width: game.width ?? 19,
-                            height: game.height ?? 19,
-                            blackVertices: vertices.black,
-                            whiteVertices: vertices.white,
-                            style: .appGoban(drawsOwnWood: true))
-                .aspectRatio(1, contentMode: .fit)
-                .padding([.top, .horizontal], 20)
+            Group {
+                if let preview {
+                    WidgetBoardView(width: preview.width,
+                                    height: preview.height,
+                                    blackVertices: preview.blackVertices,
+                                    whiteVertices: preview.whiteVertices,
+                                    lastMoveVertex: preview.lastMoveVertex,
+                                    style: .appGoban(drawsOwnWood: true))
+                } else {
+                    // An SGF the parser rejects draws no board rather than a
+                    // confidently wrong one — the iOS row's placeholder and the
+                    // watch's `isReadable` gate make the same call. Same frame
+                    // as the board so an unreadable card keeps its height and
+                    // the grid row stays aligned.
+                    Image(systemName: "square.grid.3x3")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.secondary)
+                        .padding(40)
+                        .accessibilityLabel("Unreadable game record")
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .padding([.top, .horizontal], 20)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(game.name.isEmpty ? "Untitled" : game.name)
@@ -579,8 +629,8 @@ struct TVSearchView: View {
 // #Preview bodies still compile in Release, and the TVPreviewData fixtures are
 // DEBUG-only — guard the whole section or archiving fails.
 #if DEBUG
-// Grid path: three cards exercising a named+dated 19×19 (primary displayIndex
-// branch), an untitled/undated fallback, and a 9×9 board.
+// Grid path: three cards exercising a named+dated 19×19, an untitled/undated
+// game whose cursor sits past the end of its SGF, and a 9×9 board.
 #Preview("Library — populated") {
     NavigationStack {
         TVLibraryView()
@@ -656,8 +706,9 @@ struct TVSearchView: View {
         .modelContainer(TVPreviewData.container(games: []))
 }
 
-// Card branches side by side: primary displayIndex + name + date (left) vs
-// fallback displayIndex + "Untitled" + hidden date (right).
+// Card branches side by side: a cursor inside the game + name + date (left) vs
+// a cursor past its end + "Untitled" + hidden date (right). Both must draw the
+// five-move opening — the right one by clamping — and mark the last move.
 #Preview("Game cards") {
     HStack(spacing: 60) {
         TVGameCard(game: TVPreviewData.openingGame())

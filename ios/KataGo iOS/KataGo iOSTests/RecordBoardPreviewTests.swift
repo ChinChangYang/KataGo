@@ -89,6 +89,62 @@ struct RecordBoardPreviewTests {
         #expect(preview.height == 9)
     }
 
+    /// The same rule one level over: a record also carries a per-move stone
+    /// cache, and the preview must ignore that too.
+    ///
+    /// Only a host running the position projector fills `blackStones` /
+    /// `whiteStones`, so a cursor no host ever visited has no entry there —
+    /// which is precisely the record `GobanState.cloneCurrentPosition` mints
+    /// when a branch is saved as a new game: the cursor lands on the branch tip
+    /// while the dictionaries are trimmed back to the divergence point. tvOS
+    /// cards used to resolve from that cache and fall back to the highest
+    /// cached move, so Apple TV drew a different move of the game than the
+    /// phone did. Reading the SGF and nothing else is what makes them agree,
+    /// and an "optimisation" back to the cache fails here.
+    @Test func theCachedStoneDictionariesAreNotConsulted() throws {
+        let record = GameRecord.createGameRecord(sgf: Self.sgf, currentIndex: 2)
+        // A cache that lies in both available ways at once: it stops short of
+        // the cursor, and what it does hold belongs to no position of this game.
+        record.blackStones = [1: "G1"]
+        record.whiteStones = [1: "H2"]
+
+        let preview = try #require(RecordBoardPreviewSource.preview(for: record))
+        #expect(preview.blackVertices == ["C7"])
+        #expect(preview.whiteVertices == ["D6"])
+        #expect(preview.lastMoveVertex == "D6")
+    }
+
+    // MARK: - Cover art
+
+    /// The one deliberate departure from "draw the parked move": the tvOS
+    /// sample card advertises a whole game, and its record parks at move 0 so
+    /// review opens at the game's start. Cover art must not be an empty board.
+    @Test func theFinishedGameIgnoresTheCursor() throws {
+        let record = GameRecord.createGameRecord(sgf: Self.sgf, currentIndex: 0)
+        // The positive control: parked at 0, the row draws nothing at all.
+        let parked = try #require(RecordBoardPreviewSource.preview(for: record))
+        #expect(parked.blackVertices.isEmpty)
+        #expect(parked.whiteVertices.isEmpty)
+
+        let finished = try #require(RecordBoardPreviewSource.finishedGamePreview(for: record))
+        #expect(finished.blackVertices == ["C7"])
+        #expect(finished.whiteVertices == ["D6"])
+        #expect(finished.lastMoveVertex == "D6")
+    }
+
+    /// "Past the end" is a request the clamp answers, not a sentinel anyone
+    /// decodes — so the finished game is exactly the last move's position.
+    @Test func theFinishedGameIsTheLastMove() {
+        let record = GameRecord.createGameRecord(sgf: Self.sgf, currentIndex: 0)
+        #expect(RecordBoardPreviewSource.finishedGamePreview(for: record)
+                == RecordBoardPreviewSource.preview(sgf: Self.sgf, index: 2))
+    }
+
+    @Test func anUnreadableRecordHasNoCoverArtEither() {
+        let record = GameRecord.createGameRecord(sgf: "not an sgf at all")
+        #expect(RecordBoardPreviewSource.finishedGamePreview(for: record) == nil)
+    }
+
     // MARK: - The marker
 
     /// A pass places no stone, so it moves no marker: the dot stays on the last

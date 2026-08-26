@@ -4,7 +4,7 @@
 //
 //  Shared fixtures for the tvOS #Previews: an in-memory SwiftData container and
 //  sample GameRecords engineered to hit every UI branch (named/dated card vs
-//  untitled/undated fallback, both TVGameCard displayIndex branches, Human vs AI
+//  untitled/undated, a cursor inside the game vs one past its end, Human vs AI
 //  player labels). DEBUG-only — previews never ship.
 //
 
@@ -34,9 +34,15 @@ enum TVPreviewData {
     static let openingSgf =
         "(;FF[4]GM[1]SZ[19]KM[7.5]RU[koSIMPLEscoreAREAtaxNONEsui0whbN];B[pd];W[dp];B[pp];W[dd];B[qf])"
 
-    /// A named, dated game whose `currentIndex` HAS stones — TVGameCard's
-    /// primary `displayIndex` branch — with cumulative per-move position dicts
-    /// and a short score-lead history that crosses zero (both chart tones).
+    /// A named, dated game parked on its last move, with cumulative per-move
+    /// position dicts and a short score-lead history that crosses zero (both
+    /// chart tones).
+    ///
+    /// The dicts no longer feed the library card — that replays the SGF — but
+    /// they stay because they are what a played-through game really carries,
+    /// and because the review screen's stored-analysis lookups read alongside
+    /// them. They agree with the SGF on purpose: a fixture whose cache
+    /// contradicts its own moves would teach the wrong thing about the model.
     static func openingGame(name: String = "Opening study") -> GameRecord {
         GameRecord(sgf: openingSgf,
                    currentIndex: 5,
@@ -69,9 +75,14 @@ enum TVPreviewData {
                           height: 19)
     }
 
-    /// An untitled, never-dated game whose `currentIndex` points PAST the stone
-    /// dicts — TVGameCard's fallback `displayIndex` branch (highest visited
-    /// move), the "Untitled" name branch, and the hidden-date branch.
+    /// An untitled, never-dated game whose `currentIndex` points far PAST the
+    /// end of its own SGF: the "Untitled" name branch, the hidden-date branch,
+    /// and the library card's clamp — a cursor beyond the last move must draw
+    /// the last move, not an empty board.
+    ///
+    /// Its stone dicts stop short of the cursor on purpose. They no longer feed
+    /// the card, and that is the point: this fixture is the shape that used to
+    /// make tvOS disagree with the phone, kept so the preview shows it agreeing.
     static func untitledFallbackGame() -> GameRecord {
         GameRecord(sgf: openingSgf,
                    currentIndex: 99,

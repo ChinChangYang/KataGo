@@ -56,8 +56,11 @@ struct SampleGamesTests {
         // RU[Japanese]: the rule index must match the SGF, or the engine
         // analyzes the no-komi game under the default Chinese rules.
         #expect(Config.rules[record.concreteConfig.rule] == "japanese")
-        // Final position keyed exactly at moveSize so TVGameCard.displayIndex
-        // falls back from currentIndex (0, no stones) to the finished board.
+        // Final position keyed exactly at moveSize. The library card no longer
+        // reads these — it draws `TVGameCard.Depiction.finishedGame`, replayed
+        // from the SGF — but the record still carries the finished board the
+        // way a played-through game does, and the widget's `GameEntity` still
+        // resolves through the dictionaries.
         #expect(record.blackStones?.keys.sorted() == [325])
         #expect(record.whiteStones?.keys.sorted() == [325])
         #expect(record.scoreLeads?.count == 326)

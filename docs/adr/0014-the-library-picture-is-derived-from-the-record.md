@@ -133,3 +133,17 @@ record's own `sgf` at the record's own `currentIndex`.
   game's stored blob — a data change this decision explicitly declines.
 - Rows and the board are held to agreement by a test, not by a comment: both
   resolve the same key and must land on the same stones.
+- tvOS cards derive too, and they are the reason this list has a follow-up. They
+  never held a bitmap — but they resolved their position from the per-index
+  `blackStones`/`whiteStones` cache, falling back to the highest *visited* move
+  when the cursor had no entry there. Only a host running the position projector
+  fills that cache, so a record whose cursor outran it drew a different move on
+  Apple TV than on the phone; `GobanState.cloneCurrentPosition` mints exactly
+  such a record, parking a new game on the branch tip while trimming the
+  dictionaries to the divergence point. They now replay like every other row.
+- The **Saved Game widget** is the remaining exception, and it is a linkage
+  problem rather than a disagreement about the decision: its appex links only
+  `KataGoGameStore` and so cannot reach the C++ parser this ADR standardises on.
+  Conforming it means replaying with the bridge-free `GoRulesKit` — already
+  proven in the Messages extension and the watch app — under a 30 MB jetsam cap
+  the Simulator never enforces, which is its own decision to make.

@@ -81,6 +81,27 @@ public enum RecordBoardPreviewSource {
                                        isBranchActive: false))
     }
 
+    /// The FINISHED game — the position after every recorded move, wherever the
+    /// record's cursor happens to sit.
+    ///
+    /// This is deliberately NOT what a library row draws. A row depicts the
+    /// game at the move it is parked on, because a row is about a game you are
+    /// in the middle of. There is one thing in the app that is cover art for a
+    /// whole game instead: the tvOS empty state's bundled sample card. Its
+    /// record parks at move 0 on purpose — review starts at the opening of the
+    /// 1846 game, not its end — so `preview(for:)` would honestly draw an empty
+    /// board where the card wants the finished position.
+    ///
+    /// `.max` is the request, not a sentinel to decode: the replay clamps every
+    /// index into `0...moveCount`, so "past the end" resolves to the end. Keyed
+    /// on that same `.max`, so the card hits the cache like any other.
+    public static func finishedGamePreview(for record: GameRecord) -> RecordBoardPreview? {
+        preview(key: RecordPositionKey(recordID: record.persistentModelID,
+                                       sgf: record.sgf,
+                                       index: .max,
+                                       isBranchActive: false))
+    }
+
     /// The same resolution addressed by value — the seam tests use, so the
     /// rules below can be pinned without a `ModelContainer`.
     public static func preview(sgf: String, index: Int) -> RecordBoardPreview? {
