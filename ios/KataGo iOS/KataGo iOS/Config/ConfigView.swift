@@ -812,7 +812,16 @@ struct GlobalSettingsView: View {
     @Environment(GobanState.self) private var gobanState
     @Environment(ThumbnailModel.self) private var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    /// The newest saved game's name, shown inside the Siri phrases that take
+    /// one. Fetched here, not in the shared view, so the screen stays
+    /// injected data only; the picker fetch is newest-first and property-bounded.
+    private var newestGameName: String? {
+        try? GameRecord.fetchGameRecordsForPicker(container: modelContext.container,
+                                                  fetchLimit: 1).first?.name
+    }
 
     var body: some View {
         List {
@@ -957,6 +966,18 @@ struct GlobalSettingsView: View {
                     Label("Voice Control", systemImage: "mic")
                 }
                 .accessibilityInputLabels(["Voice Control", "Voice Commands", "Voice Control Help"])
+            }
+
+            // The registered Siri phrases are invisible until spoken
+            // correctly, so list them beside the other "how do I drive this
+            // app by voice" screen above.
+            Section("Siri") {
+                NavigationLink {
+                    SiriPhrasesHelpView(exampleGameName: newestGameName)
+                } label: {
+                    Label("Siri Phrases", systemImage: "waveform")
+                }
+                .accessibilityInputLabels(["Siri Phrases", "Siri"])
             }
 
             Section("Game List") {

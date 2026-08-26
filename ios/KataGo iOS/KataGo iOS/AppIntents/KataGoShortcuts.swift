@@ -4,6 +4,13 @@
 //
 //  Created by Chin-Chang Yang on 2024/9/13.
 //
+//  PAIRED FILE: every phrase below is duplicated, by hand, in SiriPhrasebook
+//  (KataGoUICore/Sources/KataGoUICore/Rendering/SiriPhrasesHelpView.swift) —
+//  App Shortcut phrases must be string literals (extracted at build time), so
+//  the in-app help screen cannot read them back. Change a phrase here → change
+//  it there AND in SiriPhrasebookTests, which pins every phrase verbatim; no
+//  test can fail on an edit to THIS file alone, so this comment is the guard.
+//
 
 import Foundation
 import AppIntents

@@ -1740,7 +1740,8 @@ final class MainWindowController: NSWindowController {
     /// `MacGlobalPreferenceSync` persists those changes (single writer).
     @objc func showSettings(_ sender: Any?) {
         if settingsWindowController == nil {
-            settingsWindowController = SettingsWindowController(session: session)
+            settingsWindowController = SettingsWindowController(session: session,
+                                                                modelContainer: modelContainer)
         }
         settingsWindowController?.showWindow(sender)
         settingsWindowController?.window?.makeKeyAndOrderFront(sender)

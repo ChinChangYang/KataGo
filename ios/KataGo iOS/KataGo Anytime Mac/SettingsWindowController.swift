@@ -21,6 +21,7 @@
 //
 
 import AppKit
+import SwiftData
 import KataGoUICore
 
 @MainActor
@@ -29,9 +30,11 @@ final class SettingsWindowController: NSWindowController {
     private let settingsViewController: SettingsViewController
 
     /// Builds the Settings window around a `SettingsViewController` bound to the
-    /// shared `GameSession` (for its `gobanState`).
-    init(session: GameSession) {
-        settingsViewController = SettingsViewController(session: session)
+    /// shared `GameSession` (for its `gobanState`) and the model container (for
+    /// the Siri tab's newest-game example).
+    init(session: GameSession, modelContainer: ModelContainer) {
+        settingsViewController = SettingsViewController(session: session,
+                                                        modelContainer: modelContainer)
 
         // Non-resizable, prefs-style: titled + closable + miniaturizable but no
         // `.resizable` — the `.toolbar` tab controller resizes the window to fit

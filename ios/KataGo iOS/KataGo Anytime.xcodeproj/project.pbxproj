@@ -264,6 +264,7 @@
 		64A0AD7822C07F16DD97A7FF /* sysinfo.cc in Sources */ = {isa = PBXBuildFile; fileRef = F04A118B614A6178B0B239E6 /* sysinfo.cc */; };
 		64D06643D3E232A5332C28D0 /* bind.cc in Sources */ = {isa = PBXBuildFile; fileRef = 17FA6DBD4C7BA5955B8953B7 /* bind.cc */; };
 		656D460727BAA8C60139A2B7 /* AnalysisJobRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A656D73049CFE9356D93BA4E /* AnalysisJobRunner.swift */; };
+		657D1851B521A99F5AF7CC95 /* SiriPhrasebookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD196B3C4797A7852651752 /* SiriPhrasebookTests.swift */; };
 		65F757B538B657E4B78080FB /* AppHandoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA2491A6ACC0574E76F867D /* AppHandoff.swift */; };
 		669207F453AC977AE2D377D3 /* MessagesBoardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04D08DA22BA066FA12A588A /* MessagesBoardStyle.swift */; };
 		6711A05635634AE5B5C6DE5C /* randen_slow.cc in Sources */ = {isa = PBXBuildFile; fileRef = E549A394F12A2C25F11CE915 /* randen_slow.cc */; };
@@ -1543,6 +1544,7 @@
 		9BA7CE8C7EAABA018FBB334E /* GameSessionInitializeClearTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionInitializeClearTests.swift; sourceTree = "<group>"; };
 		9C2748CAC217C4C431516072 /* TVSelectPressCatcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVSelectPressCatcher.swift; sourceTree = "<group>"; };
 		9D588BEA7973B063DB690956 /* SgfGameNameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SgfGameNameTests.swift; sourceTree = "<group>"; };
+		9DD196B3C4797A7852651752 /* SiriPhrasebookTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SiriPhrasebookTests.swift; sourceTree = "<group>"; };
 		9EB83C504470CC7224EF53C7 /* crc_x86_arm_combined.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crc_x86_arm_combined.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/crc/internal/crc_x86_arm_combined.cc"; sourceTree = SOURCE_ROOT; };
 		A05064DAD196E8C714851845 /* GameSessionShowboardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameSessionShowboardTests.swift; sourceTree = "<group>"; };
 		A060D8F09A10650D523EFA2B /* CameraImportUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraImportUITests.swift; sourceTree = "<group>"; };
@@ -3431,6 +3433,7 @@
 				0E274622FC3B1F408204992B /* ListeningEngineTests.swift */,
 				85BFAF40C46AF2DA266CBD8D /* ListeningSessionControllerTests.swift */,
 				2287E653A769F15EEF9DBC7A /* ListeningPrepareDriverTests.swift */,
+				9DD196B3C4797A7852651752 /* SiriPhrasebookTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = SOURCE_ROOT;
@@ -5008,6 +5011,7 @@
 				2D2D6D6561DF62A103D8461D /* ListeningEngineTests.swift in Sources */,
 				8ECA53DE4D45E30F908D35A4 /* ListeningSessionControllerTests.swift in Sources */,
 				C54E40F26326B2F43E0DF228 /* ListeningPrepareDriverTests.swift in Sources */,
+				657D1851B521A99F5AF7CC95 /* SiriPhrasebookTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

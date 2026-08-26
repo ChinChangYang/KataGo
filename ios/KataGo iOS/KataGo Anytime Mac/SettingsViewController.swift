@@ -5,8 +5,9 @@
 //  P5-T11: the native macOS Settings (⌘,) content — an `NSTabViewController`
 //  with `.toolbar` style (the standard macOS prefs look) over the app-wide
 //  display/behavior settings. It is the AppKit analogue of the iOS
-//  `GlobalSettingsView` (`KataGo iOS/ConfigView.swift`), split across six tabs:
-//  General · Board · Analysis · Sound & Feedback · Voice Control · Licenses.
+//  `GlobalSettingsView` (`KataGo iOS/ConfigView.swift`), split across seven
+//  tabs: General · Board · Analysis · Sound & Feedback · Voice Control · Siri ·
+//  Licenses.
 //  The last two host shared SwiftUI screens from KataGoUICore rather than
 //  AppKit rows.
 //
@@ -37,6 +38,7 @@
 
 import AppKit
 import SwiftUI
+import SwiftData
 import KataGoUICore
 
 @MainActor
@@ -46,6 +48,9 @@ final class SettingsViewController: NSTabViewController {
     /// name intersections that exist on the board currently open. `@Observable`,
     /// so the pane follows a game switch made while Settings is up.
     private let board: BoardSize
+    /// Read by the Siri pane to name the user's newest game inside the
+    /// parameterized example phrases.
+    private let modelContainer: ModelContainer
 
     // Each pane is retained so the live observer can reload its controls.
     private let generalPane: SettingsPaneViewController
@@ -58,9 +63,10 @@ final class SettingsViewController: NSTabViewController {
     /// `viewWillDisappear` so a closed window stops observing.
     private var isObserving = false
 
-    init(session: GameSession) {
+    init(session: GameSession, modelContainer: ModelContainer) {
         self.gobanState = session.gobanState
         self.board = session.board
+        self.modelContainer = modelContainer
 
         generalPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.generalRows)
         boardPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.boardRows)
@@ -82,6 +88,7 @@ final class SettingsViewController: NSTabViewController {
         addTab(analysisPane, label: "Analysis", symbol: "chart.xyaxis.line")
         addTab(soundPane, label: "Sound & Feedback", symbol: "speaker.wave.2")
         addTab(makeVoiceControlPane(), label: "Voice Control", symbol: "mic")
+        addTab(makeSiriPane(), label: "Siri", symbol: "waveform")
         addTab(makeLicensesPane(), label: "Licenses", symbol: "doc.text")
     }
 
@@ -95,6 +102,15 @@ final class SettingsViewController: NSTabViewController {
         })
         hosting.preferredContentSize = NSSize(width: 640, height: 560)
         return hosting
+    }
+
+    /// The shared screen shows only the four Mac shortcuts
+    /// (`SiriPhrasebook.current == .macOS` — the Listen shortcuts are
+    /// iOS-only). Unlike the Voice Control tab this one is not a bare
+    /// hosting controller: the pane re-fetches the newest game's name in
+    /// `viewWillAppear`, the sibling panes' hook.
+    private func makeSiriPane() -> NSViewController {
+        SiriPaneViewController(container: modelContainer)
     }
 
     /// The TestFlight EULA points users at "Settings > Open-Source
@@ -384,5 +400,57 @@ private struct MacVoiceControlPane: View {
     var body: some View {
         VoiceControlHelpView(boardWidth: Int(board.width),
                              boardHeight: Int(board.height))
+    }
+}
+
+/// The Siri tab. The Settings window is created once and retained for the
+/// app's lifetime, so a construction-time fetch of the newest game's name
+/// would go stale; SwiftUI's `.onAppear` is not enough either, because it
+/// does not re-fire when the ordered-out window is reopened on the same tab.
+/// So the refresh rides `viewWillAppear` — the same hook the sibling
+/// `SettingsPaneViewController`s use to reflect changes made while the
+/// window was closed (it also fires on every tab switch back). When the
+/// library is empty the shared view falls back to `GameRecord.defaultName`.
+private final class SiriPaneViewController: NSViewController {
+    private let container: ModelContainer
+    private let model = MacSiriPaneModel()
+
+    init(container: ModelContainer) {
+        self.container = container
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func loadView() {
+        let hosting = NSHostingController(rootView: NavigationStack {
+            MacSiriPhrasesPane(model: model)
+        })
+        addChild(hosting)
+        view = hosting.view
+        preferredContentSize = NSSize(width: 640, height: 560)
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        model.exampleGameName = try? GameRecord
+            .fetchGameRecordsForPicker(container: container, fetchLimit: 1)
+            .first?.name
+    }
+}
+
+/// The bridge from the AppKit refresh above into SwiftUI: `@Observable`, so
+/// assigning `exampleGameName` re-renders the mounted screen in place.
+@Observable @MainActor
+private final class MacSiriPaneModel {
+    var exampleGameName: String?
+}
+
+private struct MacSiriPhrasesPane: View {
+    let model: MacSiriPaneModel
+
+    var body: some View {
+        SiriPhrasesHelpView(exampleGameName: model.exampleGameName)
     }
 }

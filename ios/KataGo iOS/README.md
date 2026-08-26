@@ -131,7 +131,8 @@ Add the **Saved Game** widget (small through extra-large) to your Home Screen or
 
 ### Siri Shortcuts and Power Saving
 
-- App Intents expose four actions to Siri and the Shortcuts app, on iOS and macOS alike: **"Get Go Game Information"** and **"Open Go Game"** (both for a game you pick), plus **"Get Latest Go Game Information"** and **"Open Latest Go Game"**.
+- App Intents expose seven actions to Siri and the Shortcuts app. Four work on iOS and macOS alike: **"Get Go Game Information"** and **"Open Go Game"** (both for a game you pick), plus **"Get Latest Go Game Information"** and **"Open Latest Go Game"**. Three more are iOS-only: **"Listen to Go Game"**, **"Listen to Latest Go Game"**, and **"Resume Listening"**.
+- The exact phrases to say are listed in-app — **Global Settings → Siri → Siri Phrases** on iOS, **Settings → Siri** on the Mac — grouped Discover / Open (plus Listen on iOS), with your newest game's name filled into the phrases that take one and a link to the Shortcuts app.
 - In human-vs-AI games, when the analysis overlay is hidden and it's the human's turn, the app **pauses continuous analysis to save power** (iOS/visionOS); revealing the overlay resumes it.
 
 ## Settings
@@ -140,12 +141,13 @@ Settings are split in two: **More → Settings** opens the app-wide **Global Set
 
 ### Global Settings
 
-App-wide preferences in five groups:
+App-wide preferences in six groups:
 
 - **Board** — Stone style (Fast / Classic), Move numbers (Last 3 moves / Last move / All moves / Marker), Show coordinate, Show pass, Vertical flip, and Show chart/comments.
 - **Analysis** — Analysis information (Winrate / Score / All / None), Analysis style (Fast / Classic), Show ownership, Show win rate bar.
 - **Sound & Haptics** — Sound effect, Haptic feedback, Show visits/s.
 - **Accessibility** — a **Voice Control** help screen listing the phrases that drive the board, worded per platform ("Tap K 10" on iOS, "Click K 10" on the Mac). Every intersection and the pass tile are exposed as named targets, so Voice Control and VoiceOver can play moves through the same legality checks as a tap.
+- **Siri** — a **Siri Phrases** help screen listing the spoken phrase for every App Shortcut ("Open the latest go game with KataGo Anytime", …) plus the variants Siri also accepts, and a link to the Shortcuts app.
 - **Game List** — Large thumbnails.
 
 ### Engine

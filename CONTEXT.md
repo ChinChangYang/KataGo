@@ -103,3 +103,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Bare move call** — the minimal cue text for a move without analysis: the color and the vertex, nothing else. What an unprepared game sounds like.
 - **Prepare for Listening** — the optional pass that analyzes every move of a game and writes commentary for the moves that have none, so a session speaks full sentences throughout. An upgrade, never a gate: every game is listenable unprepared, and saved comments are never overwritten.
 - **Ready to listen** — the derived marker that a game is fully prepared: every move carries analysis. Read off the record's data, never stored.
+
+## Siri
+
+- **Siri Phrasebook** — the app's own, per-platform catalog of the spoken phrases its App Shortcuts answer to (the Mac has no Listen shortcuts). What Siri accepts is registered at build time and cannot be read back at runtime, so the phrasebook mirrors the registration by hand, and the two are kept in step deliberately.
