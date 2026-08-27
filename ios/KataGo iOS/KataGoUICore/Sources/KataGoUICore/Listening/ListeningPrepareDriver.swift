@@ -85,7 +85,11 @@ public final class ListeningPrepareDriver {
         self.sleeper = sleeper
     }
 
-    public func prepare(gameRecord: GameRecord, model: ListeningPrepareModel) async {
+    /// Sweeps `gameRecord`; on every exit the engine is re-fed from
+    /// `restoreTo` (the displayed record) when given, else from `gameRecord`.
+    public func prepare(gameRecord: GameRecord,
+                        model: ListeningPrepareModel,
+                        restoreTo restoreRecord: GameRecord? = nil) async {
         guard let session = messageList.session else {
             model.phase = .failed("No engine session.")
             return
@@ -98,13 +102,24 @@ public final class ListeningPrepareDriver {
             model.phase = .failed("This game has no readable record.")
             return
         }
+        // The swept record's own geometry, not the displayed board's: a
+        // game-list row can request Prepare for a game bigger than the
+        // launched NN buffer, and an oversized kata-analyze aborts the
+        // in-process engine (see BackendChoice: callers must gate BEFORE any
+        // analysis request).
+        guard session.gobanState.boardFitsEngine(width: scan.boardWidth,
+                                                 height: scan.boardHeight) else {
+            model.phase = .failed("This board exceeds the engine's Max Board Size.")
+            return
+        }
 
         model.totalPositions = scan.moveCount + 1
         model.completedPositions = 0
         model.phase = .sweeping
 
         do {
-            try await withEngineHijack(session: session, gameRecord: gameRecord) {
+            try await withEngineHijack(session: session, gameRecord: gameRecord,
+                                        restoreRecord: restoreRecord) {
                 try await sweep(gameRecord: gameRecord, scan: scan, model: model)
             }
         } catch is CancellationError {
@@ -130,20 +145,23 @@ public final class ListeningPrepareDriver {
 
     private func withEngineHijack(session: GameSession,
                                   gameRecord: GameRecord,
+                                  restoreRecord: GameRecord?,
                                   body: () async throws -> Void) async throws {
         collector.reset()
         priorObserver = session.lineObserver
         let collector = self.collector
         session.lineObserver = { collector.ingest(line: $0) }
         session.gobanState.reportGenerationActive = true
-        defer { restore(session: session, gameRecord: gameRecord) }
+        defer { restore(session: session, gameRecord: restoreRecord ?? gameRecord) }
         try await body()
     }
 
     /// Single restore path for every exit: hand the line stream back, unfreeze
     /// live collection, stop whatever streams, and stand the engine back on
-    /// the DISPLAYED position (the sweep re-fed the board from scratch, so a
-    /// full re-feed — not undos — is the honest way home). Deliberately does
+    /// the DISPLAYED record's position — `gameRecord` here is the restore
+    /// target, which differs from the swept record when a game-list row
+    /// prepared a game that is not on screen (the sweep re-fed the board from
+    /// scratch, so a full re-feed — not undos — is the honest way home). Deliberately does
     /// not re-arm live analysis: the progress sheet's dismissal does, exactly
     /// like the Deep Report sheet.
     private func restore(session: GameSession, gameRecord: GameRecord) {

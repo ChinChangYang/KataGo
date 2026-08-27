@@ -372,7 +372,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         if analysisToggle.waitForExistence(timeout: 10) { analysisToggle.tap() }
         usleep(3_000_000)  // 3s settle: let the stop ack drain and re-renders cease
 
-        // Open the "More" menu → "Settings"; it opens Global Settings directly.
+        // Open the "More" menu → Settings > Global Settings.
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
         moreButton.tap()
@@ -381,6 +381,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 10),
                       "Settings menu item not found")
         settings.tap()
+
+        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
+                      "Global Settings menu item not found")
+        globalSettingsItem.tap()
 
         // ----- Global Settings now hosts the relocated display preferences -----
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
@@ -427,19 +432,19 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         _ = flipSwitch(showCoordinate, awayFrom: showCoordinate.value as? String ?? "1")
 
         // ----- The per-game "View" tab is gone; the others remain. Game
-        // Settings now lives under This Game, so dismiss the Global Settings
+        // Settings now lives under Settings, so dismiss the Global Settings
         // sheet (swipe down ON THE NAV BAR — the list is scrollable, so a bare
         // list swipeDown would scroll instead of dismiss) and reopen it via
-        // More ▸ This Game ▸ Game Settings. -----
+        // More ▸ Settings ▸ Game Settings. -----
         app.navigationBars["Global Settings"].swipeDown(velocity: .fast)
 
         let moreAgain = app.buttons["More"].firstMatch
         XCTAssertTrue(moreAgain.waitForExistence(timeout: 15),
                       "More menu button not found after dismissing Global Settings")
         moreAgain.tap()
-        let thisGame = app.buttons["This Game"].firstMatch
-        XCTAssertTrue(thisGame.waitForExistence(timeout: 10), "This Game submenu not found")
-        thisGame.tap()
+        let settingsMenu = app.buttons["Settings"].firstMatch
+        XCTAssertTrue(settingsMenu.waitForExistence(timeout: 10), "Settings submenu not found")
+        settingsMenu.tap()
         let gameSettings = app.buttons["Game Settings"].firstMatch
         XCTAssertTrue(gameSettings.waitForExistence(timeout: 10), "Game Settings row not found")
         gameSettings.tap()
@@ -467,7 +472,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // state (see `waitForEngineThenChangeModel`).
         waitForBoardInSync(app)
 
-        // Open "More" → "Settings".
+        // Open "More" → Settings > Global Settings.
         let moreButton = app.buttons["More"].firstMatch
         XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
         moreButton.tap()
@@ -477,8 +482,12 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Settings menu item not found")
         settings.tap()
 
-        // Licenses now live under Global Settings ▸ About, which Settings opens
-        // directly.
+        let globalSettingsItem2 = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettingsItem2.waitForExistence(timeout: 10),
+                      "Global Settings menu item not found")
+        globalSettingsItem2.tap()
+
+        // Licenses live under Global Settings ▸ About.
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings sheet not shown")
 
@@ -676,8 +685,8 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// Engine ▸ Model dismisses itself and the picker comes up as a sheet over
     /// the same board. No confirmation dialog: nothing is destroyed.
     ///
-    /// Reach it via the board "More" ▸ "Settings" menu, which opens Global
-    /// Settings directly (the same path the passing display-preferences /
+    /// Reach it via the board "More" ▸ Settings ▸ Global Settings (the same
+    /// path the passing display-preferences /
     /// licenses tests use).
     @MainActor
     private func waitForEngineThenChangeModel(in app: XCUIApplication, label: String) {
@@ -693,13 +702,17 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // says whether the engine agrees with it.
         waitForBoardInSync(app)
 
-        // Board "More" → "Settings" (opens Global Settings directly).
+        // Board "More" → Settings > Global Settings.
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")
         more.tap()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found (\(label))")
         settings.tap()
+        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
+                      "Global Settings menu item not found (\(label))")
+        globalSettingsItem.tap()
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings sheet not shown (\(label))")
 

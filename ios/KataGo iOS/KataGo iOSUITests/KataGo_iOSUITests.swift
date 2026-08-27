@@ -72,6 +72,9 @@ final class KataGo_iOSUITests: PortraitUITestCase {
         let newGame = app.buttons["New Game"].firstMatch
         XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
         newGame.tap()
+        let emptyBoard = app.buttons["Empty Board"].firstMatch
+        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
+        emptyBoard.tap()
 
         // The fresh Human-vs-Human board reliably exposes "More" (no branch).
         XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
@@ -79,11 +82,14 @@ final class KataGo_iOSUITests: PortraitUITestCase {
         sleep(3)
         snap("GobanView")
 
-        // Settings screen — "Settings" now opens Global Settings directly.
+        // Settings screen — Settings > Global Settings.
         openMore()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found")
         settings.tap()
+        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10), "Global Settings menu item not found")
+        globalSettingsItem.tap()
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings screen not shown")
         sleep(2)

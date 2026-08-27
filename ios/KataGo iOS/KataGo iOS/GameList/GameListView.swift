@@ -13,17 +13,22 @@ import WidgetKit
 struct GameLinksView: View {
     @Binding var selectedGameRecord: GameRecord?
     @Binding var searchText: String
+    /// Writing a record requests Listen on it; the flow (dialog, Prepare
+    /// sheet, failure alert) is hosted container-level by GameListView's List
+    /// — a lazy row can't own a minutes-long sheet.
+    @Binding var listenRequest: GameRecord?
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @Environment(TopUIState.self) private var topUIState
-    @Environment(ListeningSessionController.self) private var listeningController
 
     private var isSearchActive: Bool { !searchText.isEmpty }
 
     init(selectedGameRecord: Binding<GameRecord?>,
-         searchText: Binding<String>) {
+         searchText: Binding<String>,
+         listenRequest: Binding<GameRecord?>) {
         _selectedGameRecord = selectedGameRecord
         _searchText = searchText
+        _listenRequest = listenRequest
 
         let searchTextValue = searchText.wrappedValue
         let predicate = #Predicate<GameRecord> {
@@ -48,9 +53,12 @@ struct GameLinksView: View {
                 }
                 .contextMenu {
                     Button {
-                        // Narrates THIS row's record; selection is untouched
-                        // (a Listening Session never moves any board).
-                        listeningController.listen(to: gameRecord)
+                        // Requests Listen on THIS row's record; the shared
+                        // flow (readiness check, prepare dialog, failure
+                        // alert) runs container-level and never moves the
+                        // selection (a Listening Session never moves any
+                        // board).
+                        listenRequest = gameRecord
                     } label: {
                         Label("Listen", systemImage: "headphones")
                     }
@@ -111,14 +119,20 @@ struct GameListView: View {
     @Binding var isEditorPresented: Bool
     @Binding var selectedGameRecord: GameRecord?
     @State var searchText = ""
+    @State private var listenRequest: GameRecord?
     @Environment(ThumbnailModel.self) var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
 
     var body: some View {
         List(selection: $selectedGameRecord) {
             GameLinksView(selectedGameRecord: $selectedGameRecord,
-                          searchText: $searchText)
+                          searchText: $searchText,
+                          listenRequest: $listenRequest)
         }
+        // On the List, never inside it: presentation modifiers on the lazy
+        // ForEach would break, and wrapping the ForEach itself would strip
+        // DynamicViewContent (killing swipe-to-delete).
+        .listenFlow(request: $listenRequest)
         .navigationTitle("Games")
         .sheet(isPresented: $isEditorPresented) {
             NameEditorView(gameRecord: selectedGameRecord)
@@ -211,5 +225,12 @@ extension ModelContext {
         )
     }
     .environment(ThumbnailModel())
+    .environment(TopUIState())
+    .environment(NavigationContext())
+    .environment(GobanState())
+    .environment(Turn())
+    .environment(Stones())
+    .environment(MessageList())
+    .environment(ListeningSessionController())
     .modelContainer(container)
 }

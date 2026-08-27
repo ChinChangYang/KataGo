@@ -15,6 +15,10 @@ import KataGoUICore
 
 struct ListeningPrepareSheet: View {
     let gameRecord: GameRecord
+    /// The record whose position the engine is restored to on exit — the
+    /// displayed game when preparing from a game-list row. Nil restores to
+    /// `gameRecord` itself (the original single-game behavior).
+    var restoreRecord: GameRecord? = nil
     @Environment(MessageList.self) private var messageList
     @Environment(ListeningSessionController.self) private var listeningController
     @Environment(\.dismiss) private var dismiss
@@ -75,7 +79,8 @@ struct ListeningPrepareSheet: View {
             // .task's lifetime IS the cancellation seam: Cancel/dismiss
             // cancels this task; the driver's deferred restore still runs.
             await ListeningPrepareDriver(messageList: messageList)
-                .prepare(gameRecord: gameRecord, model: model)
+                .prepare(gameRecord: gameRecord, model: model,
+                         restoreTo: restoreRecord)
         }
     }
 

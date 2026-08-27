@@ -107,14 +107,18 @@ final class EngineStatusUITests: PortraitUITestCase {
                       "The board never appeared after launching the built-in engine")
         waitForBoardInSync(app)
 
-        // More ▸ Settings ▸ Engine ▸ Model. No confirmation dialog: nothing is
-        // being destroyed, so there is nothing to confirm.
+        // More ▸ Settings ▸ Global Settings ▸ Engine ▸ Model. No confirmation
+        // dialog: nothing is being destroyed, so there is nothing to confirm.
         let more = app.buttons["More"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
         more.tap()
         let settings = app.buttons["Settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found")
         settings.tap()
+        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
+        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
+                      "Global Settings menu item not found")
+        globalSettingsItem.tap()
         XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
                       "Global Settings sheet not shown")
 

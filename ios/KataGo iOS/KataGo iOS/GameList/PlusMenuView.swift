@@ -19,24 +19,34 @@ struct PlusMenuView: View {
     @Environment(Turn.self) var player
     @Environment(Stones.self) var stones
     @Environment(MessageList.self) var messageList
-    @Environment(ListeningSessionController.self) var listeningController
     @State private var showingGameSettings = false
     @State private var confirmingClone = false
     @State private var showingReport = false
     @State private var showingGlobalSettings = false
     @State private var showingGifExport = false
-    @State private var listeningFailed = false
-    @State private var showingPrepare = false
-    @State private var confirmingUnpreparedListen = false
+    @State private var listenRequest: GameRecord?
 
     var body: some View {
         Menu {
-            // Create / library actions.
-            Button {
-                withAnimation {
-                    let newGameRecord = GameRecord.createGameRecord(maxBoardLength: maxBoardLength)
-                    modelContext.insert(newGameRecord)
-                    navigationContext.selectedGameRecord = newGameRecord
+            // Create actions: a fresh board, or a copy of the selected game
+            // (Clone keeps its Whole Game / Current Position dialog below).
+            Menu {
+                Button {
+                    withAnimation {
+                        let newGameRecord = GameRecord.createGameRecord(maxBoardLength: maxBoardLength)
+                        modelContext.insert(newGameRecord)
+                        navigationContext.selectedGameRecord = newGameRecord
+                    }
+                } label: {
+                    Label("Empty Board", systemImage: "doc")
+                }
+
+                if gameRecord != nil {
+                    Button {
+                        confirmingClone = true
+                    } label: {
+                        Label("Clone Current Game", systemImage: "doc.on.doc")
+                    }
                 }
             } label: {
                 Label("New Game", systemImage: "doc")
@@ -93,14 +103,6 @@ struct PlusMenuView: View {
             // so the top level stays short.
             if let gameRecord {
                 Menu {
-                    Button {
-                        showingGameSettings = true
-                    } label: {
-                        Label("Game Settings", systemImage: "gearshape")
-                    }
-
-                    Divider()
-
                     ShareLink(
                         item: TransferableSgf(
                             name: gameRecord.name,
@@ -126,31 +128,12 @@ struct PlusMenuView: View {
                     }
 
                     Button {
-                        // Ready games start at once; an unprepared one is
-                        // offered the full bake first (never a gate — Listen
-                        // Now narrates what exists).
-                        if isReadyToListen {
-                            startListening()
-                        } else {
-                            confirmingUnpreparedListen = true
-                        }
+                        // The shared flow (ListenFlow.swift) takes it from
+                        // here: readiness check, unprepared-game dialog,
+                        // Prepare sheet, failure alert.
+                        listenRequest = gameRecord
                     } label: {
                         Label("Listen", systemImage: "headphones")
-                    }
-
-                    Button {
-                        showingPrepare = true
-                    } label: {
-                        Label("Prepare for Listening", systemImage: "waveform.badge.magnifyingglass")
-                    }
-                    // The sweep shares the Deep Report's engine envelope, so
-                    // it shares its gate too.
-                    .disabled(reportDisabled)
-
-                    Button {
-                        confirmingClone = true
-                    } label: {
-                        Label("Clone", systemImage: "doc.on.doc")
                     }
 
                     Button {
@@ -179,13 +162,24 @@ struct PlusMenuView: View {
 
             Divider()
 
-            // App-wide settings only. Per-game configuration now lives under
-            // "This Game" ▸ Game Settings, so this top-level entry opens Global
-            // Settings directly whether or not a game is selected.
-            Button {
-                showingGlobalSettings = true
+            // Per-game and app-wide settings, side by side; only the
+            // Game Settings entry needs a game.
+            Menu {
+                if gameRecord != nil {
+                    Button {
+                        showingGameSettings = true
+                    } label: {
+                        Label("Game Settings", systemImage: "gearshape")
+                    }
+                }
+
+                Button {
+                    showingGlobalSettings = true
+                } label: {
+                    Label("Global Settings", systemImage: "gearshape.2")
+                }
             } label: {
-                Label("Settings", systemImage: "gearshape.2")
+                Label("Settings", systemImage: "gearshape")
             }
         } label: {
             Label("More", systemImage: "ellipsis.circle")
@@ -250,41 +244,7 @@ struct PlusMenuView: View {
                 #endif
             }
         }
-        .confirmationDialog(
-            "This game isn't fully analyzed yet",
-            isPresented: $confirmingUnpreparedListen,
-            titleVisibility: .visible
-        ) {
-            Button("Listen Now") {
-                startListening()
-            }
-            Button("Prepare for Listening First") {
-                showingPrepare = true
-            }
-            .disabled(reportDisabled)
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Unanalyzed moves are read as bare move calls. Prepare analyzes every move and writes commentary first.")
-        }
-        .sheet(isPresented: $showingPrepare, onDismiss: {
-            // The sweep left the engine idle on the displayed position;
-            // re-arm live analysis exactly as the Deep Report dismissal does.
-            if let gameRecord {
-                gobanState.resumeAnalysisAfterReport(
-                    config: gameRecord.concreteConfig,
-                    nextColorForPlayCommand: player.nextColorForPlayCommand,
-                    messageList: messageList)
-            }
-        }) {
-            if let gameRecord {
-                ListeningPrepareSheet(gameRecord: gameRecord)
-            }
-        }
-        .alert("This game can't be narrated", isPresented: $listeningFailed) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Its record holds a move the rules refuse to replay.")
-        }
+        .listenFlow(request: $listenRequest)
         .confirmationDialog(
             "Clone this game",
             isPresented: $confirmingClone,
@@ -312,22 +272,6 @@ struct PlusMenuView: View {
         }
     }
 
-    private func startListening() {
-        guard let gameRecord else { return }
-        if !listeningController.listen(to: gameRecord) {
-            listeningFailed = true
-        }
-    }
-
-    /// The derived ready-to-listen marker: every position 0...N analyzed.
-    private var isReadyToListen: Bool {
-        guard let gameRecord,
-              let scan = SgfHeaderScan(sgf: gameRecord.sgf) else { return false }
-        return ListeningReadiness.isReady(
-            moveCount: scan.moveCount,
-            analyzedIndices: Set(gameRecord.winRates?.keys ?? [:].keys))
-    }
-
     /// Deep Report gating: engine/board ready, no in-flight AI move (its
     /// cancellable search would interleave with the probes), game not
     /// finished, no report running.
@@ -340,7 +284,7 @@ struct PlusMenuView: View {
     }
 }
 
-#Preview {
+#Preview("Game Selected") {
     PlusMenuView(
         gameRecord: GameRecord(config: Config()),
         maxBoardLength: 19
@@ -351,5 +295,18 @@ struct PlusMenuView: View {
     .environment(TopUIState())
     .environment(Turn())
     .environment(Stones())
+    .environment(MessageList())
     .environment(ListeningSessionController())
+}
+
+#Preview("No Game") {
+    PlusMenuView(gameRecord: nil, maxBoardLength: 19)
+        .environment(NavigationContext())
+        .environment(GobanState())
+        .environment(ThumbnailModel())
+        .environment(TopUIState())
+        .environment(Turn())
+        .environment(Stones())
+        .environment(MessageList())
+        .environment(ListeningSessionController())
 }

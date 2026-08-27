@@ -47,4 +47,6 @@ struct GameListToolbar: ToolbarContent {
     .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
+    .environment(MessageList())
+    .environment(ListeningSessionController())
 }

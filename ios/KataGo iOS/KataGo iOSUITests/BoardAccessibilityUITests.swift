@@ -58,6 +58,9 @@ final class BoardAccessibilityUITests: PortraitUITestCase {
         let newGame = app.buttons["New Game"].firstMatch
         XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
         newGame.tap()
+        let emptyBoard = app.buttons["Empty Board"].firstMatch
+        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
+        emptyBoard.tap()
         XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
                       "New game board did not appear (More button missing)")
         return app

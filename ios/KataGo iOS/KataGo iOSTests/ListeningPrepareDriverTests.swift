@@ -145,4 +145,33 @@ struct ListeningPrepareDriverTests {
         #expect(f.model.phase == .failed("Another analysis task is active."))
         #expect(f.engine.sent.isEmpty)
     }
+
+    @Test func refusesABoardLargerThanTheEngine() async {
+        // A game-list row can request Prepare for a record bigger than the
+        // launched NN buffer; an oversized kata-analyze aborts the in-process
+        // engine, so the sweep must refuse before sending anything.
+        let f = Fixture()
+        f.session.gobanState.engineMaxBoardLength = 1
+        await f.driver.prepare(gameRecord: f.record, model: f.model)
+
+        #expect(f.model.phase == .failed("This board exceeds the engine's Max Board Size."))
+        #expect(f.engine.sent.isEmpty)
+    }
+
+    @Test func restoreReFeedsTheRestoreTargetNotTheSweptRecord() async {
+        // Row-initiated Prepare: the swept record (2x2) is not the displayed
+        // one (3x3). Every exit must stand the engine back on the DISPLAYED
+        // record's position.
+        let f = Fixture()
+        let displayed = GameRecord(sgf: "(;GM[1]SZ[3];B[aa])", config: Config(),
+                                   name: "Displayed")
+        await f.driver.prepare(gameRecord: f.record, model: f.model,
+                               restoreTo: displayed)
+
+        #expect(f.model.phase == .complete)
+        let sizes = f.engine.sent.filter { $0.hasPrefix("rectangular_boardsize") }
+        #expect(sizes.first == "rectangular_boardsize 2 2")  // the sweep's feed
+        #expect(sizes.last == "rectangular_boardsize 3 3")   // the restore's
+        #expect(f.engine.sent.last == "showboard")
+    }
 }

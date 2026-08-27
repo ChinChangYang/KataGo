@@ -84,6 +84,7 @@
 		1C812A66FDDACB405051108E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 63451C3EC52A31C93708C06A /* Foundation.framework */; };
 		1C932250F604F7132815DE21 /* unscaledcycleclock.cc in Sources */ = {isa = PBXBuildFile; fileRef = C8269527CA97AE161731B9CB /* unscaledcycleclock.cc */; };
 		1CC870949253FB94170D4AE9 /* Gazetteer.pb.cc in Sources */ = {isa = PBXBuildFile; fileRef = 7796CFED474942C453ABC091 /* Gazetteer.pb.cc */; };
+		1D44FF2B2A84687B377281E8 /* ListenFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09938519E80F865DC6A2EED9 /* ListenFlow.swift */; };
 		1E19A0536DFF3C8D5625683B /* mlxtests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FF424C3100BE78563B0BF391 /* mlxtests.cpp */; settings = {COMPILER_FLAGS = "-std=gnu++20"; }; };
 		1E2832C808A267BC14E13E86 /* crc_non_temporal_memcpy.cc in Sources */ = {isa = PBXBuildFile; fileRef = 805CB23E0D2579F44D6EC5FC /* crc_non_temporal_memcpy.cc */; };
 		1E393C631B1BC3C0F93CAEA4 /* MILBuilder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7434F79FFAACA347E36CDF34 /* MILBuilder.cpp */; };
@@ -1215,6 +1216,7 @@
 		081E2F8909C4E3DCDAC21F71 /* DictVectorizer.pb.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = DictVectorizer.pb.cc; path = ../../cpp/external/katagocoreml/generated/DictVectorizer.pb.cc; sourceTree = SOURCE_ROOT; };
 		0862E45DD31E0166289D5A96 /* time_zone_lookup.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = time_zone_lookup.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/time/internal/cctz/src/time_zone_lookup.cc"; sourceTree = SOURCE_ROOT; };
 		098B90970A3612EEF180A94B /* throw_delegate.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = throw_delegate.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/throw_delegate.cc"; sourceTree = SOURCE_ROOT; };
+		09938519E80F865DC6A2EED9 /* ListenFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ListenFlow.swift; path = "KataGo iOS/Listening/ListenFlow.swift"; sourceTree = "<group>"; };
 		0A5190F0628EA555C14C7E9F /* mlxspike.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = mlxspike.cpp; sourceTree = "<group>"; };
 		0A85319AE10A8198A3117ADE /* mutex.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mutex.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/synchronization/mutex.cc"; sourceTree = SOURCE_ROOT; };
 		0B224E55570498D6A80126F2 /* DeepReportPatienceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepReportPatienceTests.swift; sourceTree = "<group>"; };
@@ -3202,6 +3204,7 @@
 				25E13A24C20994C102CC8884 /* ListeningSessionController.swift */,
 				FE2661B51D6AE5C5D9C86B24 /* ListeningView.swift */,
 				FA65DD1594402C3CA74AB592 /* ListeningPrepareSheet.swift */,
+				09938519E80F865DC6A2EED9 /* ListenFlow.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -4830,6 +4833,7 @@
 				E65BDB143EE07B44A8409397 /* ListeningView.swift in Sources */,
 				59514BB5AA0F13D92C1C3152 /* ListenToGame.swift in Sources */,
 				FFF27D3303326D922641D3F7 /* ListeningPrepareSheet.swift in Sources */,
+				1D44FF2B2A84687B377281E8 /* ListenFlow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

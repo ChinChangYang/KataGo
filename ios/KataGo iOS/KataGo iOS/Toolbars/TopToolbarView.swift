@@ -69,6 +69,8 @@ struct TopToolbarView: ToolbarContent {
     .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
+    .environment(MessageList())
+    .environment(ListeningSessionController())
 }
 
 #Preview("Editing") {
@@ -86,6 +88,8 @@ struct TopToolbarView: ToolbarContent {
     .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
+    .environment(MessageList())
+    .environment(ListeningSessionController())
 }
 #Preview("Branch Active") {
     let gobanState = GobanState()
@@ -103,5 +107,7 @@ struct TopToolbarView: ToolbarContent {
     .environment(Stones())
     .environment(ThumbnailModel())
     .environment(TopUIState())
+    .environment(MessageList())
+    .environment(ListeningSessionController())
 }
 

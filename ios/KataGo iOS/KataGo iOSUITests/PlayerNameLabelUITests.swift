@@ -12,7 +12,7 @@
 //  accessibility identifiers "blackPlayerName" / "whitePlayerName" (see
 //  StoneView.drawCapturedStones); tapping one flips that side Human<->AI.
 //  Their accessibility `label` is the displayed string. The test drives the
-//  real config screen (More ▸ This Game ▸ Game Settings ▸ AI) so it also
+//  real config screen (More ▸ Settings ▸ Game Settings ▸ AI) so it also
 //  proves the board reflects the configuration end-to-end.
 //
 //  On the iOS Simulator the backend is pinned to CoreML/NE, so launching the
@@ -142,12 +142,15 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         let newGame = app.buttons["New Game"].firstMatch
         XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
         newGame.tap()
+        let emptyBoard = app.buttons["Empty Board"].firstMatch
+        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
+        emptyBoard.tap()
         XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
                       "New game board did not appear (More button missing)")
 
         // Quiet the board before the test drives the toolbar menu. The engine's
         // new-game setup churns the board, which rebuilds the toolbar host and
-        // resets an open nested "This Game" submenu back to its parent level, so
+        // resets an open nested "Settings" submenu back to its parent level, so
         // the "Game Settings" item flickers and can't be tapped ("Game Settings
         // not found" / a tap that can't get a stable snapshot). Wait until
         // analysis is established (a winrate label = the setup transient is over)
@@ -168,22 +171,22 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         usleep(3_000_000)  // 3s settle
     }
 
-    /// More ▸ This Game ▸ Game Settings ▸ AI.
+    /// More ▸ Settings ▸ Game Settings ▸ AI.
     @MainActor
     private func openAIConfig(_ app: XCUIApplication) {
-        // Drill More ▸ This Game ▸ Game Settings. The parent popover is stable,
-        // but tapping "This Game" opens a nested submenu that a PlusMenuView
+        // Drill More ▸ Settings ▸ Game Settings. The parent popover is stable,
+        // but tapping "Settings" opens a nested submenu that a PlusMenuView
         // re-render (cold-engine new-game setup churn) can collapse back to the
         // parent, so the "Game Settings" item FLICKERS on/off. Resolving a
         // flickering element (`.tap()`/`.frame`) aborts the whole test, so gate
         // the tap: only tap "Game Settings" once it has been continuously present
         // for a short window (several safe `.exists` polls). Otherwise step the
-        // menu forward (drill into This Game) or re-open "More" when the popover
+        // menu forward (drill into Settings) or re-open "More" when the popover
         // has fully closed. Success is the Game Settings SHEET appearing.
         // (`.exists` and `waitForExistence` never abort — only element taps do —
-        // and the parent items More/This Game are stable, so tapping them is safe.)
+        // and the parent items More/Settings are stable, so tapping them is safe.)
         let more = app.buttons["More"].firstMatch
-        let thisGame = app.buttons["This Game"].firstMatch
+        let settingsMenu = app.buttons["Settings"].firstMatch
         let gameSettings = app.buttons["Game Settings"].firstMatch
         let gameSettingsSheet = app.navigationBars["Game Settings"]
         for _ in 0..<25 {
@@ -194,17 +197,17 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
                     _ = gameSettingsSheet.waitForExistence(timeout: 3)
                 }
                 // else: flickering — loop and re-probe for a stable window.
-            } else if thisGame.exists {
-                thisGame.tap()                                  // parent menu open: drill in
+            } else if settingsMenu.exists {
+                settingsMenu.tap()                              // parent menu open: drill in
                 _ = gameSettings.waitForExistence(timeout: 3)
             } else {
                 XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
                 more.tap()                                      // no menu open: reopen
-                _ = thisGame.waitForExistence(timeout: 5)
+                _ = settingsMenu.waitForExistence(timeout: 5)
             }
         }
         XCTAssertTrue(gameSettingsSheet.waitForExistence(timeout: 5),
-                      "Game Settings sheet did not open from This Game")
+                      "Game Settings sheet did not open from Settings")
 
         // Tap the "AI" row scoped to the Settings LIST. A board player capsule
         // behind the sheet is itself a Button labeled "AI" once that side is set
