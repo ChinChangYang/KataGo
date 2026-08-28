@@ -1343,10 +1343,11 @@ public class GobanState {
 
         // The preset label too: `config.rule` is the index tvOS prints raw
         // (TVPlayScreen/TVReviewScreen `ruleText`) and the tie-breaker the
-        // iOS/macOS ruleset pickers prefer, but `createGameRecord` never
-        // derives it from RU[] — an imported RU[Japanese] record kept the
-        // default Tromp-Taylor index. Reconciled here by COMPONENTS, never by
-        // the RU[] string (the engine writes CamelCase and compact
+        // iOS/macOS ruleset pickers prefer. `createGameRecord` now derives it
+        // at creation, but records born before that fix — including CloudKit
+        // records synced from older builds — still carry a stale default
+        // index, so every load keeps reconciling. Matched by COMPONENTS,
+        // never by the RU[] string (the engine writes CamelCase and compact
         // `ko…score…` spellings), preferring the stored label so
         // engine-identical presets (Japanese/Korean, AGA/BGA) keep the user's
         // chosen name; a label that CONTRADICTS the components is healed,
@@ -1354,15 +1355,8 @@ public class GobanState {
         // sentinel via `configRuleIndex`. One `match` costs at most ~11 tiny
         // C++ SGF parses (1 when the stored label already fits) — one-shot per
         // load, never per body eval.
-        let components = NewGameRuleComponents(
-            koRule: rules.koRule,
-            scoringRule: rules.scoringRule,
-            taxRule: rules.taxRule,
-            multiStoneSuicideLegal: rules.multiStoneSuicideLegal,
-            hasButton: rules.hasButton,
-            whiteHandicapBonusRule: rules.whiteHandicapBonusRule)
         let matchedRuleIndex = NewGameRules.match(
-            components,
+            NewGameRuleComponents(rules: rules),
             preferring: NewGameRuleset.preset(fromConfigRule: config.rule)).configRuleIndex
         if config.rule != matchedRuleIndex { config.rule = matchedRuleIndex }
 

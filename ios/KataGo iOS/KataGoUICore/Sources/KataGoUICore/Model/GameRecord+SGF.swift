@@ -171,10 +171,17 @@ extension GameRecord {
 
     // MARK: - SgfOperations-based factory + import
 
+    /// Builds a record + its Config from an SGF. Board size, komi, and the
+    /// rule LABEL (`Config.rule`) are all derived from the parsed SGF.
+    /// `preferredRule` is a caller's explicitly chosen preset index (the Mac
+    /// New Game dialog) — used only as the component-match tie-break, so an
+    /// engine-identical twin pick (Korean/Japanese, BGA/AGA) keeps its name
+    /// instead of snapping to the first match.
     public class func createGameRecord(
         sgf: String = defaultSgf,
         currentIndex: Int = 0,
         name: String = defaultName,
+        preferredRule: Int? = nil,
         comments: [Int: String]? = [:],
         scoreLeads: [Int: Float]? = [:],
         bestMoves: [Int: String]? = [:],
@@ -205,6 +212,22 @@ extension GameRecord {
         config.boardWidth = sgfHelper.xSize
         config.boardHeight = sgfHelper.ySize
         config.komi = sgfHelper.rules.komi
+        // The rule LABEL too, so a record is born correctly named: the tvOS
+        // library card prints `Config.rule` raw before the game is ever
+        // opened, and `loadGame`'s reconcile only runs on open. Matched by
+        // COMPONENTS, never by the RU[] string (the engine writes CamelCase
+        // and compact `ko…score…` spellings), preferring the caller's chosen
+        // preset (falling back to the app default, ADR 0001) so an explicit
+        // twin pick survives and the common RU[tromp-taylor] callers match in
+        // one probe parse. A no-tag/garbage SGF parses to all-default
+        // components that match no preset and lands on the -1 Custom sentinel
+        // — the same answer `loadGame` has healed such records to. Unguarded
+        // write: this Config is brand new and unsaved, so there is no
+        // SwiftData dirtying / CloudKit churn to avoid.
+        config.rule = NewGameRules.match(
+            NewGameRuleComponents(rules: sgfHelper.rules),
+            preferring: NewGameRuleset.preset(fromConfigRule: preferredRule ?? Config.defaultRule))
+            .configRuleIndex
 
         let gameRecord = GameRecord(
             sgf: resolvedSgf,

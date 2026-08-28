@@ -42,6 +42,17 @@ public struct NewGameRuleComponents: Equatable {
         self.hasButton = hasButton
         self.whiteHandicapBonusRule = whiteHandicapBonusRule
     }
+
+    /// The six components of a bridge `Rules` value, komi dropped — the shape
+    /// `createGameRecord` and `loadGame` both match presets against.
+    public init(rules: Rules) {
+        self.init(koRule: rules.koRule,
+                  scoringRule: rules.scoringRule,
+                  taxRule: rules.taxRule,
+                  multiStoneSuicideLegal: rules.multiStoneSuicideLegal,
+                  hasButton: rules.hasButton,
+                  whiteHandicapBonusRule: rules.whiteHandicapBonusRule)
+    }
 }
 
 /// A named ruleset preset offered in the New Game dialog's Ruleset picker, plus
@@ -135,14 +146,8 @@ public enum NewGameRules {
     /// dialog / `suggestedKomi`).
     public static func expand(_ preset: NewGameRuleset) -> NewGameRuleComponents? {
         guard let token = preset.sgfToken else { return nil }
-        let rules = SgfOperations(sgf: "(;FF[4]GM[1]SZ[19]KM[7]RU[\(token)])").rules
         return NewGameRuleComponents(
-            koRule: rules.koRule,
-            scoringRule: rules.scoringRule,
-            taxRule: rules.taxRule,
-            multiStoneSuicideLegal: rules.multiStoneSuicideLegal,
-            hasButton: rules.hasButton,
-            whiteHandicapBonusRule: rules.whiteHandicapBonusRule)
+            rules: SgfOperations(sgf: "(;FF[4]GM[1]SZ[19]KM[7]RU[\(token)])").rules)
     }
 
     /// The named preset whose expansion equals `components`, or `.custom` if none

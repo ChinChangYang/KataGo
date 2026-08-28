@@ -27,8 +27,10 @@ final class NewGameViewController: NSViewController {
     /// size). Board-size options never exceed this.
     private let maxBoardLength: Int
     /// Called once, on Create, with the SGF (encoding size/komi/rules), the
-    /// name, and the chosen preset's Config.rule index (Custom → -1) so the
-    /// caller can persist the label createGameRecord doesn't derive.
+    /// name, and the chosen preset's Config.rule index (Custom → -1), passed
+    /// to `createGameRecord` as `preferredRule` — the tie-break that keeps an
+    /// engine-identical twin pick (Korean/Japanese, BGA/AGA) from snapping to
+    /// the first component match.
     private let onCreate: (_ sgf: String, _ name: String, _ configRuleIndex: Int) -> Void
 
     // Collected values (kept in sync by the row callbacks).

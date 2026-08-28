@@ -129,13 +129,64 @@ struct GameRecordTests {
 
     /// ADR 0001: the default game's SGF carries the named Tromp-Taylor token
     /// and the preset's suggested komi, and createGameRecord derives that
-    /// komi into the Config.
+    /// komi — and the rule-label index — into the Config.
     @Test func defaultSgfIsTrompTaylorWithSuggestedKomi() async throws {
         #expect(GameRecord.defaultSgf == "(;FF[4]GM[1]SZ[19]PB[]PW[]HA[0]KM[7.5]RU[tromp-taylor])")
         #expect(GameRecord.makeDefaultSgf(boardSize: 9) == "(;FF[4]GM[1]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[tromp-taylor])")
         let record = GameRecord.createGameRecord()
         #expect(record.concreteConfig.komi == 7.5)
         #expect(record.concreteConfig.rule == Config.defaultRule)
+    }
+
+    // MARK: - Rule-label derivation at creation
+
+    // The factory derives `Config.rule` from the SGF's RU[] components
+    // (matched by COMPONENTS, never by the RU[] string) so a record is born
+    // correctly labeled — the tvOS library card prints the index raw before
+    // the game is ever opened. `loadGame` still reconciles on every open for
+    // records that predate this derivation.
+
+    @Test func createGameRecordDerivesTheRuleLabelFromRU() async throws {
+        let record = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[19]KM[6.5]RU[japanese];B[pd])")
+        #expect(record.concreteConfig.rule == NewGameRuleset.japanese.configRuleIndex)
+    }
+
+    @Test func preferredRulePreservesAnEngineIdenticalTwin() async throws {
+        // Korean expands to the same components as Japanese, and component
+        // matching alone snaps to Japanese (the first pickerCases hit) — an
+        // explicit pick, the Mac New Game dialog, must survive.
+        let record = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[19]KM[6.5]RU[korean])",
+            preferredRule: NewGameRuleset.korean.configRuleIndex)
+        #expect(record.concreteConfig.rule == NewGameRuleset.korean.configRuleIndex)
+    }
+
+    @Test func withoutAPreferenceATwinSnapsToTheFirstMatch() async throws {
+        // Documents the tie-break: an import carries no pick to preserve, so
+        // RU[korean] is labeled Japanese — identical rules, first picker hit,
+        // the same answer loadGame's reconcile produces.
+        let record = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[19]KM[6.5]RU[korean])")
+        #expect(record.concreteConfig.rule == NewGameRuleset.japanese.configRuleIndex)
+    }
+
+    @Test func customComponentsAreBornWithTheCustomSentinel() async throws {
+        let record = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[19]KM[6.5]RU[koPOSITIONALscoreAREAtaxSEKIsui1])")
+        // The komi proves the RU[] actually parsed (a swallowed parse failure
+        // falls back to an all-default rule set with komi 7).
+        #expect(record.concreteConfig.komi == 6.5)
+        #expect(record.concreteConfig.rule == Config.customRule)
+    }
+
+    @Test func aTaglessSgfIsBornCustom() async throws {
+        // SgfCpp::getRules swallows a missing-RU/KM parse into all-default
+        // components (komi 7) that match no preset. The -1 sentinel is the
+        // same answer loadGame has healed such records to — deriving it at
+        // creation just gets there before the first open.
+        let record = GameRecord.createGameRecord(sgf: "(;FF[4]GM[1]SZ[9])")
+        #expect(record.concreteConfig.rule == Config.customRule)
     }
 
     @Test func undoGameRecord() async throws {

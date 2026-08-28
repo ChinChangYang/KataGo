@@ -53,8 +53,10 @@ struct SampleGamesTests {
         #expect(record.width == 19)
         #expect(record.height == 19)
         #expect(record.name == "Ear-Reddening Game")
-        // RU[Japanese]: the rule index must match the SGF, or the engine
-        // analyzes the no-komi game under the default Chinese rules.
+        // RU[Japanese]: createGameRecord derives the rule label from the
+        // SGF's components, so the sample needs no hand-patch — this pins
+        // that the 1846 game is born labeled Japanese, not the default
+        // Tromp-Taylor (ADR 0001).
         #expect(Config.rules[record.concreteConfig.rule] == "japanese")
         // Final position keyed exactly at moveSize. The library card no longer
         // reads these — it draws `TVGameCard.Depiction.finishedGame`, replayed

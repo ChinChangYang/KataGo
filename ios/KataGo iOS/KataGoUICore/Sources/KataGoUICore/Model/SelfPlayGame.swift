@@ -49,9 +49,12 @@ public enum SelfPlayGame {
     /// source Config wholesale (human-SL profiles, per-side max times) and would
     /// hand a Human-vs-9d game off as Human-vs-9d, never moving. The fresh
     /// `Config()` inside the factory already resolves both effective human
-    /// profiles to "AI"; this only adds the per-move times, the rule index the
-    /// factory does not derive from the SGF, and `useLLM = false` (tvOS has no
-    /// FoundationModels, and `.narrating` is not a settled report stage).
+    /// profiles to "AI"; this only adds the per-move times, the seed's rule
+    /// label (the factory derives one from RU[], but component matching snaps
+    /// engine-identical twins — Korean/Japanese, BGA/AGA — to the first hit,
+    /// and the reviewed game's exact label must survive the hand-off), and
+    /// `useLLM = false` (tvOS has no FoundationModels, and `.narrating` is
+    /// not a settled report stage).
     ///
     /// The caller owns keeping this record OUT of the CloudKit store — insert it
     /// into an in-memory container only. Every continuation move mutates it.

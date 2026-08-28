@@ -22,8 +22,10 @@ public struct SelfPlaySeed: Hashable, Sendable {
     /// The SGF's move count. The seeded record sits at its TIP so
     /// `isOverwriting` stays false and `loadGame`'s rewind loop runs zero times.
     public let moveCount: Int
-    /// `Config.rule`, the one field `createGameRecord` does NOT derive from the
-    /// SGF.
+    /// `Config.rule` — the reviewed game's exact label. The factory derives
+    /// a label from RU[], but component matching cannot tell engine-identical
+    /// twins (Korean/Japanese, BGA/AGA) apart, so the label the review screen
+    /// actually showed rides along and is re-asserted on the continuation.
     public let rule: Int
     /// Shown as the continuation's title, so it does not claim to be the demo.
     public let name: String

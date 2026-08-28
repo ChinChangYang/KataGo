@@ -235,17 +235,20 @@ struct GobanStateLoadGameFeedTests {
 
     // MARK: - Rule label reconciliation
 
-    // `createGameRecord` never derives `Config.rule` from RU[], so an imported
-    // record carries the default Tromp-Taylor index until a load reconciles it
-    // from the SGF's components — the index tvOS's info rows print raw.
+    // `createGameRecord` now derives `Config.rule` from RU[] at creation, but
+    // records created before that fix — including CloudKit records synced from
+    // older builds — still carry a stale default label. The load-time
+    // reconcile is what heals them, so it stays covered here with staleness
+    // manufactured explicitly.
 
-    @Test("An imported RU[japanese] record heals its stale Tromp-Taylor label on load")
+    @Test("A legacy record's stale Tromp-Taylor label heals on load")
     func importedJapaneseRecordHealsItsRuleLabel() throws {
         let fixture = try makeFixture()
         let record = GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 0)
-        // The import factory leaves the label at the default — the pre-fix
-        // tvOS "Tromp-Taylor" symptom.
-        #expect(record.concreteConfig.rule == Config.defaultRule)
+        // Manufacture the pre-fix state: the factory derives japanese now, so
+        // a legacy record is simulated by writing the default index back —
+        // exactly what every record created before the factory fix carries.
+        record.concreteConfig.rule = Config.defaultRule
 
         load(record, in: fixture)
 

@@ -47,11 +47,13 @@ extension MainWindowController: LibraryActionsDelegate {
                 [weak self] sgf, name, configRuleIndex in
                 guard let self else { return }
                 let previous = self.navigationContext.selectedGameRecord
-                let untitled = GameRecord.createGameRecord(sgf: sgf, name: name)
-                // createGameRecord doesn't derive Config.rule from RU[]; carry
-                // the chosen preset's label so other surfaces (tvOS cards)
-                // don't mislabel Mac-created games.
-                untitled.concreteConfig.rule = configRuleIndex
+                // `preferredRule`, not a post-write: the factory derives the
+                // label from RU[] by component matching, which cannot tell
+                // engine-identical twins apart (Korean/Japanese, BGA/AGA) —
+                // the dialog's explicit pick is the tie-break that keeps the
+                // chosen name on other surfaces (tvOS cards).
+                let untitled = GameRecord.createGameRecord(sgf: sgf, name: name,
+                                                           preferredRule: configRuleIndex)
                 let record = self.draftController.openUntitled(untitled)
                 self.navigationContext.selectedGameRecord = record
                 // Unlock BEFORE the load, not after. ⌘N stays enabled while a

@@ -102,8 +102,9 @@ public struct TVNewGameForm: Equatable {
     /// time; the human side gets maxTime 0 (the maxTime == 0 marker is what
     /// TVPlayability and the shared gen-move loop key off). Handicap stones
     /// are always Black's, so White + handicap is give-handicap play. The
-    /// rule index must be set here: createGameRecord does not derive
-    /// `Config.rule` from the SGF (the SelfPlaySeed factory documents that).
+    /// rule index is still written here: the factory's RU[] derivation snaps
+    /// engine-identical twins (Korean→Japanese, BGA→AGA) to the first
+    /// component match, so the user's picked label must be re-asserted.
     @MainActor
     public func apply(to config: Config) {
         config.rule = ruleset.configRuleIndex

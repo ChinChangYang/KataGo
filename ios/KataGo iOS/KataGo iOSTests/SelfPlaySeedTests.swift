@@ -41,8 +41,13 @@ struct SelfPlaySeedTests {
         #expect(config.komi == 7)
     }
 
-    /// createGameRecord derives board size and komi from the SGF but NOT the
-    /// rule index — the same gap SampleGames.makeEarReddeningRecord patches.
+    /// The factory derives a label from the SGF's components, but the seed's
+    /// label is authoritative — engine-identical twins (Korean/Japanese,
+    /// BGA/AGA) would otherwise snap to the first component match. The carry
+    /// is a plain overwrite, so even a label contradicting the components
+    /// survives here (production seeds cannot contradict — the review screen
+    /// already reconciled them, and the self-play screen's loadGame would
+    /// heal one anyway).
     @Test func theRuleIndexIsCarriedExplicitly() {
         #expect(SelfPlayGame.makeRecord(seed: seed(rule: 1)).concreteConfig.rule == 1)
         #expect(SelfPlayGame.makeRecord(seed: seed(rule: 3)).concreteConfig.rule == 3)
