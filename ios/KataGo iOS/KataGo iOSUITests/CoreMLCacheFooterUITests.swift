@@ -431,6 +431,16 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // only cosmetic since the next run re-captures `before`.
         _ = flipSwitch(showCoordinate, awayFrom: showCoordinate.value as? String ?? "1")
 
+        // The game-list "Thumbnails" picker (Off/Small/Large) lives further
+        // down the same screen, so scroll it into view before asserting.
+        let thumbnailsPicker = app.staticTexts
+            .containing(NSPredicate(format: "label CONTAINS %@", "Thumbnails")).firstMatch
+        if !thumbnailsPicker.waitForExistence(timeout: 5) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(thumbnailsPicker.waitForExistence(timeout: 5),
+                      "'Thumbnails' picker missing from Global Settings")
+
         // ----- The per-game "View" tab is gone; the others remain. Game
         // Settings now lives under Settings, so dismiss the Global Settings
         // sheet (swipe down ON THE NAV BAR — the list is scrollable, so a bare

@@ -159,7 +159,7 @@ The `Commentator` class uses Apple's FoundationModels framework to generate natu
 
 ## Global Settings
 
-App-wide display/behavior preferences are stored via `@AppStorage` (keys prefixed `GlobalSettings.`) and synced into `GobanState` by `GlobalPreferenceSync` in `GameSplitView`. They include: `soundEffect`, `hapticFeedback`, `showVisitsPerSecond`, `showCoordinate`, `showPass`, `verticalFlip`, `showOwnership`, `showWinrateBar`, `showCharts`, `showComments`, `stoneStyle`, `analysisStyle`, `analysisInformation`, and `moveNumberStyle` (the move-number display picker: last-3 / last / all / marker).
+App-wide display/behavior preferences are stored via `@AppStorage` (keys prefixed `GlobalSettings.`) and synced into `GobanState` by `GlobalPreferenceSync` in `GameSplitView`. They include: `soundEffect`, `hapticFeedback`, `showVisitsPerSecond`, `showCoordinate`, `showPass`, `verticalFlip`, `showOwnership`, `showWinrateBar`, `showCharts`, `showComments`, `stoneStyle`, `analysisStyle`, `analysisInformation`, `moveNumberStyle` (the move-number display picker: last-3 / last / all / marker), and `thumbnailSize` (the game-list thumbnail picker: Off / Small / Large — Off draws no board AND resolves none, so the row's `square.grid.3x3` unreadable-record signal goes with it; migrated once from the retired `isLargeThumbnail` bool in `App.init()`).
 
 ## GTP Commands Used
 

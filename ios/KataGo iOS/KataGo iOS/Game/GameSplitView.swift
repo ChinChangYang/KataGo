@@ -880,6 +880,7 @@ private struct GlobalPreferenceSync: ViewModifier {
     @AppStorage(GlobalSettingsKeys.moveNumberStyle) private var moveNumberStyle = Config.defaultMoveNumberStyle
     @AppStorage(GlobalSettingsKeys.analysisStyle) private var analysisStyle = Config.defaultAnalysisStyle
     @AppStorage(GlobalSettingsKeys.analysisInformation) private var analysisInformation = Config.defaultAnalysisInformation
+    @AppStorage(GlobalSettingsKeys.thumbnailSize) private var thumbnailSize = Config.defaultThumbnailSize
 
     func body(content: Content) -> some View {
         content
@@ -898,6 +899,7 @@ private struct GlobalPreferenceSync: ViewModifier {
                 gobanState.moveNumberStyle = moveNumberStyle
                 gobanState.analysisStyle = analysisStyle
                 gobanState.analysisInformation = analysisInformation
+                gobanState.thumbnailSize = thumbnailSize
             }
             .onChange(of: gobanState.soundEffect) { _, newValue in soundEffect = newValue }
             .onChange(of: gobanState.hapticFeedback) { _, newValue in hapticFeedback = newValue }
@@ -913,5 +915,6 @@ private struct GlobalPreferenceSync: ViewModifier {
             .onChange(of: gobanState.moveNumberStyle) { _, newValue in moveNumberStyle = newValue }
             .onChange(of: gobanState.analysisStyle) { _, newValue in analysisStyle = newValue }
             .onChange(of: gobanState.analysisInformation) { _, newValue in analysisInformation = newValue }
+            .onChange(of: gobanState.thumbnailSize) { _, newValue in thumbnailSize = newValue }
     }
 }

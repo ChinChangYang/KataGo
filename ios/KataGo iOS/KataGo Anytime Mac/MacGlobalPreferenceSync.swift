@@ -39,6 +39,10 @@ final class MacGlobalPreferenceSync {
     /// constant — these are the exact defaults the iOS `@AppStorage` declarations
     /// use, NOT naive literals (e.g. `showComments` defaults to `false`).
     private func seedFromDefaults() {
+        // Before any read: the retired `isLargeThumbnail` bool has to reach the
+        // new key while the new key is still absent.
+        ThumbnailSizePreference.migrateLegacyValueIfNeeded()
+
         let defaults = UserDefaults.standard
 
         gobanState.soundEffect = (defaults.object(forKey: GlobalSettingsKeys.soundEffect) as? Bool) ?? false
@@ -55,6 +59,7 @@ final class MacGlobalPreferenceSync {
         gobanState.moveNumberStyle = (defaults.object(forKey: GlobalSettingsKeys.moveNumberStyle) as? Int) ?? Config.defaultMoveNumberStyle
         gobanState.analysisStyle = (defaults.object(forKey: GlobalSettingsKeys.analysisStyle) as? Int) ?? Config.defaultAnalysisStyle
         gobanState.analysisInformation = (defaults.object(forKey: GlobalSettingsKeys.analysisInformation) as? Int) ?? Config.defaultAnalysisInformation
+        gobanState.thumbnailSize = (defaults.object(forKey: GlobalSettingsKeys.thumbnailSize) as? Int) ?? Config.defaultThumbnailSize
     }
 
     // MARK: - Write-back (GobanState -> UserDefaults)
@@ -74,7 +79,7 @@ final class MacGlobalPreferenceSync {
     /// current values then re-register (tracking is one-shot).
     private func trackPreferences() {
         withObservationTracking {
-            // Touch all 14 tracked properties so a change to any fires `onChange`.
+            // Touch all 15 tracked properties so a change to any fires `onChange`.
             _ = gobanState.soundEffect
             _ = gobanState.hapticFeedback
             _ = gobanState.showVisitsPerSecond
@@ -89,6 +94,7 @@ final class MacGlobalPreferenceSync {
             _ = gobanState.moveNumberStyle
             _ = gobanState.analysisStyle
             _ = gobanState.analysisInformation
+            _ = gobanState.thumbnailSize
         } onChange: { [weak self] in
             // `onChange` runs before the mutation commits; defer to read the new
             // values, persist them, then re-register (one-shot tracking).
@@ -100,7 +106,7 @@ final class MacGlobalPreferenceSync {
         }
     }
 
-    /// Writes all 14 live `GobanState` values back to `UserDefaults.standard`.
+    /// Writes all 15 live `GobanState` values back to `UserDefaults.standard`.
     private func persistToDefaults() {
         let defaults = UserDefaults.standard
 
@@ -118,5 +124,6 @@ final class MacGlobalPreferenceSync {
         defaults.set(gobanState.moveNumberStyle, forKey: GlobalSettingsKeys.moveNumberStyle)
         defaults.set(gobanState.analysisStyle, forKey: GlobalSettingsKeys.analysisStyle)
         defaults.set(gobanState.analysisInformation, forKey: GlobalSettingsKeys.analysisInformation)
+        defaults.set(gobanState.thumbnailSize, forKey: GlobalSettingsKeys.thumbnailSize)
     }
 }

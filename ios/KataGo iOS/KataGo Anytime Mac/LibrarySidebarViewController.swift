@@ -33,6 +33,7 @@ protocol LibraryActionsDelegate: AnyObject {
 final class LibrarySidebarViewController: NSViewController {
     private let store: LibraryStore
     private let navigationContext: NavigationContext
+    private let gobanState: GobanState
     private let onSelect: (GameRecord?) -> Void
 
     /// Weak to avoid a retain cycle: the delegate is the window controller, which
@@ -61,9 +62,11 @@ final class LibrarySidebarViewController: NSViewController {
 
     init(store: LibraryStore,
          navigationContext: NavigationContext,
+         gobanState: GobanState,
          onSelect: @escaping (GameRecord?) -> Void) {
         self.store = store
         self.navigationContext = navigationContext
+        self.gobanState = gobanState
         self.onSelect = onSelect
         super.init(nibName: nil, bundle: nil)
     }
@@ -140,8 +143,30 @@ final class LibrarySidebarViewController: NSViewController {
         store.onChange = { [weak self] in
             self?.reloadPreservingSelection()
         }
+        trackThumbnailSize()
         // Reflect the launch-selected game without re-loading it.
         reloadPreservingSelection()
+    }
+
+    /// Rebuilds the rows when the thumbnail preference changes. Cells are built
+    /// once in `tableView(_:viewFor:row:)` and read the size as they configure,
+    /// so without this a change made in the Settings window would not reach a
+    /// visible sidebar until the store happened to reload for another reason.
+    ///
+    /// One-shot tracking, re-registered from `onChange`, mirroring
+    /// `MacGlobalPreferenceSync.trackPreferences()`.
+    private func trackThumbnailSize() {
+        withObservationTracking {
+            _ = gobanState.thumbnailSize
+        } onChange: { [weak self] in
+            // `onChange` runs before the mutation commits; defer so the cells
+            // read the new value, then re-register.
+            Task { @MainActor in
+                guard let self else { return }
+                self.reloadPreservingSelection(invalidatingRowHeights: true)
+                self.trackThumbnailSize()
+            }
+        }
     }
 
     // MARK: - Selection sync
@@ -150,8 +175,18 @@ final class LibrarySidebarViewController: NSViewController {
     /// (from `navigationContext`) without firing `onSelect` — this keeps the
     /// sidebar's highlight in sync with the launch/already-loaded game and with
     /// store refetches, instead of being treated as a fresh user selection.
-    func reloadPreservingSelection() {
+    func reloadPreservingSelection(invalidatingRowHeights: Bool = false) {
         tableView.reloadData()
+
+        // Row height now depends on the thumbnail size, so a cached automatic
+        // height that outlived `reloadData()` would draw a Large board in a
+        // 58 pt row — exactly the bug the row floor exists to fix. Paid only on
+        // the preference path: measuring every row on the per-move
+        // `store.onChange` reload would re-parse every game past the preview
+        // cache's 32 entries.
+        if invalidatingRowHeights, tableView.numberOfRows > 0 {
+            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+        }
 
         let targetRow = store.games.firstIndex { $0 === selectedStoredGame }
 
@@ -293,7 +328,7 @@ extension LibrarySidebarViewController: NSTableViewDelegate {
             cell = GameRowView()
             cell.identifier = Self.cellIdentifier
         }
-        cell.configure(with: store.games[row])
+        cell.configure(with: store.games[row], thumbnailSizeIndex: gobanState.thumbnailSize)
         return cell
     }
 

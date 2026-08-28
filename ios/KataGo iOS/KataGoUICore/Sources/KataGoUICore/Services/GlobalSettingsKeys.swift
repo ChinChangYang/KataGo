@@ -23,4 +23,5 @@ public enum GlobalSettingsKeys {
     public static let moveNumberStyle = "GlobalSettings.moveNumberStyle"
     public static let analysisStyle = "GlobalSettings.analysisStyle"
     public static let analysisInformation = "GlobalSettings.analysisInformation"
+    public static let thumbnailSize = "GlobalSettings.thumbnailSize"
 }

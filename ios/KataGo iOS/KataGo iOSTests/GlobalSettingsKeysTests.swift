@@ -22,5 +22,6 @@ struct GlobalSettingsKeysTests {
         #expect(GlobalSettingsKeys.moveNumberStyle == "GlobalSettings.moveNumberStyle")
         #expect(GlobalSettingsKeys.analysisStyle == "GlobalSettings.analysisStyle")
         #expect(GlobalSettingsKeys.analysisInformation == "GlobalSettings.analysisInformation")
+        #expect(GlobalSettingsKeys.thumbnailSize == "GlobalSettings.thumbnailSize")
     }
 }

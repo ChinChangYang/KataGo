@@ -201,6 +201,14 @@ final class SettingsViewController: NSTabViewController {
 
     private static var generalRows: [SettingRow] {
         [
+            // The library row's board. Off is the degenerate size, not a second
+            // switch. iOS files this under a "Game List" section; the Mac
+            // Settings window has no such tab, and General is the nearest home.
+            .popup(title: "Thumbnails",
+                   options: Config.thumbnailSizes,
+                   get: { $0.thumbnailSize },
+                   set: { $0.thumbnailSize = $1 },
+                   fallback: Config.defaultThumbnailSize),
             .checkbox(title: "Show chart/comments",
                       get: { $0.showCharts },
                       set: { $0.showCharts = $1 }),

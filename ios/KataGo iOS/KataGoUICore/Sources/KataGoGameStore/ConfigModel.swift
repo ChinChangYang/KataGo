@@ -394,6 +394,32 @@ extension Config {
 }
 
 extension Config {
+    // Display strings for the game-list thumbnail picker. "Off" is the
+    // degenerate size, not a separate switch: one control for one concept, so
+    // there is no second key that can disagree with this one about whether the
+    // picture is drawn at all.
+    public static let offThumbnailSize = "Off"
+    public static let smallThumbnailSize = "Small"
+    public static let largeThumbnailSize = "Large"
+    public static let thumbnailSizes = [offThumbnailSize,
+                                        smallThumbnailSize,
+                                        largeThumbnailSize]
+
+    /// Small (index 1) — what every library row has drawn since the preference
+    /// existed, so an update changes nobody's list.
+    ///
+    /// ⚠️ Do NOT change this by reordering `thumbnailSizes`. The INDEX is what
+    /// persists in `GlobalSettings.thumbnailSize`, so a reorder silently
+    /// reinterprets every value already stored on device. Append only.
+    ///
+    /// Unlike the other picker preferences there is no SwiftData `Config`
+    /// column behind this one: the schema is frozen (ADR 0001), and a
+    /// preference born app-wide never needed a per-game home.
+    public static let defaultThumbnailSize = 1
+    public static let defaultThumbnailSizeText = thumbnailSizes[defaultThumbnailSize]
+}
+
+extension Config {
     public static let defaultShowCoordinate = true
 }
 

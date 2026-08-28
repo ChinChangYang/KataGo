@@ -274,6 +274,39 @@ public final class GameRecord {
         }
     }
 
+    /// The note a library row shows under the game's title: the comment on the
+    /// move the game is parked on — the same move the row's thumbnail draws, so
+    /// a row describes one moment rather than two.
+    ///
+    /// Deliberately NOT `comments?[0]` (what the rows read before) and not
+    /// `GameEntity.firstComment` (root-else-earliest, still right for the
+    /// Shortcuts and widget pickers): those rows identify a game with no board
+    /// beside them, while a library row describes the position next to it.
+    ///
+    /// Whitespace-only counts as absent. `CommentPersistence` refuses to write
+    /// a blank, but an SGF import writes `C[]` text straight into the
+    /// dictionary without passing through it.
+    ///
+    /// Every run of whitespace — newlines included — collapses to one space. A
+    /// row note is a single line by definition, and a comment is very often
+    /// several: Deep Report's "Copy to Comment" writes a paragraph per move.
+    /// Left intact, AppKit lays that out as eight lines whatever
+    /// `maximumNumberOfLines` says, and SwiftUI's `lineLimit(1)` shows only the
+    /// first line with no sign that more follows. Flattened, both show the
+    /// opening words and truncate.
+    ///
+    /// A `currentIndex` left pointing past a trimmed game simply finds no
+    /// entry — `clearData(after:)` drops comments above the cursor — so this
+    /// degrades to "no comment line" instead of needing a clamp, which would
+    /// cost an SGF parse the hidden-thumbnail path must not pay.
+    public var libraryRowComment: String? {
+        guard let comment = comments?[currentIndex] else { return nil }
+        let flattened = comment
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        return flattened.isEmpty ? nil : flattened
+    }
+
     public func clearData(after index: Int) {
         comments = comments?.filter { $0.key <= index }
         scoreLeads = scoreLeads?.filter { $0.key <= index }

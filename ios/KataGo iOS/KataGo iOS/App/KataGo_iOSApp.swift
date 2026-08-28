@@ -30,6 +30,14 @@ struct KataGo_iOSApp: App {
 
         KataGoShortcuts.updateAppShortcutParameters()
 
+        // Carry the retired `isLargeThumbnail` bool onto the app-wide
+        // `GlobalSettings.thumbnailSize` index. HERE, in init(), and not in a
+        // `.onAppear` beside the rest of the preference seeding: the
+        // `@AppStorage` that seeds `GobanState.thumbnailSize` reads the store
+        // when the property wrapper is created, so a migration running inside
+        // the same view's body would land after the value it needs to change.
+        ThumbnailSizePreference.migrateLegacyValueIfNeeded()
+
         // DEBUG-only, and a no-op without its launch argument: put a bundled
         // network where a downloaded one would live, so the Core ML cache UI
         // test never has to reach the internet. Here rather than in a `.task`

@@ -158,6 +158,7 @@ public class GobanState {
     public var analysisStyle: Int = Config.defaultAnalysisStyle
     public var analysisInformation: Int = Config.defaultAnalysisInformation
     public var moveNumberStyle: Int = Config.defaultMoveNumberStyle
+    public var thumbnailSize: Int = Config.defaultThumbnailSize
 
     /// Whether the chart/comments pane above the board should be shown: the
     /// user wants it (settings) AND full-screen mode isn't overriding it.
@@ -1626,6 +1627,20 @@ extension GobanState {
     public var moveNumberStyleText: String {
         guard (0..<Config.moveNumberStyles.count).contains(moveNumberStyle) else { return Config.defaultMoveNumberStyleText }
         return Config.moveNumberStyles[moveNumberStyle]
+    }
+
+    public var thumbnailSizeText: String {
+        guard (0..<Config.thumbnailSizes.count).contains(thumbnailSize) else { return Config.defaultThumbnailSizeText }
+        return Config.thumbnailSizes[thumbnailSize]
+    }
+
+    /// Whether the game list draws no picture at all. An out-of-range index
+    /// reports `false` — the same bounds-checking idiom as its siblings above —
+    /// so a corrupt value falls back to showing a thumbnail rather than
+    /// silently emptying the library.
+    public var isThumbnailHidden: Bool {
+        guard (0..<Config.thumbnailSizes.count).contains(thumbnailSize) else { return false }
+        return Config.thumbnailSizes[thumbnailSize] == Config.offThumbnailSize
     }
 
     public var moveNumberStyleChoice: MoveNumberStyle {

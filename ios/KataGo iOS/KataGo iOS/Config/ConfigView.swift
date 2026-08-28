@@ -808,9 +808,8 @@ struct GlobalSettingsView: View {
     @State private var showCharts = Config.defaultShowCharts
     @State private var showOwnership = Config.defaultShowOwnership
     @State private var showWinrateBar = Config.defaultShowWinrateBar
-    @State private var largeThumbnails = false
+    @State private var thumbnailSizeText = Config.defaultThumbnailSizeText
     @Environment(GobanState.self) private var gobanState
-    @Environment(ThumbnailModel.self) private var thumbnailModel
     @Environment(TopUIState.self) private var topUIState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -981,20 +980,25 @@ struct GlobalSettingsView: View {
             }
 
             Section("Game List") {
-                // Thumbnail size lives on ThumbnailModel (UserDefaults
-                // "isLargeThumbnail"); this just relocates the control here
-                // from the game-list "More" menu. Mirrors the onAppear/onChange
-                // pattern used by the toggles above.
-                ConfigBoolItem(title: "Large thumbnails", value: $largeThumbnails)
-                    .onAppear {
-                        largeThumbnails = thumbnailModel.isLarge
+                // Off is the degenerate size, not a second switch — one control
+                // decides both whether the row draws a board and how big it is.
+                // Off also stops the row RESOLVING one: the picture is replayed
+                // from the game's SGF, so hiding it is what makes the list
+                // cheap. It retires the row's `square.grid.3x3` unreadable-record
+                // signal with it (ADR 0014), which lived in the picture slot.
+                ConfigTextPicker(
+                    title: "Thumbnails",
+                    texts: Config.thumbnailSizes,
+                    selectedText: $thumbnailSizeText
+                )
+                .onAppear {
+                    thumbnailSizeText = gobanState.thumbnailSizeText
+                }
+                .onChange(of: thumbnailSizeText) { _, newValue in
+                    withAnimation {
+                        gobanState.thumbnailSize = Config.thumbnailSizes.firstIndex(of: newValue) ?? Config.defaultThumbnailSize
                     }
-                    .onChange(of: largeThumbnails) {
-                        withAnimation {
-                            thumbnailModel.isLarge = largeThumbnails
-                        }
-                        thumbnailModel.save()
-                    }
+                }
             }
 
             // Model name + engine version, surfaced app-wide here (relocated

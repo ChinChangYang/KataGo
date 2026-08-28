@@ -57,6 +57,7 @@ final class MainSplitViewController: NSSplitViewController {
         let librarySidebarVC = LibrarySidebarViewController(
             store: libraryStore,
             navigationContext: navigationContext,
+            gobanState: session.gobanState,
             onSelect: { [weak windowController] game in
                 windowController?.selectGame(game)
             }
