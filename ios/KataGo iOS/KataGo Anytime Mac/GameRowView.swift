@@ -59,8 +59,12 @@ final class GameRowView: NSTableCellView {
     /// the row grow for it. The same failure `ModelRowView` documents: automatic
     /// row heights measure only what is on the chain.
     ///
-    /// Mutable because the padding is a function of the size — see
-    /// `rowFloorPadding(forBoardSide:)`.
+    /// Mutable only so Off can zero it, and that is hygiene rather than a fix:
+    /// the constant is added to the BOARD's height, which Off collapses to 0, so
+    /// leaving the padding in would read `height >= 8` — dominated by the
+    /// required text floor, which puts even the shortest row at 40 pt. Zeroed
+    /// anyway, so the constraint never claims to be reserving room for a picture
+    /// that is not there.
     private var boardRowFloorConstraint: NSLayoutConstraint!
 
     /// Exactly one is active: the date follows the comment when there is one,
@@ -179,19 +183,27 @@ final class GameRowView: NSTableCellView {
     }
 
     /// Vertical breathing room a thumbnail claims inside its row, matching the
-    /// 4 pt inset the text block already uses top and bottom.
+    /// 4 pt inset the text block already uses top and bottom. Charged at EVERY
+    /// size, so a picture is never flush against its row's edges.
+    ///
+    /// It was once charged only above Small, on the theory that a board no
+    /// taller than the text it sits beside needs no help. That is true only of
+    /// the taller row. A comment-less row measures 4 + 16 + 2 + 14 + 4 = 40 pt,
+    /// exactly `ThumbnailMetrics.smallSide`, so at Small its board filled the
+    /// row edge to edge with no air at all — and since the board hangs off
+    /// `centerY`, the space between two boards is the sum of the air in each,
+    /// over an intercell spacing that `.sourceList` sets to 0. A RUN of
+    /// comment-less rows, which is most of a library, therefore put 0 pt
+    /// between its boards and fused into one strip; an annotated neighbour
+    /// (58 pt, 9 pt of air) opened a 9 pt seam, and two of them 18 pt. With the
+    /// inset charged, that row is 48 pt and the three gaps become 8 / 13 / 18.
+    /// Large never showed the defect because 72 + 8 clears the tallest text row
+    /// on its own — the general rule being that a size reads as even exactly
+    /// when its board floor exceeds the text.
     private static let boardVerticalInset: CGFloat = 4
 
     /// The padding added to the board's own height to get the row's floor.
-    ///
-    /// Only a board TALLER than the text a row already carries pays the inset.
-    /// A comment-less row measures 4 + 16 + 2 + 14 + 4 = 40 pt, which is exactly
-    /// `ThumbnailMetrics.smallSide` — the coincidence that hid this bug for as
-    /// long as the board was a fixed 40 pt. Charging Small the inset too would
-    /// grow every comment-less row by 8 pt to fix a tightness nobody reported.
-    private static func rowFloorPadding(forBoardSide side: CGFloat) -> CGFloat {
-        side > ThumbnailMetrics.smallSide ? 2 * boardVerticalInset : 0
-    }
+    private static let rowFloorPadding: CGFloat = 2 * boardVerticalInset
 
     /// Populates the cell from a game record. The board is derived from the
     /// record's own SGF (ADR 0014), never from a stored bitmap, so a row cannot
@@ -238,7 +250,7 @@ final class GameRowView: NSTableCellView {
         boardHost.isHidden = false
         boardWidthConstraint.constant = side
         boardHeightConstraint.constant = side
-        boardRowFloorConstraint.constant = Self.rowFloorPadding(forBoardSide: side)
+        boardRowFloorConstraint.constant = Self.rowFloorPadding
         textLeadingConstraint.constant = 8
         boardHost.rootView = Self.boardView(for: gameRecord)
     }
