@@ -1341,6 +1341,31 @@ public class GobanState {
         }
         if config.komi != rules.komi { config.komi = rules.komi }
 
+        // The preset label too: `config.rule` is the index tvOS prints raw
+        // (TVPlayScreen/TVReviewScreen `ruleText`) and the tie-breaker the
+        // iOS/macOS ruleset pickers prefer, but `createGameRecord` never
+        // derives it from RU[] — an imported RU[Japanese] record kept the
+        // default Tromp-Taylor index. Reconciled here by COMPONENTS, never by
+        // the RU[] string (the engine writes CamelCase and compact
+        // `ko…score…` spellings), preferring the stored label so
+        // engine-identical presets (Japanese/Korean, AGA/BGA) keep the user's
+        // chosen name; a label that CONTRADICTS the components is healed,
+        // matching the ConfigView semantics. `.custom` persists the -1
+        // sentinel via `configRuleIndex`. One `match` costs at most ~11 tiny
+        // C++ SGF parses (1 when the stored label already fits) — one-shot per
+        // load, never per body eval.
+        let components = NewGameRuleComponents(
+            koRule: rules.koRule,
+            scoringRule: rules.scoringRule,
+            taxRule: rules.taxRule,
+            multiStoneSuicideLegal: rules.multiStoneSuicideLegal,
+            hasButton: rules.hasButton,
+            whiteHandicapBonusRule: rules.whiteHandicapBonusRule)
+        let matchedRuleIndex = NewGameRules.match(
+            components,
+            preferring: NewGameRuleset.preset(fromConfigRule: config.rule)).configRuleIndex
+        if config.rule != matchedRuleIndex { config.rule = matchedRuleIndex }
+
         // The pass counter is a running one, so a game resumed on a pass has to
         // be seeded from the position we are standing on. Refused moves are
         // looked through — the engine never saw them, so they do not break a

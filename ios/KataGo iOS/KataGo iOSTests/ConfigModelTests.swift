@@ -422,7 +422,9 @@ struct ConfigModelTests {
     /// `GameRecord.clone()` turned a Japanese-rules game into a Chinese-rules
     /// one — invisible in the app only because loading a game overwrites those
     /// six from the SGF's `RU[]` (`GobanState.switchGame`), which masks the
-    /// loss whenever the SGF happens to carry a ruleset.
+    /// loss whenever the SGF happens to carry a ruleset. The load also
+    /// reconciles the `rule` label index to those components (the tvOS
+    /// info-row fix), so a stale preset label is healed the same way.
     @Test func testCloneCarriesEveryRemainingField() async throws {
         let original = Config()
         original.optionalShowPass = false

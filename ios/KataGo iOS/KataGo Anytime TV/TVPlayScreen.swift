@@ -363,6 +363,9 @@ struct TVPlayScreen: View {
     private var ruleText: String {
         // The persisted index names a preset; the -1 Custom sentinel and any
         // out-of-range synced value render as "Custom" (never crash).
+        // The raw read is safe here: the entry protocol's `loadGame`
+        // reconciles this index from the record's RU[] components on every
+        // appearance, so a stale imported label never survives to this row.
         NewGameRuleset.preset(fromConfigRule: config.rule)?.displayName ?? "Custom"
     }
 

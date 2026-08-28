@@ -232,4 +232,65 @@ struct GobanStateLoadGameFeedTests {
         #expect(setup < firstPlay)
         #expect(plays(fixture) == ["play w Q16"])
     }
+
+    // MARK: - Rule label reconciliation
+
+    // `createGameRecord` never derives `Config.rule` from RU[], so an imported
+    // record carries the default Tromp-Taylor index until a load reconciles it
+    // from the SGF's components — the index tvOS's info rows print raw.
+
+    @Test("An imported RU[japanese] record heals its stale Tromp-Taylor label on load")
+    func importedJapaneseRecordHealsItsRuleLabel() throws {
+        let fixture = try makeFixture()
+        let record = GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 0)
+        // The import factory leaves the label at the default — the pre-fix
+        // tvOS "Tromp-Taylor" symptom.
+        #expect(record.concreteConfig.rule == Config.defaultRule)
+
+        load(record, in: fixture)
+
+        #expect(record.concreteConfig.rule == NewGameRuleset.japanese.configRuleIndex)
+        // The exact read TVPlayScreen/TVReviewScreen `ruleText` makes:
+        #expect(NewGameRuleset.preset(fromConfigRule: record.concreteConfig.rule)?
+            .displayName == "Japanese")
+    }
+
+    @Test("A legitimate Korean label survives loading engine-identical components")
+    func koreanLabelIsPreservedOverJapaneseComponents() throws {
+        let fixture = try makeFixture()
+        let record = GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 0)
+        record.concreteConfig.rule = NewGameRuleset.korean.configRuleIndex
+
+        load(record, in: fixture)
+
+        #expect(record.concreteConfig.rule == NewGameRuleset.korean.configRuleIndex)
+    }
+
+    @Test("Components matching no preset persist the Custom sentinel")
+    func customComponentsPersistTheCustomSentinel() throws {
+        let fixture = try makeFixture()
+        // Area scoring + seki tax + positional ko + legal suicide matches no
+        // named preset (compact RU[] form, which the engine parses).
+        let record = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[19]KM[6.5]RU[koPOSITIONALscoreAREAtaxSEKIsui1];B[pd])",
+            currentIndex: 1)
+
+        load(record, in: fixture)
+
+        // The komi proves the RU[] actually parsed (a swallowed parse failure
+        // falls back to an all-default rule set with komi 7).
+        #expect(record.concreteConfig.komi == 6.5)
+        #expect(record.concreteConfig.rule == Config.customRule)
+    }
+
+    @Test("A record whose label already fits is not rewritten")
+    func matchingLabelIsLeftAlone() throws {
+        let fixture = try makeFixture()
+        let record = GameRecord.createGameRecord(sgf: Self.fourMoves, currentIndex: 0)
+        record.concreteConfig.rule = NewGameRuleset.japanese.configRuleIndex
+
+        load(record, in: fixture)
+
+        #expect(record.concreteConfig.rule == NewGameRuleset.japanese.configRuleIndex)
+    }
 }
