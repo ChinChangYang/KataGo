@@ -46,6 +46,12 @@
             case "playerUpdate":
                 sessionFor(payload)?.onPlayerUpdate(payload);
                 break;
+            case "playerAccess":
+                sessionFor(payload)?.onAccessChanged(payload);
+                break;
+            case "playerRemoved":
+                onPlayerRemoved(payload);
+                break;
         }
     });
     // Tell the hook we are listening (it buffers until this arrives).
@@ -59,6 +65,18 @@
         if (!info || typeof info.playerId !== "string" || players.has(info.playerId)) { return; }
         if (players.size >= 4) { return; }   // sanity cap for hostile pages
         players.set(info.playerId, new PanelSession(info));
+    }
+
+    /// A viewer left the page. A single-page app never fires `pagehide`
+    /// between routes, so without this the panel outlives its board: a dead
+    /// shadow host, a live poll, and on macOS a `busy` guard still armed
+    /// against the game the reader has just opened (ADR 0017).
+    function onPlayerRemoved(payload) {
+        const session = sessionFor(payload);
+        if (!session) { return; }
+        players.delete(payload.playerId);
+        try { session.teardown(); } catch (e) { /* removal is best-effort */ }
+        session.removePanel();
     }
 
     async function native(message) {
@@ -294,7 +312,16 @@
             // Where the adapter wants the panel to sit (ADR 0016). Read BEFORE
             // buildPanel(), which is the only thing that consumes it.
             this.anchor = info.anchor || null;
+            // A STABLE session key from the adapter, for a record that grows
+            // under the reader (ADR 0017); null means the SGF hash IS the
+            // identity, exactly as it always was.
+            this.siteGameId = info.gameId || null;
+            this.gameId = null;           // the key native accepted
+            this.refusal = null;
             this.buildPanel();
+            // One line if this viewer is off limits, applied through the same
+            // path a later change to the verdict takes.
+            this.onAccessChanged(info);
             browser.storage.local.get("kgaMode").then(({ kgaMode }) => {
                 if (["winrate", "score", "all"].includes(kgaMode)) {
                     this.mode = kgaMode;
@@ -304,6 +331,11 @@
             }).catch(() => {});
             window.addEventListener("pagehide", () => this.teardown());
         }
+
+        /// What every wire command addresses: the key native accepted (an
+        /// adapter's stable one where it supplied it, the SGF hash otherwise),
+        /// falling back to the hash before the first `start` has answered.
+        get sessionKey() { return this.gameId || this.sgfHash; }
 
         // ---- panel DOM ---------------------------------------------------
 
@@ -471,6 +503,15 @@
             });
         }
 
+        /// Take the panel off the page. Teardown alone is not enough for an SPA
+        /// route change: the shadow host would sit there over a board that no
+        /// longer exists.
+        removePanel() {
+            if (this.host && this.host.parentNode) {
+                this.host.parentNode.removeChild(this.host);
+            }
+        }
+
         /// A floating panel sits OVER the page, so it has to be dismissable
         /// without losing the session: collapse to the bar, keep whatever is
         /// running running, expand again from the same button.
@@ -518,6 +559,41 @@
         onKifuLoaded(payload) {
             if (Number.isFinite(payload.size)) { this.boardSize = payload.size; }
             if (Number.isFinite(payload.moveCount)) { this.moveCount = payload.moveCount; }
+            // The record GREW under the reader: a demo its author is playing, a
+            // review whose leading line was edited (ADR 0017). Everything
+            // analysed so far belongs to the shorter game, so drop it and
+            // re-`start` under the SAME session key.
+            if (typeof payload.sgfInline === "string"
+                && payload.sgfInline !== this.sgfInline) {
+                const wasRunning = this.state === "sweeping" || this.state === "done";
+                clearTimeout(this.pollTimer);
+                this.state = "idle";
+                this.sgfInline = payload.sgfInline;
+                this.sgf = null;
+                this.sgfHash = null;
+                this.sinceSeq = 0;
+                this.results.clear();
+                this.chart.setGame(this.moveCount);
+                this.el.axisMax.textContent = String(this.moveCount);
+                if (wasRunning && !this.refusal) { this.analyze(); }
+            }
+        }
+
+        /// A viewer may be off limits — an OGS game still in play (ADR 0017).
+        /// The panel says so in one line and refuses to start. The verdict is
+        /// LIVE: a game that finishes under the reader becomes analysable, and
+        /// the line goes away by itself.
+        onAccessChanged(payload) {
+            const refusal = (payload && payload.refusal) ? String(payload.refusal) : null;
+            if (refusal === this.refusal) { return; }
+            this.refusal = refusal;
+            this.el.analyze.disabled = !!refusal;
+            if (refusal) {
+                this.stop();
+                this.message(refusal, false);
+            } else {
+                this.message("");
+            }
         }
 
         onPlayerUpdate(payload) {
@@ -529,7 +605,7 @@
             this.pushOverlays();
             if (this.state === "sweeping" || this.state === "done") {
                 if (this.onMainline) {
-                    native({ cmd: "navigate", gameId: this.sgfHash, moveIndex: path.m }).catch(() => {});
+                    native({ cmd: "navigate", gameId: this.sessionKey, moveIndex: path.m }).catch(() => {});
                 }
             }
         }
@@ -552,6 +628,8 @@
         // ---- session driver ----------------------------------------------
 
         async analyze() {
+            // A viewer that is off limits never reaches the engine at all.
+            if (this.refusal) { this.message(this.refusal, false); return; }
             try {
                 this.state = "starting";
                 this.el.analyze.textContent = "Starting…";
@@ -562,8 +640,14 @@
                     cmd: "start", sgf, sgfHash: this.sgfHash,
                     currentMoveIndex: this.onMainline ? this.currentIndex : 0,
                     budget: this.el.budget.value,
+                    // Omitted unless an adapter supplied one, so a WGo page's
+                    // start message is byte-for-byte what it always was.
+                    ...(this.siteGameId ? { gameId: this.siteGameId } : {}),
                 });
                 if (accepted.type === "error") { return this.onWireError(accepted); }
+                // Native decides the session key and echoes it back; everything
+                // else this panel sends addresses that (ADR 0017).
+                this.gameId = accepted.gameId || this.sgfHash;
                 this.moveCount = accepted.moveCount;
                 this.boardSize = accepted.boardWidth;
                 this.sweep = { done: 0, total: accepted.moveCount + 1 };
@@ -593,7 +677,7 @@
             if (document.hidden) { this.schedulePoll(2000); return; }
             try {
                 const reply = await native({
-                    cmd: "poll", gameId: this.sgfHash, sinceSeq: this.sinceSeq,
+                    cmd: "poll", gameId: this.sessionKey, sinceSeq: this.sinceSeq,
                 });
                 if (reply.type === "error") {
                     if (reply.code === "unknownGame") {
@@ -689,8 +773,8 @@
             this.state = "idle";
             this.el.analyze.textContent = "Analyze";
             this.el.progress.hidden = true;
-            if (this.sgfHash) {
-                native({ cmd: "stop", gameId: this.sgfHash }).catch(() => {});
+            if (this.sessionKey) {
+                native({ cmd: "stop", gameId: this.sessionKey }).catch(() => {});
             }
         }
 
@@ -726,8 +810,8 @@
 
         teardown() {
             clearTimeout(this.pollTimer);
-            if (this.sgfHash && this.state === "sweeping") {
-                native({ cmd: "stop", gameId: this.sgfHash }).catch(() => {});
+            if (this.sessionKey && this.state === "sweeping") {
+                native({ cmd: "stop", gameId: this.sessionKey }).catch(() => {});
             }
         }
     }

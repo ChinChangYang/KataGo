@@ -253,6 +253,7 @@ It is **not tied to particular URLs**: the content script runs on every URL and 
 
 - any page that embeds a **WGo.js** kifu player;
 - **cyberoro**'s `giboviewer` — its records are a private `.gibo` dialect the adapter rewrites into SGF, and its bare canvas board gets a KataGo overlay.
+- **OGS** (online-go.com) — finished games, reviews of finished games and demo boards. KataGo stays off a game that is still being played, because OGS's terms forbid engine analysis of one ([ADR 0017](../../docs/adr/0017-ogs-analysis-stays-off-ongoing-games.md)); the panel says so instead of going quiet.
 
 When it finds a viewer, it injects a shadow-DOM panel with:
 

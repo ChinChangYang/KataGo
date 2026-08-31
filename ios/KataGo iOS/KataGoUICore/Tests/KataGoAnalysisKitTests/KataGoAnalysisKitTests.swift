@@ -32,6 +32,40 @@ struct AnalysisWireRequestTests {
                                   currentMoveIndex: 0, budget: .normal))
     }
 
+    /// A site adapter supplies a STABLE session key for a record that grows
+    /// under the reader (ADR 0017); a WGo page supplies none, and the hash
+    /// stays the identity.
+    @Test func startCarriesAnOptionalSessionKey() throws {
+        let keyed = try decodeRequest(
+            #"{"cmd":"start","sgf":"(;)","sgfHash":"h","gameId":"ogs:demo:7"}"#)
+        #expect(keyed == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                                budget: .normal, gameId: "ogs:demo:7"))
+        let bare = try decodeRequest(#"{"cmd":"start","sgf":"(;)","sgfHash":"h"}"#)
+        #expect(bare == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                               budget: .normal, gameId: nil))
+    }
+
+    /// An absent session key must stay ABSENT on the wire, so a WGo page's
+    /// `start` encodes exactly as it did before site adapters existed.
+    @Test func startOmitsTheSessionKeyWhenAbsent() throws {
+        let bare = try JSONEncoder().encode(
+            AnalysisRequest.start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                                  budget: .normal))
+        let bareJSON = try #require(
+            try JSONSerialization.jsonObject(with: bare) as? [String: Any])
+        #expect(bareJSON["gameId"] == nil)
+
+        let keyed = try JSONEncoder().encode(
+            AnalysisRequest.start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                                  budget: .normal, gameId: "ogs:game:42"))
+        let keyedJSON = try #require(
+            try JSONSerialization.jsonObject(with: keyed) as? [String: Any])
+        #expect(keyedJSON["gameId"] as? String == "ogs:game:42")
+        #expect(try JSONDecoder().decode(AnalysisRequest.self, from: keyed)
+                == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                          budget: .normal, gameId: "ogs:game:42"))
+    }
+
     @Test func queryMapsWantArrayToOwnershipFlag() throws {
         let with = try decodeRequest(
             #"{"cmd":"query","gameId":"g","moveIndex":7,"want":["candidates","ownership"]}"#)

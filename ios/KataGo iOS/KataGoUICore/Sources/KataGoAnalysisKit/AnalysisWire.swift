@@ -147,7 +147,13 @@ public struct PlayedAssessment: Codable, Sendable, Equatable {
 
 /// Discriminated by the `cmd` field on the wire.
 public enum AnalysisRequest: Sendable, Equatable {
-    case start(sgf: String, sgfHash: String, currentMoveIndex: Int, budget: AnalysisBudget)
+    /// `gameId` is the SESSION key, supplied by a site adapter whose record
+    /// grows under the reader: an OGS demo's SGF changes on every stone, and
+    /// keying the session on `sha256(sgf)` would make each move a brand-new
+    /// game with a cold cache (ADR 0017). Defaulted, and omitted from the wire
+    /// when absent, so a WGo page's `start` encodes byte-for-byte as before.
+    case start(sgf: String, sgfHash: String, currentMoveIndex: Int,
+               budget: AnalysisBudget, gameId: String? = nil)
     case poll(gameId: String, sinceSeq: Int)
     case navigate(gameId: String, moveIndex: Int)
     /// `line` carries the explicit sequence of GTP moves from the empty board
@@ -178,7 +184,8 @@ extension AnalysisRequest: Codable {
                 sgf: try c.decode(String.self, forKey: .sgf),
                 sgfHash: try c.decode(String.self, forKey: .sgfHash),
                 currentMoveIndex: try c.decodeIfPresent(Int.self, forKey: .currentMoveIndex) ?? 0,
-                budget: try c.decodeIfPresent(AnalysisBudget.self, forKey: .budget) ?? .normal)
+                budget: try c.decodeIfPresent(AnalysisBudget.self, forKey: .budget) ?? .normal,
+                gameId: try c.decodeIfPresent(String.self, forKey: .gameId))
         case "poll":
             self = .poll(
                 gameId: try c.decode(String.self, forKey: .gameId),
@@ -215,12 +222,13 @@ extension AnalysisRequest: Codable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .start(sgf, sgfHash, currentMoveIndex, budget):
+        case let .start(sgf, sgfHash, currentMoveIndex, budget, gameId):
             try c.encode("start", forKey: .cmd)
             try c.encode(sgf, forKey: .sgf)
             try c.encode(sgfHash, forKey: .sgfHash)
             try c.encode(currentMoveIndex, forKey: .currentMoveIndex)
             try c.encode(budget, forKey: .budget)
+            try c.encodeIfPresent(gameId, forKey: .gameId)
         case let .poll(gameId, sinceSeq):
             try c.encode("poll", forKey: .cmd)
             try c.encode(gameId, forKey: .gameId)

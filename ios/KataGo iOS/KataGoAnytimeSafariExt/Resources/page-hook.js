@@ -5,10 +5,14 @@
 // (katagotraining.org's is created inside a load listener and never escapes).
 // Adapter #2 is cyberoro's giboviewer, whose bespoke canvas player exposes no
 // events, no SGF and no seek API, and whose record is a private dialect.
+// Adapter #3 is OGS (online-go.com), a client-routed React app that publishes
+// its live goban as window.global_goban and that KataGo stays off while a game
+// is still being played (ADR 0017).
 //
-// Zero footprint on a page no adapter recognises: the WGo adapter installs one
-// property trap, and every other adapter's detect() is a synchronous DOM read.
-// No timers, no DOM writes, no messages until a viewer is registered.
+// Near-zero footprint on a page no adapter recognises: two property traps
+// (window.WGo and window.global_goban) that must be in place before the page
+// could possibly assign them, and one synchronous DOM read per DOM-shaped
+// adapter. No timers, no DOM writes, no messages until a viewer is registered.
 //
 // Also injected as a fallback <script src> from the content script (Safari
 // versions without manifest `world: "MAIN"`), so it must be idempotent.
@@ -25,7 +29,7 @@
     // in a page, where `window` always exists.
     if (typeof window === "undefined") {
         if (typeof module === "object" && module.exports) {
-            module.exports = { giboToSgf };
+            module.exports = { giboToSgf, gobanToSgf, ogsAccess };
         }
         return;
     }
@@ -34,6 +38,7 @@
     Object.defineProperty(window, "__kgaHooked", { value: true });
 
     const registry = [];          // { id, viewer, adapterId }
+    let nextPlayerNumber = 0;     // never reused, even after a removal
     let token = null;             // set on first outbound message
     let bridgeReady = false;
     const outQueue = [];
@@ -73,6 +78,13 @@
             // means the page leaves no flow to insert into and the panel has to
             // dock itself into the viewport.
             anchor: info.anchor || null,
+            // A STABLE session identity, for a viewer whose record grows under
+            // it (ADR 0017): the native side keys its session on this rather
+            // than on the SGF hash, which changes with every appended move.
+            // Absent for a static kifu, where the hash IS the identity.
+            gameId: typeof info.gameId === "string" ? info.gameId : null,
+            // One line saying why this viewer is off limits, or null.
+            refusal: typeof info.refusal === "string" ? info.refusal : null,
         };
     }
 
@@ -99,10 +111,27 @@
     //   detach()            release listeners and DOM
     const host = {
         register(viewer, adapterId) {
-            const id = "kga-p" + registry.length;
+            // A MONOTONIC counter, not the registry length: a viewer can be
+            // removed now (an SPA route change), and a reused id would attach a
+            // dead panel to a live board.
+            const id = "kga-p" + nextPlayerNumber;
+            nextPlayerNumber += 1;
             registry.push({ id, viewer, adapterId });
             post("playerFound", describe(registry[registry.length - 1]));
             return id;
+        },
+        /// The viewer is gone: its board left the page. Both content scripts
+        /// tear the session down on this.
+        remove(playerId) {
+            const at = registry.findIndex((entry) => entry.id === playerId);
+            if (at < 0) { return; }
+            registry.splice(at, 1);
+            post("playerRemoved", { playerId });
+        },
+        /// The viewer became (or stopped being) off limits. `refusal` is the
+        /// one line the panel shows, or null when analysis is allowed again.
+        access(playerId, refusal) {
+            post("playerAccess", { playerId, refusal: refusal || null });
         },
         /// The line on screen. `path` is only consulted when `line` is null.
         update(playerId, line, path) {
@@ -1007,13 +1036,549 @@
         }
     }
 
+    // ---- OGS (online-go.com) -----------------------------------------------
+    //
+    // ADR 0017: KataGo stays OFF ongoing games. OGS's terms of service forbid
+    // using neural networks to analyse "current ongoing games", and the clause
+    // is not scoped to games you are playing — so a game is analysed only once
+    // it is FINISHED. A demo board has no source game and is always allowed; a
+    // review of a live game IS a live game.
+    //
+    // A pure function, so the rule can be read and tested without a browser and
+    // so the future spectator rule can sit in the code, off, instead of living
+    // in a comment.
+    function ogsAccess(state) {
+        const s = state || {};
+        // A demo board is nobody's game in progress: there is no source game to
+        // be ongoing, and nothing a reader could learn from it that they are
+        // not already free to work out on the board in front of them.
+        if (!s.hasSourceGame) { return { allowed: true, reason: "demo" }; }
+        if (s.phase === "finished") { return { allowed: true, reason: "finished" }; }
+        if (!s.liveSpectatingEnabled) { return { allowed: false, reason: "ongoing" }; }
+        // Everything past here is the OFF branch. An anonymous viewer is
+        // provably not a participant of THIS page and says nothing about the
+        // game they have open in the next tab, which is exactly the hole the
+        // rule has to close.
+        if (!s.signedIn) { return { allowed: false, reason: "anonymous" }; }
+        if (s.isPlayer) { return { allowed: false, reason: "participant" }; }
+        if (s.analysisDisabled) { return { allowed: false, reason: "analysisDisabled" }; }
+        return { allowed: true, reason: "spectating" };
+    }
+
+    // Implemented and OFF (ADR 0017). Turning it on is a conversation with OGS
+    // staff, not a code change: OGS's own analysis board exempts spectators
+    // from a game's disable_analysis flag ("spectators may always analyze",
+    // online-go.com src/lib/configure-goban.tsx:99-100), which points the other
+    // way from the terms, and no staff statement resolves the two.
+    function ogsLiveSpectatingEnabled() { return false; }
+
+    // The MAIN LINE of an OGS game, review or demo, as SGF.
+    //
+    // Main line ONLY, and the reason is the parser on the other end: KataGo
+    // follows the DEEPEST child at a fork while OGS's tree follows
+    // `trunk_next`, so emitting variations would hand the engine a different
+    // game than the reader is looking at — and KataGo rejects AB/AW after the
+    // root, which is exactly where a review's later edits live.
+    //
+    // A LEADING run of `edited` nodes is setup rather than play, so it folds
+    // into the root's AB/AW on top of `initial_state`. The first `edited` node
+    // AFTER a real move truncates the file, because nothing downstream can
+    // express it.
+    function gobanToSgf(engine) {
+        if (!engine || !engine.move_tree) { return null; }
+        const width = Number(engine.width) || 19;
+        const height = Number(engine.height) || width;
+
+        const setupBlack = [];
+        const setupWhite = [];
+        // goban encodes coordinates with the SGF alphabet and the same
+        // top-left origin (goban src/engine/util/coordinates.ts:20-33), so an
+        // initial-state string IS an SGF point list already. "." is its pass
+        // marker and has no place in a setup list.
+        const takePoints = (into, encoded) => {
+            const text = String(encoded || "");
+            for (let i = 0; i + 1 < text.length; i += 2) {
+                const point = text.slice(i, i + 2);
+                if (point.indexOf(".") < 0) { into.push(point); }
+            }
+        };
+        takePoints(setupBlack, engine.initial_state && engine.initial_state.black);
+        takePoints(setupWhite, engine.initial_state && engine.initial_state.white);
+
+        const moves = [];
+        let node = engine.move_tree;
+        let sawMove = false;
+        for (;;) {
+            const next = ogsMainChild(node);
+            if (!next) { break; }
+            node = next;
+            if (node.edited) {
+                if (sawMove) { break; }
+                if (node.x >= 0) {
+                    (node.player === 1 ? setupBlack : setupWhite).push(ogsPoint(node));
+                }
+                continue;
+            }
+            sawMove = true;
+            moves.push({
+                color: node.player === 1 ? "B" : "W",
+                point: node.x === -1 ? "" : ogsPoint(node),
+            });
+        }
+
+        const escape = (v) => String(v).replace(/([\]\\])/g, "\\$1");
+        let sgf = "(;GM[1]FF[4]CA[UTF-8]SZ["
+            + (width === height ? width : width + ":" + height) + "]";
+        const players = engine.players || {};
+        if (players.black && players.black.username) {
+            sgf += "PB[" + escape(players.black.username) + "]";
+        }
+        if (players.white && players.white.username) {
+            sgf += "PW[" + escape(players.white.username) + "]";
+        }
+        const komi = Number(engine.komi);
+        if (Number.isFinite(komi)) { sgf += "KM[" + komi + "]"; }
+        if (typeof engine.rules === "string" && engine.rules) {
+            sgf += "RU[" + escape(engine.rules) + "]";
+        }
+        const handicap = Number(engine.handicap) || 0;
+        if (handicap > 0) { sgf += "HA[" + handicap + "]"; }
+        // A handicap game opens with White, and OGS says so on the config
+        // rather than through the setup stones — SgfHeaderScan's all-black
+        // fallback would otherwise be the only thing carrying it.
+        const first = engine.config && engine.config.initial_player;
+        if (first === "white" || first === "black") {
+            sgf += "PL[" + (first === "white" ? "W" : "B") + "]";
+        }
+        if (setupBlack.length) {
+            sgf += "AB" + setupBlack.map((p) => "[" + p + "]").join("");
+        }
+        if (setupWhite.length) {
+            sgf += "AW" + setupWhite.map((p) => "[" + p + "]").join("");
+        }
+        for (const move of moves) { sgf += ";" + move.color + "[" + move.point + "]"; }
+        return { sgf: sgf + ")", moveCount: moves.length, width, height };
+    }
+
+    /// The next node ON THE MAIN LINE. A game and a review carry `trunk_next`;
+    /// a demo board has no trunk at all, so its first branch is its main line.
+    function ogsMainChild(node) {
+        if (!node) { return null; }
+        if (node.trunk_next) { return node.trunk_next; }
+        return (node.branches && node.branches[0]) || null;
+    }
+
+    function ogsPoint(node) { return sgfLetter(node.x) + sgfLetter(node.y); }
+
+    const OGS_REFUSAL = "KataGo stays off ongoing games — OGS's terms forbid "
+        + "engine analysis of a game in progress.";
+
+    const ogsAdapter = {
+        id: "ogs",
+
+        // Unconditional, like the WGo trap and for the same reason: OGS is a
+        // client-routed React app, so by the time any DOM test could recognise
+        // it the assignment this adapter waits for has already happened. The
+        // cost on every other page is one property descriptor.
+        detect() { return true; },
+
+        attach(hostApi) {
+            // `window.global_goban` is set by <Game/> on mount and nulled on
+            // unmount (online-go.com src/views/Game/Game.tsx:283, :600). All ten
+            // game/review/demo routes render that component and set it; the two
+            // /embed routes render a MiniGoban and never do — which is why the
+            // ASSIGNMENT is the detection, and no URL is ever inspected.
+            let live;
+            let session = null;
+            try {
+                Object.defineProperty(window, "global_goban", {
+                    configurable: true,
+                    get() { return live; },
+                    set(value) {
+                        live = value;
+                        if (session) { session.dispose(); session = null; }
+                        if (value) {
+                            try { session = bindOgsGoban(hostApi, value); }
+                            catch (e) { /* never break the page */ }
+                        }
+                    },
+                });
+            } catch (e) { return; /* property locked: nothing else to try */ }
+            const existing = window.global_goban;
+            if (existing) { window.global_goban = existing; }
+        },
+    };
+
+    function bindOgsGoban(hostApi, goban) {
+        let playerId = null;
+        let analysis = { ownership: null, candidates: null };
+        let overlay = null;
+        let restoreParentPosition = null;
+        let lastSgf = null;
+        let lastRefusal = "";
+        let boardWidth = 19;
+        let moveCount = 0;
+        let disposed = false;
+        let observer = null;
+        let redrawTimer = null;
+        const unbinders = [];
+
+        const listen = (target, event, handler) => {
+            if (!target || typeof target.on !== "function") { return; }
+            try {
+                target.on(event, handler);
+                unbinders.push(() => { try { target.off(event, handler); } catch (e) {} });
+            } catch (e) { /* an older goban without this event */ }
+        };
+
+        const viewer = {
+            describe() {
+                return {
+                    sgfInline: lastSgf,
+                    sgfFile: null,
+                    hasJson: false,
+                    // OGS's .Goban is absolutely positioned inside a flex
+                    // column: inserting after it overlaps the board, and
+                    // inserting after .goban-container shrinks the board.
+                    anchor: "floating",
+                    gameId: sessionKey(),
+                    refusal: lastRefusal || null,
+                };
+            },
+            goTo(move, mainline) { seek(move, mainline); },
+            draw(state) { analysis = state; paint(); },
+            clear() { analysis = { ownership: null, candidates: null }; paint(); },
+            detach() { dispose(); },
+        };
+
+        // Games, reviews and demos are three identities, and they must not
+        // collide: a review of game 42 is not game 42. The native side keys its
+        // whole session on this instead of on the SGF hash, which changes every
+        // time a demo's author plays another stone.
+        function sessionKey() {
+            const review = Number(goban.review_id) || 0;
+            if (review > 0) { return (hasSourceGame() ? "ogs:review:" : "ogs:demo:") + review; }
+            return "ogs:game:" + (Number(goban.game_id) || 0);
+        }
+
+        function hasSourceGame() {
+            const engine = goban.engine;
+            const fromEngine = engine && engine.config && Number(engine.config.game_id);
+            return Number(fromEngine || goban.game_id || 0) > 0;
+        }
+
+        function accessState() {
+            const engine = goban.engine;
+            const user = window.user || {};
+            const attempt = (fn, fallback) => {
+                try { return fn(); } catch (e) { return fallback; }
+            };
+            return {
+                hasSourceGame: hasSourceGame(),
+                phase: engine && engine.phase,
+                isPlayer: attempt(() => !!goban.isCurrentUserAPlayer(), false),
+                // The STRICTEST reading of OGS's own flag: pass true so a game
+                // whose creator ticked "disable analysis" is off limits to
+                // spectators too, exactly as OGS turns off its SGF download for
+                // them (online-go.com src/lib/configure-goban.tsx:94-97).
+                analysisDisabled: attempt(() => !!goban.isAnalysisDisabled(true), false),
+                signedIn: !!user.id && !user.anonymous,
+                liveSpectatingEnabled: ogsLiveSpectatingEnabled(),
+            };
+        }
+
+        function refresh() {
+            if (disposed) { return; }
+            const engine = goban.engine;
+            // At assignment the engine is a pre-gamedata placeholder; gamedata
+            // arrives over the socket and `load` fires with the real one.
+            if (!engine || !engine.move_tree) { return; }
+
+            const verdict = ogsAccess(accessState());
+            const refusal = verdict.allowed ? "" : OGS_REFUSAL;
+            const built = gobanToSgf(engine);
+            const sgf = built && built.sgf;
+            boardWidth = (built && built.width) || boardWidth;
+
+            if (!playerId) {
+                lastSgf = sgf;
+                lastRefusal = refusal;
+                moveCount = (built && built.moveCount) || 0;
+                playerId = hostApi.register(viewer, ogsAdapter.id);
+                hostApi.kifu(playerId, { size: boardWidth, moveCount, sgfInline: lastSgf });
+                postLine();
+                return;
+            }
+
+            if (refusal !== lastRefusal) {
+                lastRefusal = refusal;
+                // A game that finishes while the reader watches becomes
+                // analysable under them, so the verdict is a live value rather
+                // than something read once at attach.
+                hostApi.access(playerId, refusal || null);
+                if (refusal) { viewer.clear(); }
+            }
+
+            if (sgf && sgf !== lastSgf) {
+                // The record GREW (a demo its author is playing, a review whose
+                // leading line was edited). Re-posting the kifu is what makes
+                // both panels drop their results and re-`start` under the same
+                // session key.
+                lastSgf = sgf;
+                moveCount = built.moveCount;
+                hostApi.kifu(playerId, { size: boardWidth, moveCount, sgfInline: sgf });
+            }
+            postLine();
+        }
+
+        function postLine() {
+            if (!playerId || disposed) { return; }
+            const engine = goban.engine;
+            const node = engine && engine.cur_move;
+            if (!node) { return; }
+            const line = readOgsLine(engine, node);
+            if (line) { hostApi.update(playerId, line, null); return; }
+            // An edit in the middle of the displayed line: the position exists
+            // only in the page and cannot be replayed as a sequence of moves.
+            // Report the shape both content scripts already understand.
+            const depth = typeof node.getMoveIndex === "function" ? node.getMoveIndex() : 0;
+            hostApi.update(playerId, null, { m: Number(depth) || 0, onMainline: false });
+        }
+
+        function readOgsLine(engine, node) {
+            const chain = [];
+            for (let n = node; n; n = n.parent) { chain.push(n); }
+            chain.reverse();
+
+            const moves = [];
+            let onMainline = true;
+            let sawMove = false;
+            for (let i = 1; i < chain.length; i += 1) {
+                const nd = chain[i];
+                if (ogsMainChild(chain[i - 1]) !== nd) { onMainline = false; }
+                if (nd.edited) {
+                    // Leading edits are the setup gobanToSgf already folded into
+                    // the root; anything later is not a playable position.
+                    if (sawMove) { return null; }
+                    continue;
+                }
+                sawMove = true;
+                moves.push({
+                    color: nd.player === 1 ? "b" : "w",
+                    pass: nd.x === -1,
+                    x: nd.x === -1 ? null : nd.x,   // 0 = left column
+                    y: nd.x === -1 ? null : nd.y,   // 0 = TOP row
+                });
+            }
+
+            return {
+                size: boardWidth,
+                nodeDepth: typeof node.getMoveIndex === "function" ? node.getMoveIndex()
+                                                                  : moves.length,
+                moveCount: moves.length,
+                onMainline,
+                mainlinePrefixMoves: onMainline ? moves.length : 0,
+                edited: false,
+                // colorToMove(), never playerToMove(): the latter returns a
+                // PLAYER ID (goban src/engine/GobanEngine.ts:1194).
+                turn: typeof engine.colorToMove === "function"
+                    ? (engine.colorToMove() === "black" ? "b" : "w") : null,
+                moves,
+            };
+        }
+
+        function seek(move, mainline) {
+            const engine = goban.engine;
+            if (!engine || typeof engine.jumpTo !== "function") { return; }
+            let node = engine.move_tree;
+            let steps = Number(move) || 0;
+            while (steps > 0) {
+                const next = ogsMainChild(node);
+                if (!next) { break; }
+                node = next;
+                steps -= 1;
+            }
+            try {
+                engine.jumpTo(node);
+                goban.redraw(true);
+            } catch (e) { /* the chart's seek is a convenience, never a fault */ }
+            postLine();
+            // `mainline` is always true from the chart, and the walk above only
+            // ever follows the main line — the parameter is accepted so every
+            // viewer has the same signature.
+            void mainline;
+        }
+
+        // ---- drawing -------------------------------------------------------
+        //
+        // Candidates ride goban's OWN public display state, so they are drawn
+        // by the same code that draws the stones and survive OGS switching
+        // between its SVG and canvas renderers. Ownership squares and the
+        // candidate text have no such primitive — setHeatmap is a
+        // single-colour intensity map and cannot say Black-vs-White — so they
+        // go on an overlay canvas positioned from goban's own metrics.
+        //
+        // setMarks/setColoredMarks are never called: they write into the
+        // review's move tree and are BROADCAST to every other participant over
+        // the socket. Analysis nobody asked for must not appear on a stranger's
+        // board.
+
+        function paint() {
+            pushCircles();
+            paintOverlay();
+        }
+
+        function pushCircles() {
+            const circles = [];
+            for (const mark of (analysis.candidates || [])) {
+                circles.push({
+                    move: { x: mark.x, y: mark.y },
+                    color: `hsla(${Math.round(mark.hue * 360)},100%,50%,${mark.dimmed ? 0.2 : 0.8})`,
+                    border_color: mark.isBest ? "#007aff" : undefined,
+                    // A FRACTION of the circle's radius, not a pixel width
+                    // (goban src/Goban/SVGRenderer.ts:5367), and the radius is
+                    // half a cell — so 0.125 is the app's cell/16 ring.
+                    border_width: mark.isBest ? 0.125 : 0,
+                });
+            }
+            try {
+                goban.setColoredCircles(circles);
+                // setColoredCircles([]) deletes the matrix and returns WITHOUT
+                // redrawing (goban src/Goban/InteractiveBase.ts:1427-1431), so
+                // clearing has to ask for the repaint itself.
+                if (!circles.length) { goban.redraw(true); }
+            } catch (e) { /* an older goban without the API: overlay only */ }
+        }
+
+        function ensureOverlay() {
+            const parent = goban.parent;
+            if (!parent) { return null; }
+            if (!overlay || !overlay.isConnected) {
+                overlay = document.createElement("canvas");
+                overlay.style.position = "absolute";
+                overlay.style.left = "0";
+                overlay.style.top = "0";
+                overlay.style.pointerEvents = "none";
+                // A static parent would make "absolute" resolve against some
+                // ancestor. Nudge it, and put it back on the way out — this is
+                // the one page style the adapter touches.
+                if (getComputedStyle(parent).position === "static") {
+                    restoreParentPosition = parent.style.position;
+                    parent.style.position = "relative";
+                }
+                parent.appendChild(overlay);
+            }
+            return overlay;
+        }
+
+        function paintOverlay() {
+            const canvas = ensureOverlay();
+            if (!canvas || typeof goban.computeMetrics !== "function") { return; }
+            const metrics = goban.computeMetrics();
+            if (canvas.width !== metrics.width) { canvas.width = metrics.width; }
+            if (canvas.height !== metrics.height) { canvas.height = metrics.height; }
+            const ctx = canvas.getContext("2d");
+            if (!ctx) { return; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cell = Number(goban.square_size) || 0;
+            if (!(cell > 0)) { return; }
+            // The inverse of goban's own xy2ij (goban
+            // src/Goban/InteractiveBase.ts:603-621): a cropped board offsets by
+            // its bounds, an uncropped one by whether labels are drawn, and the
+            // two are mutually exclusive because cropping turns labels off.
+            const bounds = goban.bounds || { left: 0, top: 0 };
+            const left = Number(bounds.left) || 0;
+            const top = Number(bounds.top) || 0;
+            const labelX = left > 0 ? 0 : (goban.draw_left_labels ? 1 : 0);
+            const labelY = top > 0 ? 0 : (goban.draw_top_labels ? 1 : 0);
+            // Only the OWNERSHIP layer goes here — the candidate circles are
+            // goban's own display state — plus the candidate text, which has to
+            // sit above them.
+            paintAnalysis(ctx, { ownership: analysis.ownership, candidates: null }, cell,
+                          (x, y) => ({
+                              cx: (x - left + labelX) * cell + metrics.mid,
+                              cy: (y - top + labelY) * cell + metrics.mid,
+                          }));
+            for (const mark of (analysis.candidates || [])) {
+                const lines = mark.dimmed ? [] : (mark.lines || []);
+                if (!lines.length) { continue; }
+                const cx = (mark.x - left + labelX) * cell + metrics.mid;
+                const cy = (mark.y - top + labelY) * cell + metrics.mid;
+                ctx.fillStyle = "#000000";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                const size = lines.length > 1 ? cell * 0.26 : cell * 0.4;
+                ctx.font = "700 " + size.toFixed(1) + "px ui-monospace, Menlo, monospace";
+                const step = cell * 0.27;
+                const y0 = cy - step * (lines.length - 1) / 2;
+                lines.forEach((text, i) => ctx.fillText(text, cx, y0 + i * step));
+            }
+        }
+
+        function schedulePaint() {
+            if (redrawTimer !== null) { return; }
+            // Debounced: OGS's own AI review writes colored circles too, and
+            // every write emits `update`. Re-applying ours on the trailing edge
+            // keeps the two from ping-ponging a redraw each.
+            redrawTimer = setTimeout(() => {
+                redrawTimer = null;
+                if (!disposed) { paint(); }
+            }, 80);
+        }
+
+        // ---- wiring --------------------------------------------------------
+
+        // `load` REPLACES goban.engine on every gamedata and every reconnect, so
+        // nothing may hold on to an engine: re-read it, and re-evaluate the
+        // access rule, on each of these.
+        listen(goban, "load", refresh);
+        listen(goban, "engine.updated", refresh);
+        listen(goban, "review.load-end", refresh);
+        listen(goban, "gamedata", refresh);
+        listen(goban, "phase", refresh);
+        listen(goban, "move-made", refresh);
+        listen(goban, "cur_move", postLine);
+        listen(goban, "update", schedulePaint);
+        listen(goban, "destroy", dispose);
+
+        try {
+            observer = new ResizeObserver(() => schedulePaint());
+            if (goban.parent) { observer.observe(goban.parent); }
+        } catch (e) { /* `update` still covers a resize OGS knows about */ }
+
+        refresh();
+
+        function dispose() {
+            if (disposed) { return; }
+            disposed = true;
+            if (redrawTimer !== null) { clearTimeout(redrawTimer); redrawTimer = null; }
+            for (const off of unbinders) { off(); }
+            unbinders.length = 0;
+            if (observer) { try { observer.disconnect(); } catch (e) {} }
+            try { goban.setColoredCircles([]); } catch (e) {}
+            if (overlay && overlay.parentNode) { overlay.parentNode.removeChild(overlay); }
+            overlay = null;
+            if (restoreParentPosition !== null && goban.parent) {
+                goban.parent.style.position = restoreParentPosition;
+                restoreParentPosition = null;
+            }
+            // An SPA never fires `pagehide` between routes, so without this the
+            // panel outlives its board: a dead shadow host, and on macOS a poll
+            // that keeps the single-sweep `busy` guard armed against the next
+            // game the reader opens.
+            if (playerId) { hostApi.remove(playerId); playerId = null; }
+        }
+
+        return { dispose };
+    }
+
     // ---- adapter dispatch --------------------------------------------------
     //
     // Adapters are probed at document_start — the only moment the WGo trap can
     // be installed before the page assigns window.WGo — and again as the
     // document fills in, because a DOM-shaped detect() sees nothing that early.
     // Each adapter attaches at most once.
-    const adapters = [wgoAdapter, cyberoroAdapter];
+    const adapters = [wgoAdapter, cyberoroAdapter, ogsAdapter];
     const attachedAdapters = new Set();
 
     function probeAdapters() {

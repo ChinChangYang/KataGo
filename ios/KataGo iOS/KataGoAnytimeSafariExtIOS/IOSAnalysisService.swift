@@ -31,8 +31,16 @@ final class IOSAnalysisService: @unchecked Sendable {
     private let log = Logger(subsystem: "chinchangyang.KataGo-iOS.tw.safariweb",
                              category: "service")
 
-    /// SGF text of the game currently spooled to disk, keyed by hash, so
-    /// consecutive queries on one game reuse the same temp file.
+    /// The SESSION identity every wire command addresses: `gameId ?? sgfHash`
+    /// (ADR 0017). A site adapter whose record grows under the reader supplies
+    /// its own, so an appended move stays the same session instead of becoming
+    /// a new game with a cold cache.
+    private var activeSession: String?
+
+    /// The CONTENT identity: sha256 of the SGF currently spooled to disk. Names
+    /// the temp file and the App Group result cache, so consecutive queries on
+    /// one game reuse the same temp file and two lengths of a growing game
+    /// never share cache entries.
     private var activeHash: String?
     private var activeSgfPath: String?
     private var activeScan: SgfHeaderScan?
@@ -44,8 +52,8 @@ final class IOSAnalysisService: @unchecked Sendable {
 
     func handle(_ request: AnalysisRequest) -> AnalysisResponse {
         switch request {
-        case let .start(sgf, sgfHash, _, _):
-            return start(sgf: sgf, sgfHash: sgfHash)
+        case let .start(sgf, sgfHash, _, _, gameId):
+            return start(sgf: sgf, sgfHash: sgfHash, gameId: gameId)
         case let .query(gameId, moveIndex, _, budget, line, mainline):
             return query(gameId: gameId, moveIndex: moveIndex, budget: budget,
                          line: line, mainline: mainline)
@@ -74,7 +82,7 @@ final class IOSAnalysisService: @unchecked Sendable {
 
     // MARK: - start
 
-    private func start(sgf: String, sgfHash: String) -> AnalysisResponse {
+    private func start(sgf: String, sgfHash: String, gameId: String?) -> AnalysisResponse {
         guard sgf.utf8.count <= Self.maxSgfBytes else {
             return .error(code: .sgfParse, message: "SGF too large", retryable: false)
         }
@@ -93,7 +101,13 @@ final class IOSAnalysisService: @unchecked Sendable {
             return .error(code: .spoolWrite, message: "could not stage the SGF", retryable: true)
         }
 
+        let session = gameId ?? sgfHash
         lock.lock()
+        // A `start` under a session key we already hold simply re-points it:
+        // the content hash, the staged file and the scan all move to the new
+        // record, while the cache under the OLD hash stays on disk for a reader
+        // who scrolls back to a shorter version of the same game.
+        activeSession = session
         activeHash = sgfHash
         activeSgfPath = path
         activeScan = scan
@@ -103,7 +117,7 @@ final class IOSAnalysisService: @unchecked Sendable {
         IOSEngineController.shared.ensureBooting()
 
         let cached = !loadCache(sgfHash: sgfHash).isEmpty
-        return .gameAccepted(gameId: sgfHash,
+        return .gameAccepted(gameId: session,
                              boardWidth: scan.boardWidth,
                              boardHeight: scan.boardHeight,
                              moveCount: scan.moveCount,
@@ -117,12 +131,16 @@ final class IOSAnalysisService: @unchecked Sendable {
     private func query(gameId: String, moveIndex: Int, budget: AnalysisBudget,
                        line: [String], mainline: Bool) -> AnalysisResponse {
         lock.lock()
+        let session = activeSession
         let hash = activeHash
         let path = activeSgfPath
         let scan = activeScan
         lock.unlock()
 
-        guard hash == gameId, let path, let scan else {
+        // The request addresses the SESSION; everything the cache touches below
+        // is keyed by the CONTENT hash, because two lengths of a growing game
+        // must not share entries (ADR 0017).
+        guard session == gameId, let hash, let path, let scan else {
             // The appex was recycled and lost the game. Restart is idempotent:
             // the page re-sends `start` (served from cache) and retries.
             return .error(code: .unknownGame, message: "send start first", retryable: true)
@@ -154,7 +172,7 @@ final class IOSAnalysisService: @unchecked Sendable {
         // happened to be analyzed at first.)
         let key = Self.cacheKey(moveIndex: moveIndex, budget: budget,
                                 line: line, mainline: mainline)
-        var cache = loadCache(sgfHash: gameId)
+        var cache = loadCache(sgfHash: hash)
         if let hit = cache[key] {
             return .results(gameId: gameId, nextSeq: hit.seq,
                             sweepDone: Self.surveyCount(cache),
@@ -190,7 +208,7 @@ final class IOSAnalysisService: @unchecked Sendable {
         let analysis = makeMoveAnalysis(parsed: parsed, root: root,
                                         toMove: toMove, scan: scan, moveIndex: moveIndex)
         cache[key] = analysis
-        saveCache(Self.pruned(cache, keeping: key), sgfHash: gameId)
+        saveCache(Self.pruned(cache, keeping: key), sgfHash: hash)
 
         return .results(gameId: gameId, nextSeq: analysis.seq,
                         sweepDone: Self.surveyCount(cache),

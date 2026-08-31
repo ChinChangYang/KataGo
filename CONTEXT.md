@@ -125,3 +125,4 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 ## Safari
 
 - **Site adapter** — the code that knows how one kifu viewer exposes its record, its current move and its board geometry. The extension binds to viewers, never to URLs.
+- **Spectating** — viewing an OGS game in which the signed-in user is not a player.

@@ -30,9 +30,15 @@ final class AnalysisJobRunner: @unchecked Sendable {
     static let shared = AnalysisJobRunner()
 
     private struct Game {
-        let sgfHash: String
-        let sgfPath: URL
-        let scan: SgfHeaderScan
+        /// The SESSION identity — `gameId ?? sgfHash` (ADR 0017). Every wire
+        /// command addresses this, and the single-sweep guard compares it.
+        let sessionKey: String
+        /// The CONTENT identity: sha256 of the SGF currently staged. Names the
+        /// staged file and the cache, and moves when a growing record grows —
+        /// which is why the three fields below are no longer `let`.
+        var sgfHash: String
+        var sgfPath: URL
+        var scan: SgfHeaderScan
         var budget: AnalysisBudget
         var planner: SweepPlanner
         var outbox: AnalysisOutbox
@@ -59,9 +65,10 @@ final class AnalysisJobRunner: @unchecked Sendable {
         condition.unlock()
 
         switch request {
-        case let .start(sgf, sgfHash, currentMoveIndex, budget):
+        case let .start(sgf, sgfHash, currentMoveIndex, budget, gameId):
             return start(sgf: sgf, sgfHash: sgfHash,
-                         currentMoveIndex: currentMoveIndex, budget: budget)
+                         currentMoveIndex: currentMoveIndex, budget: budget,
+                         gameId: gameId)
         case let .poll(gameId, sinceSeq):
             return poll(gameId: gameId, sinceSeq: sinceSeq)
         case let .navigate(gameId, moveIndex):
@@ -86,7 +93,7 @@ final class AnalysisJobRunner: @unchecked Sendable {
     // MARK: - Commands
 
     private func start(sgf: String, sgfHash: String, currentMoveIndex: Int,
-                       budget: AnalysisBudget) -> AnalysisResponse {
+                       budget: AnalysisBudget, gameId: String?) -> AnalysisResponse {
         guard sgf.utf8.count <= 2_000_000 else {
             return .error(code: .badRequest, message: "SGF too large", retryable: false)
         }
@@ -99,10 +106,13 @@ final class AnalysisJobRunner: @unchecked Sendable {
                           retryable: false)
         }
 
+        let sessionKey = gameId ?? sgfHash
+
         condition.lock()
         defer { condition.unlock() }
 
-        if var existing = game, existing.sgfHash == sgfHash {
+        if var existing = game, existing.sessionKey == sessionKey,
+           existing.sgfHash == sgfHash {
             // Idempotent restart of the same game: refresh budget/center only.
             existing.budget = budget
             existing.planner.recenter(on: currentMoveIndex)
@@ -111,21 +121,19 @@ final class AnalysisJobRunner: @unchecked Sendable {
             condition.signal()
             return accepted(for: existing, cached: existing.outbox.lastSeq > 0)
         }
-        if let existing = game, !existing.planner.isComplete,
+        if let existing = game, existing.sessionKey != sessionKey,
+           !existing.planner.isComplete,
            Date().timeIntervalSince(lastPollAt) < 15 {
             // Another live tab is mid-sweep on a different game; make the
             // newcomer retry instead of thrashing the engine between games.
+            // Scoped to a DIFFERENT session: a growing record re-`start`s under
+            // its own key on every move, and refusing that would wedge it.
             return .error(code: .busy, message: "another game is being analyzed",
                           retryable: true)
         }
 
-        let sgfPath = FileManager.default.temporaryDirectory
-            .appending(path: "kga-\(sgfHash.prefix(24)).sgf")
-        do {
-            try sgf.write(to: sgfPath, atomically: true, encoding: .utf8)
-        } catch {
-            return .error(code: .badRequest, message: "cannot stage SGF: \(error)",
-                          retryable: true)
+        guard let sgfPath = stage(sgf, sgfHash: sgfHash) else {
+            return .error(code: .badRequest, message: "cannot stage SGF", retryable: true)
         }
 
         var planner = SweepPlanner(moveCount: scan.moveCount, currentIndex: currentMoveIndex)
@@ -136,8 +144,29 @@ final class AnalysisJobRunner: @unchecked Sendable {
                 planner.markCompleted(stamped.moveIndex)
             }
         }
-        let fresh = Game(sgfHash: sgfHash, sgfPath: sgfPath, scan: scan,
-                         budget: budget, planner: planner, outbox: outbox,
+
+        if var growing = game, growing.sessionKey == sessionKey {
+            // SAME SESSION, NEW CONTENT: the record grew under the reader (ADR
+            // 0017). Re-point the game at the new file and rebuild the plan
+            // from the new hash's cache, rather than constructing a fresh Game
+            // — the worker is mid-flight on the old hash, and its own
+            // `current.sgfHash == job.hash` check is what discards that result.
+            growing.sgfHash = sgfHash
+            growing.sgfPath = sgfPath
+            growing.scan = scan
+            growing.budget = budget
+            growing.planner = planner
+            growing.outbox = outbox
+            growing.sweepActive = !planner.isComplete
+            growing.pendingDeepen = (currentMoveIndex, budget)
+            game = growing
+            ensureWorker()
+            condition.signal()
+            return accepted(for: growing, cached: outbox.lastSeq > 0)
+        }
+
+        let fresh = Game(sessionKey: sessionKey, sgfHash: sgfHash, sgfPath: sgfPath,
+                         scan: scan, budget: budget, planner: planner, outbox: outbox,
                          sweepActive: !planner.isComplete,
                          pendingDeepen: (currentMoveIndex, budget))
         game = fresh
@@ -146,8 +175,26 @@ final class AnalysisJobRunner: @unchecked Sendable {
         return accepted(for: fresh, cached: outbox.lastSeq > 0)
     }
 
+    /// The staged SGF the engine loads, named by the CONTENT hash so a growing
+    /// record writes a NEW file rather than rewriting the one a worker may be
+    /// mid-`loadsgf` on. A 24-character prefix is enough here and stays as it
+    /// was: this file lives in the appex's own temporary directory, where 96
+    /// bits cannot realistically collide. The App Group cache — the one that
+    /// persists and must never mix two games — already uses the whole hash.
+    private func stage(_ sgf: String, sgfHash: String) -> URL? {
+        let sgfPath = FileManager.default.temporaryDirectory
+            .appending(path: "kga-\(sgfHash.prefix(24)).sgf")
+        do {
+            try sgf.write(to: sgfPath, atomically: true, encoding: .utf8)
+            return sgfPath
+        } catch {
+            runnerLog.error("cannot stage SGF: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     private func accepted(for game: Game, cached: Bool) -> AnalysisResponse {
-        .gameAccepted(gameId: game.sgfHash,
+        .gameAccepted(gameId: game.sessionKey,
                       boardWidth: game.scan.boardWidth,
                       boardHeight: game.scan.boardHeight,
                       moveCount: game.scan.moveCount,
@@ -162,11 +209,11 @@ final class AnalysisJobRunner: @unchecked Sendable {
         condition.lock()
         defer { condition.unlock() }
         lastPollAt = Date()
-        guard let game, game.sgfHash == gameId else {
+        guard let game, game.sessionKey == gameId else {
             return .error(code: .unknownGame, message: "no such game in this process",
                           retryable: true)
         }
-        return .results(gameId: game.sgfHash,
+        return .results(gameId: game.sessionKey,
                         nextSeq: game.outbox.lastSeq,
                         sweepDone: game.planner.done,
                         sweepTotal: game.planner.total,
@@ -178,7 +225,7 @@ final class AnalysisJobRunner: @unchecked Sendable {
                                recenter: Bool) -> AnalysisResponse {
         condition.lock()
         defer { condition.unlock() }
-        guard var current = game, current.sgfHash == gameId else {
+        guard var current = game, current.sessionKey == gameId else {
             return .error(code: .unknownGame, message: "no such game in this process",
                           retryable: true)
         }
@@ -188,7 +235,7 @@ final class AnalysisJobRunner: @unchecked Sendable {
         game = current
         ensureWorker()
         condition.signal()
-        return .results(gameId: current.sgfHash,
+        return .results(gameId: current.sessionKey,
                         nextSeq: current.outbox.lastSeq,
                         sweepDone: current.planner.done,
                         sweepTotal: current.planner.total,
@@ -198,14 +245,14 @@ final class AnalysisJobRunner: @unchecked Sendable {
     private func stopSweep(gameId: String) -> AnalysisResponse {
         condition.lock()
         defer { condition.unlock() }
-        guard var current = game, current.sgfHash == gameId else {
+        guard var current = game, current.sessionKey == gameId else {
             return .error(code: .unknownGame, message: "no such game in this process",
                           retryable: true)
         }
         current.sweepActive = false
         current.pendingDeepen = nil
         game = current
-        return .results(gameId: current.sgfHash,
+        return .results(gameId: current.sessionKey,
                         nextSeq: current.outbox.lastSeq,
                         sweepDone: current.planner.done,
                         sweepTotal: current.planner.total,

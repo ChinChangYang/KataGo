@@ -55,6 +55,12 @@
             case "playerUpdate":
                 sessionFor(payload)?.onPlayerUpdate(payload);
                 break;
+            case "playerAccess":
+                sessionFor(payload)?.onAccessChanged(payload);
+                break;
+            case "playerRemoved":
+                onPlayerRemoved(payload);
+                break;
         }
     });
     // Tell the hook we are listening (it buffers until this arrives).
@@ -68,6 +74,18 @@
         if (!info || typeof info.playerId !== "string" || players.has(info.playerId)) { return; }
         if (players.size >= 4) { return; }   // sanity cap for hostile pages
         players.set(info.playerId, new PanelSession(info));
+    }
+
+    /// A viewer left the page. A single-page app never fires `pagehide`
+    /// between routes, so without this the panel outlives its board: a dead
+    /// shadow host, a live poll, and on macOS a `busy` guard still armed
+    /// against the game the reader has just opened (ADR 0017).
+    function onPlayerRemoved(payload) {
+        const session = sessionFor(payload);
+        if (!session) { return; }
+        players.delete(payload.playerId);
+        try { session.teardown(); } catch (e) { /* removal is best-effort */ }
+        session.removePanel();
     }
 
     // ---- surface-matched theming -----------------------------------------
@@ -387,9 +405,23 @@
             // Where the adapter wants the panel to sit (ADR 0016). Read BEFORE
             // buildPanel(), which is the only thing that consumes it.
             this.anchor = info.anchor || null;
+            // A STABLE session key from the adapter, for a record that grows
+            // under the reader (ADR 0017); null means the SGF hash IS the
+            // identity, exactly as it always was.
+            this.siteGameId = info.gameId || null;
+            this.gameId = null;           // the key native accepted
+            this.refusal = null;
             this.buildPanel();
+            // One line if this viewer is off limits, applied through the same
+            // path a later change to the verdict takes.
+            this.onAccessChanged(info);
             window.addEventListener("pagehide", () => this.teardown());
         }
+
+        /// What every wire command addresses: the key native accepted (an
+        /// adapter's stable one where it supplied it, the SGF hash otherwise),
+        /// falling back to the hash before the first `start` has answered.
+        get sessionKey() { return this.gameId || this.sgfHash; }
 
         // ---- panel DOM ---------------------------------------------------
 
@@ -577,6 +609,15 @@
             });
         }
 
+        /// Take the panel off the page. Teardown alone is not enough for an SPA
+        /// route change: the shadow host would sit there over a board that no
+        /// longer exists.
+        removePanel() {
+            if (this.host && this.host.parentNode) {
+                this.host.parentNode.removeChild(this.host);
+            }
+        }
+
         /// A floating panel sits OVER the page, so it has to be dismissable
         /// without losing the session: collapse to the bar, keep whatever is
         /// running running, expand again from the same button.
@@ -657,6 +698,46 @@
         onKifuLoaded(payload) {
             if (Number.isFinite(payload.size)) { this.boardSize = payload.size; }
             if (Number.isFinite(payload.moveCount)) { this.moveCount = payload.moveCount; }
+            // The record GREW under the reader: a demo its author is playing, a
+            // review whose leading line was edited (ADR 0017). Every tier holds
+            // results for the shorter game, so all three go — including
+            // `branch`, whose keys are line strings the new game may reuse.
+            if (typeof payload.sgfInline === "string"
+                && payload.sgfInline !== this.sgfInline) {
+                this.stopScan();
+                this.cancelDeepen();
+                this.state = "idle";
+                this.sgfInline = payload.sgfInline;
+                this.sgf = null;
+                this.sgfHash = null;
+                this.pending = null;
+                this.survey.clear();
+                this.deep.clear();
+                this.branch.clear();
+                this.failedIndexes.clear();
+                this.chart.setGame(this.moveCount);
+                this.el.axisMax.textContent = String(this.moveCount);
+                if (this.analysisEnabled && !this.refusal) { this.ensureStarted(); }
+            }
+        }
+
+        /// A viewer may be off limits — an OGS game still in play (ADR 0017).
+        /// The panel says so in one line and refuses to start. The verdict is
+        /// LIVE: a game that finishes under the reader becomes analysable, and
+        /// the line goes away by itself.
+        onAccessChanged(payload) {
+            const refusal = (payload && payload.refusal) ? String(payload.refusal) : null;
+            if (refusal === this.refusal) { return; }
+            this.refusal = refusal;
+            this.el.analyze.disabled = !!refusal;
+            this.el.scan.disabled = !!refusal;
+            if (refusal) {
+                this.stopScan();
+                this.disableAnalysis();
+                this.message(refusal, false);
+            } else {
+                this.message("");
+            }
         }
 
         onPlayerUpdate(payload) {
@@ -738,8 +819,8 @@
         /// assumed: a stop delivered late would otherwise abandon the request
         /// issued after it.
         sendStop() {
-            if (!this.sgfHash) { return; }
-            const stop = native({ cmd: "stop", gameId: this.sgfHash }).catch(() => {});
+            if (!this.sessionKey) { return; }
+            const stop = native({ cmd: "stop", gameId: this.sessionKey }).catch(() => {});
             this.stopInFlight = stop;
             stop.finally(() => {
                 if (this.stopInFlight === stop) { this.stopInFlight = null; }
@@ -798,6 +879,8 @@
         /// position. The chart is deliberately left alone — it is the record of
         /// what was analyzed, and stays tappable for seeking.
         async toggleAnalysis() {
+            // A viewer that is off limits never reaches the engine at all.
+            if (this.refusal) { this.message(this.refusal, false); return; }
             if (this.state === "starting") { return; }
             if (this.analysisEnabled) { return this.disableAnalysis(); }
             if (!(await this.ensureStarted())) { return; }
@@ -840,9 +923,15 @@
                 const accepted = await native({
                     cmd: "start", sgf, sgfHash: this.sgfHash,
                     currentMoveIndex: this.onMainline ? this.currentIndex : 0,
+                    // Omitted unless an adapter supplied one, so a WGo page's
+                    // start message is byte-for-byte what it always was.
+                    ...(this.siteGameId ? { gameId: this.siteGameId } : {}),
                 });
                 this.noteEngineInfo(accepted);
                 if (accepted.type === "error") { this.onWireError(accepted); return false; }
+                // Native decides the session key and echoes it back; everything
+                // else this panel sends addresses that (ADR 0017).
+                this.gameId = accepted.gameId || this.sgfHash;
                 this.moveCount = accepted.moveCount;
                 this.boardSize = accepted.boardWidth;
                 if (!this.survey.size) { this.chart.setGame(accepted.moveCount); }
@@ -942,7 +1031,7 @@
                 // holding the board empty until it finishes.
                 if (this.abandoned(generation)) { return; }
                 const reply = await native({
-                    cmd: "query", gameId: this.sgfHash, moveIndex: index,
+                    cmd: "query", gameId: this.sessionKey, moveIndex: index,
                     want: ["candidates"], budget: tier,
                     // The engine replays this rather than seeking by number.
                     ...(moves ? { line: moves, mainline: !lineKey } : {}),
@@ -1110,6 +1199,7 @@
         /// useful whether or not board marks are being shown. It still needs the
         /// game registered, so it starts the session itself if needed.
         async startScan() {
+            if (this.refusal) { this.message(this.refusal, false); return; }
             if (this.scanning) { return; }
             // Claim the flag before awaiting: a second tap during the start
             // must stop the scan, not launch a second driver.
