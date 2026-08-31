@@ -492,3 +492,67 @@ struct WidgetBoardViewTests {
         #expect(WidgetBoardView.hoshiPoints(width: 24, height: 24).isEmpty)
     }
 }
+
+// MARK: - Accented (tinted / Clear) stone polarity
+
+extension WidgetBoardViewTests {
+    /// Sums the alpha channel of a rendered view over one rect, in top-left
+    /// point coordinates. Alpha is exactly what accented rendering keeps: the
+    /// system throws every hue away and paints one tint through the view's
+    /// coverage, so "more alpha" IS "lighter on the Home Screen".
+    @MainActor private func alphaSum(of view: some View, size: CGFloat, in rect: CGRect) -> Int? {
+        let renderer = ImageRenderer(content: view.frame(width: size, height: size))
+        guard let cg = renderer.cgImage,
+              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        let w = cg.width, h = cg.height
+        var buffer = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buffer, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let scale = CGFloat(w) / size
+        let x0 = max(0, Int(rect.minX * scale)), x1 = min(w, Int(rect.maxX * scale))
+        let y0 = max(0, Int(rect.minY * scale)), y1 = min(h, Int(rect.maxY * scale))
+        var sum = 0
+        // A full-rect draw lands the image upright: buffer row 0 is the TOP
+        // row, so top-left point coordinates index the buffer directly.
+        for y in y0..<y1 {
+            for x in x0..<x1 { sum += Int(buffer[(y * w + x) * 4 + 3]) }
+        }
+        return sum
+    }
+
+    /// The accented board's polarity, pinned on pixels: the WHITE stone must
+    /// carry more ink than the BLACK one. Under accented rendering the system
+    /// keeps only alpha, so coverage reads as lightness — the solid disc reads
+    /// as white and the ring reads as dark. The first cut shipped this
+    /// inverted (black solid) and black stones came out white on a Clear Home
+    /// Screen. Off-widget `widgetAccentable` is a no-op and both marks are
+    /// drawn white, so the summed alpha here is exactly the ink the pipeline
+    /// would tint.
+    @MainActor @Test func accentedStones_whiteCarriesMoreInkThanBlack() {
+        let side: CGFloat = 180
+        let board = WidgetBoardView(width: 9, height: 9,
+                                    blackVertices: ["C3"], whiteVertices: ["G7"],
+                                    style: .accented)
+        let geometry = WidgetBoardGeometry(width: 9, height: 9,
+                                           size: CGSize(width: side, height: side))
+        func cellRect(_ vertex: String) -> CGRect {
+            let p = parseVertex(vertex, width: 9, height: 9)!
+            let cx = geometry.originX + CGFloat(p.x) * geometry.cell
+            let cy = geometry.originY + CGFloat(p.y) * geometry.cell
+            return CGRect(x: cx - geometry.cell / 2, y: cy - geometry.cell / 2,
+                          width: geometry.cell, height: geometry.cell)
+        }
+        let whiteInk = alphaSum(of: board, size: side, in: cellRect("G7"))
+        let blackInk = alphaSum(of: board, size: side, in: cellRect("C3"))
+        #expect(whiteInk != nil && blackInk != nil)
+        guard let whiteInk, let blackInk else { return }
+        // A ring still draws something (grid + ring), never nothing.
+        #expect(blackInk > 0)
+        // Disc area vs ring area at a ~20 pt cell is roughly 3:1; demand a
+        // clear margin, not equality-by-accident.
+        #expect(whiteInk > blackInk * 3 / 2)
+    }
+}

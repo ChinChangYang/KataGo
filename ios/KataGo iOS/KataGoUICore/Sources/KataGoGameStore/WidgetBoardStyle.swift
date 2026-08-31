@@ -269,14 +269,20 @@ public struct WidgetBoardStyle: Equatable, Sendable {
         lastMoveIsFilledDot ? cellSize * 0.3 : cellSize * 0.6
     }
 
-    /// Accented mode renders black stones as SOLID accent-colored discs
-    /// (a full-luminance fill handed to the system tint via widgetAccentable).
-    public var blackStoneIsAccentFill: Bool { isAccented }
+    /// Accented rendering (the tinted and Clear Home Screens, the visionOS
+    /// palettes) discards every hue and keeps only alpha: the primary group and
+    /// the accent group both come out as ONE white tint. Ink coverage is the
+    /// only signal left, and coverage reads as lightness — so the stone drawn
+    /// as a full-alpha disc is the one that reads as WHITE. White stones are
+    /// the solid disc.
+    public var whiteStoneIsAccentFill: Bool { isAccented }
 
-    /// Accented mode renders white stones as accent-colored OUTLINES over a
-    /// faint neutral interior — a different treatment from black by design, so
-    /// the two colors stay distinguishable under any single tint.
-    public var whiteStoneIsAccentOutline: Bool { isAccented }
+    /// The counterpart: black stones are a RING alone. The hollow interior
+    /// shows the backplate through, the darkest thing a single-tint board has,
+    /// so the two colors stay tellable apart under any tint. (The first cut had
+    /// this the other way round — black solid, white ringed — and black stones
+    /// read as white on a Clear Home Screen.)
+    public var blackStoneIsAccentOutline: Bool { isAccented }
 
     /// The green/yellow/orange candidate-rank hues are meaningless once the
     /// system supplies one tint; accented mode conveys rank by opacity instead.

@@ -10,8 +10,8 @@ struct WidgetBoardStyleTests {
         #expect(!style.isAccented)
         #expect(style.showsWoodBackground)
         #expect(style.gridOpacity == 0.55)
-        #expect(!style.blackStoneIsAccentFill)
-        #expect(!style.whiteStoneIsAccentOutline)
+        #expect(!style.whiteStoneIsAccentFill)
+        #expect(!style.blackStoneIsAccentOutline)
         #expect(style.usesRankHueDots)
     }
 
@@ -26,13 +26,18 @@ struct WidgetBoardStyleTests {
         #expect(style.gridOpacity > 0)
     }
 
-    @Test func accentedStyle_keepsStoneColorsDistinguishable() {
-        // The core legibility rule for tinted widgets: black and white stones must
-        // stay tellable apart. Black becomes a SOLID accent fill; white becomes an
-        // accent OUTLINE — two different treatments, never the same one.
+    @Test func accentedStyle_whiteStoneIsTheSolidDisc() {
+        // The core legibility rule for tinted widgets: black and white stones
+        // must stay tellable apart, AND the polarity must be right. Accented
+        // rendering keeps only alpha, so ink coverage is the whole signal and
+        // coverage reads as lightness: the stone drawn as a full-alpha disc
+        // reads as white. White is therefore the SOLID disc and black the RING
+        // — never the other way round, and never the same treatment.
+        // (`WidgetBoardViewTests.accentedStones_whiteCarriesMoreInkThanBlack`
+        // pins the same rule on rendered pixels.)
         let style = WidgetBoardStyle.accented
-        #expect(style.blackStoneIsAccentFill)
-        #expect(style.whiteStoneIsAccentOutline)
+        #expect(style.whiteStoneIsAccentFill)
+        #expect(style.blackStoneIsAccentOutline)
         // Rank hues are meaningless once the system supplies a single tint.
         #expect(!style.usesRankHueDots)
     }
@@ -69,8 +74,8 @@ struct WidgetBoardStyleTests {
         #expect(style.gridOpacity == 1)
         #expect(style.stonesAreSpherical)
         #expect(style.usesRankHueDots)
-        #expect(!style.blackStoneIsAccentFill)
-        #expect(!style.whiteStoneIsAccentOutline)
+        #expect(!style.whiteStoneIsAccentFill)
+        #expect(!style.blackStoneIsAccentOutline)
         for rank in 0...3 {
             #expect(style.candidateDotOpacity(rank: rank) == 1)
         }
@@ -124,8 +129,8 @@ struct WidgetBoardStyleTests {
         #expect(style.usesAppCoordinateLabels)
         #expect(style.coordinateLabelsAreBold)
         #expect(style.usesRankHueDots)
-        #expect(!style.blackStoneIsAccentFill)
-        #expect(!style.whiteStoneIsAccentOutline)
+        #expect(!style.whiteStoneIsAccentFill)
+        #expect(!style.blackStoneIsAccentOutline)
         for rank in 0...3 {
             #expect(style.candidateDotOpacity(rank: rank) == 1)
         }

@@ -279,15 +279,12 @@ public struct WidgetBoardView: View {
                                 originX: CGFloat, originY: CGFloat) -> some View {
         ForEach(Array(white.enumerated()), id: \.offset) { _, s in
             Group {
-                if style.whiteStoneIsAccentOutline {
-                    // Accent RING over a faint neutral interior — the
-                    // counterpart to black's solid disc; the two stay
-                    // tellable apart under any single tint.
-                    ZStack {
-                        Circle().fill(.white.opacity(0.2))
-                        Circle().strokeBorder(.white, lineWidth: max(cell * 0.08, 1))
-                            .boardAccentable(true)
-                    }
+                if style.whiteStoneIsAccentFill {
+                    // Full-alpha disc; the system supplies the tint. Accented
+                    // rendering keeps only alpha and coverage reads as
+                    // lightness, so the solid disc is the stone that reads
+                    // as white.
+                    Circle().fill(.white).boardAccentable(true)
                 } else {
                     Circle().fill(.white)
                 }
@@ -297,9 +294,12 @@ public struct WidgetBoardView: View {
         }
         ForEach(Array(black.enumerated()), id: \.offset) { _, s in
             Group {
-                if style.blackStoneIsAccentFill {
-                    // Full-luminance fill; the system supplies the hue.
-                    Circle().fill(.white).boardAccentable(true)
+                if style.blackStoneIsAccentOutline {
+                    // A RING alone: the hollow interior shows the backplate,
+                    // the darkest thing a single-tint board has, so black
+                    // stays tellable from white's solid disc.
+                    Circle().strokeBorder(.white, lineWidth: max(cell * 0.08, 1))
+                        .boardAccentable(true)
                 } else {
                     Circle().fill(.black)
                 }
@@ -329,7 +329,8 @@ public struct WidgetBoardView: View {
             // wood would render as one flat tinted slab, so it is dropped;
             // lines and labels become dim NEUTRAL (non-accentable) marks, and
             // the stones carry the position in two distinguishable accent
-            // treatments — black solid, white outlined.
+            // treatments — white a solid disc, black a ring (coverage is the
+            // only signal accented rendering keeps, and it reads as lightness).
             let gridColor = style.isGoban
                 ? Color(red: WidgetBoardStyle.gobanInk.red,
                         green: WidgetBoardStyle.gobanInk.green,
@@ -430,6 +431,11 @@ public struct WidgetBoardView: View {
                             // legible on both stone colors.
                             Circle().fill(Color.red)
                         } else if style.isAccented {
+                            // A white ring inside white's solid disc is
+                            // invisible, so under accented rendering this
+                            // marker cannot mark a white stone. No accented
+                            // consumer passes a last move today (the Home
+                            // Screen widget sends none), so it stands as is.
                             Circle().stroke(Color.white.opacity(0.9), lineWidth: max(cell * 0.08, 1))
                                 .boardAccentable(true)
                         } else {
